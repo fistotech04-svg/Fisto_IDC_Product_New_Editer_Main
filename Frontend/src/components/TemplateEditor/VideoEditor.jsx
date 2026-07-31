@@ -887,29 +887,98 @@ const VideoEditor = ({
         visualTarget.style.overflow = '';
       }
 
-      if (anyR || forceClip) {
-        target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
-        target.style.setProperty('-webkit-clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+      if (isSvgEl) {
+        if (anyR || forceClip) {
+          let targetElForShadow = container || liveElement;
+          let bb = { x: 0, y: 0, width: 100, height: 100 };
+          try { bb = targetElForShadow.getBBox(); } catch (e) { }
+          let cxStr = targetElForShadow.getAttribute('x');
+          let cyStr = targetElForShadow.getAttribute('y');
+          let cwStr = targetElForShadow.getAttribute('width');
+          let chStr = targetElForShadow.getAttribute('height');
+          
+          let cx = cxStr ? (cxStr.includes('%') ? bb.x : parseFloat(cxStr)) : bb.x;
+          let cy = cyStr ? (cyStr.includes('%') ? bb.y : parseFloat(cyStr)) : bb.y;
+          let cw = cwStr ? (cwStr.includes('%') ? bb.width : parseFloat(cwStr)) : bb.width;
+          let ch = chStr ? (chStr.includes('%') ? bb.height : parseFloat(chStr)) : bb.height;
 
-        visualTarget.style.removeProperty('clip-path');
-        visualTarget.style.removeProperty('-webkit-clip-path');
-        liveElement.style.removeProperty('clip-path');
-        liveElement.style.removeProperty('-webkit-clip-path');
-        const foreignObj = liveElement.querySelector('foreignObject');
-        if (foreignObj) {
-          foreignObj.style.removeProperty('clip-path');
-          foreignObj.style.removeProperty('-webkit-clip-path');
+          let clipId = `clip-content-${liveElement.id || 'video'}`;
+          let defs = liveElement.ownerSVGElement?.querySelector('defs');
+          if (!defs && liveElement.ownerSVGElement) {
+            defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            liveElement.ownerSVGElement.prepend(defs);
+          }
+          if (defs) {
+            let clipNode = defs.querySelector(`#${clipId}`);
+            if (!clipNode) {
+              clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+              clipNode.id = clipId;
+              const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              clipNode.appendChild(clipPathEl);
+              defs.appendChild(clipNode);
+            }
+            const rect = clipNode.firstChild;
+            rect.setAttribute('x', cx);
+            rect.setAttribute('y', cy);
+            rect.setAttribute('width', Math.max(0, cw));
+            rect.setAttribute('height', Math.max(0, ch));
+            rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+            if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+            else rect.removeAttribute('rx');
+
+            if (container && container !== liveElement) {
+              container.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              container.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              liveElement.style.removeProperty('clip-path');
+              liveElement.style.removeProperty('-webkit-clip-path');
+            } else {
+              liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+            }
+          }
+        } else {
+          liveElement.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('-webkit-clip-path');
+          if (container) {
+            container.style.removeProperty('clip-path');
+            container.style.removeProperty('-webkit-clip-path');
+          }
+          if (liveElement.ownerSVGElement) {
+            const clipId = `clip-content-${liveElement.id || 'video'}`;
+            const existingClip = liveElement.ownerSVGElement.querySelector(`#${clipId}`);
+            if (existingClip) existingClip.remove();
+          }
         }
-      } else {
+        
+        // Remove CSS inset clip-path from target to avoid conflicts
         target.style.removeProperty('clip-path');
         target.style.removeProperty('-webkit-clip-path');
-        visualTarget.style.removeProperty('clip-path');
-        liveElement.style.removeProperty('clip-path');
-        liveElement.style.removeProperty('-webkit-clip-path');
-        const foreignObj = liveElement.querySelector('foreignObject');
-        if (foreignObj) {
-          foreignObj.style.removeProperty('clip-path');
-          foreignObj.style.removeProperty('-webkit-clip-path');
+      } else {
+        if (anyR || forceClip) {
+          target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+          target.style.setProperty('-webkit-clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+  
+          visualTarget.style.removeProperty('clip-path');
+          visualTarget.style.removeProperty('-webkit-clip-path');
+          liveElement.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('-webkit-clip-path');
+          const foreignObj = liveElement.querySelector('foreignObject');
+          if (foreignObj) {
+            foreignObj.style.removeProperty('clip-path');
+            foreignObj.style.removeProperty('-webkit-clip-path');
+          }
+        } else {
+          target.style.removeProperty('clip-path');
+          target.style.removeProperty('-webkit-clip-path');
+          visualTarget.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('-webkit-clip-path');
+          const foreignObj = liveElement.querySelector('foreignObject');
+          if (foreignObj) {
+            foreignObj.style.removeProperty('clip-path');
+            foreignObj.style.removeProperty('-webkit-clip-path');
+          }
         }
       }
 
@@ -1180,11 +1249,19 @@ const VideoEditor = ({
         }
       }
 
-      target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
-      if (visualTarget !== target) {
-        visualTarget.style.filter = 'none';
+      if (activeEffects.includes('Blur') && !forceClip) {
+        liveElement.style.setProperty('filter', blurStr.trim() || 'none', 'important');
+        target.style.filter = filterStr.trim() || 'none';
+        if (visualTarget !== target) {
+          visualTarget.style.filter = 'none';
+        }
+      } else {
+        target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
+        if (visualTarget !== target) {
+          visualTarget.style.filter = 'none';
+        }
+        liveElement.style.removeProperty('filter');
       }
-      liveElement.style.removeProperty('filter');
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));

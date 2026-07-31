@@ -550,12 +550,17 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           }
 
           // Apply Opacity
-          targetElement.setAttribute('opacity', (opacity / 100).toString());
-          targetElement.style.opacity = (opacity / 100).toString();
-
+          const opacityVal = (opacity / 100).toString();
+          
           if (targetImg && targetImg !== targetElement) {
-            targetImg.setAttribute('opacity', (opacity / 100).toString());
-            targetImg.style.opacity = (opacity / 100).toString(); // Do NOT use !important as it breaks Fade transitions
+            targetElement.style.removeProperty('opacity');
+            targetElement.removeAttribute('opacity');
+            
+            targetImg.setAttribute('opacity', opacityVal);
+            targetImg.style.opacity = opacityVal; // Do NOT use !important as it breaks Fade transitions
+          } else {
+            targetElement.setAttribute('opacity', opacityVal);
+            targetElement.style.opacity = opacityVal;
           }
         }
 

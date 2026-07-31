@@ -7,9 +7,14 @@ import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
 import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
 import paper from 'paper';
+import { VectraPenSession, pathToD, pathToDCombo, absIn, absOut } from './vectraPenEngine';
+import { getPaperSegments, getPaperCurves, cleanPaperPathData, mergeMeetingNodes, applyHandleDrag, executeVectorPathAction, deleteSelectedNodeOrHandle } from './vectorNodeEngine';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
-const PEN_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g transform='rotate(135 12 12)' fill='%23FFF' stroke='%23000' stroke-linejoin='round' stroke-miterlimit='10' stroke-width='1'><path d='M16 4.5H7l-1.5-3h12zm3.5 7l-7 12h-2l-7-12l3.5-7h9z' /><path stroke-linecap='round' d='M11.5 23.5V13' /><path d='M13 11.5L11.5 10L10 11.5l1.5 1.499z' /></g></svg>") 3 3, crosshair`;
+const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
+const CUR_PEN_CLOSE = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Ccircle cx='17' cy='16' r='4' fill='none' stroke='black' stroke-width='3'/%3E%3Ccircle cx='17' cy='16' r='4' fill='none' stroke='white' stroke-width='1.6'/%3E%3C/svg%3E") 4 4, crosshair`;
+const CUR_PEN_EXTEND = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M13 19h8M17 15v8' stroke='black' stroke-width='3.2'/%3E%3Cpath d='M13 19h8M17 15v8' stroke='white' stroke-width='1.6'/%3E%3C/svg%3E") 4 4, crosshair`;
+const CUR_SNAP = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M12 2v7M12 15v7M2 12h7M15 12h7' stroke='black' stroke-width='2.6'/%3E%3Cpath d='M12 2v7M12 15v7M2 12h7M15 12h7' stroke='white' stroke-width='1.2'/%3E%3Ccircle cx='12' cy='12' r='2.4' fill='none' stroke='black' stroke-width='2.2'/%3E%3Ccircle cx='12' cy='12' r='2.4' fill='none' stroke='%23FF5C87' stroke-width='1.2'/%3E%3C/svg%3E") 12 12, crosshair`;
 const SHAPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M12 2V22M2 12H22' stroke='%236366F1' stroke-width='2' stroke-linecap='round'/></svg>") 12 12, crosshair`;
 const TYPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 15 15'><path fill='%23000' d='M10.5 1a.5.5 0 0 1 0 1c-.922 0-1.54.23-1.92.563C8.206 2.89 8 3.366 8 4v3h1.25a.5.5 0 0 1 0 1H8v3c0 .634.207 1.11.58 1.437c.38.333.998.563 1.92.563a.5.5 0 0 1 0 1c-1.078 0-1.96-.27-2.58-.812a2.6 2.6 0 0 1-.42-.47q-.177.256-.42.47C6.46 13.73 5.577 14 4.5 14a.5.5 0 0 1 0-1c.922 0 1.54-.23 1.92-.563c.373-.326.58-.803.58-1.437V8H5.75a.5.5 0 0 1 0-1H7V4c0-.634-.207-1.11-.58-1.437C6.04 2.23 5.423 2 4.5 2a.5.5 0 0 1 0-1c1.078 0 1.96.27 2.58.812q.243.213.42.468q.177-.255.42-.468C8.54 1.27 9.423 1 10.5 1' /></svg>") 7 7, text`;
 const BENDING_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='%23000' d='M5.5 3.483c0-1.248 1.436-1.95 2.421-1.184l13.514 10.513c1.128.877.508 2.684-.92 2.684h-6.853c-.505 0-.981.23-1.294.626l-4.191 5.3c-.882 1.116-2.677.492-2.677-.93zm15.014 10.513L7 3.483v17.009l4.191-5.3a3.15 3.15 0 0 1 2.47-1.196z' /></svg>") 5 3, auto`;
@@ -337,11 +342,26 @@ const svgGlobalStyles = `
     cursor: ${PENCIL_CURSOR} !important;
   }
 
-  /* 10a. Pen/Curve Tool Cursor */
+  /* 10a. Pen Tool Cursor & Variants ────────── */
   .page-svg-container.pen-mode svg,
   .page-svg-container.pen-mode svg *,
   .page-svg-container.pen-mode svg [data-name="Overlay"] {
     cursor: ${PEN_CURSOR} !important;
+  }
+  .page-svg-container.pen-mode.cur-pen-close svg,
+  .page-svg-container.pen-mode.cur-pen-close svg *,
+  .page-svg-container.pen-mode.cur-pen-close svg [data-name="Overlay"] {
+    cursor: ${CUR_PEN_CLOSE} !important;
+  }
+  .page-svg-container.pen-mode.cur-pen-extend svg,
+  .page-svg-container.pen-mode.cur-pen-extend svg *,
+  .page-svg-container.pen-mode.cur-pen-extend svg [data-name="Overlay"] {
+    cursor: ${CUR_PEN_EXTEND} !important;
+  }
+  .page-svg-container.pen-mode.cur-snap svg,
+  .page-svg-container.pen-mode.cur-snap svg *,
+  .page-svg-container.pen-mode.cur-snap svg [data-name="Overlay"] {
+    cursor: ${CUR_SNAP} !important;
   }
 
   /* 10b. Bending Mode (Ctrl held in Pen mode) ────────── */
@@ -363,6 +383,14 @@ const svgGlobalStyles = `
   .page-svg-container.type-mode svg *,
   .page-svg-container.type-mode svg [data-name="Overlay"] {
     cursor: ${TYPE_CURSOR} !important;
+  }
+
+  /* 10d. Node Edit Mode Cursor (Direct Selection Arrow) */
+  .page-svg-container.cur-node-edit,
+  .page-svg-container.cur-node-edit svg,
+  .page-svg-container.cur-node-edit svg *,
+  .page-svg-container.cur-node-edit svg [data-name="Overlay"] {
+    cursor: ${DIRECT_CURSOR} !important;
   }
 
   /* 11. Active Page Indicator - Glow/Shadow selection without solid border */
@@ -902,7 +930,9 @@ const MainEditor = ({
   const currentPanRef = useRef({ x: 0, y: 0 });
   const zoomContainerRef = useRef(null);
   const selectedPenToolRef = useRef(selectedPenTool);
+  const vectraPenSessionRef = useRef(new VectraPenSession());
   const drawingPathRef = useRef(null);
+  const drawingVectraPathIdRef = useRef(null); // tracks which vSession path id the current drawingPathRef SVG element represents
   const drawingPointsRef = useRef([]);
   const isFreehandDrawingRef = useRef(false);
   const drawingPageIndexRef = useRef(null);
@@ -922,6 +952,46 @@ const MainEditor = ({
   const editorContainerRef = useRef(null);
   const isEditingTextRef = useRef(false);
   const lastRenderedHtmlRef = useRef({});
+  // ── Node Edit Mode Refs ─────────────────────────────────────────────────────
+  const nodeEditModeRef = useRef(false);          // true when in node edit mode
+  const nodeEditPathRef = useRef(null);           // the <path> element being edited
+  const nodeEditPageIndexRef = useRef(null);      // page index of node edit path
+  const nodeEditPaperPathRef = useRef(null);      // paper.js Path for the element
+  const nodeEditDragRef = useRef(null);           // { mode, segIdx, handleSide, startPt }
+  const nodeEditSelectedSegIdxRef = useRef(null); // primary selected node index
+  const nodeEditSelectedSegIndicesRef = useRef(new Set()); // set of multi-selected node indices
+  const nodeEditSelectedHandleSideRef = useRef(null); // active selected handle side: 'in', 'out', or 'point'
+  // Stores screen-space {x, y, segIdx, handleSide} for each visible node, updated on every drawNodeEditOverlay call
+  const nodeEditScreenNodesRef = useRef([]);
+  // Stores screen-space segment midpoints for segment hit testing: {curveIdx, mx, my, seg1Idx, seg2Idx}
+  const nodeEditScreenSegmentsRef = useRef([]);
+
+  const createPaperPath = (d) => {
+    if (!paperScopeRef.current || !d) return null;
+    paperScopeRef.current.activate();
+    const mCount = (d.match(/M/gi) || []).length;
+    if (mCount > 1) {
+      return new paperScopeRef.current.CompoundPath(d);
+    }
+    return new paperScopeRef.current.Path(d);
+  };
+
+  const getLocalPoint = (svg, element, clientX, clientY) => {
+    if (!svg || !element || typeof element.getScreenCTM !== 'function') {
+      return { x: clientX, y: clientY };
+    }
+    try {
+      const ctm = element.getScreenCTM();
+      if (!ctm) return { x: clientX, y: clientY };
+      const pt = svg.createSVGPoint();
+      pt.x = clientX;
+      pt.y = clientY;
+      const localPt = pt.matrixTransform(ctm.inverse());
+      return { x: localPt.x, y: localPt.y };
+    } catch (e) {
+      return { x: clientX, y: clientY };
+    }
+  };
 
   const getHtmlToRender = (index, currentHtml) => {
     let clean = currentHtml || '';
@@ -1858,18 +1928,18 @@ const MainEditor = ({
           Object.assign(rewindTextWrapper.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', marginLeft: '0.5em' });
           const rewindText = document.createElement('div');
           rewindText.textContent = "3s";
-          Object.assign(rewindText.style, { 
+          Object.assign(rewindText.style, {
             position: 'absolute',
             top: '50%',
             left: '50%',
             width: 'max-content',
-            fontSize: '10em', 
-            transform: 'translate(-50%, -50%) scale(0.35)', 
+            fontSize: '10em',
+            transform: 'translate(-50%, -50%) scale(0.35)',
             transformOrigin: 'center center',
-            fontFamily: 'Inter, sans-serif', 
-            color: 'white', 
-            whiteSpace: 'nowrap', 
-            pointerEvents: 'none' 
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none'
           });
           rewindTextWrapper.appendChild(rewindText);
           rewindBtn.innerHTML = REWIND_ICON;
@@ -1884,18 +1954,18 @@ const MainEditor = ({
           Object.assign(forwardTextWrapper.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', marginRight: '0.5em' });
           const forwardText = document.createElement('div');
           forwardText.textContent = "3s";
-          Object.assign(forwardText.style, { 
+          Object.assign(forwardText.style, {
             position: 'absolute',
             top: '50%',
             left: '50%',
             width: 'max-content',
-            fontSize: '10em', 
-            transform: 'translate(-50%, -50%) scale(0.35)', 
+            fontSize: '10em',
+            transform: 'translate(-50%, -50%) scale(0.35)',
             transformOrigin: 'center center',
-            fontFamily: 'Inter, sans-serif', 
-            color: 'white', 
-            whiteSpace: 'nowrap', 
-            pointerEvents: 'none' 
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none'
           });
           forwardTextWrapper.appendChild(forwardText);
           forwardBtn.appendChild(forwardTextWrapper);
@@ -2692,6 +2762,123 @@ const MainEditor = ({
     return 'ew-resize';
   };
 
+  /**
+   * syncMultiSelectionBox – live-syncs the overall bounding-box polygon and resize
+   * handles for a multi-selection during drag/resize WITHOUT re-reading the DOM.
+   *
+   * @param {SVGElement} canvasSvg  – the canvas SVG element
+   * @param {SVGElement} overlay    – the highlight-overlay SVG element
+   * @param {Element|null} htmlOverlay – the HTML overlay div (for handles)
+   * @param {{ x, y, width, height }} svgRootBBox – bounding box in SVG-root space
+   */
+  const syncMultiSelectionBox = (canvasSvg, overlay, htmlOverlay, svgRootBBox) => {
+    if (!overlay || !canvasSvg || !svgRootBBox) return;
+    try {
+      const svgCTM = canvasSvg.getScreenCTM();
+      const overlayCTM = overlay.getScreenCTM();
+      if (!svgCTM || !overlayCTM) return;
+
+      // Convert four SVG-root corners → overlay pixel coords
+      const toOverlay = (rx, ry) => {
+        const screen = new DOMPoint(rx, ry).matrixTransform(svgCTM);
+        return new DOMPoint(screen.x, screen.y).matrixTransform(overlayCTM.inverse());
+      };
+
+      const tl = toOverlay(svgRootBBox.x, svgRootBBox.y);
+      const tr = toOverlay(svgRootBBox.x + svgRootBBox.width, svgRootBBox.y);
+      const br = toOverlay(svgRootBBox.x + svgRootBBox.width, svgRootBBox.y + svgRootBBox.height);
+      const bl = toOverlay(svgRootBBox.x, svgRootBBox.y + svgRootBBox.height);
+
+      // Axis-aligned bounding box in overlay space
+      const minX = Math.min(tl.x, tr.x, br.x, bl.x);
+      const maxX = Math.max(tl.x, tr.x, br.x, bl.x);
+      const minY = Math.min(tl.y, tr.y, br.y, bl.y);
+      const maxY = Math.max(tl.y, tr.y, br.y, bl.y);
+
+      // Update the dummy rect position (used by the resize hit-test code)
+      const dummyId = 'multi-selection-bounds';
+      const dummy = overlay.querySelector(`[id="${dummyId}"]`);
+      if (dummy) {
+        dummy.setAttribute('x', minX);
+        dummy.setAttribute('y', minY);
+        dummy.setAttribute('width', maxX - minX);
+        dummy.setAttribute('height', maxY - minY);
+      }
+
+      // Update (or create) the selection outline polygon
+      const zoomScale = zoom / 100;
+      const polyId = `overlay-poly-selected-${dummyId}`;
+      let selPoly = overlay.querySelector(`[id="${polyId}"]`);
+      if (!selPoly) {
+        selPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        selPoly.id = polyId;
+        selPoly.setAttribute('class', 'overlay-type-selected');
+        selPoly.setAttribute('fill', 'none');
+        selPoly.setAttribute('stroke', '#6366F1');
+        selPoly.setAttribute('pointer-events', 'none');
+        overlay.appendChild(selPoly);
+      }
+      selPoly.setAttribute('points', `${minX},${minY} ${maxX},${minY} ${maxX},${maxY} ${minX},${maxY}`);
+      selPoly.setAttribute('stroke-width', String(1.5 / zoomScale));
+      selPoly.removeAttribute('stroke-dasharray');
+
+      // Update resize handles
+      if (htmlOverlay) {
+        const handleSize = 7.5;
+        const handleNames = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        const allPts = [
+          { x: minX, y: minY }, { x: maxX, y: minY },
+          { x: maxX, y: maxY }, { x: minX, y: maxY },
+          { x: cx,   y: minY }, { x: maxX, y: cy   },
+          { x: cx,   y: maxY }, { x: minX, y: cy   }
+        ];
+        allPts.forEach((p, i) => {
+          const name = handleNames[i];
+          const isSide = ['n', 'e', 's', 'w'].includes(name);
+          const handleId = `resize-handle-${dummyId}-${name}`;
+          let handle = htmlOverlay.querySelector(`[id="${handleId}"]`);
+          if (!handle) {
+            handle = document.createElement('div');
+            handle.id = handleId;
+            handle.className = `resize-handle overlay-type-selected absolute`;
+            if (isSide) {
+              handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)';
+            } else {
+              handle.style.backgroundColor = '#FFFFFF';
+              handle.style.border = '1.5px solid #6366F1';
+              handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
+              handle.style.borderRadius = '0px';
+            }
+            handle.style.boxSizing = 'border-box';
+            handle.style.pointerEvents = 'auto';
+            handle.style.zIndex = isSide ? '999' : '1000';
+            handle.style.position = 'absolute';
+            htmlOverlay.appendChild(handle);
+          }
+          if (isSide) {
+            const isHorizontal = (name === 'n' || name === 's');
+            const dist = isHorizontal ? (maxX - minX) : (maxY - minY);
+            const thickness = 8 / zoomScale;
+            handle.style.width = isHorizontal ? `${dist}px` : `${thickness}px`;
+            handle.style.height = isHorizontal ? `${thickness}px` : `${dist}px`;
+          } else {
+            handle.style.width = `${handleSize}px`;
+            handle.style.height = `${handleSize}px`;
+          }
+          handle.style.left = `${p.x}px`;
+          handle.style.top  = `${p.y}px`;
+          handle.style.transform = isSide
+            ? `translate(-50%, -50%)`
+            : `translate(-50%, -50%) scale(${1 / zoomScale})`;
+          const cursorMap = { nw: 'nwse-resize', ne: 'nesw-resize', se: 'nwse-resize', sw: 'nesw-resize', n: 'ns-resize', e: 'ew-resize', s: 'ns-resize', w: 'ew-resize' };
+          handle.style.cursor = cursorMap[name] || 'pointer';
+        });
+      }
+    } catch (_e) { /* non-critical */ }
+  };
+
   const drawMultiSelectionHighlight = (ids, type) => {
     document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
     const elementsByOverlay = new Map();
@@ -2780,7 +2967,86 @@ const MainEditor = ({
       dummy.setAttribute('width', maxX - minX);
       dummy.setAttribute('height', maxY - minY);
 
-      drawOverlayHighlight(dummy, type);
+      // ── Draw selection outline directly for the multi-selection bounding box ──
+      // NOTE: drawOverlayHighlight(dummy) cannot be used here because `dummy` lives inside
+      // the overlay SVG itself (not under .page-svg-container), so getOverlayForElement
+      // returns null and the function exits early without drawing anything.
+      const zoomScale = zoom / 100;
+      const polyId = `overlay-poly-selected-${dummyId}`;
+      let selPoly = overlay.querySelector(`[id="${polyId}"]`);
+      if (!selPoly) {
+        selPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        selPoly.id = polyId;
+        selPoly.setAttribute('class', 'overlay-type-selected');
+        selPoly.setAttribute('fill', 'none');
+        selPoly.setAttribute('stroke', '#6366F1');
+        selPoly.setAttribute('pointer-events', 'none');
+        overlay.appendChild(selPoly);
+      }
+      selPoly.setAttribute('points', `${minX},${minY} ${maxX},${minY} ${maxX},${maxY} ${minX},${maxY}`);
+      selPoly.setAttribute('stroke-width', String(1.5 / zoomScale));
+      selPoly.removeAttribute('stroke-dasharray');
+
+      // ── Draw resize handles for the multi-selection bounding box ──
+      // Find the HTML overlay container via the page-svg-container of the first element
+      const firstEl = elements[0];
+      const htmlOverlay = firstEl ? getHtmlOverlayForElement(firstEl) : null;
+      if (htmlOverlay) {
+        const handleSize = 7.5;
+        const handleNames = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        const corners = [
+          { x: minX, y: minY }, { x: maxX, y: minY },
+          { x: maxX, y: maxY }, { x: minX, y: maxY }
+        ];
+        const mids = [
+          { x: cx, y: minY }, { x: maxX, y: cy },
+          { x: cx, y: maxY }, { x: minX, y: cy }
+        ];
+        const allPts = [...corners, ...mids];
+        allPts.forEach((p, i) => {
+          const name = handleNames[i];
+          const isSide = ['n', 'e', 's', 'w'].includes(name);
+          const handleId = `resize-handle-${dummyId}-${name}`;
+          let handle = htmlOverlay.querySelector(`[id="${handleId}"]`);
+          if (!handle) {
+            handle = document.createElement('div');
+            handle.id = handleId;
+            handle.className = `resize-handle overlay-type-selected absolute`;
+            if (isSide) {
+              handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)';
+            } else {
+              handle.style.backgroundColor = '#FFFFFF';
+              handle.style.border = '1.5px solid #6366F1';
+              handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
+              handle.style.borderRadius = '0px';
+            }
+            handle.style.boxSizing = 'border-box';
+            handle.style.pointerEvents = 'auto';
+            handle.style.zIndex = isSide ? '999' : '1000';
+            htmlOverlay.appendChild(handle);
+          }
+          if (isSide) {
+            const isHorizontal = (name === 'n' || name === 's');
+            const dist = isHorizontal ? (maxX - minX) : (maxY - minY);
+            const thickness = 8 / zoomScale;
+            handle.style.width = isHorizontal ? `${dist}px` : `${thickness}px`;
+            handle.style.height = isHorizontal ? `${thickness}px` : `${dist}px`;
+            handle.style.left = `${p.x}px`;
+            handle.style.top = `${p.y}px`;
+            handle.style.transform = `translate(-50%, -50%) rotate(0deg)`;
+          } else {
+            handle.style.width = `${handleSize}px`;
+            handle.style.height = `${handleSize}px`;
+            handle.style.left = `${p.x}px`;
+            handle.style.top = `${p.y}px`;
+            handle.style.transform = `translate(-50%, -50%) scale(${1 / zoomScale})`;
+          }
+          const cursorMap = { nw: 'nwse-resize', ne: 'nesw-resize', se: 'nwse-resize', sw: 'nesw-resize', n: 'ns-resize', e: 'ew-resize', s: 'ns-resize', w: 'ew-resize' };
+          handle.style.cursor = cursorMap[name] || 'pointer';
+        });
+      }
 
       elements.forEach(el => {
         drawOverlayHighlight(el, 'multi-child-selected');
@@ -2974,7 +3240,7 @@ const MainEditor = ({
 
     const onPointerDown = (e) => {
       if (e.button !== 0) return;
-      
+
       const clickX = e.clientX;
       const clickY = e.clientY;
 
@@ -3528,8 +3794,32 @@ const MainEditor = ({
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
 
+    // Suppress object selection box, hover highlights, and resize handles during Path Node Edit Mode
+    if (nodeEditModeRef.current) {
+      const overlay = getOverlayForElement(el);
+      if (overlay) {
+        overlay.querySelectorAll(`[id*="${el.id}"]`).forEach(node => {
+          if (!node.id || !node.id.includes('node-edit')) node.remove();
+        });
+      }
+      const htmlOverlay = getHtmlOverlayForElement(el);
+      if (htmlOverlay) {
+        htmlOverlay.querySelectorAll(`[id*="${el.id}"]`).forEach(h => h.remove());
+      }
+      return;
+    }
+
     const overlay = getOverlayForElement(el);
     if (!overlay) return;
+
+    // Purge stale or competing overlays for this element to prevent duplicate selection boxes
+    if (type.includes('selected')) {
+      overlay.querySelectorAll(`[id*="${el.id}"]`).forEach(node => {
+        if (!node.id.includes(type)) {
+          node.remove();
+        }
+      });
+    }
 
     if (type === 'hover' || type === 'child-hover') {
       if (document.querySelector('[data-dragging="true"]')) return;
@@ -3589,71 +3879,127 @@ const MainEditor = ({
       // ── PIXEL-PERFECT PATH for non-frame, non-line, non-FreeFrame elements ──
       // Use getBoundingClientRect() to get actual screen-space visual bounds, then
       // map 4 corners directly to overlay coordinates via a single matrix inverse.
-      // Lines, Free Frames, and Cropped elements are excluded: Cropped elements need clipPath bbox coords.
-      if (!isFrame && !isLine && !isFreeFrame && !isCropModeEl) {
-        const clientRect = el.getBoundingClientRect();
-        if (clientRect.width > 0 && clientRect.height > 0) {
+      // getBoundingClientRect() also works correctly for cropped elements since the browser
+      // already clips the visual bounds via clipPath — so we no longer exclude isCropModeEl.
+      if (!isFrame && !isLine && !isFreeFrame) {
+        const localBBox = getVisualBBox(el);
+        const elScreenCtm = el.getScreenCTM();
+
+        if (localBBox && localBBox.width > 0 && localBBox.height > 0 && elScreenCtm) {
           el.dataset.overlayRetries = '0';
-          const overlayInverse = overlayCtm.inverse();
-          const pt = overlay.createSVGPoint();
-
-          pt.x = clientRect.left; pt.y = clientRect.top;
-          const overlayTL = pt.matrixTransform(overlayInverse);
-          pt.x = clientRect.right; pt.y = clientRect.top;
-          const overlayTR = pt.matrixTransform(overlayInverse);
-          pt.x = clientRect.right; pt.y = clientRect.bottom;
-          const overlayBR = pt.matrixTransform(overlayInverse);
-          pt.x = clientRect.left; pt.y = clientRect.bottom;
-          const overlayBL = pt.matrixTransform(overlayInverse);
-
-          const mapped = [overlayTL, overlayTR, overlayBR, overlayBL];
-          const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
-
           const zoomScale = zoom / 100;
           const isBeingEditedCheck = isEditingTextRef.current && el.id === selectedLayerIdRef.current;
-          let polyId = `overlay-poly-${type}-${el.id}`;
-          let polygon = overlay.querySelector(`[id="${polyId}"]`);
-          if (!polygon) {
-            polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-            polygon.id = polyId;
-            polygon.setAttribute('class', `overlay-type-${type}`);
-            polygon.setAttribute('fill', 'none');
-            if (el.getAttribute('data-name') === 'Free Frame') {
-              polygon.setAttribute('stroke', type === 'hover' || type === 'child-hover' ? 'transparent' : '#000000');
-            } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && (type === 'selected' || type === 'child-selected')) {
-              polygon.setAttribute('stroke', '#000000');
-            } else if (type === 'hover' || type === 'child-hover') {
-              polygon.setAttribute('stroke', '#6366F1');
-              polygon.setAttribute('fill', 'none');
-            } else if (type === 'selected' || type === 'child-selected' || type === 'multi-child-selected') {
-              polygon.setAttribute('stroke', '#6366F1');
-            } else if (type === 'entered') {
-              polygon.setAttribute('stroke', '#6366F1');
-            }
-            polygon.setAttribute('pointer-events', 'none');
-            overlay.appendChild(polygon);
-          }
-          polygon.setAttribute('points', pointsStr);
+          const isVectorPath = el.getAttribute('data-type') === 'vector-path' || el.getAttribute('data-is-vector') === 'true';
+          const isHover = type === 'hover' || type === 'child-hover';
+          const isSelected = type === 'selected' || type === 'child-selected' || type === 'multi-child-selected';
 
-          if (el.getAttribute('data-name') === 'Free Frame') {
-            polygon.setAttribute('stroke-width', String(1 / zoomScale));
-            polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
-          } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && (type === 'selected' || type === 'child-selected')) {
-            polygon.setAttribute('stroke-width', String(1 / zoomScale));
-            polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
-          } else if (type === 'hover' || type === 'child-hover') {
-            polygon.setAttribute('stroke-width', String(1 / zoomScale));
-            if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
-            else polygon.removeAttribute('stroke-dasharray');
-          } else if (type === 'selected' || type === 'child-selected') {
-            polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
-            polygon.removeAttribute('stroke-dasharray');
-          } else if (type === 'multi-child-selected') {
-            polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
-            polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
-          } else if (type === 'entered') {
-            polygon.setAttribute('stroke-width', String(1 / zoomScale));
-            polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+          const localToOverlay = overlayCtm.inverse().multiply(elScreenCtm);
+          const pt1 = overlay.createSVGPoint(); pt1.x = localBBox.x; pt1.y = localBBox.y;
+          const pt2 = overlay.createSVGPoint(); pt2.x = localBBox.x + localBBox.width; pt2.y = localBBox.y;
+          const pt3 = overlay.createSVGPoint(); pt3.x = localBBox.x + localBBox.width; pt3.y = localBBox.y + localBBox.height;
+          const pt4 = overlay.createSVGPoint(); pt4.x = localBBox.x; pt4.y = localBBox.y + localBBox.height;
+
+          const mapped = [pt1, pt2, pt3, pt4].map(p => p.matrixTransform(localToOverlay));
+          const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
+
+          // ── Exact Path Shape Overlay for Vector Paths (No Rectangular Box / Gap) ──
+          let pathOverlayId = `overlay-path-${type}-${el.id}`;
+          let pathOverlay = overlay.querySelector(`[id="${pathOverlayId}"]`);
+
+          if (isVectorPath) {
+            const d = el.getAttribute('d');
+            if (d && isHover) {
+              if (!pathOverlay) {
+                pathOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                pathOverlay.id = pathOverlayId;
+                pathOverlay.setAttribute('class', `overlay-type-${type}`);
+                pathOverlay.setAttribute('pointer-events', 'none');
+                overlay.appendChild(pathOverlay);
+              }
+
+              if (elScreenCtm) {
+                pathOverlay.setAttribute('transform', `matrix(${localToOverlay.a} ${localToOverlay.b} ${localToOverlay.c} ${localToOverlay.d} ${localToOverlay.e} ${localToOverlay.f})`);
+              }
+              pathOverlay.setAttribute('d', d);
+
+              const vectorColor = '#6366F1'; // Hover highlight color
+              pathOverlay.setAttribute('stroke', vectorColor);
+              pathOverlay.setAttribute('stroke-width', String(1.5 / zoomScale));
+              pathOverlay.setAttribute('vector-effect', 'non-scaling-stroke');
+              pathOverlay.setAttribute('stroke-linecap', el.getAttribute('stroke-linecap') || 'round');
+              pathOverlay.setAttribute('stroke-linejoin', el.getAttribute('stroke-linejoin') || 'round');
+              pathOverlay.setAttribute('fill', 'none');
+              pathOverlay.removeAttribute('stroke-dasharray');
+            } else if (pathOverlay) {
+              pathOverlay.remove();
+            }
+
+            let polyId = `overlay-poly-${type}-${el.id}`;
+            let polygon = overlay.querySelector(`[id="${polyId}"]`);
+
+            if (isHover) {
+              // Remove rectangular box polygon on hover so no gap box is shown
+              if (polygon) polygon.remove();
+            } else {
+              // Draw selection box around selected vector path along with corner handles
+              if (!polygon) {
+                polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                polygon.id = polyId;
+                polygon.setAttribute('class', `overlay-type-${type}`);
+                polygon.setAttribute('fill', 'none');
+                polygon.setAttribute('pointer-events', 'none');
+                overlay.appendChild(polygon);
+              }
+              polygon.setAttribute('points', pointsStr);
+              polygon.setAttribute('stroke', '#6366F1');
+              polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
+              polygon.removeAttribute('stroke-dasharray');
+            }
+          } else {
+            if (pathOverlay) pathOverlay.remove();
+
+            let polyId = `overlay-poly-${type}-${el.id}`;
+            let polygon = overlay.querySelector(`[id="${polyId}"]`);
+            if (!polygon) {
+              polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+              polygon.id = polyId;
+              polygon.setAttribute('class', `overlay-type-${type}`);
+              polygon.setAttribute('fill', 'none');
+              if (el.getAttribute('data-name') === 'Free Frame') {
+                polygon.setAttribute('stroke', isHover ? 'transparent' : '#000000');
+              } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && isSelected) {
+                polygon.setAttribute('stroke', '#000000');
+              } else if (isHover) {
+                polygon.setAttribute('stroke', '#6366F1');
+                polygon.setAttribute('fill', 'none');
+              } else if (isSelected || type === 'entered') {
+                polygon.setAttribute('stroke', '#6366F1');
+              }
+              polygon.setAttribute('pointer-events', 'none');
+              overlay.appendChild(polygon);
+            }
+            polygon.setAttribute('points', pointsStr);
+
+            if (el.getAttribute('data-name') === 'Free Frame') {
+              polygon.setAttribute('stroke-width', String(1 / zoomScale));
+              polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+            } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && isSelected) {
+              polygon.setAttribute('stroke-width', String(1 / zoomScale));
+              polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+            } else if (isHover) {
+              polygon.setAttribute('stroke-width', String(1 / zoomScale));
+              if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+              else polygon.removeAttribute('stroke-dasharray');
+            } else if (type === 'selected' || type === 'child-selected') {
+              polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
+              polygon.removeAttribute('stroke-dasharray');
+            } else if (type === 'multi-child-selected') {
+              polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
+              polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+            } else if (type === 'entered') {
+              polygon.setAttribute('stroke-width', String(1 / zoomScale));
+              polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+            }
           }
 
           // Draw resize handles for selected groups
@@ -3809,62 +4155,68 @@ const MainEditor = ({
       const mapped = pts.map(p => p.matrixTransform(svgMatrix));
       const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
 
-      let polyId = `overlay-poly-${type}-${el.id}`;
-      let polygon = overlay.querySelector(`[id="${polyId}"]`);
-      if (!polygon) {
-        polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        polygon.id = polyId;
-        polygon.setAttribute('class', `overlay-type-${type}`);
-        polygon.setAttribute('fill', 'none');
+      if (isVectorPath) {
+        let polyId = `overlay-poly-${type}-${el.id}`;
+        let polygon = overlay.querySelector(`[id="${polyId}"]`);
+        if (polygon) polygon.remove();
+      } else {
+        let polyId = `overlay-poly-${type}-${el.id}`;
+        let polygon = overlay.querySelector(`[id="${polyId}"]`);
+        if (!polygon) {
+          polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          polygon.id = polyId;
+          polygon.setAttribute('class', `overlay-type-${type}`);
+          polygon.setAttribute('fill', 'none');
 
-        if (isLine) {
-          polygon.setAttribute('stroke', 'transparent');
-        } else if (el.getAttribute('data-name') === 'Free Frame') {
-          if (type === 'hover' || type === 'child-hover') {
+          if (isLine) {
             polygon.setAttribute('stroke', 'transparent');
-          } else {
+          } else if (el.getAttribute('data-name') === 'Free Frame') {
+            if (isHover) {
+              polygon.setAttribute('stroke', 'transparent');
+            } else {
+              polygon.setAttribute('stroke', '#000000');
+            }
+          } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && isSelected) {
             polygon.setAttribute('stroke', '#000000');
+          } else if (isHover) {
+            polygon.setAttribute('stroke', '#6366F1');
+            if (activeTopToolRef.current === 'interaction' && el.getAttribute('data-interaction') && el.getAttribute('data-interaction') !== 'none') {
+              polygon.setAttribute('fill', 'rgba(99, 102, 241, 0.3)');
+            } else {
+              polygon.setAttribute('fill', 'none');
+            }
+          } else if (isSelected) {
+            polygon.setAttribute('stroke', '#6366F1');
+          } else if (type === 'entered') {
+            polygon.setAttribute('stroke', isMediaOrText ? 'transparent' : '#6366F1');
           }
-        } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && (type === 'selected' || type === 'child-selected')) {
-          polygon.setAttribute('stroke', '#000000');
-        } else if (type === 'hover' || type === 'child-hover') {
-          polygon.setAttribute('stroke', '#6366F1');
-          if (activeTopToolRef.current === 'interaction' && el.getAttribute('data-interaction') && el.getAttribute('data-interaction') !== 'none') {
-            polygon.setAttribute('fill', 'rgba(99, 102, 241, 0.3)');
-          } else {
-            polygon.setAttribute('fill', 'none');
-          }
-        } else if (type === 'selected' || type === 'child-selected' || type === 'multi-child-selected') {
-          polygon.setAttribute('stroke', '#6366F1');
-        } else if (type === 'entered') {
-          polygon.setAttribute('stroke', isMediaOrText ? 'transparent' : '#6366F1');
+
+          polygon.setAttribute('pointer-events', 'none');
+          overlay.appendChild(polygon);
         }
+        polygon.setAttribute('points', pointsStr);
 
-        polygon.setAttribute('pointer-events', 'none');
-        overlay.appendChild(polygon);
-      }
-      polygon.setAttribute('points', pointsStr);
-
-      const zoomScale = zoom / 100;
-      if (el.getAttribute('data-name') === 'Free Frame') {
-        polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
-      } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && (type === 'selected' || type === 'child-selected')) {
-        polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
-      } else if (type === 'hover' || type === 'child-hover') {
-        polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
-        else polygon.removeAttribute('stroke-dasharray');
-      } else if (type === 'selected' || type === 'child-selected') {
-        polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
-        polygon.removeAttribute('stroke-dasharray');
-      } else if (type === 'multi-child-selected') {
-        polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
-        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
-      } else if (type === 'entered') {
-        polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+        const zoomScale = zoom / 100;
+        if (el.getAttribute('data-name') === 'Free Frame') {
+          polygon.setAttribute('stroke-width', String(1 / zoomScale));
+          polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+        } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && isSelected) {
+          polygon.setAttribute('stroke-width', String(1 / zoomScale));
+          polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+        } else if (isHover) {
+          polygon.setAttribute('stroke-width', String(1 / zoomScale));
+          if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+          else polygon.removeAttribute('stroke-dasharray');
+        } else if (type === 'selected' || type === 'child-selected') {
+          polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
+          polygon.removeAttribute('stroke-dasharray');
+        } else if (type === 'multi-child-selected') {
+          polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
+          polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+        } else if (type === 'entered') {
+          polygon.setAttribute('stroke-width', String(1 / zoomScale));
+          polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+        }
       }
 
       // ── RESIZE HANDLES (8 handles) ──
@@ -4342,6 +4694,286 @@ const MainEditor = ({
     }
   }, [activeTopTool, selectedShapeTool]);
 
+  // Helper to handle dragging handles while respecting node curve types (smooth, balanced, custom, sharp)
+  const applyHandleDrag = (seg, handleSide, mousePoint, isAltKey) => {
+    if (!seg) return;
+    if (isAltKey) {
+      seg.nodeType = 'custom';
+    }
+
+    let nodeType = seg.nodeType;
+    if (!nodeType) {
+      if (seg.handleIn.isZero() && seg.handleOut.isZero()) {
+        nodeType = 'sharp';
+      } else if (!seg.handleIn.isZero() && !seg.handleOut.isZero()) {
+        const dot = seg.handleIn.normalize().dot(seg.handleOut.normalize());
+        if (dot < -0.95) {
+          const lenDiff = Math.abs(seg.handleIn.length - seg.handleOut.length);
+          nodeType = lenDiff < 1.5 ? 'balanced' : 'smooth';
+        } else {
+          nodeType = 'custom';
+        }
+      } else {
+        nodeType = 'custom';
+      }
+      seg.nodeType = nodeType;
+    }
+
+    const mouseVec = mousePoint.subtract(seg.point);
+
+    if (handleSide === 'in') {
+      seg.handleIn = mouseVec;
+      if (nodeType === 'balanced') {
+        seg.handleOut = mouseVec.multiply(-1);
+      } else if (nodeType === 'smooth') {
+        const outLen = (!seg.handleOut.isZero()) ? seg.handleOut.length : mouseVec.length;
+        if (!mouseVec.isZero()) {
+          seg.handleOut = mouseVec.normalize(-outLen);
+        }
+      }
+    } else if (handleSide === 'out') {
+      seg.handleOut = mouseVec;
+      if (nodeType === 'balanced') {
+        seg.handleIn = mouseVec.multiply(-1);
+      } else if (nodeType === 'smooth') {
+        const inLen = (!seg.handleIn.isZero()) ? seg.handleIn.length : mouseVec.length;
+        if (!mouseVec.isZero()) {
+          seg.handleIn = mouseVec.normalize(-inLen);
+        }
+      }
+    }
+  };
+
+  // ── Listen for vector path actions from ShapeProperties (Sharp, Smooth, Join, etc.) ──
+  useEffect(() => {
+    const handleVectorPathAction = (e) => {
+      const { action } = e.detail || {};
+      if (!action) return;
+
+      let targetEl = nodeEditPathRef.current || (selectedLayerIdRef.current ? document.getElementById(selectedLayerIdRef.current) : null);
+      if (!targetEl) {
+        const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+        targetEl = activeContainer?.querySelector('path[data-type="vector-path"]') || activeContainer?.querySelector('path');
+      }
+      if (!targetEl) return;
+
+      let pathEl = targetEl.tagName?.toLowerCase() === 'path' ? targetEl : targetEl.querySelector('path');
+      if (!pathEl || !pathEl.getAttribute('d')) return;
+
+      const pageIdx = nodeEditPageIndexRef.current !== null ? nodeEditPageIndexRef.current : activePageIndex;
+
+      try {
+        paperScopeRef.current.activate();
+        let paperPath = nodeEditPaperPathRef.current;
+        if (!paperPath || !nodeEditModeRef.current) {
+          const dStr = pathEl.getAttribute('d');
+          if (!dStr) return;
+          paperPath = new paperScopeRef.current.Path(dStr);
+          nodeEditPaperPathRef.current = paperPath;
+        }
+
+        let targetSegIndices = [];
+        if (nodeEditSelectedSegIndicesRef.current && nodeEditSelectedSegIndicesRef.current.size > 0) {
+          targetSegIndices = Array.from(nodeEditSelectedSegIndicesRef.current);
+        } else if (nodeEditSelectedSegIdxRef.current !== null && nodeEditSelectedSegIdxRef.current !== undefined) {
+          targetSegIndices = [nodeEditSelectedSegIdxRef.current];
+        } else {
+          targetSegIndices = paperPath.segments.map((_, i) => i);
+        }
+
+        if (action === 'delete-node') {
+          deleteSelectedNodeOrHandle(paperPath, targetSegIndices, nodeEditSelectedHandleSideRef.current, paperScopeRef.current);
+          nodeEditSelectedHandleSideRef.current = null;
+          nodeEditSelectedSegIdxRef.current = null;
+          nodeEditSelectedSegIndicesRef.current = new Set();
+        } else {
+          executeVectorPathAction(paperPath, action, targetSegIndices, paperScopeRef.current);
+        }
+
+        const dStr = cleanPaperPathData(paperPath);
+        pathEl.setAttribute('d', dStr);
+        if (nodeEditModeRef.current) {
+          drawNodeEditOverlay(pathEl, paperPath, pageIdx);
+        } else {
+          enterNodeEditMode(pathEl, pageIdx);
+        }
+
+        if (['sharp', 'smooth', 'balanced', 'custom'].includes(action)) {
+          window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: action } }));
+        }
+
+        if (pathEl.ownerSVGElement && updatePageHtml) {
+          saveModifiedPageHtml(pageIdx, pathEl.ownerSVGElement);
+        }
+      } catch (err) {
+        console.warn('[VectorPathAction] Error executing action:', action, err);
+      }
+    };
+
+    window.addEventListener('vector-path-action', handleVectorPathAction);
+    return () => window.removeEventListener('vector-path-action', handleVectorPathAction);
+  }, [activePageIndex, updatePageHtml]);
+
+  // ── Global mousemove listener for robust Node Edit dragging ──
+  useEffect(() => {
+    const handleGlobalMouseMove = (e) => {
+      if (nodeEditDragRef.current) {
+        const { mode, segIdx, handleSide, pathEl, paperPath, startPt, startPoints,
+                curveIndex, startHandle1, startHandle2, pageIndex,
+                seg1Idx, seg2Idx } = nodeEditDragRef.current;
+        const svgEl = pathEl?.ownerSVGElement;
+        if (!svgEl || !paperPath) return;
+
+        const pt = getLocalPoint(svgEl, pathEl, e.clientX, e.clientY);
+        paperScopeRef.current.activate();
+        const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
+        const delta = mousePoint.subtract(new paperScopeRef.current.Point(startPt.x, startPt.y));
+
+        const segments = getPaperSegments(paperPath);
+        const curves = getPaperCurves(paperPath);
+
+        let effectiveDelta = delta;
+
+        if (mode === 'node' || mode === 'segment-translate') {
+          if (startPoints && Object.keys(startPoints).length > 0) {
+            const primaryIdx = segIdx !== undefined ? segIdx : parseInt(Object.keys(startPoints)[0]);
+            const primaryStart = startPoints[primaryIdx] || Object.values(startPoints)[0];
+            if (primaryStart) {
+              const activePt = primaryStart.add(delta);
+
+              const ctm = pathEl.getScreenCTM();
+              const scale = ctm ? Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) : 1;
+              const SNAP_RADIUS_PX = 6; // screen pixel snap radius
+              let bestDist = SNAP_RADIUS_PX;
+              let snapTargetPt = null;
+
+              // Search for unselected nodes to magnetic snap/stick to
+              segments.forEach((otherSeg, oIdx) => {
+                if (!startPoints[oIdx]) {
+                  const distPx = Math.hypot(activePt.x - otherSeg.point.x, activePt.y - otherSeg.point.y) * scale;
+                  if (distPx < bestDist) {
+                    bestDist = distPx;
+                    snapTargetPt = otherSeg.point;
+                  }
+                }
+              });
+
+              if (snapTargetPt) {
+                // Magnetically snap effectiveDelta so activePt lands EXACTLY on snapTargetPt
+                effectiveDelta = snapTargetPt.subtract(primaryStart);
+              }
+            }
+
+            Object.keys(startPoints).forEach(sIdxStr => {
+              const sIdx = parseInt(sIdxStr);
+              const seg = segments[sIdx];
+              if (seg && startPoints[sIdx]) {
+                seg.point = startPoints[sIdx].add(effectiveDelta);
+              }
+            });
+          } else if (mode === 'node') {
+            const seg = segments[segIdx];
+            if (seg) seg.point = mousePoint;
+          }
+        } else if (mode === 'handle') {
+          const seg = segments[segIdx];
+          if (seg) {
+            applyHandleDrag(seg, handleSide, mousePoint, e.altKey);
+          }
+        } else if (mode === 'segment-bend') {
+          const curve = curves[curveIndex];
+          if (curve && startHandle1 && startHandle2) {
+            curve.segment1.handleOut = startHandle1.add(delta.multiply(0.5));
+            curve.segment2.handleIn = startHandle2.add(delta.multiply(0.5));
+          }
+        }
+
+        const allSegments = getPaperSegments(paperPath);
+        let allCollapsed = false;
+        if (allSegments.length > 0) {
+          const firstPt = allSegments[0].point;
+          allCollapsed = allSegments.every(s => Math.hypot(s.point.x - firstPt.x, s.point.y - firstPt.y) < 2.0);
+        }
+
+        const dStr = cleanPaperPathData(paperPath);
+        const totalSegments = allSegments.length;
+
+        if (allCollapsed || !dStr || dStr.trim() === '' || totalSegments <= 1) {
+          pathEl.setAttribute('d', '');
+          const pageIdx = pageIndex !== undefined ? pageIndex : nodeEditPageIndexRef.current;
+          const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
+          if (overlay) {
+            const nodeGroup = overlay.querySelector('#node-edit-overlay-group');
+            if (nodeGroup) nodeGroup.innerHTML = '';
+          }
+        } else {
+          pathEl.setAttribute('d', dStr);
+          drawNodeEditOverlay(pathEl, paperPath, pageIndex !== undefined ? pageIndex : nodeEditPageIndexRef.current);
+        }
+        suppressClickRef.current = true;
+      }
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    return () => window.removeEventListener('mousemove', handleGlobalMouseMove);
+  }, []);
+
+  // ── Global mouseup: end node edit drag and persist path ──
+  useEffect(() => {
+    const handleGlobalMouseUp = (e) => {
+      if (nodeEditDragRef.current) {
+        const { pathEl, paperPath, pageIndex } = nodeEditDragRef.current;
+        nodeEditDragRef.current = null;
+
+        if (paperPath && pathEl) {
+          // Merge & remove duplicate meeting nodes
+          mergeMeetingNodes(paperPath);
+          const dStr = cleanPaperPathData(paperPath);
+          const allSegments = getPaperSegments(paperPath);
+          let allCollapsed = false;
+          if (allSegments.length > 0) {
+            const firstPt = allSegments[0].point;
+            allCollapsed = allSegments.every(s => Math.hypot(s.point.x - firstPt.x, s.point.y - firstPt.y) < 2.0);
+          }
+
+          // If no lines remain (collapsed to 1 point or 0 lines), remove the entire vector element from DOM and layer list
+          if (allCollapsed || !dStr || dStr.trim() === '' || allSegments.length <= 1) {
+            const svgEl = pathEl.ownerSVGElement;
+            pathEl.remove();
+            exitNodeEditMode();
+            if (svgEl && updatePageHtml) {
+              saveModifiedPageHtml(
+                pageIndex !== undefined ? pageIndex : nodeEditPageIndexRef.current,
+                svgEl
+              );
+            }
+            if (typeof setSelectedLayerId === 'function') setSelectedLayerId(null);
+            return;
+          }
+
+          if (pathEl.tagName?.toLowerCase() === 'g') {
+            const firstChild = pathEl.querySelector('path');
+            if (firstChild) firstChild.setAttribute('d', dStr);
+          } else {
+            pathEl.setAttribute('d', dStr);
+          }
+          drawNodeEditOverlay(pathEl, paperPath, pageIndex !== undefined ? pageIndex : nodeEditPageIndexRef.current);
+        }
+
+        // Save modified path data to page HTML
+        if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
+          saveModifiedPageHtml(
+            pageIndex !== undefined ? pageIndex : nodeEditPageIndexRef.current,
+            pathEl.ownerSVGElement
+          );
+        }
+      }
+    };
+
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, [updatePageHtml]);
+
   useEffect(() => {
     if (activeBendingSegmentRef.current) {
       clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
@@ -4373,88 +5005,89 @@ const MainEditor = ({
         return;
       }
 
-      if (e.key === 'Escape') {
-        const isPenDrawing = activeMainTool === 'pen' && drawingPathRef.current;
-
-        if (isPenDrawing) {
-          const subPaths = drawingSubPathsRef.current;
-          const currentPts = subPaths[subPaths.length - 1];
-
-          // If the group is totally empty (first segment has 1 or 0 points), cancel the whole group
-          if (subPaths.length === 1 && (!currentPts || currentPts.length <= 1)) {
-            const path = drawingPathRef.current;
-            if (path.parentNode) path.parentNode.removeChild(path);
-            drawingPathRef.current = null;
-            drawingSubPathsRef.current = [];
-            drawingSubPathElsRef.current = [];
-            clearPenToolNodes(activePageIndex);
-            return;
-          }
-
-          // Otherwise, just finish the current segment (allow starting next path in same group)
-          drawingPathRef.current.isFinished = true;
-          drawPenToolNodes(activePageIndex, drawingPathRef.current, subPaths);
-
-          const currentIdx = subPaths.length - 1;
-          if (drawingSubPathElsRef.current[currentIdx]) {
-            drawingSubPathElsRef.current[currentIdx].setAttribute('d', generatePathData(subPaths[currentIdx], false, selectedPenTool));
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        // ── Exit Node Edit Mode on Escape/Enter ──
+        if (nodeEditModeRef.current) {
+          const pathEl = nodeEditPathRef.current;
+          const pIdx = nodeEditPageIndexRef.current;
+          exitNodeEditMode();
+          if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
+            saveModifiedPageHtml(pIdx, pathEl.ownerSVGElement);
           }
           return;
         }
 
-        /* Standard Navigation logic: clear selection or exit frame 
-           (Disabled per user request to keep Shape Properties open)
-        multiSelectedIdsRef.current = new Set();
-        setMultiSelectedIds(new Set());
+        if (activeMainTool === 'pen' && selectedPenTool === 'pen') {
+          const vSession = vectraPenSessionRef.current;
+          vSession.onKey(e);
+          vSession.finishPath();
+          const pathEl = drawingPathRef.current;
+          const pageIdx = drawingPageIndexRef.current !== null ? drawingPageIndexRef.current : activePageIndex;
 
-        const frameId = currentFrameIdRef.current;
-        if (frameId) {
-          if (setSelectedLayerId) {
-            setSelectedLayerId(frameId);
-            selectedLayerIdRef.current = frameId;
+          if (pathEl) {
+            const comboD = pathToDCombo(vSession.paths);
+            if (comboD) pathEl.setAttribute('d', comboD);
           }
-          setCurrentFrameId(null);
-          currentFrameIdRef.current = null;
-        } else if (selectedLayerIdRef.current) {
-          if (setSelectedLayerId) {
-            setSelectedLayerId(null);
-            selectedLayerIdRef.current = null;
-          }
-        }
-        */
-      } else if (e.key.toLowerCase() === 'a' || e.key === 'Enter') {
-        if (activeMainTool === 'pen' && drawingPathRef.current) {
-          const group = drawingPathRef.current;
-          const pageIdx = drawingPageIndexRef.current;
-          const svgEl = group?.ownerSVGElement;
 
+          vSession.reset();
           drawingPathRef.current = null;
-          drawingSubPathsRef.current = [];
-          drawingSubPathElsRef.current = [];
-          draggedNodeIndexRef.current = { pIdx: -1, ptIdx: -1 };
-          clearPenToolNodes(pageIdx);
+          clearVectraOverlay(pageIdx);
+          document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
+            const g = overlay.querySelector('#vectra-overlay-group');
+            if (g) g.innerHTML = '';
+          });
 
-          if (svgEl && updatePageHtml) {
-            updatePageHtml(pageIdx, svgEl.outerHTML);
-
-            // Auto-select and switch to selection tool
-            if (group && group.id) {
+          if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
+            updatePageHtml(pageIdx, pathEl.ownerSVGElement.outerHTML);
+            if (pathEl.id) {
+              const targetId = pathEl.id;
               if (setSelectedLayerId) {
-                setSelectedLayerId(group.id);
-                selectedLayerIdRef.current = group.id;
+                setSelectedLayerId(targetId);
+                selectedLayerIdRef.current = targetId;
               }
               if (setMultiSelectedIds) {
-                setMultiSelectedIds(new Set([group.id]));
-                multiSelectedIdsRef.current = new Set([group.id]);
+                setMultiSelectedIds(new Set([targetId]));
+                multiSelectedIdsRef.current = new Set([targetId]);
               }
-              drawOverlayHighlight(group, 'selected');
+              setTimeout(() => {
+                const freshEl = document.getElementById(targetId);
+                if (freshEl) drawOverlayHighlight(freshEl, 'selected');
+                else drawOverlayHighlight(pathEl, 'selected');
+              }, 20);
             }
-            skipClearSelectionRef.current = true;
-            setTimeout(() => {
-              if (setActiveMainTool) setActiveMainTool('select');
-            }, 100);
+          }
+          if (typeof setActiveMainTool === 'function') {
+            setActiveMainTool('select');
           }
           return;
+        }
+
+        const isPenDrawing = activeMainTool === 'pen' && drawingPathRef.current;
+        if (isPenDrawing) {
+          const path = drawingPathRef.current;
+          if (path && path.parentNode) path.parentNode.removeChild(path);
+          drawingPathRef.current = null;
+          clearVectraOverlay(activePageIndex);
+          return;
+        }
+      } else if (e.key === 'Backspace') {
+        if (activeMainTool === 'pen' && selectedPenTool === 'pen') {
+          const vSession = vectraPenSessionRef.current;
+          const activePath = vSession.getActivePath();
+          if (activePath) {
+            vSession.onKey(e);
+            const pathEl = drawingPathRef.current;
+            const updated = vSession.getActivePath();
+            if (!updated) {
+              if (pathEl && pathEl.parentNode) pathEl.parentNode.removeChild(pathEl);
+              drawingPathRef.current = null;
+              clearVectraOverlay(activePageIndex);
+            } else if (pathEl) {
+              pathEl.setAttribute('d', pathToD(updated));
+              renderVectraOverlay(activePageIndex, pathEl.parentElement, vSession);
+            }
+            return;
+          }
         }
       } else if (e.key === 'P' && e.shiftKey) {
         setActiveMainTool('pen');
@@ -4563,9 +5196,76 @@ const MainEditor = ({
           }
         }
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
-        // Core Logic: Delete selected element
         e.preventDefault();
 
+        // ── Node Edit Mode: Delete selected handle point or center node point ──
+        if (nodeEditModeRef.current && nodeEditPaperPathRef.current && nodeEditPathRef.current) {
+          const paperPath = nodeEditPaperPathRef.current;
+          const pathEl = nodeEditPathRef.current;
+          const pIdx = nodeEditPageIndexRef.current !== null ? nodeEditPageIndexRef.current : activePageIndex;
+          const targetSegIndices = (nodeEditSelectedSegIndicesRef.current && nodeEditSelectedSegIndicesRef.current.size > 0)
+            ? Array.from(nodeEditSelectedSegIndicesRef.current)
+            : (nodeEditSelectedSegIdxRef.current !== null ? [nodeEditSelectedSegIdxRef.current] : []);
+
+          const selectedHandleSide = nodeEditSelectedHandleSideRef.current;
+
+          if (targetSegIndices.length > 0) {
+            paperScopeRef.current.activate();
+            const segments = getPaperSegments(paperPath);
+
+            if (selectedHandleSide === 'in' || selectedHandleSide === 'out') {
+              // ── Handle point (top/bottom circle) selected: Delete/retract ONLY that handle point ──
+              targetSegIndices.forEach(idx => {
+                const seg = segments[idx];
+                if (seg) {
+                  if (selectedHandleSide === 'in') {
+                    seg.handleIn = new paperScopeRef.current.Point(0, 0);
+                  } else if (selectedHandleSide === 'out') {
+                    seg.handleOut = new paperScopeRef.current.Point(0, 0);
+                  }
+                  if (seg.handleIn.isZero() && seg.handleOut.isZero()) {
+                    seg.nodeType = 'sharp';
+                  } else {
+                    seg.nodeType = 'custom';
+                  }
+                }
+              });
+              nodeEditSelectedHandleSideRef.current = null;
+            } else {
+              // ── Center point (middle node dot) selected: Delete the node point ──
+              const sorted = [...targetSegIndices].sort((a, b) => b - a);
+              sorted.forEach(idx => {
+                if (segments[idx]) {
+                  segments[idx].remove();
+                }
+              });
+              mergeMeetingNodes(paperPath);
+            }
+
+            const dStr = cleanPaperPathData(paperPath);
+            const remainingSegments = getPaperSegments(paperPath);
+            const svgEl = pathEl.ownerSVGElement;
+            if (remainingSegments.length <= 1 || !dStr || dStr.trim() === '') {
+              pathEl.remove();
+              exitNodeEditMode();
+              if (svgEl && updatePageHtml) {
+                saveModifiedPageHtml(pIdx, svgEl);
+              }
+              if (typeof setSelectedLayerId === 'function') setSelectedLayerId(null);
+            } else {
+              pathEl.setAttribute('d', dStr);
+              nodeEditSelectedSegIdxRef.current = null;
+              nodeEditSelectedSegIndicesRef.current = new Set();
+              drawNodeEditOverlay(pathEl, paperPath, pIdx);
+              if (svgEl && updatePageHtml) {
+                saveModifiedPageHtml(pIdx, svgEl);
+              }
+            }
+            return;
+          }
+        }
+
+        // Core Logic: Delete selected element
         const ids = multiSelectedIdsRef.current.size > 0
           ? Array.from(multiSelectedIdsRef.current)
           : (selectedLayerIdRef.current ? [selectedLayerIdRef.current] : []);
@@ -4702,7 +5402,7 @@ const MainEditor = ({
     }
 
     // Do not clear selection if auto-switching from 'upload' or 'grid' back to 'select'
-    if ((prevTool === 'upload' || prevTool === 'grid') && activeMainTool === 'select') {
+    if ((prevTool === 'upload' || prevTool === 'grid' || prevTool === 'pen') && activeMainTool === 'select') {
       return;
     }
 
@@ -4716,8 +5416,16 @@ const MainEditor = ({
       // Force immediate visual cleanup of active selections
       clearOverlayType('selected');
       clearOverlayType('child-selected');
-      // Clear pen tool nodes on tool switch
+      // Clear pen tool nodes and Vectra overlay on tool switch
       document.querySelectorAll('.pen-tool-node').forEach(n => n.remove());
+      if (activeMainTool !== 'pen' || selectedPenTool !== 'pen') {
+        vectraPenSessionRef.current.reset();
+        clearVectraOverlay(activePageIndex);
+        document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
+          const g = overlay.querySelector('#vectra-overlay-group');
+          if (g) g.innerHTML = '';
+        });
+      }
 
       document.querySelectorAll('[data-selected="true"]').forEach(el => el.removeAttribute('data-selected'));
       document.querySelectorAll('[data-child-selected="true"]').forEach(el => el.removeAttribute('data-child-selected'));
@@ -5186,6 +5894,403 @@ const MainEditor = ({
     } catch (e) { }
   };
 
+  const renderVectraOverlay = (pageIndex, parentEl, vectraSession) => {
+    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
+    if (!overlay || !parentEl || !vectraSession) return;
+
+    let vectraGroup = overlay.querySelector('#vectra-overlay-group');
+    if (!vectraGroup) {
+      vectraGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      vectraGroup.setAttribute('id', 'vectra-overlay-group');
+      overlay.appendChild(vectraGroup);
+    } else {
+      vectraGroup.innerHTML = '';
+    }
+
+    try {
+      const ctm = parentEl.getScreenCTM();
+      const overlayCtm = overlay.getScreenCTM();
+      if (!ctm || !overlayCtm) return;
+      const matrix = overlayCtm.inverse().multiply(ctm);
+
+      const mapPt = (x, y) => {
+        const p = overlay.createSVGPoint();
+        p.x = x; p.y = y;
+        return p.matrixTransform(matrix);
+      };
+
+      // 1. Rubberband Preview Segment
+      if (vectraSession.ui.previewD) {
+        const previewG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const matrixStr = `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`;
+        previewG.setAttribute('transform', matrixStr);
+
+        const previewPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        previewPath.setAttribute('d', vectraSession.ui.previewD);
+        previewPath.setAttribute('fill', 'none');
+        previewPath.setAttribute('stroke', '#4E9EFF');
+        previewPath.setAttribute('stroke-width', '1.5');
+        previewPath.setAttribute('stroke-opacity', '0.8');
+        previewG.appendChild(previewPath);
+        vectraGroup.appendChild(previewG);
+      }
+
+      // 2. Endpoint hint ring
+      if (vectraSession.ui.endpointHint) {
+        const hp = mapPt(vectraSession.ui.endpointHint.x, vectraSession.ui.endpointHint.y);
+        const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ring.setAttribute('cx', hp.x);
+        ring.setAttribute('cy', hp.y);
+        ring.setAttribute('r', '7');
+        ring.setAttribute('fill', 'none');
+        ring.setAttribute('stroke', '#4E9EFF');
+        ring.setAttribute('stroke-width', '1.5');
+        vectraGroup.appendChild(ring);
+      }
+
+      // 3. Ghost snap marker
+      if (vectraSession.ui.ghost) {
+        const gp = mapPt(vectraSession.ui.ghost.x, vectraSession.ui.ghost.y);
+        const r = 5;
+        const ghostPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        ghostPath.setAttribute('d', `M ${gp.x - r} ${gp.y} H ${gp.x + r} M ${gp.x} ${gp.y - r} V ${gp.y + r}`);
+        ghostPath.setAttribute('stroke', '#FF5C87');
+        ghostPath.setAttribute('stroke-width', '1.25');
+        ghostPath.setAttribute('fill', 'none');
+        vectraGroup.appendChild(ghostPath);
+      }
+
+      // 4. Paths anchors & handles
+      for (const path of vectraSession.paths.values()) {
+        const n = path.nodes.length;
+        for (let i = 0; i < n; i++) {
+          const node = path.nodes[i];
+          const np = mapPt(node.x, node.y);
+
+          // Handles
+          for (const end of ['in', 'out']) {
+            if (node[end]) {
+              const hPt = end === 'in' ? absIn(node) : absOut(node);
+              const hp = mapPt(hPt.x, hPt.y);
+
+              const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+              line.setAttribute('x1', np.x);
+              line.setAttribute('y1', np.y);
+              line.setAttribute('x2', hp.x);
+              line.setAttribute('y2', hp.y);
+              line.setAttribute('stroke', '#4E9EFF');
+              line.setAttribute('stroke-width', '1');
+              line.setAttribute('stroke-opacity', '0.6');
+              vectraGroup.appendChild(line);
+
+              const hDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              hDot.setAttribute('cx', hp.x);
+              hDot.setAttribute('cy', hp.y);
+              hDot.setAttribute('r', '3');
+              hDot.setAttribute('fill', '#FFFFFF');
+              hDot.setAttribute('stroke', '#4E9EFF');
+              hDot.setAttribute('stroke-width', '1');
+              vectraGroup.appendChild(hDot);
+            }
+          }
+
+          // Anchor circle
+          const anchor = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          anchor.setAttribute('cx', np.x);
+          anchor.setAttribute('cy', np.y);
+          const isLastOrActive = (path.id === vectraSession.activePathId && i === n - 1);
+          anchor.setAttribute('r', isLastOrActive ? '4.5' : '3.5');
+          anchor.setAttribute('fill', isLastOrActive ? '#4E9EFF' : '#FFFFFF');
+          anchor.setAttribute('stroke', isLastOrActive ? '#FFFFFF' : '#4E9EFF');
+          anchor.setAttribute('stroke-width', '1.5');
+          vectraGroup.appendChild(anchor);
+        }
+      }
+    } catch (e) { }
+  };
+
+  const clearVectraOverlay = (pageIndex) => {
+    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
+    if (!overlay) return;
+    const vectraGroup = overlay.querySelector('#vectra-overlay-group');
+    if (vectraGroup) vectraGroup.innerHTML = '';
+  };
+
+  // ── NODE EDIT MODE ─────────────────────────────────────────────────────────
+  // Draws all anchor points and bezier handles for a path element on the overlay SVG.
+  // Matching D:\SVG_Editor colors (#4E9EFF) and circular node styling.
+  const drawNodeEditOverlay = (pathEl, paperPath, pageIndex) => {
+    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
+    if (!overlay || !pathEl || !paperPath) return;
+
+    // Clear previous node edit overlay
+    let nodeGroup = overlay.querySelector('#node-edit-overlay-group');
+    if (!nodeGroup) {
+      nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      nodeGroup.setAttribute('id', 'node-edit-overlay-group');
+      overlay.appendChild(nodeGroup);
+    } else {
+      nodeGroup.innerHTML = '';
+    }
+
+    // Reset screen node registry
+    nodeEditScreenNodesRef.current = [];
+
+    try {
+      const ctm = pathEl.getScreenCTM();
+      const overlayCtm = overlay.getScreenCTM();
+      if (!ctm || !overlayCtm) return;
+      const svgMatrix = overlayCtm.inverse().multiply(ctm);
+
+      // mapPt: path local → overlay SVG coordinates (for drawing)
+      const mapPt = (x, y) => new DOMPoint(x, y).matrixTransform(svgMatrix);
+      // screenPt: path local → screen pixels (for hit testing)
+      const screenPt = (x, y) => {
+        const sp = new DOMPoint(x, y).matrixTransform(ctm);
+        return { x: sp.x, y: sp.y };
+      };
+
+      const segments = getPaperSegments(paperPath);
+      const curves = getPaperCurves(paperPath);
+      const selectedSegIdx = nodeEditSelectedSegIdxRef.current;
+
+      // Draw path contour outline in light blue accent color (#4E9EFF)
+      const pathHighlight = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      pathHighlight.setAttribute('transform', `matrix(${svgMatrix.a} ${svgMatrix.b} ${svgMatrix.c} ${svgMatrix.d} ${svgMatrix.e} ${svgMatrix.f})`);
+      const pathCopy = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathCopy.setAttribute('d', cleanPaperPathData(paperPath));
+      pathCopy.setAttribute('fill', 'none');
+      pathCopy.setAttribute('stroke', '#4E9EFF');
+      pathCopy.setAttribute('stroke-width', '1.5');
+      pathCopy.setAttribute('stroke-opacity', '0.8');
+      pathHighlight.appendChild(pathCopy);
+      nodeGroup.appendChild(pathHighlight);
+
+      const drawnAnchors = []; // Track rendered anchor circles to prevent visual doubling on merged nodes
+
+      const selectedHandleSide = nodeEditSelectedHandleSideRef.current;
+
+      segments.forEach((seg, segIdx) => {
+        const pt = seg.point;
+        const mappedPt = mapPt(pt.x, pt.y);
+        const screenAnchor = screenPt(pt.x, pt.y);
+
+        const selSet = nodeEditSelectedSegIndicesRef.current || new Set();
+        const isSel = selSet.has(segIdx) || selectedSegIdx === segIdx;
+
+        // Handle In - ONLY draw if node is selected
+        if (isSel && seg.handleIn && !seg.handleIn.isZero()) {
+          const absIn = pt.add(seg.handleIn);
+          const mappedIn = mapPt(absIn.x, absIn.y);
+          const screenIn = screenPt(absIn.x, absIn.y);
+          const isHandleInActive = (selectedSegIdx === segIdx && selectedHandleSide === 'in');
+
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', mappedPt.x); line.setAttribute('y1', mappedPt.y);
+          line.setAttribute('x2', mappedIn.x); line.setAttribute('y2', mappedIn.y);
+          line.setAttribute('stroke', '#4E9EFF');
+          line.setAttribute('stroke-width', isHandleInActive ? '1.8' : '1');
+          line.setAttribute('stroke-opacity', isHandleInActive ? '1' : '0.6');
+          nodeGroup.appendChild(line);
+
+          const hDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          hDot.setAttribute('cx', mappedIn.x); hDot.setAttribute('cy', mappedIn.y);
+          hDot.setAttribute('r', isHandleInActive ? '4.5' : '3');
+          hDot.setAttribute('fill', isHandleInActive ? '#4E9EFF' : '#FFFFFF');
+          hDot.setAttribute('stroke', isHandleInActive ? '#FFFFFF' : '#4E9EFF');
+          hDot.setAttribute('stroke-width', isHandleInActive ? '1.8' : '1.2');
+          if (isHandleInActive) {
+            hDot.style.filter = 'drop-shadow(0px 1px 3px rgba(78, 158, 255, 0.75))';
+          }
+          hDot.setAttribute('data-node-edit', 'true');
+          hDot.setAttribute('data-seg-idx', segIdx);
+          hDot.setAttribute('data-handle-side', 'in');
+          nodeGroup.appendChild(hDot);
+
+          // Register screen position for hit testing
+          nodeEditScreenNodesRef.current.push({ x: screenIn.x, y: screenIn.y, segIdx, handleSide: 'in' });
+        }
+
+        // Handle Out - ONLY draw if node is selected
+        if (isSel && seg.handleOut && !seg.handleOut.isZero()) {
+          const absOut = pt.add(seg.handleOut);
+          const mappedOut = mapPt(absOut.x, absOut.y);
+          const screenOut = screenPt(absOut.x, absOut.y);
+          const isHandleOutActive = (selectedSegIdx === segIdx && selectedHandleSide === 'out');
+
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', mappedPt.x); line.setAttribute('y1', mappedPt.y);
+          line.setAttribute('x2', mappedOut.x); line.setAttribute('y2', mappedOut.y);
+          line.setAttribute('stroke', '#4E9EFF');
+          line.setAttribute('stroke-width', isHandleOutActive ? '1.5' : '1');
+          line.setAttribute('stroke-opacity', isHandleOutActive ? '1' : '0.6');
+          nodeGroup.appendChild(line);
+
+          const hDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          hDot.setAttribute('cx', mappedOut.x); hDot.setAttribute('cy', mappedOut.y);
+          hDot.setAttribute('r', isHandleOutActive ? '4.5' : '3');
+          hDot.setAttribute('fill', isHandleOutActive ? '#4E9EFF' : '#FFFFFF');
+          hDot.setAttribute('stroke', isHandleOutActive ? '#FFFFFF' : '#4E9EFF');
+          hDot.setAttribute('stroke-width', isHandleOutActive ? '1.8' : '1.2');
+          if (isHandleOutActive) {
+            hDot.style.filter = 'drop-shadow(0px 1px 3px rgba(78, 158, 255, 0.75))';
+          }
+          hDot.setAttribute('data-node-edit', 'true');
+          hDot.setAttribute('data-seg-idx', segIdx);
+          hDot.setAttribute('data-handle-side', 'out');
+          nodeGroup.appendChild(hDot);
+
+          // Register screen position for hit testing
+          nodeEditScreenNodesRef.current.push({ x: screenOut.x, y: screenOut.y, segIdx, handleSide: 'out' });
+        }
+
+        // Register anchor screen position for hit testing (register ALL segIdx so clicking hits)
+        nodeEditScreenNodesRef.current.push({ x: screenAnchor.x, y: screenAnchor.y, segIdx, handleSide: 'point' });
+
+        // Deduplicate rendering: do not draw overlapping circle if a co-located anchor was already rendered
+        const existing = drawnAnchors.find(a => Math.hypot(a.mappedPt.x - mappedPt.x, a.mappedPt.y - mappedPt.y) < 2.0);
+        if (existing) {
+          if (isSel && !existing.isSel) {
+            existing.isSel = true;
+            existing.circleEl.setAttribute('r', '5');
+            existing.circleEl.setAttribute('fill', '#4E9EFF');
+            existing.circleEl.setAttribute('stroke', '#FFFFFF');
+            existing.circleEl.setAttribute('stroke-width', '2');
+            existing.circleEl.style.filter = 'drop-shadow(0px 1px 3px rgba(78, 158, 255, 0.6))';
+          }
+        } else {
+          const anchor = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          anchor.setAttribute('cx', mappedPt.x);
+          anchor.setAttribute('cy', mappedPt.y);
+          anchor.setAttribute('r', isSel ? '5' : '3.5');
+          anchor.setAttribute('fill', isSel ? '#4E9EFF' : '#FFFFFF');
+          anchor.setAttribute('stroke', isSel ? '#FFFFFF' : '#4E9EFF');
+          anchor.setAttribute('stroke-width', isSel ? '2' : '1.5');
+          anchor.setAttribute('data-node-edit', 'true');
+          anchor.setAttribute('data-seg-idx', segIdx);
+          anchor.setAttribute('data-handle-side', 'point');
+          if (isSel) {
+            anchor.style.filter = 'drop-shadow(0px 1px 3px rgba(78, 158, 255, 0.6))';
+          }
+          nodeGroup.appendChild(anchor);
+          drawnAnchors.push({ mappedPt, isSel, circleEl: anchor });
+        }
+      });
+
+      // Register segment (curve) midpoints for segment hit testing
+      nodeEditScreenSegmentsRef.current = [];
+      curves.forEach((curve, curveIdx) => {
+        try {
+          // Use t=0.5 midpoint of the curve for hit testing
+          const midLoc = curve.getPointAtTime(0.5);
+          const screenMid = screenPt(midLoc.x, midLoc.y);
+          nodeEditScreenSegmentsRef.current.push({
+            curveIdx,
+            mx: screenMid.x,
+            my: screenMid.y,
+            seg1Idx: segments.indexOf(curve.segment1),
+            seg2Idx: segments.indexOf(curve.segment2),
+          });
+        } catch (_) {}
+      });
+
+    } catch (err) { /* non-critical */ }
+  };
+
+  const exitNodeEditMode = () => {
+    if (!nodeEditModeRef.current) return;
+
+    // Remove node edit overlay from ALL page highlight containers
+    document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
+      const nodeGroup = overlay.querySelector('#node-edit-overlay-group');
+      if (nodeGroup) nodeGroup.remove();
+    });
+
+    // Restore selection highlight
+    const pathEl = nodeEditPathRef.current;
+    nodeEditModeRef.current = false;
+    nodeEditPathRef.current = null;
+    nodeEditPageIndexRef.current = null;
+    nodeEditPaperPathRef.current = null;
+    nodeEditDragRef.current = null;
+    nodeEditSelectedSegIdxRef.current = null;
+    nodeEditSelectedSegIndicesRef.current = new Set();
+
+    if (pathEl && pathEl.id && document.getElementById(pathEl.id)) {
+      drawOverlayHighlight(pathEl, 'selected');
+    }
+
+    // Remove node-edit cursor class
+    document.querySelectorAll('.page-svg-container').forEach(el => el.classList.remove('cur-node-edit'));
+    window.dispatchEvent(new CustomEvent('node-edit-mode-changed', { detail: { active: false } }));
+  };
+
+  // ── Auto-exit Node Edit Mode when switching pages or changing layer selection ──
+  useEffect(() => {
+    if (nodeEditModeRef.current) {
+      if (activePageIndex !== nodeEditPageIndexRef.current || (selectedLayerId && selectedLayerId !== nodeEditPathRef.current?.id)) {
+        exitNodeEditMode();
+      }
+    }
+  }, [activePageIndex, selectedLayerId]);
+
+  const enterNodeEditMode = (targetEl, pageIndex) => {
+    if (!targetEl) return;
+
+    const pathEl = targetEl.tagName?.toLowerCase() === 'path' ? targetEl : targetEl.querySelector('path');
+    if (!pathEl || !pathEl.getAttribute('d')) return;
+
+    const d = pathEl.getAttribute('d');
+    if (!d) return;
+
+    // Exit any previous node edit mode first
+    if (nodeEditModeRef.current) exitNodeEditMode();
+
+    try {
+      const paperPath = createPaperPath(d);
+      if (!paperPath) return;
+
+      nodeEditModeRef.current = true;
+      nodeEditPathRef.current = pathEl;
+      nodeEditPageIndexRef.current = pageIndex;
+      nodeEditPaperPathRef.current = paperPath;
+      nodeEditDragRef.current = null;
+      nodeEditSelectedSegIdxRef.current = 0;
+      nodeEditSelectedSegIndicesRef.current = new Set([0]);
+
+      if (pathEl.id) {
+        selectedLayerIdRef.current = pathEl.id;
+        if (typeof setSelectedLayerId === 'function') setSelectedLayerId(pathEl.id);
+        if (typeof setMultiSelectedIds === 'function') {
+          multiSelectedIdsRef.current = new Set([pathEl.id]);
+          setMultiSelectedIds(new Set([pathEl.id]));
+        }
+      }
+
+      // Add direct selection arrow cursor to container
+      document.querySelectorAll('.page-svg-container').forEach(el => el.classList.add('cur-node-edit'));
+
+      // Remove regular selection highlight (replace with node overlay)
+      clearOverlayType('selected');
+      const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
+      if (overlay) {
+        overlay.querySelectorAll(`[id*="${pathEl.id}"]`).forEach(n => n.remove());
+      }
+
+      drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+
+      // Add a banner/badge in the page container to indicate node edit mode
+      const container = pathEl.closest('.page-svg-container');
+      if (container) {
+        container.setAttribute('data-node-edit-active', 'true');
+      }
+
+      window.dispatchEvent(new CustomEvent('node-edit-mode-changed', { detail: { active: true, pathId: pathEl.id } }));
+    } catch (err) {
+      console.warn('[NodeEditMode] Failed to enter node edit mode:', err);
+    }
+  };
+
   // Helper: Get the starting index (left page) of the spread containing activePageIndex
   const spreadStartIndex = (isDoublePage && activePageIndex > 0)
     ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
@@ -5309,8 +6414,20 @@ const MainEditor = ({
 
     // 1. Pixel-perfect fast check: native browser hit testing
     const hitElements = document.elementsFromPoint(clientX, clientY);
-    if (hitElements.includes(el) || (typeof el.contains === 'function' && hitElements.some(he => el.contains(he)))) {
+    const isHit = hitElements.includes(el) || (typeof el.contains === 'function' && hitElements.some(he => el.contains(he)));
+    if (isHit) {
       if (!isCroppedEl) return true;
+    }
+
+    const isVectorPath = el.getAttribute('data-type') === 'vector-path' || (el.tagName && el.tagName.toLowerCase() === 'path');
+    if (isVectorPath) {
+      const isSelected = (selectedLayerIdRef.current && selectedLayerIdRef.current === el.id) ||
+                         (multiSelectedIdsRef.current && multiSelectedIdsRef.current.has(el.id));
+      if (!isSelected) {
+        // Unselected vector path: require pointer directly over stroke/fill (no gap hover)
+        return false;
+      }
+      // Selected vector path: fall through to bounding box check below so dragging inside the gap works!
     }
 
     // 2. Extrapolated local Bounding Box hit testing using visual bounds (excludes cropped gaps)
@@ -5486,7 +6603,7 @@ const MainEditor = ({
             y: rect.y || rect.top || 0,
           };
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
   };
@@ -5498,7 +6615,7 @@ const MainEditor = ({
     }
     try {
       interaction.stop();
-    } catch (e) {}
+    } catch (e) { }
     if (!interaction.rect) {
       interaction.rect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
     }
@@ -5525,8 +6642,8 @@ const MainEditor = ({
             if (!svgElement) return;
 
             const isEditing = target.closest('[data-editing="true"]') || (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true');
-            // If Ctrl is held or not in selection mode, stop interact.js drag
-            if (!['select', 'upload', 'grid'].includes(activeMainToolRef.current) || isEditing || event.ctrlKey) {
+            // If Ctrl is held, not in selection mode, or node edit mode is active, stop interact.js drag
+            if (!['select', 'upload', 'grid'].includes(activeMainToolRef.current) || isEditing || event.ctrlKey || nodeEditModeRef.current) {
               safeStopInteraction(event.interaction);
               return;
             }
@@ -6425,7 +7542,7 @@ const MainEditor = ({
 
             if (event.shiftKey) {
               let targetRatio = null;
-              if (el.hasAttribute('data-original-aspect-ratio')) {
+              if (el.hasAttribute('data-original-aspect-ratio') && !isElementInCropMode) {
                 targetRatio = parseFloat(el.getAttribute('data-original-aspect-ratio'));
               } else {
                 const shapeName = el.getAttribute('data-name') || '';
@@ -6624,6 +7741,22 @@ const MainEditor = ({
                     };
                   };
 
+                  const getSmInParentSpace = (child, sm) => {
+                    const parentEl = child.parentNode;
+                    const canvasSVGEl = child.ownerSVGElement;
+                    if (!parentEl || !canvasSVGEl || parentEl === canvasSVGEl) return sm;
+                    try {
+                      const parentCTM = parentEl.getScreenCTM();
+                      const svgCTM = canvasSVGEl.getScreenCTM();
+                      if (!parentCTM || !svgCTM) return sm;
+                      const rootToParent = parentCTM.inverse().multiply(svgCTM);
+                      const parentToRoot = svgCTM.inverse().multiply(parentCTM);
+                      return rootToParent.multiply(sm).multiply(parentToRoot);
+                    } catch (e) {
+                      return sm;
+                    }
+                  };
+
                   state.childrenData.forEach(cData => {
                     const { child, initialMatrix, bound } = cData;
 
@@ -6682,7 +7815,8 @@ const MainEditor = ({
                         }
                       } else {
                         const sm = new DOMMatrix().translate(worldAnchor.x, worldAnchor.y).scale(scaleX, scaleY).translate(-worldAnchor.x, -worldAnchor.y);
-                        child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
+                        const smLocal = getSmInParentSpace(child, sm);
+                        child.setAttribute('transform', matrixToTransform(smLocal.multiply(initialMatrix)));
                       }
                     } else if (tag === 'circle' || tag === 'ellipse') {
                       const hasTransform = child.getAttribute('transform');
@@ -6700,11 +7834,13 @@ const MainEditor = ({
                         }
                       } else {
                         const sm = new DOMMatrix().translate(worldAnchor.x, worldAnchor.y).scale(scaleX, scaleY).translate(-worldAnchor.x, -worldAnchor.y);
-                        child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
+                        const smLocal = getSmInParentSpace(child, sm);
+                        child.setAttribute('transform', matrixToTransform(smLocal.multiply(initialMatrix)));
                       }
                     } else {
                       const sm = new DOMMatrix().translate(worldAnchor.x, worldAnchor.y).scale(scaleX, scaleY).translate(-worldAnchor.x, -worldAnchor.y);
-                      child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
+                      const smLocal = getSmInParentSpace(child, sm);
+                      child.setAttribute('transform', matrixToTransform(smLocal.multiply(initialMatrix)));
                     }
                   });
 
@@ -6763,7 +7899,7 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
-                        const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir);
+                        const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
                         if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
                           let origX = parseFloat(el.getAttribute('data-crop-orig-x') || child.getAttribute('data-crop-orig-x') || child.getAttribute('x') || '0');
@@ -6873,7 +8009,7 @@ const MainEditor = ({
                           let imgH = newLocH;
 
                           const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
-                          const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir);
+                          const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
                           if (isCropModeThisEl) {
                             let origX = parseFloat(el.getAttribute('data-crop-orig-x') || innerImg.getAttribute('data-crop-orig-x') || innerImg.getAttribute('x') || '0');
@@ -6905,10 +8041,15 @@ const MainEditor = ({
                                   cHeight = parseFloat(cd.height) || 100;
                                 } catch (e) { }
                               }
-                              const newOrigW = cWidth > 0 ? (newLocW / (cWidth / 100)) : newLocW;
-                              const newOrigH = cHeight > 0 ? (newLocH / (cHeight / 100)) : newLocH;
-                              const newOrigX = newLocX - (newOrigW * (cLeft / 100));
-                              const newOrigY = newLocY - (newOrigH * (cTop / 100));
+                              const scaledCropX = la.x + (bbox.x - la.x) * scaleX;
+                              const scaledCropY = la.y + (bbox.y - la.y) * scaleY;
+                              const scaledCropW = bbox.width * scaleX;
+                              const scaledCropH = bbox.height * Math.abs(scaleY);
+
+                              const newOrigW = cWidth > 0 ? (scaledCropW / (cWidth / 100)) : scaledCropW;
+                              const newOrigH = cHeight > 0 ? (scaledCropH / (cHeight / 100)) : scaledCropH;
+                              const newOrigX = scaledCropX - (newOrigW * (cLeft / 100));
+                              const newOrigY = scaledCropY - (newOrigH * (cTop / 100));
 
                               el.setAttribute('data-crop-orig-x', newOrigX);
                               el.setAttribute('data-crop-orig-y', newOrigY);
@@ -6963,7 +8104,7 @@ const MainEditor = ({
                   const targetCData = state.childrenData.find(c => c.child === imgElLive || c.child.contains?.(imgElLive)) || state.childrenData[0];
                   if (targetCData) {
                     const la = state.localAnchor;
-                    const bound = targetCData.bound;
+                    const bound = bbox || targetCData.bound;
                     const newMinX = la.x + (bound.x - la.x) * scaleX;
                     const newMinY = la.y + (bound.y - la.y) * scaleY;
                     const newMaxX = la.x + (bound.x + bound.width - la.x) * scaleX;
@@ -7072,8 +8213,36 @@ const MainEditor = ({
             };
 
             if (el.tagName === 'multi') {
-              if (state.childrenData) state.childrenData.forEach(c => syncOverlay(c.child));
-              drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+              if (state.childrenData) {
+                state.childrenData.forEach(c => {
+                  syncOverlay(c.child);
+                  drawOverlayHighlight(c.child, 'multi-child-selected');
+                });
+              }
+
+              // ── Live sync of the overall bounding box using pre-computed coordinates ──
+              // This avoids DOM-reflow lag from getBBox() / getBoundingClientRect() that
+              // drawMultiSelectionHighlight() would trigger after attribute mutations.
+              const newOverallMinX = worldAnchor.x + (bbox.x - worldAnchor.x) * scaleX;
+              const newOverallMinY = worldAnchor.y + (bbox.y - worldAnchor.y) * scaleY;
+              const newOverallMaxX = worldAnchor.x + (bbox.x + bbox.width - worldAnchor.x) * scaleX;
+              const newOverallMaxY = worldAnchor.y + (bbox.y + bbox.height - worldAnchor.y) * scaleY;
+              const newOverallBBox = {
+                x: Math.min(newOverallMinX, newOverallMaxX),
+                y: Math.min(newOverallMinY, newOverallMaxY),
+                width:  Math.abs(newOverallMaxX - newOverallMinX),
+                height: Math.abs(newOverallMaxY - newOverallMinY)
+              };
+
+              // Resolve overlay elements from the first selected child
+              const firstChildEl = state.childrenData?.[0]?.child;
+              if (firstChildEl) {
+                const pageContainer = firstChildEl.closest?.('.page-svg-container');
+                const pageIdx = pageContainer?.getAttribute('data-page-index');
+                const selOverlay = pageIdx != null ? document.getElementById(`highlight-overlay-${pageIdx}`) : null;
+                const selHtmlOverlay = pageIdx != null ? document.getElementById(`highlight-overlay-html-${pageIdx}`) : null;
+                syncMultiSelectionBox(firstChildEl.ownerSVGElement, selOverlay, selHtmlOverlay, newOverallBBox);
+              }
             } else {
               syncOverlay(el);
               const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
@@ -7108,14 +8277,6 @@ const MainEditor = ({
       interactable.unset();
     };
   }, [activePageIndex, zoom]);
-
-  // ── FIGMA-STYLE MOUSE DOWN: start drag on already-selected element ────────────
-  const getLocalPoint = (svg, element, clientX, clientY) => {
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    return pt.matrixTransform(element.getScreenCTM().inverse());
-  };
 
   const saveModifiedPageHtml = (targetPageIndex, targetSvg) => {
     if (!updatePageHtmlRef.current) return;
@@ -7171,6 +8332,300 @@ const MainEditor = ({
     const container = e.currentTarget;
     const svg = container.querySelector('svg');
     if (!svg) return;
+
+    // ── NODE EDIT MODE: Handle node, handle, and line segment dragging ──────────
+    if (nodeEditModeRef.current && nodeEditPathRef.current) {
+      const pathEl = nodeEditPathRef.current;
+      const paperPath = nodeEditPaperPathRef.current;
+      if (!paperPath || !pathEl) return;
+
+      skipClearSelectionRef.current = true;
+      if (pathEl && pathEl.id) {
+        selectedLayerIdRef.current = pathEl.id;
+        if (typeof setSelectedLayerId === 'function') setSelectedLayerId(pathEl.id);
+        if (typeof setMultiSelectedIds === 'function') {
+          multiSelectedIdsRef.current = new Set([pathEl.id]);
+          setMultiSelectedIds(new Set([pathEl.id]));
+        }
+      }
+      window.dispatchEvent(new CustomEvent('node-edit-mode-changed', { detail: { active: true, pathId: pathEl.id } }));
+
+      // Screen-space hit testing using stored node positions from drawNodeEditOverlay.
+      // These positions are in actual screen pixels (from pathEl.getScreenCTM()),
+      // so they correctly match e.clientX/e.clientY regardless of zoom/scroll/transforms.
+      let hitSegIdx = -1;
+      let hitHandleSide = null; // 'point', 'in', 'out'
+      const HIT_RADIUS_PX = 12; // screen pixel radius
+
+      const screenNodes = nodeEditScreenNodesRef.current;
+      let minDist = HIT_RADIUS_PX;
+      for (const node of screenNodes) {
+        const dist = Math.hypot(e.clientX - node.x, e.clientY - node.y);
+        if (dist < minDist) {
+          minDist = dist;
+          hitSegIdx = node.segIdx;
+          hitHandleSide = node.handleSide;
+        }
+      }
+
+      paperScopeRef.current.activate();
+      const svgEl = pathEl.ownerSVGElement;
+      const pt = getLocalPoint(svgEl, pathEl, e.clientX, e.clientY);
+      const mousePt = new paperScopeRef.current.Point(pt.x, pt.y);
+
+      if (hitSegIdx !== -1 && !isNaN(hitSegIdx)) {
+        if (hitHandleSide === 'point') {
+          // Deleting an anchor point is ONLY performed if the Pen Subtract tool is active
+          if (selectedPenToolRef.current === 'subtract') {
+            const segments = getPaperSegments(paperPath);
+            if (segments[hitSegIdx]) {
+              segments[hitSegIdx].remove();
+            }
+            mergeMeetingNodes(paperPath);
+            const dStr = cleanPaperPathData(paperPath);
+            const remainingSegments = getPaperSegments(paperPath);
+            if (remainingSegments.length <= 1 || !dStr || dStr.trim() === '') {
+              pathEl.remove();
+              exitNodeEditMode();
+              if (svgEl && updatePageHtml) {
+                saveModifiedPageHtml(pageIndex, svgEl);
+              }
+              if (typeof setSelectedLayerId === 'function') setSelectedLayerId(null);
+            } else {
+              pathEl.setAttribute('d', dStr);
+              nodeEditSelectedSegIdxRef.current = null;
+              nodeEditSelectedSegIndicesRef.current = new Set();
+              drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+              if (svgEl && updatePageHtml) {
+                saveModifiedPageHtml(pageIndex, svgEl);
+              }
+            }
+            suppressClickRef.current = true;
+            e.stopPropagation();
+            return;
+          }
+
+          let selSet = nodeEditSelectedSegIndicesRef.current || new Set();
+          if (e.shiftKey) {
+            if (selSet.has(hitSegIdx)) selSet.delete(hitSegIdx);
+            else selSet.add(hitSegIdx);
+          } else {
+            // Select only the clicked node point (plus any co-located merged nodes) and unselect other nodes
+            selSet = new Set([hitSegIdx]);
+          }
+          const segments = getPaperSegments(paperPath);
+          const primarySeg = segments[hitSegIdx];
+          if (primarySeg) {
+            // Snap all co-located/merged nodes (within 1.5px distance) to the exact same center point
+            segments.forEach((s, sIdx) => {
+              if (Math.hypot(s.point.x - primarySeg.point.x, s.point.y - primarySeg.point.y) < 1.5) {
+                selSet.add(sIdx);
+                s.point.x = primarySeg.point.x;
+                s.point.y = primarySeg.point.y;
+              }
+            });
+
+            let currentNodeType = primarySeg.nodeType;
+            if (!currentNodeType) {
+              if (primarySeg.handleIn.isZero() && primarySeg.handleOut.isZero()) {
+                currentNodeType = 'sharp';
+              } else if (!primarySeg.handleIn.isZero() && !primarySeg.handleOut.isZero()) {
+                const dot = primarySeg.handleIn.normalize().dot(primarySeg.handleOut.normalize());
+                if (dot < -0.95) {
+                  currentNodeType = Math.abs(primarySeg.handleIn.length - primarySeg.handleOut.length) < 1.5 ? 'balanced' : 'smooth';
+                } else {
+                  currentNodeType = 'custom';
+                }
+              } else {
+                currentNodeType = 'custom';
+              }
+              primarySeg.nodeType = currentNodeType;
+            }
+            window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: currentNodeType, segIdx: hitSegIdx } }));
+          }
+
+          nodeEditSelectedHandleSideRef.current = 'point';
+          nodeEditSelectedSegIndicesRef.current = selSet;
+          nodeEditSelectedSegIdxRef.current = hitSegIdx;
+          drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+
+          // Store initial local positions of all selected nodes for multi-node translation
+          const startPoints = {};
+          selSet.forEach(idx => {
+            if (segments[idx]) {
+              startPoints[idx] = primarySeg ? primarySeg.point.clone() : segments[idx].point.clone();
+            }
+          });
+
+          nodeEditDragRef.current = {
+            mode: 'node',
+            segIdx: hitSegIdx,
+            handleSide: hitHandleSide,
+            startPt: pt,
+            startPoints,
+            pathEl,
+            paperPath,
+            pageIndex
+          };
+        } else {
+          // Double-click (e.detail === 2), Alt+Click, or Subtract tool on a top/bottom control handle retracts/deletes that handle point
+          if (e.detail === 2 || e.altKey || selectedPenToolRef.current === 'subtract') {
+            const segments = getPaperSegments(paperPath);
+            const seg = segments[hitSegIdx];
+            if (seg) {
+              if (hitHandleSide === 'in') {
+                seg.handleIn = new paperScopeRef.current.Point(0, 0);
+              } else if (hitHandleSide === 'out') {
+                seg.handleOut = new paperScopeRef.current.Point(0, 0);
+              }
+              if (seg.handleIn.isZero() && seg.handleOut.isZero()) {
+                seg.nodeType = 'sharp';
+              } else {
+                seg.nodeType = 'custom';
+              }
+              const dStr = cleanPaperPathData(paperPath);
+              pathEl.setAttribute('d', dStr);
+              drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+              if (svgEl && updatePageHtml) {
+                saveModifiedPageHtml(pageIndex, svgEl);
+              }
+            }
+            suppressClickRef.current = true;
+            e.stopPropagation();
+            return;
+          }
+
+          nodeEditSelectedHandleSideRef.current = hitHandleSide;
+          nodeEditSelectedSegIndicesRef.current = new Set([hitSegIdx]);
+          nodeEditSelectedSegIdxRef.current = hitSegIdx;
+          drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+
+          nodeEditDragRef.current = {
+            mode: 'handle',
+            segIdx: hitSegIdx,
+            handleSide: hitHandleSide,
+            startPt: pt,
+            pathEl,
+            paperPath,
+            pageIndex
+          };
+        }
+
+        suppressClickRef.current = true;
+        e.stopPropagation();
+        return;
+      }
+
+      // Path-line proximity: Check if clicking near path curve segment
+      // Use stored screen-space segment midpoints for reliable detection
+      const SEG_HIT_RADIUS_PX = 25;
+      let hitCurveIdx = -1;
+      let hitSeg1Idx = -1;
+      let hitSeg2Idx = -1;
+      let segMinDist = SEG_HIT_RADIUS_PX;
+
+      for (const seg of nodeEditScreenSegmentsRef.current) {
+        // Also compute distance to nearest point along segment by sampling screen positions
+        const dist = Math.hypot(e.clientX - seg.mx, e.clientY - seg.my);
+        if (dist < segMinDist) {
+          segMinDist = dist;
+          hitCurveIdx = seg.curveIdx;
+          hitSeg1Idx = seg.seg1Idx;
+          hitSeg2Idx = seg.seg2Idx;
+        }
+      }
+
+      // Fallback: use paper.js local distance if screen midpoints didn't find anything
+      if (hitCurveIdx === -1) {
+        try {
+          const nearestLoc = paperPath.getNearestLocation(mousePt);
+          if (nearestLoc && nearestLoc.curve) {
+            const ctm = pathEl.getScreenCTM();
+            const scale = ctm ? Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) : 1;
+            const screenDist = nearestLoc.distance * scale;
+            if (screenDist <= SEG_HIT_RADIUS_PX) {
+              const curves = getPaperCurves(paperPath);
+              const segments = getPaperSegments(paperPath);
+              hitCurveIdx = curves.indexOf(nearestLoc.curve);
+              hitSeg1Idx = segments.indexOf(nearestLoc.curve.segment1);
+              hitSeg2Idx = segments.indexOf(nearestLoc.curve.segment2);
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (hitCurveIdx !== -1 && hitSeg1Idx !== -1 && hitSeg2Idx !== -1) {
+        const curves = getPaperCurves(paperPath);
+        const segments = getPaperSegments(paperPath);
+        const curve = curves[hitCurveIdx];
+        if (curve) {
+          if (e.ctrlKey) {
+            // Ctrl+click: Smooth bezier bend of the segment
+            nodeEditDragRef.current = {
+              mode: 'segment-bend',
+              curveIndex: hitCurveIdx,
+              startPt: pt,
+              startHandle1: curve.segment1.handleOut.clone(),
+              startHandle2: curve.segment2.handleIn.clone(),
+              pathEl,
+              paperPath,
+              pageIndex
+            };
+          } else {
+            // Regular click: select both endpoint nodes (plus co-located nodes) and allow moving the segment
+            const selSet = new Set([hitSeg1Idx, hitSeg2Idx]);
+            [hitSeg1Idx, hitSeg2Idx].forEach(idx => {
+              if (segments[idx]) {
+                const p = segments[idx].point;
+                segments.forEach((s, sIdx) => {
+                  if (Math.hypot(s.point.x - p.x, s.point.y - p.y) < 3.0) {
+                    selSet.add(sIdx);
+                    s.point.x = p.x;
+                    s.point.y = p.y;
+                  }
+                });
+              }
+            });
+
+            nodeEditSelectedSegIndicesRef.current = selSet;
+            nodeEditSelectedSegIdxRef.current = hitSeg1Idx;
+            drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+
+            // Store initial positions of all segment endpoint nodes (and co-located nodes)
+            const startPoints = {};
+            selSet.forEach(idx => {
+              if (segments[idx]) {
+                startPoints[idx] = segments[idx].point.clone();
+              }
+            });
+
+            nodeEditDragRef.current = {
+              mode: 'segment-translate',
+              curveIndex: hitCurveIdx,
+              seg1Idx: hitSeg1Idx,
+              seg2Idx: hitSeg2Idx,
+              startPt: pt,
+              startPoints,
+              pathEl,
+              paperPath,
+              pageIndex
+            };
+          }
+
+          suppressClickRef.current = true;
+          e.stopPropagation();
+          return;
+        }
+      }
+
+      // Clicked outside all nodes and path → exit Node Edit Mode
+      const pIdx = nodeEditPageIndexRef.current;
+      exitNodeEditMode();
+      if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
+        saveModifiedPageHtml(pIdx, pathEl.ownerSVGElement);
+      }
+      return;
+    }
 
     // ── Universal cleanup for Bending State ──
     if (activeBendingSegmentRef.current && !e.ctrlKey) {
@@ -7315,7 +8770,7 @@ const MainEditor = ({
       return;
     }
 
-    // ── Pen/Pencil/Curve Tool Drawing (Only on Active Page) ─────────────────────────────
+    // ── Pen/Pencil Tool Drawing (Only on Active Page) ─────────────────────────────
     if (activeMainTool === 'pen' && pageIndex === activePageIndex && !e.ctrlKey) {
       if (selectedPenTool === 'pencil') {
         const parentEl = resolveTargetParentForCreation(svg, e.clientX, e.clientY);
@@ -7342,92 +8797,43 @@ const MainEditor = ({
         suppressClickRef.current = true;
         return;
       }
+
+      // Vectra Pen Tool
       const parentEl = resolveTargetParentForCreation(svg, e.clientX, e.clientY);
       if (!parentEl) return;
       const pt = getLocalPoint(svg, parentEl, e.clientX, e.clientY);
 
-      if (parentEl) {
-        // If already drawing, add point or close path
-        if (drawingPathRef.current) {
-          const nestedPoints = drawingSubPathsRef.current;
-          const currentSubIdx = nestedPoints.length - 1;
-          const currentPts = nestedPoints[currentSubIdx];
+      const vSession = vectraPenSessionRef.current;
+      vSession.onDown(e, pt);
 
-          // Hit test nodes
-          let hitPIdx = -1, hitPtIdx = -1;
-          nestedPoints.forEach((pts, pi) => {
-            const idx = pts.findIndex(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 8);
-            if (idx !== -1) { hitPIdx = pi; hitPtIdx = idx; }
-          });
-
-          if (hitPIdx !== -1) {
-            if (hitPIdx === currentSubIdx && hitPtIdx === 0 && currentPts.length > 2 && !currentPts.isZ) {
-              currentPts.isZ = true;
-              drawingPathRef.current.isFinished = true;
-              const pathData = generatePathData(currentPts, true, selectedPenTool);
-              drawingSubPathElsRef.current[currentSubIdx].setAttribute('d', pathData);
-              drawPenToolNodes(pageIndex, drawingPathRef.current, nestedPoints);
-              suppressClickRef.current = true;
-              return;
-            }
-            draggedNodeIndexRef.current = { pIdx: hitPIdx, ptIdx: hitPtIdx };
-            suppressClickRef.current = true;
-            return;
-          }
-
-          if (drawingPathRef.current.isFinished) {
-            drawingPathRef.current.isFinished = false;
-            const newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
-            newPath.setAttribute('id', pathId);
-            newPath.setAttribute('data-type', 'vector-path');
-            newPath.setAttribute('d', `M ${pt.x} ${pt.y}`);
-            drawingPathRef.current.appendChild(newPath);
-            drawingSubPathsRef.current.push([{ x: pt.x, y: pt.y, isCorner: false }]);
-            drawingSubPathElsRef.current.push(newPath);
-            draggedNodeIndexRef.current = { pIdx: drawingSubPathsRef.current.length - 1, ptIdx: 0 };
-          } else {
-            currentPts.push({ x: pt.x, y: pt.y, isCorner: false });
-            draggedNodeIndexRef.current = { pIdx: currentSubIdx, ptIdx: currentPts.length - 1 };
-            const pathData = generatePathData(currentPts, false, selectedPenTool);
-            drawingSubPathElsRef.current[currentSubIdx].setAttribute('d', pathData);
-          }
-          drawPenToolNodes(pageIndex, drawingPathRef.current, drawingSubPathsRef.current);
-          suppressClickRef.current = true;
-          return;
-        }
-
-        // Start new group
-        const typeLabel = (selectedPenTool === 'curve' ? 'curve' : 'pen');
-        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        const id = `${typeLabel}-group-${Math.random().toString(36).substr(2, 9)}`;
-        group.setAttribute('id', id);
-        group.setAttribute(`data-${typeLabel}-group`, 'true');
-        group.setAttribute('data-type', 'vector-object');
-        group.setAttribute('fill', 'none');
-        group.setAttribute('stroke', '#000000');
-        group.setAttribute('stroke-width', '2');
-        group.setAttribute('stroke-linecap', 'round');
-        group.setAttribute('stroke-linejoin', 'round');
-
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
-        path.setAttribute('id', pathId);
-        path.setAttribute('data-type', 'vector-path');
-        path.setAttribute('d', `M ${pt.x} ${pt.y}`);
-        group.appendChild(path);
-
-        parentEl.appendChild(group);
-        drawingPathRef.current = group;
-        drawingSubPathsRef.current = [[{ x: pt.x, y: pt.y, isCorner: false }]];
-        drawingSubPathElsRef.current = [path];
-        draggedNodeIndexRef.current = { pIdx: 0, ptIdx: 0 };
+      // Create a SINGLE SVG <path> element for the entire Pen session
+      let pathEl = drawingPathRef.current;
+      if (!pathEl || !pathEl.parentElement || !pathEl.ownerSVGElement) {
+        const id = `vpath-${Math.random().toString(36).substr(2, 9)}`;
+        pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        pathEl.setAttribute('id', id);
+        pathEl.setAttribute('data-type', 'vector-path');
+        pathEl.setAttribute('data-name', 'Vector Path');
+        pathEl.setAttribute('fill', 'none');
+        pathEl.setAttribute('stroke', '#000000');
+        pathEl.setAttribute('stroke-width', '2');
+        pathEl.setAttribute('stroke-linecap', 'round');
+        pathEl.setAttribute('stroke-linejoin', 'round');
+        parentEl.appendChild(pathEl);
+        drawingPathRef.current = pathEl;
         drawingPageIndexRef.current = pageIndex;
         drawingSvgRef.current = svg;
-
-        drawPenToolNodes(pageIndex, group, drawingSubPathsRef.current);
-        suppressClickRef.current = true;
       }
+
+      // Update single <path> element's d attribute with ALL paths in vSession
+      const comboD = pathToDCombo(vSession.paths);
+      if (comboD) {
+        pathEl.setAttribute('d', comboD);
+      }
+
+      // Render overlay showing ALL nodes for ALL paths currently in vSession
+      renderVectraOverlay(pageIndex, parentEl, vSession);
+      suppressClickRef.current = true;
       return;
     }
 
@@ -7669,6 +9075,48 @@ const MainEditor = ({
       }
     }
 
+    // ── NODE EDIT MODE: Drag node(s), handle, or line segment ─────────────────
+    if (nodeEditDragRef.current) {
+      const { mode, segIdx, handleSide, pathEl, paperPath, startPt, startPoints, curveIndex, startHandle1, startHandle2 } = nodeEditDragRef.current;
+      const svgEl = pathEl.ownerSVGElement;
+      if (!svgEl) return;
+      const pt = getLocalPoint(svgEl, pathEl, e.clientX, e.clientY);
+      paperScopeRef.current.activate();
+      const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
+      const delta = mousePoint.subtract(new paperScopeRef.current.Point(startPt.x, startPt.y));
+
+      if (mode === 'node') {
+        if (startPoints && Object.keys(startPoints).length > 0) {
+          Object.keys(startPoints).forEach(sIdxStr => {
+            const sIdx = parseInt(sIdxStr);
+            const seg = paperPath.segments[sIdx];
+            if (seg && startPoints[sIdx]) {
+              seg.point = startPoints[sIdx].add(delta);
+            }
+          });
+        } else {
+          const seg = paperPath.segments[segIdx];
+          if (seg) seg.point = mousePoint;
+        }
+      } else if (mode === 'handle') {
+        const seg = paperPath.segments[segIdx];
+        if (seg) {
+          applyHandleDrag(seg, handleSide, mousePoint, e.altKey);
+        }
+      } else if (mode === 'segment-bend') {
+        const curve = paperPath.curves[curveIndex];
+        if (curve && startHandle1 && startHandle2) {
+          curve.segment1.handleOut = startHandle1.add(delta.multiply(0.5));
+          curve.segment2.handleIn = startHandle2.add(delta.multiply(-0.5));
+        }
+      }
+
+      pathEl.setAttribute('d', paperPath.pathData);
+      drawNodeEditOverlay(pathEl, paperPath, nodeEditPageIndexRef.current);
+      suppressClickRef.current = true;
+      return;
+    }
+
     // ── Ctrl + Click Bending Update ──
     if (bendingStateRef.current) {
       const { pathEl, paperPath, curveIndex, pageIndex: activePageIdx } = bendingStateRef.current;
@@ -7757,34 +9205,44 @@ const MainEditor = ({
       return;
     }
 
-    // ── Pen/Curve/Click-to-Click Drawing Preview ────────────────────────────────────────────────
-    if (drawingPathRef.current && !isFreehandDrawingRef.current) {
-      const svg = drawingSvgRef.current;
-      // Use getLocalPoint relative to the parentEl of the path
-      const pt = getLocalPoint(svg, drawingPathRef.current.parentElement, e.clientX, e.clientY);
-      if (pt) {
-        const subPaths = drawingSubPathsRef.current;
-        const activePIdx = subPaths.length - 1;
-        const dNode = draggedNodeIndexRef.current;
+    // ── Vectra Pen Tool Update & Hover Preview ──────────
+    if (activeMainTool === 'pen' && selectedPenTool === 'pen') {
+      const pageContainer = e.currentTarget.closest('.page-svg-container');
+      const svg = drawingSvgRef.current || (pageContainer?.querySelector('svg'));
+      if (svg) {
+        const parentEl = drawingPathRef.current?.parentElement || resolveTargetParentForCreation(svg, e.clientX, e.clientY);
+        if (parentEl) {
+          const pt = getLocalPoint(svg, parentEl, e.clientX, e.clientY);
+          const vSession = vectraPenSessionRef.current;
+          vSession.scale = zoom / 100;
 
-        if (dNode.pIdx !== -1) {
-          // Update existing node in any subpath
-          const targetPt = subPaths[dNode.pIdx][dNode.ptIdx];
-          targetPt.x = pt.x;
-          targetPt.y = pt.y;
+          if (e.buttons & 1) {
+            vSession.onDrag(e, pt);
+          } else {
+            vSession.onHover(e, pt);
+          }
 
-          const pathData = generatePathData(subPaths[dNode.pIdx], false, selectedPenTool);
-          drawingSubPathElsRef.current[dNode.pIdx].setAttribute('d', pathData);
-          drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths);
-        } else if (!drawingPathRef.current.isFinished) {
-          // Preview: only rubber-band for current subpath if not closed
-          const currentPts = subPaths[activePIdx];
-          const pathData = generatePathData(currentPts, false, selectedPenTool, pt);
-          drawingSubPathElsRef.current[activePIdx].setAttribute('d', pathData);
-          drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths, pt);
+          const pathEl = drawingPathRef.current;
+          const activeVPathId = drawingVectraPathIdRef.current;
+          if (pathEl && activeVPathId) {
+            const activePath = vSession.paths.get(activeVPathId);
+            if (activePath) {
+              const d = pathToD(activePath);
+              if (d) pathEl.setAttribute('d', d);
+            }
+          }
+
+          if (pageContainer) {
+            pageContainer.classList.remove('cur-pen-close', 'cur-pen-extend', 'cur-snap');
+            if (vSession.cursor && vSession.cursor !== 'cur-pen') {
+              pageContainer.classList.add(vSession.cursor);
+            }
+          }
+
+          renderVectraOverlay(pageIndex, parentEl, vSession);
         }
-        suppressClickRef.current = true;
       }
+      suppressClickRef.current = true;
       return;
     }
 
@@ -7890,6 +9348,7 @@ const MainEditor = ({
     const allowSelection = isSelectionTool || ((isPenToolActive || isShapes) && pageIndex !== activePageIndex);
 
     if (!allowSelection) return;
+    if (document.querySelector('[data-dragging="true"]')) return;
 
     const container = e.currentTarget;
 
@@ -8062,6 +9521,17 @@ const MainEditor = ({
   // ── FIGMA-STYLE GLOBAL MOUSE UP (Handles end of marquee or tool drawing) ────────────────
   useEffect(() => {
     const handleGlobalMouseUp = (e) => {
+      // ── Node Edit Mode: Finalize node drag ──
+      if (nodeEditDragRef.current) {
+        const { pathEl, pageIndex: nePageIndex } = nodeEditDragRef.current;
+        nodeEditDragRef.current = null;
+        if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
+          saveModifiedPageHtml(nePageIndex, pathEl.ownerSVGElement);
+        }
+        setTimeout(() => { suppressClickRef.current = false; }, 50);
+        return;
+      }
+
       // ── Bending/Handle Dragging Finalization ──
       const activeState = (bendingStateRef.current || handleDraggingStateRef.current);
       if (activeState) {
@@ -8074,6 +9544,14 @@ const MainEditor = ({
         bendingStateRef.current = null;
         handleDraggingStateRef.current = null;
         return;
+      }
+
+      if (activeMainTool === 'pen' && selectedPenTool === 'pen') {
+        const vSession = vectraPenSessionRef.current;
+        vSession.onUp();
+        if (drawingPathRef.current?.parentElement) {
+          renderVectraOverlay(activePageIndex, drawingPathRef.current.parentElement, vSession);
+        }
       }
 
       // Termination for drag-based pen tools (Pencil)
@@ -9021,37 +10499,41 @@ const MainEditor = ({
 
     if (isDoubleClick) {
       if (activeMainTool === 'pen' && selectedPenTool === 'pen' && drawingPathRef.current) {
-        // Finish pen path on double click
-        const path = drawingPathRef.current;
-        const pageIdx = drawingPageIndexRef.current;
-        const svgEl = path.ownerSVGElement;
+        const vSession = vectraPenSessionRef.current;
+        vSession.finishPath();
+        const pathEl = drawingPathRef.current;
+        const pageIdx = drawingPageIndexRef.current !== null ? drawingPageIndexRef.current : activePageIndex;
 
+        if (pathEl) {
+          const comboD = pathToDCombo(vSession.paths);
+          if (comboD) pathEl.setAttribute('d', comboD);
+        }
+
+        vSession.reset();
         drawingPathRef.current = null;
-        drawingPointsRef.current = [];
-        drawingPageIndexRef.current = null;
-        drawingSvgRef.current = null;
+        drawingVectraPathIdRef.current = null;
 
-        if (svgEl && updatePageHtml) {
-          updatePageHtml(pageIdx, svgEl.outerHTML);
-          if (path && path.id) {
-            window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: path.id } }));
+        clearVectraOverlay(pageIdx);
+        document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
+          const g = overlay.querySelector('#vectra-overlay-group');
+          if (g) g.innerHTML = '';
+        });
 
-            // Auto-select
+        if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
+          updatePageHtml(pageIdx, pathEl.ownerSVGElement.outerHTML);
+          if (pathEl.id) {
+            window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: pathEl.id } }));
             if (setSelectedLayerId) {
-              setSelectedLayerId(path.id);
-              selectedLayerIdRef.current = path.id;
-              drawOverlayHighlight(path, 'selected');
+              setSelectedLayerId(pathEl.id);
+              selectedLayerIdRef.current = pathEl.id;
+              drawOverlayHighlight(pathEl, 'selected');
             }
           }
         }
-
-        // Switch tool
-        skipClearSelectionRef.current = true;
-        setTimeout(() => {
-          // if (setActiveMainTool) setActiveMainTool('select');
-
-          suppressClickRef.current = false;
-        }, 100);
+        if (typeof setActiveMainTool === 'function') {
+          setActiveMainTool('select');
+        }
+        suppressClickRef.current = false;
         return;
       }
       handleSvgDoubleClick(e);
@@ -9573,6 +11055,12 @@ const MainEditor = ({
     const svg = container.querySelector('svg');
     if (!svg) return;
 
+    // ── NODE EDIT MODE: Double-click on already-active node edit path ──────────────
+    if (nodeEditModeRef.current) {
+      // Already in node edit mode – do nothing on double click (single click to drag handles)
+      return;
+    }
+
     // Text editing on double-click
     // 1. First check if we directly hit text
     let target = getDraggableElement(e.target, e.currentTarget);
@@ -9593,23 +11081,32 @@ const MainEditor = ({
       }
     }
 
-    if (!target) {
-      // If in curve tool, check for double click on a node to toggle corner/smooth
-      if (activeMainTool === 'pen' && selectedPenTool === 'curve' && drawingPathRef.current) {
-        const svgEl = svg;
-        const containerBox = container.getBoundingClientRect();
-        const scale = zoom / 100;
-        const pt = getSvgPoint(svgEl, e.clientX, e.clientY);
+    // ── NODE EDIT MODE: Check if double-clicking a vector/path/shape element ───
+    if (target && !['text', 'tspan', 'foreignobject'].includes(target.tagName?.toLowerCase())) {
+      const tag = target.tagName?.toLowerCase();
+      const dataType = target.getAttribute('data-type') || '';
+      const isVectorOrPath = (
+        tag === 'path' ||
+        dataType === 'vector-path' ||
+        dataType === 'shape' ||
+        (tag === 'ellipse' || tag === 'circle' || tag === 'rect' || tag === 'line' || tag === 'polyline' || tag === 'polygon')
+      ) && target.getAttribute('data-locked') !== 'true' &&
+        target.getAttribute('data-name') !== 'Overlay' &&
+        target.getAttribute('data-type') !== 'frame' &&
+        target.getAttribute('data-type') !== 'background';
 
-        const points = drawingPointsRef.current;
-        const hitIdx = points.findIndex(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 10 / scale);
-        if (hitIdx !== -1) {
-          points[hitIdx].isCorner = !points[hitIdx].isCorner;
-          drawingPathRef.current.setAttribute('d', generatePathData(points, false, 'curve'));
-          drawPenToolNodes(activePageIndex, drawingPathRef.current.parentNode, points);
+      if (isVectorOrPath && target.id) {
+        // For non-path shapes (rect/ellipse/etc.), convert to path first or skip
+        if (tag === 'path' || dataType === 'vector-path') {
+          const container = target.closest('.page-svg-container');
+          const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
+          enterNodeEditMode(target, pageIdx);
           return;
         }
       }
+    }
+
+    if (!target) {
       return;
     }
 
@@ -10355,19 +11852,6 @@ const MainEditor = ({
                     </button>
 
                     <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.3vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'curve' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedPenTool('curve');
-                        setActiveMainTool('pen');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <CurveIcon width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'curve' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'curve' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Curve</span>
-                    </button>
-
-                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pencil' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -10400,8 +11884,6 @@ const MainEditor = ({
                 >
                   {selectedPenTool === 'pencil' ? (
                     <Icon icon="mingcute:pencil-fill" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-                  ) : selectedPenTool === 'curve' ? (
-                    <CurveIcon width="1.2vw" height="1.2vw" className="text-[#111827]" />
                   ) : (
                     <Icon icon="streamline-cyber:pen-tool" width="1.2vw" height="1.2vw" className="text-[#111827]" />
                   )}
@@ -10624,7 +12106,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeTopTool !== 'animation' && activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeTopTool !== 'animation' && activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
                     <style>{svgGlobalStyles}</style>
                     {(() => {
                       const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
@@ -10810,7 +12292,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeTopTool !== 'animation' && activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeTopTool !== 'animation' && activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
 
                     <style>{svgGlobalStyles}</style>
                     {(() => {

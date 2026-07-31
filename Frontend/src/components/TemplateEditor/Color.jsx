@@ -273,9 +273,9 @@ const Color = ({
       if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
         el.setAttribute('data-fill-color', backgroundColor.fill);
         el.setAttribute('data-fill-opacity', (backgroundColor.fillOpacity / 100).toString());
-        
+
         const isGradient = backgroundColor.fill.includes('gradient');
-        
+
         if (!isImage) {
           if (!isGradient) el.setAttribute('fill', backgroundColor.fill);
           el.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
@@ -294,17 +294,17 @@ const Color = ({
               if (gradEl) {
                 const parsed = parseGradient(backgroundColor.fill);
                 const existingStops = Array.from(gradEl.querySelectorAll('stop'));
-                
+
                 const isTargetLinear = parsed?.type?.toLowerCase() === 'linear';
                 const isCurrentLinear = gradEl.tagName.toLowerCase() === 'lineargradient';
-                
+
                 if (parsed && isTargetLinear === isCurrentLinear && parsed.stops.length > 0 && parsed.stops.length === existingStops.length) {
                   // Same stop count and same type — just update colors and angle/radius in-place (fastest path, no React cycle)
                   parsed.stops.forEach((ns, i) => {
                     existingStops[i].setAttribute('stop-color', ns.color);
                     existingStops[i].setAttribute('stop-opacity', (ns.opacity !== undefined ? ns.opacity / 100 : 1).toString());
                   });
-                  
+
                   // Update angle/radius
                   if (parsed.type.toLowerCase() === 'linear') {
                     const angleRad = ((parsed.angle || 0) * Math.PI) / 180;
@@ -320,16 +320,16 @@ const Color = ({
                     gradEl.setAttribute('cx', '50%');
                     gradEl.setAttribute('cy', '50%');
                   }
-                  
+
                   fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
-                  
+
                   // Only skip onUpdate and data-fill-color during active drag to prevent lag.
                   // If it's a preset click or drag has finished, we must sync state!
                   if (!isDraggingRef.current) {
                     el.setAttribute('data-fill-color', backgroundColor.fill);
                     if (onUpdate) onUpdate({ shouldRefresh: true });
                   }
-                  
+
                   return; // Done — skip the slow full-sync path below
                 }
               }
@@ -370,7 +370,7 @@ const Color = ({
       } else {
         el.setAttribute('data-stroke-color', backgroundColor.stroke);
         el.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
-        
+
         const isStrokeGradient = backgroundColor.stroke.includes('gradient');
 
         const dashArray = backgroundColor.strokeDashStyle === 'Dashed'
