@@ -1754,7 +1754,7 @@ const TextEditor = ({
 
     if (property === 'listStyleType') {
       setListStyleType(value);
-      
+
       let latestText = textContent;
       const el = document.getElementById(selectedLayerId);
       if (el) {
@@ -1813,7 +1813,7 @@ const TextEditor = ({
         } else if (el.tagName.toLowerCase() === 'text') {
           // Triggering a local update will rebuild tspans
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
-      }
+        }
       }
 
       if (selectedLayerId && el?.tagName.toLowerCase() !== 'text') {
