@@ -284,7 +284,7 @@ const Color = ({
           // If a gradient fill layer already exists with a url(#...) fill, we update
           // the <stop> elements directly in the SVG defs. This completely bypasses the
           // MutationObserver -> React re-render cycle for real-time color drag updates.
-          let fillLayer = el.querySelector('.image-fill-layer') || el.querySelector('.video-fill-layer');
+          let fillLayer = el.querySelector('.image-fill-layer') || el.querySelector('.video-fill-layer') || el.querySelector('.gif-fill-layer');
           if (isGradient && fillLayer) {
             const existingFill = fillLayer.getAttribute('fill') || '';
             if (existingFill.startsWith('url(#')) {
@@ -341,7 +341,7 @@ const Color = ({
             fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
           } else if (isImage) {
             // Basic fallback if layer missing
-            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             fillLayer.classList.add('image-fill-layer');
             fillLayer.style.pointerEvents = 'none';
             if (!isGradient) fillLayer.setAttribute('fill', backgroundColor.fill);
@@ -515,7 +515,7 @@ const Color = ({
             }
           }
         } else {
-          let strokeLayer = el.querySelector('.svg-image-stroke-overlay') || el.querySelector('.video-stroke-overlay');
+          let strokeLayer = el.querySelector('.svg-image-stroke-overlay') || el.querySelector('.video-stroke-overlay') || el.querySelector('.svg-gif-stroke-overlay');
           if (strokeLayer) {
             if (!isStrokeGradient) {
               strokeLayer.setAttribute('stroke', backgroundColor.stroke);
