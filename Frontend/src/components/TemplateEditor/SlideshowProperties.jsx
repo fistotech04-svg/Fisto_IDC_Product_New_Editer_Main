@@ -1626,31 +1626,14 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
       <div className="space-y-7">
 
-        {/* 1. Info Row */}
-        <div className="flex items-center gap-[0.4vw] px-[0.25vw]">
-          <div className="relative">
-            <button
-              className="w-[1.1vw] h-[1.1vw] rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-[0.6vw] font-semibold hover:bg-gray-100 transition-colors"
-              onMouseEnter={() => setShowInfoTooltip(true)}
-              onMouseLeave={() => setShowInfoTooltip(false)}
-            >
-              i
-            </button>
-            {showInfoTooltip && (
-              <div className="absolute left-[1.5vw] top-0 bg-gray-800 text-white text-[0.65vw] px-[0.75vw] py-[0.4vw] rounded-[0.4vw] whitespace-nowrap z-50 shadow-lg">
-                You can add up to 4 images in Gallery
-              </div>
-            )}
-          </div>
-          <span className="text-[0.7vw] text-gray-400 font-medium italic">You can add up to 4 images in Gallery *</span>
-        </div>
+       
 
-        {/* 2. Images Grid */}
+        {/* 1. Images Grid */}
         <div className="grid grid-cols-4 gap-[0.75vw] px-[0.05vw]">
           {Array.from({ length: Math.min(MAX_GALLERY_IMAGES, slideshowImages.length + 1) }).map((_, i) => (
             <div key={i} className="relative group/slot">
               <div
-                className={`aspect-[1/1] w-full rounded-[0.4vw] cursor-pointer border-[0.1vw] transition-all duration-300 relative flex items-center justify-center group/card hover:scale-[1.05] hover:-translate-y-[0.25vw] hover:z-20 ${activeSlideIndex === i
+                className={`aspect-[1/1] w-full rounded-[0.4vw] cursor-pointer border-[0.1vw] transition-all duration-300 relative flex items-center justify-center group/card hover:scale-[0.2vw] hover:-translate-y-[0.2vw] hover:z-20 ${activeSlideIndex === i
                   ? 'border-gray-500 bg-gray-100 shadow-[0_0.65vw_1.25vw_-0.4vw_rgba(99,102,241,0.3)]'
                   : (slideshowImages[i] ? 'border-gray-200 hover:border-gray-400 hover:shadow-[0_0.75vw_1.5vw_-0.5vw_rgba(0,0,0,0.15)]' : 'border-gray-400 hover:border-indigo-400 shadow-sm')
                   } ${!slideshowImages[i] ? 'bg-gray-50/50 border-dashed' : 'bg-white shadow-sm'}`}
@@ -1699,10 +1682,35 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
               {openContextMenu === i && (
                 <>
                   <div className="fixed inset-0 z-[105]" onClick={() => setOpenContextMenu(null)} />
-                  <div className={`absolute top-[40%] mt-[0.25vw] w-[7.5vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-2xl z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${(i % 4) >= 2 ? 'right-0' : 'left-0'}`}>
-                    <button onClick={() => { if (slideshowImages[i]) { setReplaceTargetIndex(i); replaceInputRef.current?.click(); setOpenContextMenu(null); } else { setActiveSlideIndex(i); fileInputRef.current?.click(); setOpenContextMenu(null); } }} className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-gray-700 hover:bg-gray-50 text-left border-b border-gray-50 transition-colors flex items-center gap-[0.5vw]">{slideshowImages[i] ? 'Replace Image' : 'Upload Image'}</button>
-                    <button onClick={() => { setLibraryTargetIndex(i); setShowGallery(true); setOpenContextMenu(null); }} className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-gray-700 hover:bg-gray-50 text-left border-b border-gray-50 transition-colors flex items-center gap-[0.5vw]">Image Gallery</button>
-                    {slideshowImages[i] && <button onClick={() => deleteImage(i)} className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-red-500 hover:bg-red-50 text-left transition-colors flex items-center gap-[0.5vw]">Delete Image</button>}
+                  <div className={`absolute top-[1.5vw] w-[9.5vw] z-[110] animate-in fade-in zoom-in-95 duration-150 ${(i % 4) >= 2 ? '-right-[0.375vw] origin-top-right' : 'left-[calc(100%-1.375vw)] origin-top-left'}`}>
+                    <div className="bg-white rounded-[0.5vw] shadow-[0_0.3vw_1vw_rgba(0,0,0,0.15)] border border-gray-100 p-[0.75vw]">
+                      <h3 className="text-[0.85vw] font-medium text-gray-700 truncate mb-[0.2vw]">Slide {i + 1}.jpg</h3>
+                      <p className="text-[0.7vw] text-gray-400 mb-[0.75vw]">1920 X 1080 • 1256KB</p>
+                      <div className="flex items-center gap-[0.4vw]">
+                        <button 
+                          onClick={() => { 
+                            if (slideshowImages[i]) { 
+                              setReplaceTargetIndex(i); 
+                              replaceInputRef.current?.click(); 
+                              setOpenContextMenu(null); 
+                            } else { 
+                              setActiveSlideIndex(i); 
+                              fileInputRef.current?.click(); 
+                              setOpenContextMenu(null); 
+                            } 
+                          }}
+                          className="flex-1 px-[0.3vw] py-[0.35vw] text-[0.7vw] font-medium text-gray-600 bg-[#f9fafb] border border-gray-200 rounded-[0.3vw] hover:bg-gray-100 transition-colors"
+                        >
+                          {slideshowImages[i] ? 'Replace Image' : 'Add Image'}
+                        </button>
+                        <button 
+                          onClick={() => deleteImage(i)}
+                          className="w-[1.9vw] h-[1.9vw] flex items-center justify-center bg-[#f9fafb] border border-gray-200 rounded-[0.3vw] hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors text-gray-400 shrink-0"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="0.9vw" height="0.9vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -1711,6 +1719,25 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="image/*" className="hidden" />
         <input type="file" ref={replaceInputRef} onChange={handleReplaceFileChange} accept="image/*" className="hidden" />
+
+         {/* 2. Info Row */}
+        <div className="flex items-center gap-[0.4vw] px-[0.25vw]">
+          <div className="relative">
+            <button
+              className="w-[1.1vw] h-[1.1vw] rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-[0.6vw] font-semibold hover:bg-gray-100 transition-colors"
+              onMouseEnter={() => setShowInfoTooltip(true)}
+              onMouseLeave={() => setShowInfoTooltip(false)}
+            >
+              i
+            </button>
+            {showInfoTooltip && (
+              <div className="absolute left-[1.5vw] top-0 bg-gray-800 text-white text-[0.65vw] px-[0.75vw] py-[0.4vw] rounded-[0.4vw] whitespace-nowrap z-50 shadow-lg">
+                You can add up to 4 images in Gallery
+              </div>
+            )}
+          </div>
+          <span className="text-[0.75vw] text-gray-400 font-medium italic">You can add up to 4 images in Gallery</span><span className="text-[0.95vw] text-red-500 "> *</span>
+        </div>
 
         {/* Opacity */}
         <div className="space-y-[0.5vw]">
