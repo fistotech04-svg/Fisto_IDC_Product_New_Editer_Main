@@ -444,6 +444,12 @@ const ImageEditor = ({
           br: parseFloat(selectedElement.getAttribute('data-effect-radius-br') || '0'),
           bl: parseFloat(selectedElement.getAttribute('data-effect-radius-bl') || '0')
         });
+        const linkedStr = selectedElement.getAttribute('data-corner-linked');
+        if (linkedStr !== null) {
+          setIsRadiusLinked(linkedStr === 'true');
+        } else {
+          setIsRadiusLinked(true); // Default to linked for new images
+        }
       } else {
         const clipStyle = selectedElement.style.clipPath || svgImageEl?.style.clipPath || '';
         const parts = (clipStyle.match(/round\s+([.\d\s]+)px/) || ['', '0'])[1].trim().split(/\s+/).map(p => parseFloat(p) || 0);
@@ -1410,6 +1416,9 @@ const ImageEditor = ({
             imgEl.style.removeProperty('display');
             // Temporarily clear any existing transform so getBBox reads the raw layout
             imgEl.removeAttribute('transform');
+            
+            // Persist the radius link state to DOM so it is retained across clicks
+            liveElement.setAttribute('data-corner-linked', isRadiusLinked ? 'true' : 'false');
             imgEl.setAttribute('width', origW);
             imgEl.setAttribute('height', origH);
             imgEl.setAttribute('x', origX.toString() + (isXPercent ? '%' : ''));
@@ -2280,7 +2289,10 @@ const ImageEditor = ({
         }
       }
 
-      if (liveElement.getAttribute('data-is-image-group') === 'true' || isPatternShape) {
+      const tagLowerForFill = liveElement.tagName?.toLowerCase();
+      const isShapeNodeForFill = ['rect', 'circle', 'ellipse', 'polygon', 'polyline', 'path'].includes(tagLowerForFill);
+      
+      if (!isShapeNodeForFill || isPatternShape) {
         let fillLayer = fillLayerParent.querySelector('.image-fill-layer');
         if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
           if (!fillLayer || fillLayer.tagName.toLowerCase() !== (!isPatternShape ? 'path' : 'rect')) {
@@ -2402,7 +2414,7 @@ const ImageEditor = ({
           liveElement.removeAttribute('data-fill-opacity');
         }
       } else if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none' && !backgroundColor.fill.startsWith('url(')) {
-        liveElement.setAttribute('fill', backgroundColor.fill);
+        if (isShapeNodeForFill) liveElement.setAttribute('fill', backgroundColor.fill);
         liveElement.setAttribute('data-fill-color', backgroundColor.fill);
         liveElement.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
         liveElement.setAttribute('data-fill-opacity', (backgroundColor.fillOpacity / 100).toString());
@@ -2410,7 +2422,7 @@ const ImageEditor = ({
         // Only remove fill if we aren't currently using a pattern!
         const currentFill = liveElement.getAttribute('fill') || '';
         if (!currentFill.startsWith('url(')) {
-          liveElement.removeAttribute('fill');
+          if (isShapeNodeForFill) liveElement.removeAttribute('fill');
           liveElement.removeAttribute('data-fill-color');
         }
       }

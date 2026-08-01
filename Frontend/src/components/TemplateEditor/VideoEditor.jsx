@@ -928,18 +928,25 @@ const VideoEditor = ({
             else rect.removeAttribute('rx');
 
             if (container && container !== liveElement) {
-              container.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-              container.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              // Apply directly to the video element to prevent breaking native controls in Chrome
+              container.style.removeProperty('clip-path');
+              container.style.removeProperty('-webkit-clip-path');
               liveElement.style.removeProperty('clip-path');
               liveElement.style.removeProperty('-webkit-clip-path');
+              target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+              target.style.setProperty('-webkit-clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
             } else {
               liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
               liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              target.style.removeProperty('clip-path');
+              target.style.removeProperty('-webkit-clip-path');
             }
           }
         } else {
           liveElement.style.removeProperty('clip-path');
           liveElement.style.removeProperty('-webkit-clip-path');
+          target.style.removeProperty('clip-path');
+          target.style.removeProperty('-webkit-clip-path');
           if (container) {
             container.style.removeProperty('clip-path');
             container.style.removeProperty('-webkit-clip-path');
@@ -950,10 +957,6 @@ const VideoEditor = ({
             if (existingClip) existingClip.remove();
           }
         }
-        
-        // Remove CSS inset clip-path from target to avoid conflicts
-        target.style.removeProperty('clip-path');
-        target.style.removeProperty('-webkit-clip-path');
       } else {
         if (anyR || forceClip) {
           target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
@@ -1249,18 +1252,24 @@ const VideoEditor = ({
         }
       }
 
-      if (activeEffects.includes('Blur') && !forceClip) {
-        liveElement.style.setProperty('filter', blurStr.trim() || 'none', 'important');
-        target.style.filter = filterStr.trim() || 'none';
-        if (visualTarget !== target) {
-          visualTarget.style.filter = 'none';
+      // Always apply filters directly to the target (video element) instead of liveElement.
+      // Applying filter to liveElement (the SVG group) blurs the custom controls overlay
+      // which is dynamically injected as a sibling of the video.
+      target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
+      if (visualTarget !== target) {
+        visualTarget.style.filter = 'none';
+      }
+      liveElement.style.removeProperty('filter');
+
+      // Since we no longer blur the liveElement group, we must manually blur the stroke overlay
+      // if Clip Content is off, to maintain the original visual behavior for the stroke.
+      const strokeOverlayEl = liveElement.querySelector('.svg-video-stroke-overlay');
+      if (strokeOverlayEl) {
+        if (activeEffects.includes('Blur') && !forceClip) {
+          strokeOverlayEl.style.filter = blurStr.trim() || 'none';
+        } else {
+          strokeOverlayEl.style.removeProperty('filter');
         }
-      } else {
-        target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
-        if (visualTarget !== target) {
-          visualTarget.style.filter = 'none';
-        }
-        liveElement.style.removeProperty('filter');
       }
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
