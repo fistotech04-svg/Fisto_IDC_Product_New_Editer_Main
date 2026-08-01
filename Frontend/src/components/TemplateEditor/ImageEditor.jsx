@@ -79,10 +79,12 @@ const ImageEditor = ({
   });
   const isUpdatingDOM = useRef(false);
   const isUpdatingDOMTimeoutRef = useRef(null);
+  const observerRef = useRef(null);
   const isHydrating = useRef(true);
   const onUpdateTimerRef = useRef(null);
   const lastAppliedIdRef = useRef(null);
   const onUpdateRef = useRef(onUpdate);
+  const applyVisualsRef = useRef(null);
 
   // Sync the ref on every render
   useEffect(() => {
@@ -670,6 +672,13 @@ const ImageEditor = ({
 
   useEffect(() => {
     if (!selectedElement) return;
+    // Strip data-type and id from inner image immediately on selection to fix interact.js targeting
+    const svgImageEl = getSvgImageEl(selectedElement);
+    if (svgImageEl && svgImageEl !== selectedElement) {
+      svgImageEl.removeAttribute('data-type');
+      svgImageEl.removeAttribute('id');
+    }
+
     const observer = new MutationObserver((mutations) => {
       const isObjectFitMutation = mutations.some(m => m.type === 'attributes' && (
         m.attributeName === 'data-object-fit'
@@ -690,11 +699,17 @@ const ImageEditor = ({
         m.attributeName === 'src' || m.attributeName === 'href' ||
         m.attributeName === 'opacity' || m.attributeName === 'style' ||
         m.attributeName === 'data-slideshow' ||
-        m.attributeName === 'data-fill-color' || m.attributeName === 'data-stroke-color' || m.attributeName === 'data-stroke-width'
+        m.attributeName === 'data-fill-color' || m.attributeName === 'data-stroke-color' || m.attributeName === 'data-stroke-width' ||
+        m.attributeName === 'width' || m.attributeName === 'height' ||
+        m.attributeName === 'x' || m.attributeName === 'y'
       ));
-      if (relevantMutation) syncStateFromDOM();
+      if (relevantMutation) {
+        syncStateFromDOM();
+        if (applyVisualsRef.current) applyVisualsRef.current();
+      }
     });
-    observer.observe(selectedElement, { attributes: true, attributeFilter: ['style', 'src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width', 'data-object-fit'] });
+    observerRef.current = observer;
+    observer.observe(selectedElement, { attributes: true, subtree: true, attributeFilter: ['style', 'src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width', 'data-object-fit', 'width', 'height', 'x', 'y'] });
     syncStateFromDOM(true); // Force sync on mount/element change
     return () => {
       observer.disconnect();
@@ -724,6 +739,11 @@ const ImageEditor = ({
     let svgImageEl = getSvgImageEl(liveElement);
     let isSvgEl = !!svgImageEl || (liveElement instanceof SVGElement && tagLower !== 'svg');
 
+    // Ensure inner image does not have data-type so interact.js ignores it
+    if (svgImageEl && svgImageEl !== liveElement) {
+      svgImageEl.removeAttribute('data-type');
+    }
+
     // --- FORCE IMAGE GROUP STRUCTURE FOR IMAGES ---
     if (isSvgEl && svgImageEl && liveElement.getAttribute('data-is-image-group') !== 'true') {
       if (tagLower === 'image') {
@@ -736,6 +756,7 @@ const ImageEditor = ({
 
         liveElement.removeAttribute('id');
         liveElement.setAttribute('data-name', 'Image');
+        liveElement.removeAttribute('data-type');
 
         if (liveElement.hasAttribute('transform')) {
           newGroup.setAttribute('transform', liveElement.getAttribute('transform'));
@@ -961,7 +982,7 @@ const ImageEditor = ({
             shadowCaster.setAttribute('fill-opacity', (opacity / 100).toString());
             shadowCaster.style.removeProperty('clip-path');
 
-            const effSet = effectSettings['Drop Shadow'] || {x:0, y:0, blur:0, color:'#000', opacity:0};
+            const effSet = effectSettings['Drop Shadow'] || { x: 0, y: 0, blur: 0, color: '#000', opacity: 0 };
             const totalBlur = effSet.blur / 2;
 
             let shadowFilterId = `ds-only-${liveElement.id || 'img'}`;
@@ -1018,7 +1039,7 @@ const ImageEditor = ({
             if (forceClip) {
               // Blur only content, tight bounds for intrinsic clipping
               liveElement.style.removeProperty('filter');
-              
+
               if (activeEffects.includes('Blur')) {
                 const blurVal = effectSettings['Blur'].blur / 2;
                 let svgFiltId = `tight-blur-${liveElement.id || 'img'}`;
@@ -1039,7 +1060,7 @@ const ImageEditor = ({
                   f.setAttribute('width', '100%');
                   f.setAttribute('height', '100%');
                   f.innerHTML = `<feGaussianBlur stdDeviation="${blurVal}"/>`;
-                  
+
                   svgImageEl.style.setProperty('filter', `${adjustmentFilters} url(#${svgFiltId})`.trim(), 'important');
                 } else {
                   const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
@@ -1416,7 +1437,7 @@ const ImageEditor = ({
             imgEl.style.removeProperty('display');
             // Temporarily clear any existing transform so getBBox reads the raw layout
             imgEl.removeAttribute('transform');
-            
+
             // Persist the radius link state to DOM so it is retained across clicks
             liveElement.setAttribute('data-corner-linked', isRadiusLinked ? 'true' : 'false');
             imgEl.setAttribute('width', origW);
@@ -2291,7 +2312,7 @@ const ImageEditor = ({
 
       const tagLowerForFill = liveElement.tagName?.toLowerCase();
       const isShapeNodeForFill = ['rect', 'circle', 'ellipse', 'polygon', 'polyline', 'path'].includes(tagLowerForFill);
-      
+
       if (!isShapeNodeForFill || isPatternShape) {
         let fillLayer = fillLayerParent.querySelector('.image-fill-layer');
         if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
@@ -2566,7 +2587,7 @@ const ImageEditor = ({
                 scaleX = Math.abs(ctm.a) || 1;
                 scaleY = Math.abs(ctm.d) || 1;
               }
-            } catch(e) {}
+            } catch (e) { }
 
             const swSync = backgroundColor.strokeWeight || 0;
             const posSync = backgroundColor.strokePosition || 'Center';
@@ -2622,7 +2643,7 @@ const ImageEditor = ({
 
             strokeOverlay.setAttribute('d', getPathDLocal(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
           };
-          
+
           strokeOverlay._obs = new MutationObserver(syncOverlay);
           strokeOverlay._obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
           if (svgImageEl && svgImageEl !== liveElement) {
@@ -2938,9 +2959,11 @@ const ImageEditor = ({
       // Clear any existing reset timer to extend the guard period
       if (isUpdatingDOMTimeoutRef.current) clearTimeout(isUpdatingDOMTimeoutRef.current);
 
+      if (observerRef.current) observerRef.current.takeRecords();
+
       // Keep isUpdatingDOM true for long enough to cover the onUpdate debounce (500ms) 
       // plus the subsequent React re-render cycle.
-      const resetDelay = onUpdate ? 300 : 300; // Drastically shorter to avoid blocking sync after re-render
+      const resetDelay = 0; // Set to 0 to enable 60fps drag syncing
       isUpdatingDOMTimeoutRef.current = setTimeout(() => {
         isUpdatingDOM.current = false;
         isUpdatingDOMTimeoutRef.current = null;
@@ -2948,7 +2971,10 @@ const ImageEditor = ({
     }
   }, [selectedElement, filters, activeEffects, effectSettings, opacity, imageType, radius, isSlideshow, backgroundColor]);
 
-  useEffect(() => { applyVisuals(); }, [applyVisuals]);
+  useEffect(() => {
+    applyVisualsRef.current = applyVisuals;
+    applyVisuals();
+  }, [applyVisuals]);
 
   const updateRadius = (corner, value) => {
     const val = Math.max(0, Number(value) || 0);
@@ -3311,7 +3337,7 @@ const ImageEditor = ({
                                             const boxH = parseFloat(origH);
                                             const boxAspect = boxW / boxH;
                                             const imgAspect = nw / nh;
-                                            
+
                                             let scaledW = boxW;
                                             let scaledH = boxH;
                                             if (imgAspect > boxAspect) {
@@ -3321,38 +3347,38 @@ const ImageEditor = ({
                                               scaledW = boxW;
                                               scaledH = boxW / imgAspect;
                                             }
-                                            
+
                                             const offX = (scaledW - boxW) / 2;
                                             const offY = (scaledH - boxH) / 2;
-                                            
+
                                             liveEl.setAttribute('data-crop-orig-w', scaledW);
                                             liveEl.setAttribute('data-crop-orig-h', scaledH);
                                             liveEl.setAttribute('data-crop-orig-x', parseFloat(origX) - offX);
                                             liveEl.setAttribute('data-crop-orig-y', parseFloat(origY) - offY);
-                                            
+
                                             imgEl.setAttribute('width', scaledW);
                                             imgEl.setAttribute('height', scaledH);
                                             imgEl.setAttribute('x', parseFloat(origX) - offX);
                                             imgEl.setAttribute('y', parseFloat(origY) - offY);
-                                            
+
                                             const leftPct = (offX / scaledW) * 100;
                                             const topPct = (offY / scaledH) * 100;
                                             const widthPct = (boxW / scaledW) * 100;
                                             const heightPct = (boxH / scaledH) * 100;
-                                            
+
                                             imgEl.setAttribute('preserveAspectRatio', 'none');
                                             imgEl.style.setProperty('object-fit', 'fill', 'important');
-                                            
+
                                             liveEl.setAttribute('data-crop-data', JSON.stringify({
                                               left: leftPct, top: topPct, width: widthPct, height: heightPct, offX: 0, offY: 0, scale: 1
                                             }));
-                                            
+
                                             window.dispatchEvent(new CustomEvent('force-crop-update', { detail: { id: liveEl.id } }));
                                           }
                                         };
                                         tempImg.src = url;
                                       }
-                                      
+
                                       imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
                                       imgEl.style.setProperty('object-fit', 'cover', 'important');
                                       liveEl.setAttribute('data-crop-data', JSON.stringify({ left: 0, top: 0, width: 100, height: 100, offX: 0, offY: 0, scale: 1 }));

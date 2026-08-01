@@ -6578,7 +6578,12 @@ const MainEditor = ({
         current.getAttribute('data-locked') !== 'true' &&
         current.getAttribute('data-name') !== 'Overlay'
       ) {
-        return current;
+        // Prevent targeting inner image of an image group directly
+        if (tagName === 'image' && current.parentNode?.getAttribute('data-is-image-group') === 'true') {
+          // Skip the inner image and let it traverse to the parent group
+        } else {
+          return current;
+        }
       }
 
       current = current.parentNode;
@@ -7764,7 +7769,8 @@ const MainEditor = ({
                       child.classList.contains('svg-shape-stroke-overlay') ||
                       child.classList.contains('svg-image-stroke-overlay') ||
                       child.classList.contains('svg-gif-stroke-overlay') ||
-                      child.classList.contains('svg-video-stroke-overlay')
+                      child.classList.contains('svg-video-stroke-overlay') ||
+                      child.classList.contains('svg-drop-shadow-caster')
                     );
 
                     if (isStrokeOverlay) {
@@ -7859,7 +7865,8 @@ const MainEditor = ({
                       child.classList.contains('svg-shape-stroke-overlay') ||
                       child.classList.contains('svg-image-stroke-overlay') ||
                       child.classList.contains('svg-gif-stroke-overlay') ||
-                      child.classList.contains('svg-video-stroke-overlay')
+                      child.classList.contains('svg-video-stroke-overlay') ||
+                      child.classList.contains('svg-drop-shadow-caster')
                     );
 
                     if (isStrokeOverlay) {
