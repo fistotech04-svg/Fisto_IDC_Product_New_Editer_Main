@@ -13,6 +13,7 @@ import PopupTemplateSelection from './PopupTemplateSelection';
 import Model3DEditor from './Model3DEditor';
 import ImportViaUrlModal from './ImportViaUrlModal';
 import ColorPicker, { parseGradient } from './ColorPicker';
+import MediaGalleryPopup from './MediaGalleryPopup';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import { createPortal } from 'react-dom';
 import { useParams, useLocation } from 'react-router-dom';
@@ -182,6 +183,8 @@ const RightSidebar = ({
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
   const [dimensionUnit, setDimensionUnit] = useState('mm');
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
+  const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
+  const browseGalleryBtnRef = useRef(null);
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [isPageBgPickerOpen, setIsPageBgPickerOpen] = useState(false);
   const unitRef = useRef(null);
@@ -1018,9 +1021,8 @@ const RightSidebar = ({
                 <div className="flex flex-col gap-[0.5vw]">
                   {/* Browse by Gallery */}
                   <button
-                    onClick={() => {
-                      if (setActiveMainTool) setActiveMainTool('elements');
-                    }}
+                    ref={browseGalleryBtnRef}
+                    onClick={() => setIsMediaGalleryOpen(true)}
                     className="w-full rounded-[0.65vw] p-[0.6vw] px-[0.75vw] bg-[#0c0f17] hover:bg-black text-white flex items-center justify-between shadow-md cursor-pointer transition-all border border-gray-800 group relative overflow-hidden"
                   >
                     <div className="flex items-center gap-[0.6vw]">
@@ -1487,6 +1489,16 @@ const RightSidebar = ({
         isOpen={isUrlModalOpen}
         onClose={() => setIsUrlModalOpen(false)}
         activePageIndex={activePageIndex}
+      />
+
+      <MediaGalleryPopup 
+        isOpen={isMediaGalleryOpen}
+        onClose={() => setIsMediaGalleryOpen(false)}
+        anchorRef={browseGalleryBtnRef}
+        onFileSelect={(file) => {
+          handleFileChange({ target: { files: [file] } });
+          setIsMediaGalleryOpen(false);
+        }}
       />
     </div>
   );

@@ -913,8 +913,21 @@ const Color = ({
                     updateAttr(activeColorPicker, newVal);
                   }
                 } else {
-                  updateAttr(activeColorPicker, newVal);
-                  updateAttr(`${activeColorPicker}-type`, 'solid');
+                  if (setBackgroundColor) {
+                    setBackgroundColor(p => {
+                      if (activeColorPicker === 'fill') {
+                        return { ...p, fill: newVal, fillType: 'solid' };
+                      } else if (activeColorPicker === 'stroke') {
+                        return { 
+                          ...p, 
+                          stroke: newVal, 
+                          strokeType: 'solid',
+                          strokeWeight: (p.strokeWeight === 0 && newVal !== 'transparent' && newVal !== 'none') ? 1 : p.strokeWeight
+                        };
+                      }
+                      return p;
+                    });
+                  }
                 }
               }}
               opacity={(() => {
