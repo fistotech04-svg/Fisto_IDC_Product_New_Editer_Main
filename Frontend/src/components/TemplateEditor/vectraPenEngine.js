@@ -1,7 +1,7 @@
 // Vectra Pen Tool Engine — Exact port from D:\SVG_Editor\js
 
 const DRAG_THRESHOLD = 5; // px screen space before a drag registers
-const HIT_TOLERANCE = 8;  // px in screen space
+const HIT_TOLERANCE = 14; // px in screen space for magnetic snapping
 
 let _id = 1;
 export const uid = () => 'n' + (_id++).toString(36);
@@ -294,23 +294,15 @@ export class VectraPenSession {
     const snap = this.snapPoint(world, e);
     const pt = { x: snap.x, y: snap.y };
 
-    // Close active path if clicking any anchor node
-    if (path && !path.closed && hit?.type === 'anchor' && path.nodes.length >= 2) {
-      const isFirstNodeHit = hit.pathId === path.id && hit.index === 0;
-      if (!isFirstNodeHit) {
-        const lastNode = path.nodes[path.nodes.length - 1];
-        if (dist(lastNode, pt) > 0.5 / this.scale) {
-          const node = makeNode(pt.x, pt.y, 'corner');
-          path.nodes.push(node);
-        }
-      }
+    // Close active path if clicking its start anchor node
+    if (path && !path.closed && hit?.type === 'anchor' && hit.pathId === path.id && hit.index === 0 && path.nodes.length >= 2) {
       this.drag = { mode: 'close', pathId: path.id, startWorld: world, moved: false };
       path.closed = true;
       this.finishPath();
       return;
     }
 
-    // Extend an existing open path
+    // Extend an existing open path endpoint when clicking it
     if (!path && hit?.type === 'anchor') {
       const p = this.paths.get(hit.pathId);
       if (p && !p.closed && (hit.index === 0 || hit.index === p.nodes.length - 1)) {
@@ -322,7 +314,7 @@ export class VectraPenSession {
       }
     }
 
-    // Place a new anchor
+    // Place a new anchor node
     if (!path || path.closed) {
       const newPath = makePath();
       const node = makeNode(pt.x, pt.y, 'corner');
@@ -342,6 +334,12 @@ export class VectraPenSession {
       const node = makeNode(pt.x, pt.y, 'corner');
       path.nodes.push(node);
       this.drag = { mode: 'place', pathId: path.id, nodeId: node.id, startWorld: world, moved: false };
+
+      if (hit?.type === 'anchor' && hit.pathId !== path.id) {
+        // Connect to existing anchor node and finish active segment
+        this.finishPath();
+        return;
+      }
     }
 
     this.ui.previewD = null;
