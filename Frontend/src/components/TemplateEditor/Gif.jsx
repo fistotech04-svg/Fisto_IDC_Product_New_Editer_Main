@@ -125,6 +125,7 @@ const GifEditor = ({
   const [showDetailedPicker, setShowDetailedPicker] = useState(false);
 
   const isUpdatingDOM = useRef(false);
+  const isUpdatingDOMTimeoutRef = useRef(null);
   const isHydrating = useRef(false);
   const onUpdateTimerRef = useRef(null);
   const onUpdateRef = useRef(onUpdate);
@@ -209,6 +210,12 @@ const GifEditor = ({
         tl = tr = br = bl = rx;
       }
       setRadius({ tl, tr, br, bl });
+    }
+
+    if (selectedElement.hasAttribute('data-corner-linked')) {
+      setIsRadiusLinked(selectedElement.getAttribute('data-corner-linked') !== 'false');
+    } else {
+      setIsRadiusLinked(true);
     }
 
     // Image Type
@@ -737,10 +744,15 @@ const GifEditor = ({
 
       // --- Background & Stroke ---
       if (isSvgEl) {
-        let fillLayer = liveElement.querySelector('.gif-fill-layer');
+        let fillLayer = liveElement.querySelector('.gif-fill-layer') || liveElement.querySelector('.image-fill-layer');
+        if (fillLayer && fillLayer.classList.contains('image-fill-layer')) {
+          fillLayer.classList.remove('image-fill-layer');
+          fillLayer.classList.add('gif-fill-layer');
+        }
+        
         if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
           if (!fillLayer) {
-            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             fillLayer.classList.add('gif-fill-layer');
             fillLayer.setAttribute('data-name', 'Fill Color');
             fillLayer.style.pointerEvents = 'none';
@@ -762,10 +774,16 @@ const GifEditor = ({
               let bh = parseFloat(targetEl.getAttribute('height')) || bBoxFill.height || 100;
 
               if (fillLayer) {
-                fillLayer.setAttribute('x', bx.toString());
-                fillLayer.setAttribute('y', by.toString());
-                fillLayer.setAttribute('width', bw.toString());
-                fillLayer.setAttribute('height', bh.toString());
+                const tl = Math.max(0, Math.min(radius.tl || 0, Math.min(bw, bh) / 2));
+                const tr = Math.max(0, Math.min(radius.tr || 0, Math.min(bw, bh) / 2));
+                const br = Math.max(0, Math.min(radius.br || 0, Math.min(bw, bh) / 2));
+                const bl = Math.max(0, Math.min(radius.bl || 0, Math.min(bw, bh) / 2));
+                fillLayer.setAttribute('d', getPathD(bx, by, bw, bh, tl, tr, br, bl));
+                fillLayer.removeAttribute('x');
+                fillLayer.removeAttribute('y');
+                fillLayer.removeAttribute('width');
+                fillLayer.removeAttribute('height');
+                fillLayer.removeAttribute('rx');
                 fillLayer.removeAttribute('transform');
                 fillLayer.style.removeProperty('transform');
                 fillLayer.style.removeProperty('translate');
@@ -813,10 +831,15 @@ const GifEditor = ({
             } catch (e) { }
           }
 
-          fillLayer.setAttribute('x', bxFill.toString());
-          fillLayer.setAttribute('y', byFill.toString());
-          fillLayer.setAttribute('width', bwFill.toString());
-          fillLayer.setAttribute('height', bhFill.toString());
+          const fillTl = Math.max(0, Math.min(radius.tl || 0, Math.min(bwFill, bhFill) / 2));
+          const fillTr = Math.max(0, Math.min(radius.tr || 0, Math.min(bwFill, bhFill) / 2));
+          const fillBr = Math.max(0, Math.min(radius.br || 0, Math.min(bwFill, bhFill) / 2));
+          const fillBl = Math.max(0, Math.min(radius.bl || 0, Math.min(bwFill, bhFill) / 2));
+          fillLayer.setAttribute('d', getPathD(bxFill, byFill, bwFill, bhFill, fillTl, fillTr, fillBr, fillBl));
+          fillLayer.removeAttribute('x');
+          fillLayer.removeAttribute('y');
+          fillLayer.removeAttribute('width');
+          fillLayer.removeAttribute('height');
           fillLayer.removeAttribute('transform');
           fillLayer.style.removeProperty('transform');
           fillLayer.style.removeProperty('translate');
@@ -865,15 +888,7 @@ const GifEditor = ({
           }
           fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
 
-          const bw = parseFloat(targetEl.getAttribute('width')) || 100;
-          const bh = parseFloat(targetEl.getAttribute('height')) || 100;
-          const maxR = Math.min(bw, bh) / 2;
-          const maxRFill = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-          if (maxRFill > 0) {
-            fillLayer.setAttribute('rx', Math.max(0, Math.min(maxRFill, maxR)).toString());
-          } else {
-            fillLayer.removeAttribute('rx');
-          }
+          fillLayer.removeAttribute('rx'); // We use 'd' instead of 'rx' now
 
           liveElement.setAttribute('data-fill-color', backgroundColor.fill);
         } else {
@@ -1432,6 +1447,12 @@ const GifEditor = ({
       liveElement.setAttribute('data-effect-opacity', opacity.toString());
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));
 
+      liveElement.setAttribute('data-effect-radius-tl', (radius.tl || 0).toString());
+      liveElement.setAttribute('data-effect-radius-tr', (radius.tr || 0).toString());
+      liveElement.setAttribute('data-effect-radius-br', (radius.br || 0).toString());
+      liveElement.setAttribute('data-effect-radius-bl', (radius.bl || 0).toString());
+      liveElement.setAttribute('data-corner-linked', isRadiusLinked ? 'true' : 'false');
+
       liveElement.setAttribute('data-effect-blur', activeEffects.includes('Blur') ? 'true' : 'false');
       if (effectSettings['Blur']) {
         liveElement.setAttribute('data-effect-blur-value', effectSettings['Blur'].blur.toString());
@@ -1512,9 +1533,12 @@ const GifEditor = ({
         }, 400);
       }
     } finally {
-      isUpdatingDOM.current = false;
+      if (isUpdatingDOMTimeoutRef.current) clearTimeout(isUpdatingDOMTimeoutRef.current);
+      isUpdatingDOMTimeoutRef.current = setTimeout(() => {
+        isUpdatingDOM.current = false;
+      }, 50);
     }
-  }, [selectedElement, selectedLayerId, activePageIndex, filters, activeEffects, effectSettings, opacity, imageType, radius, backgroundColor, getSvgImageEl]);
+  }, [selectedElement, selectedLayerId, activePageIndex, filters, activeEffects, effectSettings, opacity, imageType, radius, isRadiusLinked, backgroundColor, getSvgImageEl]);
 
   // Trigger applyVisuals when state changes
   useEffect(() => {
@@ -1723,11 +1747,11 @@ const GifEditor = ({
       </div>
 
       {/* Upload/Replace Row */}
-      <div className="flex items-start gap-[0.8vw] pt-[0.5vw]">
+      <div className="flex items-center gap-[1vw] pt-[0.5vw]">
         {/* Current Preview */}
-        <div className="w-[8.5vw] h-[6vw] bg-gray-100 rounded-[0.4vw] overflow-hidden flex-shrink-0 border border-gray-200">
+        <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
           {getSrc(getSvgImageEl(selectedElement) || selectedElement) ? (
-            <img src={getSrc(getSvgImageEl(selectedElement) || selectedElement)} className="w-full h-full object-cover" alt="Current GIF" />
+            <img src={getSrc(getSvgImageEl(selectedElement) || selectedElement)} className="w-full h-full object-fill" alt="Current GIF" />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center">
               <ImageIcon size="1.2vw" className="text-gray-300" />
@@ -1748,19 +1772,25 @@ const GifEditor = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-[0.5vw] mt-[0.2vw]">
+          <div className="flex items-center gap-[0.5vw]">
             <button
               onClick={() => setShowReplaceModal(true)}
-              className="px-[0.6vw] py-[0.3vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.7vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
+              className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
             >
               Replace gif
             </button>
             <button
               onClick={() => onDeleteLayer && onDeleteLayer()}
-              className="p-[0.4vw] bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-[0.3vw] transition-colors border border-gray-200"
+              className="p-[0.4vw] bg-gray-100 text-gray-500 rounded-[0.3vw] border border-gray-200 cursor-pointer transition-none"
               title="Delete"
             >
-              <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[0.9vw] h-[0.9vw]">
+                <path d="M3 6h18"></path>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
             </button>
           </div>
         </div>

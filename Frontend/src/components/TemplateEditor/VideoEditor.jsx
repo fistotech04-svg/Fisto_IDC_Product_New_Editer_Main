@@ -928,18 +928,25 @@ const VideoEditor = ({
             else rect.removeAttribute('rx');
 
             if (container && container !== liveElement) {
-              container.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-              container.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              // Apply directly to the video element to prevent breaking native controls in Chrome
+              container.style.removeProperty('clip-path');
+              container.style.removeProperty('-webkit-clip-path');
               liveElement.style.removeProperty('clip-path');
               liveElement.style.removeProperty('-webkit-clip-path');
+              target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+              target.style.setProperty('-webkit-clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
             } else {
               liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
               liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              target.style.removeProperty('clip-path');
+              target.style.removeProperty('-webkit-clip-path');
             }
           }
         } else {
           liveElement.style.removeProperty('clip-path');
           liveElement.style.removeProperty('-webkit-clip-path');
+          target.style.removeProperty('clip-path');
+          target.style.removeProperty('-webkit-clip-path');
           if (container) {
             container.style.removeProperty('clip-path');
             container.style.removeProperty('-webkit-clip-path');
@@ -950,10 +957,6 @@ const VideoEditor = ({
             if (existingClip) existingClip.remove();
           }
         }
-        
-        // Remove CSS inset clip-path from target to avoid conflicts
-        target.style.removeProperty('clip-path');
-        target.style.removeProperty('-webkit-clip-path');
       } else {
         if (anyR || forceClip) {
           target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
@@ -1249,18 +1252,24 @@ const VideoEditor = ({
         }
       }
 
-      if (activeEffects.includes('Blur') && !forceClip) {
-        liveElement.style.setProperty('filter', blurStr.trim() || 'none', 'important');
-        target.style.filter = filterStr.trim() || 'none';
-        if (visualTarget !== target) {
-          visualTarget.style.filter = 'none';
+      // Always apply filters directly to the target (video element) instead of liveElement.
+      // Applying filter to liveElement (the SVG group) blurs the custom controls overlay
+      // which is dynamically injected as a sibling of the video.
+      target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
+      if (visualTarget !== target) {
+        visualTarget.style.filter = 'none';
+      }
+      liveElement.style.removeProperty('filter');
+
+      // Since we no longer blur the liveElement group, we must manually blur the stroke overlay
+      // if Clip Content is off, to maintain the original visual behavior for the stroke.
+      const strokeOverlayEl = liveElement.querySelector('.svg-video-stroke-overlay');
+      if (strokeOverlayEl) {
+        if (activeEffects.includes('Blur') && !forceClip) {
+          strokeOverlayEl.style.filter = blurStr.trim() || 'none';
+        } else {
+          strokeOverlayEl.style.removeProperty('filter');
         }
-      } else {
-        target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
-        if (visualTarget !== target) {
-          visualTarget.style.filter = 'none';
-        }
-        liveElement.style.removeProperty('filter');
       }
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
@@ -2082,8 +2091,8 @@ const VideoEditor = ({
         </div>
 
         {/* Video Info Row */}
-        <div className="flex items-start gap-[0.8vw] pt-[0.5vw]">
-          <div className="w-[8.5vw] h-[6vw] bg-gray-100 rounded-[0.4vw] overflow-hidden flex-shrink-0 border border-gray-200">
+        <div className="flex items-center gap-[1vw] pt-[0.5vw]">
+          <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
             {previewSrc ? (
               previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
                 <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" allowFullScreen />
@@ -2112,7 +2121,7 @@ const VideoEditor = ({
                         const s = Math.floor(d % 60).toString().padStart(2, '0');
                         return (
                           <>
-                            {m}:{s} <span className="text-[0.5vw] opacity-80">Mins</span>
+                            {m}:{s} <span className="text-[0.6vw] opacity-80">Mins</span>
                           </>
                         );
                       })()}
@@ -2126,19 +2135,25 @@ const VideoEditor = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-[0.5vw] mt-[0.2vw]">
+            <div className="flex items-center gap-[0.5vw]">
               <button
                 onClick={() => setShowReplaceModal(true)}
-                className="px-[0.6vw] py-[0.3vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.7vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
+                className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
               >
                 Replace video
               </button>
               <button
                 onClick={() => onDeleteLayer && onDeleteLayer()}
-                className="p-[0.4vw] bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-[0.3vw] transition-colors border border-gray-200"
+                className="p-[0.4vw] bg-gray-100 text-gray-500 rounded-[0.3vw] border border-gray-200 cursor-pointer transition-none"
                 title="Delete"
               >
-                <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[0.9vw] h-[0.9vw]">
+                  <path d="M3 6h18"></path>
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
               </button>
             </div>
           </div>

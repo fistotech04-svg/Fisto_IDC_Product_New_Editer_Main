@@ -284,7 +284,7 @@ const Color = ({
           // If a gradient fill layer already exists with a url(#...) fill, we update
           // the <stop> elements directly in the SVG defs. This completely bypasses the
           // MutationObserver -> React re-render cycle for real-time color drag updates.
-          let fillLayer = el.querySelector('.image-fill-layer') || el.querySelector('.video-fill-layer');
+          let fillLayer = el.querySelector('.image-fill-layer') || el.querySelector('.video-fill-layer') || el.querySelector('.gif-fill-layer');
           if (isGradient && fillLayer) {
             const existingFill = fillLayer.getAttribute('fill') || '';
             if (existingFill.startsWith('url(#')) {
@@ -341,7 +341,7 @@ const Color = ({
             fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
           } else if (isImage) {
             // Basic fallback if layer missing
-            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             fillLayer.classList.add('image-fill-layer');
             fillLayer.style.pointerEvents = 'none';
             if (!isGradient) fillLayer.setAttribute('fill', backgroundColor.fill);
@@ -515,7 +515,7 @@ const Color = ({
             }
           }
         } else {
-          let strokeLayer = el.querySelector('.svg-image-stroke-overlay') || el.querySelector('.video-stroke-overlay');
+          let strokeLayer = el.querySelector('.svg-image-stroke-overlay') || el.querySelector('.video-stroke-overlay') || el.querySelector('.svg-gif-stroke-overlay');
           if (strokeLayer) {
             if (!isStrokeGradient) {
               strokeLayer.setAttribute('stroke', backgroundColor.stroke);
@@ -553,9 +553,9 @@ const Color = ({
   }, [openSubSection]);
   const pseudoProps = {
     fill: backgroundColor?.fill || '#000000',
-    opacity: (backgroundColor?.fillOpacity || 100) / 100,
+    opacity: (backgroundColor?.fillOpacity !== undefined && backgroundColor?.fillOpacity !== null ? backgroundColor.fillOpacity : 100) / 100,
     stroke: backgroundColor?.stroke || 'none',
-    'stroke-opacity': (backgroundColor?.strokeOpacity !== undefined ? backgroundColor.strokeOpacity : 100) / 100,
+    'stroke-opacity': (backgroundColor?.strokeOpacity !== undefined && backgroundColor?.strokeOpacity !== null ? backgroundColor.strokeOpacity : 100) / 100,
     'fill-type': backgroundColor?.fillType || 'solid',
     'fill-gradient-type': backgroundColor?.fillGradientType || 'linear',
     'fill-stops': backgroundColor?.fillStops,
@@ -913,16 +913,38 @@ const Color = ({
                     updateAttr(activeColorPicker, newVal);
                   }
                 } else {
-                  updateAttr(activeColorPicker, newVal);
-                  updateAttr(`${activeColorPicker}-type`, 'solid');
+                  if (setBackgroundColor) {
+                    setBackgroundColor(p => {
+                      if (activeColorPicker === 'fill') {
+                        return { ...p, fill: newVal, fillType: 'solid' };
+                      } else if (activeColorPicker === 'stroke') {
+                        return { 
+                          ...p, 
+                          stroke: newVal, 
+                          strokeType: 'solid',
+                          strokeWeight: (p.strokeWeight === 0 && newVal !== 'transparent' && newVal !== 'none') ? 1 : p.strokeWeight
+                        };
+                      }
+                      return p;
+                    });
+                  }
                 }
               }}
               opacity={(() => {
-                return activeColorPicker === 'fill' ? (parseFloat(pseudoProps.opacity || 1) * 100) : 100;
+                if (activeColorPicker === 'fill') {
+                  const op = pseudoProps.opacity !== undefined && pseudoProps.opacity !== '' && pseudoProps.opacity !== null ? pseudoProps.opacity : 1;
+                  return parseFloat(op) * 100;
+                } else if (activeColorPicker === 'stroke') {
+                  const op = pseudoProps['stroke-opacity'] !== undefined && pseudoProps['stroke-opacity'] !== '' && pseudoProps['stroke-opacity'] !== null ? pseudoProps['stroke-opacity'] : 1;
+                  return parseFloat(op) * 100;
+                }
+                return 100;
               })()}
               onOpacityChange={(newOpacity) => {
                 if (activeColorPicker === 'fill') {
                   updateAttr('opacity', (newOpacity / 100).toString());
+                } else if (activeColorPicker === 'stroke') {
+                  updateAttr('stroke-opacity', (newOpacity / 100).toString());
                 }
               }}
               onClose={() => setActiveColorPicker(null)}

@@ -37,7 +37,16 @@ const CornerRadius = ({
     if ((attr === 'rx' || attr === 'ry') && setRadius) {
       setRadius(p => ({ ...p, tl: parseFloat(value), tr: parseFloat(value), bl: parseFloat(value), br: parseFloat(value) }));
     }
-    if (attr === 'data-corner-linked' && setIsRadiusLinked) setIsRadiusLinked(value === 'true');
+    if (attr === 'data-corner-linked' && setIsRadiusLinked) {
+      setIsRadiusLinked(value === 'true');
+      if (value === 'true' && setRadius) {
+        // Equalize all corners to the max radius when linking
+        setRadius(p => {
+          const maxR = Math.max(p.tl || 0, p.tr || 0, p.bl || 0, p.br || 0);
+          return { tl: maxR, tr: maxR, bl: maxR, br: maxR };
+        });
+      }
+    }
   };
 
   const updateAttr = (attribute, value) => {
