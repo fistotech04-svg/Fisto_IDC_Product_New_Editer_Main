@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight, Upload, Link, Check, FileText, Video } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ShapeProperties from './ShapeProperties';
+import PenToolProperties from './PenToolProperties';
 import ImageEditor from './ImageEditor';
 import TextEditor from './TextEditor';
 import IconGallery from './icons';
@@ -174,6 +175,16 @@ const RightSidebar = ({
 }) => {
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
+
+  const [isNodeEditActive, setIsNodeEditActive] = useState(false);
+
+  useEffect(() => {
+    const handleNodeEditChange = (e) => {
+      setIsNodeEditActive(Boolean(e.detail?.active));
+    };
+    window.addEventListener('node-edit-mode-changed', handleNodeEditChange);
+    return () => window.removeEventListener('node-edit-mode-changed', handleNodeEditChange);
+  }, []);
   // Convert mm to pixels at 96 DPI for the input display if no element selected
   const baseWidthPx = Math.round(baseWidth * 96 / 25.4);
   const baseHeightPx = Math.round(baseHeight * 96 / 25.4);
@@ -1296,19 +1307,27 @@ const RightSidebar = ({
                           onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : (
-                        <ShapeProperties 
-                           selectedElementProps={selectedElementProps || { 
-                             fill: '#6366F1', 
-                             opacity: '1', 
-                             stroke: 'none', 
-                             strokeWidth: '0', 
-                             tagName: 'g',
-                             isIcon: true 
-                           }}
-                           activePageIndex={activePageIndex}
-                           selectedLayerId={selectedLayerId}
-                           updateElementAttribute={updateElementAttribute}
-                         />
+                        <>
+                          <PenToolProperties
+                            isVectorPath={true}
+                            isNodeEditActive={isNodeEditActive}
+                            isPenChosen={activeMainTool === 'pen'}
+                          />
+                          <ShapeProperties 
+                             selectedElementProps={selectedElementProps || { 
+                               fill: '#6366F1', 
+                               opacity: '1', 
+                               stroke: 'none', 
+                               strokeWidth: '0', 
+                               tagName: 'g',
+                               isIcon: true 
+                             }}
+                             activePageIndex={activePageIndex}
+                             selectedLayerId={selectedLayerId}
+                             updateElementAttribute={updateElementAttribute}
+                             activeMainTool={activeMainTool}
+                           />
+                        </>
                       )}
                     </div>
                   ) : (

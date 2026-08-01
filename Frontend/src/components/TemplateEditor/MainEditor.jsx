@@ -7,8 +7,10 @@ import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
 import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
 import paper from 'paper';
-import { VectraPenSession, pathToD, pathToDCombo, absIn, absOut } from './vectraPenEngine';
+import { VectraPenSession, pathToD, pathToDCombo, makeNode, makePath } from './vectraPenEngine';
 import { getPaperSegments, getPaperCurves, cleanPaperPathData, mergeMeetingNodes, applyHandleDrag, executeVectorPathAction, deleteSelectedNodeOrHandle } from './vectorNodeEngine';
+import { drawNodeEditOverlay as drawNodeEditOverlayExt, clearPenToolNodes as clearPenToolNodesExt, drawPenToolNodes as drawPenToolNodesExt, drawBendingNodes as drawBendingNodesExt, renderVectraOverlay as renderVectraOverlayExt, clearVectraOverlay as clearVectraOverlayExt, generatePathData } from './penOverlayEngine';
+import PenToolProperties from './PenToolProperties';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -960,7 +962,10 @@ const MainEditor = ({
   const nodeEditDragRef = useRef(null);           // { mode, segIdx, handleSide, startPt }
   const nodeEditSelectedSegIdxRef = useRef(null); // primary selected node index
   const nodeEditSelectedSegIndicesRef = useRef(new Set()); // set of multi-selected node indices
-  const nodeEditSelectedHandleSideRef = useRef(null); // active selected handle side: 'in', 'out', or 'point'
+  const nodeEditSelectedHandleSideRef = useRef(null); // active selected handle side: 'in', 'out', 'point', or 'line'
+  const nodeEditSelectedCurveIdxRef = useRef(null); // active selected curve segment index
+  const nodeEditHoverCurveIdxRef = useRef(-1); // active hovered curve segment index
+  const nodeEditSplitSegIdxRef = useRef(null); // active split point index (highlighted in RED)
   // Stores screen-space {x, y, segIdx, handleSide} for each visible node, updated on every drawNodeEditOverlay call
   const nodeEditScreenNodesRef = useRef([]);
   // Stores screen-space segment midpoints for segment hit testing: {curveIdx, mx, my, seg1Idx, seg2Idx}
@@ -974,6 +979,150 @@ const MainEditor = ({
       return new paperScopeRef.current.CompoundPath(d);
     }
     return new paperScopeRef.current.Path(d);
+  };
+
+  const convertPaperSegmentToVectraNode = (seg) => {
+    const node = makeNode(seg.point.x, seg.point.y);
+    const hasIn = seg.handleIn && !seg.handleIn.isZero();
+    const hasOut = seg.handleOut && !seg.handleOut.isZero();
+
+    if (hasIn) {
+      node.in = { x: seg.handleIn.x, y: seg.handleIn.y };
+    }
+    if (hasOut) {
+      node.out = { x: seg.handleOut.y, y: seg.handleOut.y };
+    }
+
+    if (seg.nodeType) {
+      node.type = seg.nodeType;
+    } else if (hasIn && hasOut) {
+      const normIn = seg.handleIn.normalize();
+      const normOut = seg.handleOut.normalize();
+      const dot = normIn.dot(normOut);
+      if (dot < -0.95) {
+        const diff = Math.abs(seg.handleIn.length - seg.handleOut.length);
+        node.type = diff < 1.5 ? 'symmetric' : 'smooth';
+      } else {
+        node.type = 'cusp';
+      }
+    } else if (hasIn || hasOut) {
+      node.type = 'cusp';
+    } else {
+      node.type = 'corner';
+    }
+    return node;
+  };
+
+  const parseSvgPathD = (d) => {
+    if (!d || !d.trim()) return [];
+    const tokens = d.match(/([a-df-zA-DF-Z])|([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)/g);
+    if (!tokens) return [];
+
+    const subpaths = [];
+    let currentSubpath = null;
+    let cmd = '';
+    let i = 0;
+    let currX = 0, currY = 0;
+
+    while (i < tokens.length) {
+      let token = tokens[i];
+      if (/^[a-zA-Z]$/.test(token)) {
+        cmd = token;
+        i++;
+      }
+
+      if (cmd === 'M' || cmd === 'm') {
+        const isRel = cmd === 'm';
+        let x = parseFloat(tokens[i++]);
+        let y = parseFloat(tokens[i++]);
+        if (isNaN(x) || isNaN(y)) break;
+        if (isRel) { x += currX; y += currY; }
+        currX = x; currY = y;
+
+        currentSubpath = { nodes: [makeNode(x, y, 'corner')], closed: false };
+        subpaths.push(currentSubpath);
+        cmd = isRel ? 'l' : 'L';
+      } else if (cmd === 'L' || cmd === 'l') {
+        const isRel = cmd === 'l';
+        let x = parseFloat(tokens[i++]);
+        let y = parseFloat(tokens[i++]);
+        if (isNaN(x) || isNaN(y)) break;
+        if (isRel) { x += currX; y += currY; }
+        currX = x; currY = y;
+        if (currentSubpath) {
+          currentSubpath.nodes.push(makeNode(x, y, 'corner'));
+        }
+      } else if (cmd === 'C' || cmd === 'c') {
+        const isRel = cmd === 'c';
+        let x1 = parseFloat(tokens[i++]), y1 = parseFloat(tokens[i++]);
+        let x2 = parseFloat(tokens[i++]), y2 = parseFloat(tokens[i++]);
+        let x = parseFloat(tokens[i++]), y = parseFloat(tokens[i++]);
+        if (isNaN(x) || isNaN(y)) break;
+        if (isRel) {
+          x1 += currX; y1 += currY;
+          x2 += currX; y2 += currY;
+          x += currX; y += currY;
+        }
+        if (currentSubpath && currentSubpath.nodes.length > 0) {
+          const prevNode = currentSubpath.nodes[currentSubpath.nodes.length - 1];
+          prevNode.out = { x: x1 - prevNode.x, y: y1 - prevNode.y };
+          prevNode.type = 'smooth';
+
+          const newNode = makeNode(x, y, 'smooth');
+          newNode.in = { x: x2 - x, y: y2 - y };
+          currentSubpath.nodes.push(newNode);
+        }
+        currX = x; currY = y;
+      } else if (cmd === 'Z' || cmd === 'z') {
+        if (currentSubpath) {
+          currentSubpath.closed = true;
+        }
+      } else {
+        i++;
+      }
+    }
+    return subpaths;
+  };
+
+  const loadDIntoVectraSession = (d, vSession, paperScope) => {
+    vSession.reset();
+    if (!d || !d.trim()) return;
+
+    let parsedSubpaths = [];
+    try {
+      if (paperScope) {
+        paperScope.activate();
+        const mCount = (d.match(/M/gi) || []).length;
+        const paperPath = mCount > 1
+          ? new paperScope.CompoundPath(d)
+          : new paperScope.Path(d);
+
+        if (paperPath) {
+          const contours = (paperPath.children && paperPath.children.length > 0)
+            ? paperPath.children
+            : [paperPath];
+
+          contours.forEach(child => {
+            if (!child.segments || child.segments.length === 0) return;
+            const nodes = child.segments.map(seg => convertPaperSegmentToVectraNode(seg));
+            parsedSubpaths.push({ nodes, closed: Boolean(child.closed) });
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[loadDIntoVectraSession] Paper.js parse warning:', err);
+    }
+
+    if (parsedSubpaths.length === 0) {
+      parsedSubpaths = parseSvgPathD(d);
+    }
+
+    parsedSubpaths.forEach(sub => {
+      if (!sub.nodes || sub.nodes.length === 0) return;
+      const vPath = makePath({ closed: sub.closed });
+      vPath.nodes = sub.nodes;
+      vSession.paths.set(vPath.id, vPath);
+    });
   };
 
   const getLocalPoint = (svg, element, clientX, clientY) => {
@@ -3364,6 +3513,7 @@ const MainEditor = ({
 
   const drawMeasurementOverlay = (targetEl, clientX, clientY, forceDraw = false) => {
     clearMeasurementOverlay();
+    if (nodeEditModeRef.current) return;
     if (!forceDraw && (!isAltPressedRef.current || !selectedLayerIdRef.current)) return;
 
     let isMultiTarget = Array.isArray(targetEl);
@@ -4701,6 +4851,10 @@ const MainEditor = ({
       seg.nodeType = 'custom';
     }
 
+    const isClosed = seg.path ? seg.path.closed : false;
+    const prev = seg.previous || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[seg.path.segments.length - 1] : null);
+    const next = seg.next || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[0] : null);
+
     let nodeType = seg.nodeType;
     if (!nodeType) {
       if (seg.handleIn.isZero() && seg.handleOut.isZero()) {
@@ -4720,26 +4874,35 @@ const MainEditor = ({
     }
 
     const mouseVec = mousePoint.subtract(seg.point);
+    const Point = mousePoint.constructor;
 
     if (handleSide === 'in') {
       seg.handleIn = mouseVec;
-      if (nodeType === 'balanced') {
-        seg.handleOut = mouseVec.multiply(-1);
-      } else if (nodeType === 'smooth') {
-        const outLen = (!seg.handleOut.isZero()) ? seg.handleOut.length : mouseVec.length;
-        if (!mouseVec.isZero()) {
-          seg.handleOut = mouseVec.normalize(-outLen);
+      if (next && next !== seg) {
+        if (nodeType === 'balanced') {
+          seg.handleOut = mouseVec.multiply(-1);
+        } else if (nodeType === 'smooth') {
+          const outLen = (!seg.handleOut.isZero()) ? seg.handleOut.length : mouseVec.length;
+          if (!mouseVec.isZero()) {
+            seg.handleOut = mouseVec.normalize(-outLen);
+          }
         }
+      } else {
+        seg.handleOut = new Point(0, 0);
       }
     } else if (handleSide === 'out') {
       seg.handleOut = mouseVec;
-      if (nodeType === 'balanced') {
-        seg.handleIn = mouseVec.multiply(-1);
-      } else if (nodeType === 'smooth') {
-        const inLen = (!seg.handleIn.isZero()) ? seg.handleIn.length : mouseVec.length;
-        if (!mouseVec.isZero()) {
-          seg.handleIn = mouseVec.normalize(-inLen);
+      if (prev && prev !== seg) {
+        if (nodeType === 'balanced') {
+          seg.handleIn = mouseVec.multiply(-1);
+        } else if (nodeType === 'smooth') {
+          const inLen = (!seg.handleIn.isZero()) ? seg.handleIn.length : mouseVec.length;
+          if (!mouseVec.isZero()) {
+            seg.handleIn = mouseVec.normalize(-inLen);
+          }
         }
+      } else {
+        seg.handleIn = new Point(0, 0);
       }
     }
   };
@@ -4764,13 +4927,12 @@ const MainEditor = ({
 
       try {
         paperScopeRef.current.activate();
-        let paperPath = nodeEditPaperPathRef.current;
-        if (!paperPath || !nodeEditModeRef.current) {
-          const dStr = pathEl.getAttribute('d');
-          if (!dStr) return;
-          paperPath = new paperScopeRef.current.Path(dStr);
-          nodeEditPaperPathRef.current = paperPath;
-        }
+        const dStrCurrent = pathEl.getAttribute('d');
+        if (!dStrCurrent) return;
+
+        // Re-parse paperPath fresh from current pathEl d attribute for 100% accurate segment indices on 1st click
+        let paperPath = createPaperPath(dStrCurrent);
+        nodeEditPaperPathRef.current = paperPath;
 
         let targetSegIndices = [];
         if (nodeEditSelectedSegIndicesRef.current && nodeEditSelectedSegIndicesRef.current.size > 0) {
@@ -4778,16 +4940,52 @@ const MainEditor = ({
         } else if (nodeEditSelectedSegIdxRef.current !== null && nodeEditSelectedSegIdxRef.current !== undefined) {
           targetSegIndices = [nodeEditSelectedSegIdxRef.current];
         } else {
-          targetSegIndices = paperPath.segments.map((_, i) => i);
+          const segments = getPaperSegments(paperPath);
+          targetSegIndices = segments.map((_, i) => i);
         }
 
-        if (action === 'delete-node') {
-          deleteSelectedNodeOrHandle(paperPath, targetSegIndices, nodeEditSelectedHandleSideRef.current, paperScopeRef.current);
-          nodeEditSelectedHandleSideRef.current = null;
-          nodeEditSelectedSegIdxRef.current = null;
-          nodeEditSelectedSegIndicesRef.current = new Set();
+        if (action === 'delete-node' || action === 'delete-line') {
+          const { sideDeleted, paperPath: updatedPath } = deleteSelectedNodeOrHandle(paperPath, targetSegIndices, nodeEditSelectedHandleSideRef.current, paperScopeRef.current, nodeEditSelectedCurveIdxRef.current);
+          if (updatedPath) {
+            paperPath = updatedPath;
+            nodeEditPaperPathRef.current = updatedPath;
+          }
+          if (sideDeleted === 'in' || sideDeleted === 'out') {
+            nodeEditSelectedHandleSideRef.current = 'point';
+          } else {
+            nodeEditSelectedHandleSideRef.current = null;
+            nodeEditSelectedCurveIdxRef.current = null;
+            nodeEditSelectedSegIdxRef.current = null;
+            nodeEditSelectedSegIndicesRef.current = new Set();
+          }
         } else {
-          executeVectorPathAction(paperPath, action, targetSegIndices, paperScopeRef.current);
+          const res = executeVectorPathAction(paperPath, action, targetSegIndices, paperScopeRef.current, nodeEditSelectedCurveIdxRef.current);
+          const resultPath = res?.paperPath || res;
+          const addedSegIdx = res?.addedSegIdx;
+          if (resultPath) {
+            paperPath = resultPath;
+            nodeEditPaperPathRef.current = resultPath;
+          }
+          if (action === 'add-point' && addedSegIdx !== null && addedSegIdx !== undefined && addedSegIdx >= 0) {
+            nodeEditSelectedHandleSideRef.current = 'point';
+            nodeEditSelectedCurveIdxRef.current = null;
+            nodeEditSelectedSegIdxRef.current = addedSegIdx;
+            nodeEditSelectedSegIndicesRef.current = new Set([addedSegIdx]);
+          } else if (action === 'join') {
+            const selectIdx = (targetSegIndices && targetSegIndices.length > 0) ? targetSegIndices[0] : 0;
+            nodeEditSelectedHandleSideRef.current = 'point';
+            nodeEditSelectedCurveIdxRef.current = null;
+            nodeEditSelectedSegIdxRef.current = selectIdx;
+            nodeEditSelectedSegIndicesRef.current = new Set([selectIdx]);
+            nodeEditSplitSegIdxRef.current = null;
+          } else if (action === 'split') {
+            const selectIdx = (targetSegIndices && targetSegIndices.length > 0) ? targetSegIndices[0] : 0;
+            nodeEditSelectedHandleSideRef.current = 'point';
+            nodeEditSelectedCurveIdxRef.current = null;
+            nodeEditSelectedSegIdxRef.current = selectIdx;
+            nodeEditSelectedSegIndicesRef.current = new Set([selectIdx]);
+            nodeEditSplitSegIdxRef.current = selectIdx; // Mark the split point for RED highlight!
+          }
         }
 
         const dStr = cleanPaperPathData(paperPath);
@@ -4798,7 +4996,10 @@ const MainEditor = ({
           enterNodeEditMode(pathEl, pageIdx);
         }
 
-        if (['sharp', 'smooth', 'balanced', 'custom'].includes(action)) {
+        if (action === 'add-point' || action === 'join' || action === 'split') {
+          const newIdx = nodeEditSelectedSegIdxRef.current || 0;
+          window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: 'sharp', segIdx: newIdx, selectedCount: 1, canJoin: false, isLineSelected: false } }));
+        } else if (['sharp', 'smooth', 'balanced', 'custom'].includes(action)) {
           window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: action } }));
         }
 
@@ -4818,6 +5019,9 @@ const MainEditor = ({
   useEffect(() => {
     const handleGlobalMouseMove = (e) => {
       if (nodeEditDragRef.current) {
+        if (nodeEditSplitSegIdxRef.current !== null) {
+          nodeEditSplitSegIdxRef.current = null;
+        }
         const { mode, segIdx, handleSide, pathEl, paperPath, startPt, startPoints,
           curveIndex, startHandle1, startHandle2, pageIndex,
           seg1Idx, seg2Idx } = nodeEditDragRef.current;
@@ -5006,17 +5210,6 @@ const MainEditor = ({
       }
 
       if (e.key === 'Escape' || e.key === 'Enter') {
-        // ── Exit Node Edit Mode on Escape/Enter ──
-        if (nodeEditModeRef.current) {
-          const pathEl = nodeEditPathRef.current;
-          const pIdx = nodeEditPageIndexRef.current;
-          exitNodeEditMode();
-          if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
-            saveModifiedPageHtml(pIdx, pathEl.ownerSVGElement);
-          }
-          return;
-        }
-
         if (activeMainTool === 'pen' && selectedPenTool === 'pen') {
           const vSession = vectraPenSessionRef.current;
           vSession.onKey(e);
@@ -5031,10 +5224,13 @@ const MainEditor = ({
 
           vSession.reset();
           drawingPathRef.current = null;
+          exitNodeEditMode();
           clearVectraOverlay(pageIdx);
           document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
             const g = overlay.querySelector('#vectra-overlay-group');
             if (g) g.innerHTML = '';
+            const nodeGroup = overlay.querySelector('#node-edit-overlay-group');
+            if (nodeGroup) nodeGroup.remove();
           });
 
           if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
@@ -5058,6 +5254,17 @@ const MainEditor = ({
           }
           if (typeof setActiveMainTool === 'function') {
             setActiveMainTool('select');
+          }
+          return;
+        }
+
+        // ── Exit Node Edit Mode on Escape/Enter if not in pen tool ──
+        if (nodeEditModeRef.current) {
+          const pathEl = nodeEditPathRef.current;
+          const pIdx = nodeEditPageIndexRef.current;
+          exitNodeEditMode();
+          if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
+            saveModifiedPageHtml(pIdx, pathEl.ownerSVGElement);
           }
           return;
         }
@@ -5198,8 +5405,9 @@ const MainEditor = ({
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
 
-        // ── Node Edit Mode: Delete selected handle point or center node point ──
+        // ── Node Edit Mode: Delete selected handle point, line segment, or center node point ──
         if (nodeEditModeRef.current && nodeEditPaperPathRef.current && nodeEditPathRef.current) {
+          window.__nodeEditModeActive = true;
           const paperPath = nodeEditPaperPathRef.current;
           const pathEl = nodeEditPathRef.current;
           const pIdx = nodeEditPageIndexRef.current !== null ? nodeEditPageIndexRef.current : activePageIndex;
@@ -5209,37 +5417,20 @@ const MainEditor = ({
 
           const selectedHandleSide = nodeEditSelectedHandleSideRef.current;
 
-          if (targetSegIndices.length > 0) {
+          if (targetSegIndices.length > 0 || selectedHandleSide === 'line' || selectedHandleSide === 'segment') {
             paperScopeRef.current.activate();
-            const segments = getPaperSegments(paperPath);
-
-            if (selectedHandleSide === 'in' || selectedHandleSide === 'out') {
-              // ── Handle point (top/bottom circle) selected: Delete/retract ONLY that handle point ──
-              targetSegIndices.forEach(idx => {
-                const seg = segments[idx];
-                if (seg) {
-                  if (selectedHandleSide === 'in') {
-                    seg.handleIn = new paperScopeRef.current.Point(0, 0);
-                  } else if (selectedHandleSide === 'out') {
-                    seg.handleOut = new paperScopeRef.current.Point(0, 0);
-                  }
-                  if (seg.handleIn.isZero() && seg.handleOut.isZero()) {
-                    seg.nodeType = 'sharp';
-                  } else {
-                    seg.nodeType = 'custom';
-                  }
-                }
-              });
-              nodeEditSelectedHandleSideRef.current = null;
+            const { sideDeleted, paperPath: updatedPath } = deleteSelectedNodeOrHandle(paperPath, targetSegIndices, selectedHandleSide, paperScopeRef.current, nodeEditSelectedCurveIdxRef.current);
+            if (updatedPath) {
+              paperPath = updatedPath;
+              nodeEditPaperPathRef.current = updatedPath;
+            }
+            if (sideDeleted === 'in' || sideDeleted === 'out') {
+              nodeEditSelectedHandleSideRef.current = 'point';
             } else {
-              // ── Center point (middle node dot) selected: Delete the node point ──
-              const sorted = [...targetSegIndices].sort((a, b) => b - a);
-              sorted.forEach(idx => {
-                if (segments[idx]) {
-                  segments[idx].remove();
-                }
-              });
-              mergeMeetingNodes(paperPath);
+              nodeEditSelectedHandleSideRef.current = null;
+              nodeEditSelectedCurveIdxRef.current = null;
+              nodeEditSelectedSegIdxRef.current = null;
+              nodeEditSelectedSegIndicesRef.current = new Set();
             }
 
             const dStr = cleanPaperPathData(paperPath);
@@ -5254,8 +5445,10 @@ const MainEditor = ({
               if (typeof setSelectedLayerId === 'function') setSelectedLayerId(null);
             } else {
               pathEl.setAttribute('d', dStr);
-              nodeEditSelectedSegIdxRef.current = null;
-              nodeEditSelectedSegIndicesRef.current = new Set();
+              if (sideDeleted === 'point' || sideDeleted === 'line') {
+                nodeEditSelectedSegIdxRef.current = null;
+                nodeEditSelectedSegIndicesRef.current = new Set();
+              }
               drawNodeEditOverlay(pathEl, paperPath, pIdx);
               if (svgEl && updatePageHtml) {
                 saveModifiedPageHtml(pIdx, svgEl);
@@ -5351,7 +5544,7 @@ const MainEditor = ({
           if (svg) updatePageHtml(activePageIndex, svg.outerHTML);
         }
 
-        if (isAltPressedRef.current && drawMeasurementOverlayRef.current && lastMousePosRef.current && lastMousePosRef.current.target) {
+        if (!nodeEditModeRef.current && isAltPressedRef.current && drawMeasurementOverlayRef.current && lastMousePosRef.current && lastMousePosRef.current.target) {
           let currentTarget = lastMousePosRef.current.target;
           // If the SVG re-rendered, the old target might be detached from the DOM.
           // Get the fresh element currently at the mouse coordinates.
@@ -5404,6 +5597,41 @@ const MainEditor = ({
     // Do not clear selection if auto-switching from 'upload' or 'grid' back to 'select'
     if ((prevTool === 'upload' || prevTool === 'grid' || prevTool === 'pen') && activeMainTool === 'select') {
       return;
+    }
+
+    // When switching to pen tool, check if an existing vector path is being edited or selected
+    if (activeMainTool === 'pen') {
+      // Clear node edit contour overlay so blue outline does not cover existing path stroke while drawing
+      document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
+        const nodeGroup = overlay.querySelector('#node-edit-overlay-group');
+        if (nodeGroup) nodeGroup.remove();
+      });
+
+      let existingTarget = nodeEditModeRef.current ? nodeEditPathRef.current : null;
+
+      if (existingTarget && existingTarget.getAttribute('d')) {
+        drawingPathRef.current = existingTarget;
+        nodeEditPathRef.current = existingTarget;
+        nodeEditModeRef.current = true;
+        drawingPageIndexRef.current = nodeEditPageIndexRef.current !== null ? nodeEditPageIndexRef.current : activePageIndex;
+        const activeContainer = existingTarget.closest('.page-svg-container');
+        if (activeContainer) {
+          const svg = activeContainer.querySelector('svg');
+          drawingSvgRef.current = svg;
+        }
+
+        if (existingTarget.id && setSelectedLayerId) {
+          setSelectedLayerId(existingTarget.id);
+          selectedLayerIdRef.current = existingTarget.id;
+        }
+
+        const vSession = vectraPenSessionRef.current;
+        loadDIntoVectraSession(existingTarget.getAttribute('d'), vSession, paperScopeRef.current);
+        if (existingTarget.parentElement) {
+          renderVectraOverlay(drawingPageIndexRef.current, existingTarget.parentElement, vSession);
+        }
+        return;
+      }
     }
 
     if (setSelectedLayerId) {
@@ -5693,508 +5921,43 @@ const MainEditor = ({
   };
 
   const clearPenToolNodes = (pageIndex) => {
-    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
-    if (overlay) {
-      overlay.querySelectorAll('.pen-tool-node').forEach(n => n.remove());
-    }
+    clearPenToolNodesExt(pageIndex);
   };
 
   const drawBendingNodes = (pageIndex, pathEl, paperPath, activeCurveIndex) => {
-    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
-    if (!overlay || !pathEl) return;
-
-    // IF drawing session active, draw ALL pen points first
-    if (drawingPathRef.current) {
-      drawPenToolNodes(pageIndex, drawingPathRef.current, drawingSubPathsRef.current);
-    } else {
-      clearPenToolNodes(pageIndex);
-    }
-
-    try {
-      const ctm = pathEl.getScreenCTM();
-      const overlayCtm = overlay.getScreenCTM();
-      if (!ctm || !overlayCtm) return;
-      const svgMatrix = overlayCtm.inverse().multiply(ctm);
-
-      const curve = paperPath.curves[activeCurveIndex];
-      const segments = [curve.segment1, curve.segment2];
-
-      // Draw the Indigo highlight for ONLY the active segment
-      const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-
-      const map = (x, y) => new DOMPoint(x, y).matrixTransform(svgMatrix);
-      const p1 = map(curve.point1.x, curve.point1.y);
-      const p2 = map(curve.point2.x, curve.point2.y);
-      const h1 = map(curve.point1.x + curve.segment1.handleOut.x, curve.point1.y + curve.segment1.handleOut.y);
-      const h2 = map(curve.point2.x + curve.segment2.handleIn.x, curve.point2.y + curve.segment2.handleIn.y);
-
-      highlight.setAttribute('d', `M ${p1.x} ${p1.y} C ${h1.x} ${h1.y} ${h2.x} ${h2.y} ${p2.x} ${p2.y}`);
-
-      highlight.setAttribute('stroke', '#6366F1');
-      highlight.setAttribute('stroke-width', '2.5');
-      highlight.setAttribute('fill', 'none');
-      highlight.setAttribute('class', 'pen-tool-node');
-      highlight.style.pointerEvents = 'none';
-      overlay.appendChild(highlight);
-
-      segments.forEach(seg => {
-        const pt = seg.point;
-
-        // Draw Nodes
-        const mappedPt = new DOMPoint(pt.x, pt.y).matrixTransform(svgMatrix);
-        const node = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        node.setAttribute('cx', mappedPt.x);
-        node.setAttribute('cy', mappedPt.y);
-        node.setAttribute('r', '3.5');
-        node.setAttribute('class', 'pen-tool-node');
-        node.setAttribute('stroke', '#6366F1');
-        node.setAttribute('stroke-width', '1.5');
-        node.setAttribute('fill', '#FFFFFF');
-        overlay.appendChild(node);
-
-        // Draw Handles
-        const drawHandle = (h) => {
-          if (!h || h.isZero()) return;
-          const absH = pt.add(h);
-          const mappedH = new DOMPoint(absH.x, absH.y).matrixTransform(svgMatrix);
-
-          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          line.setAttribute('x1', mappedPt.x);
-          line.setAttribute('y1', mappedPt.y);
-          line.setAttribute('x2', mappedH.x);
-          line.setAttribute('y2', mappedH.y);
-          line.setAttribute('stroke', '#6366F1');
-          line.setAttribute('stroke-width', '1');
-          line.setAttribute('class', 'pen-tool-node');
-          overlay.appendChild(line);
-
-          const diamond = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-          diamond.setAttribute('x', mappedH.x - 3);
-          diamond.setAttribute('y', mappedH.y - 3);
-          diamond.setAttribute('width', '6');
-          diamond.setAttribute('height', '6');
-          diamond.setAttribute('transform', `rotate(45, ${mappedH.x}, ${mappedH.y})`);
-          diamond.setAttribute('fill', '#FFFFFF');
-          diamond.setAttribute('stroke', '#6366F1');
-          diamond.setAttribute('stroke-width', '1');
-          diamond.setAttribute('class', 'pen-tool-node');
-          overlay.appendChild(diamond);
-        };
-
-        drawHandle(seg.handleIn);
-        drawHandle(seg.handleOut);
-      });
-    } catch (e) { }
-  };
-
-  const generatePathData = (pts, isClosed = false, toolType = 'pen', activePoint = null) => {
-    let subPts = [...pts];
-    if (activePoint) subPts.push(activePoint);
-    if (subPts.length === 0) return "";
-
-    const subIsClosed = isClosed || (pts && pts.isZ);
-    const isCurve = toolType === 'curve';
-
-    if (!isCurve) {
-      return subPts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + (subIsClosed ? ' Z' : '');
-    }
-
-    // Curve Logic
-    if (subPts.length === 1) return `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)}`;
-    if (subPts.length === 2 && !subIsClosed) {
-      return `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)} L ${subPts[1].x.toFixed(1)} ${subPts[1].y.toFixed(1)}`;
-    }
-
-    let d = `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)}`;
-    const count = subIsClosed ? subPts.length : subPts.length - 1;
-
-    for (let i = 0; i < count; i++) {
-      const p1 = subPts[i];
-      const p2 = subPts[(i + 1) % subPts.length];
-
-      // Support manual Bézier handles (from bending tool)
-      if (p1.handleOut || p2.handleIn) {
-        const h1 = p1.handleOut || { x: 0, y: 0 };
-        const h2 = p2.handleIn || { x: 0, y: 0 };
-        const cp1x = p1.x + h1.x;
-        const cp1y = p1.y + h1.y;
-        const cp2x = p2.x + h2.x;
-        const cp2y = p2.y + h2.y;
-        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-        continue;
-      }
-
-      if (p1.isCorner || p2.isCorner || !isCurve) {
-        d += ` L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-        continue;
-      }
-
-      const p0 = subPts[i === 0 ? (subIsClosed ? subPts.length - 1 : 0) : i - 1] || p1;
-      const p3 = subPts[(i + 2) % subPts.length] || p2;
-
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-    }
-    if (subIsClosed) d += " Z";
-    return d;
+    drawBendingNodesExt(pageIndex, pathEl, paperPath, activeCurveIndex, zoom, {
+      drawingPathRef,
+      drawingSubPathsRef,
+    });
   };
 
   const drawPenToolNodes = (pageIndex, parentEl, nestedPoints, currentPoint = null) => {
-    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
-    if (!overlay || !parentEl) return;
-
-    clearPenToolNodes(pageIndex);
-
-    try {
-      const ctm = parentEl.getScreenCTM();
-      const overlayCtm = overlay.getScreenCTM();
-      if (!ctm || !overlayCtm) return;
-      const svgMatrix = overlayCtm.inverse().multiply(ctm);
-
-      nestedPoints.forEach((pts, pIdx) => {
-        const allPts = [...pts];
-        const isCurrentPath = pIdx === nestedPoints.length - 1;
-        if (isCurrentPath && currentPoint && !pts.isZ) allPts.push(currentPoint);
-
-        allPts.forEach((pt, i) => {
-          const svgPt = overlay.createSVGPoint();
-          svgPt.x = pt.x;
-          svgPt.y = pt.y;
-          const mapped = svgPt.matrixTransform(svgMatrix);
-
-          const isCorner = pt.isCorner;
-          let node;
-          if (isCorner) {
-            node = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            node.setAttribute('x', mapped.x - 3.5);
-            node.setAttribute('y', mapped.y - 3.5);
-            node.setAttribute('width', '7');
-            node.setAttribute('height', '7');
-          } else {
-            node = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            node.setAttribute('cx', mapped.x);
-            node.setAttribute('cy', mapped.y);
-            node.setAttribute('r', '4');
-          }
-
-          node.setAttribute('class', 'pen-tool-node');
-          node.setAttribute('stroke', '#6366F1');
-          node.setAttribute('stroke-width', '1.5');
-
-          const isLast = isCurrentPath && i === allPts.length - 1 && !pts.isZ;
-          node.setAttribute('fill', isLast ? '#6366F1' : '#FFFFFF');
-
-          overlay.appendChild(node);
-        });
-      });
-    } catch (e) { }
+    drawPenToolNodesExt(pageIndex, parentEl, nestedPoints, currentPoint, zoom);
   };
 
   const renderVectraOverlay = (pageIndex, parentEl, vectraSession) => {
-    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
-    if (!overlay || !parentEl || !vectraSession) return;
-
-    let vectraGroup = overlay.querySelector('#vectra-overlay-group');
-    if (!vectraGroup) {
-      vectraGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      vectraGroup.setAttribute('id', 'vectra-overlay-group');
-      overlay.appendChild(vectraGroup);
-    } else {
-      vectraGroup.innerHTML = '';
-    }
-
-    try {
-      const ctm = parentEl.getScreenCTM();
-      const overlayCtm = overlay.getScreenCTM();
-      if (!ctm || !overlayCtm) return;
-      const matrix = overlayCtm.inverse().multiply(ctm);
-
-      const mapPt = (x, y) => {
-        const p = overlay.createSVGPoint();
-        p.x = x; p.y = y;
-        return p.matrixTransform(matrix);
-      };
-
-      // 1. Rubberband Preview Segment
-      if (vectraSession.ui.previewD) {
-        const previewG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        const matrixStr = `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`;
-        previewG.setAttribute('transform', matrixStr);
-
-        const previewPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        previewPath.setAttribute('d', vectraSession.ui.previewD);
-        previewPath.setAttribute('fill', 'none');
-        previewPath.setAttribute('stroke', '#4E9EFF');
-        previewPath.setAttribute('stroke-width', '1.5');
-        previewPath.setAttribute('stroke-opacity', '0.8');
-        previewG.appendChild(previewPath);
-        vectraGroup.appendChild(previewG);
-      }
-
-      // 2. Endpoint hint ring
-      if (vectraSession.ui.endpointHint) {
-        const hp = mapPt(vectraSession.ui.endpointHint.x, vectraSession.ui.endpointHint.y);
-        const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        ring.setAttribute('cx', hp.x);
-        ring.setAttribute('cy', hp.y);
-        ring.setAttribute('r', '7');
-        ring.setAttribute('fill', 'none');
-        ring.setAttribute('stroke', '#4E9EFF');
-        ring.setAttribute('stroke-width', '1.5');
-        vectraGroup.appendChild(ring);
-      }
-
-      // 3. Ghost snap marker
-      if (vectraSession.ui.ghost) {
-        const gp = mapPt(vectraSession.ui.ghost.x, vectraSession.ui.ghost.y);
-        const r = 5;
-        const ghostPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        ghostPath.setAttribute('d', `M ${gp.x - r} ${gp.y} H ${gp.x + r} M ${gp.x} ${gp.y - r} V ${gp.y + r}`);
-        ghostPath.setAttribute('stroke', '#FF5C87');
-        ghostPath.setAttribute('stroke-width', '1.25');
-        ghostPath.setAttribute('fill', 'none');
-        vectraGroup.appendChild(ghostPath);
-      }
-
-      // 4. Paths anchors & handles
-      for (const path of vectraSession.paths.values()) {
-        const n = path.nodes.length;
-        for (let i = 0; i < n; i++) {
-          const node = path.nodes[i];
-          const np = mapPt(node.x, node.y);
-
-          // Handles
-          for (const end of ['in', 'out']) {
-            if (node[end]) {
-              const hPt = end === 'in' ? absIn(node) : absOut(node);
-              const hp = mapPt(hPt.x, hPt.y);
-
-              const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-              line.setAttribute('x1', np.x);
-              line.setAttribute('y1', np.y);
-              line.setAttribute('x2', hp.x);
-              line.setAttribute('y2', hp.y);
-              line.setAttribute('stroke', '#4E9EFF');
-              line.setAttribute('stroke-width', '1');
-              line.setAttribute('stroke-opacity', '0.6');
-              vectraGroup.appendChild(line);
-
-              const hDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-              hDot.setAttribute('cx', hp.x);
-              hDot.setAttribute('cy', hp.y);
-              hDot.setAttribute('r', '3');
-              hDot.setAttribute('fill', '#FFFFFF');
-              hDot.setAttribute('stroke', '#4E9EFF');
-              hDot.setAttribute('stroke-width', '1');
-              vectraGroup.appendChild(hDot);
-            }
-          }
-
-          // Anchor circle
-          const anchor = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          anchor.setAttribute('cx', np.x);
-          anchor.setAttribute('cy', np.y);
-          const isLastOrActive = (path.id === vectraSession.activePathId && i === n - 1);
-          anchor.setAttribute('r', isLastOrActive ? '4.5' : '3.5');
-          anchor.setAttribute('fill', isLastOrActive ? '#4E9EFF' : '#FFFFFF');
-          anchor.setAttribute('stroke', isLastOrActive ? '#FFFFFF' : '#4E9EFF');
-          anchor.setAttribute('stroke-width', '1.5');
-          vectraGroup.appendChild(anchor);
-        }
-      }
-    } catch (e) { }
+    renderVectraOverlayExt(pageIndex, parentEl, vectraSession, zoom);
   };
 
   const clearVectraOverlay = (pageIndex) => {
-    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
-    if (!overlay) return;
-    const vectraGroup = overlay.querySelector('#vectra-overlay-group');
-    if (vectraGroup) vectraGroup.innerHTML = '';
+    clearVectraOverlayExt(pageIndex);
   };
 
   // ── NODE EDIT MODE ─────────────────────────────────────────────────────────
   // Draws all anchor points and bezier handles for a path element on the overlay SVG.
   // Matching D:\SVG_Editor colors (#4E9EFF) and circular node styling.
   const drawNodeEditOverlay = (pathEl, paperPath, pageIndex) => {
-    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
-    if (!overlay || !pathEl || !paperPath) return;
-
-    // Clear previous node edit overlay
-    let nodeGroup = overlay.querySelector('#node-edit-overlay-group');
-    if (!nodeGroup) {
-      nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      nodeGroup.setAttribute('id', 'node-edit-overlay-group');
-      overlay.appendChild(nodeGroup);
-    } else {
-      nodeGroup.innerHTML = '';
-    }
-
-    // Reset screen node registry
-    nodeEditScreenNodesRef.current = [];
-
-    try {
-      const ctm = pathEl.getScreenCTM();
-      const overlayCtm = overlay.getScreenCTM();
-      if (!ctm || !overlayCtm) return;
-      const svgMatrix = overlayCtm.inverse().multiply(ctm);
-
-      // mapPt: path local → overlay SVG coordinates (for drawing)
-      const mapPt = (x, y) => new DOMPoint(x, y).matrixTransform(svgMatrix);
-      // screenPt: path local → screen pixels (for hit testing)
-      const screenPt = (x, y) => {
-        const sp = new DOMPoint(x, y).matrixTransform(ctm);
-        return { x: sp.x, y: sp.y };
-      };
-
-      const segments = getPaperSegments(paperPath);
-      const curves = getPaperCurves(paperPath);
-      const selectedSegIdx = nodeEditSelectedSegIdxRef.current;
-
-      // Draw path contour outline in light blue accent color (#4E9EFF)
-      const pathHighlight = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      pathHighlight.setAttribute('transform', `matrix(${svgMatrix.a} ${svgMatrix.b} ${svgMatrix.c} ${svgMatrix.d} ${svgMatrix.e} ${svgMatrix.f})`);
-      const pathCopy = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      pathCopy.setAttribute('d', cleanPaperPathData(paperPath));
-      pathCopy.setAttribute('fill', 'none');
-      pathCopy.setAttribute('stroke', '#4E9EFF');
-      pathCopy.setAttribute('stroke-width', '1.5');
-      pathCopy.setAttribute('stroke-opacity', '0.8');
-      pathHighlight.appendChild(pathCopy);
-      nodeGroup.appendChild(pathHighlight);
-
-      const drawnAnchors = []; // Track rendered anchor circles to prevent visual doubling on merged nodes
-
-      const selectedHandleSide = nodeEditSelectedHandleSideRef.current;
-
-      segments.forEach((seg, segIdx) => {
-        const pt = seg.point;
-        const mappedPt = mapPt(pt.x, pt.y);
-        const screenAnchor = screenPt(pt.x, pt.y);
-
-        const selSet = nodeEditSelectedSegIndicesRef.current || new Set();
-        const isSel = selSet.has(segIdx) || selectedSegIdx === segIdx;
-
-        // Handle In - ONLY draw if node is selected
-        if (isSel && seg.handleIn && !seg.handleIn.isZero()) {
-          const absIn = pt.add(seg.handleIn);
-          const mappedIn = mapPt(absIn.x, absIn.y);
-          const screenIn = screenPt(absIn.x, absIn.y);
-          const isHandleInActive = (selectedSegIdx === segIdx && selectedHandleSide === 'in');
-
-          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          line.setAttribute('x1', mappedPt.x); line.setAttribute('y1', mappedPt.y);
-          line.setAttribute('x2', mappedIn.x); line.setAttribute('y2', mappedIn.y);
-          line.setAttribute('stroke', '#4E9EFF');
-          line.setAttribute('stroke-width', isHandleInActive ? '1.8' : '1');
-          line.setAttribute('stroke-opacity', isHandleInActive ? '1' : '0.6');
-          nodeGroup.appendChild(line);
-
-          const hDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          hDot.setAttribute('cx', mappedIn.x); hDot.setAttribute('cy', mappedIn.y);
-          hDot.setAttribute('r', isHandleInActive ? '4.5' : '3');
-          hDot.setAttribute('fill', isHandleInActive ? '#4E9EFF' : '#FFFFFF');
-          hDot.setAttribute('stroke', isHandleInActive ? '#FFFFFF' : '#4E9EFF');
-          hDot.setAttribute('stroke-width', isHandleInActive ? '1.8' : '1.2');
-          if (isHandleInActive) {
-            hDot.style.filter = 'drop-shadow(0px 1px 3px rgba(78, 158, 255, 0.75))';
-          }
-          hDot.setAttribute('data-node-edit', 'true');
-          hDot.setAttribute('data-seg-idx', segIdx);
-          hDot.setAttribute('data-handle-side', 'in');
-          nodeGroup.appendChild(hDot);
-
-          // Register screen position for hit testing
-          nodeEditScreenNodesRef.current.push({ x: screenIn.x, y: screenIn.y, segIdx, handleSide: 'in' });
-        }
-
-        // Handle Out - ONLY draw if node is selected
-        if (isSel && seg.handleOut && !seg.handleOut.isZero()) {
-          const absOut = pt.add(seg.handleOut);
-          const mappedOut = mapPt(absOut.x, absOut.y);
-          const screenOut = screenPt(absOut.x, absOut.y);
-          const isHandleOutActive = (selectedSegIdx === segIdx && selectedHandleSide === 'out');
-
-          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          line.setAttribute('x1', mappedPt.x); line.setAttribute('y1', mappedPt.y);
-          line.setAttribute('x2', mappedOut.x); line.setAttribute('y2', mappedOut.y);
-          line.setAttribute('stroke', '#4E9EFF');
-          line.setAttribute('stroke-width', isHandleOutActive ? '1.5' : '1');
-          line.setAttribute('stroke-opacity', isHandleOutActive ? '1' : '0.6');
-          nodeGroup.appendChild(line);
-
-          const hDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          hDot.setAttribute('cx', mappedOut.x); hDot.setAttribute('cy', mappedOut.y);
-          hDot.setAttribute('r', isHandleOutActive ? '4.5' : '3');
-          hDot.setAttribute('fill', isHandleOutActive ? '#4E9EFF' : '#FFFFFF');
-          hDot.setAttribute('stroke', isHandleOutActive ? '#FFFFFF' : '#4E9EFF');
-          hDot.setAttribute('stroke-width', isHandleOutActive ? '1.8' : '1.2');
-          if (isHandleOutActive) {
-            hDot.style.filter = 'drop-shadow(0px 1px 3px rgba(78, 158, 255, 0.75))';
-          }
-          hDot.setAttribute('data-node-edit', 'true');
-          hDot.setAttribute('data-seg-idx', segIdx);
-          hDot.setAttribute('data-handle-side', 'out');
-          nodeGroup.appendChild(hDot);
-
-          // Register screen position for hit testing
-          nodeEditScreenNodesRef.current.push({ x: screenOut.x, y: screenOut.y, segIdx, handleSide: 'out' });
-        }
-
-        // Register anchor screen position for hit testing (register ALL segIdx so clicking hits)
-        nodeEditScreenNodesRef.current.push({ x: screenAnchor.x, y: screenAnchor.y, segIdx, handleSide: 'point' });
-
-        // Deduplicate rendering: do not draw overlapping circle if a co-located anchor was already rendered
-        const existing = drawnAnchors.find(a => Math.hypot(a.mappedPt.x - mappedPt.x, a.mappedPt.y - mappedPt.y) < 2.0);
-        if (existing) {
-          if (isSel && !existing.isSel) {
-            existing.isSel = true;
-            existing.circleEl.setAttribute('r', '5');
-            existing.circleEl.setAttribute('fill', '#4E9EFF');
-            existing.circleEl.setAttribute('stroke', '#FFFFFF');
-            existing.circleEl.setAttribute('stroke-width', '2');
-            existing.circleEl.style.filter = 'drop-shadow(0px 1px 3px rgba(78, 158, 255, 0.6))';
-          }
-        } else {
-          const anchor = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          anchor.setAttribute('cx', mappedPt.x);
-          anchor.setAttribute('cy', mappedPt.y);
-          anchor.setAttribute('r', isSel ? '5' : '3.5');
-          anchor.setAttribute('fill', isSel ? '#4E9EFF' : '#FFFFFF');
-          anchor.setAttribute('stroke', isSel ? '#FFFFFF' : '#4E9EFF');
-          anchor.setAttribute('stroke-width', isSel ? '2' : '1.5');
-          anchor.setAttribute('data-node-edit', 'true');
-          anchor.setAttribute('data-seg-idx', segIdx);
-          anchor.setAttribute('data-handle-side', 'point');
-          if (isSel) {
-            anchor.style.filter = 'drop-shadow(0px 1px 3px rgba(78, 158, 255, 0.6))';
-          }
-          nodeGroup.appendChild(anchor);
-          drawnAnchors.push({ mappedPt, isSel, circleEl: anchor });
-        }
-      });
-
-      // Register segment (curve) midpoints for segment hit testing
-      nodeEditScreenSegmentsRef.current = [];
-      curves.forEach((curve, curveIdx) => {
-        try {
-          // Use t=0.5 midpoint of the curve for hit testing
-          const midLoc = curve.getPointAtTime(0.5);
-          const screenMid = screenPt(midLoc.x, midLoc.y);
-          nodeEditScreenSegmentsRef.current.push({
-            curveIdx,
-            mx: screenMid.x,
-            my: screenMid.y,
-            seg1Idx: segments.indexOf(curve.segment1),
-            seg2Idx: segments.indexOf(curve.segment2),
-          });
-        } catch (_) { }
-      });
-
-    } catch (err) { /* non-critical */ }
+    drawNodeEditOverlayExt(pathEl, paperPath, pageIndex, zoom, {
+      nodeEditSelectedSegIdxRef,
+      nodeEditSelectedSegIndicesRef,
+      nodeEditSelectedHandleSideRef,
+      nodeEditSelectedCurveIdxRef,
+      nodeEditHoverCurveIdxRef,
+      nodeEditSplitSegIdxRef,
+      nodeEditDragRef,
+      nodeEditScreenNodesRef,
+      nodeEditScreenSegmentsRef,
+    });
   };
 
   const exitNodeEditMode = () => {
@@ -6210,11 +5973,15 @@ const MainEditor = ({
     const pathEl = nodeEditPathRef.current;
     nodeEditModeRef.current = false;
     nodeEditPathRef.current = null;
+    drawingPathRef.current = null;
     nodeEditPageIndexRef.current = null;
-    nodeEditPaperPathRef.current = null;
     nodeEditDragRef.current = null;
     nodeEditSelectedSegIdxRef.current = null;
+    nodeEditSelectedCurveIdxRef.current = null;
+    nodeEditHoverCurveIdxRef.current = -1;
     nodeEditSelectedSegIndicesRef.current = new Set();
+    nodeEditSplitSegIdxRef.current = null;
+    if (vectraPenSessionRef.current) vectraPenSessionRef.current.reset();
 
     if (pathEl && pathEl.id && document.getElementById(pathEl.id)) {
       drawOverlayHighlight(pathEl, 'selected');
@@ -6225,6 +5992,16 @@ const MainEditor = ({
     window.dispatchEvent(new CustomEvent('node-edit-mode-changed', { detail: { active: false } }));
   };
 
+  const [isNodeEditActive, setIsNodeEditActive] = useState(false);
+
+  useEffect(() => {
+    const handleNodeEditChange = (e) => {
+      setIsNodeEditActive(Boolean(e.detail?.active));
+    };
+    window.addEventListener('node-edit-mode-changed', handleNodeEditChange);
+    return () => window.removeEventListener('node-edit-mode-changed', handleNodeEditChange);
+  }, []);
+
   // ── Auto-exit Node Edit Mode when switching pages or changing layer selection ──
   useEffect(() => {
     if (nodeEditModeRef.current) {
@@ -6233,6 +6010,20 @@ const MainEditor = ({
       }
     }
   }, [activePageIndex, selectedLayerId]);
+
+  // Re-draw active node overlays on zoom change so pen points/dots retain constant visual size
+  useEffect(() => {
+    if (nodeEditModeRef.current && nodeEditPathRef.current && nodeEditPaperPathRef.current) {
+      drawNodeEditOverlay(nodeEditPathRef.current, nodeEditPaperPathRef.current, nodeEditPageIndexRef.current);
+    }
+    if (drawingPathRef.current && drawingSubPathsRef.current) {
+      drawPenToolNodes(activePageIndex, drawingPathRef.current, drawingSubPathsRef.current);
+    }
+    if (bendingStateRef.current) {
+      const { pathEl, paperPath, curveIndex, pageIndex: activePageIdx } = bendingStateRef.current;
+      drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
+    }
+  }, [zoom]);
 
   const enterNodeEditMode = (targetEl, pageIndex) => {
     if (!targetEl) return;
@@ -6257,6 +6048,7 @@ const MainEditor = ({
       nodeEditDragRef.current = null;
       nodeEditSelectedSegIdxRef.current = 0;
       nodeEditSelectedSegIndicesRef.current = new Set([0]);
+      nodeEditSplitSegIdxRef.current = null;
 
       if (pathEl.id) {
         selectedLayerIdRef.current = pathEl.id;
@@ -6270,8 +6062,9 @@ const MainEditor = ({
       // Add direct selection arrow cursor to container
       document.querySelectorAll('.page-svg-container').forEach(el => el.classList.add('cur-node-edit'));
 
-      // Remove regular selection highlight (replace with node overlay)
+      // Remove regular selection highlight & measurement guides (replace with node overlay)
       clearOverlayType('selected');
+      clearMeasurementOverlay();
       const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
       if (overlay) {
         overlay.querySelectorAll(`[id*="${pathEl.id}"]`).forEach(n => n.remove());
@@ -6943,7 +6736,7 @@ const MainEditor = ({
               }
             }
 
-            const isAltPressedCurrent = event.altKey || (event.sourceEvent && event.sourceEvent.altKey);
+            const isAltPressedCurrent = (event.altKey || (event.sourceEvent && event.sourceEvent.altKey)) && !nodeEditModeRef.current;
             if (isAltPressedCurrent && !dragState.hasDuplicated) {
               dragState.hasDuplicated = true;
 
@@ -8390,8 +8183,46 @@ const MainEditor = ({
     const svg = container.querySelector('svg');
     if (!svg) return;
 
+    const getDistinctNodes = (paperPath, selSet) => {
+      if (!paperPath || !selSet) return [];
+      const segments = getPaperSegments(paperPath);
+      const selSegs = Array.from(selSet).map(idx => segments[idx]).filter(Boolean);
+      const distinct = [];
+      selSegs.forEach(seg => {
+        if (!distinct.some(s => Math.hypot(s.point.x - seg.point.x, s.point.y - seg.point.y) < 3.0)) {
+          distinct.push(seg);
+        }
+      });
+      return distinct;
+    };
+
+    const checkCanJoinNodes = (paperPath, selSet) => {
+      if (!paperPath || !selSet) return false;
+      try {
+        const distinct = getDistinctNodes(paperPath, selSet);
+        if (distinct.length !== 2) return false;
+
+        const segments = getPaperSegments(paperPath);
+        const curves = getPaperCurves(paperPath);
+
+        const pt1 = distinct[0].point;
+        const pt2 = distinct[1].point;
+
+        const segs1 = segments.filter(s => Math.hypot(s.point.x - pt1.x, s.point.y - pt1.y) < 3.0);
+        const segs2 = segments.filter(s => Math.hypot(s.point.x - pt2.x, s.point.y - pt2.y) < 3.0);
+
+        const isConnected = curves.some(c =>
+          (segs1.includes(c.segment1) && segs2.includes(c.segment2)) ||
+          (segs1.includes(c.segment2) && segs2.includes(c.segment1))
+        );
+        return !isConnected;
+      } catch (_) {
+        return false;
+      }
+    };
+
     // ── NODE EDIT MODE: Handle node, handle, and line segment dragging ──────────
-    if (nodeEditModeRef.current && nodeEditPathRef.current) {
+    if (nodeEditModeRef.current && nodeEditPathRef.current && activeMainTool !== 'pen') {
       const pathEl = nodeEditPathRef.current;
       const paperPath = nodeEditPaperPathRef.current;
       if (!paperPath || !pathEl) return;
@@ -8453,9 +8284,6 @@ const MainEditor = ({
               nodeEditSelectedSegIdxRef.current = null;
               nodeEditSelectedSegIndicesRef.current = new Set();
               drawNodeEditOverlay(pathEl, paperPath, pageIndex);
-              if (svgEl && updatePageHtml) {
-                saveModifiedPageHtml(pageIndex, svgEl);
-              }
             }
             suppressClickRef.current = true;
             e.stopPropagation();
@@ -8470,17 +8298,20 @@ const MainEditor = ({
             // Select only the clicked node point (plus any co-located merged nodes) and unselect other nodes
             selSet = new Set([hitSegIdx]);
           }
+          const isSplitNode = (nodeEditSplitSegIdxRef.current !== null);
           const segments = getPaperSegments(paperPath);
           const primarySeg = segments[hitSegIdx];
           if (primarySeg) {
-            // Snap all co-located/merged nodes (within 1.5px distance) to the exact same center point
-            segments.forEach((s, sIdx) => {
-              if (Math.hypot(s.point.x - primarySeg.point.x, s.point.y - primarySeg.point.y) < 1.5) {
-                selSet.add(sIdx);
-                s.point.x = primarySeg.point.x;
-                s.point.y = primarySeg.point.y;
-              }
-            });
+            // Snap all co-located/merged nodes ONLY if it is not a split node action
+            if (!isSplitNode && !e.shiftKey) {
+              segments.forEach((s, sIdx) => {
+                if (Math.hypot(s.point.x - primarySeg.point.x, s.point.y - primarySeg.point.y) < 1.5) {
+                  selSet.add(sIdx);
+                  s.point.x = primarySeg.point.x;
+                  s.point.y = primarySeg.point.y;
+                }
+              });
+            }
 
             let currentNodeType = primarySeg.nodeType;
             if (!currentNodeType) {
@@ -8498,12 +8329,18 @@ const MainEditor = ({
               }
               primarySeg.nodeType = currentNodeType;
             }
-            window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: currentNodeType, segIdx: hitSegIdx } }));
+            const distinctCount = getDistinctNodes(paperPath, selSet).length;
+            const canJoin = checkCanJoinNodes(paperPath, selSet);
+            window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: currentNodeType, segIdx: hitSegIdx, selectedCount: distinctCount, canJoin, isLineSelected: false } }));
           }
 
           nodeEditSelectedHandleSideRef.current = 'point';
+          nodeEditSelectedCurveIdxRef.current = null;
           nodeEditSelectedSegIndicesRef.current = selSet;
           nodeEditSelectedSegIdxRef.current = hitSegIdx;
+          if (nodeEditSplitSegIdxRef.current !== hitSegIdx) {
+            nodeEditSplitSegIdxRef.current = null;
+          }
           drawNodeEditOverlay(pathEl, paperPath, pageIndex);
 
           // Store initial local positions of all selected nodes for multi-node translation
@@ -8527,25 +8364,15 @@ const MainEditor = ({
         } else {
           // Double-click (e.detail === 2), Alt+Click, or Subtract tool on a top/bottom control handle retracts/deletes that handle point
           if (e.detail === 2 || e.altKey || selectedPenToolRef.current === 'subtract') {
-            const segments = getPaperSegments(paperPath);
-            const seg = segments[hitSegIdx];
-            if (seg) {
-              if (hitHandleSide === 'in') {
-                seg.handleIn = new paperScopeRef.current.Point(0, 0);
-              } else if (hitHandleSide === 'out') {
-                seg.handleOut = new paperScopeRef.current.Point(0, 0);
-              }
-              if (seg.handleIn.isZero() && seg.handleOut.isZero()) {
-                seg.nodeType = 'sharp';
-              } else {
-                seg.nodeType = 'custom';
-              }
-              const dStr = cleanPaperPathData(paperPath);
-              pathEl.setAttribute('d', dStr);
-              drawNodeEditOverlay(pathEl, paperPath, pageIndex);
-              if (svgEl && updatePageHtml) {
-                saveModifiedPageHtml(pageIndex, svgEl);
-              }
+            deleteSelectedNodeOrHandle(paperPath, [hitSegIdx], hitHandleSide, paperScopeRef.current);
+            nodeEditSelectedHandleSideRef.current = 'point';
+            nodeEditSelectedSegIdxRef.current = hitSegIdx;
+            nodeEditSelectedSegIndicesRef.current = new Set([hitSegIdx]);
+            const dStr = cleanPaperPathData(paperPath);
+            pathEl.setAttribute('d', dStr);
+            drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+            if (svgEl && updatePageHtml) {
+              saveModifiedPageHtml(pageIndex, svgEl);
             }
             suppressClickRef.current = true;
             e.stopPropagation();
@@ -8556,6 +8383,7 @@ const MainEditor = ({
           nodeEditSelectedSegIndicesRef.current = new Set([hitSegIdx]);
           nodeEditSelectedSegIdxRef.current = hitSegIdx;
           drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+          window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: 'custom', selectedCount: 1, canJoin: false, isLineSelected: false } }));
 
           nodeEditDragRef.current = {
             mode: 'handle',
@@ -8644,9 +8472,14 @@ const MainEditor = ({
               }
             });
 
+            nodeEditSelectedHandleSideRef.current = 'line';
+            nodeEditSelectedCurveIdxRef.current = hitCurveIdx;
             nodeEditSelectedSegIndicesRef.current = selSet;
             nodeEditSelectedSegIdxRef.current = hitSeg1Idx;
             drawNodeEditOverlay(pathEl, paperPath, pageIndex);
+            const distinctCount = getDistinctNodes(paperPath, selSet).length;
+            const canJoin = checkCanJoinNodes(paperPath, selSet);
+            window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: 'custom', selectedCount: distinctCount, canJoin, isLineSelected: true } }));
 
             // Store initial positions of all segment endpoint nodes (and co-located nodes)
             const startPoints = {};
@@ -8861,26 +8694,40 @@ const MainEditor = ({
       const pt = getLocalPoint(svg, parentEl, e.clientX, e.clientY);
 
       const vSession = vectraPenSessionRef.current;
-      vSession.onDown(e, pt);
 
-      // Create a SINGLE SVG <path> element for the entire Pen session
+      // Create or reuse an existing SVG <path> element for the Pen session
       let pathEl = drawingPathRef.current;
       if (!pathEl || !pathEl.parentElement || !pathEl.ownerSVGElement) {
-        const id = `vpath-${Math.random().toString(36).substr(2, 9)}`;
-        pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        pathEl.setAttribute('id', id);
-        pathEl.setAttribute('data-type', 'vector-path');
-        pathEl.setAttribute('data-name', 'Vector Path');
-        pathEl.setAttribute('fill', 'none');
-        pathEl.setAttribute('stroke', '#000000');
-        pathEl.setAttribute('stroke-width', '2');
-        pathEl.setAttribute('stroke-linecap', 'round');
-        pathEl.setAttribute('stroke-linejoin', 'round');
-        parentEl.appendChild(pathEl);
-        drawingPathRef.current = pathEl;
-        drawingPageIndexRef.current = pageIndex;
-        drawingSvgRef.current = svg;
+        let existingTarget = nodeEditModeRef.current ? nodeEditPathRef.current : null;
+
+        if (existingTarget && existingTarget.getAttribute('d')) {
+          pathEl = existingTarget;
+          drawingPathRef.current = pathEl;
+          drawingPageIndexRef.current = pageIndex;
+          drawingSvgRef.current = svg;
+
+          if (vSession.paths.size === 0) {
+            loadDIntoVectraSession(pathEl.getAttribute('d'), vSession, paperScopeRef.current);
+          }
+        } else {
+          const id = `vpath-${Math.random().toString(36).substr(2, 9)}`;
+          pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          pathEl.setAttribute('id', id);
+          pathEl.setAttribute('data-type', 'vector-path');
+          pathEl.setAttribute('data-name', 'Vector Path');
+          pathEl.setAttribute('fill', 'none');
+          pathEl.setAttribute('stroke', '#000000');
+          pathEl.setAttribute('stroke-width', '2');
+          pathEl.setAttribute('stroke-linecap', 'round');
+          pathEl.setAttribute('stroke-linejoin', 'round');
+          parentEl.appendChild(pathEl);
+          drawingPathRef.current = pathEl;
+          drawingPageIndexRef.current = pageIndex;
+          drawingSvgRef.current = svg;
+        }
       }
+
+      vSession.onDown(e, pt);
 
       // Update single <path> element's d attribute with ALL paths in vSession
       const comboD = pathToDCombo(vSession.paths);
@@ -8889,7 +8736,7 @@ const MainEditor = ({
       }
 
       // Render overlay showing ALL nodes for ALL paths currently in vSession
-      renderVectraOverlay(pageIndex, parentEl, vSession);
+      renderVectraOverlay(pageIndex, pathEl.parentElement || parentEl, vSession);
       suppressClickRef.current = true;
       return;
     }
@@ -9174,6 +9021,26 @@ const MainEditor = ({
       return;
     }
 
+    // ── NODE EDIT MODE: Hover Segment Highlight ────────────────
+    if (nodeEditModeRef.current && nodeEditPathRef.current && nodeEditPaperPathRef.current && !nodeEditDragRef.current && activeMainTool !== 'pen') {
+      const SEG_HIT_RADIUS_PX = 22;
+      let hoverCurveIdx = -1;
+      let minSegDist = SEG_HIT_RADIUS_PX;
+
+      for (const seg of nodeEditScreenSegmentsRef.current) {
+        const dist = Math.hypot(e.clientX - seg.mx, e.clientY - seg.my);
+        if (dist < minSegDist) {
+          minSegDist = dist;
+          hoverCurveIdx = seg.curveIdx;
+        }
+      }
+
+      if (hoverCurveIdx !== nodeEditHoverCurveIdxRef.current) {
+        nodeEditHoverCurveIdxRef.current = hoverCurveIdx;
+        drawNodeEditOverlay(nodeEditPathRef.current, nodeEditPaperPathRef.current, nodeEditPageIndexRef.current);
+      }
+    }
+
     // ── Ctrl + Click Bending Update ──
     if (bendingStateRef.current) {
       const { pathEl, paperPath, curveIndex, pageIndex: activePageIdx } = bendingStateRef.current;
@@ -9280,13 +9147,9 @@ const MainEditor = ({
           }
 
           const pathEl = drawingPathRef.current;
-          const activeVPathId = drawingVectraPathIdRef.current;
-          if (pathEl && activeVPathId) {
-            const activePath = vSession.paths.get(activeVPathId);
-            if (activePath) {
-              const d = pathToD(activePath);
-              if (d) pathEl.setAttribute('d', d);
-            }
+          if (pathEl) {
+            const comboD = pathToDCombo(vSession.paths);
+            if (comboD) pathEl.setAttribute('d', comboD);
           }
 
           if (pageContainer) {
@@ -9606,8 +9469,12 @@ const MainEditor = ({
       if (activeMainTool === 'pen' && selectedPenTool === 'pen') {
         const vSession = vectraPenSessionRef.current;
         vSession.onUp();
-        if (drawingPathRef.current?.parentElement) {
-          renderVectraOverlay(activePageIndex, drawingPathRef.current.parentElement, vSession);
+        if (drawingPathRef.current) {
+          const comboD = pathToDCombo(vSession.paths);
+          if (comboD) drawingPathRef.current.setAttribute('d', comboD);
+          if (drawingPathRef.current.parentElement) {
+            renderVectraOverlay(activePageIndex, drawingPathRef.current.parentElement, vSession);
+          }
         }
       }
 

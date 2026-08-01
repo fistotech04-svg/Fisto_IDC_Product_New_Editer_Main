@@ -3096,6 +3096,10 @@ const TemplateEditor = () => {
           // Only allow deletion in the main editor mode. 
           // Prevent accidental deletion while interacting with Interaction/Animation panels.
           if (activeTopTool === 'editor') {
+            if (window.__nodeEditModeActive) {
+              window.dispatchEvent(new CustomEvent('vector-path-action', { detail: { action: 'delete-node' } }));
+              return;
+            }
             if (multiSelectedIds.size > 0) {
               deleteLayer(activePageIndex, multiSelectedIds);
               setMultiSelectedIds(new Set());
