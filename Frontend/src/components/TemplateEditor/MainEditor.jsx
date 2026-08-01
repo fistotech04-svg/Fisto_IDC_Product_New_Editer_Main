@@ -2556,7 +2556,7 @@ const MainEditor = ({
       const svgH = (svg.getAttribute('height') && !svg.getAttribute('height').includes('%') ? parseFloat(svg.getAttribute('height')) : 0) || (svg.viewBox?.baseVal?.height ? svg.viewBox.baseVal.height : 0) || (typeof baseHeight === 'number' ? baseHeight : parseFloat(baseHeight || 1123)) || 1123;
 
       let displayWidth = Math.round(svgW * 0.9);
-      let displayHeight = Math.round(displayWidth * (9/16));
+      let displayHeight = Math.round(displayWidth * (9 / 16));
 
       // We use foreignObject to host the video/iframe element in SVG
       const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
@@ -2831,8 +2831,8 @@ const MainEditor = ({
         const allPts = [
           { x: minX, y: minY }, { x: maxX, y: minY },
           { x: maxX, y: maxY }, { x: minX, y: maxY },
-          { x: cx,   y: minY }, { x: maxX, y: cy   },
-          { x: cx,   y: maxY }, { x: minX, y: cy   }
+          { x: cx, y: minY }, { x: maxX, y: cy },
+          { x: cx, y: maxY }, { x: minX, y: cy }
         ];
         allPts.forEach((p, i) => {
           const name = handleNames[i];
@@ -2868,7 +2868,7 @@ const MainEditor = ({
             handle.style.height = `${handleSize}px`;
           }
           handle.style.left = `${p.x}px`;
-          handle.style.top  = `${p.y}px`;
+          handle.style.top = `${p.y}px`;
           handle.style.transform = isSide
             ? `translate(-50%, -50%)`
             : `translate(-50%, -50%) scale(${1 / zoomScale})`;
@@ -4819,8 +4819,8 @@ const MainEditor = ({
     const handleGlobalMouseMove = (e) => {
       if (nodeEditDragRef.current) {
         const { mode, segIdx, handleSide, pathEl, paperPath, startPt, startPoints,
-                curveIndex, startHandle1, startHandle2, pageIndex,
-                seg1Idx, seg2Idx } = nodeEditDragRef.current;
+          curveIndex, startHandle1, startHandle2, pageIndex,
+          seg1Idx, seg2Idx } = nodeEditDragRef.current;
         const svgEl = pathEl?.ownerSVGElement;
         if (!svgEl || !paperPath) return;
 
@@ -6191,7 +6191,7 @@ const MainEditor = ({
             seg1Idx: segments.indexOf(curve.segment1),
             seg2Idx: segments.indexOf(curve.segment2),
           });
-        } catch (_) {}
+        } catch (_) { }
       });
 
     } catch (err) { /* non-critical */ }
@@ -6422,7 +6422,7 @@ const MainEditor = ({
     const isVectorPath = el.getAttribute('data-type') === 'vector-path' || (el.tagName && el.tagName.toLowerCase() === 'path');
     if (isVectorPath) {
       const isSelected = (selectedLayerIdRef.current && selectedLayerIdRef.current === el.id) ||
-                         (multiSelectedIdsRef.current && multiSelectedIdsRef.current.has(el.id));
+        (multiSelectedIdsRef.current && multiSelectedIdsRef.current.has(el.id));
       if (!isSelected) {
         // Unselected vector path: require pointer directly over stroke/fill (no gap hover)
         return false;
@@ -7546,7 +7546,7 @@ const MainEditor = ({
                 targetRatio = parseFloat(el.getAttribute('data-original-aspect-ratio'));
               } else {
                 const shapeName = el.getAttribute('data-name') || '';
-                if (shapeName.toLowerCase().includes('circle') || shapeName.toLowerCase().includes('square')) {
+                if ((shapeName.toLowerCase().includes('circle') || shapeName.toLowerCase().includes('square')) && !isImage) {
                   targetRatio = 1;
                 } else if (bbox.height > 0) {
                   targetRatio = bbox.width / bbox.height;
@@ -7901,6 +7901,7 @@ const MainEditor = ({
                         const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
                         const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
+                        let cOffX = 0, cOffY = 0, cScale = 1;
                         if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
                           let origX = parseFloat(el.getAttribute('data-crop-orig-x') || child.getAttribute('data-crop-orig-x') || child.getAttribute('x') || '0');
                           let origY = parseFloat(el.getAttribute('data-crop-orig-y') || child.getAttribute('data-crop-orig-y') || child.getAttribute('y') || '0');
@@ -7914,23 +7915,40 @@ const MainEditor = ({
                             el.setAttribute('data-crop-orig-h', origH);
                           }
 
+                          const cropDataStr = el.getAttribute('data-crop-data');
+                          let cLeft = 0, cTop = 0, cWidth = 100, cHeight = 100;
+                          if (cropDataStr && cropDataStr !== 'null') {
+                            try {
+                              const cd = JSON.parse(cropDataStr);
+                              cLeft = parseFloat(cd.left) || 0;
+                              cTop = parseFloat(cd.top) || 0;
+                              cWidth = parseFloat(cd.width) || 100;
+                              cHeight = parseFloat(cd.height) || 100;
+                              cOffX = parseFloat(cd.offX) || 0;
+                              cOffY = parseFloat(cd.offY) || 0;
+                              cScale = parseFloat(cd.scale) || 1;
+                            } catch (e) { }
+                          }
+
                           if (isSideHandleDrag) {
                             imgX = origX;
                             imgY = origY;
                             imgW = origW;
                             imgH = origH;
-                          } else {
-                            const cropDataStr = el.getAttribute('data-crop-data');
-                            let cLeft = 0, cTop = 0, cWidth = 100, cHeight = 100;
-                            if (cropDataStr && cropDataStr !== 'null') {
-                              try {
-                                const cd = JSON.parse(cropDataStr);
-                                cLeft = parseFloat(cd.left) || 0;
-                                cTop = parseFloat(cd.top) || 0;
-                                cWidth = parseFloat(cd.width) || 100;
-                                cHeight = parseFloat(cd.height) || 100;
-                              } catch (e) { }
+                            if (imgW > 0 && imgH > 0) {
+                              cLeft = ((newLocX - imgX) / imgW) * 100;
+                              cTop = ((newLocY - imgY) / imgH) * 100;
+                              cWidth = (newLocW / imgW) * 100;
+                              cHeight = (newLocH / imgH) * 100;
+                              let cd = {};
+                              try { if (cropDataStr && cropDataStr !== 'null') cd = JSON.parse(cropDataStr); } catch (e) { }
+                              cd.left = cLeft;
+                              cd.top = cTop;
+                              cd.width = cWidth;
+                              cd.height = cHeight;
+                              el.setAttribute('data-crop-data', JSON.stringify(cd));
                             }
+                          } else {
                             const newOrigW = cWidth > 0 ? (newLocW / (cWidth / 100)) : newLocW;
                             const newOrigH = cHeight > 0 ? (newLocH / (cHeight / 100)) : newLocH;
                             const newOrigX = newLocX - (newOrigW * (cLeft / 100));
@@ -7952,6 +7970,14 @@ const MainEditor = ({
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
+
+                        if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
+                          const centerX = imgX + (imgW / 2);
+                          const centerY = imgY + (imgH / 2);
+                          const panX = (imgW * cOffX) / 100;
+                          const panY = (imgH * cOffY) / 100;
+                          child.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${cScale}) translate(${-centerX} ${-centerY})`);
+                        }
 
                         if (tag === 'image' || tag === 'video') {
                           const svg = child.ownerSVGElement;
@@ -8011,6 +8037,7 @@ const MainEditor = ({
                           const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
                           const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
+                          let cOffX = 0, cOffY = 0, cScale = 1;
                           if (isCropModeThisEl) {
                             let origX = parseFloat(el.getAttribute('data-crop-orig-x') || innerImg.getAttribute('data-crop-orig-x') || innerImg.getAttribute('x') || '0');
                             let origY = parseFloat(el.getAttribute('data-crop-orig-y') || innerImg.getAttribute('data-crop-orig-y') || innerImg.getAttribute('y') || '0');
@@ -8024,28 +8051,45 @@ const MainEditor = ({
                               el.setAttribute('data-crop-orig-h', origH);
                             }
 
+                            const cropDataStr = el.getAttribute('data-crop-data');
+                            let cLeft = 0, cTop = 0, cWidth = 100, cHeight = 100;
+                            if (cropDataStr && cropDataStr !== 'null') {
+                              try {
+                                const cd = JSON.parse(cropDataStr);
+                                cLeft = parseFloat(cd.left) || 0;
+                                cTop = parseFloat(cd.top) || 0;
+                                cWidth = parseFloat(cd.width) || 100;
+                                cHeight = parseFloat(cd.height) || 100;
+                                cOffX = parseFloat(cd.offX) || 0;
+                                cOffY = parseFloat(cd.offY) || 0;
+                                cScale = parseFloat(cd.scale) || 1;
+                              } catch (e) { }
+                            }
+
+                            const scaledCropX = la.x + (bbox.x - la.x) * scaleX;
+                            const scaledCropY = la.y + (bbox.y - la.y) * scaleY;
+                            const scaledCropW = bbox.width * scaleX;
+                            const scaledCropH = bbox.height * Math.abs(scaleY);
+
                             if (isSideHandleDrag) {
                               imgX = origX;
                               imgY = origY;
                               imgW = origW;
                               imgH = origH;
-                            } else {
-                              const cropDataStr = el.getAttribute('data-crop-data');
-                              let cLeft = 0, cTop = 0, cWidth = 100, cHeight = 100;
-                              if (cropDataStr && cropDataStr !== 'null') {
-                                try {
-                                  const cd = JSON.parse(cropDataStr);
-                                  cLeft = parseFloat(cd.left) || 0;
-                                  cTop = parseFloat(cd.top) || 0;
-                                  cWidth = parseFloat(cd.width) || 100;
-                                  cHeight = parseFloat(cd.height) || 100;
-                                } catch (e) { }
+                              if (imgW > 0 && imgH > 0) {
+                                cLeft = ((scaledCropX - imgX) / imgW) * 100;
+                                cTop = ((scaledCropY - imgY) / imgH) * 100;
+                                cWidth = (scaledCropW / imgW) * 100;
+                                cHeight = (scaledCropH / imgH) * 100;
+                                let cd = {};
+                                try { if (cropDataStr && cropDataStr !== 'null') cd = JSON.parse(cropDataStr); } catch (e) { }
+                                cd.left = cLeft;
+                                cd.top = cTop;
+                                cd.width = cWidth;
+                                cd.height = cHeight;
+                                el.setAttribute('data-crop-data', JSON.stringify(cd));
                               }
-                              const scaledCropX = la.x + (bbox.x - la.x) * scaleX;
-                              const scaledCropY = la.y + (bbox.y - la.y) * scaleY;
-                              const scaledCropW = bbox.width * scaleX;
-                              const scaledCropH = bbox.height * Math.abs(scaleY);
-
+                            } else {
                               const newOrigW = cWidth > 0 ? (scaledCropW / (cWidth / 100)) : scaledCropW;
                               const newOrigH = cHeight > 0 ? (scaledCropH / (cHeight / 100)) : scaledCropH;
                               const newOrigX = scaledCropX - (newOrigW * (cLeft / 100));
@@ -8067,6 +8111,14 @@ const MainEditor = ({
                           innerImg.setAttribute('y', imgY);
                           innerImg.setAttribute('width', imgW);
                           innerImg.setAttribute('height', imgH);
+
+                          if (isCropModeThisEl) {
+                            const centerX = imgX + (imgW / 2);
+                            const centerY = imgY + (imgH / 2);
+                            const panX = (imgW * cOffX) / 100;
+                            const panY = (imgH * cOffY) / 100;
+                            innerImg.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${cScale}) translate(${-centerX} ${-centerY})`);
+                          }
                         } else {
                           const sm = new DOMMatrix().translate(la.x, la.y).scale(scaleX, scaleY).translate(-la.x, -la.y);
                           child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
@@ -8159,18 +8211,23 @@ const MainEditor = ({
                           }
                         }
 
-                        const isSideHandleSync = ['n', 's', 'e', 'w'].includes(dir);
+                        const isSideHandleSync = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
                         if (isSideHandleSync) {
                           const cLeft = ((cropLocX - origX) / origW) * 100;
                           const cTop = ((cropLocY - origY) / origH) * 100;
                           const cWidth = (cropLocW / origW) * 100;
                           const cHeight = (cropLocH / origH) * 100;
-                          el.setAttribute('data-crop-data', JSON.stringify({
-                            left: Math.max(0, cLeft),
-                            top: Math.max(0, cTop),
-                            width: Math.max(0, cWidth),
-                            height: Math.max(0, cHeight)
-                          }));
+
+                          const cropDataStr = el.getAttribute('data-crop-data');
+                          let cd = {};
+                          try { if (cropDataStr && cropDataStr !== 'null') cd = JSON.parse(cropDataStr); } catch (e) { }
+
+                          cd.left = Math.max(0, cLeft);
+                          cd.top = Math.max(0, cTop);
+                          cd.width = Math.max(0, cWidth);
+                          cd.height = Math.max(0, cHeight);
+
+                          el.setAttribute('data-crop-data', JSON.stringify(cd));
                         }
                       }
                     }
@@ -8230,7 +8287,7 @@ const MainEditor = ({
               const newOverallBBox = {
                 x: Math.min(newOverallMinX, newOverallMaxX),
                 y: Math.min(newOverallMinY, newOverallMaxY),
-                width:  Math.abs(newOverallMaxX - newOverallMinX),
+                width: Math.abs(newOverallMaxX - newOverallMinX),
                 height: Math.abs(newOverallMaxY - newOverallMinY)
               };
 
@@ -8551,7 +8608,7 @@ const MainEditor = ({
               hitSeg2Idx = segments.indexOf(nearestLoc.curve.segment2);
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       if (hitCurveIdx !== -1 && hitSeg1Idx !== -1 && hitSeg2Idx !== -1) {
@@ -10406,30 +10463,30 @@ const MainEditor = ({
         if (sel.rangeCount > 0) {
           const range = sel.getRangeAt(0);
           const node = range.startContainer;
-          
+
           let lineText = '';
           let walker = document.createTreeWalker(div, NodeFilter.SHOW_ALL, null, false);
           walker.currentNode = node;
-          
+
           if (node.nodeType === Node.TEXT_NODE) {
             lineText = node.textContent.substring(0, range.startOffset);
           }
-          
+
           let prev = walker.previousNode();
           while (prev) {
             if (prev.nodeName === 'BR' || prev.nodeName === 'DIV' || prev.nodeName === 'P') break;
             if (prev.nodeType === Node.TEXT_NODE) lineText = prev.textContent + lineText;
             prev = walker.previousNode();
           }
-          
+
           const bulletMatch = lineText.match(/^\s*(•|-)\s+/);
           const numberMatch = lineText.match(/^\s*(\d+)\.\s+/);
-          
+
           if (bulletMatch || numberMatch) {
             e.preventDefault();
             let prefix = '';
             let isEmpty = false;
-            
+
             if (bulletMatch) {
               if (lineText.trim() === bulletMatch[0].trim()) isEmpty = true;
               else prefix = bulletMatch[0].trim() + ' ';
@@ -10440,7 +10497,7 @@ const MainEditor = ({
                 prefix = nextNum + '. ';
               }
             }
-            
+
             if (isEmpty) {
               const deleteRange = document.createRange();
               deleteRange.setEnd(range.startContainer, range.startOffset);
