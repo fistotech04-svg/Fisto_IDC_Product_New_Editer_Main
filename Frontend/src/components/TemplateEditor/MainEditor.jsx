@@ -8851,30 +8851,32 @@ const MainEditor = ({
         if (startPoints && Object.keys(startPoints).length > 0) {
           Object.keys(startPoints).forEach(sIdxStr => {
             const sIdx = parseInt(sIdxStr);
-            const seg = paperPath.segments[sIdx];
+            const seg = paperPath?.segments?.[sIdx];
             if (seg && startPoints[sIdx]) {
               seg.point = startPoints[sIdx].add(delta);
             }
           });
         } else {
-          const seg = paperPath.segments[segIdx];
+          const seg = paperPath?.segments?.[segIdx];
           if (seg) seg.point = mousePoint;
         }
       } else if (mode === 'handle') {
-        const seg = paperPath.segments[segIdx];
+        const seg = paperPath?.segments?.[segIdx];
         if (seg) {
           applyHandleDrag(seg, handleSide, mousePoint, e.altKey);
         }
       } else if (mode === 'segment-bend') {
-        const curve = paperPath.curves[curveIndex];
+        const curve = paperPath?.curves?.[curveIndex];
         if (curve && startHandle1 && startHandle2) {
           curve.segment1.handleOut = startHandle1.add(delta.multiply(0.5));
           curve.segment2.handleIn = startHandle2.add(delta.multiply(-0.5));
         }
       }
 
-      pathEl.setAttribute('d', paperPath.pathData);
-      drawNodeEditOverlay(pathEl, paperPath, nodeEditPageIndexRef.current);
+      if (paperPath?.pathData) {
+        pathEl.setAttribute('d', paperPath.pathData);
+        drawNodeEditOverlay(pathEl, paperPath, nodeEditPageIndexRef.current);
+      }
       suppressClickRef.current = true;
       return;
     }
@@ -8906,18 +8908,20 @@ const MainEditor = ({
       const pt = getLocalPoint(svg, pathEl, e.clientX, e.clientY);
 
       paperScopeRef.current.activate();
-      const curve = paperPath.curves[curveIndex];
-      const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
+      const curve = paperPath?.curves?.[curveIndex];
+      if (curve) {
+        const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
 
-      // Symmetrical bending logic: point handles towards mouse
-      const p1 = curve.segment1.point;
-      const p2 = curve.segment2.point;
+        // Symmetrical bending logic: point handles towards mouse
+        const p1 = curve.segment1.point;
+        const p2 = curve.segment2.point;
 
-      // Factor of 0.45 creates a natural-looking bow that passes near the cursor
-      curve.segment1.handleOut = mousePoint.subtract(p1).multiply(0.45);
-      curve.segment2.handleIn = mousePoint.subtract(p2).multiply(0.45);
+        // Factor of 0.45 creates a natural-looking bow that passes near the cursor
+        curve.segment1.handleOut = mousePoint.subtract(p1).multiply(0.45);
+        curve.segment2.handleIn = mousePoint.subtract(p2).multiply(0.45);
 
-      pathEl.setAttribute('d', paperPath.pathData);
+        pathEl.setAttribute('d', paperPath.pathData);
+      }
       drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
 
       // ── SYNC WITH PEN TOOL STATE ──

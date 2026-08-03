@@ -217,6 +217,7 @@ const TemplateEditor = () => {
     setSaveHandler,
     setPreviewHandler,
     setHasUnsavedChanges,
+    hasUnsavedChanges,
     triggerSaveSuccess,
     isAutoSaveEnabled,
     isSaving,
@@ -858,7 +859,18 @@ const TemplateEditor = () => {
 
         setHasUnsavedChanges(false);
         justSavedRef.current = true;
-        setPages(pagesToSave);
+        // Merge backend v_id properties without overwriting live page HTML edited during async save window
+        setPages(prevPages => {
+          if (!prevPages || prevPages.length === 0) return pagesToSave;
+          const backendPages = lastRes?.data?.pages || [];
+          return prevPages.map((page, idx) => {
+            const bPage = backendPages[idx];
+            if (bPage && bPage.v_id && !page.v_id) {
+              return { ...page, v_id: bPage.v_id };
+            }
+            return page;
+          });
+        });
         window.dispatchEvent(new CustomEvent('flipbook-saved'));
         triggerSaveSuccess({
           name: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
@@ -1005,18 +1017,23 @@ const TemplateEditor = () => {
     }
   }, [pages, currentBook]);
 
-  // ── Auto-Save Mechanism ────────────────────────────────────────────────────
+  // ── Auto-Save Mechanism (Only runs when user makes changes and is not actively scaling/dragging) ──
   useEffect(() => {
-    if (isAutoSaveEnabled && pages.length > 0 && !isLoading) {
+    if (isAutoSaveEnabled && hasUnsavedChanges && pages.length > 0 && !isLoading && !isSaving && !isFirstLoadRef.current) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = setTimeout(() => {
+        // Defer auto-save if user is currently scaling, resizing, or dragging an element
+        const isUserInteracting = !!document.querySelector('[data-dragging="true"]') || document.body.classList.contains('resizing-active');
+        if (isUserInteracting) {
+          return;
+        }
         saveFlipbook(false, popupEditContext ? popupEditContext.backup.pages : pages); // false = auto save
-      }, 1500);
+      }, 2500);
     }
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [pages, isAutoSaveEnabled, currentBook, popupEditContext]);
+  }, [pages, isAutoSaveEnabled, hasUnsavedChanges, isLoading, isSaving, popupEditContext]);
 
   // Sync state to IndexedDB for Customized Editor
   useEffect(() => {

@@ -74,7 +74,7 @@ const CustomizedEditor = () => {
   const { folder, v_id, page } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { setExportHandler, setSaveHandler, setPreviewHandler, setHasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, currentBook, setCurrentBook, activeDevice, setActiveDevice } = useOutletContext() || {};
+  const { setExportHandler, setSaveHandler, setPreviewHandler, setHasUnsavedChanges, hasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, currentBook, setCurrentBook, activeDevice, setActiveDevice } = useOutletContext() || {};
   const [bookName, setBookName] = useState(() => currentBook?.flipbookName || 'Name of the Book');
   const [activeSubView, setActiveSubView] = useState(null);
   const [otherSetupTarget, setOtherSetupTarget] = useState(null);
@@ -715,6 +715,7 @@ const CustomizedEditor = () => {
     }
   }, [setCurrentBook, folder, v_id, bookName, shareSettings]);
 
+  const [isLoading, setIsLoading] = useState(true);
   const initialLoadRef = useRef(true);
   const notifiedUnsavedRef = useRef(false);
 
@@ -733,7 +734,27 @@ const CustomizedEditor = () => {
     setHasUnsavedChanges
   ]);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const autoSaveTimerRef = useRef(null);
+
+  // Auto-Save Mechanism for Customized Editor (Only runs when user makes changes)
+  useEffect(() => {
+    if (isAutoSaveEnabled && hasUnsavedChanges && !initialLoadRef.current && !isLoading) {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = setTimeout(() => {
+        if (handleSaveRef.current) {
+          handleSaveRef.current();
+        }
+      }, 2500);
+    }
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [
+    isAutoSaveEnabled, hasUnsavedChanges, isLoading,
+    bookName, logoSettings, profileSettings, backgroundSettings,
+    bookAppearanceSettings, layoutSettings, menuBarSettings,
+    otherSetupSettings, leadFormSettings, visibilitySettings
+  ]);
 
   // Initial load management
   useEffect(() => {
