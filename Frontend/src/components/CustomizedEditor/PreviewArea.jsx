@@ -944,6 +944,10 @@ const getIframeContent = (html, pageNumber) => {
                         user-select: text !important;
                         pointer-events: auto !important;
                     }
+
+                    svg * {
+                        vector-effect: non-scaling-stroke !important;
+                    }
                 </style>
                 <base href="/">
                 ${getSlideshowScript()}
