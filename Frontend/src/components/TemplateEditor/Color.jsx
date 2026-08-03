@@ -626,32 +626,102 @@ const Color = ({
 
   return (
     <div ref={containerRef} className="flex flex-col font-sans">
+      {!hideFill && (
+        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden mb-[1vw]">
+          <div
+            onClick={() => setOpenSubSection(openSubSection === 'color' || openSubSection === 'fillColor' ? null : 'fillColor')}
+            className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+          >
+            <div className="flex items-center gap-[0.5vw]">
+              <span className="font-semibold text-[0.85vw] text-gray-900">Fill Color</span>
+            </div>
+            <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          </div>
+
+          <div className={`grid transition-all duration-300 ease-in-out ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+            <div className="overflow-hidden">
+              <div className="p-[1vw] pt-[0.75vw] flex items-center justify-between gap-[0.5vw]">
+                {/* Swatch */}
+                <div
+                  className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center cursor-pointer"
+                  onClick={() => setActiveColorPicker(activeColorPicker === 'fill' ? null : 'fill')}
+                >
+                  <div
+                    className="w-full h-full border border-gray-200"
+                    style={{
+                      background: (pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || pseudoProps.fill === '#' || !pseudoProps.fill)
+                        ? 'white'
+                        : (pseudoProps.fill.toString().toLowerCase().includes('url(#')
+                          ? (pseudoProps && pseudoProps[`fill-stops`]
+                            ? `linear-gradient(to right, ${JSON.parse(pseudoProps[`fill-stops`]).map(s => s.color).join(', ')})`
+                            : '#ccc')
+                          : pseudoProps.fill)
+                    }}
+                  />
+                  {(pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || pseudoProps.fill === '#' || !pseudoProps.fill) && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
+                  )}
+                </div>
+
+                {/* Input box */}
+                <div className="flex-grow flex items-center border-[0.1vw] border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
+                  <input
+                    type="text"
+                    value={(pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || !pseudoProps.fill) ? '#' : pseudoProps.fill?.toUpperCase()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || val === '#') {
+                        updateAttr('fill', 'none');
+                      } else {
+                        const finalVal = val.startsWith('#') ? val : '#' + val;
+                        updateAttr('fill', finalVal);
+                      }
+                    }}
+                    className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw] tracking-tight"
+                    maxLength={7}
+                  />
+                  <div
+                    className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
+                    onPointerDown={(e) => {
+                      const currentPct = Math.round(parseFloat(pseudoProps.opacity !== undefined ? pseudoProps.opacity : 1) * 100);
+                      handleScrubHelper(e, currentPct, (val) => {
+                        const num = parseInt(val);
+                        const clamped = Math.min(Math.max(num, 0), 100);
+                        updateAttr('opacity', (clamped / 100).toString());
+                      });
+                    }}
+                  >
+                    <span className="text-[0.75vw] font-medium text-gray-600">
+                      {Math.round(parseFloat(pseudoProps.opacity !== undefined ? pseudoProps.opacity : 1) * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* HEX Dropdown */}
+                <div className="h-[2vw] flex items-center justify-between px-[0.5vw] border border-gray-200 rounded-[0.5vw] bg-white cursor-pointer hover:bg-gray-50 min-w-[3.5vw]">
+                  <span className="text-[0.7vw] text-gray-600 font-medium">HEX</span>
+                  <ChevronDown size="0.8vw" className="text-gray-400 ml-[0.2vw]" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div
-          onClick={() => setOpenSubSection(openSubSection === 'color' ? null : 'color')}
-          className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openSubSection === 'color' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+          onClick={() => setOpenSubSection(openSubSection === 'color' || openSubSection === 'strokeColor' ? null : 'strokeColor')}
+          className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <span className={`font-semibold text-[0.85vw] ${openSubSection === 'color' ? 'text-gray-900' : 'text-gray-500'}`}>Color</span>
+            <span className="font-semibold text-[0.85vw] text-gray-900">Stoke Color</span>
           </div>
-          <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'color' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
         </div>
 
-        <div className={`grid transition-all duration-300 ease-in-out ${openSubSection === 'color' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+        <div className={`grid transition-all duration-300 ease-in-out ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
             <div className="p-[1vw] pt-[0.75vw] space-y-[0.5vw]">
-              {!hideFill && (
-                <ColorField
-                  label="Fill"
-                  color={pseudoProps.fill}
-                  opacity={pseudoProps.opacity}
-                  onColorChange={(val) => updateAttr('fill', val)}
-                  onOpacityChange={(val) => updateAttr('opacity', val.toString())}
-                  onPickerToggle={() => setActiveColorPicker(activeColorPicker === 'fill' ? null : 'fill')}
-                  baseAttr="fill"
-                  selectedElementProps={pseudoProps}
-                />
-              )}
               <ColorField
                 label="Stroke"
                 color={pseudoProps.stroke}
