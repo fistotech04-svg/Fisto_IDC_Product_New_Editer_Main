@@ -7,9 +7,12 @@ import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
 import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
 import paper from 'paper';
-import { VectraPenSession, pathToD, pathToDCombo, makeNode, makePath } from './vectraPenEngine';
-import { getPaperSegments, getPaperCurves, cleanPaperPathData, mergeMeetingNodes, applyHandleDrag, executeVectorPathAction, deleteSelectedNodeOrHandle } from './vectorNodeEngine';
-import { drawNodeEditOverlay as drawNodeEditOverlayExt, clearPenToolNodes as clearPenToolNodesExt, drawPenToolNodes as drawPenToolNodesExt, drawBendingNodes as drawBendingNodesExt, renderVectraOverlay as renderVectraOverlayExt, clearVectraOverlay as clearVectraOverlayExt, generatePathData } from './penOverlayEngine';
+import {
+  VectraPenSession, pathToD, pathToDCombo, makeNode, makePath,
+  getPaperSegments, getPaperCurves, cleanPaperPathData, mergeMeetingNodes, applyHandleDrag, executeVectorPathAction, deleteSelectedNodeOrHandle, bakeTransformIntoPaperPath, processVectorPathAction,
+  drawNodeEditOverlay as drawNodeEditOverlayExt, clearPenToolNodes as clearPenToolNodesExt, drawPenToolNodes as drawPenToolNodesExt, drawBendingNodes as drawBendingNodesExt, renderVectraOverlay as renderVectraOverlayExt, clearVectraOverlay as clearVectraOverlayExt, generatePathData,
+  exitNodeEditModeHelper
+} from './penToolEngine';
 import PenToolProperties from './PenToolProperties';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
@@ -19,7 +22,6 @@ const CUR_PEN_EXTEND = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http
 const CUR_SNAP = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M12 2v7M12 15v7M2 12h7M15 12h7' stroke='black' stroke-width='2.6'/%3E%3Cpath d='M12 2v7M12 15v7M2 12h7M15 12h7' stroke='white' stroke-width='1.2'/%3E%3Ccircle cx='12' cy='12' r='2.4' fill='none' stroke='black' stroke-width='2.2'/%3E%3Ccircle cx='12' cy='12' r='2.4' fill='none' stroke='%23FF5C87' stroke-width='1.2'/%3E%3C/svg%3E") 12 12, crosshair`;
 const SHAPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M12 2V22M2 12H22' stroke='%236366F1' stroke-width='2' stroke-linecap='round'/></svg>") 12 12, crosshair`;
 const TYPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 15 15'><path fill='%23000' d='M10.5 1a.5.5 0 0 1 0 1c-.922 0-1.54.23-1.92.563C8.206 2.89 8 3.366 8 4v3h1.25a.5.5 0 0 1 0 1H8v3c0 .634.207 1.11.58 1.437c.38.333.998.563 1.92.563a.5.5 0 0 1 0 1c-1.078 0-1.96-.27-2.58-.812a2.6 2.6 0 0 1-.42-.47q-.177.256-.42.47C6.46 13.73 5.577 14 4.5 14a.5.5 0 0 1 0-1c.922 0 1.54-.23 1.92-.563c.373-.326.58-.803.58-1.437V8H5.75a.5.5 0 0 1 0-1H7V4c0-.634-.207-1.11-.58-1.437C6.04 2.23 5.423 2 4.5 2a.5.5 0 0 1 0-1c1.078 0 1.96.27 2.58.812q.243.213.42.468q.177-.255.42-.468C8.54 1.27 9.423 1 10.5 1' /></svg>") 7 7, text`;
-const BENDING_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='%23000' d='M5.5 3.483c0-1.248 1.436-1.95 2.421-1.184l13.514 10.513c1.128.877.508 2.684-.92 2.684h-6.853c-.505 0-.981.23-1.294.626l-4.191 5.3c-.882 1.116-2.677.492-2.677-.93zm15.014 10.513L7 3.483v17.009l4.191-5.3a3.15 3.15 0 0 1 2.47-1.196z' /></svg>") 5 3, auto`;
 const DIRECT_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="-20 -20 300 300"><path d="M238.448 92.6028L0 0L90.103 241.348C90.7404 243.045 91.8924 244.501 93.3985 245.514C94.9045 246.526 96.6895 247.045 98.5048 246.997C100.32 246.949 102.075 246.337 103.525 245.246C104.976 244.156 106.049 242.641 106.596 240.913L130.069 164.711L209.652 242.219C211.287 243.841 213.498 244.751 215.804 244.751C218.109 244.751 220.321 243.841 221.956 242.219L242.462 221.753C244.088 220.122 245 217.914 245 215.614C245 213.313 244.088 211.106 242.462 209.474L163.141 132.315L238.448 109.062C240.163 108.47 241.65 107.359 242.703 105.884C243.755 104.409 244.321 102.643 244.321 100.833C244.321 99.0218 243.755 97.256 242.703 95.781C241.65 94.306 240.163 93.195 238.448 92.6028Z" fill="black" transform="rotate(18, 0, 0)"/></svg>') 1 1, auto`;
 
 export const isElementCropped = (el) => {
@@ -243,6 +245,15 @@ const svgGlobalStyles = `
     display: block !important;
     margin: 0 !important;
     padding: 0 !important;
+  }
+
+  .page-svg-container.trim-view-on,
+  .page-svg-container.trim-view-on svg {
+    overflow: hidden !important;
+  }
+
+  .page-svg-container.trim-view-off,
+  .page-svg-container.trim-view-off svg {
     overflow: visible !important;
   }
 
@@ -366,13 +377,6 @@ const svgGlobalStyles = `
     cursor: ${CUR_SNAP} !important;
   }
 
-  /* 10b. Bending Mode (Ctrl held in Pen mode) ────────── */
-  .page-svg-container.pen-mode.ctrl-down svg,
-  .page-svg-container.pen-mode.ctrl-down svg *,
-  .page-svg-container.pen-mode.ctrl-down svg [data-name="Overlay"] {
-    cursor: ${BENDING_CURSOR} !important;
-  }
-
   /* 10b. Shape Tool Cursor */
   .page-svg-container.shape-mode svg,
   .page-svg-container.shape-mode svg *,
@@ -464,324 +468,7 @@ import CanvasRuler from './CanvasRuler';
 import GuidesOverlay from './GuidesOverlay';
 import TopToolbar from './TopToolbar';
 
-const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool, pageIndex, activePageIndex, updateElementAttribute, activeTopTool }) => {
-  const [pos, setPos] = useState(null);
-  const [hasAnimation, setHasAnimation] = useState(false);
-  const [hasInteraction, setHasInteraction] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const tooltipRef = useRef(null);
-
-  useEffect(() => {
-    let animationFrame;
-    const update = () => {
-      const container = document.querySelector(`[data-page-index="${pageIndex}"]`);
-      if (!container) {
-        if (pos !== null) setPos(null);
-        return;
-      }
-
-      const safeId = selectedId ? selectedId.replace(/(:|\.|\[|\]|,|=|@)/g, "\\$1") : '';
-      const el = container.querySelector(`[id="${safeId}"], [data-name="${safeId}"]`);
-
-      if (!el) {
-        if (pos !== null) setPos(null);
-        return;
-      }
-
-      const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
-        el.getAttribute('data-type') === 'background' ||
-        el.getAttribute('data-type') === 'frame';
-      if (isOverlay) {
-        if (pos !== null) setPos(null);
-        return;
-      }
-
-      if (el.getAttribute('data-dragging') === 'true') {
-        if (tooltipRef.current) tooltipRef.current.style.opacity = '0';
-        animationFrame = requestAnimationFrame(update);
-        return;
-      } else {
-        if (tooltipRef.current) tooltipRef.current.style.opacity = '1';
-      }
-
-      try {
-        const animations = el.getAnimations ? el.getAnimations() : [];
-        const activeAnims = animations.filter(a => a.playState !== 'finished');
-
-        let rect;
-        if (activeAnims.length > 0) {
-          // Temporarily revert to base state to get the static bounding box
-          const originalTimes = activeAnims.map(a => a.currentTime);
-          activeAnims.forEach(a => {
-            a.pause();
-            a.currentTime = 0;
-          });
-          rect = el.getBoundingClientRect();
-          // Restore animation state
-          activeAnims.forEach((a, i) => {
-            a.currentTime = originalTimes[i];
-            a.play();
-          });
-        } else {
-          rect = el.getBoundingClientRect();
-        }
-
-        if (rect.width === 0 && rect.height === 0) {
-          if (pos !== null) setPos(null);
-          return;
-        }
-
-        const containerRect = container.getBoundingClientRect();
-
-        const scale = zoom / 100;
-        // Calculate center position instead of right edge for better UX (or keep right if preferred, but center is usually expected for these frames)
-        // Actually, let's keep it at right edge as per original, or center it? Let's keep original X calculation but use center of rect for width? 
-        // Original: const x = (rect.right - containerRect.left) / scale;
-        // Let's change it to center because it looks centered in the user's screenshot.
-        // Wait, I will keep the original logic to avoid breaking user's design, but update the position directly.
-        const x = (rect.left + rect.width / 2 - containerRect.left) / scale;
-        const y = (rect.top - containerRect.top) / scale;
-
-        const isTooCloseToTop = y < 40;
-
-        if (tooltipRef.current) {
-          tooltipRef.current.style.left = `${Math.round(x)}px`;
-          tooltipRef.current.style.top = `${Math.round(y + (isTooCloseToTop ? 10 : -4))}px`;
-          // Transform -50% for centering, instead of -100% for right-align
-          tooltipRef.current.style.transform = `translate(-50%, ${isTooCloseToTop ? '0%' : '-100%'})`;
-        } else {
-          // Initial state update to trigger render
-          setPos({ x, y, isTooCloseToTop });
-        }
-
-        const animType = el.getAttribute('data-animation-open-type');
-        const interactType = el.getAttribute('data-animation-interact-type');
-        const hasIntent = el.getAttribute('data-animation-intent') === 'true';
-        const isManaged = (animType && animType !== 'none') || (interactType && interactType !== 'none') || hasIntent;
-
-        setHasAnimation(prev => prev !== isManaged ? isManaged : prev);
-
-        const interaction = el.getAttribute('data-interaction');
-        const hasInteract = (interaction && interaction !== 'none') || el.getAttribute('data-interaction-intent') === 'true';
-        setHasInteraction(prev => prev !== !!hasInteract ? !!hasInteract : prev);
-
-        if (multiSelectedIds && multiSelectedIds.size > 1) {
-          let allHave = true;
-          let allInteract = true;
-          multiSelectedIds.forEach(id => {
-            const selEl = document.getElementById(id) || document.querySelector(`[data-name="${id}"]`);
-            if (selEl) {
-              const t1 = selEl.getAttribute('data-animation-open-type');
-              const t2 = selEl.getAttribute('data-animation-interact-type');
-              if ((!t1 || t1 === 'none') && (!t2 || t2 === 'none')) allHave = false;
-
-              const interact = selEl.getAttribute('data-interaction');
-              if (!interact || interact === 'none') allInteract = false;
-            }
-          });
-          setHasAnimation(prev => prev !== allHave ? allHave : prev);
-          setHasInteraction(prev => prev !== allInteract ? allInteract : prev);
-        }
-      } catch (e) {
-        if (pos !== null) setPos(null);
-      }
-      animationFrame = requestAnimationFrame(update);
-    };
-
-    update();
-    return () => cancelAnimationFrame(animationFrame);
-  }, [selectedId, zoom, pageIndex, multiSelectedIds]);
-
-  if (activeTopTool !== 'animation' && activeTopTool !== 'interaction') return null;
-  if (!pos) return null;
-
-  return (
-    <div
-      ref={tooltipRef}
-      className="absolute z-[1001] pointer-events-auto"
-      style={{
-        left: Math.round(pos.x),
-        top: Math.round(pos.y + (pos.isTooCloseToTop ? 10 : -4)),
-        transform: `translate(-50%, ${pos.isTooCloseToTop ? '0%' : '-100%'})`
-      }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <div className="relative flex items-center" onMouseDown={(e) => e.stopPropagation()}>
-        {/* The Tooltip Button Box */}
-        {(() => {
-          const handleTooltipClick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const ids = (multiSelectedIds && multiSelectedIds.size > 0) ? Array.from(multiSelectedIds) : [selectedId];
-            if (!ids.length || !ids[0]) return;
-
-            if (activeTopTool === 'interaction') {
-              // ─── Interaction Mode Click Behavior ───
-              ids.forEach(id => {
-                if (!id) return;
-                const safeId = id.replace(/(:|\.|\[|\]|,|=|@)/g, "\\$1");
-                const el = document.getElementById(id) || document.querySelector(`[id="${safeId}"]`) || document.querySelector(`[data-name="${id}"]`);
-
-                if (el) {
-                  const existingInteraction = el.getAttribute('data-interaction');
-                  if (!existingInteraction || existingInteraction === 'none') {
-                    // Update DOM attributes instantly
-                    el.setAttribute('data-interaction', 'open-link');
-                    el.setAttribute('data-interaction-value', '');
-                    el.setAttribute('data-interaction-intent', 'true');
-
-                    if (updateElementAttribute) {
-                      updateElementAttribute(pageIndex, id, {
-                        'data-interaction': 'open-link',
-                        'data-interaction-value': '',
-                        'data-interaction-intent': 'true'
-                      });
-                    }
-                  } else {
-                    if (updateElementAttribute) {
-                      updateElementAttribute(pageIndex, id, 'data-interaction-intent', 'true');
-                    }
-                  }
-                }
-              });
-
-              // Dispatch the event to InteractionPanel to open the card
-              setTimeout(() => {
-                ids.forEach(id => {
-                  if (id) {
-                    window.dispatchEvent(new CustomEvent('add-free-frame', {
-                      detail: { elementId: id, pageIndex }
-                    }));
-                  }
-                });
-              }, 100);
-
-            } else {
-              // ─── Animation Mode Click Behavior ───
-              // Grouping logic: if multiple elements, assign a shared group name
-              let sharedGroupId = null;
-              if (ids.length > 1) {
-                const allGroups = Array.from(document.querySelectorAll('[data-animation-group]')).map(el => el.getAttribute('data-animation-group'));
-                const groupNums = allGroups.map(g => parseInt(g.replace('Group ', ''))).filter(n => !isNaN(n));
-                const nextNum = groupNums.length > 0 ? Math.max(...groupNums) + 1 : 1;
-                sharedGroupId = `Group ${nextNum}`;
-              }
-
-              ids.forEach(id => {
-                if (!id) return;
-                // Escape ID for selector safety if it contains special characters
-                const safeId = id.replace(/(:|\.|\[|\]|,|=|@)/g, "\\$1");
-                const el = document.getElementById(id) || document.querySelector(`[id="${safeId}"]`) || document.querySelector(`[data-name="${id}"]`);
-
-                if (el) {
-                  const alreadyHasAnim = (el.getAttribute('data-animation-open-type') && el.getAttribute('data-animation-open-type') !== 'none') ||
-                    (el.getAttribute('data-animation-interact-type') && el.getAttribute('data-animation-interact-type') !== 'none');
-                  if (!alreadyHasAnim) {
-                    // Direct DOM update for instant feedback
-                    el.setAttribute('data-animation-open-type', 'fade-in');
-                    el.setAttribute('data-animation-open-duration', '1');
-                    el.setAttribute('data-animation-open-delay', '0');
-                    el.setAttribute('data-animation-open-easing', 'ease');
-                    el.setAttribute('data-animation-intent', 'true');
-                    if (sharedGroupId) el.setAttribute('data-animation-group', sharedGroupId);
-
-                    if (updateElementAttribute) {
-                      const animUpdates = {
-                        'data-animation-open-type': 'fade-in',
-                        'data-animation-open-duration': '1',
-                        'data-animation-intent': 'true'
-                      };
-                      if (sharedGroupId) {
-                        animUpdates['data-animation-group'] = sharedGroupId;
-                      }
-                      updateElementAttribute(pageIndex, id, animUpdates);
-                    }
-                  } else {
-                    if (updateElementAttribute) {
-                      updateElementAttribute(pageIndex, id, 'data-animation-intent', 'true');
-                    }
-                  }
-                }
-              });
-
-              if (setActiveTopTool) setActiveTopTool('animation');
-
-              setTimeout(() => {
-                ids.forEach(id => {
-                  if (id) window.dispatchEvent(new CustomEvent('animation-force-add', { detail: id }));
-                });
-              }, 100);
-            }
-          };
-
-          return (
-            <div
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
-              onClick={handleTooltipClick}
-              className="relative w-[2vw] h-[1.8vw] bg-[#333333] rounded-[0.4vw] flex items-center justify-center cursor-pointer shadow-xl group hover:bg-[#444444] transition-colors border border-white/10"
-            >
-              {activeTopTool === 'interaction' ? (
-                <Icon
-                  icon="hugeicons:touch-interaction-01"
-                  width="1.2vw"
-                  height="1.2vw"
-                  className={`pointer-events-none ${hasInteraction ? "text-[#818CF8]" : "text-white"}`}
-                />
-              ) : (
-                <Icon
-                  icon="solar:star-fall-minimalistic-bold"
-                  width="1.2vw"
-                  height="1.2vw"
-                  className={`pointer-events-none ${hasAnimation ? "text-[#FFB800]" : "text-white"}`}
-                />
-              )}
-
-              {/* Status Badge — explicit onClick so both main button and + are clickable */}
-              <div
-                onClick={handleTooltipClick}
-                className={`absolute -top-[0.4vw] -right-[0.4vw] w-[0.9vw] h-[0.9vw] rounded-full flex items-center justify-center border-[0.1vw] border-[#F6F6F6] shadow-sm transition-colors duration-300 cursor-pointer z-10 pointer-events-auto ${activeTopTool === 'interaction'
-                  ? (hasInteraction ? 'bg-[#22C55E]' : 'bg-[#5145F6]')
-                  : (hasAnimation ? 'bg-[#22C55E]' : 'bg-[#5145F6]')
-                  }`}
-              >
-                <Icon
-                  icon={activeTopTool === 'interaction' ? (hasInteraction ? "lucide:check" : "lucide:plus") : (hasAnimation ? "lucide:check" : "lucide:plus")}
-                  width="0.5vw"
-                  height="0.5vw"
-                  className="text-white pointer-events-none"
-                />
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Speech Bubble Tooltip - Only show on hover */}
-        <AnimatePresence>
-          {isHovered && (
-            <motion.div
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              className="absolute right-full mr-[0.6vw] flex items-center"
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <div className="absolute right-[-0.25vw] w-0 h-0 border-t-[0.3vw] border-t-transparent border-l-[0.3vw] border-l-[#333333] border-b-[0.3vw] border-b-transparent"></div>
-              <div className="bg-[#333333] text-white px-[0.3vw] py-[0.2vw] rounded-[0.2vw] shadow-xl border border-white/5 whitespace-nowrap">
-                <span className="text-[0.55vw] font-semibold tracking-tight">
-                  {activeTopTool === 'interaction'
-                    ? (hasInteraction ? "Interaction Added" : "Click To Add Interaction")
-                    : (hasAnimation ? "Animation Added" : "Click To Add Animation")}
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-};
+const SelectionTooltip = () => null;
 
 
 
@@ -846,6 +533,7 @@ const MainEditor = ({
   isPdfProject,
   isDoublePage,
   isRulerEnabled = true,
+  isTrimView = false,
   pages = [],
   activePageIndex,
   setActivePageIndex,
@@ -881,6 +569,23 @@ const MainEditor = ({
   const [showSelectOptions, setShowSelectOptions] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
+  const [localTrimView, setLocalTrimView] = useState(isTrimView);
+
+  useEffect(() => {
+    setLocalTrimView(isTrimView);
+  }, [isTrimView]);
+
+  useEffect(() => {
+    const handleToggleTrim = (e) => {
+      if (e.detail !== undefined) {
+        setLocalTrimView(e.detail);
+      } else {
+        setLocalTrimView(prev => !prev);
+      }
+    };
+    window.addEventListener('editor_toggleTrimView', handleToggleTrim);
+    return () => window.removeEventListener('editor_toggleTrimView', handleToggleTrim);
+  }, []);
 
   // Robustly ensure multi-selection dotted outlines are removed when selection is no longer multiple
   useEffect(() => {
@@ -970,6 +675,8 @@ const MainEditor = ({
   const nodeEditScreenNodesRef = useRef([]);
   // Stores screen-space segment midpoints for segment hit testing: {curveIdx, mx, my, seg1Idx, seg2Idx}
   const nodeEditScreenSegmentsRef = useRef([]);
+  // Stores active handle retract/delete state for RED highlight indicator: { segIdx, handleSide, isReadyToDelete }
+  const nodeEditRetractHandleRef = useRef(null);
 
   const createPaperPath = (d) => {
     if (!paperScopeRef.current || !d) return null;
@@ -1225,7 +932,6 @@ const MainEditor = ({
       // ── Ctrl detection ──
       if (e.key === 'Control' && !isCtrlPressedRef.current) {
         isCtrlPressedRef.current = true;
-        document.querySelectorAll('.page-svg-container').forEach(el => el.classList.add('ctrl-down'));
       }
 
       if (e.key === 'Alt') {
@@ -1254,7 +960,6 @@ const MainEditor = ({
       }
       if (e.key === 'Control') {
         isCtrlPressedRef.current = false;
-        document.querySelectorAll('.page-svg-container').forEach(el => el.classList.remove('ctrl-down'));
       }
       if (e.key === 'Alt') {
         e.preventDefault();
@@ -3834,15 +3539,32 @@ const MainEditor = ({
   drawMeasurementOverlayRef.current = drawMeasurementOverlay;
 
   const drawInteractionBadge = (el, mapped, htmlOverlay, zoomScale, bbox) => {
-    if (activeTopToolRef.current !== 'interaction') return;
+    const isInteraction = activeTopToolRef.current === 'interaction';
+    const isAnimation = activeTopToolRef.current === 'animation';
+    if (!isInteraction && !isAnimation) return;
     if (!htmlOverlay) return;
+    if (isAnimation && el.getAttribute('data-name') === 'Free Frame') return;
 
     const badgeId = `interaction-badge-${el.id}`;
     let badge = htmlOverlay.querySelector(`[id="${badgeId}"]`);
 
+    const currentTool = activeTopToolRef.current;
+    if (badge && badge.getAttribute('data-tool') !== currentTool) {
+      badge.remove();
+      badge = null;
+    }
+
+    const hasInteract = (el.getAttribute('data-interaction') && el.getAttribute('data-interaction') !== 'none') || el.getAttribute('data-interaction-intent') === 'true';
+    const animType = el.getAttribute('data-animation-open-type');
+    const interactType = el.getAttribute('data-animation-interact-type');
+    const hasAnim = (animType && animType !== 'none') || (interactType && interactType !== 'none') || el.getAttribute('data-animation-intent') === 'true';
+
+    const isAssigned = isInteraction ? hasInteract : hasAnim;
+
     if (!badge) {
       badge = document.createElement('div');
       badge.id = badgeId;
+      badge.setAttribute('data-tool', currentTool);
       badge.className = 'absolute z-[2000] cursor-pointer flex flex-col items-center group/badge pointer-events-auto';
 
       const mainBox = document.createElement('div');
@@ -3851,25 +3573,42 @@ const MainEditor = ({
       mainBox.style.width = '1.6vw';
       mainBox.style.height = '1.6vw';
 
-      mainBox.innerHTML = `
-        <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M7 7.99791H6.176C4.679 7.99791 3.93 7.99791 3.466 7.55791C3 7.12091 3 6.41391 3 5.00091C3 3.58791 3 2.88091 3.465 2.44291C3.93 2.00391 4.679 2.00391 6.176 2.00391H17.823C19.321 2.00391 20.07 2.00391 20.535 2.44291C21 2.88191 21 3.58691 21 4.99991C21 6.41291 21 7.11991 20.535 7.55891C20.07 7.99791 19.321 7.99791 17.823 7.99791H16.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M7.42375 17.5184L6.54475 16.3864L5.42475 14.9414C4.98275 14.3964 4.90275 13.7304 5.18275 13.1414C5.28206 12.9339 5.43587 12.7573 5.62775 12.6304C6.24475 12.2234 7.09575 12.1744 7.62775 12.7114L9.59875 14.3894V6.63744C9.59875 5.77444 10.4187 5.02344 11.3447 5.02344C12.2707 5.02344 13.0967 5.77444 13.0967 6.63744V10.7274C14.6217 10.6054 17.0677 11.1684 18.5117 12.2754C19.7727 13.2404 20.5777 13.7774 19.5257 16.9554C19.1997 17.9384 18.3847 19.2914 18.2527 19.6734C18.1217 20.0534 17.9817 20.2804 18.0317 21.9934M6.54475 16.3864C6.81275 16.7104 7.08375 17.0884 7.42375 17.5184M9.52975 21.9994V21.0534C9.60275 19.8904 8.54675 18.9574 7.42375 17.5184M7.42375 17.5184C7.34275 17.4144 7.49975 17.6154 7.42375 17.5184ZM7.42375 17.5184L8.53075 18.8724" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      `;
+      if (isAnimation) {
+        mainBox.innerHTML = `
+          <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L14.85 8.62L22 9.24L16.54 13.97L18.18 21L12 17.27L5.82 21L7.46 13.97L2 9.24L9.15 8.62L12 2Z" fill="white"/>
+          </svg>
+        `;
+      } else {
+        mainBox.innerHTML = `
+          <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 7.99791H6.176C4.679 7.99791 3.93 7.99791 3.466 7.55791C3 7.12091 3 6.41391 3 5.00091C3 3.58791 3 2.88091 3.465 2.44291C3.93 2.00391 4.679 2.00391 6.176 2.00391H17.823C19.321 2.00391 20.07 2.00391 20.535 2.44291C21 2.88191 21 3.58691 21 4.99991C21 6.41291 21 7.11991 20.535 7.55891C20.07 7.99791 19.321 7.99791 17.823 7.99791H16.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M7.42375 17.5184L6.54475 16.3864L5.42475 14.9414C4.98275 14.3964 4.90275 13.7304 5.18275 13.1414C5.28206 12.9339 5.43587 12.7573 5.62775 12.6304C6.24475 12.2234 7.09575 12.1744 7.62775 12.7114L9.59875 14.3894V6.63744C9.59875 5.77444 10.4187 5.02344 11.3447 5.02344C12.2707 5.02344 13.0967 5.77444 13.0967 6.63744V10.7274C14.6217 10.6054 17.0677 11.1684 18.5117 12.2754C19.7727 13.2404 20.5777 13.7774 19.5257 16.9554C19.1997 17.9384 18.3847 19.2914 18.2527 19.6734C18.1217 20.0534 17.9817 20.2804 18.0317 21.9934M6.54475 16.3864C6.81275 16.7104 7.08375 17.0884 7.42375 17.5184M9.52975 21.9994V21.0534C9.60275 19.8904 8.54675 18.9574 7.42375 17.5184M7.42375 17.5184C7.34275 17.4144 7.49975 17.6154 7.42375 17.5184ZM7.42375 17.5184L8.53075 18.8724" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        `;
+      }
 
       const plusBadge = document.createElement('div');
       plusBadge.setAttribute('data-badge-plus', 'true');
       plusBadge.className = 'absolute -top-1 -right-1 flex items-center justify-center';
       plusBadge.style.width = '0.75vw';
       plusBadge.style.height = '0.75vw';
-      plusBadge.innerHTML = `
-        <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" fill="white"/>
-          <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" stroke="#4A3AFF"/>
-          <path d="M12.0007 8.66536H8.66732V11.9987C8.66732 12.3654 8.36732 12.6654 8.00065 12.6654C7.63398 12.6654 7.33398 12.3654 7.33398 11.9987V8.66536H4.00065C3.63398 8.66536 3.33398 8.36536 3.33398 7.9987C3.33398 7.63203 3.63398 7.33203 4.00065 7.33203H7.33398V3.9987C7.33398 3.63203 7.63398 3.33203 8.00065 3.33203C8.36732 3.33203 8.66732 3.63203 8.66732 3.9987V7.33203H12.0007C12.3673 7.33203 12.6673 7.63203 12.6673 7.9987C12.6673 8.36536 12.3673 8.66536 12.0007 8.66536Z" fill="#4A3AFF"/>
-        </svg>
-      `;
+      if (isAssigned) {
+        plusBadge.innerHTML = `
+          <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="8" cy="8" r="7.5" fill="#22C55E" stroke="white"/>
+            <path d="M5 8L7 10L11 6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        `;
+      } else {
+        plusBadge.innerHTML = `
+          <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" fill="white"/>
+            <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" stroke="#4A3AFF"/>
+            <path d="M12.0007 8.66536H8.66732V11.9987C8.66732 12.3654 8.36732 12.6654 8.00065 12.6654C7.63398 12.6654 7.33398 12.3654 7.33398 11.9987V8.66536H4.00065C3.63398 8.66536 3.33398 8.36536 3.33398 7.9987C3.33398 7.63203 3.63398 7.33203 4.00065 7.33203H7.33398V3.9987C7.33398 3.63203 7.63398 3.33203 8.00065 3.33203C8.36732 3.33203 8.66732 3.63203 8.66732 3.9987V7.33203H12.0007C12.3673 7.33203 12.6673 7.63203 12.6673 7.9987C12.6673 8.36536 12.3673 8.66536 12.0007 8.66536Z" fill="#4A3AFF"/>
+          </svg>
+        `;
+      }
       mainBox.appendChild(plusBadge);
 
       const label = document.createElement('div');
@@ -3877,35 +3616,105 @@ const MainEditor = ({
       label.className = 'absolute top-1/2 -translate-y-1/2 bg-black text-white text-[0.5vw] font-medium px-[0.5vw] py-[0.25vw] shadow-lg whitespace-nowrap flex items-center opacity-0 group-hover/badge:opacity-100 transition-opacity duration-200 pointer-events-none';
       label.style.left = '100%';
       label.style.marginLeft = '0.5vw';
-      label.innerHTML = 'Click To Add Interaction';
+      label.innerHTML = isAnimation
+        ? (isAssigned ? 'Animation Added' : 'Click To Add Animation')
+        : (isAssigned ? 'Interaction Added' : 'Click To Add Interaction');
 
       const arrow = document.createElement('div');
       arrow.setAttribute('data-badge-arrow', 'true');
       arrow.className = 'absolute w-0 h-0';
       arrow.style.cssText = 'position:absolute; left:-5px; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black;';
       label.appendChild(arrow);
-      label.appendChild(document.createTextNode(''));
       badge.appendChild(mainBox);
       badge.appendChild(label);
-
-      const triggerEvent = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const event = new CustomEvent('add-free-frame', {
-          detail: {
-            elementId: el.id,
-            bbox: bbox
-          }
-        });
-        window.dispatchEvent(event);
-      };
-      badge.onpointerdown = triggerEvent;
-      badge.onclick = triggerEvent;
 
       htmlOverlay.appendChild(badge);
     }
 
     if (badge) {
+      let clickProcessed = false;
+      const handleBadgeAction = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        if (clickProcessed) return;
+        clickProcessed = true;
+        setTimeout(() => { clickProcessed = false; }, 200);
+
+        const targetId = el.id || el.getAttribute('data-name');
+        if (!targetId) return;
+
+        if (isAnimation) {
+          el.setAttribute('data-animation-open-type', el.getAttribute('data-animation-open-type') || 'fade-in');
+          el.setAttribute('data-animation-open-duration', el.getAttribute('data-animation-open-duration') || '1');
+          el.setAttribute('data-animation-open-delay', el.getAttribute('data-animation-open-delay') || '0');
+          el.setAttribute('data-animation-open-easing', el.getAttribute('data-animation-open-easing') || 'ease');
+          el.setAttribute('data-animation-intent', 'true');
+
+          if (typeof updateElementAttribute === 'function') {
+            updateElementAttribute(activePageIndex, targetId, {
+              'data-animation-open-type': el.getAttribute('data-animation-open-type') || 'fade-in',
+              'data-animation-open-duration': el.getAttribute('data-animation-open-duration') || '1',
+              'data-animation-open-delay': el.getAttribute('data-animation-open-delay') || '0',
+              'data-animation-open-easing': el.getAttribute('data-animation-open-easing') || 'ease',
+              'data-animation-intent': 'true'
+            });
+          }
+
+          const plusBox = badge.querySelector('[data-badge-plus]');
+          if (plusBox) {
+            plusBox.innerHTML = `
+              <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="8" cy="8" r="7.5" fill="#22C55E" stroke="white"/>
+                <path d="M5 8L7 10L11 6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            `;
+          }
+          const labelBox = badge.querySelector('[data-badge-label]');
+          if (labelBox) {
+            const arrowEl = labelBox.querySelector('[data-badge-arrow]');
+            const arrowHTML = arrowEl ? arrowEl.outerHTML : '';
+            labelBox.innerHTML = `${arrowHTML}Animation Added`;
+          }
+
+          if (typeof setActiveTopTool === 'function') setActiveTopTool('animation');
+          window.dispatchEvent(new CustomEvent('animation-force-add', { detail: targetId }));
+        } else {
+          const event = new CustomEvent('add-free-frame', {
+            detail: {
+              elementId: targetId,
+              bbox: bbox
+            }
+          });
+          window.dispatchEvent(event);
+        }
+      };
+
+      badge.onpointerdown = handleBadgeAction;
+      badge.onmousedown = handleBadgeAction;
+      badge.onclick = handleBadgeAction;
+
+      const plusBox = badge.querySelector('[data-badge-plus]');
+      if (plusBox) {
+        if (isAssigned) {
+          plusBox.innerHTML = `
+            <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="8" cy="8" r="7.5" fill="#22C55E" stroke="white"/>
+              <path d="M5 8L7 10L11 6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+        } else {
+          plusBox.innerHTML = `
+            <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" fill="white"/>
+              <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" stroke="#4A3AFF"/>
+              <path d="M12.0007 8.66536H8.66732V11.9987C8.66732 12.3654 8.36732 12.6654 8.00065 12.6654C7.63398 12.6654 7.33398 12.3654 7.33398 11.9987V8.66536H4.00065C3.63398 8.66536 3.33398 8.36536 3.33398 7.9987C3.33398 7.63203 3.63398 7.33203 4.00065 7.33203H7.33398V3.9987C7.33398 3.63203 7.63398 3.33203 8.00065 3.33203C8.36732 3.33203 8.66732 3.63203 8.66732 3.9987V7.33203H12.0007C12.3673 7.33203 12.6673 7.63203 12.6673 7.9987C12.6673 8.36536 12.3673 8.66536 12.0007 8.66536Z" fill="#4A3AFF"/>
+            </svg>
+          `;
+        }
+      }
+
       const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
       const vwOffset = (window.innerWidth * 0.006) / zoomScale;
       badge.style.left = `${midN.x}px`;
@@ -3924,6 +3733,12 @@ const MainEditor = ({
       const labelEl = badge.querySelector('[data-badge-label]');
       const arrowEl = badge.querySelector('[data-badge-arrow]');
       if (labelEl && arrowEl) {
+        const arrowHTML = arrowEl.outerHTML;
+        const textStr = isAnimation
+          ? (isAssigned ? 'Animation Added' : 'Click To Add Animation')
+          : (isAssigned ? 'Interaction Added' : 'Click To Add Interaction');
+        labelEl.innerHTML = `${arrowHTML}${textStr}`;
+
         if (midN.x > containerWidth * 0.55) {
           labelEl.style.left = 'auto';
           labelEl.style.right = '100%';
@@ -4022,16 +3837,19 @@ const MainEditor = ({
 
       const isFrame = el.getAttribute('data-type') === 'frame';
       const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
+      if (activeTopToolRef.current === 'animation' && isFreeFrame) return;
       const tagLower = el.tagName.toLowerCase();
       const isLine = tagLower === 'line';
       const isCropModeEl = isElementCropped(el);
+      const isHover = type === 'hover' || type === 'child-hover';
+      const isSelected = type === 'selected' || type === 'child-selected' || type === 'multi-child-selected';
 
-      // ── PIXEL-PERFECT PATH for non-frame, non-line, non-FreeFrame elements ──
+      // ── PIXEL-PERFECT PATH for non-frame, non-line elements ──
       // Use getBoundingClientRect() to get actual screen-space visual bounds, then
       // map 4 corners directly to overlay coordinates via a single matrix inverse.
       // getBoundingClientRect() also works correctly for cropped elements since the browser
       // already clips the visual bounds via clipPath — so we no longer exclude isCropModeEl.
-      if (!isFrame && !isLine && !isFreeFrame) {
+      if (!isFrame && !isLine) {
         const localBBox = getVisualBBox(el);
         const elScreenCtm = el.getScreenCTM();
 
@@ -4040,8 +3858,6 @@ const MainEditor = ({
           const zoomScale = zoom / 100;
           const isBeingEditedCheck = isEditingTextRef.current && el.id === selectedLayerIdRef.current;
           const isVectorPath = el.getAttribute('data-type') === 'vector-path' || el.getAttribute('data-is-vector') === 'true';
-          const isHover = type === 'hover' || type === 'child-hover';
-          const isSelected = type === 'selected' || type === 'child-selected' || type === 'multi-child-selected';
 
           const localToOverlay = overlayCtm.inverse().multiply(elScreenCtm);
           const pt1 = overlay.createSVGPoint(); pt1.x = localBBox.x; pt1.y = localBBox.y;
@@ -4103,7 +3919,11 @@ const MainEditor = ({
               polygon.setAttribute('points', pointsStr);
               polygon.setAttribute('stroke', '#6366F1');
               polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
-              polygon.removeAttribute('stroke-dasharray');
+              if (type === 'multi-child-selected') {
+                polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+              } else {
+                polygon.removeAttribute('stroke-dasharray');
+              }
             }
           } else {
             if (pathOverlay) pathOverlay.remove();
@@ -4114,19 +3934,21 @@ const MainEditor = ({
               polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
               polygon.id = polyId;
               polygon.setAttribute('class', `overlay-type-${type}`);
-              polygon.setAttribute('fill', 'none');
-              if (el.getAttribute('data-name') === 'Free Frame') {
-                polygon.setAttribute('stroke', isHover ? 'transparent' : '#000000');
-              } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && isSelected) {
-                polygon.setAttribute('stroke', '#000000');
-              } else if (isHover) {
-                polygon.setAttribute('stroke', '#6366F1');
-                polygon.setAttribute('fill', 'none');
-              } else if (isSelected || type === 'entered') {
-                polygon.setAttribute('stroke', '#6366F1');
-              }
               polygon.setAttribute('pointer-events', 'none');
               overlay.appendChild(polygon);
+            }
+            if (el.getAttribute('data-name') === 'Free Frame') {
+              polygon.setAttribute('stroke', isHover ? 'transparent' : '#000000');
+              polygon.setAttribute('fill', 'none');
+            } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && isSelected) {
+              polygon.setAttribute('stroke', '#000000');
+              polygon.setAttribute('fill', 'none');
+            } else if (isHover) {
+              polygon.setAttribute('stroke', '#6366F1');
+              polygon.setAttribute('fill', 'none');
+            } else if (isSelected || type === 'entered') {
+              polygon.setAttribute('stroke', '#6366F1');
+              polygon.setAttribute('fill', 'none');
             }
             polygon.setAttribute('points', pointsStr);
 
@@ -4165,13 +3987,14 @@ const MainEditor = ({
             }
 
             if (!hideHandles && htmlOverlay) {
-              const handleSize = 7.5;
-              const handleNames = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+              const useLBrackets = !isLine && (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation' || isFreeFrame);
+              const handleSize = useLBrackets ? 14 : 7.5;
+              const handleNames = (useLBrackets && !isFreeFrame) ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
               const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
               const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
               const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
               const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
-              const allPts = [...mapped, midN, midE, midS, midW];
+              const allPts = (useLBrackets && !isFreeFrame) ? [...mapped] : [...mapped, midN, midE, midS, midW];
               const matrix = getElementMatrix(el);
               const rotation = Math.round(Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
 
@@ -4183,45 +4006,102 @@ const MainEditor = ({
                 if (!handle) {
                   handle = document.createElement('div');
                   handle.id = handleId;
-                  handle.className = `resize-handle overlay-type-${type} absolute`;
-                  if (isSide) {
-                    handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)';
-                  } else {
-                    handle.style.backgroundColor = '#FFFFFF';
-                    handle.style.border = '1.5px solid #6366F1';
-                    handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
-                    handle.style.borderRadius = '0px';
-                  }
-                  handle.style.boxSizing = 'border-box';
-                  handle.style.pointerEvents = 'auto';
-                  handle.style.zIndex = isSide ? '999' : '1000';
                   htmlOverlay.appendChild(handle);
                 }
-                if (handle) {
-                  if (isSide) {
-                    const isHorizontal = (name === 'n' || name === 's');
-                    const dist = isHorizontal
-                      ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
-                      : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
-                    const thickness = 8 / zoomScale;
-                    handle.style.width = isHorizontal ? `${dist}px` : `${thickness}px`;
-                    handle.style.height = isHorizontal ? `${thickness}px` : `${dist}px`;
-                    handle.style.left = `${p.x}px`;
-                    handle.style.top = `${p.y}px`;
-                    handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+
+                handle.className = `resize-handle overlay-type-${type} absolute`;
+                const barThickness = isFreeFrame ? 3.5 : 3;
+
+                if (useLBrackets && !isSide) {
+                  handle.style.backgroundColor = 'transparent';
+                  handle.style.border = 'none';
+                  handle.style.boxShadow = 'none';
+                  if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isFreeFrame) {
+                    handle.style.pointerEvents = 'none';
                   } else {
-                    handle.style.width = `${handleSize}px`;
-                    handle.style.height = `${handleSize}px`;
-                    handle.style.left = `${p.x}px`;
-                    handle.style.top = `${p.y}px`;
-                    handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 / zoomScale})`;
+                    handle.style.pointerEvents = 'auto';
                   }
-                  handle.style.cursor = getRotatingCursor(name, rotation);
+
+                  let hBar = handle.querySelector('.hbar');
+                  let vBar = handle.querySelector('.vbar');
+                  if (!hBar || !vBar) {
+                    handle.innerHTML = '';
+                    hBar = document.createElement('div');
+                    vBar = document.createElement('div');
+                    hBar.className = 'hbar';
+                    vBar.className = 'vbar';
+                    [hBar, vBar].forEach(bar => {
+                      bar.style.position = 'absolute';
+                      bar.style.backgroundColor = '#000000';
+                      bar.style.border = 'none';
+                      bar.style.boxSizing = 'border-box';
+                      bar.style.pointerEvents = 'none';
+                    });
+                    handle.appendChild(hBar);
+                    handle.appendChild(vBar);
+                  }
+
+                  hBar.style.width = '100%';
+                  hBar.style.height = `${barThickness}px`;
+                  vBar.style.width = `${barThickness}px`;
+                  vBar.style.height = '100%';
+
+                  if (name === 'nw') { hBar.style.top = '0'; hBar.style.left = '0'; vBar.style.top = '0'; vBar.style.left = '0'; }
+                  if (name === 'ne') { hBar.style.top = '0'; hBar.style.right = '0'; vBar.style.top = '0'; vBar.style.right = '0'; }
+                  if (name === 'se') { hBar.style.bottom = '0'; hBar.style.right = '0'; vBar.style.bottom = '0'; vBar.style.right = '0'; }
+                  if (name === 'sw') { hBar.style.bottom = '0'; hBar.style.left = '0'; vBar.style.bottom = '0'; vBar.style.left = '0'; }
+                } else if (isSide) {
+                  handle.innerHTML = '';
+                  handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)';
+                  handle.style.border = 'none';
+                  handle.style.boxShadow = 'none';
+                  handle.style.pointerEvents = 'auto';
+                } else {
+                  handle.innerHTML = '';
+                  handle.style.backgroundColor = '#FFFFFF';
+                  handle.style.border = '1.5px solid #6366F1';
+                  handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
+                  handle.style.borderRadius = '0px';
+                  handle.style.pointerEvents = 'auto';
                 }
+
+                handle.style.boxSizing = 'border-box';
+                handle.style.zIndex = isSide ? '999' : '1000';
+
+                if (isSide) {
+                  const isHorizontal = (name === 'n' || name === 's');
+                  const dist = isHorizontal
+                    ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
+                    : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
+                  const thickness = 8 / zoomScale;
+                  handle.style.width = isHorizontal ? `${dist}px` : `${thickness}px`;
+                  handle.style.height = isHorizontal ? `${thickness}px` : `${dist}px`;
+                  handle.style.left = `${p.x}px`;
+                  handle.style.top = `${p.y}px`;
+                  handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+                } else {
+                  handle.style.width = `${handleSize}px`;
+                  handle.style.height = `${handleSize}px`;
+
+                  let posX = p.x;
+                  let posY = p.y;
+                  if (useLBrackets) {
+                    const inwardOffset = ((handleSize - barThickness) / 2) / zoomScale;
+                    if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
+                    if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
+                    if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
+                    if (name === 'sw') { posX += inwardOffset; posY -= inwardOffset; }
+                  }
+
+                  handle.style.left = `${posX}px`;
+                  handle.style.top = `${posY}px`;
+                  handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 / zoomScale})`;
+                }
+                handle.style.cursor = getRotatingCursor(name, rotation);
               });
             }
 
-            if (activeTopToolRef.current === 'interaction') {
+            if (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') {
               drawInteractionBadge(el, mapped, htmlOverlay, zoomScale, bbox);
             }
           }
@@ -4316,33 +4196,31 @@ const MainEditor = ({
           polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
           polygon.id = polyId;
           polygon.setAttribute('class', `overlay-type-${type}`);
-          polygon.setAttribute('fill', 'none');
-
-          if (isLine) {
-            polygon.setAttribute('stroke', 'transparent');
-          } else if (el.getAttribute('data-name') === 'Free Frame') {
-            if (isHover) {
-              polygon.setAttribute('stroke', 'transparent');
-            } else {
-              polygon.setAttribute('stroke', '#000000');
-            }
-          } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && isSelected) {
-            polygon.setAttribute('stroke', '#000000');
-          } else if (isHover) {
-            polygon.setAttribute('stroke', '#6366F1');
-            if (activeTopToolRef.current === 'interaction' && el.getAttribute('data-interaction') && el.getAttribute('data-interaction') !== 'none') {
-              polygon.setAttribute('fill', 'rgba(99, 102, 241, 0.3)');
-            } else {
-              polygon.setAttribute('fill', 'none');
-            }
-          } else if (isSelected) {
-            polygon.setAttribute('stroke', '#6366F1');
-          } else if (type === 'entered') {
-            polygon.setAttribute('stroke', isMediaOrText ? 'transparent' : '#6366F1');
-          }
-
           polygon.setAttribute('pointer-events', 'none');
           overlay.appendChild(polygon);
+        }
+        if (isLine) {
+          polygon.setAttribute('stroke', 'transparent');
+          polygon.setAttribute('fill', 'none');
+        } else if (el.getAttribute('data-name') === 'Free Frame') {
+          polygon.setAttribute('stroke', isHover ? 'transparent' : '#000000');
+          polygon.setAttribute('fill', 'none');
+        } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && isSelected) {
+          polygon.setAttribute('stroke', '#000000');
+          polygon.setAttribute('fill', 'none');
+        } else if (isHover) {
+          polygon.setAttribute('stroke', '#6366F1');
+          if (activeTopToolRef.current === 'interaction' && el.getAttribute('data-interaction') && el.getAttribute('data-interaction') !== 'none') {
+            polygon.setAttribute('fill', 'rgba(99, 102, 241, 0.3)');
+          } else {
+            polygon.setAttribute('fill', 'none');
+          }
+        } else if (isSelected) {
+          polygon.setAttribute('stroke', '#6366F1');
+          polygon.setAttribute('fill', 'none');
+        } else if (type === 'entered') {
+          polygon.setAttribute('stroke', isMediaOrText ? 'transparent' : '#6366F1');
+          polygon.setAttribute('fill', 'none');
         }
         polygon.setAttribute('points', pointsStr);
 
@@ -4387,7 +4265,7 @@ const MainEditor = ({
 
         if (!hideHandles) {
           const useLBrackets = !isLine && (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation' || isFreeFrame);
-          const handleSize = useLBrackets ? 14 : 7.5; // Consistently 7.5px for normal corner handles
+          const handleSize = useLBrackets ? 14 : 7.5;
 
           let handleNames, allPts;
 
@@ -4395,7 +4273,7 @@ const MainEditor = ({
             handleNames = ['linestart', 'lineend'];
             allPts = [...mapped];
           } else {
-            handleNames = useLBrackets ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+            handleNames = (useLBrackets && !isFreeFrame) ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
 
             // Define all points in world space
             const worldPts = [...mapped]; // Corners
@@ -4404,7 +4282,7 @@ const MainEditor = ({
             const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
             const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
 
-            allPts = useLBrackets ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
+            allPts = (useLBrackets && !isFreeFrame) ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
           }
 
           // Detect current rotation for cursor mapping
@@ -4420,20 +4298,30 @@ const MainEditor = ({
             if (!handle && htmlOverlay) {
               handle = document.createElement('div');
               handle.id = handleId;
-              handle.className = `resize-handle overlay-type-${type} absolute`;
+              htmlOverlay.appendChild(handle);
+            }
 
-              if (useLBrackets) {
-                // Special L-corner for Interaction Mode and Free Frame
-                handle.style.backgroundColor = 'transparent';
-                handle.style.border = 'none';
-                handle.style.boxShadow = 'none';
-                if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && el.getAttribute('data-name') !== 'Free Frame') {
-                  handle.style.pointerEvents = 'none';
-                }
+            handle.className = `resize-handle overlay-type-${type} absolute`;
+            const barThickness = isFreeFrame ? 3.5 : 3;
 
-                // Create the L-shape using inner divs
-                const hBar = document.createElement('div');
-                const vBar = document.createElement('div');
+            if (useLBrackets && !isSide) {
+              handle.style.backgroundColor = 'transparent';
+              handle.style.border = 'none';
+              handle.style.boxShadow = 'none';
+              if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && el.getAttribute('data-name') !== 'Free Frame') {
+                handle.style.pointerEvents = 'none';
+              } else {
+                handle.style.pointerEvents = 'auto';
+              }
+
+              let hBar = handle.querySelector('.hbar');
+              let vBar = handle.querySelector('.vbar');
+              if (!hBar || !vBar) {
+                handle.innerHTML = '';
+                hBar = document.createElement('div');
+                vBar = document.createElement('div');
+                hBar.className = 'hbar';
+                vBar.className = 'vbar';
                 [hBar, vBar].forEach(bar => {
                   bar.style.position = 'absolute';
                   bar.style.backgroundColor = '#000000';
@@ -4441,40 +4329,39 @@ const MainEditor = ({
                   bar.style.boxSizing = 'border-box';
                   bar.style.pointerEvents = 'none';
                 });
-
-                const barThickness = 3;
-                hBar.style.width = '100%';
-                hBar.style.height = `${barThickness}px`;
-                vBar.style.width = `${barThickness}px`;
-                vBar.style.height = '100%';
-
-                // Align bars based on corner
-                if (name === 'nw') { hBar.style.top = '0'; hBar.style.left = '0'; vBar.style.top = '0'; vBar.style.left = '0'; }
-                if (name === 'ne') { hBar.style.top = '0'; hBar.style.right = '0'; vBar.style.top = '0'; vBar.style.right = '0'; }
-                if (name === 'se') { hBar.style.bottom = '0'; hBar.style.right = '0'; vBar.style.bottom = '0'; vBar.style.right = '0'; }
-                if (name === 'sw') { hBar.style.bottom = '0'; hBar.style.left = '0'; vBar.style.bottom = '0'; vBar.style.left = '0'; }
-
                 handle.appendChild(hBar);
                 handle.appendChild(vBar);
-              } else if (isSide) {
-                // Edge-handle: Invisible, but large hit area
-                handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)';
-              } else {
-                // Corner-handle: Professional white square
-                handle.style.backgroundColor = '#FFFFFF';
-                handle.style.border = '1.5px solid #6366F1';
-                handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
-                handle.style.borderRadius = isLine ? '50%' : '0px';
               }
 
-              handle.style.boxSizing = 'border-box';
+              hBar.style.width = '100%';
+              hBar.style.height = `${barThickness}px`;
+              vBar.style.width = `${barThickness}px`;
+              vBar.style.height = '100%';
+
+              if (name === 'nw') { hBar.style.top = '0'; hBar.style.left = '0'; vBar.style.top = '0'; vBar.style.left = '0'; }
+              if (name === 'ne') { hBar.style.top = '0'; hBar.style.right = '0'; vBar.style.top = '0'; vBar.style.right = '0'; }
+              if (name === 'se') { hBar.style.bottom = '0'; hBar.style.right = '0'; vBar.style.bottom = '0'; vBar.style.right = '0'; }
+              if (name === 'sw') { hBar.style.bottom = '0'; hBar.style.left = '0'; vBar.style.bottom = '0'; vBar.style.left = '0'; }
+            } else if (isSide) {
+              handle.innerHTML = '';
+              handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)';
+              handle.style.border = 'none';
+              handle.style.boxShadow = 'none';
               handle.style.pointerEvents = 'auto';
-              handle.style.zIndex = isLine ? '2147483647' : (isSide ? '999' : '1000');
-              htmlOverlay.appendChild(handle);
+            } else {
+              handle.innerHTML = '';
+              handle.style.backgroundColor = '#FFFFFF';
+              handle.style.border = '1.5px solid #6366F1';
+              handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
+              handle.style.borderRadius = isLine ? '50%' : '0px';
+              handle.style.pointerEvents = 'auto';
             }
 
+            handle.style.boxSizing = 'border-box';
+            handle.style.zIndex = isLine ? '2147483647' : (isSide ? '999' : '1000');
+
             if (handle) {
-              if (isSide && !useLBrackets) {
+              if (isSide) {
                 const zoomScale = zoom / 100;
                 const isHorizontal = (name === 'n' || name === 's');
                 const dist = isHorizontal
@@ -4494,12 +4381,11 @@ const MainEditor = ({
                 handle.style.width = `${handleSize}px`;
                 handle.style.height = `${handleSize}px`;
 
-                // Move handles slightly inward
+                // Move handles to align L-bars centered over dotted lines
                 let posX = p.x;
                 let posY = p.y;
                 if (useLBrackets) {
-                  // Offset of 4.5 aligns the center of the 3px bar exactly with the dotted line (handleSize 12/2 - barThickness 3/2 = 4.5)
-                  const inwardOffset = 4.5 / zoomScale;
+                  const inwardOffset = ((handleSize - barThickness) / 2) / zoomScale;
                   if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
                   if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
                   if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
@@ -4516,7 +4402,7 @@ const MainEditor = ({
         } // Close if (!hideHandles)
 
         // ── INTERACTION BADGE (Floating above the top-middle) ──
-        if (activeTopToolRef.current === 'interaction') {
+        if (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') {
           drawInteractionBadge(el, mapped, htmlOverlay, zoomScale, bbox);
         }
       }
@@ -4851,6 +4737,11 @@ const MainEditor = ({
       seg.nodeType = 'custom';
     }
 
+    // If one of the handles is zero (retracted/deleted), lock nodeType as 'custom' so dragging the remaining handle never recreates the deleted handle!
+    if ((handleSide === 'in' && seg.handleOut.isZero()) || (handleSide === 'out' && seg.handleIn.isZero())) {
+      seg.nodeType = 'custom';
+    }
+
     const isClosed = seg.path ? seg.path.closed : false;
     const prev = seg.previous || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[seg.path.segments.length - 1] : null);
     const next = seg.next || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[0] : null);
@@ -4879,10 +4770,10 @@ const MainEditor = ({
     if (handleSide === 'in') {
       seg.handleIn = mouseVec;
       if (next && next !== seg) {
-        if (nodeType === 'balanced') {
+        if (nodeType === 'balanced' && !seg.handleOut.isZero()) {
           seg.handleOut = mouseVec.multiply(-1);
-        } else if (nodeType === 'smooth') {
-          const outLen = (!seg.handleOut.isZero()) ? seg.handleOut.length : mouseVec.length;
+        } else if (nodeType === 'smooth' && !seg.handleOut.isZero()) {
+          const outLen = seg.handleOut.length;
           if (!mouseVec.isZero()) {
             seg.handleOut = mouseVec.normalize(-outLen);
           }
@@ -4893,10 +4784,10 @@ const MainEditor = ({
     } else if (handleSide === 'out') {
       seg.handleOut = mouseVec;
       if (prev && prev !== seg) {
-        if (nodeType === 'balanced') {
+        if (nodeType === 'balanced' && !seg.handleIn.isZero()) {
           seg.handleIn = mouseVec.multiply(-1);
-        } else if (nodeType === 'smooth') {
-          const inLen = (!seg.handleIn.isZero()) ? seg.handleIn.length : mouseVec.length;
+        } else if (nodeType === 'smooth' && !seg.handleIn.isZero()) {
+          const inLen = seg.handleIn.length;
           if (!mouseVec.isZero()) {
             seg.handleIn = mouseVec.normalize(-inLen);
           }
@@ -4925,90 +4816,32 @@ const MainEditor = ({
 
       const pageIdx = nodeEditPageIndexRef.current !== null ? nodeEditPageIndexRef.current : activePageIndex;
 
-      try {
-        paperScopeRef.current.activate();
-        const dStrCurrent = pathEl.getAttribute('d');
-        if (!dStrCurrent) return;
-
-        // Re-parse paperPath fresh from current pathEl d attribute for 100% accurate segment indices on 1st click
-        let paperPath = createPaperPath(dStrCurrent);
-        nodeEditPaperPathRef.current = paperPath;
-
-        let targetSegIndices = [];
-        if (nodeEditSelectedSegIndicesRef.current && nodeEditSelectedSegIndicesRef.current.size > 0) {
-          targetSegIndices = Array.from(nodeEditSelectedSegIndicesRef.current);
-        } else if (nodeEditSelectedSegIdxRef.current !== null && nodeEditSelectedSegIdxRef.current !== undefined) {
-          targetSegIndices = [nodeEditSelectedSegIdxRef.current];
-        } else {
-          const segments = getPaperSegments(paperPath);
-          targetSegIndices = segments.map((_, i) => i);
+      processVectorPathAction(action, {
+        pathEl,
+        pageIdx,
+        paperScope: paperScopeRef.current,
+        createPaperPath,
+        bakeTransformIntoPaperPath,
+        deleteSelectedNodeOrHandle,
+        executeVectorPathAction,
+        cleanPaperPathData,
+        getPaperSegments,
+        exitNodeEditMode,
+        saveModifiedPageHtml,
+        setSelectedLayerId,
+        drawNodeEditOverlay,
+        enterNodeEditMode,
+        updatePageHtml,
+        refs: {
+          nodeEditPaperPathRef,
+          nodeEditSelectedSegIndicesRef,
+          nodeEditSelectedSegIdxRef,
+          nodeEditSelectedHandleSideRef,
+          nodeEditSelectedCurveIdxRef,
+          nodeEditSplitSegIdxRef,
+          nodeEditModeRef
         }
-
-        if (action === 'delete-node' || action === 'delete-line') {
-          const { sideDeleted, paperPath: updatedPath } = deleteSelectedNodeOrHandle(paperPath, targetSegIndices, nodeEditSelectedHandleSideRef.current, paperScopeRef.current, nodeEditSelectedCurveIdxRef.current);
-          if (updatedPath) {
-            paperPath = updatedPath;
-            nodeEditPaperPathRef.current = updatedPath;
-          }
-          if (sideDeleted === 'in' || sideDeleted === 'out') {
-            nodeEditSelectedHandleSideRef.current = 'point';
-          } else {
-            nodeEditSelectedHandleSideRef.current = null;
-            nodeEditSelectedCurveIdxRef.current = null;
-            nodeEditSelectedSegIdxRef.current = null;
-            nodeEditSelectedSegIndicesRef.current = new Set();
-          }
-        } else {
-          const res = executeVectorPathAction(paperPath, action, targetSegIndices, paperScopeRef.current, nodeEditSelectedCurveIdxRef.current);
-          const resultPath = res?.paperPath || res;
-          const addedSegIdx = res?.addedSegIdx;
-          if (resultPath) {
-            paperPath = resultPath;
-            nodeEditPaperPathRef.current = resultPath;
-          }
-          if (action === 'add-point' && addedSegIdx !== null && addedSegIdx !== undefined && addedSegIdx >= 0) {
-            nodeEditSelectedHandleSideRef.current = 'point';
-            nodeEditSelectedCurveIdxRef.current = null;
-            nodeEditSelectedSegIdxRef.current = addedSegIdx;
-            nodeEditSelectedSegIndicesRef.current = new Set([addedSegIdx]);
-          } else if (action === 'join') {
-            const selectIdx = (targetSegIndices && targetSegIndices.length > 0) ? targetSegIndices[0] : 0;
-            nodeEditSelectedHandleSideRef.current = 'point';
-            nodeEditSelectedCurveIdxRef.current = null;
-            nodeEditSelectedSegIdxRef.current = selectIdx;
-            nodeEditSelectedSegIndicesRef.current = new Set([selectIdx]);
-            nodeEditSplitSegIdxRef.current = null;
-          } else if (action === 'split') {
-            const selectIdx = (targetSegIndices && targetSegIndices.length > 0) ? targetSegIndices[0] : 0;
-            nodeEditSelectedHandleSideRef.current = 'point';
-            nodeEditSelectedCurveIdxRef.current = null;
-            nodeEditSelectedSegIdxRef.current = selectIdx;
-            nodeEditSelectedSegIndicesRef.current = new Set([selectIdx]);
-            nodeEditSplitSegIdxRef.current = selectIdx; // Mark the split point for RED highlight!
-          }
-        }
-
-        const dStr = cleanPaperPathData(paperPath);
-        pathEl.setAttribute('d', dStr);
-        if (nodeEditModeRef.current) {
-          drawNodeEditOverlay(pathEl, paperPath, pageIdx);
-        } else {
-          enterNodeEditMode(pathEl, pageIdx);
-        }
-
-        if (action === 'add-point' || action === 'join' || action === 'split') {
-          const newIdx = nodeEditSelectedSegIdxRef.current || 0;
-          window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: 'sharp', segIdx: newIdx, selectedCount: 1, canJoin: false, isLineSelected: false } }));
-        } else if (['sharp', 'smooth', 'balanced', 'custom'].includes(action)) {
-          window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: action } }));
-        }
-
-        if (pathEl.ownerSVGElement && updatePageHtml) {
-          saveModifiedPageHtml(pageIdx, pathEl.ownerSVGElement);
-        }
-      } catch (err) {
-        console.warn('[VectorPathAction] Error executing action:', action, err);
-      }
+      });
     };
 
     window.addEventListener('vector-path-action', handleVectorPathAction);
@@ -5082,6 +4915,16 @@ const MainEditor = ({
         } else if (mode === 'handle') {
           const seg = segments[segIdx];
           if (seg) {
+            const ctm = pathEl.getScreenCTM();
+            const scale = ctm ? Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) : 1;
+            const distToCenterPx = Math.hypot(mousePoint.x - seg.point.x, mousePoint.y - seg.point.y) * scale;
+            const SNAP_TO_CENTER_PX = 12;
+
+            if (distToCenterPx < SNAP_TO_CENTER_PX) {
+              nodeEditRetractHandleRef.current = { segIdx, handleSide, isReadyToDelete: true };
+            } else {
+              nodeEditRetractHandleRef.current = null;
+            }
             applyHandleDrag(seg, handleSide, mousePoint, e.altKey);
           }
         } else if (mode === 'segment-bend') {
@@ -5128,6 +4971,22 @@ const MainEditor = ({
       if (nodeEditDragRef.current) {
         const { pathEl, paperPath, pageIndex } = nodeEditDragRef.current;
         nodeEditDragRef.current = null;
+
+        if (nodeEditRetractHandleRef.current && nodeEditRetractHandleRef.current.isReadyToDelete) {
+          const { segIdx, handleSide } = nodeEditRetractHandleRef.current;
+          if (paperPath) {
+            const segments = getPaperSegments(paperPath);
+            const seg = segments[segIdx];
+            if (seg) {
+              if (handleSide === 'in') {
+                seg.handleIn = new paperScopeRef.current.Point(0, 0);
+              } else if (handleSide === 'out') {
+                seg.handleOut = new paperScopeRef.current.Point(0, 0);
+              }
+            }
+          }
+        }
+        nodeEditRetractHandleRef.current = null;
 
         if (paperPath && pathEl) {
           // Merge & remove duplicate meeting nodes
@@ -5178,12 +5037,68 @@ const MainEditor = ({
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, [updatePageHtml]);
 
+  const commitAndExitPenDrawing = useCallback(() => {
+    const vSession = vectraPenSessionRef.current;
+    if (!vSession) return;
+
+    if (vSession.isDrawing || (vSession.paths && vSession.paths.length > 0) || drawingPathRef.current) {
+      vSession.finishPath();
+      const pathEl = drawingPathRef.current;
+      const pageIdx = drawingPageIndexRef.current !== null ? drawingPageIndexRef.current : activePageIndex;
+
+      if (pathEl) {
+        const comboD = pathToDCombo(vSession.paths);
+        if (comboD) pathEl.setAttribute('d', comboD);
+      }
+
+      vSession.reset();
+      drawingPathRef.current = null;
+      exitNodeEditMode();
+      clearVectraOverlay(pageIdx);
+      document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
+        const g = overlay.querySelector('#vectra-overlay-group');
+        if (g) g.innerHTML = '';
+        const nodeGroup = overlay.querySelector('#node-edit-overlay-group');
+        if (nodeGroup) nodeGroup.remove();
+      });
+
+      if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
+        updatePageHtml(pageIdx, pathEl.ownerSVGElement.outerHTML);
+        if (pathEl.id) {
+          const targetId = pathEl.id;
+          if (setSelectedLayerId) {
+            setSelectedLayerId(targetId);
+            selectedLayerIdRef.current = targetId;
+          }
+          if (setMultiSelectedIds) {
+            setMultiSelectedIds(new Set([targetId]));
+            multiSelectedIdsRef.current = new Set([targetId]);
+          }
+          setTimeout(() => {
+            const freshEl = document.getElementById(targetId);
+            if (freshEl) drawOverlayHighlight(freshEl, 'selected');
+            else drawOverlayHighlight(pathEl, 'selected');
+          }, 20);
+        }
+      }
+    } else {
+      vSession.reset();
+      drawingPathRef.current = null;
+      if (drawingPageIndexRef.current !== null) {
+        clearVectraOverlay(drawingPageIndexRef.current);
+      }
+    }
+  }, [activePageIndex, updatePageHtml, setSelectedLayerId, setMultiSelectedIds]);
+
   useEffect(() => {
     if (activeBendingSegmentRef.current) {
       clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
       activeBendingSegmentRef.current = null;
     }
-  }, [activeMainTool]);
+    if (activeMainTool !== 'pen') {
+      commitAndExitPenDrawing();
+    }
+  }, [activeMainTool, commitAndExitPenDrawing]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -5212,46 +5127,8 @@ const MainEditor = ({
       if (e.key === 'Escape' || e.key === 'Enter') {
         if (activeMainTool === 'pen' && selectedPenTool === 'pen') {
           const vSession = vectraPenSessionRef.current;
-          vSession.onKey(e);
-          vSession.finishPath();
-          const pathEl = drawingPathRef.current;
-          const pageIdx = drawingPageIndexRef.current !== null ? drawingPageIndexRef.current : activePageIndex;
-
-          if (pathEl) {
-            const comboD = pathToDCombo(vSession.paths);
-            if (comboD) pathEl.setAttribute('d', comboD);
-          }
-
-          vSession.reset();
-          drawingPathRef.current = null;
-          exitNodeEditMode();
-          clearVectraOverlay(pageIdx);
-          document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
-            const g = overlay.querySelector('#vectra-overlay-group');
-            if (g) g.innerHTML = '';
-            const nodeGroup = overlay.querySelector('#node-edit-overlay-group');
-            if (nodeGroup) nodeGroup.remove();
-          });
-
-          if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
-            updatePageHtml(pageIdx, pathEl.ownerSVGElement.outerHTML);
-            if (pathEl.id) {
-              const targetId = pathEl.id;
-              if (setSelectedLayerId) {
-                setSelectedLayerId(targetId);
-                selectedLayerIdRef.current = targetId;
-              }
-              if (setMultiSelectedIds) {
-                setMultiSelectedIds(new Set([targetId]));
-                multiSelectedIdsRef.current = new Set([targetId]);
-              }
-              setTimeout(() => {
-                const freshEl = document.getElementById(targetId);
-                if (freshEl) drawOverlayHighlight(freshEl, 'selected');
-                else drawOverlayHighlight(pathEl, 'selected');
-              }, 20);
-            }
-          }
+          if (vSession) vSession.onKey(e);
+          commitAndExitPenDrawing();
           if (typeof setActiveMainTool === 'function') {
             setActiveMainTool('select');
           }
@@ -5408,7 +5285,7 @@ const MainEditor = ({
         // ── Node Edit Mode: Delete selected handle point, line segment, or center node point ──
         if (nodeEditModeRef.current && nodeEditPaperPathRef.current && nodeEditPathRef.current) {
           window.__nodeEditModeActive = true;
-          const paperPath = nodeEditPaperPathRef.current;
+          let paperPath = nodeEditPaperPathRef.current;
           const pathEl = nodeEditPathRef.current;
           const pIdx = nodeEditPageIndexRef.current !== null ? nodeEditPageIndexRef.current : activePageIndex;
           const targetSegIndices = (nodeEditSelectedSegIndicesRef.current && nodeEditSelectedSegIndicesRef.current.size > 0)
@@ -5436,7 +5313,13 @@ const MainEditor = ({
             const dStr = cleanPaperPathData(paperPath);
             const remainingSegments = getPaperSegments(paperPath);
             const svgEl = pathEl.ownerSVGElement;
-            if (remainingSegments.length <= 1 || !dStr || dStr.trim() === '') {
+
+            let allCollapsed = false;
+            if (remainingSegments.length > 0) {
+              const firstPt = remainingSegments[0].point;
+              allCollapsed = remainingSegments.every(s => Math.hypot(s.point.x - firstPt.x, s.point.y - firstPt.y) < 2.0);
+            }
+            if (remainingSegments.length <= 1 || allCollapsed || !dStr || dStr.trim() === '') {
               pathEl.remove();
               exitNodeEditMode();
               if (svgEl && updatePageHtml) {
@@ -5667,8 +5550,8 @@ const MainEditor = ({
     }
   }, [multiSelectedIds]);
 
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 250));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 500));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 50));
 
   const handleAutoFitZoom = useCallback(() => {
     if (!editorContainerRef.current) return;
@@ -5708,30 +5591,24 @@ const MainEditor = ({
     const scaleX = availWidth / baseCanvasWidth;
     const scaleY = availHeight / baseCanvasHeight;
 
-    // Use a safety margin (95%) of the arrow-adjusted space
-    let autoZoom = Math.min(scaleX, scaleY) * 95;
+    // Use a safety margin (92%) of the arrow-adjusted space
+    let autoZoom = Math.min(scaleX, scaleY) * 92;
 
-    // Clamp to reasonable values
-    autoZoom = Math.max(10, Math.min(250, autoZoom));
+    // Allow auto-scaling down to 15% for wide/large page formats
+    autoZoom = Math.max(15, Math.min(300, autoZoom));
 
     setZoom(Math.round(autoZoom));
   }, [baseWidth, baseHeight, activePageIndex, isDoublePage, pages.length]);
 
   const handleResetZoom = () => {
-    if (isPdfProject) {
-      handleAutoFitZoom();
-    } else {
-      setZoom(90);
-    }
+    handleAutoFitZoom();
     setPan({ x: 0, y: 0 });
   };
 
-  // ── Auto-Fit Zoom on Page/Spread Change ──────────────────────────────────
+  // ── Auto-Fit Zoom on Page/Spread/Dimension Change ──────────────────────────
   useEffect(() => {
-    if (isPdfProject) {
-      handleAutoFitZoom();
-    }
-  }, [activePageIndex, isDoublePage, pages.length, isPdfProject, handleAutoFitZoom]);
+    handleAutoFitZoom();
+  }, [activePageIndex, isDoublePage, pages.length, baseWidth, baseHeight, handleAutoFitZoom]);
 
   // ── Bound Panning ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -5771,11 +5648,11 @@ const MainEditor = ({
   useEffect(() => {
     if (!editorContainerRef.current) return;
     const observer = new ResizeObserver(() => {
-      if (isPdfProject) handleAutoFitZoom();
+      handleAutoFitZoom();
     });
     observer.observe(editorContainerRef.current);
     return () => observer.disconnect();
-  }, [handleAutoFitZoom, isPdfProject]);
+  }, [handleAutoFitZoom]);
 
   const insertImageIntoPage = (pageIdx, dataUrl, dataType = 'image') => {
     // 1. Find the SVG of the target page
@@ -5957,6 +5834,7 @@ const MainEditor = ({
       nodeEditDragRef,
       nodeEditScreenNodesRef,
       nodeEditScreenSegmentsRef,
+      nodeEditRetractHandleRef,
     });
   };
 
@@ -6025,6 +5903,31 @@ const MainEditor = ({
     }
   }, [zoom]);
 
+  // ── Live sync PaperPath & Node Overlay when shape path changes (e.g. Sides, Ratio, Corner slider in ShapeProperties) ──
+  useEffect(() => {
+    if (nodeEditModeRef.current && nodeEditPathRef.current) {
+      const pathEl = nodeEditPathRef.current;
+      const freshEl = pathEl.id ? document.getElementById(pathEl.id) : pathEl;
+      const targetPathEl = freshEl?.tagName?.toLowerCase() === 'path' ? freshEl : freshEl?.querySelector?.('path');
+      if (targetPathEl && targetPathEl.getAttribute('d')) {
+        const newD = targetPathEl.getAttribute('d');
+        const pageIdx = nodeEditPageIndexRef.current !== null ? nodeEditPageIndexRef.current : activePageIndex;
+        try {
+          paperScopeRef.current.activate();
+          const newPaperPath = createPaperPath(newD);
+          if (newPaperPath) {
+            bakeTransformIntoPaperPath(targetPathEl, newPaperPath, paperScopeRef.current);
+            nodeEditPathRef.current = targetPathEl;
+            nodeEditPaperPathRef.current = newPaperPath;
+            drawNodeEditOverlay(targetPathEl, newPaperPath, pageIdx);
+          }
+        } catch (err) {
+          console.warn('[NodeEditSync] Error syncing node edit paper path:', err);
+        }
+      }
+    }
+  }, [pages, activePageIndex]);
+
   const enterNodeEditMode = (targetEl, pageIndex) => {
     if (!targetEl) return;
 
@@ -6040,6 +5943,9 @@ const MainEditor = ({
     try {
       const paperPath = createPaperPath(d);
       if (!paperPath) return;
+
+      // Bake any pending element/parent transform matrix into pathEl d attribute & paperPath
+      bakeTransformIntoPaperPath(pathEl, paperPath, paperScopeRef.current);
 
       nodeEditModeRef.current = true;
       nodeEditPathRef.current = pathEl;
@@ -7376,7 +7282,7 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isScaledImage || isShape || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
+            } else if ((isCorner && (isScaledImage || isShape || isFreeFrame || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
               if (!isCorner && (isText && !isForeignObject)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
@@ -8347,7 +8253,7 @@ const MainEditor = ({
           const startPoints = {};
           selSet.forEach(idx => {
             if (segments[idx]) {
-              startPoints[idx] = primarySeg ? primarySeg.point.clone() : segments[idx].point.clone();
+              startPoints[idx] = segments[idx].point.clone();
             }
           });
 
@@ -8445,7 +8351,7 @@ const MainEditor = ({
         const curve = curves[hitCurveIdx];
         if (curve) {
           if (e.ctrlKey) {
-            // Ctrl+click: Smooth bezier bend of the segment
+            // Ctrl + drag on segment in Node Edit Mode: Bend the line into a curve!
             nodeEditDragRef.current = {
               mode: 'segment-bend',
               curveIndex: hitCurveIdx,
@@ -8501,11 +8407,11 @@ const MainEditor = ({
               pageIndex
             };
           }
-
-          suppressClickRef.current = true;
-          e.stopPropagation();
-          return;
         }
+
+        suppressClickRef.current = true;
+        e.stopPropagation();
+        return;
       }
 
       // Clicked outside all nodes and path → exit Node Edit Mode
@@ -8517,55 +8423,7 @@ const MainEditor = ({
       return;
     }
 
-    // ── Universal cleanup for Bending State ──
-    if (activeBendingSegmentRef.current && !e.ctrlKey) {
-      clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
-      activeBendingSegmentRef.current = null;
-    }
 
-    // ── Ctrl + Click Bending Detection (Pen Tools Only) ──────────────────────────
-    if (e.ctrlKey && (activeMainToolRef.current === 'pen' || activeMainTool === 'pen')) {
-      const targetPath = e.target.closest('path');
-      if (targetPath && targetPath.id && targetPath.getAttribute('data-type') !== 'Overlay') {
-        const pt = getLocalPoint(svg, targetPath, e.clientX, e.clientY);
-        paperScopeRef.current.activate();
-        const paperPath = new paperScopeRef.current.Path(targetPath.getAttribute('d'));
-        const location = paperPath.getNearestLocation(new paperScopeRef.current.Point(pt.x, pt.y));
-
-        // Check for hits on existing handles first (prioritize handle dragging)
-        const curves = paperPath.curves;
-        for (let i = 0; i < curves.length; i++) {
-          const c = curves[i];
-          const hOut = c.point1.add(c.segment1.handleOut);
-          const hIn = c.point2.add(c.segment2.handleIn);
-
-          if (hOut.subtract(pt).length < 15) {
-            handleDraggingStateRef.current = { pathEl: targetPath, paperPath, curveIndex: i, handleSide: 'out', pageIndex };
-            suppressClickRef.current = true;
-            return;
-          }
-          if (hIn.subtract(pt).length < 15) {
-            handleDraggingStateRef.current = { pathEl: targetPath, paperPath, curveIndex: i, handleSide: 'in', pageIndex };
-            suppressClickRef.current = true;
-            return;
-          }
-        }
-
-        // If no handle hit, check for segment bending
-        if (location && location.distance < 40) {
-          bendingStateRef.current = {
-            pathEl: targetPath,
-            paperPath,
-            curveIndex: location.curve.index,
-            startPoint: pt,
-            pageIndex
-          };
-          drawBendingNodes(pageIndex, targetPath, paperPath, location.curve.index);
-          suppressClickRef.current = true;
-          return;
-        }
-      }
-    }
 
     // ── Creation Tool: Text (Type) Tool ─────────────────────────────────────────
     if (activeMainTool === 'type') {
@@ -8661,7 +8519,7 @@ const MainEditor = ({
     }
 
     // ── Pen/Pencil Tool Drawing (Only on Active Page) ─────────────────────────────
-    if (activeMainTool === 'pen' && pageIndex === activePageIndex && !e.ctrlKey) {
+    if (activeMainTool === 'pen' && pageIndex === activePageIndex) {
       if (selectedPenTool === 'pencil') {
         const parentEl = resolveTargetParentForCreation(svg, e.clientX, e.clientY);
         if (!parentEl) return;
@@ -11162,7 +11020,7 @@ const MainEditor = ({
         e.preventDefault();
         const delta = e.deltaY < 0 ? 5 : -5;
         setZoom(prevZoom => {
-          const newZoom = Math.min(Math.max(prevZoom + delta, 10), 250);
+          const newZoom = Math.min(Math.max(prevZoom + delta, 50), 500);
           if (newZoom !== prevZoom) {
             setPan(prevPan => {
               const rect = el.getBoundingClientRect();
@@ -11975,6 +11833,7 @@ const MainEditor = ({
 
         {/* Canvas Area container */}
         <div
+          ref={editorContainerRef}
           className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
@@ -12017,7 +11876,7 @@ const MainEditor = ({
 
                 {/* A4 Canvas Page 1 Inner */}
                 <div
-                  className={`relative z-0 flex flex-col overflow-hidden bg-white group/inner transition-all duration-300 ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
+                  className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
                   style={isPopupEditor ? {
                     width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
                     height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
@@ -12030,7 +11889,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeTopTool !== 'animation' && activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
+                  <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
                     <style>{svgGlobalStyles}</style>
                     {(() => {
                       const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
@@ -12203,7 +12062,7 @@ const MainEditor = ({
 
                 {/* A4 Canvas Page 2 Inner */}
                 <div
-                  className={`relative z-0 flex flex-col overflow-hidden bg-white group/inner transition-all duration-300 ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
+                  className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
                   style={isPopupEditor ? {
                     width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
                     height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
@@ -12216,7 +12075,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeTopTool !== 'animation' && activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+                  <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
 
                     <style>{svgGlobalStyles}</style>
                     {(() => {

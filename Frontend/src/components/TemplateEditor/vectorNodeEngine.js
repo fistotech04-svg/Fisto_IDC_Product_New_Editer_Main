@@ -64,6 +64,117 @@ export const cleanPaperPathData = (paperPath) => {
   return cleanSubpathDs.join(' ');
 };
 
+const parseSingleMatrix = (el) => {
+  if (!el) return new DOMMatrix();
+
+  try {
+    const consolidated = el.transform?.baseVal?.consolidate();
+    if (consolidated?.matrix) {
+      const { a, b, c, d, e, f } = consolidated.matrix;
+      return new DOMMatrix([a, b, c, d, e, f]);
+    }
+  } catch (e) {}
+
+  const transformAttr = el.getAttribute ? el.getAttribute('transform') : null;
+  const styleTransform = el.style ? (el.style.transform || el.style.translate) : null;
+
+  let matrix = new DOMMatrix();
+
+  if (transformAttr) {
+    try {
+      const match = transformAttr.match(/matrix\s*\(([^)]+)\)/i);
+      if (match) {
+        const parts = match[1].split(/[\s,]+/).map(Number);
+        if (parts.length === 6) matrix = new DOMMatrix(parts);
+      } else {
+        const tMatch = transformAttr.match(/translate\s*\(([^)]+)\)/i);
+        if (tMatch) {
+          const parts = tMatch[1].split(/[\s,]+/).map(Number);
+          matrix = matrix.translate(parts[0] || 0, parts[1] || 0);
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (styleTransform) {
+    try {
+      matrix = matrix.multiply(new DOMMatrix(styleTransform));
+    } catch (e) {}
+  }
+
+  return matrix;
+};
+
+export const bakeTransformIntoPaperPath = (pathEl, paperPath, paperScope) => {
+  if (!pathEl || !paperPath) return paperPath;
+
+  const elementsWithTransform = [];
+  let curr = pathEl;
+  while (curr && curr.tagName && curr.tagName.toLowerCase() !== 'svg') {
+    const transformAttr = curr.getAttribute('transform');
+    const styleTransform = curr.style.transform || curr.style.translate;
+    if (transformAttr || styleTransform) {
+      elementsWithTransform.push(curr);
+    }
+    curr = curr.parentElement;
+  }
+
+  if (elementsWithTransform.length === 0) return paperPath;
+
+  try {
+    let combinedMatrix = new DOMMatrix();
+    for (let i = elementsWithTransform.length - 1; i >= 0; i--) {
+      const el = elementsWithTransform[i];
+      const m = parseSingleMatrix(el);
+      combinedMatrix = combinedMatrix.multiply(m);
+    }
+
+    if (combinedMatrix.isIdentity) return paperPath;
+
+    if (paperScope) paperScope.activate();
+    const paperMatrix = paperScope
+      ? new paperScope.Matrix(combinedMatrix.a, combinedMatrix.b, combinedMatrix.c, combinedMatrix.d, combinedMatrix.e, combinedMatrix.f)
+      : null;
+
+    if (paperMatrix && typeof paperPath.transform === 'function') {
+      paperPath.transform(paperMatrix);
+    } else {
+      const segments = getPaperSegments(paperPath);
+      segments.forEach(seg => {
+        const p = new DOMPoint(seg.point.x, seg.point.y).matrixTransform(combinedMatrix);
+        seg.point.x = p.x;
+        seg.point.y = p.y;
+
+        if (seg.handleIn && !seg.handleIn.isZero()) {
+          const inPt = new DOMPoint(seg.point.x + seg.handleIn.x, seg.point.y + seg.handleIn.y).matrixTransform(combinedMatrix);
+          seg.handleIn.x = inPt.x - p.x;
+          seg.handleIn.y = inPt.y - p.y;
+        }
+        if (seg.handleOut && !seg.handleOut.isZero()) {
+          const outPt = new DOMPoint(seg.point.x + seg.handleOut.x, seg.point.y + seg.handleOut.y).matrixTransform(combinedMatrix);
+          seg.handleOut.x = outPt.x - p.x;
+          seg.handleOut.y = outPt.y - p.y;
+        }
+      });
+    }
+
+    const newD = cleanPaperPathData(paperPath);
+    if (newD) pathEl.setAttribute('d', newD);
+
+    elementsWithTransform.forEach(el => {
+      el.removeAttribute('transform');
+      if (el.style) {
+        el.style.transform = '';
+        el.style.translate = '';
+      }
+    });
+  } catch (err) {
+    console.warn('[bakeTransformIntoPaperPath] Error baking matrix:', err);
+  }
+
+  return paperPath;
+};
+
 export const mergeMeetingNodes = (paperPath, paperScope) => {
   if (!paperPath) return;
   try {
@@ -126,6 +237,11 @@ export const applyHandleDrag = (seg, handleSide, mousePoint, isAltKey) => {
     seg.nodeType = 'custom';
   }
 
+  // If one of the handles is zero (retracted/deleted), lock nodeType as 'custom' so dragging the remaining handle never recreates the deleted handle!
+  if ((handleSide === 'in' && seg.handleOut.isZero()) || (handleSide === 'out' && seg.handleIn.isZero())) {
+    seg.nodeType = 'custom';
+  }
+
   const isClosed = seg.path ? seg.path.closed : false;
   const prev = seg.previous || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[seg.path.segments.length - 1] : null);
   const next = seg.next || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[0] : null);
@@ -154,10 +270,10 @@ export const applyHandleDrag = (seg, handleSide, mousePoint, isAltKey) => {
   if (handleSide === 'in') {
     seg.handleIn = mouseVec;
     if (next && next !== seg) {
-      if (nodeType === 'balanced') {
+      if (nodeType === 'balanced' && !seg.handleOut.isZero()) {
         seg.handleOut = mouseVec.multiply(-1);
-      } else if (nodeType === 'smooth') {
-        const outLen = (!seg.handleOut.isZero()) ? seg.handleOut.length : mouseVec.length;
+      } else if (nodeType === 'smooth' && !seg.handleOut.isZero()) {
+        const outLen = seg.handleOut.length;
         if (!mouseVec.isZero()) {
           seg.handleOut = mouseVec.normalize(-outLen);
         }
@@ -168,10 +284,10 @@ export const applyHandleDrag = (seg, handleSide, mousePoint, isAltKey) => {
   } else if (handleSide === 'out') {
     seg.handleOut = mouseVec;
     if (prev && prev !== seg) {
-      if (nodeType === 'balanced') {
+      if (nodeType === 'balanced' && !seg.handleIn.isZero()) {
         seg.handleIn = mouseVec.multiply(-1);
-      } else if (nodeType === 'smooth') {
-        const inLen = (!seg.handleIn.isZero()) ? seg.handleIn.length : mouseVec.length;
+      } else if (nodeType === 'smooth' && !seg.handleIn.isZero()) {
+        const inLen = seg.handleIn.length;
         if (!mouseVec.isZero()) {
           seg.handleIn = mouseVec.normalize(-inLen);
         }
@@ -507,6 +623,10 @@ export const executeVectorPathAction = (paperPath, action, targetSegIndices, pap
             endSeg.handleOut = new Point(0, 0);
             subpath.segments.push(endSeg);
             subpath.closed = false;
+
+            const allSegs = getPaperSegments(paperPath);
+            const splitIndex = allSegs.indexOf(subpath.segments[0]);
+            addedSegIdx = splitIndex >= 0 ? splitIndex : 0;
           }
         } else {
           // Open path: split interior node into two independent subpath contours meeting at (x, y)
@@ -527,14 +647,19 @@ export const executeVectorPathAction = (paperPath, action, targetSegIndices, pap
             const path1 = new PathClass({ segments: segs1, closed: false });
             const path2 = new PathClass({ segments: segs2, closed: false });
 
+            let finalPath = paperPath;
             if (paperPath.className === 'CompoundPath') {
               subpath.remove();
               paperPath.addChild(path1);
               paperPath.addChild(path2);
+              finalPath = paperPath;
             } else if (CompoundClass) {
-              const compound = new CompoundClass({ children: [path1, path2] });
-              return { paperPath: compound, addedSegIdx: null };
+              finalPath = new CompoundClass({ children: [path1, path2] });
             }
+            const allSegs = getPaperSegments(finalPath);
+            const splitIndex = allSegs.indexOf(path2.segments[0]);
+            addedSegIdx = splitIndex >= 0 ? splitIndex : (segs1.length - 1);
+            return { paperPath: finalPath, addedSegIdx };
           }
         }
       }
@@ -738,4 +863,154 @@ export const deleteSelectedNodeOrHandle = (paperPath, targetSegIndices, selected
   }
 
   return { sideDeleted, paperPath };
+};
+
+/**
+ * Executes vector path actions (sharp, smooth, join, split, add-point, delete-node, delete-line)
+ * on a target path element and handles paperPath mutation, overlay redraw, and path deletion.
+ */
+export const processVectorPathAction = (action, {
+  pathEl,
+  pageIdx,
+  paperScope,
+  createPaperPath,
+  bakeTransformIntoPaperPath,
+  deleteSelectedNodeOrHandle,
+  executeVectorPathAction,
+  cleanPaperPathData,
+  getPaperSegments,
+  exitNodeEditMode,
+  saveModifiedPageHtml,
+  setSelectedLayerId,
+  drawNodeEditOverlay,
+  enterNodeEditMode,
+  updatePageHtml,
+  refs: {
+    nodeEditPaperPathRef,
+    nodeEditSelectedSegIndicesRef,
+    nodeEditSelectedSegIdxRef,
+    nodeEditSelectedHandleSideRef,
+    nodeEditSelectedCurveIdxRef,
+    nodeEditSplitSegIdxRef,
+    nodeEditModeRef
+  }
+}) => {
+  if (!action || !pathEl || !pathEl.getAttribute('d')) return;
+
+  try {
+    paperScope.activate();
+    const dStrCurrent = pathEl.getAttribute('d');
+    if (!dStrCurrent) return;
+
+    let paperPath = createPaperPath(dStrCurrent);
+    bakeTransformIntoPaperPath(pathEl, paperPath, paperScope);
+    if (nodeEditPaperPathRef) nodeEditPaperPathRef.current = paperPath;
+
+    let targetSegIndices = [];
+    if (nodeEditSelectedSegIndicesRef?.current && nodeEditSelectedSegIndicesRef.current.size > 0) {
+      targetSegIndices = Array.from(nodeEditSelectedSegIndicesRef.current);
+    } else if (nodeEditSelectedSegIdxRef?.current !== null && nodeEditSelectedSegIdxRef?.current !== undefined) {
+      targetSegIndices = [nodeEditSelectedSegIdxRef.current];
+    } else {
+      const segments = getPaperSegments(paperPath);
+      targetSegIndices = segments.map((_, i) => i);
+    }
+
+    if (action === 'delete-node' || action === 'delete-line') {
+      const { sideDeleted, paperPath: updatedPath } = deleteSelectedNodeOrHandle(
+        paperPath,
+        targetSegIndices,
+        nodeEditSelectedHandleSideRef?.current,
+        paperScope,
+        nodeEditSelectedCurveIdxRef?.current
+      );
+      if (updatedPath) {
+        paperPath = updatedPath;
+        if (nodeEditPaperPathRef) nodeEditPaperPathRef.current = updatedPath;
+      }
+      if (sideDeleted === 'in' || sideDeleted === 'out') {
+        if (nodeEditSelectedHandleSideRef) nodeEditSelectedHandleSideRef.current = 'point';
+      } else {
+        if (nodeEditSelectedHandleSideRef) nodeEditSelectedHandleSideRef.current = null;
+        if (nodeEditSelectedCurveIdxRef) nodeEditSelectedCurveIdxRef.current = null;
+        if (nodeEditSelectedSegIdxRef) nodeEditSelectedSegIdxRef.current = null;
+        if (nodeEditSelectedSegIndicesRef) nodeEditSelectedSegIndicesRef.current = new Set();
+      }
+    } else {
+      const res = executeVectorPathAction(
+        paperPath,
+        action,
+        targetSegIndices,
+        paperScope,
+        nodeEditSelectedCurveIdxRef?.current
+      );
+      const resultPath = res?.paperPath || res;
+      const addedSegIdx = res?.addedSegIdx;
+      if (resultPath) {
+        paperPath = resultPath;
+        if (nodeEditPaperPathRef) nodeEditPaperPathRef.current = resultPath;
+      }
+      if (action === 'add-point' && addedSegIdx !== null && addedSegIdx !== undefined && addedSegIdx >= 0) {
+        if (nodeEditSelectedHandleSideRef) nodeEditSelectedHandleSideRef.current = 'point';
+        if (nodeEditSelectedCurveIdxRef) nodeEditSelectedCurveIdxRef.current = null;
+        if (nodeEditSelectedSegIdxRef) nodeEditSelectedSegIdxRef.current = addedSegIdx;
+        if (nodeEditSelectedSegIndicesRef) nodeEditSelectedSegIndicesRef.current = new Set([addedSegIdx]);
+      } else if (action === 'join') {
+        const selectIdx = (targetSegIndices && targetSegIndices.length > 0) ? targetSegIndices[0] : 0;
+        if (nodeEditSelectedHandleSideRef) nodeEditSelectedHandleSideRef.current = 'point';
+        if (nodeEditSelectedCurveIdxRef) nodeEditSelectedCurveIdxRef.current = null;
+        if (nodeEditSelectedSegIdxRef) nodeEditSelectedSegIdxRef.current = selectIdx;
+        if (nodeEditSelectedSegIndicesRef) nodeEditSelectedSegIndicesRef.current = new Set([selectIdx]);
+        if (nodeEditSplitSegIdxRef) nodeEditSplitSegIdxRef.current = null;
+      } else if (action === 'split') {
+        const selectIdx = (addedSegIdx !== null && addedSegIdx !== undefined && addedSegIdx >= 0)
+          ? addedSegIdx
+          : ((targetSegIndices && targetSegIndices.length > 0) ? targetSegIndices[0] : 0);
+        if (nodeEditSelectedHandleSideRef) nodeEditSelectedHandleSideRef.current = 'point';
+        if (nodeEditSelectedCurveIdxRef) nodeEditSelectedCurveIdxRef.current = null;
+        if (nodeEditSelectedSegIdxRef) nodeEditSelectedSegIdxRef.current = selectIdx;
+        if (nodeEditSelectedSegIndicesRef) nodeEditSelectedSegIndicesRef.current = new Set([selectIdx]);
+        if (nodeEditSplitSegIdxRef) nodeEditSplitSegIdxRef.current = selectIdx;
+      }
+    }
+
+    const dStr = cleanPaperPathData(paperPath);
+    const remainingSegments = getPaperSegments(paperPath);
+    let allCollapsed = false;
+    if (remainingSegments.length > 0) {
+      const firstPt = remainingSegments[0].point;
+      allCollapsed = remainingSegments.every(s => Math.hypot(s.point.x - firstPt.x, s.point.y - firstPt.y) < 2.0);
+    }
+
+    const svgEl = pathEl.ownerSVGElement;
+    if (remainingSegments.length <= 1 || allCollapsed || !dStr || dStr.trim() === '') {
+      pathEl.remove();
+      if (typeof exitNodeEditMode === 'function') exitNodeEditMode();
+      if (svgEl && typeof updatePageHtml === 'function' && typeof saveModifiedPageHtml === 'function') {
+        saveModifiedPageHtml(pageIdx, svgEl);
+      }
+      if (typeof setSelectedLayerId === 'function') setSelectedLayerId(null);
+      return;
+    }
+
+    pathEl.setAttribute('d', dStr);
+    if (nodeEditModeRef?.current) {
+      if (typeof drawNodeEditOverlay === 'function') drawNodeEditOverlay(pathEl, paperPath, pageIdx);
+    } else {
+      if (typeof enterNodeEditMode === 'function') enterNodeEditMode(pathEl, pageIdx);
+    }
+
+    if (action === 'add-point' || action === 'join' || action === 'split') {
+      const newIdx = nodeEditSelectedSegIdxRef?.current || 0;
+      window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: 'sharp', segIdx: newIdx, selectedCount: 1, canJoin: false, isLineSelected: false } }));
+    } else if (['sharp', 'smooth', 'balanced', 'custom'].includes(action)) {
+      window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: action } }));
+    }
+
+    if (pathEl.ownerSVGElement && typeof updatePageHtml === 'function' && typeof saveModifiedPageHtml === 'function') {
+      saveModifiedPageHtml(pageIdx, pathEl.ownerSVGElement);
+    }
+  } catch (err) {
+    console.warn('[VectorPathAction] Error executing action:', action, err);
+  }
 };

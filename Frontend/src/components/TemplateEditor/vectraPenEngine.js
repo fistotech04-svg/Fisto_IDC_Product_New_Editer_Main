@@ -263,19 +263,6 @@ export class VectraPenSession {
     const path = this.getActivePath();
     const hit = this.hitTest(world);
 
-    // Ctrl/Cmd: temporary node drag
-    if (e.ctrlKey || e.metaKey) {
-      if (hit?.type === 'anchor') {
-        const p = this.paths.get(hit.pathId);
-        if (p) {
-          this.drag = {
-            mode: 'temp-move-node', pathId: p.id, nodeId: hit.nodeId,
-            startWorld: world, nodeStart: { ...p.nodes[hit.index] }, moved: false
-          };
-        }
-      }
-      return;
-    }
 
     // Alt/Option: delete clicked anchor node
     if (e.altKey && hit?.type === 'anchor') {

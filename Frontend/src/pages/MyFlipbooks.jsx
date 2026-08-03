@@ -489,7 +489,13 @@ export default function MyFlipbooks() {
                 flipbookName: uniqueName,
                 pages: pages,
                 overwrite: true,
-                folderName: targetFolder
+                folderName: targetFolder,
+                meta: {
+                    width: templateData.width,
+                    height: templateData.height,
+                    templateId: templateData.templateId,
+                    orientation: templateData.orientation
+                }
             });
 
             console.log("Creation result:", res.data);

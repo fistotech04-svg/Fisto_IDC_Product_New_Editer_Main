@@ -26,6 +26,7 @@ export const drawNodeEditOverlay = (
     nodeEditDragRef,
     nodeEditScreenNodesRef,
     nodeEditScreenSegmentsRef,
+    nodeEditRetractHandleRef
   } = refs;
 
   const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
@@ -59,9 +60,13 @@ export const drawNodeEditOverlay = (
 
     const segments = getPaperSegments(paperPath);
     const curves = getPaperCurves(paperPath);
-    const selectedSegIdx = nodeEditSelectedSegIdxRef?.current;
-    const hoverCurveIdx = nodeEditHoverCurveIdxRef?.current;
-    const selectedCurveIdx = nodeEditSelectedCurveIdxRef?.current;
+    const selectedSegIdx = nodeEditSelectedSegIdxRef ? nodeEditSelectedSegIdxRef.current : null;
+    const selectedSegIndices = nodeEditSelectedSegIndicesRef ? nodeEditSelectedSegIndicesRef.current : new Set();
+    const selectedHandleSide = nodeEditSelectedHandleSideRef ? nodeEditSelectedHandleSideRef.current : null;
+    const selectedCurveIdx = nodeEditSelectedCurveIdxRef ? nodeEditSelectedCurveIdxRef.current : null;
+    const hoverCurveIdx = nodeEditHoverCurveIdxRef ? nodeEditHoverCurveIdxRef.current : -1;
+    const splitSegIdx = nodeEditSplitSegIdxRef ? nodeEditSplitSegIdxRef.current : null;
+    const retractHandle = nodeEditRetractHandleRef ? nodeEditRetractHandleRef.current : null;
     const isBendingCurve = nodeEditDragRef?.current?.mode === 'segment-bend';
 
     // Render hovered and selected curve segment lines
@@ -137,15 +142,13 @@ export const drawNodeEditOverlay = (
     }
 
     const drawnAnchors = [];
-    const selectedHandleSide = nodeEditSelectedHandleSideRef?.current;
 
+    // Render node control handles and anchor dots
     segments.forEach((seg, segIdx) => {
       const pt = seg.point;
       const mappedPt = mapPt(pt.x, pt.y);
       const screenAnchor = screenPt(pt.x, pt.y);
-
-      const selSet = nodeEditSelectedSegIndicesRef?.current || new Set();
-      const isSel = selSet.has(segIdx) || selectedSegIdx === segIdx;
+      const isSel = selectedSegIndices.has(segIdx) || selectedSegIdx === segIdx;
 
       // Handle In - ONLY draw if node is selected
       if (isSel && seg.handleIn && !seg.handleIn.isZero()) {
@@ -220,11 +223,19 @@ export const drawNodeEditOverlay = (
       }
 
       const splitSegIdx = nodeEditSplitSegIdxRef?.current;
-      const isSplit = splitSegIdx !== null && splitSegIdx !== undefined && (splitSegIdx === segIdx || (isSel && Math.hypot(pt.x - (segments[splitSegIdx]?.point.x || 0), pt.y - (segments[splitSegIdx]?.point.y || 0)) < 2.0));
+      const splitPt = (splitSegIdx !== null && splitSegIdx !== undefined && segments[splitSegIdx]) ? segments[splitSegIdx].point : null;
+      const isSplit = splitPt ? (splitSegIdx === segIdx || Math.hypot(pt.x - splitPt.x, pt.y - splitPt.y) < 1.5) : false;
+      const isRetractThisNode = retractHandle && retractHandle.segIdx === segIdx && retractHandle.isReadyToDelete;
 
       const existing = drawnAnchors.find(a => Math.hypot(a.mappedPt.x - mappedPt.x, a.mappedPt.y - mappedPt.y) < 2.0);
       if (existing) {
-        if (isSplit) {
+        if (isRetractThisNode) {
+          existing.circleEl.setAttribute('r', String(3.5 * invScale));
+          existing.circleEl.setAttribute('fill', '#FF3B30');
+          existing.circleEl.setAttribute('stroke', '#FFFFFF');
+          existing.circleEl.setAttribute('stroke-width', String(1.8 * invScale));
+          existing.circleEl.style.filter = 'drop-shadow(0px 1px 3px rgba(255, 59, 48, 0.75))';
+        } else if (isSplit) {
           existing.isSplit = true;
           existing.circleEl.setAttribute('r', String(3.5 * invScale));
           existing.circleEl.setAttribute('fill', '#ef4444');
@@ -244,13 +255,15 @@ export const drawNodeEditOverlay = (
         anchor.setAttribute('cx', mappedPt.x);
         anchor.setAttribute('cy', mappedPt.y);
         anchor.setAttribute('r', String(3.5 * invScale));
-        anchor.setAttribute('fill', isSplit ? '#ef4444' : isSel ? '#6366f1' : '#FFFFFF');
-        anchor.setAttribute('stroke', isSel || isSplit ? '#FFFFFF' : '#6366f1');
-        anchor.setAttribute('stroke-width', String((isSel || isSplit ? 1.8 : 1.5) * invScale));
+        anchor.setAttribute('fill', isRetractThisNode ? '#FF3B30' : (isSplit ? '#ef4444' : (isSel ? '#6366f1' : '#FFFFFF')));
+        anchor.setAttribute('stroke', isRetractThisNode || isSel || isSplit ? '#FFFFFF' : '#6366f1');
+        anchor.setAttribute('stroke-width', String((isRetractThisNode || isSel || isSplit ? 1.8 : 1.5) * invScale));
         anchor.setAttribute('data-node-edit', 'true');
         anchor.setAttribute('data-seg-idx', segIdx);
         anchor.setAttribute('data-handle-side', 'point');
-        if (isSplit) {
+        if (isRetractThisNode) {
+          anchor.style.filter = 'drop-shadow(0px 1px 3px rgba(255, 59, 48, 0.75))';
+        } else if (isSplit) {
           anchor.style.filter = 'drop-shadow(0px 1px 3px rgba(239, 68, 68, 0.6))';
         } else if (isSel) {
           anchor.style.filter = 'drop-shadow(0px 1px 3px rgba(99, 102, 241, 0.6))';
