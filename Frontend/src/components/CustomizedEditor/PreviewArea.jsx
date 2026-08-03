@@ -1689,28 +1689,55 @@ const PreviewArea = React.memo(({
         };
     }, [isFullscreen]);
     const baseDimensions = useMemo(() => {
-        if (pages && pages.length > 0 && pages[0].html) {
-            try {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(pages[0].html, 'image/svg+xml');
-                const viewBox = doc.documentElement.getAttribute('viewBox');
-                if (viewBox) {
-                    const parts = viewBox.split(/[\s,]+/);
-                    if (parts.length === 4) {
-                        return { width: parseFloat(parts[2]), height: parseFloat(parts[3]) };
+        if (pages && pages.length > 0) {
+            for (const p of pages) {
+                const htmlStr = p.html || p.content || '';
+                if (htmlStr) {
+                    const match = htmlStr.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+                    if (match && parseFloat(match[3]) > 0 && parseFloat(match[4]) > 0) {
+                        return { width: parseFloat(match[3]), height: parseFloat(match[4]) };
+                    }
+                    const wMatch = htmlStr.match(/<svg[^>]*\bwidth=["']([0-9.]+)(?:px|mm)?["']/i);
+                    const hMatch = htmlStr.match(/<svg[^>]*\bheight=["']([0-9.]+)(?:px|mm)?["']/i);
+                    if (wMatch && hMatch && parseFloat(wMatch[1]) > 0 && parseFloat(hMatch[1]) > 0) {
+                        return { width: parseFloat(wMatch[1]), height: parseFloat(hMatch[1]) };
                     }
                 }
-                const w = doc.documentElement.getAttribute('width');
-                const h = doc.documentElement.getAttribute('height');
-                if (w && h && !w.includes('%') && !h.includes('%')) {
-                    return { width: parseFloat(w), height: parseFloat(h) };
-                }
-            } catch (e) {
-                console.error("Failed to parse page dimensions", e);
             }
         }
-        return { width: 400, height: 566 }; // Fallback
-    }, [pages]);
+
+        // Fallback: check currentBook, settings, or location state for explicit width / height or templateId + orientation
+        const state = (typeof window !== 'undefined' && window.history?.state?.usr) || {};
+        const w = currentBook?.width || settings?.width || state?.width;
+        const h = currentBook?.height || settings?.height || state?.height;
+        if (w && h) {
+            return { width: parseFloat(w), height: parseFloat(h) };
+        }
+
+        const templateId = (currentBook?.templateId || settings?.templateId || state?.templateId || '').toLowerCase();
+        const orientation = (currentBook?.orientation || settings?.orientation || state?.orientation || '').toLowerCase();
+        if (templateId) {
+            let baseW = 210, baseH = 297;
+            if (templateId === 'corporate' || templateId === 'a4') { baseW = 210; baseH = 297; }
+            else if (templateId === 'large_catalogue' || templateId === 'a3') { baseW = 297; baseH = 420; }
+            else if (templateId === 'mini' || templateId === 'a5') { baseW = 148; baseH = 210; }
+            else if (templateId === 'letter') { baseW = 216; baseH = 279; }
+            else if (templateId === 'legal') { baseW = 216; baseH = 356; }
+            else if (templateId === 'dl') { baseW = 99; baseH = 210; }
+            else if (templateId === 'square') { baseW = 210; baseH = 210; }
+
+            if (templateId !== 'square' && orientation === 'landscape') {
+                return { width: baseH, height: baseW };
+            }
+            return { width: baseW, height: baseH };
+        }
+
+        if (orientation === 'square') {
+            return { width: 210, height: 210 };
+        }
+
+        return { width: 210, height: 297 }; // Fallback A4
+    }, [pages, currentBook, settings]);
 
     const isTurnJs = !bookAppearanceSettings?.hardCover;
     const [actualPhysicalZoom, setActualPhysicalZoom] = useState(1);

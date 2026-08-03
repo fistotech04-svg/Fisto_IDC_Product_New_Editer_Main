@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight, Upload, Link, Check, FileText, Video } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ShapeProperties from './ShapeProperties';
+import PenToolProperties from './PenToolProperties';
 import ImageEditor from './ImageEditor';
 import TextEditor from './TextEditor';
 import IconGallery from './icons';
@@ -13,6 +14,7 @@ import PopupTemplateSelection from './PopupTemplateSelection';
 import Model3DEditor from './Model3DEditor';
 import ImportViaUrlModal from './ImportViaUrlModal';
 import ColorPicker, { parseGradient } from './ColorPicker';
+import MediaGalleryPopup from './MediaGalleryPopup';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import { createPortal } from 'react-dom';
 import { useParams, useLocation } from 'react-router-dom';
@@ -173,15 +175,64 @@ const RightSidebar = ({
 }) => {
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
+
+  const [isNodeEditActive, setIsNodeEditActive] = useState(false);
+
+  useEffect(() => {
+    const handleNodeEditChange = (e) => {
+      setIsNodeEditActive(Boolean(e.detail?.active));
+    };
+    window.addEventListener('node-edit-mode-changed', handleNodeEditChange);
+    return () => window.removeEventListener('node-edit-mode-changed', handleNodeEditChange);
+  }, []);
   // Convert mm to pixels at 96 DPI for the input display if no element selected
   const baseWidthPx = Math.round(baseWidth * 96 / 25.4);
   const baseHeightPx = Math.round(baseHeight * 96 / 25.4);
+
+  const getDocumentInfo = (w, h) => {
+    const roundedW = Math.round(w || 210);
+    const roundedH = Math.round(h || 297);
+    const minDim = Math.min(roundedW, roundedH);
+    const maxDim = Math.max(roundedW, roundedH);
+
+    let formatName = 'Custom Sheet';
+    if (Math.abs(minDim - 210) <= 3 && Math.abs(maxDim - 297) <= 3) {
+      formatName = 'A4';
+    } else if (Math.abs(minDim - 297) <= 3 && Math.abs(maxDim - 420) <= 3) {
+      formatName = 'A3';
+    } else if (Math.abs(minDim - 148) <= 3 && Math.abs(maxDim - 210) <= 3) {
+      formatName = 'A5';
+    } else if (Math.abs(minDim - 216) <= 3 && Math.abs(maxDim - 279) <= 3) {
+      formatName = 'Letter';
+    } else if (Math.abs(minDim - 216) <= 3 && Math.abs(maxDim - 356) <= 3) {
+      formatName = 'Legal';
+    } else if (Math.abs(minDim - 99) <= 3 && Math.abs(maxDim - 210) <= 3) {
+      formatName = 'DL';
+    } else if (Math.abs(roundedW - roundedH) <= 3) {
+      formatName = 'Square';
+    }
+
+    let orientationName = 'Portrait';
+    if (roundedW > roundedH) {
+      orientationName = 'Landscape';
+    } else if (roundedW === roundedH) {
+      orientationName = 'Square';
+    }
+
+    return {
+      format: formatName,
+      orientation: orientationName,
+      dimensions: `${roundedW} x ${roundedH} mm`
+    };
+  };
   const fileInputRef = useRef(null);
   const { folder, v_id } = useParams();
   const location = useLocation();
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
   const [dimensionUnit, setDimensionUnit] = useState('mm');
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
+  const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
+  const browseGalleryBtnRef = useRef(null);
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [isPageBgPickerOpen, setIsPageBgPickerOpen] = useState(false);
   const unitRef = useRef(null);
@@ -1018,9 +1069,8 @@ const RightSidebar = ({
                 <div className="flex flex-col gap-[0.5vw]">
                   {/* Browse by Gallery */}
                   <button
-                    onClick={() => {
-                      if (setActiveMainTool) setActiveMainTool('elements');
-                    }}
+                    ref={browseGalleryBtnRef}
+                    onClick={() => setIsMediaGalleryOpen(true)}
                     className="w-full rounded-[0.65vw] p-[0.6vw] px-[0.75vw] bg-[#0c0f17] hover:bg-black text-white flex items-center justify-between shadow-md cursor-pointer transition-all border border-gray-800 group relative overflow-hidden"
                   >
                     <div className="flex items-center gap-[0.6vw]">
@@ -1294,19 +1344,27 @@ const RightSidebar = ({
                           onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : (
-                        <ShapeProperties 
-                           selectedElementProps={selectedElementProps || { 
-                             fill: '#6366F1', 
-                             opacity: '1', 
-                             stroke: 'none', 
-                             strokeWidth: '0', 
-                             tagName: 'g',
-                             isIcon: true 
-                           }}
-                           activePageIndex={activePageIndex}
-                           selectedLayerId={selectedLayerId}
-                           updateElementAttribute={updateElementAttribute}
-                         />
+                        <>
+                          <PenToolProperties
+                            isVectorPath={true}
+                            isNodeEditActive={isNodeEditActive}
+                            isPenChosen={activeMainTool === 'pen'}
+                          />
+                          <ShapeProperties 
+                             selectedElementProps={selectedElementProps || { 
+                               fill: '#6366F1', 
+                               opacity: '1', 
+                               stroke: 'none', 
+                               strokeWidth: '0', 
+                               tagName: 'g',
+                               isIcon: true 
+                             }}
+                             activePageIndex={activePageIndex}
+                             selectedLayerId={selectedLayerId}
+                             updateElementAttribute={updateElementAttribute}
+                             activeMainTool={activeMainTool}
+                           />
+                        </>
                       )}
                     </div>
                   ) : (
@@ -1427,14 +1485,25 @@ const RightSidebar = ({
                               <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
                             </div>
                             <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
-                              <div className="flex justify-between items-center text-[0.75vw]">
-                                <span className="text-gray-500 font-medium">Format</span>
-                                <span className="text-gray-900 font-semibold">Custom Sheet</span>
-                              </div>
-                              <div className="flex justify-between items-center text-[0.75vw]">
-                                <span className="text-gray-500 font-medium">Dimensions</span>
-                                <span className="text-gray-900 font-semibold">{Math.round(baseWidth)} x {Math.round(baseHeight)} mm</span>
-                              </div>
+                              {(() => {
+                                const info = getDocumentInfo(baseWidth, baseHeight);
+                                return (
+                                  <>
+                                    <div className="flex justify-between items-center text-[0.75vw]">
+                                      <span className="text-gray-500 font-medium">Format</span>
+                                      <span className="text-gray-900 font-semibold">{info.format}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[0.75vw]">
+                                      <span className="text-gray-500 font-medium">Orientation</span>
+                                      <span className="text-gray-900 font-semibold">{info.orientation}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[0.75vw]">
+                                      <span className="text-gray-500 font-medium">Dimensions</span>
+                                      <span className="text-gray-900 font-semibold">{info.dimensions}</span>
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -1487,6 +1556,16 @@ const RightSidebar = ({
         isOpen={isUrlModalOpen}
         onClose={() => setIsUrlModalOpen(false)}
         activePageIndex={activePageIndex}
+      />
+
+      <MediaGalleryPopup 
+        isOpen={isMediaGalleryOpen}
+        onClose={() => setIsMediaGalleryOpen(false)}
+        anchorRef={browseGalleryBtnRef}
+        onFileSelect={(file) => {
+          handleFileChange({ target: { files: [file] } });
+          setIsMediaGalleryOpen(false);
+        }}
       />
     </div>
   );

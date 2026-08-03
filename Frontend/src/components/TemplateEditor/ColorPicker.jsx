@@ -714,7 +714,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                     const newMode = m.toLowerCase();
                     setMode(newMode);
                     if (newMode === 'solid') {
-                      onChange(gradientStops[0].color);
+                      onChange(hsvToHex(hsv));
                     } else {
                       updateGradient(gradientType, gradientStops, gradientAngle, gradientRadius);
                     }
@@ -794,7 +794,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                           <div className="absolute inset-0" style={{ background: color, opacity: displayOpacity / 100 }} />
                         )}
                       </div>
-                      <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center pl-[0.5vw] pr-[0.2vw] justify-between bg-white hover:border-[#5d5efc] transition-colors min-w-0">
+                      <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center pl-[0.5vw] pr-[0.4vw] justify-between bg-white hover:border-black transition-colors min-w-0">
                         <input
                           type="text"
                           value={(!color || color === 'none' || color === 'transparent' || color === '#') ? 'NONE' : color.toUpperCase()}
@@ -814,33 +814,33 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                           >
                             <span className="text-[0.7vw] font-medium text-gray-400">{displayOpacity}%</span>
                           </div>
-                          <button
-                            onClick={async () => {
-                              if ('EyeDropper' in window) {
-                                const eyeDropper = new window.EyeDropper();
-                                try {
-                                  const result = await eyeDropper.open();
-                                  onChange(result.sRGBHex);
-                                } catch (e) { }
-                              } else {
-                                const fallbackInput = document.getElementById('solid-mode-color-fallback');
-                                if (fallbackInput) fallbackInput.click();
-                              }
-                            }}
-                            className="flex items-center justify-center p-[0.15vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors group/btn"
-                          >
-                            <Icon icon="lucide:pipette" className="w-[0.8vw] h-[0.8vw] text-gray-400 group-hover/btn:text-gray-700" />
-                          </button>
-                          <input
-                            type="color"
-                            id="solid-mode-color-fallback"
-                            className="hidden"
-                            onChange={(e) => {
-                              onChange(e.target.value);
-                            }}
-                          />
                         </div>
                       </div>
+                      <button
+                        onClick={async () => {
+                          if ('EyeDropper' in window) {
+                            const eyeDropper = new window.EyeDropper();
+                            try {
+                              const result = await eyeDropper.open();
+                              onChange(result.sRGBHex);
+                            } catch (e) { }
+                          } else {
+                            const fallbackInput = document.getElementById('solid-mode-color-fallback');
+                            if (fallbackInput) fallbackInput.click();
+                          }
+                        }}
+                        className="w-[1.7vw] h-[1.7vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm hover:border-black transition-colors flex-shrink-0 group/btn"
+                      >
+                        <Icon icon="lucide:pipette" className="w-[0.9vw] h-[0.9vw] text-gray-500 group-hover/btn:text-black" />
+                      </button>
+                      <input
+                        type="color"
+                        id="solid-mode-color-fallback"
+                        className="hidden"
+                        onChange={(e) => {
+                          onChange(e.target.value);
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -913,7 +913,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                             onPointerUp={(e) => {
                               updateGradient(gradientType, gradientStops, parseInt(e.target.value), gradientRadius, false);
                             }}
-                            className="flex-1 h-[0.3vw] accent-[#5d5efc]"
+                            className="flex-1 custom-angle-slider"
                           />
                           <span className="text-[0.65vw] font-semibold text-gray-500 w-[1.5vw] text-right">{gradientAngle}°</span>
                         </div>
@@ -934,7 +934,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                             onPointerUp={(e) => {
                               updateGradient(gradientType, gradientStops, gradientAngle, parseInt(e.target.value), false);
                             }}
-                            className="flex-1 h-[0.3vw] accent-[#5d5efc]"
+                            className="flex-1 custom-angle-slider"
                           />
                           <span className="text-[0.65vw] font-semibold text-gray-500 w-[1.5vw] text-right">{gradientRadius}%</span>
                         </div>
@@ -950,26 +950,39 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                           key={idx}
                           className="absolute -translate-x-1/2 flex flex-col items-center pointer-events-auto cursor-grab active:cursor-grabbing"
                           style={{ left: `${stop.offset}%`, bottom: '0.6vw' }}
-                          onMouseDown={(e) => {
+                          onPointerDown={(e) => {
                             e.stopPropagation();
+                            e.preventDefault();
+
+                            setEditingStopIndex(idx);
+                            setHsv(hexToHsv(stop.color));
+
                             const startX = e.clientX;
                             const startOffset = stop.offset;
                             const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
+                            if (e.pointerId !== undefined) {
+                              try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+                            }
 
-                            const handleMouseMove = (moveEvent) => {
+                            let finalOffset = startOffset;
+
+                            const handlePointerMove = (moveEvent) => {
                               const dx = ((moveEvent.clientX - startX) / rect.width) * 100;
-                              const newOffset = Math.min(100, Math.max(0, Math.round(startOffset + dx)));
-                              updateGradientStop(idx, { offset: newOffset }, true);
+                              finalOffset = Math.min(100, Math.max(0, Math.round(startOffset + dx)));
+                              updateGradientStop(idx, { offset: finalOffset }, true);
                             };
 
-                            const handleMouseUp = () => {
-                              updateGradientStop(idx, undefined, false);
-                              window.removeEventListener('mousemove', handleMouseMove);
-                              window.removeEventListener('mouseup', handleMouseUp);
+                            const handlePointerUp = (upEvent) => {
+                              if (upEvent.pointerId !== undefined) {
+                                try { upEvent.target.releasePointerCapture(upEvent.pointerId); } catch (err) {}
+                              }
+                              updateGradientStop(idx, { offset: finalOffset }, false);
+                              window.removeEventListener('pointermove', handlePointerMove);
+                              window.removeEventListener('pointerup', handlePointerUp);
                             };
 
-                            window.addEventListener('mousemove', handleMouseMove);
-                            window.addEventListener('mouseup', handleMouseUp);
+                            window.addEventListener('pointermove', handlePointerMove);
+                            window.addEventListener('pointerup', handlePointerUp);
                           }}
                         >
                           <div
@@ -1219,6 +1232,10 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
         input[type="range"].custom-range-slider-color::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
         input[type="range"].custom-range-slider-color::-webkit-slider-thumb { -webkit-appearance: none !important; height: 1vw !important; width: 1vw !important; border-radius: 50% !important; background: #4D47FF !important; border: 0.02vw solid #ffffff !important; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4) !important; margin-top: -0.4vw !important; cursor: pointer !important; transition: box-shadow 0.15s ease !important; }
         input[type="range"].custom-range-slider-color::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6) !important; }
+
+        input[type="range"].custom-angle-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type="range"].custom-angle-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: #E2E8F0; border: none; }
+        input[type="range"].custom-angle-slider::-webkit-slider-thumb { -webkit-appearance: none !important; height: 0.9vw !important; width: 0.9vw !important; border-radius: 50% !important; background: #5d5efc !important; cursor: pointer !important; margin-top: -0.35vw !important; border: none !important; box-shadow: 0 0.1vw 0.3vw rgba(0,0,0,0.2); }
       `}</style>
     </div>
   );

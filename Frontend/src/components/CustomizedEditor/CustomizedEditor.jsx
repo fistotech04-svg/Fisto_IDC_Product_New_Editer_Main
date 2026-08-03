@@ -58,9 +58,9 @@ const ensureDarkText = (hex) => {
 };
 // Navbar removed
 
-const createDefaultPageData = (name) => {
-  const baseWidth = 794;
-  const baseHeight = 1123;
+const createDefaultPageData = (name, w = 210, h = 297) => {
+  const baseWidth = w;
+  const baseHeight = h;
   const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
   const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${baseWidth} ${baseHeight}" width="100%" height="100%" style="overflow: visible">
@@ -857,7 +857,9 @@ const CustomizedEditor = () => {
                   let rawHTML = p.html || p.content || '';
 
                   if (!rawHTML || typeof rawHTML !== 'string' || rawHTML.trim() === '') {
-                    const defaultData = createDefaultPageData(p.name || `Page ${i + 1}`);
+                    const metaW = res.data.meta?.width || res.data.settings?.width || location.state?.width || currentBook?.width || 210;
+                    const metaH = res.data.meta?.height || res.data.settings?.height || location.state?.height || currentBook?.height || 297;
+                    const defaultData = createDefaultPageData(p.name || `Page ${i + 1}`, metaW, metaH);
                     rawHTML = defaultData;
                   }
 
@@ -937,10 +939,12 @@ const CustomizedEditor = () => {
           setPages(prevPages => {
             if (!prevPages || prevPages.length === 0) {
               const count = location.state?.pageCount || 12;
-              console.log(`CustomizedEditor: No pages loaded. Initializing ${count} default pages.`);
+              const w = location.state?.width || currentBook?.width || 210;
+              const h = location.state?.height || currentBook?.height || 297;
+              console.log(`CustomizedEditor: No pages loaded. Initializing ${count} default pages (${w}x${h}mm).`);
               return Array.from({ length: count }, (_, i) => {
                 const name = `Page ${i + 1}`;
-                const defaultData = createDefaultPageData(name);
+                const defaultData = createDefaultPageData(name, w, h);
                 return {
                   id: i + 1,
                   name: name,

@@ -111,13 +111,13 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   };
 
   const templates = [
-    { id: 'corporate', label: 'A4', title: 'A4 Page', dim: '210 × 297 mm', width: 'w-[4vw]', height: 'h-[5.8vw]' },
-    { id: 'large_catalogue', label: 'A3', title: 'A3 Page', dim: '297 × 420 mm', width: 'w-[5.5vw]', height: 'h-[7.8vw]' },
-    { id: 'mini', label: 'A5', title: 'A5 Page', dim: '148 × 210 mm', width: 'w-[3.2vw]', height: 'h-[4.5vw]' },
-    { id: 'letter', label: 'Letter', title: 'Letter Page', dim: '216 × 279 mm', width: 'w-[4.2vw]', height: 'h-[5.5vw]' },
-    { id: 'legal', label: 'Legal', title: 'Legal Page', dim: '216 × 356 mm', width: 'w-[4vw]', height: 'h-[7vw]' },
-    { id: 'dl', label: 'DL', title: 'DL Flyer', dim: '99 × 210 mm', width: 'w-[2.2vw]', height: 'h-[4.5vw]' },
-    { id: 'square', label: 'Square', title: 'Square Page', dim: '210 × 210 mm', width: 'w-[4.2vw]', height: 'h-[4.2vw]' },
+    { id: 'corporate', label: 'A4', title: 'A4 Page', dim: '210 × 297 mm', wCss: '4vw', hCss: '5.8vw' },
+    { id: 'large_catalogue', label: 'A3', title: 'A3 Page', dim: '297 × 420 mm', wCss: '4.6vw', hCss: '6.5vw' },
+    { id: 'mini', label: 'A5', title: 'A5 Page', dim: '148 × 210 mm', wCss: '3.2vw', hCss: '4.5vw' },
+    { id: 'letter', label: 'Letter', title: 'Letter Page', dim: '216 × 279 mm', wCss: '4.2vw', hCss: '5.5vw' },
+    { id: 'legal', label: 'Legal', title: 'Legal Page', dim: '216 × 356 mm', wCss: '4vw', hCss: '6.6vw' },
+    { id: 'dl', label: 'DL', title: 'DL Flyer', dim: '99 × 210 mm', wCss: '2.3vw', hCss: '4.9vw' },
+    { id: 'square', label: 'Square', title: 'Square Page', dim: '210 × 210 mm', wCss: '4.2vw', hCss: '4.2vw' },
   ];
 
   const scrollLeft = () => {
@@ -236,12 +236,37 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     });
   };
 
+  const getTemplateDimensions = (tmplId, orient) => {
+    let w = 210, h = 297;
+    if (tmplId === 'corporate') { w = 210; h = 297; }
+    else if (tmplId === 'large_catalogue') { w = 297; h = 420; }
+    else if (tmplId === 'mini') { w = 148; h = 210; }
+    else if (tmplId === 'letter') { w = 216; h = 279; }
+    else if (tmplId === 'legal') { w = 216; h = 356; }
+    else if (tmplId === 'dl') { w = 99; h = 210; }
+    else if (tmplId === 'square') { w = 210; h = 210; }
+
+    if (tmplId !== 'square' && orient === 'landscape') {
+      return { width: h, height: w };
+    }
+    return { width: w, height: h };
+  };
+
   const handleCreateFromTemplate = () => {
     if (nameError || !flipbookName.trim()) return;
     confirmCreation(() => {
       const template = templates.find(t => t.id === selectedTemplateId) || templates[0];
-      console.log("Creating from template:", template, "Pages:", pageCount, "Orientation:", orientation);
-      onTemplate({ templateId: selectedTemplateId, pageCount, flipbookName: flipbookName.trim(), orientation });
+      const dims = getTemplateDimensions(selectedTemplateId, orientation);
+      console.log("Creating from template:", template, "Pages:", pageCount, "Orientation:", orientation, "Dims:", dims);
+      const isSquare = selectedTemplateId === 'square';
+      onTemplate({
+        templateId: selectedTemplateId,
+        pageCount,
+        flipbookName: flipbookName.trim(),
+        orientation: isSquare ? 'square' : orientation,
+        width: dims.width,
+        height: dims.height
+      });
     });
   };
 
@@ -431,7 +456,25 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   // Render Template View
   const renderTemplateView = () => {
     const template = templates.find(t => t.id === selectedTemplateId) || templates[0];
-    const isLandscape = orientation === 'landscape';
+    const isSquare = template.id === 'square';
+    const isLandscape = !isSquare && orientation === 'landscape';
+
+    const getDisplayDim = (dimStr) => {
+      if (!dimStr) return '';
+      if (!isLandscape) return dimStr;
+      const parts = dimStr.split(' × ');
+      if (parts.length === 2) {
+        const [w, hWithUnit] = parts;
+        const hParts = hWithUnit.split(' ');
+        const h = hParts[0];
+        const unit = hParts.slice(1).join(' ');
+        return `${h} × ${w}${unit ? ' ' + unit : ''}`;
+      }
+      return dimStr;
+    };
+
+    const previewWidth = isLandscape ? template.hCss : template.wCss;
+    const previewHeight = isLandscape ? template.wCss : template.hCss;
 
     return (
       <div className="relative bg-white rounded-[1.25vw] p-[1.25vw] shadow-2xl flex flex-col w-full max-w-[27vw] mx-auto border border-gray-100/80">
@@ -456,15 +499,14 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
         {/* Form Container Card */}
         <div className="border border-gray-200 rounded-[0.8vw] p-[1.2vw] mb-[1vw] bg-white">
           {/* Selected Template Preview */}
-          <div className="flex flex-col items-center justify-center mb-[1vw]">
+          <div className="flex flex-col items-center justify-center mb-[1vw] min-h-[8.5vw]">
             <div
-              className={`bg-[#383e93] text-white flex items-center justify-center font-medium text-[0.85vw] shadow-sm rounded-none mb-[0.4vw] transition-all duration-300 ${
-                isLandscape ? `${template.height} ${template.width}` : `${template.width} ${template.height}`
-              }`}
+              style={{ width: previewWidth, height: previewHeight }}
+              className="bg-[#383e93] text-white flex items-center justify-center font-medium text-[0.85vw] shadow-sm rounded-none mb-[0.4vw] transition-all duration-300"
             >
               {template.label}
             </div>
-            <p className="text-[0.75vw] text-gray-700 font-normal mt-[0.2vw]">{template.dim}</p>
+            <p className="text-[0.75vw] text-gray-700 font-normal mt-[0.2vw]">{getDisplayDim(template.dim)}</p>
           </div>
 
           {/* Form Fields */}
@@ -486,65 +528,67 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
               {nameError && <p className="text-red-500 text-[0.55vw] mt-[0.3vw] font-medium">This flipbook name already exists.</p>}
             </div>
 
-            {/* Pages Orientation */}
-            <div>
-              <label className="block text-[0.75vw] font-bold text-gray-900 mb-[0.4vw]">Pages Orientation</label>
-              <div className="flex gap-[0.75vw]">
-                {/* Portrait Option */}
-                <div
-                  onClick={() => setOrientation('portrait')}
-                  className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] cursor-pointer transition-all ${
-                    orientation === 'portrait'
-                      ? 'border-[1.5px] border-[#4c5add] bg-[#f0f2fe]'
-                      : 'border border-gray-200 bg-white hover:border-gray-300'
-                  }`}
-                >
+            {/* Pages Orientation - Hidden for Square */}
+            {!isSquare && (
+              <div>
+                <label className="block text-[0.75vw] font-bold text-gray-900 mb-[0.4vw]">Pages Orientation</label>
+                <div className="flex gap-[0.75vw]">
+                  {/* Portrait Option */}
                   <div
-                    className={`w-[1vw] h-[1vw] rounded-full border-2 ${
-                      orientation === 'portrait' ? 'border-[#4c5add]' : 'border-gray-300'
-                    } flex items-center justify-center flex-shrink-0`}
+                    onClick={() => setOrientation('portrait')}
+                    className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] cursor-pointer transition-all ${
+                      orientation === 'portrait'
+                        ? 'border-[1.5px] border-[#4c5add] bg-[#f0f2fe]'
+                        : 'border border-gray-200 bg-white hover:border-gray-300'
+                    }`}
                   >
-                    {orientation === 'portrait' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#4c5add]" />}
+                    <div
+                      className={`w-[1vw] h-[1vw] rounded-full border-2 ${
+                        orientation === 'portrait' ? 'border-[#4c5add]' : 'border-gray-300'
+                      } flex items-center justify-center flex-shrink-0`}
+                    >
+                      {orientation === 'portrait' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#4c5add]" />}
+                    </div>
+                    <div className="w-[1.3vw] h-[1.7vw] border-[1.5px] border-gray-800 rounded-[0.15vw] flex items-center justify-center flex-shrink-0">
+                      <svg width="0.7vw" height="0.9vw" viewBox="0 0 12 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6 2v12M3 5l3-3 3 3M3 11l3 3 3-3" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-[0.72vw] font-bold text-gray-900">Portrait</span>
+                      <span className="text-[0.55vw] text-gray-400 font-normal">Vertical</span>
+                    </div>
                   </div>
-                  <div className="w-[1.3vw] h-[1.7vw] border-[1.5px] border-gray-800 rounded-[0.15vw] flex items-center justify-center flex-shrink-0">
-                    <svg width="0.7vw" height="0.9vw" viewBox="0 0 12 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M6 2v12M3 5l3-3 3 3M3 11l3 3 3-3" />
-                    </svg>
-                  </div>
-                  <div className="flex flex-col leading-tight">
-                    <span className="text-[0.72vw] font-bold text-gray-900">Portrait</span>
-                    <span className="text-[0.55vw] text-gray-400 font-normal">Vertical</span>
-                  </div>
-                </div>
 
-                {/* Landscape Option */}
-                <div
-                  onClick={() => setOrientation('landscape')}
-                  className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] cursor-pointer transition-all ${
-                    orientation === 'landscape'
-                      ? 'border-[1.5px] border-[#4c5add] bg-[#f0f2fe]'
-                      : 'border border-gray-200 bg-white hover:border-gray-300'
-                  }`}
-                >
+                  {/* Landscape Option */}
                   <div
-                    className={`w-[1vw] h-[1vw] rounded-full border-2 ${
-                      orientation === 'landscape' ? 'border-[#4c5add]' : 'border-gray-300'
-                    } flex items-center justify-center flex-shrink-0`}
+                    onClick={() => setOrientation('landscape')}
+                    className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] cursor-pointer transition-all ${
+                      orientation === 'landscape'
+                        ? 'border-[1.5px] border-[#4c5add] bg-[#f0f2fe]'
+                        : 'border border-gray-200 bg-white hover:border-gray-300'
+                    }`}
                   >
-                    {orientation === 'landscape' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#4c5add]" />}
-                  </div>
-                  <div className="w-[1.7vw] h-[1.3vw] border-[1.5px] border-gray-800 rounded-[0.15vw] flex items-center justify-center flex-shrink-0">
-                    <svg width="0.9vw" height="0.7vw" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 6h12M5 3L2 6l3 3M11 3l3 3-3 3" />
-                    </svg>
-                  </div>
-                  <div className="flex flex-col leading-tight">
-                    <span className="text-[0.72vw] font-bold text-gray-900">Landscape</span>
-                    <span className="text-[0.55vw] text-gray-400 font-normal">Horizontal</span>
+                    <div
+                      className={`w-[1vw] h-[1vw] rounded-full border-2 ${
+                        orientation === 'landscape' ? 'border-[#4c5add]' : 'border-gray-300'
+                      } flex items-center justify-center flex-shrink-0`}
+                    >
+                      {orientation === 'landscape' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#4c5add]" />}
+                    </div>
+                    <div className="w-[1.7vw] h-[1.3vw] border-[1.5px] border-gray-800 rounded-[0.15vw] flex items-center justify-center flex-shrink-0">
+                      <svg width="0.9vw" height="0.7vw" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 6h12M5 3L2 6l3 3M11 3l3 3-3 3" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-[0.72vw] font-bold text-gray-900">Landscape</span>
+                      <span className="text-[0.55vw] text-gray-400 font-normal">Horizontal</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Number of Pages */}
             <div>

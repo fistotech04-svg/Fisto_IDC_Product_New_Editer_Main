@@ -1596,11 +1596,13 @@ const InteractionPanel = ({
                                 <div className="flex-1 relative w-full h-[11vh] rounded-[0.6vw] group shadow-sm border border-gray-200">
                                   {/* Inner container for image to keep rounded corners without clipping the dropdown */}
                                   <div className="absolute inset-0 rounded-[0.6vw] overflow-hidden pointer-events-none">
-                                    <img
-                                      src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image || ''}
-                                      alt="Selected Template"
-                                      className="w-full h-full object-cover"
-                                    />
+                                    {TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image ? (
+                                      <img
+                                        src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image}
+                                        alt="Selected Template"
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : null}
                                     {/* Dim Overlay */}
                                     <div className="absolute inset-0 bg-black/40"></div>
                                   </div>

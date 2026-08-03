@@ -636,15 +636,44 @@ router.post("/save", async (req, res) => {
             folderName: physicalFolderName,
           };
 
+    const incomingMeta = req.body.meta || {};
+    let templateIdVal = req.body.templateId || incomingMeta.templateId || req.body.settings?.templateId;
+    let orientationVal = req.body.orientation || incomingMeta.orientation || req.body.settings?.orientation;
+    const isSquare = (templateIdVal && templateIdVal.toLowerCase() === 'square') || (orientationVal && orientationVal.toLowerCase() === 'square');
+
+    if (isSquare) {
+      templateIdVal = 'square';
+      orientationVal = 'square';
+    }
+
+    const widthVal = isSquare ? 210 : (req.body.width || incomingMeta.width || req.body.settings?.width);
+    const heightVal = isSquare ? 210 : (req.body.height || incomingMeta.height || req.body.settings?.height);
+
+    const updateSet = {
+      flipbookName: flipbookName, // Ensure name is updated if it changed
+      pages: dbPages,
+      lastUpdated: new Date(),
+      folderName: uniqueFolders, // Update tags
+      meta: {
+        ...(existingDoc?.meta || {}),
+        ...incomingMeta,
+        flipbookName,
+        folderName: uniqueFolders,
+        ...(widthVal ? { width: Number(widthVal) } : {}),
+        ...(heightVal ? { height: Number(heightVal) } : {}),
+        ...(templateIdVal ? { templateId: templateIdVal } : {}),
+        ...(orientationVal ? { orientation: orientationVal } : {})
+      }
+    };
+    if (widthVal) updateSet.width = Number(widthVal);
+    if (heightVal) updateSet.height = Number(heightVal);
+    if (templateIdVal) updateSet.templateId = templateIdVal;
+    if (orientationVal) updateSet.orientation = orientationVal;
+
     const savedDoc = await Flipbook.findOneAndUpdate(
       updateQuery,
       {
-        $set: {
-          flipbookName: flipbookName, // Ensure name is updated if it changed
-          pages: dbPages,
-          lastUpdated: new Date(),
-          folderName: uniqueFolders, // Update tags
-        },
+        $set: updateSet,
         $setOnInsert: { v_id: v_id },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
@@ -1679,14 +1708,25 @@ router.get("/get", async (req, res) => {
       }
     }
 
+    const docMeta = dbBook?.meta || {};
+    const docWidth = dbBook?.width || docMeta.width || dbBook?.settings?.width;
+    const docHeight = dbBook?.height || docMeta.height || dbBook?.settings?.height;
+    const docTemplateId = dbBook?.templateId || docMeta.templateId || dbBook?.settings?.templateId;
+    const docOrientation = dbBook?.orientation || docMeta.orientation || dbBook?.settings?.orientation;
+
     res.json({
       pages,
       settings: dbBook ? (dbBook.settings || {}) : {},
       share: finalShare,
       meta: {
+        ...docMeta,
         flipbookName: effectiveBookName,
         folderName: effectiveFolderName,
         v_id: dbBook ? dbBook.v_id : null,
+        width: docWidth,
+        height: docHeight,
+        templateId: docTemplateId,
+        orientation: docOrientation,
         baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
       },
     });
@@ -1700,7 +1740,7 @@ router.get("/get", async (req, res) => {
 // @desc    Update flipbook settings (branding, appearance, etc.)
 router.post("/update-settings", async (req, res) => {
   try {
-    const { emailId, v_id, settings, newName, share } = req.body;
+    const { emailId, v_id, settings, newName, share, meta, width, height, templateId, orientation } = req.body;
     if (!emailId || !v_id) {
       return res.status(400).json({ message: "Missing emailId or v_id" });
     }
@@ -1709,6 +1749,11 @@ router.post("/update-settings", async (req, res) => {
     if (settings) updateData.settings = settings;
     if (newName) updateData.flipbookName = newName;
     if (share) updateData.share = share;
+    if (meta) updateData.meta = meta;
+    if (width) updateData.width = Number(width);
+    if (height) updateData.height = Number(height);
+    if (templateId) updateData.templateId = templateId;
+    if (orientation) updateData.orientation = orientation;
     updateData.lastUpdated = new Date();
 
     const updatedDoc = await Flipbook.findOneAndUpdate(
@@ -1815,13 +1860,24 @@ router.get("/public/get/:shareId", async (req, res) => {
     });
     const pages = (await Promise.all(pagePromises)).filter(Boolean);
 
+    const docMeta = dbDoc?.meta || {};
+    const docWidth = dbDoc?.width || docMeta.width || dbDoc?.settings?.width;
+    const docHeight = dbDoc?.height || docMeta.height || dbDoc?.settings?.height;
+    const docTemplateId = dbDoc?.templateId || docMeta.templateId || dbDoc?.settings?.templateId;
+    const docOrientation = dbDoc?.orientation || docMeta.orientation || dbDoc?.settings?.orientation;
+
     res.json({
       pages,
       settings: dbDoc.settings || {},
       meta: {
+        ...docMeta,
         flipbookName: dbDoc.flipbookName,
         folderName: effectiveFolderName,
         v_id: dbDoc.v_id,
+        width: docWidth,
+        height: docHeight,
+        templateId: docTemplateId,
+        orientation: docOrientation,
         baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${dbDoc.flipbookName}/`
       },
     });
