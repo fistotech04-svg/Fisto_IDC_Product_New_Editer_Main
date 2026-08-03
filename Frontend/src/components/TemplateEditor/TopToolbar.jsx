@@ -114,6 +114,7 @@ const TopToolbar = ({
       <div className="flex items-center gap-[1.5vw]">
         <div 
           onClick={canUndo ? onUndo : undefined}
+          title="Undo"
           className={`flex flex-col items-center group ${canUndo ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'}`}
         >
           <Undo2 size="1.2vw" className={`text-[#374151] ${canUndo ? 'group-hover:text-black' : ''} transition-colors`} />
@@ -121,6 +122,7 @@ const TopToolbar = ({
         </div>
         <div 
           onClick={canRedo ? onRedo : undefined}
+          title="Redo"
           className={`flex flex-col items-center group ${canRedo ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'}`}
         >
           <Redo2 size="1.2vw" className={`text-[#374151] ${canRedo ? 'group-hover:text-black' : ''} transition-colors`} />
@@ -131,39 +133,57 @@ const TopToolbar = ({
       {/* Center Section: Alignment Groups */}
       {!hideTools && (
         <div className={`flex items-center gap-[1vw] ${!hasSelection ? 'opacity-30 pointer-events-none' : ''}`}>
-          {/* Group 1 */}
+          {/* Group 1: Vertical Alignment */}
           <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-            <div onClick={() => onAlign && onAlign('top')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('top')} title="Align Top" className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="mdi:format-align-top" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div onClick={() => onAlign && onAlign('middle')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('middle')} title="Align Middle" className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="mdi:format-align-middle" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div onClick={() => onAlign && onAlign('bottom')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('bottom')} title="Align Bottom" className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="mdi:format-align-bottom" width="1.1vw" className="text-[#374151]" />
             </div>
           </div>
 
-          {/* Group 2 */}
+          {/* Group 2: Horizontal Alignment */}
           <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-            <div onClick={() => onAlign && onAlign('left')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('left')} title="Align Left" className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="line-md:arrow-align-left" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div onClick={() => onAlign && onAlign('center')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('center')} title="Align Center" className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="line-md:arrow-align-center" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div onClick={() => onAlign && onAlign('right')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('right')} title="Align Right" className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="line-md:arrow-align-right" width="1.1vw" className="text-[#374151]" />
             </div>
           </div>
 
-          {/* Group 3 */}
+          {/* Group 3: Distribution */}
           <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-            <div onClick={() => onAlign && onAlign('distribute-v')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('distribute-v')} title="Distribute Vertically" className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="icon-park-outline:distribute-vertically" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div onClick={() => onAlign && onAlign('distribute-h')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('distribute-h')} title="Distribute Horizontally" className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="icon-park-outline:distribute-horizontally" width="1.1vw" className="text-[#374151]" />
+            </div>
+          </div>
+
+          {/* Group 4: Flip Tools */}
+          <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
+            <div 
+              onClick={() => onFlipH && onFlipH()} 
+              title="Flip Horizontal"
+              className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm"
+            >
+              <Icon icon="vaadin:flip-h" width="1.1vw" height="1.1vw" className="text-[#374151]" />
+            </div>
+            <div 
+              onClick={() => onFlipV && onFlipV()} 
+              title="Flip Vertical"
+              className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm"
+            >
+              <Icon icon="vaadin:flip-v" width="1.1vw" height="1.1vw" className="text-[#374151]" />
             </div>
           </div>
         </div>
@@ -175,6 +195,7 @@ const TopToolbar = ({
           <div className="relative" ref={rotationRef}>
             <div 
               onClick={hasSelection ? () => setShowRotationOptions(!showRotationOptions) : undefined}
+              title="Rotate"
               className={`flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] transition-all ${
                 !hasSelection ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
               } ${showRotationOptions ? 'ring-1 ring-gray-300 shadow-sm' : ''}`}
@@ -209,30 +230,13 @@ const TopToolbar = ({
                       onChange={handleRotationChange}
                       onBlur={handleRotationBlur}
                       onKeyDown={handleRotationKeyDown}
+                      title="Rotate Angle (°)"
                       className="w-[1.8vw] text-[0.8vw] font-bold text-gray-900 border-none outline-none bg-transparent text-right p-0"
                     />
                     <span 
                       className="text-[0.6vw] font-bold text-gray-500 ml-[0.1vw] select-none"
                     >°</span>
                   </div>
-                </div>
-
-                {/* Flip Horizontal */}
-                <div 
-                  onClick={(e) => { e.stopPropagation(); onFlipH && onFlipH(); }}
-                  className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group"
-                  title="Flip Horizontal"
-                >
-                  <Icon icon="vaadin:flip-h" width="1.1vw" height="1.1vw" className="text-[#374151] group-hover:text-black" />
-                </div>
-
-                {/* Flip Vertical */}
-                <div 
-                  onClick={(e) => { e.stopPropagation(); onFlipV && onFlipV(); }}
-                  className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group"
-                  title="Flip Vertical"
-                >
-                  <Icon icon="vaadin:flip-v" width="1.1vw" height="1.1vw" className="text-[#374151] group-hover:text-black" />
                 </div>
               </div>
             )}
@@ -243,19 +247,21 @@ const TopToolbar = ({
           {/* Zoom Out */}
           <button 
             onClick={onZoomOut}
+            title="Zoom Out"
             className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
           >
             <Minus size="0.9vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
           </button>
           
           {/* Zoom Label */}
-          <div className="px-[0.4vw] flex items-center justify-center min-w-[2.2vw]">
+          <div className="px-[0.4vw] flex items-center justify-center min-w-[2.2vw]" title="Zoom Level">
             <span className="text-[0.7vw] font-bold text-[#111827]">{zoom}%</span>
           </div>
           
           {/* Zoom In */}
           <button 
             onClick={onZoomIn}
+            title="Zoom In"
             className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
           >
             <Plus size="0.9vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
