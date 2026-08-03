@@ -2188,21 +2188,22 @@ const ImageEditor = ({
             targetEl = svgImageEl.parentNode;
           }
           let box = { x: 0, y: 0, width: 100, height: 100 };
-          try { box = targetEl.getBBox(); } catch (e) { }
+          try { box = (svgImageEl || targetEl).getBBox(); } catch (e) { }
 
-          let ixStr = targetEl.getAttribute('x') || '0';
-          let iyStr = targetEl.getAttribute('y') || '0';
-          let iwStr = targetEl.getAttribute('width') || '100%';
-          let ihStr = targetEl.getAttribute('height') || '100%';
+          let ixStr = liveElement.getAttribute('data-crop-orig-x') || svgImageEl?.getAttribute('x') || targetEl.getAttribute('x') || '0';
+          let iyStr = liveElement.getAttribute('data-crop-orig-y') || svgImageEl?.getAttribute('y') || targetEl.getAttribute('y') || '0';
+          let iwStr = liveElement.getAttribute('data-crop-orig-w') || svgImageEl?.getAttribute('width') || targetEl.getAttribute('width') || '100%';
+          let ihStr = liveElement.getAttribute('data-crop-orig-h') || svgImageEl?.getAttribute('height') || targetEl.getAttribute('height') || '100%';
 
-          let ix = ixStr.includes('%') ? box.x : parseFloat(ixStr) || 0;
-          let iy = iyStr.includes('%') ? box.y : parseFloat(iyStr) || 0;
-          let iw = iwStr.includes('%') ? box.width : parseFloat(iwStr) || 100;
-          let ih = ihStr.includes('%') ? box.height : parseFloat(ihStr) || 100;
+          let ix = ixStr.toString().includes('%') ? box.x : parseFloat(ixStr) || 0;
+          let iy = iyStr.toString().includes('%') ? box.y : parseFloat(iyStr) || 0;
+          let iw = iwStr.toString().includes('%') ? box.width : parseFloat(iwStr) || 100;
+          let ih = ihStr.toString().includes('%') ? box.height : parseFloat(ihStr) || 100;
 
           // Apply crop mathematically to inner shadow dimensions
+          const effImgTypeInner = liveElement.getAttribute('data-object-fit') || imageType;
           const cropStr = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-          if (cropStr && cropStr !== 'null') {
+          if (effImgTypeInner === 'Crop' && cropStr && cropStr !== 'null') {
             try {
               const crop = JSON.parse(cropStr);
               ix = ix + (parseFloat(crop.left) / 100) * iw;
@@ -2212,7 +2213,11 @@ const ImageEditor = ({
             } catch (e) { }
           }
 
-          overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+          if (isContainer) {
+            overlay.removeAttribute('transform');
+          } else {
+            overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+          }
 
           const maxIR = Math.min(iw, ih) / 2;
           const i_tl = Math.max(0, Math.min(radius.tl || 0, maxIR));
@@ -2336,20 +2341,21 @@ const ImageEditor = ({
           }
 
           let bBox = { x: 0, y: 0, width: 100, height: 100 };
-          try { bBox = targetElForFill.getBBox(); } catch (e) { }
+          try { bBox = (svgImageEl || targetElForFill).getBBox(); } catch (e) { }
 
-          let bxStr = targetElForFill.getAttribute('x') || '0';
-          let byStr = targetElForFill.getAttribute('y') || '0';
-          let bwStr = targetElForFill.getAttribute('width') || '100%';
-          let bhStr = targetElForFill.getAttribute('height') || '100%';
+          let bxStr = liveElement.getAttribute('data-crop-orig-x') || svgImageEl?.getAttribute('x') || targetElForFill.getAttribute('x') || '0';
+          let byStr = liveElement.getAttribute('data-crop-orig-y') || svgImageEl?.getAttribute('y') || targetElForFill.getAttribute('y') || '0';
+          let bwStr = liveElement.getAttribute('data-crop-orig-w') || svgImageEl?.getAttribute('width') || targetElForFill.getAttribute('width') || '100%';
+          let bhStr = liveElement.getAttribute('data-crop-orig-h') || svgImageEl?.getAttribute('height') || targetElForFill.getAttribute('height') || '100%';
 
-          let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-          let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-          let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-          let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+          let bx = bxStr.toString().includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+          let by = byStr.toString().includes('%') ? bBox.y : parseFloat(byStr) || 0;
+          let bw = bwStr.toString().includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+          let bh = bhStr.toString().includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
+          const effImgTypeFill = liveElement.getAttribute('data-object-fit') || imageType;
           const cropStrFill = targetElForFill.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-          if (cropStrFill && cropStrFill !== 'null') {
+          if (effImgTypeFill === 'Crop' && cropStrFill && cropStrFill !== 'null') {
             try {
               const crop = JSON.parse(cropStrFill);
               bx = bx + (parseFloat(crop.left) / 100) * bw;
@@ -2428,7 +2434,13 @@ const ImageEditor = ({
 
           if (!isPatternShape) {
             fillLayer.removeAttribute('rx');
-            if (targetElForFill.getAttribute('transform')) fillLayer.setAttribute('transform', targetElForFill.getAttribute('transform'));
+            if (fillLayerParent === liveElement && liveElement.tagName?.toLowerCase() === 'g') {
+              fillLayer.removeAttribute('transform');
+            } else if (targetElForFill.getAttribute('transform')) {
+              fillLayer.setAttribute('transform', targetElForFill.getAttribute('transform'));
+            } else {
+              fillLayer.removeAttribute('transform');
+            }
           }
 
           liveElement.setAttribute('data-fill-color', backgroundColor.fill);
@@ -2968,7 +2980,7 @@ const ImageEditor = ({
         }
 
         if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); innerGroup.appendChild(innerShadow); }
-        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); innerGroup.appendChild(stroke); }
+        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); liveElement.appendChild(stroke); }
       }
 
       // Debounce onUpdate
