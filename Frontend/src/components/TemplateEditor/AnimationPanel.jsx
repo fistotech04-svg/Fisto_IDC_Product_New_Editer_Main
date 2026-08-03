@@ -927,7 +927,7 @@ const AnimationPanel = ({ selectedElement, onUpdate }) => {
       setForceIncludeIds(prev => new Set(prev).add(id));
       setExpandedElementId(id);
 
-      setTimeout(() => {
+      const addEl = () => {
         const el = document.getElementById(id) || document.querySelector(`[data-name="${id}"]`);
         if (el) {
           setAnimatableElements(prev => {
@@ -935,8 +935,21 @@ const AnimationPanel = ({ selectedElement, onUpdate }) => {
             if (alreadyIn) return prev;
             return [el, ...prev];
           });
+
+          // Play live animation preview on element immediately!
+          const type = el.getAttribute('data-animation-open-type') || 'fade-in';
+          if (typeof playAnimationOnTarget === 'function') {
+            playAnimationOnTarget(el, type, {
+              duration: el.getAttribute('data-animation-open-duration') || '1',
+              delay: el.getAttribute('data-animation-open-delay') || '0',
+              speed: '1',
+              easing: 'Linear'
+            });
+          }
         }
-      }, 150); 
+      };
+      addEl();
+      requestAnimationFrame(addEl);
     };
     window.addEventListener('animation-force-add', handleForceAdd);
     return () => window.removeEventListener('animation-force-add', handleForceAdd);

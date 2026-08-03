@@ -752,13 +752,20 @@ const TemplateEditor = () => {
           v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
         }));
 
+        const activeDims = getFlipbookDimensions();
         const payload = {
           emailId: user?.emailId,
           v_id: currentVId,
           flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
           folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
           overwrite: true,
-          pages: payloadPages
+          pages: payloadPages,
+          meta: {
+            width: activeDims.width,
+            height: activeDims.height,
+            templateId: currentBook?.templateId || location.state?.templateId,
+            orientation: currentBook?.orientation || location.state?.orientation
+          }
         };
 
         lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
@@ -816,13 +823,20 @@ const TemplateEditor = () => {
             };
           }));
 
+          const activeDims = getFlipbookDimensions();
           const payload = {
             emailId: user?.emailId,
             v_id: currentVId,
             flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
             folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
             overwrite: true,
-            pages: payloadPages
+            pages: payloadPages,
+            meta: {
+              width: activeDims.width,
+              height: activeDims.height,
+              templateId: currentBook?.templateId || location.state?.templateId,
+              orientation: currentBook?.orientation || location.state?.orientation
+            }
           };
 
           const payloadSize = JSON.stringify(payload).length;
@@ -1042,29 +1056,69 @@ const TemplateEditor = () => {
     };
   }, []);
 
-  // Helper to get flipbook dimensions. Prioritizes the first page with a PDF background
-  // to ensure the project maintains its primary aspect ratio.
+  // Helper to get flipbook dimensions. Prioritizes existing SVG viewBox across pages,
+  // then location.state / currentBook template dimensions and orientation.
   const getFlipbookDimensions = useCallback(() => {
-    // 1. Try to find the first page that has a PDF background
-    const pdfPage = pages.find(p => p.html && p.html.includes('data-name="PDF Background"'));
-    const sourcePage = pdfPage || pages[0];
-
-    if (sourcePage && sourcePage.html) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(sourcePage.html, 'image/svg+xml');
-      const viewBox = doc.documentElement.getAttribute('viewBox');
-      if (viewBox) {
-        const parts = viewBox.split(/[\s,]+/);
-        if (parts.length === 4) {
-          return { width: parseFloat(parts[2]), height: parseFloat(parts[3]) };
+    // 1. Try to find any page that has an SVG viewBox in its HTML using regex
+    for (const p of pages) {
+      const htmlStr = p.html || p.content || '';
+      if (htmlStr) {
+        const match = htmlStr.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+        if (match && parseFloat(match[3]) > 0 && parseFloat(match[4]) > 0) {
+          return { width: parseFloat(match[3]), height: parseFloat(match[4]) };
+        }
+        const wMatch = htmlStr.match(/<svg[^>]*\bwidth=["']([0-9.]+)(?:px|mm)?["']/i);
+        const hMatch = htmlStr.match(/<svg[^>]*\bheight=["']([0-9.]+)(?:px|mm)?["']/i);
+        if (wMatch && hMatch && parseFloat(wMatch[1]) > 0 && parseFloat(hMatch[1]) > 0) {
+          return { width: parseFloat(wMatch[1]), height: parseFloat(hMatch[1]) };
         }
       }
     }
-    return { width: 210, height: 297 }; // Default A4
-  }, [pages]);
 
-  const createDefaultPageData = (name) => {
-    const { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
+    // 2. Check location.state or currentBook for explicit width/height or templateId + orientation
+    const state = location.state || {};
+    const book = currentBook || {};
+
+    const w = book.width || book.meta?.width || state.width;
+    const h = book.height || book.meta?.height || state.height;
+    if (w && h) {
+      return { width: parseFloat(w), height: parseFloat(h) };
+    }
+
+    const templateId = (book.templateId || book.meta?.templateId || state.templateId || '').toLowerCase();
+    const orientation = (book.orientation || book.meta?.orientation || state.orientation || '').toLowerCase();
+
+    if (templateId) {
+      let baseW = 210, baseH = 297;
+      if (templateId === 'corporate' || templateId === 'a4') { baseW = 210; baseH = 297; }
+      else if (templateId === 'large_catalogue' || templateId === 'a3') { baseW = 297; baseH = 420; }
+      else if (templateId === 'mini' || templateId === 'a5') { baseW = 148; baseH = 210; }
+      else if (templateId === 'letter') { baseW = 216; baseH = 279; }
+      else if (templateId === 'legal') { baseW = 216; baseH = 356; }
+      else if (templateId === 'dl') { baseW = 99; baseH = 210; }
+      else if (templateId === 'square') { baseW = 210; baseH = 210; }
+
+      if (templateId !== 'square' && orientation === 'landscape') {
+        return { width: baseH, height: baseW };
+      }
+      return { width: baseW, height: baseH };
+    }
+
+    if (orientation === 'square') {
+      return { width: 210, height: 210 };
+    }
+
+    return { width: 210, height: 297 }; // Default A4
+  }, [pages, location.state, currentBook]);
+
+  const createDefaultPageData = (name, customW, customH) => {
+    let baseWidth = customW;
+    let baseHeight = customH;
+    if (!baseWidth || !baseHeight) {
+      const dims = getFlipbookDimensions();
+      baseWidth = dims.width;
+      baseHeight = dims.height;
+    }
     const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
     const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
     const html = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${baseWidth} ${baseHeight}" width="100%" height="100%" style="overflow: visible">
@@ -3096,6 +3150,10 @@ const TemplateEditor = () => {
           // Only allow deletion in the main editor mode. 
           // Prevent accidental deletion while interacting with Interaction/Animation panels.
           if (activeTopTool === 'editor') {
+            if (window.__nodeEditModeActive) {
+              window.dispatchEvent(new CustomEvent('vector-path-action', { detail: { action: 'delete-node' } }));
+              return;
+            }
             if (multiSelectedIds.size > 0) {
               deleteLayer(activePageIndex, multiSelectedIds);
               setMultiSelectedIds(new Set());
@@ -3511,13 +3569,30 @@ const TemplateEditor = () => {
             const projectBaseUrl = getSupabaseBaseUrl(sanitizedEmail, actualFolderName, bookName);
 
 
+            const fetchedMeta = res.data.meta || {};
+            const fetchedSettings = res.data.settings || {};
+            const targetWidth = fetchedMeta.width || fetchedSettings.width || location.state?.width;
+            const targetHeight = fetchedMeta.height || fetchedSettings.height || location.state?.height;
+            const targetTemplateId = fetchedMeta.templateId || fetchedSettings.templateId || location.state?.templateId;
+            const targetOrientation = fetchedMeta.orientation || fetchedSettings.orientation || location.state?.orientation;
+
+            setCurrentBook(prev => ({
+              ...(fetchedMeta || {}),
+              ...(prev || {}),
+              flipbookName: prev?.flipbookName || fetchedMeta.flipbookName || 'Untitled Flipbook',
+              width: targetWidth,
+              height: targetHeight,
+              templateId: targetTemplateId,
+              orientation: targetOrientation
+            }));
+
             const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
               const name = p.name || `Page ${i + 1}`;
               let pageHtml = p.html;
 
 
               if (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') {
-                const { html, layers } = createDefaultPageData(name);
+                const { html, layers } = createDefaultPageData(name, targetWidth, targetHeight);
                 return {
                   id: p.v_id || i + 1,
                   name: name,
@@ -3663,7 +3738,11 @@ const TemplateEditor = () => {
         setCurrentBook(prev => ({
           ...(prev || {}),
           flipbookName: prev?.flipbookName || location.state.flipbookName || 'Untitled Flipbook',
-          folderName: prev?.folderName || location.state.folderName || 'Recent Book'
+          folderName: prev?.folderName || location.state.folderName || 'Recent Book',
+          templateId: location.state.templateId,
+          orientation: location.state.orientation,
+          width: location.state.width,
+          height: location.state.height
         }));
       }
       else {
@@ -3742,7 +3821,7 @@ const TemplateEditor = () => {
 
   return (
     <div className="flex h-[92vh] w-full bg-white overflow-hidden relative">
-      <div className={`flex flex-1 transition-all duration-300 ${is3DModalOpen ? 'blur-md pointer-events-none' : ''}`}>
+      <div className={`flex flex-1 min-w-0 overflow-hidden transition-all duration-300 ${is3DModalOpen ? 'blur-md pointer-events-none' : ''}`}>
         <Layer
           pages={pages}
           activePageIndex={activePageIndex}
@@ -3791,6 +3870,7 @@ const TemplateEditor = () => {
           isPdfProject={isPdfProject}
           isDoublePage={isDoublePage}
           isRulerEnabled={isRulerEnabled}
+          isTrimView={isTrimView}
           pages={pages}
           activePageIndex={activePageIndex}
           setActivePageIndex={setActivePageIndex}
