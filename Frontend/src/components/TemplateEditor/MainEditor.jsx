@@ -3759,6 +3759,9 @@ const MainEditor = ({
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
 
+    // Freeze selection box during animation preview
+    if (el.getAttribute('data-is-animating') === 'true') return;
+
     // Suppress object selection box, hover highlights, and resize handles during Path Node Edit Mode
     if (nodeEditModeRef.current) {
       const overlay = getOverlayForElement(el);

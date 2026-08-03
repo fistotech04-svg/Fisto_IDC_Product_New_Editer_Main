@@ -374,7 +374,23 @@ const getAnimationScript = (pageNumber) => `
         const duration = ((parseFloat(settings && settings.duration || 1)) / (parseFloat(settings && settings.speed || 1))) * 1000;
         const delay = (parseFloat(settings && settings.delay || 0)) * 1000;
         const easing = getWaapiEase(settings && settings.easing || 'Linear');
-        const isLoop = LOOP_ANIMATIONS.includes(type) || !!(settings && settings.isAlways);
+        let isLoop = LOOP_ANIMATIONS.includes(type) || !!(settings && settings.isAlways);
+        let iterations = 1;
+        if (isLoop) {
+            iterations = Infinity;
+        } else if (settings && settings.repeat) {
+            if (settings.repeat === 'Infinite') {
+                iterations = Infinity;
+                isLoop = true;
+            } else if (settings.repeat === 'Once') iterations = 1;
+            else if (settings.repeat === 'Twice') iterations = 2;
+            else if (settings.repeat === 'Thrice') iterations = 3;
+            else if (settings.repeat === 'None') iterations = 1;
+            else {
+                const parsed = parseInt(settings.repeat);
+                if (!isNaN(parsed) && parsed > 0) iterations = parsed;
+            }
+        }
         try {
           let cx = 0, cy = 0, useMathOrigin = false;
           const isSVG = el.namespaceURI === 'http://www.w3.org/2000/svg' || el.ownerSVGElement !== undefined;
@@ -420,7 +436,7 @@ const getAnimationScript = (pageNumber) => `
             }
             return newKf;
           });
-          const anim = el.animate(keyframes, { duration, delay, easing, fill: isLoop ? 'none' : 'forwards', iterations: isLoop ? Infinity : 1 });
+          const anim = el.animate(keyframes, { duration, delay, easing, fill: isLoop ? 'none' : 'forwards', iterations: iterations });
           el.__currentAnimation = anim;
         } catch(e) { console.error('Animation error', e); }
       };
@@ -444,6 +460,7 @@ const getAnimationScript = (pageNumber) => `
             speed:    el.getAttribute('data-animation-open-speed'),
             delay:    el.getAttribute('data-animation-open-delay'),
             easing:   el.getAttribute('data-animation-open-easing'),
+            repeat:   el.getAttribute('data-animation-open-repeat'),
             everyVisit: el.getAttribute('data-animation-open-every-visit') !== 'false'
           });
         });
@@ -456,6 +473,7 @@ const getAnimationScript = (pageNumber) => `
             speed:      el.getAttribute('data-animation-interact-speed'),
             delay:      el.getAttribute('data-animation-interact-delay'),
             easing:     el.getAttribute('data-animation-interact-easing'),
+            repeat:     el.getAttribute('data-animation-interact-repeat'),
             everyVisit: el.getAttribute('data-animation-interact-every-visit') !== 'false',
             isAlways:   action === 'Always'
           };
@@ -506,6 +524,10 @@ const getAnimationScript = (pageNumber) => `
           handleTrigger(true);
         }
       });
+
+      if (window.parent !== window) {
+          window.parent.postMessage({ type: 'REQUEST_PAGE_STATE' }, '*');
+      }
 
       // Fallback: run animations if no PAGE_TURNED message arrives within 1500ms
       // Only run fallback on Page 1 or if running outside a parent flipbook context (standalone/editor)
@@ -2595,6 +2617,16 @@ const PreviewArea = React.memo(({
                 } catch (err) { /* cross-origin iframe – skip */ }
             });
         }
+
+        const handleMessage = (e) => {
+            if (e.data && e.data.type === 'REQUEST_PAGE_STATE') {
+                if (e.source) {
+                    e.source.postMessage({ type: 'PAGE_TURNED', visiblePages }, '*');
+                }
+            }
+        };
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
     }, [currentPage, pages.length]);
 
     const bookRendererProps = {

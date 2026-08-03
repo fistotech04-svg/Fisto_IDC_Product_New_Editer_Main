@@ -70,17 +70,36 @@ export const initAnimationRunner = function(doc) {
     const duration = ((parseFloat(settings?.duration || 1)) / (parseFloat(settings?.speed || 1))) * 1000;
     const delay = (parseFloat(settings?.delay || 0)) * 1000;
     const easing = getWaapiEase(settings?.easing || 'Linear');
-    const isLoop = LOOP_ANIMATIONS.includes(type) || settings?.isAlways;
+    let iterations = 1;
+    let isLoop = LOOP_ANIMATIONS.includes(type) || settings?.isAlways;
+
+    if (isLoop) {
+        iterations = Infinity;
+    } else if (settings?.repeat) {
+        if (settings.repeat === 'Infinite') {
+            iterations = Infinity;
+            isLoop = true;
+        }
+        else if (settings.repeat === 'Once') iterations = 1;
+        else if (settings.repeat === 'Twice') iterations = 2;
+        else if (settings.repeat === 'Thrice') iterations = 3;
+        else if (settings.repeat === 'None') iterations = 1;
+        else {
+            const parsed = parseInt(settings.repeat);
+            if (!isNaN(parsed) && parsed > 0) iterations = parsed;
+        }
+    }
 
     try {
       let cx = 0, cy = 0;
       let useMathOrigin = false;
+      let cachedBBox = { x: 0, y: 0, width: 0, height: 0 };
       const isSVG = el.namespaceURI === 'http://www.w3.org/2000/svg' || el.ownerSVGElement !== undefined;
       if (isSVG) {
           try {
-              const bbox = el.getBBox();
-              cx = bbox.x + bbox.width / 2;
-              cy = bbox.y + bbox.height / 2;
+              cachedBBox = el.getBBox();
+              cx = cachedBBox.x + cachedBBox.width / 2;
+              cy = cachedBBox.y + cachedBBox.height / 2;
               useMathOrigin = true;
               el.style.transformOrigin = '0 0';
           } catch(e) {
@@ -110,39 +129,68 @@ export const initAnimationRunner = function(doc) {
       }
 
       const baseTransform = el.__originalTransform;
+      const shadowCaster = el.previousElementSibling?.classList?.contains('svg-drop-shadow-caster') ? el.previousElementSibling : null;
 
-      const keyframes = WAAPI_ANIMATIONS[type].map(kf => {
+      const finalKeyframes = WAAPI_ANIMATIONS[type].map(kf => {
           const newKf = { ...kf };
+          let transformParts = [];
+          if (newKf.translate) { transformParts.push(`translate(${String(newKf.translate).split(' ').join(',')})`); delete newKf.translate; }
+          if (newKf.rotate) { const r = String(newKf.rotate).trim(); transformParts.push(`rotate(${r === '0' ? '0deg' : r})`); delete newKf.rotate; }
+          if (newKf.scale !== undefined) { transformParts.push(`scale(${String(newKf.scale).split(' ').join(',')})`); delete newKf.scale; }
+          if (newKf.skew) { const parts = String(newKf.skew).split(',').map(p => p.trim() === '0' ? '0deg' : p.trim()); transformParts.push(`skew(${parts.join(',')})`); delete newKf.skew; }
+          
+          let combinedKfTransform = newKf.transform || '';
+          if (transformParts.length > 0) { combinedKfTransform = `${combinedKfTransform} ${transformParts.join(' ')}`.trim(); }
+          
           if (baseTransform || useMathOrigin) {
-              if (kf.transform) {
+              if (combinedKfTransform) {
                   if (useMathOrigin) {
-                      newKf.transform = `${baseTransform} translate(${cx}px, ${cy}px) ${kf.transform} translate(-${cx}px, -${cy}px)`;
+                      let px = cx; let py = cy;
+                      if (newKf.transformOrigin) {
+                          const origin = newKf.transformOrigin;
+                          if (origin.includes('left')) px = cachedBBox.x;
+                          if (origin.includes('right')) px = cachedBBox.x + cachedBBox.width;
+                          if (origin.includes('top')) py = cachedBBox.y;
+                          if (origin.includes('bottom')) py = cachedBBox.y + cachedBBox.height;
+                          delete newKf.transformOrigin;
+                      }
+                      newKf.transform = `${baseTransform} translate(${px}px, ${py}px) ${combinedKfTransform} translate(-${px}px, -${py}px)`;
                   } else {
-                      newKf.transform = `${baseTransform} ${kf.transform}`;
+                      newKf.transform = `${baseTransform} ${combinedKfTransform}`;
                   }
               } else {
                   newKf.transform = baseTransform;
               }
+          } else if (combinedKfTransform) {
+              newKf.transform = combinedKfTransform;
           }
           return newKf;
       });
 
       el.setAttribute('data-is-animating', 'true');
-      const anim = el.animate(keyframes, {
-        duration,
-        delay,
-        easing,
-        fill: isLoop ? 'none' : 'forwards',
-        iterations: isLoop ? Infinity : 1
-      });
+      const animSettings = { duration, delay, easing, fill: isLoop ? 'none' : 'forwards', iterations };
+      const anim = el.animate(finalKeyframes, animSettings);
+
+      let shadowAnim = null;
+      if (shadowCaster) {
+          if (shadowCaster.__currentAnimation) {
+              try { shadowCaster.__currentAnimation.cancel(); } catch(err) {}
+          }
+          shadowCaster.setAttribute('data-is-animating', 'true');
+          shadowAnim = shadowCaster.animate(finalKeyframes, animSettings);
+      }
 
       const cleanup = () => {
         el.removeAttribute('data-is-animating');
+        if (shadowCaster) shadowCaster.removeAttribute('data-is-animating');
+        if (el.__currentAnimation === anim) el.__currentAnimation = null;
+        if (shadowCaster && shadowCaster.__currentAnimation === shadowAnim) shadowCaster.__currentAnimation = null;
       };
       anim.onfinish = cleanup;
       anim.oncancel = cleanup;
 
       el.__currentAnimation = anim;
+      if (shadowCaster) shadowCaster.__currentAnimation = shadowAnim;
     } catch (e) {
       console.error("Animation error", e);
     }
@@ -157,12 +205,20 @@ export const initAnimationRunner = function(doc) {
             const type = el.getAttribute('data-animation-open-type');
             if (type && type !== 'none') {
                 const everyVisit = el.getAttribute('data-animation-open-every-visit') !== 'false';
+                
+                if (!everyVisit) {
+                    const runKey = `anim_run_${el.id || el.getAttribute('data-name')}`;
+                    if (sessionStorage.getItem(runKey)) return;
+                    sessionStorage.setItem(runKey, 'true');
+                }
+
                 const settingsStr = JSON.stringify({
                    type,
                    duration: el.getAttribute('data-animation-open-duration'),
                    speed: el.getAttribute('data-animation-open-speed'),
                    delay: el.getAttribute('data-animation-open-delay'),
-                   easing: el.getAttribute('data-animation-open-easing')
+                   easing: el.getAttribute('data-animation-open-easing'),
+                   repeat: el.getAttribute('data-animation-open-repeat')
                 });
 
                 const hasChanged = el.__lastOpenSettings !== settingsStr;
@@ -172,7 +228,8 @@ export const initAnimationRunner = function(doc) {
                   duration: el.getAttribute('data-animation-open-duration'),
                   speed: el.getAttribute('data-animation-open-speed'),
                   delay: el.getAttribute('data-animation-open-delay'),
-                  easing: el.getAttribute('data-animation-open-easing')
+                  easing: el.getAttribute('data-animation-open-easing'),
+                  repeat: el.getAttribute('data-animation-open-repeat')
                 });
                 
                 el.__animOpened = true;
@@ -191,7 +248,8 @@ export const initAnimationRunner = function(doc) {
                   duration: el.getAttribute('data-animation-interact-duration'),
                   speed: el.getAttribute('data-animation-interact-speed'),
                   delay: el.getAttribute('data-animation-interact-delay'),
-                  easing: el.getAttribute('data-animation-interact-easing')
+                  easing: el.getAttribute('data-animation-interact-easing'),
+                  repeat: el.getAttribute('data-animation-interact-repeat')
                 });
 
                 if (el.__lastAlwaysSettings === settingsStr) return;
@@ -201,6 +259,7 @@ export const initAnimationRunner = function(doc) {
                   speed: el.getAttribute('data-animation-interact-speed'),
                   delay: el.getAttribute('data-animation-interact-delay'),
                   easing: el.getAttribute('data-animation-interact-easing'),
+                  repeat: el.getAttribute('data-animation-interact-repeat'),
                   isAlways: true
                 });
                 el.__lastAlwaysSettings = settingsStr;
@@ -226,7 +285,8 @@ export const initAnimationRunner = function(doc) {
                             duration: el.getAttribute('data-animation-interact-duration'),
                             speed: el.getAttribute('data-animation-interact-speed'),
                             delay: el.getAttribute('data-animation-interact-delay'),
-                            easing: el.getAttribute('data-animation-interact-easing')
+                            easing: el.getAttribute('data-animation-interact-easing'),
+                            repeat: el.getAttribute('data-animation-interact-repeat')
                         });
                     });
                 }
@@ -241,7 +301,8 @@ export const initAnimationRunner = function(doc) {
                             duration: el.getAttribute('data-animation-interact-duration'),
                             speed: el.getAttribute('data-animation-interact-speed'),
                             delay: el.getAttribute('data-animation-interact-delay'),
-                            easing: el.getAttribute('data-animation-interact-easing')
+                            easing: el.getAttribute('data-animation-interact-easing'),
+                            repeat: el.getAttribute('data-animation-interact-repeat')
                         });
                     });
                 }
