@@ -3564,11 +3564,13 @@ const ImageEditor = ({
               >
                 {/* Thumbnail */}
                 <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
-                  <img
-                    src={previewSrc || ''}
-                    alt="Thumbnail"
-                    className="w-full h-full object-cover"
-                  />
+                  {previewSrc ? (
+                    <img
+                      src={previewSrc}
+                      alt="Thumbnail"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : null}
                 </div>
 
                 {/* Info & Actions */}

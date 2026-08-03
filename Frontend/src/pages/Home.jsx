@@ -270,7 +270,13 @@ export default function Home() {
         flipbookName: uniqueName,
         pages: pages,
         overwrite: true,
-        folderName: targetFolder
+        folderName: targetFolder,
+        meta: {
+          width: templateData.width,
+          height: templateData.height,
+          templateId: templateData.templateId,
+          orientation: templateData.orientation
+        }
       });
 
       if (res.data && res.data.v_id) {

@@ -147,7 +147,7 @@ const PreviewPage = () => {
         isMobile={false}
         isDoublePage={data.isDoublePage || false}
         targetPage={0}
-        settings={data.settings || {}}
+        settings={{ ...(data.meta || {}), ...(data.settings || {}) }}
         baseUrl={data.projectBaseUrl || ''}
         v_id={data.v_id}
       />

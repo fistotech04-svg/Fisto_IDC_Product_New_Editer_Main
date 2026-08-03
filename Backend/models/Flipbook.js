@@ -33,6 +33,14 @@ const flipbookSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    meta: {
+        type: Object,
+        default: {}
+    },
+    width: { type: Number },
+    height: { type: Number },
+    templateId: { type: String },
+    orientation: { type: String },
     settings: {
         type: Object,
         default: {}

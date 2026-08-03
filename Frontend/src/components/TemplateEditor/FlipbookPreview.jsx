@@ -394,6 +394,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         otherSetupSettings={localSettings?.othersetup}
         activeLayout={localSettings?.layout || 1}
         layoutColors={localSettings?.layoutColors}
+        settings={localSettings}
         hideHeader={false}
         onClose={onClose}
         activeDevice={activeDevice}
