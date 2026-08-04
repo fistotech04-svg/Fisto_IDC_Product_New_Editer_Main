@@ -284,6 +284,7 @@ const Color = ({
           // If a gradient fill layer already exists with a url(#...) fill, we update
           // the <stop> elements directly in the SVG defs. This completely bypasses the
           // MutationObserver -> React re-render cycle for real-time color drag updates.
+          let fillFastPathDone = false;
           let fillLayer = el.querySelector('.image-fill-layer') || el.querySelector('.video-fill-layer') || el.querySelector('.gif-fill-layer');
           if (isGradient && fillLayer) {
             const existingFill = fillLayer.getAttribute('fill') || '';
@@ -327,27 +328,28 @@ const Color = ({
                   // If it's a preset click or drag has finished, we must sync state!
                   if (!isDraggingRef.current) {
                     el.setAttribute('data-fill-color', backgroundColor.fill);
-                    if (onUpdate) onUpdate({ shouldRefresh: true });
                   }
 
-                  return; // Done — skip the slow full-sync path below
+                  fillFastPathDone = true;
                 }
               }
             }
           }
           // Fallback / slow path: non-gradient fill or first-time gradient application
-          if (fillLayer) {
-            if (!isGradient) fillLayer.setAttribute('fill', backgroundColor.fill);
-            fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
-          } else if (isImage) {
-            // Basic fallback if layer missing
-            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            fillLayer.classList.add('image-fill-layer');
-            fillLayer.style.pointerEvents = 'none';
-            if (!isGradient) fillLayer.setAttribute('fill', backgroundColor.fill);
-            fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
-            // Insert at beginning
-            el.insertBefore(fillLayer, el.firstChild);
+          if (!fillFastPathDone) {
+            if (fillLayer) {
+              if (!isGradient) fillLayer.setAttribute('fill', backgroundColor.fill);
+              fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+            } else if (isImage) {
+              // Basic fallback if layer missing
+              fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              fillLayer.classList.add('image-fill-layer');
+              fillLayer.style.pointerEvents = 'none';
+              if (!isGradient) fillLayer.setAttribute('fill', backgroundColor.fill);
+              fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+              // Insert at beginning
+              el.insertBefore(fillLayer, el.firstChild);
+            }
           }
         }
       } else {
@@ -381,6 +383,18 @@ const Color = ({
         el.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
         el.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
         el.setAttribute('data-stroke-type', backgroundColor.strokeType || 'solid');
+
+        if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
+          el.setAttribute('data-stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
+          el.setAttribute('data-stroke-stops', backgroundColor.strokeStops);
+          el.setAttribute('data-stroke-angle', (backgroundColor.strokeAngle || 0).toString());
+          el.setAttribute('data-stroke-radius', (backgroundColor.strokeRadius || 100).toString());
+        } else {
+          el.removeAttribute('data-stroke-gradient-type');
+          el.removeAttribute('data-stroke-stops');
+          el.removeAttribute('data-stroke-angle');
+          el.removeAttribute('data-stroke-radius');
+        }
 
         if (!isImage) {
           const pos = backgroundColor.strokePosition || 'Center';
@@ -714,7 +728,7 @@ const Color = ({
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <span className="font-semibold text-[0.85vw] text-gray-900">Stoke Color</span>
+            <span className="font-semibold text-[0.85vw] text-gray-900">Stroke Color</span>
           </div>
           <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
         </div>
@@ -949,6 +963,7 @@ const Color = ({
         >
           <div className="animate-in fade-in zoom-in-95 duration-200">
             <ColorPicker
+              key={activeColorPicker}
               color={(() => {
                 const type = pseudoProps[`${activeColorPicker}-type`] || 'solid';
                 const currentVal = pseudoProps[activeColorPicker] || '#000000';

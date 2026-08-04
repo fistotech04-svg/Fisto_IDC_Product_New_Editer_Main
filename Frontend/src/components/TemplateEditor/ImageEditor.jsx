@@ -2496,12 +2496,31 @@ const ImageEditor = ({
         }
 
         if (!isImageNode) {
-          if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
+          let strokeStopsNonImg = backgroundColor.strokeStops;
+          let strokeGradTypeNonImg = backgroundColor.strokeGradientType || 'linear';
+          let strokeAngleNonImg = backgroundColor.strokeAngle || '0';
+          let strokeRadiusNonImg = backgroundColor.strokeRadius || '100';
+
+          if (backgroundColor.strokeType === 'gradient' && !strokeStopsNonImg && backgroundColor.stroke && backgroundColor.stroke.includes('gradient')) {
+            const parsed = parseGradient(backgroundColor.stroke);
+            if (parsed && parsed.stops) {
+              strokeStopsNonImg = JSON.stringify(parsed.stops.map(s => ({
+                color: s.color,
+                offset: s.offset,
+                opacity: s.opacity / 100
+              })));
+              strokeGradTypeNonImg = parsed.type.toLowerCase();
+              strokeAngleNonImg = (parsed.angle || 0).toString();
+              strokeRadiusNonImg = (parsed.radius || 100).toString();
+            }
+          }
+
+          if (backgroundColor.strokeType === 'gradient' && strokeStopsNonImg) {
             liveElement.setAttribute('stroke-type', 'gradient');
-            liveElement.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
-            liveElement.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
-            liveElement.setAttribute('stroke-angle', backgroundColor.strokeAngle || '0');
-            liveElement.setAttribute('stroke-radius', backgroundColor.strokeRadius || '100');
+            liveElement.setAttribute('stroke-gradient-type', strokeGradTypeNonImg);
+            liveElement.setAttribute('stroke-stops', strokeStopsNonImg);
+            liveElement.setAttribute('stroke-angle', strokeAngleNonImg);
+            liveElement.setAttribute('stroke-radius', strokeRadiusNonImg);
             syncGradient(liveElement.ownerDocument || document, liveElement, 'stroke');
           } else {
             liveElement.removeAttribute('stroke-type');
@@ -2781,17 +2800,36 @@ const ImageEditor = ({
           liveElement.setAttribute('data-stroke-color', backgroundColor.stroke);
           liveElement.setAttribute('data-stroke-type', backgroundColor.strokeType);
 
-          if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
-            liveElement.setAttribute('data-stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
-            liveElement.setAttribute('data-stroke-stops', backgroundColor.strokeStops || '');
-            liveElement.setAttribute('data-stroke-angle', backgroundColor.strokeAngle || '0');
-            liveElement.setAttribute('data-stroke-radius', backgroundColor.strokeRadius || '100');
+          let strokeStops = backgroundColor.strokeStops;
+          let strokeGradType = backgroundColor.strokeGradientType || 'linear';
+          let strokeAngle = backgroundColor.strokeAngle || '0';
+          let strokeRadius = backgroundColor.strokeRadius || '100';
+
+          if (backgroundColor.strokeType === 'gradient' && !strokeStops && backgroundColor.stroke && backgroundColor.stroke.includes('gradient')) {
+            const parsed = parseGradient(backgroundColor.stroke);
+            if (parsed && parsed.stops) {
+              strokeStops = JSON.stringify(parsed.stops.map(s => ({
+                color: s.color,
+                offset: s.offset,
+                opacity: s.opacity / 100
+              })));
+              strokeGradType = parsed.type.toLowerCase();
+              strokeAngle = (parsed.angle || 0).toString();
+              strokeRadius = (parsed.radius || 100).toString();
+            }
+          }
+
+          if (backgroundColor.strokeType === 'gradient' && strokeStops) {
+            liveElement.setAttribute('data-stroke-gradient-type', strokeGradType);
+            liveElement.setAttribute('data-stroke-stops', strokeStops);
+            liveElement.setAttribute('data-stroke-angle', strokeAngle);
+            liveElement.setAttribute('data-stroke-radius', strokeRadius);
 
             strokeOverlay.setAttribute('stroke-type', 'gradient');
-            strokeOverlay.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
-            strokeOverlay.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
-            strokeOverlay.setAttribute('stroke-angle', backgroundColor.strokeAngle || '0');
-            strokeOverlay.setAttribute('stroke-radius', backgroundColor.strokeRadius || '100');
+            strokeOverlay.setAttribute('stroke-gradient-type', strokeGradType);
+            strokeOverlay.setAttribute('stroke-stops', strokeStops);
+            strokeOverlay.setAttribute('stroke-angle', strokeAngle);
+            strokeOverlay.setAttribute('stroke-radius', strokeRadius);
             syncGradient(liveElement.ownerDocument || document, strokeOverlay, 'stroke');
           } else {
             liveElement.removeAttribute('data-stroke-gradient-type');
