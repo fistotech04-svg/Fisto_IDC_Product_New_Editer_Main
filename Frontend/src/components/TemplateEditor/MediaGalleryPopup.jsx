@@ -16,7 +16,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
     };
@@ -130,29 +130,28 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-[1.5vw] pb-[1vw] border-b border-gray-100">
+      <div className="flex items-center justify-between p-[1.5vw] pb-[1vw]">
         <h2 className="text-[0.9vw] font-bold text-gray-900 mr-[1vw]">
           Media Gallery
         </h2>
-        <div className="flex-1 h-px bg-gray-200 mx-[0.5vw]"></div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
           <Icon icon="lucide:x" className="w-[1vw] h-[1vw]" />
         </button>
       </div>
 
       {/* Content area */}
-      <div className="px-[1.5vw] pb-[1.5vw] pt-[1vw] h-[19vw] flex flex-col">
+      <div className="px-[1.5vw] pb-[1.5vw] pt-0 h-[19vw] flex flex-col">
         <div className="flex flex-col flex-1 min-h-0">
           {/* Toolbar */}
-          <div className="flex items-center justify-between mb-[1vw] shrink-0">
+          <div className="flex items-center justify-between mb-[1vw] pb-[1vw] px-[1.5vw] -mx-[1.5vw] border-b border-gray-100 shrink-0">
             {/* Dropdown */}
             <div className="relative inline-block cursor-pointer" ref={dropdownRef}>
               <div 
-                className="flex items-center justify-between gap-[0.3vw] w-[6.5vw] bg-white border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.25vw] shadow-sm hover:bg-gray-50 transition-colors"
+                className="flex items-center justify-between gap-[0.3vw] w-[7vw] bg-white border border-gray-200 rounded-[0.4vw] px-[0.55vw] py-[0.3vw] shadow-sm hover:bg-gray-50 transition-colors"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               >
-                <span className="text-[0.65vw] font-medium text-gray-700 truncate">{galleryType}</span>
-                <Icon icon="lucide:chevron-down" className="w-[0.7vw] h-[0.7vw] text-gray-500 shrink-0" />
+                <span className="text-[0.7vw] font-medium text-gray-700 truncate">{galleryType}</span>
+                <Icon icon="lucide:chevron-down" className="w-[0.75vw] h-[0.75vw] text-gray-500 shrink-0" />
               </div>
               
               {isDropdownOpen && (
@@ -160,7 +159,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
                   {galleryOptions.map(option => (
                     <div 
                       key={option}
-                      className={`px-[0.5vw] py-[0.4vw] text-[0.65vw] font-medium cursor-pointer transition-colors ${galleryType === option ? 'bg-[#F3F4F6] text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
+                      className={`px-[0.55vw] py-[0.45vw] text-[0.7vw] font-medium cursor-pointer transition-colors ${galleryType === option ? 'bg-[#F3F4F6] text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
                       onClick={() => {
                         setGalleryType(option);
                         setIsDropdownOpen(false);
@@ -176,11 +175,11 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
             {/* Browse Files Button */}
             <div className="bg-[#4D47FF] hover:bg-[#3D38CC] rounded-[0.4vw] p-[0.15vw] shadow-sm transition-colors cursor-pointer inline-block">
               <div 
-                className="flex items-center justify-center gap-[0.4vw] cursor-pointer text-white px-[0.6vw] py-[0.15vw] rounded-[0.3vw] border-[1.5px] border-dashed border-white/60 hover:border-white transition-colors"
+                className="flex items-center justify-center gap-[0.45vw] cursor-pointer text-white px-[0.7vw] py-[0.2vw] rounded-[0.3vw] border-[1.5px] border-dashed border-white/60 hover:border-white transition-colors"
                 onClick={handleUploadClick}
               >
-                <Icon icon="lucide:upload" className="w-[0.7vw] h-[0.7vw] stroke-[2]" />
-                <span className="text-[0.65vw] font-medium">Browse Files</span>
+                <Icon icon="lucide:upload" className="w-[0.75vw] h-[0.75vw] stroke-[2]" />
+                <span className="text-[0.7vw] font-medium">Browse Files</span>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,video/mp4,image/svg+xml,video/x-matroska,image/gif" multiple onChange={handleFileChange} onClick={(e) => { e.target.value = null; }} />
               </div>
             </div>

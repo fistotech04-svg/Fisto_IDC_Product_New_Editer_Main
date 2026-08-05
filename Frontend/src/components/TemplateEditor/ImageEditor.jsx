@@ -3678,15 +3678,15 @@ const ImageEditor = ({
                 {/* Info & Actions */}
                 <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.1vw]">
                   <div className="flex flex-col gap-[0.1vw] mt-[0.6vw]">
-                    <span className="text-[1vw] font-medium text-gray-700 truncate w-[10vw]" title={displayImageName}>
+                    <span className="text-[0.9vw] font-medium text-gray-700 truncate w-[10vw] mt-[0.8vw]" title={displayImageName}>
                       {displayImageName}
                     </span>
-                    <span className="text-[0.75vw] text-gray-400">
+                    <span className="text-[0.75vw] text-gray-400 mt-[0.3vw]">
                       {imageResolution ? `${imageResolution} • ` : ''}{imageFileSize || 'Unknown Size'}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-[0.5vw] mt-[1vw]">
+                  <div className="flex items-center gap-[0.5vw] mt-[0.3vw]">
                     <button
                       onClick={() => setShowReplaceModal(true)}
                       className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
