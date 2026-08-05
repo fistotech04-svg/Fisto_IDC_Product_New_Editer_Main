@@ -8015,8 +8015,8 @@ const MainEditor = ({
                           let cd = {};
                           try { if (cropDataStr && cropDataStr !== 'null') cd = JSON.parse(cropDataStr); } catch (e) { }
 
-                          cd.left = Math.max(0, cLeft);
-                          cd.top = Math.max(0, cTop);
+                          cd.left = cLeft;
+                          cd.top = cTop;
                           cd.width = Math.max(0, cWidth);
                           cd.height = Math.max(0, cHeight);
 
