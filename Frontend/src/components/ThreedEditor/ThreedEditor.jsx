@@ -823,43 +823,13 @@ export default function ThreedEditor() {
         });
     };
 
-    const downscaleTexture = (tex, maxPx) => {
-        if (!tex || !tex.image) return tex;
-        const img = tex.image;
-        const srcW = img.naturalWidth || img.width || maxPx;
-        const srcH = img.naturalHeight || img.height || maxPx;
-        if (srcW <= maxPx && srcH <= maxPx) return tex;
-        const ratio = Math.min(maxPx / srcW, maxPx / srcH);
-        const cv = document.createElement('canvas');
-        cv.width  = Math.max(1, Math.floor(srcW * ratio));
-        cv.height = Math.max(1, Math.floor(srcH * ratio));
-        const ctx = cv.getContext('2d', { alpha: true });
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        
-        const t = new THREE.Texture(cv);
-        t.colorSpace = tex.colorSpace;
-        t.wrapS = tex.wrapS;
-        t.wrapT = tex.wrapT;
-        t.repeat.copy(tex.repeat);
-        t.offset.copy(tex.offset);
-        t.rotation = tex.rotation;
-        t.center.copy(tex.center);
-        t.anisotropy = tex.anisotropy;
-        t.flipY = tex.flipY;
-        t.needsUpdate = true;
-        return t;
-    };
-
     const applyTexturePolicy = () => {
-        originalTextures.forEach((_snap, mat) => {
-            TEX_KEYS.forEach(k => {
-                if (!includeTextures)                        mat[k] = null;
-                else if (quality !== 'Original' && mat[k])  mat[k] = downscaleTexture(mat[k], qualityTextureSize);
+        if (!includeTextures) {
+            originalTextures.forEach((_snap, mat) => {
+                TEX_KEYS.forEach(k => { mat[k] = null; });
+                mat.needsUpdate = true;
             });
-            mat.needsUpdate = true;
-        });
+        }
     };
 
     // STEP 1: Three.js scene -> raw GLB ArrayBuffer
@@ -891,7 +861,6 @@ export default function ThreedEditor() {
     };
 
     const exportNonGLBBlob = (targetScene) => {
-        // if (format === 'obj') return new Blob([new OBJExporter().parse(targetScene)], { type: 'text/plain' });
         if (format === 'stl') return new Blob([new STLExporter().parse(targetScene)], { type: 'application/octet-stream' });
         throw new Error("Unsupported format: " + format);
     };
@@ -906,42 +875,28 @@ export default function ThreedEditor() {
         applyTexturePolicy();
 
         if (exportScope === 'selection' && selectedMaterial) {
-            const zip   = new JSZip();
             const names = selectedMaterial.isGroup ? selectedMaterial.materials : [selectedMaterial.name];
-
-            for (const matName of names) {
-                const displayName = (customMaterialNames && customMaterialNames[matName] ? customMaterialNames[matName] : matName).replace(/\s+/g, '_');
-                setLoadingText("Exporting " + displayName + "...");
-                scene.traverse((obj) => {
-                    if (obj.isMesh && obj.material) {
-                        const hit = obj.name === matName || (Array.isArray(obj.material) ? obj.material.some(m => m.name === matName) : obj.material.name === matName);
-                        obj.visible = hit;
-                    } else if (obj.isLight || obj.isHelper) obj.visible = false;
-                });
-                if (isGLB) {
-                    let buf = await exportSceneToGLBBuffer(scene);
-                    if (useMeshopt) buf = await applyMeshoptToBuffer(buf);
-                    zip.file(displayName + "." + format, new Uint8Array(buf));
-                } else {
-                    zip.file(displayName + "." + format, exportNonGLBBlob(scene));
+            const nameSet = new Set(names);
+            scene.traverse((obj) => {
+                if (obj.isMesh && obj.material) {
+                    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                    const hit = (obj.name && nameSet.has(obj.name)) || mats.some(m => nameSet.has(m.name));
+                    obj.visible = hit;
+                } else if (obj.isLight || obj.isHelper) {
+                    obj.visible = false;
                 }
-            }
+            });
+        }
 
-            setLoadingText("Generating ZIP...");
-            const level = Math.min(9, Math.max(1, Math.ceil(compression / 11)));
-            const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: level } });
-            triggerDownload(zipBlob, name.replace(/\s+/g, '_') + ".zip");
-
+        // Direct single GLB export - no ZIP wrapper
+        if (isGLB) {
+            setLoadingText("Exporting model as GLB...");
+            let buf = await exportSceneToGLBBuffer(scene);
+            if (useMeshopt) buf = await applyMeshoptToBuffer(buf);
+            triggerDownload(buf, name.replace(/\s+/g, '_') + "." + format);
         } else {
-            if (isGLB) {
-                setLoadingText("Exporting scene...");
-                let buf = await exportSceneToGLBBuffer(scene);
-                if (useMeshopt) buf = await applyMeshoptToBuffer(buf);
-                triggerDownload(buf, name.replace(/\s+/g, '_') + "." + format);
-            } else {
-                setLoadingText("Exporting model...");
-                triggerDownload(exportNonGLBBlob(scene), name.replace(/\s+/g, '_') + "." + format);
-            }
+            setLoadingText("Exporting model...");
+            triggerDownload(exportNonGLBBlob(scene), name.replace(/\s+/g, '_') + "." + format);
         }
     } catch (error) {
         console.error("Export error:", error);
@@ -2123,6 +2078,32 @@ export default function ThreedEditor() {
               selectedTextureId={selectedTextureId}
               onAddMaterialClick={() => setShowAddMaterialModal(true)}
               refreshTrigger={materialRefreshKey}
+              onSelectColor={(colorData) => {
+                  if (typeof colorData === 'object') {
+                      setMaterialSettings(prev => {
+                          const next = {
+                              ...prev,
+                              color: colorData.color || colorData.hex || prev.color,
+                              metallic: colorData.metallic !== undefined ? colorData.metallic : prev.metallic,
+                              roughness: colorData.roughness !== undefined ? colorData.roughness : prev.roughness,
+                              normal: colorData.normal !== undefined ? colorData.normal : prev.normal,
+                              ao: colorData.ao !== undefined ? colorData.ao : prev.ao,
+                              bump: colorData.bump !== undefined ? colorData.bump : prev.bump,
+                              emissiveColor: colorData.emissiveColor || '#000000',
+                              emissiveIntensity: colorData.emissiveIntensity !== undefined ? colorData.emissiveIntensity : 0,
+                              useFactorColor: true
+                          };
+                          pushHistory({
+                              ...stateRef.current,
+                              materialSettings: next
+                          });
+                          return next;
+                      });
+                  } else {
+                      handleMaterialUIUpdate('color', colorData);
+                  }
+              }}
+              selectedColor={materialSettings?.color}
             />
           )}
 
