@@ -107,36 +107,45 @@ foreignObject[data-editing="true"]>div * {
 .flipbook-text-scrollbar::-webkit-scrollbar,
 [data-scrollable="true"]::-webkit-scrollbar,
 [data-scrollable="true"] *::-webkit-scrollbar {
-  width: 4px !important;
-  height: 4px !important;
+  width: 14px !important;
+  height: 14px !important;
   background: transparent !important;
 }
 
 .flipbook-text-scrollbar::-webkit-scrollbar-track,
 [data-scrollable="true"]::-webkit-scrollbar-track,
 [data-scrollable="true"] *::-webkit-scrollbar-track {
-  background: transparent !important;
-  border-radius: 8px !important;
+  background-color: #e5e7eb !important; /* Slightly darker gray */
+  border-radius: 20px !important;
+  border: 3px solid transparent !important;
+  background-clip: padding-box !important;
 }
 
 .flipbook-text-scrollbar::-webkit-scrollbar-thumb,
 [data-scrollable="true"]::-webkit-scrollbar-thumb,
 [data-scrollable="true"] *::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.5) !important;
-  border-radius: 8px !important;
-  border: none !important;
+  background-color: var(--scrollbar-color, #4B5563) !important;
+  border-radius: 20px !important;
+  border: 3px solid transparent !important;
+  background-clip: padding-box !important;
 }
 
 .flipbook-text-scrollbar::-webkit-scrollbar-thumb:hover,
 [data-scrollable="true"]::-webkit-scrollbar-thumb:hover,
 [data-scrollable="true"] *::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.8) !important;
+  background: #333333 !important;
+  border-radius: 20px !important;
+  border: 4px solid transparent !important;
+  background-clip: padding-box !important;
 }
 
 .flipbook-text-scrollbar::-webkit-scrollbar-thumb:active,
 [data-scrollable="true"]::-webkit-scrollbar-thumb:active,
 [data-scrollable="true"] *::-webkit-scrollbar-thumb:active {
-  background: rgba(55, 65, 81, 0.9) !important;
+  background: #000000 !important;
+  border-radius: 20px !important;
+  border: 4px solid transparent !important;
+  background-clip: padding-box !important;
 }
 
 foreignObject:not([data-scrollable="true"]):not([data-editing="true"])>div {
@@ -149,11 +158,46 @@ foreignObject[data-sizing-mode="fixed"]>div {
   display: block !important;
 }
 
-foreignObject[data-scrollable="true"]>div {
+.flipbook-text-outer,
+foreignObject[data-scrollable="true"]>div.flipbook-text-outer {
   width: 100% !important;
   height: 100% !important;
-  padding: 0 !important;
-  margin: 0 !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  padding: 24px 6px 24px 16px !important; /* Increased top and bottom padding slightly */
+  background-color: var(--bg-fill, #ffffff) !important;
+  border: calc(var(--bg-stroke-width, 2) * 1px) solid var(--bg-stroke, #d1d5db) !important;
+  border-radius: var(--bg-rx, 16px) !important;
+  position: relative;
+  overflow: hidden !important; /* Prevent viewport rounding issues */
+}
+
+.flipbook-text-viewport {
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  position: relative;
+}
+
+.flipbook-text-viewport::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 14px; /* Avoid overlapping the scrollbar */
+  height: 24px;
+  background: linear-gradient(to top, rgba(0,0,0,0.15), transparent);
+  pointer-events: none;
+  z-index: 10;
+  border-bottom-left-radius: var(--bg-rx, 16px);
+  border-bottom-right-radius: var(--bg-rx, 16px);
+}
+
+.flipbook-text-scrollbar {
+  width: 100% !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   display: block !important;
   box-sizing: border-box !important;
 }
@@ -171,7 +215,7 @@ foreignObject[data-scrollable="true"]>div {
   .custom-scrollbar,
   .flipbook-text-scrollbar {
     scrollbar-width: thin !important;
-    scrollbar-color: #4B5563 #E5E7EB !important;
+    scrollbar-color: var(--scrollbar-color, #4B5563) #E5E7EB !important;
   }
 }
 
@@ -272,6 +316,110 @@ video.hide-controls:hover::-webkit-media-controls {
   font-family: 'Merriweather';
   src: url('/lib/Fonts/Merriweather/Merriweather-VariableFont_opsz,wdth,wght.ttf') format('truetype');
   font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/lib/Fonts/Poppins/Poppins-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/lib/Fonts/Poppins/Poppins-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/lib/Fonts/Poppins/Poppins-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/lib/Fonts/Poppins/Poppins-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Public Sans';
+  src: url('/lib/Fonts/Public_Sans/PublicSans-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Public Sans';
+  src: url('/lib/Fonts/Public_Sans/PublicSans-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Lora';
+  src: url('/lib/Fonts/Lora/Lora-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Lora';
+  src: url('/lib/Fonts/Lora/Lora-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cabin';
+  src: url('/lib/Fonts/Cabin/Cabin-VariableFont_wdth,wght.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cabin';
+  src: url('/lib/Fonts/Cabin/Cabin-Italic-VariableFont_wdth,wght.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Allura';
+  src: url('/lib/Fonts/Allura/Allura-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Parisienne';
+  src: url('/lib/Fonts/Parisienne/Parisienne-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satisfy';
+  src: url('/lib/Fonts/Satisfy/Satisfy-Regular.ttf') format('truetype');
+  font-weight: normal;
   font-style: normal;
   font-display: swap;
 }

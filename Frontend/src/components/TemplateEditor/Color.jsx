@@ -121,9 +121,9 @@ export const handleScrubHelper = (e, initialVal, updateFn, sensitivity = 5) => {
 
 export const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onPickerToggle, baseAttr, selectedElementProps }) => (
   <div className="flex items-center gap-[0.4vw] py-[0.4vw]">
-    <span className="text-[0.85vw] font-semibold text-gray-700 min-w-[3vw]">{label} :</span>
+    <span className="text-[0.85vw] font-semibold text-gray-700 min-w-[3vw] whitespace-nowrap">{label} :</span>
     <div
-      className="w-[2.5vw] h-[2.5vw] rounded-[0.75vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center"
+      className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center"
     >
       <div
         onClick={onPickerToggle}
@@ -143,7 +143,7 @@ export const ColorField = ({ label, color, opacity, onColorChange, onOpacityChan
       )}
     </div>
 
-    <div className="flex-grow flex items-center border-[0.1vw] border-gray-400 rounded-[0.75vw] overflow-hidden h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.7vw]">
+    <div className="flex-grow flex items-center border border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
       <input
         type="text"
         value={(color === 'none' || color === 'transparent' || !color) ? '#' : color?.toUpperCase()}
@@ -195,6 +195,9 @@ const Color = ({
   selectedElement = null,
   onUpdate = null,
   isText = false,
+  sizingMode = 'auto-width',
+  isScrollable = false,
+  selectedElementProps = null,
   ...props
 }) => {
   const containerRef = useRef(null);
@@ -626,6 +629,372 @@ const Color = ({
 
   return (
     <div ref={containerRef} className="flex flex-col font-sans">
+      {isText && (isScrollable === true || selectedElementProps?.['data-scrollable'] === 'true') && (sizingMode === 'fixed' || selectedElementProps?.['data-sizing-mode'] === 'fixed') && (
+        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden mb-[1vw]">
+          <div
+            onClick={() => setOpenSubSection(openSubSection === 'color' || openSubSection === 'bgColor' ? null : 'bgColor')}
+            className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+          >
+            <div className="flex items-center gap-[0.5vw]">
+              <span className="font-semibold text-[0.85vw] text-gray-900">BG Color</span>
+            </div>
+            <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          </div>
+
+          <div className={`grid transition-all duration-300 ease-in-out ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+            <div className="overflow-hidden">
+              <div className="p-[1vw] pt-[0.75vw] flex flex-col gap-[0.75vw]">
+                <ColorField
+                  label="Scroll Bar"
+                  color={backgroundColor?.scrollBarColor || '#000000'}
+                  opacity={(backgroundColor?.scrollBarOpacity !== undefined ? backgroundColor.scrollBarOpacity : 100) / 100}
+                  onColorChange={(val) => {
+                    if (setBackgroundColor) setBackgroundColor(p => ({ ...p, scrollBarColor: val }));
+                    if (onUpdate) onUpdate({ shouldRefresh: true });
+                  }}
+                  onOpacityChange={(val) => {
+                    if (setBackgroundColor) setBackgroundColor(p => ({ ...p, scrollBarOpacity: parseFloat(val) * 100 }));
+                    if (onUpdate) onUpdate({ shouldRefresh: true });
+                  }}
+                  onPickerToggle={() => setActiveColorPicker(activeColorPicker === 'scrollbar' ? null : 'scrollbar')}
+                  baseAttr="data-scrollbar-color"
+                  selectedElementProps={selectedElementProps}
+                />
+
+                <div className="flex items-center gap-[0.5vw] mt-[1vw] mb-[0.5vw]">
+                  <span className="font-semibold text-[0.75vw] text-gray-900">Background Fill Color</span>
+                </div>
+                <div className="flex items-center justify-between gap-[0.5vw]">
+                  {/* Swatch */}
+                  <div
+                    className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center cursor-pointer"
+                    onClick={() => setActiveColorPicker(activeColorPicker === 'bg-fill' ? null : 'bg-fill')}
+                  >
+                    <div
+                      className="w-full h-full border border-gray-200"
+                      style={{
+                        background: (backgroundColor?.bgFill === 'none' || backgroundColor?.bgFill === 'transparent' || backgroundColor?.bgFill === '#' || !backgroundColor?.bgFill)
+                          ? 'white'
+                          : (backgroundColor?.bgFill.toString().toLowerCase().includes('url(#')
+                            ? (selectedElementProps && selectedElementProps[`data-bg-fill-stops`]
+                              ? `linear-gradient(to right, ${JSON.parse(selectedElementProps[`data-bg-fill-stops`]).map(s => s.color).join(', ')})`
+                              : '#ccc')
+                            : backgroundColor?.bgFill)
+                      }}
+                    />
+                    {(backgroundColor?.bgFill === 'none' || backgroundColor?.bgFill === 'transparent' || backgroundColor?.bgFill === '#' || !backgroundColor?.bgFill) && (
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
+                    )}
+                  </div>
+
+                  {/* Input box */}
+                  <div className="flex-grow flex items-center border-[0.1vw] border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
+                    <input
+                      type="text"
+                      value={(backgroundColor?.bgFill === 'none' || backgroundColor?.bgFill === 'transparent' || !backgroundColor?.bgFill) ? '#' : backgroundColor?.bgFill?.toUpperCase()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === '#') {
+                          updateAttr('data-bg-fill', 'none');
+                        } else {
+                          const finalVal = val.startsWith('#') ? val : '#' + val;
+                          updateAttr('data-bg-fill', finalVal);
+                        }
+                      }}
+                      className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw] tracking-tight"
+                      maxLength={7}
+                    />
+                    <div
+                      className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
+                      onPointerDown={(e) => {
+                        const currentPct = Math.round(parseFloat(selectedElementProps?.['data-bg-fill-opacity'] !== undefined ? selectedElementProps?.['data-bg-fill-opacity'] : 1) * 100);
+                        handleScrubHelper(e, currentPct, (val) => {
+                          const num = parseInt(val);
+                          const clamped = Math.min(Math.max(num, 0), 100);
+                          updateAttr('data-bg-fill-opacity', (clamped / 100).toString());
+                        });
+                      }}
+                    >
+                      <span className="text-[0.75vw] font-medium text-gray-600">
+                        {Math.round(parseFloat(selectedElementProps?.['data-bg-fill-opacity'] !== undefined ? selectedElementProps?.['data-bg-fill-opacity'] : 1) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* HEX Dropdown */}
+                  <div className="h-[2vw] flex items-center justify-between px-[0.5vw] border border-gray-200 rounded-[0.5vw] bg-white cursor-pointer hover:bg-gray-50 min-w-[3.5vw]">
+                    <span className="text-[0.7vw] text-gray-600 font-medium">HEX</span>
+                    <ChevronDown size="0.8vw" className="text-gray-400 ml-[0.2vw]" />
+                  </div>
+                </div>
+
+                <div className="w-full h-[1px] bg-gray-200 my-[1vw]"></div>
+                <div className="flex items-center gap-[0.5vw] mb-[0.5vw]">
+                  <span className="font-semibold text-[0.75vw] text-gray-900">Background Stroke Color</span>
+                </div>
+                <div className="flex items-center justify-between gap-[0.5vw]">
+                  {/* Swatch */}
+                  <div
+                    className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center cursor-pointer"
+                    onClick={() => setActiveColorPicker(activeColorPicker === 'bg-stroke' ? null : 'bg-stroke')}
+                  >
+                    <div
+                      className="w-full h-full border border-gray-200"
+                      style={{
+                        background: (backgroundColor?.bgStroke === 'none' || backgroundColor?.bgStroke === 'transparent' || backgroundColor?.bgStroke === '#' || !backgroundColor?.bgStroke)
+                          ? 'white'
+                          : (backgroundColor?.bgStroke.toString().toLowerCase().includes('url(#')
+                            ? (selectedElementProps && selectedElementProps[`data-bg-stroke-stops`]
+                              ? `linear-gradient(to right, ${JSON.parse(selectedElementProps[`data-bg-stroke-stops`]).map(s => s.color).join(', ')})`
+                              : '#ccc')
+                            : backgroundColor?.bgStroke)
+                      }}
+                    />
+                    {(backgroundColor?.bgStroke === 'none' || backgroundColor?.bgStroke === 'transparent' || backgroundColor?.bgStroke === '#' || !backgroundColor?.bgStroke) && (
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
+                    )}
+                  </div>
+
+                  {/* Input box */}
+                  <div className="flex-grow flex items-center border-[0.1vw] border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
+                    <input
+                      type="text"
+                      value={(backgroundColor?.bgStroke === 'none' || backgroundColor?.bgStroke === 'transparent' || !backgroundColor?.bgStroke) ? '#' : backgroundColor?.bgStroke?.toUpperCase()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === '#') {
+                          updateAttr('data-bg-stroke', 'none');
+                        } else {
+                          const finalVal = val.startsWith('#') ? val : '#' + val;
+                          updateAttr('data-bg-stroke', finalVal);
+                        }
+                      }}
+                      className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw] tracking-tight"
+                      maxLength={7}
+                    />
+                    <div
+                      className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
+                      onPointerDown={(e) => {
+                        const currentPct = Math.round(parseFloat(selectedElementProps?.['data-bg-stroke-opacity'] !== undefined ? selectedElementProps?.['data-bg-stroke-opacity'] : 1) * 100);
+                        handleScrubHelper(e, currentPct, (val) => {
+                          const num = parseInt(val);
+                          const clamped = Math.min(Math.max(num, 0), 100);
+                          updateAttr('data-bg-stroke-opacity', (clamped / 100).toString());
+                        });
+                      }}
+                    >
+                      <span className="text-[0.75vw] font-medium text-gray-600">
+                        {Math.round(parseFloat(selectedElementProps?.['data-bg-stroke-opacity'] !== undefined ? selectedElementProps?.['data-bg-stroke-opacity'] : 1) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+
+                </div>                {/* Stroke Properties */}
+                <div className={`flex flex-col gap-[0.75vw] mt-[0.75vw] ${(!backgroundColor?.bgStroke || backgroundColor?.bgStroke === 'none' || backgroundColor?.bgStroke === '#' || backgroundColor?.bgStroke === 'transparent') ? 'opacity-50' : ''}`}>
+                  {/* Row 2: Alignment and Stroke Width */}
+                  <div className="flex items-center gap-[1vw]">
+                    {/* Alignment */}
+                    <div className="flex-1 flex flex-col gap-[0.3vw]">
+                      <span className="text-[0.7vw] text-gray-500 font-medium">Alignment</span>
+                      <div className="relative">
+                        <div
+                          className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
+                          onClick={() => setIsDashPosOpen(!isDashPosOpen)}
+                        >
+                          <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{backgroundColor?.bgStrokePosition || 'Center'}</span>
+                          <ChevronDown size="0.8vw" className="text-gray-400" />
+                        </div>
+                        {isDashPosOpen && (
+                          <>
+                            <div className="fixed inset-0 z-[40]" onClick={(e) => { e.stopPropagation(); setIsDashPosOpen(false); }} />
+                            <div className="absolute top-[110%] left-0 right-0 bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-50 py-1 overflow-hidden">
+                              {['Inside', 'Center', 'Outside'].map(pos => (
+                                <div
+                                  key={pos}
+                                  onClick={() => {
+                                    if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokePosition: pos }));
+                                    setIsDashPosOpen(false);
+                                  }}
+                                  className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
+                                >
+                                  {pos}
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stroke Width */}
+                    <div className="flex-1 flex flex-col gap-[0.3vw]">
+                      <span className="text-[0.7vw] text-gray-500 font-medium">Stoke Width</span>
+                      <div className="flex items-center gap-[0.3vw] h-[2vw]">
+                        <button
+                          className="w-[2vw] h-full flex items-center justify-center bg-gray-100 rounded-[0.3vw] text-gray-600 hover:bg-gray-200 transition-colors"
+                          onClick={() => {
+                            const current = parseFloat(backgroundColor?.bgStrokeWidth !== undefined ? backgroundColor.bgStrokeWidth : 1);
+                            if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeWidth: Math.max(0, current - 1) }));
+                          }}
+                        >
+                          <span className="text-[1vw] leading-none mb-[0.1vw]">-</span>
+                        </button>
+                        <div
+                          className="flex-grow h-full bg-white border border-gray-200 rounded-[0.5vw] flex items-center cursor-ew-resize"
+                          onPointerDown={(e) => {
+                            const current = parseFloat(backgroundColor?.bgStrokeWidth !== undefined ? backgroundColor.bgStrokeWidth : 1);
+                            handleScrubHelper(e, current, (val) => {
+                              const num = parseInt(val);
+                              const clamped = Math.max(0, num);
+                              if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeWidth: clamped }));
+                            });
+                          }}
+                        >
+                          <input
+                            type="text"
+                            value={backgroundColor?.bgStrokeWidth !== undefined ? backgroundColor.bgStrokeWidth : 1}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeWidth: Math.max(0, val) }));
+                            }}
+                            className="w-full text-center text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent"
+                          />
+                        </div>
+                        <button
+                          className="w-[2vw] h-full flex items-center justify-center bg-gray-100 rounded-[0.3vw] text-gray-600 hover:bg-gray-200 transition-colors"
+                          onClick={() => {
+                            const current = parseFloat(backgroundColor?.bgStrokeWidth !== undefined ? backgroundColor.bgStrokeWidth : 1);
+                            if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeWidth: current + 1 }));
+                          }}
+                        >
+                          <span className="text-[1vw] leading-none mb-[0.1vw]">+</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 3: Line style and Dash Property */}
+                  <div className="flex items-center gap-[1vw]">
+                    {/* Line style */}
+                    <div className="flex-1 flex flex-col gap-[0.3vw]">
+                      <span className="text-[0.7vw] text-gray-500 font-medium">Line style</span>
+                      <div className="flex items-center justify-between gap-[0.3vw] h-[2vw]">
+                        {/* Solid */}
+                        <button
+                          onClick={() => updateAttr('data-bg-stroke-dasharray', 'none')}
+                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(!selectedElementProps?.['data-bg-stroke-dasharray'] || selectedElementProps?.['data-bg-stroke-dasharray'] === 'none') ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                        >
+                          <div className={`w-[1.2vw] h-[0.1vw] rounded-full ${(!selectedElementProps?.['data-bg-stroke-dasharray'] || selectedElementProps?.['data-bg-stroke-dasharray'] === 'none') ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                        </button>
+                        {/* Dashed (Short) */}
+                        <button
+                          onClick={() => updateAttr('data-bg-stroke-dasharray', '4,4')}
+                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                        >
+                          <div className="flex gap-[0.15vw]">
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          </div>
+                        </button>
+                        {/* Dashed (Long) */}
+                        <button
+                          onClick={() => updateAttr('data-bg-stroke-dasharray', '8,4')}
+                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                        >
+                          <div className="flex gap-[0.1vw] items-center">
+                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Dash Property */}
+                    <div className={`flex-1 flex flex-col gap-[0.3vw] ${(!selectedElementProps?.['data-bg-stroke-dasharray'] || selectedElementProps?.['data-bg-stroke-dasharray'] === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
+                      <span className="text-[0.7vw] text-gray-500 font-medium">Dash Property</span>
+                      <div className="flex items-center gap-[0.3vw] h-[2vw]">
+                        {(() => {
+                          const dashArray = (selectedElementProps?.['data-bg-stroke-dasharray'] || '8,4').split(',');
+                          const lVal = isNaN(parseInt(dashArray[0])) ? 8 : parseInt(dashArray[0]);
+                          const gVal = isNaN(parseInt(dashArray[1] || dashArray[0])) ? 4 : parseInt(dashArray[1] || dashArray[0]);
+
+                          return (
+                            <>
+                              <div className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.5vw] bg-white h-full px-[0.5vw] cursor-ew-resize" onPointerDown={(e) => handleScrubHelper(e, lVal, (v) => updateAttr('data-bg-stroke-dasharray', `${Math.max(1, parseInt(v))},${gVal}`))}>
+                                <span className="text-[0.7vw] text-gray-400 font-medium">L</span>
+                                <input
+                                  type="number"
+                                  value={lVal}
+                                  onChange={(e) => updateAttr('data-bg-stroke-dasharray', `${Math.max(1, parseInt(e.target.value || 1))},${gVal}`)}
+                                  className="w-[1.5vw] bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium no-spin text-center cursor-text"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                              <span className="text-[0.7vw] text-gray-400 font-bold">:</span>
+                              <div className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.5vw] bg-white h-full px-[0.5vw] cursor-ew-resize" onPointerDown={(e) => handleScrubHelper(e, gVal, (v) => updateAttr('data-bg-stroke-dasharray', `${lVal},${Math.max(1, parseInt(v))}`))}>
+                                <span className="text-[0.7vw] text-gray-400 font-medium">G</span>
+                                <input
+                                  type="number"
+                                  value={gVal}
+                                  onChange={(e) => updateAttr('data-bg-stroke-dasharray', `${lVal},${Math.max(1, parseInt(e.target.value || 1))}`)}
+                                  className="w-[1.5vw] bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium no-spin text-center cursor-text"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 4: Line Corner */}
+                  <div className="flex items-center gap-[1vw]">
+                    <div className="flex-1 flex flex-col gap-[0.3vw]">
+                      <span className="text-[0.7vw] text-gray-500 font-medium">Line Corner</span>
+                      <div className="relative">
+                        <div
+                          className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
+                          onClick={() => setIsStrokeStyleOpen(!isStrokeStyleOpen)}
+                        >
+                          <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{(selectedElementProps?.['data-bg-stroke-linecap'] === 'round') ? 'Rounded' : 'Square'}</span>
+                          <ChevronDown size="0.8vw" className="text-gray-400" />
+                        </div>
+                        {isStrokeStyleOpen && (
+                          <>
+                            <div className="fixed inset-0 z-[40]" onClick={(e) => { e.stopPropagation(); setIsStrokeStyleOpen(false); }} />
+                            <div className="absolute bottom-[110%] left-0 right-0 bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-50 py-1 overflow-hidden">
+                              {['Square', 'Rounded'].map(corner => (
+                                <div
+                                  key={corner}
+                                  onClick={() => {
+                                    const isRound = corner === 'Rounded';
+                                    updateAttr('data-bg-stroke-linecap', isRound ? 'round' : 'butt');
+                                    updateAttr('data-bg-stroke-linejoin', isRound ? 'round' : 'miter');
+                                    setIsStrokeStyleOpen(false);
+                                  }}
+                                  className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
+                                >
+                                  {corner}
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {!hideFill && (
         <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden mb-[1vw]">
           <div
@@ -721,222 +1090,272 @@ const Color = ({
 
         <div className={`grid transition-all duration-300 ease-in-out ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
-            <div className="p-[1vw] pt-[0.75vw] space-y-[0.5vw]">
-              <ColorField
-                label="Stroke"
-                color={pseudoProps.stroke}
-                opacity={pseudoProps['stroke-opacity']}
-                onColorChange={(val) => updateAttr('stroke', val)}
-                onOpacityChange={(val) => updateAttr('stroke-opacity', val.toString())}
-                onPickerToggle={() => setActiveColorPicker(activeColorPicker === 'stroke' ? null : 'stroke')}
-                baseAttr="stroke"
-                selectedElementProps={pseudoProps}
-              />
+            <div className="p-[1vw] pt-[0.75vw] flex flex-col gap-[0.75vw]">
 
-              {/* STROKE SETTINGS */}
-              {(pseudoProps.stroke && pseudoProps.stroke !== 'none' && pseudoProps.stroke !== '#' && pseudoProps.stroke !== 'transparent') && (
-                <div className="flex items-center gap-[0.4vw] py-[0.1vw]">
-                  <div className="w-[3vw]"></div>
-                  <div className="w-[2.5vw] flex items-center justify-center">
-                    <div
-                      className={`flex items-center justify-center h-[2vw] w-[2vw] rounded-[0.5vw] cursor-pointer transition-colors shadow-sm ${showStrokeSettings ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-white text-gray-500'}`}
-                      onClick={(e) => {
-                        const row = e.currentTarget.closest('.flex.items-center.gap-\\[0\\.4vw\\].py-\\[0\\.1vw\\]') || e.currentTarget;
-                        const rowRect = row.getBoundingClientRect();
-                        const btnRect = e.currentTarget.getBoundingClientRect();
-                        const popupHeight = 250;
-                        const pos = { right: `calc(100vw - ${rowRect.left}px + 1.5vw)` };
-                        const centerY = btnRect.top + (btnRect.height / 2) - (popupHeight / 2);
-                        pos.top = Math.max(90, Math.min(centerY, window.innerHeight - popupHeight - 20));
-                        setStrokeSettingsPos(pos);
-                        setShowStrokeSettings(!showStrokeSettings);
-                      }}
-                    >
-                      <SlidersHorizontal size="1.1vw" className="currentColor" />
-                    </div>
+              {/* Row 1: Color Picker */}
+              <div className="flex items-center justify-between gap-[0.5vw]">
+                {/* Swatch */}
+                <div
+                  className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center cursor-pointer"
+                  onClick={() => setActiveColorPicker(activeColorPicker === 'stroke' ? null : 'stroke')}
+                >
+                  <div
+                    className="w-full h-full border border-gray-200"
+                    style={{
+                      background: (pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || pseudoProps.stroke === '#' || !pseudoProps.stroke)
+                        ? 'white'
+                        : (pseudoProps.stroke.toString().toLowerCase().includes('url(#')
+                          ? (pseudoProps && pseudoProps[`stroke-stops`]
+                            ? `linear-gradient(to right, ${JSON.parse(pseudoProps[`stroke-stops`]).map(s => s.color).join(', ')})`
+                            : '#ccc')
+                          : pseudoProps.stroke)
+                    }}
+                  />
+                  {(pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || pseudoProps.stroke === '#' || !pseudoProps.stroke) && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
+                  )}
+                </div>
+
+                {/* Input box */}
+                <div className="flex-grow flex items-center border-[0.1vw] border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
+                  <input
+                    type="text"
+                    value={(pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || !pseudoProps.stroke) ? '#' : pseudoProps.stroke?.toUpperCase()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || val === '#') {
+                        updateAttr('stroke', 'none');
+                      } else {
+                        const finalVal = val.startsWith('#') ? val : '#' + val;
+                        updateAttr('stroke', finalVal);
+                      }
+                    }}
+                    className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw] tracking-tight"
+                    maxLength={7}
+                  />
+                  <div
+                    className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
+                    onPointerDown={(e) => {
+                      const currentPct = Math.round(parseFloat(pseudoProps['stroke-opacity'] !== undefined ? pseudoProps['stroke-opacity'] : 1) * 100);
+                      handleScrubHelper(e, currentPct, (val) => {
+                        const num = parseInt(val);
+                        const clamped = Math.min(Math.max(num, 0), 100);
+                        updateAttr('stroke-opacity', (clamped / 100).toString());
+                      });
+                    }}
+                  >
+                    <span className="text-[0.75vw] font-medium text-gray-600">
+                      {Math.round(parseFloat(pseudoProps['stroke-opacity'] !== undefined ? pseudoProps['stroke-opacity'] : 1) * 100)}%
+                    </span>
                   </div>
+                </div>
 
-                  <div className="flex-grow flex items-center gap-[0.4vw]">
-                    <div className="relative flex-grow h-[2.5vw]">
+                {/* HEX Dropdown */}
+                <div className="h-[2vw] flex items-center justify-between px-[0.5vw] border border-gray-200 rounded-[0.5vw] bg-white cursor-pointer hover:bg-gray-50 min-w-[3.5vw]">
+                  <span className="text-[0.7vw] text-gray-600 font-medium">HEX</span>
+                  <ChevronDown size="0.8vw" className="text-gray-400 ml-[0.2vw]" />
+                </div>
+              </div>
+
+              {/* Stroke Properties */}
+              <div className={`flex flex-col gap-[0.75vw] ${(!pseudoProps.stroke || pseudoProps.stroke === 'none' || pseudoProps.stroke === '#' || pseudoProps.stroke === 'transparent') ? 'opacity-50' : ''}`}>
+                {/* Row 2: Alignment and Stroke Width */}
+                <div className="flex items-center gap-[1vw]">
+                  {/* Alignment */}
+                  <div className="flex-1 flex flex-col gap-[0.3vw]">
+                    <span className="text-[0.7vw] text-gray-500 font-medium">Alignment</span>
+                    <div className="relative">
                       <div
-                        className={`h-full px-[0.7vw] border-[0.1vw] rounded-[0.75vw] flex items-center gap-[0.5vw] cursor-pointer justify-between bg-white transition-all font-semibold ${isStrokeStyleOpen ? 'border-indigo-500 shadow-sm' : 'border-gray-400 hover:border-indigo-400'}`}
-                        onClick={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setDropdownPos({ top: rect.bottom + 5, left: rect.left, width: rect.width });
-                          setIsStrokeStyleOpen(!isStrokeStyleOpen);
-                        }}
+                        className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
+                        onClick={() => setIsDashPosOpen(!isDashPosOpen)}
                       >
-                        <span className="text-[0.75vw] text-gray-700 whitespace-nowrap overflow-hidden">
-                          {(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none') ? 'Dashed' : 'Solid'}
-                        </span>
-                        <ChevronDown size="0.9vw" className={`text-gray-500 transition-transform ${isStrokeStyleOpen ? 'rotate-180' : ''}`} />
+                        <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{pseudoProps['data-stroke-position'] || 'Center'}</span>
+                        <ChevronDown size="0.8vw" className="text-gray-400" />
                       </div>
-
-                      {isStrokeStyleOpen && createPortal(
+                      {isDashPosOpen && (
                         <>
-                          <div className="fixed inset-0 z-[9998]" onClick={(e) => { e.stopPropagation(); setIsStrokeStyleOpen(false); }} />
-                          <div
-                            className="fixed py-1 bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[9999] animate-in fade-in zoom-in duration-200"
-                            style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
-                          >
-                            {['Solid', 'Dashed'].map((type) => (
+                          <div className="fixed inset-0 z-[40]" onClick={(e) => { e.stopPropagation(); setIsDashPosOpen(false); }} />
+                          <div className="absolute top-[110%] left-0 right-0 bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-50 py-1 overflow-hidden">
+                            {['Inside', 'Center', 'Outside'].map(pos => (
                               <div
-                                key={type}
-                                className={`px-[1vw] py-[0.5vw] text-[0.8vw] cursor-pointer transition-colors ${(type === 'Solid' && (!pseudoProps.strokeDasharray || pseudoProps.strokeDasharray === 'none')) ||
-                                  (type === 'Dashed' && pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none')
-                                  ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                                  : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600 font-semibold'
-                                  }`}
+                                key={pos}
                                 onClick={() => {
-                                  updateAttr('stroke-dasharray', type === 'Dashed' ? '10,10' : 'none');
-                                  setIsStrokeStyleOpen(false);
+                                  updateAttr('data-stroke-position', pos);
+                                  setIsDashPosOpen(false);
                                 }}
+                                className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
                               >
-                                {type}
+                                {pos}
                               </div>
                             ))}
                           </div>
-                        </>,
-                        document.body
+                        </>
                       )}
                     </div>
+                  </div>
 
-                    <div className="h-[2.5vw] w-[4.5vw] border-[0.1vw] border-gray-400 rounded-[0.75vw] flex items-center px-[0.6vw] gap-[0.3vw] bg-white hover:border-indigo-400 transition-colors flex-shrink-0">
-                      <div
-                        className="cursor-ew-resize hover:bg-gray-50 p-[0.2vw] rounded-[0.3vw] transition-colors"
-                        onPointerDown={(e) => {
-                          const initialVal = parseFloat(pseudoProps.strokeWidth !== undefined ? pseudoProps.strokeWidth : 0);
-                          handleScrubHelper(e, initialVal, (val) => {
-                            const newVal = Math.max(0, parseInt(val));
-                            updateAttr('stroke-width', newVal.toString());
-                          }, 8);
+                  {/* Stroke Width */}
+                  <div className="flex-1 flex flex-col gap-[0.3vw]">
+                    <span className="text-[0.7vw] text-gray-500 font-medium">Stoke Width</span>
+                    <div className="flex items-center gap-[0.3vw] h-[2vw]">
+                      <button
+                        className="w-[2vw] h-full flex items-center justify-center bg-gray-100 rounded-[0.3vw] text-gray-600 hover:bg-gray-200 transition-colors"
+                        onClick={() => {
+                          const current = parseFloat(pseudoProps.strokeWidth !== undefined ? pseudoProps.strokeWidth : 0);
+                          updateAttr('stroke-width', Math.max(0, current - 1).toString());
                         }}
                       >
-                        <Icon icon="material-symbols:line-weight" width="1vw" height="1vw" className="text-gray-500 flex-shrink-0" />
+                        <span className="text-[1vw] leading-none mb-[0.1vw]">-</span>
+                      </button>
+                      <div
+                        className="flex-grow h-full bg-white border border-gray-200 rounded-[0.5vw] flex items-center cursor-ew-resize"
+                        onPointerDown={(e) => {
+                          const current = parseFloat(pseudoProps.strokeWidth !== undefined && !isNaN(parseFloat(pseudoProps.strokeWidth)) ? pseudoProps.strokeWidth : 0);
+                          handleScrubHelper(e, current, (v) => updateAttr('stroke-width', Math.max(0, parseInt(v)).toString()));
+                        }}
+                      >
+                        <input
+                          type="number"
+                          value={pseudoProps.strokeWidth !== undefined && !isNaN(parseFloat(pseudoProps.strokeWidth)) ? parseFloat(pseudoProps.strokeWidth) : 0}
+                          onChange={(e) => updateAttr('stroke-width', e.target.value)}
+                          className="w-full h-full text-[0.75vw] font-medium outline-none text-center bg-transparent text-gray-700 no-spin cursor-ew-resize"
+                        />
                       </div>
-                      <input
-                        type="number"
-                        value={pseudoProps.strokeWidth !== undefined && !isNaN(parseFloat(pseudoProps.strokeWidth)) ? parseFloat(pseudoProps.strokeWidth) : 0}
-                        onChange={(e) => updateAttr('stroke-width', e.target.value)}
-                        className="w-full text-[0.8vw] font-semibold outline-none text-right bg-transparent text-gray-700 no-spin"
-                      />
+                      <button
+                        className="w-[2vw] h-full flex items-center justify-center bg-gray-100 rounded-[0.3vw] text-gray-600 hover:bg-gray-200 transition-colors"
+                        onClick={() => {
+                          const current = parseFloat(pseudoProps.strokeWidth !== undefined ? pseudoProps.strokeWidth : 0);
+                          updateAttr('stroke-width', (current + 1).toString());
+                        }}
+                      >
+                        <span className="text-[1vw] leading-none mb-[0.1vw]">+</span>
+                      </button>
                     </div>
                   </div>
                 </div>
-              )}
+
+                {/* Row 3: Line style and Dash Property */}
+                <div className="flex items-center gap-[1vw]">
+                  {/* Line style */}
+                  <div className="flex-1 flex flex-col gap-[0.3vw]">
+                    <span className="text-[0.7vw] text-gray-500 font-medium">Line style</span>
+                    <div className="flex items-center justify-between gap-[0.3vw] h-[2vw]">
+                      {/* Solid */}
+                      <button
+                        onClick={() => updateAttr('stroke-dasharray', 'none')}
+                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(!pseudoProps.strokeDasharray || pseudoProps.strokeDasharray === 'none') ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                      >
+                        <div className={`w-[1.2vw] h-[0.1vw] rounded-full ${(!pseudoProps.strokeDasharray || pseudoProps.strokeDasharray === 'none') ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                      </button>
+                      {/* Dashed (Short) */}
+                      <button
+                        onClick={() => updateAttr('stroke-dasharray', '4,4')}
+                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                      >
+                        <div className="flex gap-[0.15vw]">
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                        </div>
+                      </button>
+                      {/* Dashed (Long) */}
+                      <button
+                        onClick={() => updateAttr('stroke-dasharray', '8,4')}
+                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                      >
+                        <div className="flex gap-[0.1vw] items-center">
+                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dash Property */}
+                  <div className={`flex-1 flex flex-col gap-[0.3vw] ${(!pseudoProps.strokeDasharray || pseudoProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
+                    <span className="text-[0.7vw] text-gray-500 font-medium">Dash Property</span>
+                    <div className="flex items-center gap-[0.3vw] h-[2vw]">
+                      {(() => {
+                        const dashArray = (pseudoProps.strokeDasharray || '8,4').split(',');
+                        const lVal = isNaN(parseInt(dashArray[0])) ? 8 : parseInt(dashArray[0]);
+                        const gVal = isNaN(parseInt(dashArray[1] || dashArray[0])) ? 4 : parseInt(dashArray[1] || dashArray[0]);
+
+                        return (
+                          <>
+                            <div className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.5vw] bg-white h-full px-[0.5vw] cursor-ew-resize" onPointerDown={(e) => handleScrubHelper(e, lVal, (v) => updateAttr('stroke-dasharray', `${Math.max(1, parseInt(v))},${gVal}`))}>
+                              <span className="text-[0.7vw] text-gray-400 font-medium">L</span>
+                              <input
+                                type="number"
+                                value={lVal}
+                                onChange={(e) => updateAttr('stroke-dasharray', `${Math.max(1, parseInt(e.target.value || 1))},${gVal}`)}
+                                className="w-[1.5vw] bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium no-spin text-center cursor-text"
+                                onPointerDown={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                            <span className="text-[0.7vw] text-gray-400 font-bold">:</span>
+                            <div className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.5vw] bg-white h-full px-[0.5vw] cursor-ew-resize" onPointerDown={(e) => handleScrubHelper(e, gVal, (v) => updateAttr('stroke-dasharray', `${lVal},${Math.max(1, parseInt(v))}`))}>
+                              <span className="text-[0.7vw] text-gray-400 font-medium">G</span>
+                              <input
+                                type="number"
+                                value={gVal}
+                                onChange={(e) => updateAttr('stroke-dasharray', `${lVal},${Math.max(1, parseInt(e.target.value || 1))}`)}
+                                className="w-[1.5vw] bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium no-spin text-center cursor-text"
+                                onPointerDown={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 4: Line Corner */}
+                <div className="flex items-center gap-[1vw]">
+                  <div className="flex-1 flex flex-col gap-[0.3vw]">
+                    <span className="text-[0.7vw] text-gray-500 font-medium">Line Corner</span>
+                    <div className="relative">
+                      <div
+                        className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
+                        onClick={() => setIsStrokeStyleOpen(!isStrokeStyleOpen)}
+                      >
+                        <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{(pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round') ? 'Rounded' : 'Square'}</span>
+                        <ChevronDown size="0.8vw" className="text-gray-400" />
+                      </div>
+                      {isStrokeStyleOpen && (
+                        <>
+                          <div className="fixed inset-0 z-[40]" onClick={(e) => { e.stopPropagation(); setIsStrokeStyleOpen(false); }} />
+                          <div className="absolute bottom-[110%] left-0 right-0 bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-50 py-1 overflow-hidden">
+                            {['Square', 'Rounded'].map(corner => (
+                              <div
+                                key={corner}
+                                onClick={() => {
+                                  const isRound = corner === 'Rounded';
+                                  updateAttr('stroke-linecap', isRound ? 'round' : 'butt');
+                                  updateAttr('stroke-linejoin', isRound ? 'round' : 'miter');
+                                  setIsStrokeStyleOpen(false);
+                                }}
+                                className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
+                              >
+                                {corner}
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {/* Empty div for right side to maintain grid alignment */}
+                  <div className="flex-1"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      {showStrokeSettings && createPortal(
-        <div
-          id="stroke-settings-popup"
-          className="fixed z-[4000] w-[15vw] bg-white rounded-[1vw] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 flex flex-col p-[1vw] space-y-[1vw] animate-in fade-in zoom-in-95 duration-200"
-          style={{
-            top: strokeSettingsPos.top,
-            bottom: strokeSettingsPos.bottom,
-            right: strokeSettingsPos.right
-          }}
-        >
-          <div className="flex items-center gap-[0.5vw]">
-            <span className="text-[0.85vw] font-semibold text-gray-800">Properties</span>
-            <div className="h-px flex-grow bg-gray-100"></div>
-            <button
-              onClick={() => {
-                setShowStrokeSettings(false);
-                if (activeColorPicker?.includes('stroke')) {
-                  setActiveColorPicker(null);
-                  if (setShowDetailedPicker) setShowDetailedPicker(false);
-                }
-              }}
-              className="p-[0.3vw] hover:bg-gray-100 rounded-[0.5vw] transition-colors"
-            >
-              <X size="1vw" className="text-gray-400" />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-[0.75vw] font-semibold text-gray-600">Position :</span>
-            <div className="relative flex-grow ml-[1vw]">
-              <div
-                className="h-[2vw] px-[0.7vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white min-w-[5.5vw]"
-                onClick={() => setIsDashPosOpen(!isDashPosOpen)}
-              >
-                <span className="text-[0.7vw] font-semibold text-gray-700 capitalize">{pseudoProps['data-stroke-position'] || 'Center'}</span>
-                <ChevronDown size="0.8vw" className="text-gray-400" />
-              </div>
-              {isDashPosOpen && (
-                <>
-                  <div className="fixed inset-0 z-[40]" onClick={(e) => { e.stopPropagation(); setIsDashPosOpen(false); }} />
-                  <div className="absolute top-[110%] left-0 right-0 bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-50 py-1 overflow-hidden">
-                    {['Inside', 'Center', 'Outside'].map(pos => (
-                      <div
-                        key={pos}
-                        onClick={() => {
-                          updateAttr('data-stroke-position', pos);
-                          setIsDashPosOpen(false);
-                        }}
-                        className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
-                      >
-                        {pos}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="h-px bg-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] mx-[-1vw]" />
-
-          <div className={`space-y-[0.75vw] ${(!pseudoProps.strokeDasharray || pseudoProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
-            {[
-              { label: 'Length', key: 'dash' },
-              { label: 'Gap', key: 'gap' }
-            ].map(item => {
-              const dashArray = (pseudoProps.strokeDasharray || '10,10').split(',');
-              const rawStr = item.key === 'dash' ? dashArray[0] : (dashArray[1] || dashArray[0]);
-              const val = isNaN(parseInt(rawStr)) ? 1 : parseInt(rawStr);
-
-              const updateValue = (newVal) => {
-                const v = Math.max(1, newVal);
-                const d = item.key === 'dash' ? v : (parseInt(dashArray[0]) || 1);
-                const g = item.key === 'gap' ? v : (parseInt(dashArray[1] || dashArray[0]) || 1);
-                updateAttr('stroke-dasharray', `${d},${g}`);
-              };
-
-              return (
-                <DashInput
-                  key={item.key}
-                  label={item.label}
-                  initialValue={val}
-                  onChange={updateValue}
-                />
-              );
-            })}
-          </div>
-
-          <div className="h-px bg-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] mx-[-1vw]" />
-
-          <div className={`flex items-center justify-between ${(!pseudoProps.strokeDasharray || pseudoProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
-            <span className="text-[0.75vw] font-semibold text-gray-600">Round Corners :</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const currentCap = pseudoProps.strokeLinecap || pseudoProps['stroke-linecap'];
-                const isRound = currentCap === 'round';
-                updateAttr('stroke-linecap', isRound ? 'butt' : 'round');
-                updateAttr('stroke-linejoin', isRound ? 'miter' : 'round');
-              }}
-              className={`relative block w-[2.2vw] h-[1.2vw] rounded-full transition-colors duration-200 ease-in-out outline-none shrink-0 cursor-pointer ${(pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round') ? 'bg-[#4D47FF]' : 'bg-gray-300'}`}
-            >
-              <div className={`absolute top-[0.1vw] w-[1vw] h-[1vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_1px_3px_rgba(0,0,0,0.2)] ${(pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round') ? 'left-[1.1vw]' : 'left-[0.1vw]'}`} />
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {activeColorPicker && !activeColorPicker.includes('effect-') && createPortal(
         <div
@@ -950,6 +1369,15 @@ const Color = ({
           <div className="animate-in fade-in zoom-in-95 duration-200">
             <ColorPicker
               color={(() => {
+                if (activeColorPicker === 'scrollbar') {
+                  return backgroundColor?.scrollBarColor || '#000000';
+                }
+                if (activeColorPicker === 'bg-fill') {
+                  return backgroundColor?.bgFill || 'transparent';
+                }
+                if (activeColorPicker === 'bg-stroke') {
+                  return backgroundColor?.bgStroke || 'transparent';
+                }
                 const type = pseudoProps[`${activeColorPicker}-type`] || 'solid';
                 const currentVal = pseudoProps[activeColorPicker] || '#000000';
                 const stopsJson = pseudoProps[`${activeColorPicker}-stops`];
@@ -965,9 +1393,21 @@ const Color = ({
                 }
                 return pseudoProps[activeColorPicker] || '#000000';
               })()}
-              disableGradient={isText && activeColorPicker === 'stroke'}
+              disableGradient={activeColorPicker === 'stroke' || activeColorPicker === 'bg-stroke' || activeColorPicker === 'scrollbar'}
               onChange={(newVal, isDragging = false) => {
                 isDraggingRef.current = isDragging;
+                if (activeColorPicker === 'scrollbar') {
+                  if (setBackgroundColor) setBackgroundColor(p => ({ ...p, scrollBarColor: newVal }));
+                  return;
+                }
+                if (activeColorPicker === 'bg-fill') {
+                  if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgFill: newVal }));
+                  return;
+                }
+                if (activeColorPicker === 'bg-stroke') {
+                  if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStroke: newVal }));
+                  return;
+                }
                 if (newVal.includes('gradient')) {
                   const parsed = parseGradient(newVal);
                   if (parsed) {
@@ -988,9 +1428,9 @@ const Color = ({
                       if (activeColorPicker === 'fill') {
                         return { ...p, fill: newVal, fillType: 'solid' };
                       } else if (activeColorPicker === 'stroke') {
-                        return { 
-                          ...p, 
-                          stroke: newVal, 
+                        return {
+                          ...p,
+                          stroke: newVal,
                           strokeType: 'solid',
                           strokeWeight: (p.strokeWeight === 0 && newVal !== 'transparent' && newVal !== 'none') ? 1 : p.strokeWeight
                         };
@@ -1001,7 +1441,16 @@ const Color = ({
                 }
               }}
               opacity={(() => {
-                if (activeColorPicker === 'fill') {
+                if (activeColorPicker === 'scrollbar') {
+                  const op = backgroundColor?.scrollBarOpacity !== undefined ? backgroundColor.scrollBarOpacity : 100;
+                  return parseFloat(op);
+                } else if (activeColorPicker === 'bg-fill') {
+                  const op = backgroundColor?.bgFillOpacity !== undefined ? backgroundColor.bgFillOpacity / 100 : 1;
+                  return parseFloat(op) * 100;
+                } else if (activeColorPicker === 'bg-stroke') {
+                  const op = backgroundColor?.bgStrokeOpacity !== undefined ? backgroundColor.bgStrokeOpacity / 100 : 1;
+                  return parseFloat(op) * 100;
+                } else if (activeColorPicker === 'fill') {
                   const op = pseudoProps.opacity !== undefined && pseudoProps.opacity !== '' && pseudoProps.opacity !== null ? pseudoProps.opacity : 1;
                   return parseFloat(op) * 100;
                 } else if (activeColorPicker === 'stroke') {
@@ -1011,7 +1460,13 @@ const Color = ({
                 return 100;
               })()}
               onOpacityChange={(newOpacity) => {
-                if (activeColorPicker === 'fill') {
+                if (activeColorPicker === 'scrollbar') {
+                  if (setBackgroundColor) setBackgroundColor(p => ({ ...p, scrollBarOpacity: parseFloat(newOpacity) }));
+                } else if (activeColorPicker === 'bg-fill') {
+                  if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgFillOpacity: parseFloat(newOpacity) }));
+                } else if (activeColorPicker === 'bg-stroke') {
+                  if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeOpacity: parseFloat(newOpacity) }));
+                } else if (activeColorPicker === 'fill') {
                   updateAttr('opacity', (newOpacity / 100).toString());
                 } else if (activeColorPicker === 'stroke') {
                   updateAttr('stroke-opacity', (newOpacity / 100).toString());
@@ -1058,5 +1513,4 @@ const Color = ({
     </div>
   );
 };
-
 export default Color;

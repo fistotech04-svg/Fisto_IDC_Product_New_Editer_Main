@@ -2126,6 +2126,65 @@ const MainEditor = ({
     return () => clearInterval(intervalId);
   }, [setSelectedLayerId]);
 
+  // Global observer for dynamic styling to bypass WebKit pseudo-element bugs and ensure styles persist on load
+  useEffect(() => {
+    let animationFrameId;
+    const updateScrollbarStyles = () => {
+      const els = document.querySelectorAll('[data-scrollbar-color], [data-bg-fill], [data-bg-stroke]');
+      let cssRules = '';
+      els.forEach(el => {
+        if (el.id) {
+          if (el.hasAttribute('data-scrollbar-color')) {
+            cssRules += `[id="${el.id}"] .flipbook-text-scrollbar::-webkit-scrollbar-thumb { background-color: ${el.getAttribute('data-scrollbar-color')} !important; border-radius: 20px !important; border: 3px solid transparent !important; background-clip: padding-box !important; }\n`;
+          }
+          if (el.hasAttribute('data-bg-fill')) {
+            const bgFill = el.getAttribute('data-bg-fill');
+            cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: ${bgFill} !important; --bg-fill: ${bgFill} !important; }\n`;
+          }
+          if (el.hasAttribute('data-bg-stroke')) {
+            const sw = el.getAttribute('data-bg-stroke-width') !== null ? el.getAttribute('data-bg-stroke-width') : 2;
+            cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { border: ${sw}px solid ${el.getAttribute('data-bg-stroke')} !important; }\n`;
+          }
+        }
+      });
+      let styleTag = document.getElementById('global-scrollbar-styles');
+      if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'global-scrollbar-styles';
+        document.head.appendChild(styleTag);
+      }
+      if (styleTag.textContent !== cssRules) {
+        styleTag.textContent = cssRules;
+        // Force live sync redraw for WebKit after rules are applied
+        // We use a tiny timeout so the browser has time to parse the new CSS rule before we kick it!
+        setTimeout(() => {
+          els.forEach(el => {
+            const innerDiv = el.querySelector('.flipbook-text-scrollbar');
+            if (innerDiv) {
+              const currentOverflow = innerDiv.style.overflowY;
+              innerDiv.style.overflowY = 'hidden';
+              void innerDiv.offsetHeight; // This triggers the redraw
+              innerDiv.style.overflowY = currentOverflow || 'auto';
+            }
+          });
+        }, 10);
+      }
+    };
+    
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(updateScrollbarStyles);
+    });
+    
+    updateScrollbarStyles();
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
+    
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
   // Global Stroke Overlay Sync
   useEffect(() => {
     const syncOverlays = () => {
@@ -9911,8 +9970,12 @@ const MainEditor = ({
 
     if (foTarget.tagName.toLowerCase() !== 'foreignobject') return;
 
-    const div = foTarget.firstElementChild;
+    let div = foTarget.firstElementChild;
     if (!div) return;
+    if (div.classList.contains('flipbook-text-outer')) {
+      const scrollbarDiv = div.querySelector('.flipbook-text-scrollbar');
+      if (scrollbarDiv) div = scrollbarDiv;
+    }
 
     isEditingTextRef.current = true;
     const svgRoot = foTarget.ownerSVGElement;
@@ -9938,6 +10001,14 @@ const MainEditor = ({
     div.style.userSelect = 'text';
     div.style.pointerEvents = 'auto';
     div.style.cursor = 'text';
+
+    const stopScrollPropagation = (e) => {
+      e.stopPropagation();
+    };
+    div.addEventListener('mousedown', stopScrollPropagation);
+    div.addEventListener('pointerdown', stopScrollPropagation);
+    div.addEventListener('touchstart', stopScrollPropagation);
+    div.addEventListener('wheel', stopScrollPropagation);
 
     const handleInput = () => {
       const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
@@ -10087,6 +10158,10 @@ const MainEditor = ({
       div.classList.remove('text-edit-box');
       div.removeEventListener('blur', handleBlur);
       div.removeEventListener('keydown', handleKeyDown);
+      div.removeEventListener('mousedown', stopScrollPropagation);
+      div.removeEventListener('pointerdown', stopScrollPropagation);
+      div.removeEventListener('touchstart', stopScrollPropagation);
+      div.removeEventListener('wheel', stopScrollPropagation);
       const s = window.getSelection();
       if (s) s.removeAllRanges();
 

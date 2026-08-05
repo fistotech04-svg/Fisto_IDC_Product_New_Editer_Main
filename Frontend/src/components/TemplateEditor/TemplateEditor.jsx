@@ -721,6 +721,19 @@ const TemplateEditor = () => {
 @font-face { font-family: 'Lato'; src: url('${window.location.origin}/lib/Fonts/Lato/Lato-Regular.ttf') format('truetype'); }
 @font-face { font-family: 'Oswald'; src: url('${window.location.origin}/lib/Fonts/Oswald/Oswald-VariableFont_wght.ttf') format('truetype'); }
 @font-face { font-family: 'Merriweather'; src: url('${window.location.origin}/lib/Fonts/Merriweather/Merriweather-VariableFont_opsz,wdth,wght.ttf') format('truetype'); }
+@font-face { font-family: 'Allura'; src: url('${window.location.origin}/lib/Fonts/Allura/Allura-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Parisienne'; src: url('${window.location.origin}/lib/Fonts/Parisienne/Parisienne-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Satisfy'; src: url('${window.location.origin}/lib/Fonts/Satisfy/Satisfy-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; src: url('${window.location.origin}/lib/Fonts/Poppins/Poppins-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+@font-face { font-family: 'Poppins'; src: url('${window.location.origin}/lib/Fonts/Poppins/Poppins-Italic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+@font-face { font-family: 'Poppins'; src: url('${window.location.origin}/lib/Fonts/Poppins/Poppins-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+@font-face { font-family: 'Poppins'; src: url('${window.location.origin}/lib/Fonts/Poppins/Poppins-BoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+@font-face { font-family: 'Public Sans'; src: url('${window.location.origin}/lib/Fonts/Public_Sans/PublicSans-VariableFont_wght.ttf') format('truetype'); font-weight: 100 900; font-style: normal; }
+@font-face { font-family: 'Public Sans'; src: url('${window.location.origin}/lib/Fonts/Public_Sans/PublicSans-Italic-VariableFont_wght.ttf') format('truetype'); font-weight: 100 900; font-style: italic; }
+@font-face { font-family: 'Lora'; src: url('${window.location.origin}/lib/Fonts/Lora/Lora-VariableFont_wght.ttf') format('truetype'); font-weight: 400 700; font-style: normal; }
+@font-face { font-family: 'Lora'; src: url('${window.location.origin}/lib/Fonts/Lora/Lora-Italic-VariableFont_wght.ttf') format('truetype'); font-weight: 400 700; font-style: italic; }
+@font-face { font-family: 'Cabin'; src: url('${window.location.origin}/lib/Fonts/Cabin/Cabin-VariableFont_wdth,wght.ttf') format('truetype'); font-weight: 400 700; font-style: normal; }
+@font-face { font-family: 'Cabin'; src: url('${window.location.origin}/lib/Fonts/Cabin/Cabin-Italic-VariableFont_wdth,wght.ttf') format('truetype'); font-weight: 400 700; font-style: italic; }
 </style>`;
           if (newHtml.includes('<defs>')) {
             newHtml = newHtml.replace('<defs>', '<defs>' + fontsStyle);

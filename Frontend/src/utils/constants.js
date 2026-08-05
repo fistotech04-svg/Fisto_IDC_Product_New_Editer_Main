@@ -16,6 +16,9 @@ export const fontFamilies = [
   "Lato",
   "Raleway",
   "Ubuntu",
+  "Allura",
+  "Parisienne",
+  "Satisfy",
 ];
 
 // Font weights

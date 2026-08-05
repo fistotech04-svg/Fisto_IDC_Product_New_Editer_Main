@@ -20,7 +20,8 @@ const fontFamilies = [
   'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
   'Helvetica', 'Poppins', 'Roboto', 'Open Sans', 'Lato', 'Montserrat',
   'Inter', 'Playfair Display', 'Oswald', 'Merriweather',
-  'Designer_Signature'
+  'Designer_Signature', 'Public Sans', 'Lora', 'Cabin',
+  'Allura', 'Parisienne', 'Satisfy'
 ];
 
 const fontWeights = [
@@ -570,7 +571,7 @@ const syncTextEffect = (doc, element) => {
 
 };
 
-const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, selectedLayerId, updateElementAttributeLocal }) => {
+const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, selectedLayerId, updateElementAttributeLocal, sizingMode, isScrollable }) => {
   const [openSubSection, setOpenSubSection] = useState(null);
 
   const [backgroundColor, setBackgroundColor] = useState({
@@ -581,6 +582,14 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     fillStops: selectedElementProps?.['fill-stops'],
     fillAngle: parseFloat(selectedElementProps?.['fill-angle'] || 0),
     fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
+    scrollBarColor: selectedElementProps?.['data-scrollbar-color'] || '#4B5563',
+    bgFill: selectedElementProps?.['data-bg-fill'] || '#ffffff',
+    bgFillOpacity: parseFloat(selectedElementProps?.['data-bg-fill-opacity'] !== undefined ? selectedElementProps['data-bg-fill-opacity'] : 1) * 100,
+    bgStroke: selectedElementProps?.['data-bg-stroke'] || '#d1d5db',
+    bgStrokeOpacity: parseFloat(selectedElementProps?.['data-bg-stroke-opacity'] !== undefined ? selectedElementProps['data-bg-stroke-opacity'] : 1) * 100,
+    bgStrokeWidth: parseFloat(selectedElementProps?.['data-bg-stroke-width'] !== undefined ? selectedElementProps['data-bg-stroke-width'] : 2),
+    bgStrokePosition: selectedElementProps?.['data-bg-stroke-position'] || 'Center',
+    scrollBarOpacity: 100,
     stroke: selectedElementProps?.stroke || 'none',
     strokeOpacity: 100,
     strokeDashStyle: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
@@ -688,6 +697,14 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       if (backgroundColor.fillAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-angle', backgroundColor.fillAngle.toString());
       if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
 
+      if (backgroundColor.scrollBarColor !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollbar-color', backgroundColor.scrollBarColor);
+      if (backgroundColor.bgFill !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', backgroundColor.bgFill);
+      if (backgroundColor.bgFillOpacity !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill-opacity', (backgroundColor.bgFillOpacity / 100).toString());
+      if (backgroundColor.bgStroke !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', backgroundColor.bgStroke);
+      if (backgroundColor.bgStrokeOpacity !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-opacity', (backgroundColor.bgStrokeOpacity / 100).toString());
+      if (backgroundColor.bgStrokeWidth !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-width', backgroundColor.bgStrokeWidth.toString());
+      if (backgroundColor.bgStrokePosition !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-position', backgroundColor.bgStrokePosition);
+
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.stroke);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeWidth', backgroundColor.strokeWeight.toString());
       if (backgroundColor.strokeType === 'gradient' || backgroundColor.strokeStops) {
@@ -777,6 +794,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         showDetailedPicker={showDetailedPicker}
         setShowDetailedPicker={setShowDetailedPicker}
         isText={true}
+        sizingMode={sizingMode}
+        isScrollable={isScrollable}
       />
       <Effect
         openSubSection={openSubSection}
@@ -1027,6 +1046,17 @@ const TextEditor = ({
               liveEl.style.setProperty(cssPropName, applyVal, 'important');
             }
           }
+          if (attribute && attribute.startsWith('data-bg-')) {
+            liveEl.setAttribute(attribute, value);
+            liveEl.style.setProperty('--' + attribute.substring(5), value);
+          }
+          if (attribute === 'data-scrollbar-color') {
+            liveEl.setAttribute(attribute, value);
+            // The actual color and WebKit repaint is strictly handled by the MainEditor MutationObserver
+          }
+          if (attribute === 'rx') {
+          liveEl.style.setProperty('--bg-rx', value + 'px');
+          }
           if (attribute === 'fill' || attribute === 'stroke') {
             liveEl.setAttribute(attribute, value);
           }
@@ -1085,6 +1115,7 @@ const TextEditor = ({
         const isCurrentlyScrollable = liveEl.getAttribute('data-scrollable') === 'true' || attribute === 'data-scrollable' && value === 'true';
 
         if (attribute === 'data-scrollable') {
+          liveEl.setAttribute('data-scrollable', value);
           if (value === 'true') {
             liveEl.firstElementChild.style.overflowY = 'auto';
             liveEl.firstElementChild.classList.add('flipbook-text-scrollbar');
@@ -1092,16 +1123,16 @@ const TextEditor = ({
             liveEl.firstElementChild.style.overflowX = 'hidden';
             liveEl.firstElementChild.style.removeProperty('box-sizing');
             liveEl.firstElementChild.style.removeProperty('margin');
-            liveEl.firstElementChild.style.removeProperty('padding');
-            liveEl.firstElementChild.style.border = 'none'; // Border is on the SVG element, not the div
+            // liveEl.firstElementChild.style.removeProperty('padding');
+            // liveEl.firstElementChild.style.border = 'none'; // Border is on the SVG element, not the div
             const rx = liveEl.getAttribute('rx') || '0';
             liveEl.firstElementChild.style.borderRadius = `${rx}px`;
           } else {
             const currentSizingMode = liveEl.getAttribute('data-sizing-mode') || 'auto-height';
             liveEl.firstElementChild.classList.remove('flipbook-text-scrollbar');
             liveEl.firstElementChild.style.borderRadius = '0';
-            liveEl.firstElementChild.style.border = 'none';
-            liveEl.firstElementChild.style.removeProperty('padding');
+            // liveEl.firstElementChild.style.border = 'none';
+            // liveEl.firstElementChild.style.removeProperty('padding');
             liveEl.firstElementChild.style.removeProperty('margin');
             liveEl.firstElementChild.style.removeProperty('box-sizing');
 
@@ -1143,7 +1174,7 @@ const TextEditor = ({
             liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', s === 'none' ? 'transparent' : s, 'important');
             liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${sw}px`, 'important');
             // Remove border just in case it was applied before
-            liveEl.firstElementChild.style.border = 'none';
+            // liveEl.firstElementChild.style.border = 'none';
           }
         }
       }
@@ -1367,23 +1398,42 @@ const TextEditor = ({
           Array.from(element.attributes).forEach(attr => {
             if (attr.name !== 'x' && attr.name !== 'y' && attr.name !== 'id' && attr.name !== 'transform' && attr.name !== 'width' && attr.name !== 'height') {
               newFo.setAttribute(attr.name, attr.value);
+              if (attr.name.startsWith('data-bg-')) {
+                newFo.style.setProperty('--' + attr.name.substring(5), attr.value);
+              }
+              if (attr.name === 'data-scrollbar-color') {
+                newFo.style.setProperty('--scrollbar-color', attr.value);
+              }
+              if (attr.name === 'rx') {
+                newFo.style.setProperty('--bg-rx', attr.value + 'px');
+              }
             }
           });
           newFo.setAttribute('data-scrollable', attribute === 'data-scrollable' ? 'true' : 'false');
           newFo.setAttribute('overflow', attribute === 'data-scrollable' ? 'hidden' : 'visible');
 
-          const innerDiv = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+          const outerDiv = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+          let innerDiv;
           if (attribute === 'data-scrollable') {
+            outerDiv.className = 'flipbook-text-outer';
+            const viewportDiv = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+            viewportDiv.className = 'flipbook-text-viewport';
+            innerDiv = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
             innerDiv.className = 'flipbook-text-scrollbar';
-            innerDiv.style.height = '100%';
-            innerDiv.style.overflowY = 'auto';
+            viewportDiv.appendChild(innerDiv);
+            outerDiv.appendChild(viewportDiv);
           } else {
+            innerDiv = outerDiv;
             innerDiv.style.height = 'auto';
             innerDiv.style.overflowY = 'visible';
           }
           innerDiv.style.width = '100%';
           innerDiv.style.overflowX = 'hidden';
           innerDiv.style.wordBreak = 'normal';
+          
+          if (element.hasAttribute('data-scrollbar-color')) {
+            // MainEditor observer handles the style automatically based on this attribute
+          }
           innerDiv.style.overflowWrap = 'anywhere';
           innerDiv.style.whiteSpace = 'pre-wrap';
           innerDiv.style.color = element.getAttribute('fill') || '#000000';
@@ -1402,9 +1452,9 @@ const TextEditor = ({
           });
 
           const rx = element.getAttribute('rx') || '0';
-          if (rx !== '0') innerDiv.style.borderRadius = `${rx}px`;
+          if (rx !== '0') outerDiv.style.borderRadius = `${rx}px`;
 
-          newFo.appendChild(innerDiv);
+          newFo.appendChild(outerDiv);
           element.replaceWith(newFo);
         } else if (attribute === 'data-scrollable' && tag === 'foreignobject') {
           element.setAttribute('data-scrollable', value);
@@ -1415,9 +1465,16 @@ const TextEditor = ({
           }
           const mode = element.getAttribute('data-sizing-mode');
 
-          const updateDiv = (div) => {
+          const updateDiv = (div, parentFo) => {
             if (!div) return;
             if (value === 'true') {
+              if (div.classList.contains('flipbook-text-outer')) return;
+
+              const outer = parentFo.ownerDocument.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+              outer.className = 'flipbook-text-outer';
+              const viewport = parentFo.ownerDocument.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+              viewport.className = 'flipbook-text-viewport';
+              
               div.style.setProperty('overflow-y', 'auto', 'important');
               div.style.setProperty('overflow-x', 'hidden', 'important');
               div.classList.add('flipbook-text-scrollbar');
@@ -1425,33 +1482,43 @@ const TextEditor = ({
               div.style.setProperty('width', '100%', 'important');
               div.style.display = 'block';
               div.style.removeProperty('box-sizing');
-              div.style.removeProperty('padding');
               div.style.removeProperty('margin');
-              div.style.border = 'none';
+
+              parentFo.replaceChild(outer, div);
+              outer.appendChild(viewport);
+              viewport.appendChild(div);
             } else {
-              div.style.setProperty('overflow-y', 'visible', 'important');
-              div.classList.remove('flipbook-text-scrollbar');
-              div.style.setProperty('height', mode === 'fixed' ? '100%' : 'auto', 'important');
-              div.style.setProperty('width', mode === 'fixed' ? '100%' : 'calc(100% + 4px)', 'important');
-              div.style.setProperty('overflow-x', 'visible', 'important');
-              if (mode !== 'fixed') {
-                div.style.display = 'flex';
-                div.style.flexDirection = 'column';
-                div.style.justifyContent = 'center';
-              } else {
-                div.style.setProperty('display', 'block', 'important');
-                div.style.removeProperty('flex-direction');
-                div.style.removeProperty('justify-content');
-                div.style.setProperty('white-space', 'pre-wrap', 'important');
+              let targetDiv = div;
+              if (div.classList.contains('flipbook-text-outer')) {
+                const scrollbarDiv = div.querySelector('.flipbook-text-scrollbar');
+                if (scrollbarDiv) {
+                  targetDiv = scrollbarDiv;
+                  parentFo.replaceChild(targetDiv, div);
+                }
               }
-              div.style.removeProperty('padding');
-              div.style.removeProperty('margin');
-              div.style.removeProperty('box-sizing');
+
+              targetDiv.style.setProperty('overflow-y', 'visible', 'important');
+              targetDiv.classList.remove('flipbook-text-scrollbar');
+              targetDiv.style.setProperty('height', mode === 'fixed' ? '100%' : 'auto', 'important');
+              targetDiv.style.setProperty('width', mode === 'fixed' ? '100%' : 'calc(100% + 4px)', 'important');
+              targetDiv.style.setProperty('overflow-x', 'visible', 'important');
+              if (mode !== 'fixed') {
+                targetDiv.style.display = 'flex';
+                targetDiv.style.flexDirection = 'column';
+                targetDiv.style.justifyContent = 'center';
+              } else {
+                targetDiv.style.setProperty('display', 'block', 'important');
+                targetDiv.style.removeProperty('flex-direction');
+                targetDiv.style.removeProperty('justify-content');
+                targetDiv.style.setProperty('white-space', 'pre-wrap', 'important');
+              }
+              targetDiv.style.removeProperty('margin');
+              targetDiv.style.removeProperty('box-sizing');
             }
           };
 
-          updateDiv(element.firstElementChild);
-          if (liveEl) updateDiv(liveEl.firstElementChild);
+          updateDiv(element.firstElementChild, element);
+          if (liveEl) updateDiv(liveEl.firstElementChild, liveEl);
 
         } else if (styleProp) {
           let finalProp = (tag === 'foreignobject' && styleProp === 'fill') ? 'color' : styleProp;
@@ -1462,38 +1529,45 @@ const TextEditor = ({
 
             const applyScrollStyles = (div) => {
               if (!div) return;
+              let targetDiv = div;
+              if (isScrollable && div.classList.contains('flipbook-text-outer')) {
+                const scrollbarDiv = div.querySelector('.flipbook-text-scrollbar');
+                if (scrollbarDiv) targetDiv = scrollbarDiv;
+              }
+              
               if (isScrollable) {
-                div.style.setProperty('overflow-y', 'auto', 'important');
-                div.style.setProperty('overflow-x', 'hidden', 'important');
-                div.classList.add('flipbook-text-scrollbar');
-                div.style.setProperty('height', '100%', 'important');
-                div.style.setProperty('width', '100%', 'important');
-                div.style.display = 'block';
+                targetDiv.style.setProperty('overflow-y', 'auto', 'important');
+                targetDiv.style.setProperty('overflow-x', 'hidden', 'important');
+                targetDiv.classList.add('flipbook-text-scrollbar');
+                targetDiv.style.setProperty('height', '100%', 'important');
+                targetDiv.style.setProperty('width', '100%', 'important');
+                targetDiv.style.display = 'block';
                 const rx = element.getAttribute('rx') || '0';
-                div.style.borderRadius = `${rx}px`;
-                div.style.removeProperty('box-sizing');
-                div.style.removeProperty('padding');
-                div.style.removeProperty('margin');
-                div.style.border = 'none';
-              } else {
-                div.style.setProperty('overflow-y', 'visible', 'important');
-                div.style.setProperty('overflow-x', 'visible', 'important');
-                div.classList.remove('flipbook-text-scrollbar');
-                div.style.setProperty('height', mode === 'fixed' ? '100%' : 'auto', 'important');
-                div.style.setProperty('width', mode === 'fixed' ? '100%' : 'calc(100% + 4px)', 'important');
-                if (mode !== 'fixed') {
-                  div.style.display = 'flex';
-                  div.style.flexDirection = 'column';
-                  div.style.justifyContent = 'center';
+                if (div.classList.contains('flipbook-text-outer')) {
+                  div.style.borderRadius = `${rx}px`;
                 } else {
-                  div.style.setProperty('display', 'block', 'important');
-                  div.style.removeProperty('flex-direction');
-                  div.style.removeProperty('justify-content');
-                  div.style.setProperty('white-space', 'pre-wrap', 'important');
+                  targetDiv.style.borderRadius = `${rx}px`;
                 }
-                div.style.removeProperty('padding');
-                div.style.removeProperty('margin');
-                div.style.removeProperty('box-sizing');
+                targetDiv.style.removeProperty('box-sizing');
+                targetDiv.style.removeProperty('margin');
+              } else {
+                targetDiv.style.setProperty('overflow-y', 'visible', 'important');
+                targetDiv.style.setProperty('overflow-x', 'visible', 'important');
+                targetDiv.classList.remove('flipbook-text-scrollbar');
+                targetDiv.style.setProperty('height', mode === 'fixed' ? '100%' : 'auto', 'important');
+                targetDiv.style.setProperty('width', mode === 'fixed' ? '100%' : 'calc(100% + 4px)', 'important');
+                if (mode !== 'fixed') {
+                  targetDiv.style.display = 'flex';
+                  targetDiv.style.flexDirection = 'column';
+                  targetDiv.style.justifyContent = 'center';
+                } else {
+                  targetDiv.style.setProperty('display', 'block', 'important');
+                  targetDiv.style.removeProperty('flex-direction');
+                  targetDiv.style.removeProperty('justify-content');
+                  targetDiv.style.setProperty('white-space', 'pre-wrap', 'important');
+                }
+                targetDiv.style.removeProperty('margin');
+                targetDiv.style.removeProperty('box-sizing');
               }
             };
 
@@ -1590,6 +1664,14 @@ const TextEditor = ({
           }
         } else {
           element.setAttribute(attribute, value);
+          if (attribute && attribute.startsWith('data-bg-')) {
+            if (element.firstElementChild) {
+              element.firstElementChild.style.setProperty('--' + attribute.substring(5), value, 'important');
+            }
+          }
+          if (attribute === 'data-scrollbar-color') {
+            // Virtual DOM only needs the attribute; MainEditor observer handles the style
+          }
           if (liveEl) {
             liveEl.setAttribute(attribute, value);
           }
@@ -1599,17 +1681,25 @@ const TextEditor = ({
             const isScrollable = element.getAttribute('data-scrollable') === 'true';
             const mode = element.getAttribute('data-sizing-mode');
             if (isScrollable) {
-              element.firstElementChild.style.setProperty('overflow-y', 'auto', 'important');
-              element.firstElementChild.classList.add('flipbook-text-scrollbar');
-              element.firstElementChild.style.setProperty('height', '100%', 'important');
-              element.firstElementChild.style.setProperty('overflow-x', 'hidden', 'important');
+              let targetDiv = element.firstElementChild;
+              if (targetDiv.classList.contains('flipbook-text-outer')) {
+                const scrollbarDiv = targetDiv.querySelector('.flipbook-text-scrollbar');
+                if (scrollbarDiv) targetDiv = scrollbarDiv;
+              }
+              targetDiv.style.setProperty('overflow-y', 'auto', 'important');
+              targetDiv.classList.add('flipbook-text-scrollbar');
+              targetDiv.style.setProperty('height', '100%', 'important');
+              targetDiv.style.setProperty('overflow-x', 'hidden', 'important');
               const rx = element.getAttribute('rx') || '0';
-              element.firstElementChild.style.borderRadius = `${rx}px`;
+              if (element.firstElementChild.classList.contains('flipbook-text-outer')) {
+                element.firstElementChild.style.borderRadius = `${rx}px`;
+              } else {
+                targetDiv.style.borderRadius = `${rx}px`;
+              }
             } else {
               element.firstElementChild.style.setProperty('overflow-y', 'visible', 'important');
               element.firstElementChild.classList.remove('flipbook-text-scrollbar');
               element.firstElementChild.style.setProperty('height', mode === 'fixed' ? '100%' : 'auto', 'important');
-              element.firstElementChild.style.borderRadius = '0';
               element.firstElementChild.style.setProperty('overflow-x', 'visible', 'important');
             }
           }
@@ -2669,6 +2759,8 @@ const TextEditor = ({
             activePageIndex={activePageIndex}
             selectedLayerId={selectedLayerId}
             updateElementAttributeLocal={updateElementAttributeLocal}
+            sizingMode={sizingMode}
+            isScrollable={isScrollable}
           />
         </div>
       </div>

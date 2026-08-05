@@ -2106,12 +2106,12 @@ const VideoEditor = ({
             )}
           </div>
 
-          <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.5vw]">
-            <div className="flex flex-col">
-              <span className="text-[0.8vw] font-medium text-gray-700 truncate w-[10vw]" title={selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Video'}>
+          <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.1vw]">
+            <div className="flex flex-col gap-[0.1vw] mt-[0.6vw]">
+              <span className="text-[0.9vw] font-medium text-gray-700 truncate w-[10vw] mt-[0.8vw]" title={selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Video'}>
                 {selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Video'}
               </span>
-              <div className="text-[0.6vw] text-gray-400 flex items-center gap-[0.3vw] flex-wrap mt-[0.2vw]">
+              <div className="text-[0.75vw] text-gray-400 flex items-center gap-[0.3vw] flex-nowrap whitespace-nowrap mt-[0.3vw]">
                 {(videoDurationState || selectedElement?.getAttribute('data-video-duration')) && (
                   <>
                     <span>
@@ -2121,7 +2121,7 @@ const VideoEditor = ({
                         const s = Math.floor(d % 60).toString().padStart(2, '0');
                         return (
                           <>
-                            {m}:{s} <span className="text-[0.6vw] opacity-80">Mins</span>
+                            {m}:{s} <span className="text-[0.75vw] opacity-80">Mins</span>
                           </>
                         );
                       })()}
@@ -2135,7 +2135,7 @@ const VideoEditor = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-[0.5vw]">
+            <div className="flex items-center gap-[0.5vw] mt-[0.3vw]">
               <button
                 onClick={() => setShowReplaceModal(true)}
                 className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
