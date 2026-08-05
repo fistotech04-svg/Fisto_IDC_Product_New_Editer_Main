@@ -50,6 +50,17 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
   // 3D model states moved to PreviewArea
 
   useEffect(() => {
+    // Clear any previously played animations in this session so they replay when preview is opened
+    try {
+        Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('fisto_anim_played_')) {
+                sessionStorage.removeItem(key);
+            }
+        });
+    } catch (err) {}
+  }, []);
+
+  useEffect(() => {
     const fetchSettings = async () => {
       try {
         let finalSettings = { ...(settings || {}) };

@@ -1715,16 +1715,81 @@ const MainEditor = ({
         if (!layerId) return;
 
         const showControls = video.getAttribute('data-show-controls') !== 'false';
+        
+        // APPLY CUSTOM VIDEO PROPERTIES
+        const pbSpeedStr = video.getAttribute('data-playback-speed');
+        if (pbSpeedStr) {
+           const pbSpeed = parseFloat(pbSpeedStr.replace('x', ''));
+           if (!isNaN(pbSpeed)) video.playbackRate = pbSpeed;
+        }
+
+        if (!video.hasAttribute('data-video-props-applied')) {
+            video.setAttribute('data-video-props-applied', 'true');
+            
+            const defVolStr = video.getAttribute('data-default-volume');
+            if (defVolStr) {
+                video.volume = parseInt(defVolStr) / 100;
+            }
+
+            const startTimeAttr = video.getAttribute('data-start-time');
+            let sTime = 0;
+            if (startTimeAttr) {
+              const parts = startTimeAttr.split(':').map(Number);
+              if (parts.length === 3) sTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              else if (parts.length === 2) sTime = parts[0] * 60 + parts[1];
+            }
+            const endTimeAttr = video.getAttribute('data-end-time');
+            let eTime = Infinity;
+            if (endTimeAttr) {
+              const parts = endTimeAttr.split(':').map(Number);
+              if (parts.length === 3) eTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              else if (parts.length === 2) eTime = parts[0] * 60 + parts[1];
+            }
+            video._startTime = sTime;
+            video._endTime = eTime;
+            
+            if (sTime > 0) {
+               video.currentTime = sTime;
+            }
+
+            video.addEventListener('timeupdate', () => {
+               if (video._startTime > 0 && video.currentTime < video._startTime - 0.5) {
+                   video.currentTime = video._startTime;
+               }
+               if (video._endTime < Infinity && video.currentTime >= video._endTime) {
+                   if (video.loop) {
+                       video.currentTime = video._startTime;
+                   } else {
+                       video.pause();
+                   }
+               }
+            });
+            
+            const resumeBehavior = video.getAttribute('data-resume-behavior');
+            if (resumeBehavior === "Start from Beginning") {
+                video.addEventListener('play', () => {
+                    if (video._wasPaused) {
+                        video.currentTime = video._startTime || 0;
+                    }
+                    video._wasPaused = false;
+                });
+                video.addEventListener('pause', () => {
+                    video._wasPaused = true;
+                });
+            }
+
+            const playVideoWhile = video.getAttribute('data-play-video-while');
+            if (playVideoWhile === "Auto Play While on Page") {
+                video.play().catch(()=>{});
+            } else if (playVideoWhile === "Click to Play") {
+                video.pause();
+            }
+        }
+
         const ctrlId = `custom-ctrl-${layerId}`;
         let bar = document.getElementById(ctrlId);
 
-        if (!showControls) {
-          if (bar) {
-            if (bar._cleanup) bar._cleanup();
-            bar.remove();
-          }
-          return;
-        }
+
 
         const mountPoint = video.parentElement || fo || liveEl;
         if (!mountPoint) return;
@@ -1741,6 +1806,17 @@ const MainEditor = ({
           if (repBtn) {
             repBtn.style.opacity = video.loop ? '1' : '0.5';
           }
+          
+          const topC = bar.querySelector('.custom-top-container');
+          const centerC = bar.querySelector('.custom-center-container');
+          const progC = bar.querySelector('.custom-prog-container');
+          const timeW = bar.querySelector('.custom-time-wrapper');
+          
+          if (topC) topC.style.visibility = showControls ? 'visible' : 'hidden';
+          if (centerC) centerC.style.visibility = showControls ? 'visible' : 'hidden';
+          if (progC) progC.style.visibility = showControls ? 'visible' : 'hidden';
+          if (timeW) timeW.style.visibility = showControls ? 'visible' : 'hidden';
+          if (repBtn) repBtn.style.visibility = showControls ? 'visible' : 'hidden';
         }
 
         if (!bar) {
@@ -1806,6 +1882,7 @@ const MainEditor = ({
 
           // Top Right: Volume
           const topContainer = document.createElement('div');
+          topContainer.className = 'custom-top-container';
           Object.assign(topContainer.style, {
             display: 'flex',
             justifyContent: 'flex-end',
@@ -1851,6 +1928,7 @@ const MainEditor = ({
 
           // Center: Rewind 3s, Forward 3s
           const centerContainer = document.createElement('div');
+          centerContainer.className = 'custom-center-container';
           Object.assign(centerContainer.style, {
             display: 'flex',
             alignItems: 'center',
@@ -1956,11 +2034,13 @@ const MainEditor = ({
           };
 
           const progContainer = document.createElement('div');
+          progContainer.className = 'custom-prog-container';
           Object.assign(progContainer.style, {
             flexGrow: '1', height: '1.2em', background: 'rgba(255,255,255,0.3)', position: 'relative', cursor: 'pointer', pointerEvents: 'auto', borderRadius: '0.2em',
           });
 
           const timeWrapper = document.createElement('div');
+          timeWrapper.className = 'custom-time-wrapper';
           Object.assign(timeWrapper.style, {
             position: 'relative',
             width: '28em',
@@ -2166,11 +2246,15 @@ const MainEditor = ({
           document.addEventListener('fullscreenchange', handleFsChange);
           document.addEventListener('webkitfullscreenchange', handleFsChange);
 
+          const disableFullScreen = video.getAttribute('data-disable-fullscreen') === 'true';
+
           bottomContainer.appendChild(playBtn);
           bottomContainer.appendChild(progContainer);
           bottomContainer.appendChild(timeWrapper);
           bottomContainer.appendChild(repeatBtn);
-          bottomContainer.appendChild(fsBtn);
+          if (!disableFullScreen) {
+             bottomContainer.appendChild(fsBtn);
+          }
 
           bar.appendChild(topContainer);
           bar.appendChild(centerContainer);
@@ -3858,6 +3942,9 @@ const MainEditor = ({
 
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
+
+    // Freeze selection box during animation preview
+    if (el.getAttribute('data-is-animating') === 'true') return;
 
     // Suppress object selection box, hover highlights, and resize handles during Path Node Edit Mode
     if (nodeEditModeRef.current) {
@@ -8106,8 +8193,8 @@ const MainEditor = ({
                           let cd = {};
                           try { if (cropDataStr && cropDataStr !== 'null') cd = JSON.parse(cropDataStr); } catch (e) { }
 
-                          cd.left = Math.max(0, cLeft);
-                          cd.top = Math.max(0, cTop);
+                          cd.left = cLeft;
+                          cd.top = cTop;
                           cd.width = Math.max(0, cWidth);
                           cd.height = Math.max(0, cHeight);
 
