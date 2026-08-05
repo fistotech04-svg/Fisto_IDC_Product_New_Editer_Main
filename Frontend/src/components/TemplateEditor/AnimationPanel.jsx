@@ -105,40 +105,19 @@ const ANIMATION_GALLERY_ITEMS = [
   { id: 'none', label: 'None', icon: 'None' },
   { id: 'fade-in', label: 'Fade In', icon: 'Bars' },
   { id: 'fade-out', label: 'Fade Out', icon: 'Bars' },
-  { id: 'glass-reveal', label: 'Glass Reveal', icon: 'Bars' },
   { id: 'zoom-in', label: 'Zoom In', icon: 'Circle' },
   { id: 'zoom-out', label: 'Zoom Out', icon: 'Circle' },
-  { id: 'zoom-in-up', label: 'Zoom Up', icon: 'Circle' },
-  { id: 'zoom-in-down', label: 'Zoom Down', icon: 'Circle' },
   { id: 'rotate-in', label: 'Rotate In', icon: 'Circle' },
-  { id: 'perspective-in', label: 'Perspective', icon: 'Bars' },
   { id: 'blur-in', label: 'Blur In', icon: 'Bars' },
-  { id: 'focus-in', label: 'Focus In', icon: 'Circle' },
   { id: 'slide-up', label: 'Slide Up', icon: 'Bars' },
   { id: 'slide-down', label: 'Slide Down', icon: 'Bars' },
   { id: 'slide-left', label: 'Slide Left', icon: 'Bars' },
   { id: 'slide-right', label: 'Slide Right', icon: 'Bars' },
-  { id: 'back-in-up', label: 'Back Up', icon: 'Bars' },
-  { id: 'back-in-down', label: 'Back Down', icon: 'Bars' },
-  { id: 'back-in-left', label: 'Back Left', icon: 'Bars' },
-  { id: 'back-in-right', label: 'Back Right', icon: 'Bars' },
-  { id: 'rotate-in-down-left', label: 'Rotate DL', icon: 'Circle' },
-  { id: 'rotate-in-up-right', label: 'Rotate UR', icon: 'Circle' },
-  { id: 'bounce-in', label: 'Bounce In', icon: 'Circle' },
-  { id: 'bounce-out', label: 'Bounce Out', icon: 'Circle' },
   { id: 'flip-in', label: 'Flip X', icon: 'Bars' },
   { id: 'flip-in-y', label: 'Flip Y', icon: 'Bars' },
-  { id: 'roll-in', label: 'Roll In', icon: 'Circle' },
+  { id: 'bounce-in', label: 'Bounce In', icon: 'Circle' },
+  { id: 'bounce-out', label: 'Bounce Out', icon: 'Circle' },
   { id: 'pulse', label: 'Pulse', icon: 'Circle' },
-  { id: 'heartbeat', label: 'Heartbeat', icon: 'Circle' },
-  { id: 'float', label: 'Floating', icon: 'Circle' },
-  { id: 'neon-glow', label: 'Neon Glow', icon: 'Circle' },
-  { id: 'tada', label: 'Tada', icon: 'Circle' },
-  { id: 'rubber-band', label: 'Rubber', icon: 'Circle' },
-  { id: 'jello', label: 'Jello', icon: 'Circle' },
-  { id: 'swing', label: 'Swing', icon: 'Circle' },
-  { id: 'wobble', label: 'Wobble', icon: 'Circle' },
-  { id: 'glitch', label: 'Glitch', icon: 'Circle' },
 ];
 
 const EASING_OPTIONS = [
@@ -1288,7 +1267,7 @@ const AnimationPanel = ({ selectedElement, onUpdate }) => {
             className="fixed inset-0 z-[40]"
             onClick={(e) => { e.stopPropagation(); setShowGallery(false); }}
           />
-          <div className="anim-panel-gallery-modal fixed z-[50] bg-white rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" style={{ width: '20vw', height: '34vw', top: '55%', left: '80%', transform: 'translate(-50%, -50%)' }}>
+          <div className="anim-panel-gallery-modal fixed z-[50] bg-white rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" style={{ width: '20vw', height: '32vw', top: '55%', left: '80%', transform: 'translate(-50%, -50%)' }}>
             <div className="anim-panel-gallery-header flex items-center gap-[1vw] px-[1vw] py-[1vw] border-b border-gray-100 shadow-[0_4px_6px_1px_rgba(0,0,0,0.10)]">
               <h2 className="text-[1vw] font-semibold text-gray-900">Animation Gallery</h2>
               <div className="h-[0.1vw] flex-1 bg-gray-200 opacity-50"></div>
