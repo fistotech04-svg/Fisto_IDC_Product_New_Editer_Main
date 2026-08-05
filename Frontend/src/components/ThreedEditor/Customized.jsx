@@ -6,6 +6,7 @@ import { textureData } from "../../data/textureData";
 import { useRef } from "react";
 import { useEffect } from "react";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
+import PhysicsAccordion from "./Physics/PhysicsAccordion";
 
 // --- Reusable UI Components (Matched to PreDefined.jsx) ---
 
@@ -568,7 +569,8 @@ export default function Customized({
     onUvUnwrap,
     onMapUpload,
     selectedTextureId,
-    onSelectTexture
+    onSelectTexture,
+    physicsProps
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [activeColorType, setActiveColorType] = useState('color');
@@ -1148,6 +1150,14 @@ export default function Customized({
             </div>
         </div>
       </Accordion>
+
+      {physicsProps && (
+        <PhysicsAccordion
+            isOpen={activePanel === "physics"}
+            onToggle={() => handlePanelToggle("physics")}
+            {...physicsProps}
+        />
+      )}
        {showColorPicker && createPortal(
             <ColorPicker
                 color={controls[activeColorType] || (activeColorType === 'emissiveColor' ? '#ffffff' : '#000000')}

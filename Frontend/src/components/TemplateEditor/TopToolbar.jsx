@@ -247,6 +247,7 @@ const TopToolbar = ({
           {/* Zoom Out */}
           <button 
             onClick={onZoomOut}
+            tabIndex={-1}
             title="Zoom Out"
             className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
           >
@@ -261,6 +262,7 @@ const TopToolbar = ({
           {/* Zoom In */}
           <button 
             onClick={onZoomIn}
+            tabIndex={-1}
             title="Zoom In"
             className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
           >
@@ -273,6 +275,7 @@ const TopToolbar = ({
           {/* Reset Action */}
           <button 
             onClick={onReset}
+            tabIndex={-1}
             title="Reset Zoom"
             className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
           >
