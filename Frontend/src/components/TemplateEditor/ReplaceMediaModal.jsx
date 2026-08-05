@@ -154,7 +154,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     </div>
                   </div>
                   <div className="mt-[1.5vw] text-[0.8vw] text-gray-500 space-y-[0.2vw] shrink-0">
-                    <p>Supported File : {mediaType === 'video' ? 'MP4, MKV, WEBM' : mediaType === 'gif' ? 'GIF' : 'JPG, PNG, WEBP, SVG'}</p>
+                    <p>Supported File : {mediaType === 'video' ? 'MP4, MKV, WEBM' : mediaType === 'gif' ? 'GIF, WEBP' : 'JPG, PNG, WEBP, SVG'}</p>
                     <p>Max file size : 50MB</p>
                   </div>
                 </>
@@ -368,9 +368,9 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                             setReplaceModalFile(null);
                           }
                         } else if (mediaType === 'gif') {
-                          const isGif = /\.gif(\?.*)?$/i.test(finalUrl);
+                          const isGif = /\.(gif|webp)(\?.*)?$/i.test(finalUrl);
                           if (!isGif) {
-                            setImportUrlError('Please enter a valid GIF URL.');
+                            setImportUrlError('Please enter a valid GIF or WEBP URL.');
                             setReplaceModalFile(null);
                           } else {
                             setImportUrlError('');
@@ -425,7 +425,9 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     } else {
                       const response = await fetch(replaceModalFile.url);
                       const blob = await response.blob();
-                      const file = new File([blob], replaceModalFile.name + (mediaType === 'video' ? '.mp4' : mediaType === 'gif' ? '.gif' : '.png'), { type: blob.type || (mediaType === 'video' ? 'video/mp4' : mediaType === 'gif' ? 'image/gif' : 'image/png') });
+                      const ext = mediaType === 'video' ? '.mp4' : mediaType === 'gif' ? (blob.type === 'image/webp' || replaceModalFile.url?.toLowerCase().includes('.webp') ? '.webp' : '.gif') : '.png';
+                      const mimeType = blob.type || (mediaType === 'video' ? 'video/mp4' : mediaType === 'gif' ? (ext === '.webp' ? 'image/webp' : 'image/gif') : 'image/png');
+                      const file = new File([blob], replaceModalFile.name + ext, { type: mimeType });
                       onReplace(file);
                     }
                   } catch (e) {

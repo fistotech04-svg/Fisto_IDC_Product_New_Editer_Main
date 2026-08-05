@@ -136,7 +136,7 @@ const VideoEditor = ({
 
   const [previewSrc, setPreviewSrc] = useState(null);
   const [posterSrc, setPosterSrc] = useState(null);
-  const [videoType, setVideoType] = useState("Fill");
+  const [videoType, setVideoType] = useState("Fit");
   const [showVideoTypeDropdown, setShowVideoTypeDropdown] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [autoplay, setAutoplay] = useState(false);
@@ -461,9 +461,9 @@ const VideoEditor = ({
       const rawCtrlSize = target.getAttribute('data-controls-size');
       const ctrlSize = rawCtrlSize ? parseInt(rawCtrlSize) : 100;
       setControlsSize(isNaN(ctrlSize) ? 100 : Math.max(0, Math.min(100, ctrlSize)));
-      const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'Fill';
+      const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'contain';
       const reverseMap = { 'contain': 'Fit', 'cover': 'Fill', 'fill': 'Stretch' };
-      setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
+      setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fit');
     } else if (target.tagName === "IFRAME") {
       setPreviewSrc(target.src || null);
 
