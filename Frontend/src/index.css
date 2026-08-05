@@ -83,8 +83,9 @@ foreignObject * {
   padding: 0;
   box-sizing: border-box;
   clip-path: none !important;
-  transform: translateZ(0);
-  will-change: transform;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
 }
 
 foreignObject[data-editing="true"]>div {
@@ -275,3 +276,11 @@ video.hide-controls:hover::-webkit-media-controls {
   font-style: normal;
   font-display: swap;
 }
+
+/* Figma-style high-precision vector path rendering */
+.page-svg-container path,
+.page-svg-container svg path {
+  shape-rendering: geometricPrecision;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

@@ -572,15 +572,15 @@ export const generatePathData = (pts, isClosed = false, toolType = 'pen', active
   const isCurve = toolType === 'curve';
 
   if (!isCurve) {
-    return subPts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + (subIsClosed ? ' Z' : '');
+    return subPts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ') + (subIsClosed ? ' Z' : '');
   }
 
-  if (subPts.length === 1) return `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)}`;
+  if (subPts.length === 1) return `M ${subPts[0].x.toFixed(2)} ${subPts[0].y.toFixed(2)}`;
   if (subPts.length === 2 && !subIsClosed) {
-    return `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)} L ${subPts[1].x.toFixed(1)} ${subPts[1].y.toFixed(1)}`;
+    return `M ${subPts[0].x.toFixed(2)} ${subPts[0].y.toFixed(2)} L ${subPts[1].x.toFixed(2)} ${subPts[1].y.toFixed(2)}`;
   }
 
-  let d = `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)}`;
+  let d = `M ${subPts[0].x.toFixed(2)} ${subPts[0].y.toFixed(2)}`;
   const count = subIsClosed ? subPts.length : subPts.length - 1;
 
   for (let i = 0; i < count; i++) {
@@ -594,12 +594,12 @@ export const generatePathData = (pts, isClosed = false, toolType = 'pen', active
       const cp1y = p1.y + h1.y;
       const cp2x = p2.x + h2.x;
       const cp2y = p2.y + h2.y;
-      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+      d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)} ${cp2x.toFixed(2)} ${cp2y.toFixed(2)} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
       continue;
     }
 
     if (p1.isCorner || p2.isCorner || !isCurve) {
-      d += ` L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+      d += ` L ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
       continue;
     }
 
@@ -611,7 +611,7 @@ export const generatePathData = (pts, isClosed = false, toolType = 'pen', active
     const cp2x = p2.x - (p3.x - p1.x) / 6;
     const cp2y = p2.y - (p3.y - p1.y) / 6;
 
-    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
   if (subIsClosed) d += " Z";
   return d;

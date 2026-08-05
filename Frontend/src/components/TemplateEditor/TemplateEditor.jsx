@@ -1441,18 +1441,9 @@ const TemplateEditor = () => {
         // Set currentFrameId to the active page root so the first single click
         // can immediately select child elements without needing to enter the frame first.
         if (hasSwitchedPage || hasSwitchedSpread) {
-          setMultiSelectedIds(new Set([root1, root2]));
+          setMultiSelectedIds(new Set([activeRoot]));
           setSelectedLayerId(activeRoot);
           setCurrentFrameId(activeRoot);
-        } else {
-          // Selection became empty — restore roots (Only if not using a tool)
-          // Skip reset if a paste operation just happened (skipPasteResetRef guard)
-          const currentIds = multiSelectedIds || new Set();
-          if (!skipPasteResetRef.current && currentIds.size === 0 && activeMainTool === 'select') {
-            setMultiSelectedIds(new Set([root1, root2]));
-            setSelectedLayerId(activeRoot);
-            setCurrentFrameId(activeRoot);
-          }
         }
       }
     } else {
@@ -1460,18 +1451,14 @@ const TemplateEditor = () => {
       const page = pages[activePageIndex];
       if (page?.layers?.[0]) {
         const rootId = page.layers[0].id;
-
-        // Auto-select root ONLY if we just landed here OR selection became empty (Only if not using a tool)
-        // Skip reset if a paste operation just happened (skipPasteResetRef guard)
-        const currentIds = multiSelectedIds || new Set();
-        if (!skipPasteResetRef.current && (hasSwitchedPage || (currentIds.size === 0 && activeMainTool === 'select'))) {
+        if (hasSwitchedPage) {
           setMultiSelectedIds(new Set([rootId]));
           setSelectedLayerId(rootId);
           setCurrentFrameId(rootId);
         }
       }
     }
-  }, [activePageIndex, isDoublePage, pages, multiSelectedIds.size]);
+  }, [activePageIndex, isDoublePage, pages]);
 
   // ── NEW: Spread Alignment Snapping ───────────────────────────────────────────
   // UPDATED: Only snap if we are in double-page mode AND current logic requires it for initial navigation.
@@ -1482,33 +1469,169 @@ const TemplateEditor = () => {
   }, [isDoublePage]);
 
 
-  const saveToHistory = (currentState = pages) => {
+  const isUndoRedoActiveRef = useRef(false);
+  const prevSelectedLayerIdRef = useRef(selectedLayerId);
+  const prevMultiSelectedIdsRef = useRef(multiSelectedIds);
+
+  // Push element selection and deselection actions into Undo/Redo history
+  useEffect(() => {
+    if (isUndoRedoActiveRef.current) {
+      isUndoRedoActiveRef.current = false;
+      prevSelectedLayerIdRef.current = selectedLayerId;
+      prevMultiSelectedIdsRef.current = multiSelectedIds;
+      return;
+    }
+
+    const prevMultiStr = Array.from(prevMultiSelectedIdsRef.current || []).sort().join(',');
+    const currMultiStr = Array.from(multiSelectedIds || []).sort().join(',');
+
+    if (prevSelectedLayerIdRef.current !== selectedLayerId || prevMultiStr !== currMultiStr) {
+      saveToHistory(pages, selectedLayerId, activePageIndex, multiSelectedIds);
+      prevSelectedLayerIdRef.current = selectedLayerId;
+      prevMultiSelectedIdsRef.current = multiSelectedIds;
+    }
+  }, [selectedLayerId, multiSelectedIds]);
+
+  const saveToHistory = (
+    customPages = pages,
+    customLayerId = selectedLayerId,
+    customPageIndex = activePageIndex,
+    customMultiIds = multiSelectedIds
+  ) => {
+    const snap = {
+      pages: JSON.parse(JSON.stringify(customPages)),
+      selectedLayerId: customLayerId,
+      activePageIndex: customPageIndex,
+      multiSelectedIds: Array.from(customMultiIds || [])
+    };
+
     setHistory(prev => {
-      if (prev.length > 0 && prev[prev.length - 1] === currentState) return prev;
-      return [...prev.slice(-(MAX_HISTORY - 1)), currentState];
+      if (prev.length > 0) {
+        const last = prev[prev.length - 1];
+        const lastPages = Array.isArray(last) ? last : last.pages;
+        const lastLayerId = Array.isArray(last) ? null : last.selectedLayerId;
+        const lastPageIndex = Array.isArray(last) ? null : last.activePageIndex;
+        const lastMultiIds = Array.isArray(last) ? [] : (last.multiSelectedIds || []);
+
+        const isSamePages = JSON.stringify(lastPages) === JSON.stringify(snap.pages);
+        const isSameLayerId = lastLayerId === snap.selectedLayerId;
+        const isSamePageIndex = lastPageIndex === snap.activePageIndex;
+        const isSameMultiIds = JSON.stringify(lastMultiIds.sort()) === JSON.stringify(snap.multiSelectedIds.sort());
+
+        if (isSamePages && isSameLayerId && isSamePageIndex && isSameMultiIds) {
+          return prev;
+        }
+      }
+      return [...prev.slice(-(MAX_HISTORY - 1)), snap];
     });
-    setRedoStack([]); // Clear redo on new action
+    setRedoStack([]); // Clear redo stack on new action
   };
 
   const undo = () => {
     if (history.length === 0) return;
-    const prevState = history[history.length - 1];
-    setRedoStack(prev => [pages, ...prev]);
+
+    isUndoRedoActiveRef.current = true;
+
+    const currentSnap = {
+      pages: JSON.parse(JSON.stringify(pages)),
+      selectedLayerId,
+      activePageIndex,
+      multiSelectedIds: Array.from(multiSelectedIds || [])
+    };
+
+    const prevSnap = history[history.length - 1];
     setHistory(prev => prev.slice(0, -1));
-    setPages(prevState);
+    setRedoStack(prev => [currentSnap, ...prev]);
+
+    const targetPages = Array.isArray(prevSnap) ? prevSnap : prevSnap.pages;
+    const targetLayerId = Array.isArray(prevSnap) ? null : prevSnap.selectedLayerId;
+    const targetPageIndex = Array.isArray(prevSnap) ? activePageIndex : prevSnap.activePageIndex;
+    const targetMultiIds = Array.isArray(prevSnap) ? new Set() : new Set(prevSnap.multiSelectedIds || []);
+
+    prevSelectedLayerIdRef.current = targetLayerId;
+    prevMultiSelectedIdsRef.current = targetMultiIds;
+
+    setPages(targetPages);
+    if (targetPageIndex !== undefined && targetPageIndex !== null && targetPageIndex >= 0) {
+      setActivePageIndex(targetPageIndex);
+    }
+
+    // Restore selection state exactly as captured in the snapshot (Figma style)
+    if (targetLayerId) {
+      setSelectedLayerId(targetLayerId);
+      setMultiSelectedIds(new Set([targetLayerId]));
+    } else {
+      setSelectedLayerId(null);
+      setMultiSelectedIds(targetMultiIds);
+    }
+
+    // Trigger immediate & multi-frame rebind of selection handles if an element was selected in the snapshot
+    const rebind = () => {
+      if (targetLayerId) {
+        window.dispatchEvent(new CustomEvent('rebind-selection-overlay', { detail: { layerId: targetLayerId } }));
+      }
+    };
+    requestAnimationFrame(() => {
+      rebind();
+      setTimeout(rebind, 30);
+      setTimeout(rebind, 100);
+    });
   };
 
   const redo = () => {
     if (redoStack.length === 0) return;
-    const nextState = redoStack[0];
-    setHistory(prev => [...prev, pages]);
+
+    isUndoRedoActiveRef.current = true;
+
+    const currentSnap = {
+      pages: JSON.parse(JSON.stringify(pages)),
+      selectedLayerId,
+      activePageIndex,
+      multiSelectedIds: Array.from(multiSelectedIds || [])
+    };
+
+    const nextSnap = redoStack[0];
     setRedoStack(prev => prev.slice(1));
-    setPages(nextState);
+    setHistory(prev => [...prev, currentSnap]);
+
+    const targetPages = Array.isArray(nextSnap) ? nextSnap : nextSnap.pages;
+    const targetLayerId = Array.isArray(nextSnap) ? null : nextSnap.selectedLayerId;
+    const targetPageIndex = Array.isArray(nextSnap) ? activePageIndex : nextSnap.activePageIndex;
+    const targetMultiIds = Array.isArray(nextSnap) ? new Set() : new Set(nextSnap.multiSelectedIds || []);
+
+    prevSelectedLayerIdRef.current = targetLayerId;
+    prevMultiSelectedIdsRef.current = targetMultiIds;
+
+    setPages(targetPages);
+    if (targetPageIndex !== undefined && targetPageIndex !== null && targetPageIndex >= 0) {
+      setActivePageIndex(targetPageIndex);
+    }
+
+    // Restore selection state exactly as captured in the snapshot (Figma style)
+    if (targetLayerId) {
+      setSelectedLayerId(targetLayerId);
+      setMultiSelectedIds(new Set([targetLayerId]));
+    } else {
+      setSelectedLayerId(null);
+      setMultiSelectedIds(targetMultiIds);
+    }
+
+    // Trigger immediate & multi-frame rebind of selection handles if an element was selected in the snapshot
+    const rebind = () => {
+      if (targetLayerId) {
+        window.dispatchEvent(new CustomEvent('rebind-selection-overlay', { detail: { layerId: targetLayerId } }));
+      }
+    };
+    requestAnimationFrame(() => {
+      rebind();
+      setTimeout(rebind, 30);
+      setTimeout(rebind, 100);
+    });
   };
 
   const updatePageHtml = (pageIndex, html) => {
     setPages(prev => {
-      saveToHistory(prev);
+      saveToHistory(prev, selectedLayerId, pageIndex);
 
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'image/svg+xml');
@@ -3187,6 +3310,170 @@ const TemplateEditor = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedLayerId, multiSelectedIds, activePageIndex, clipboard, copyLayer, cutLayer, pasteLayer, deleteLayer, undo, redo, pages, activeTopTool]);
+
+  // Handle native paste events for external files, screenshots, images, videos, GIFs, SVGs, and URLs
+  useEffect(() => {
+    const handleNativePaste = async (e) => {
+      const activeEl = document.activeElement;
+      const isEditingInput = activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.isContentEditable ||
+        activeEl.closest('[contenteditable="true"]') ||
+        window.__isEditingText
+      );
+
+      const clipboardData = e.clipboardData || e.originalEvent?.clipboardData;
+      let handledExternal = false;
+
+      if (clipboardData) {
+        const files = Array.from(clipboardData.files || []);
+        const items = Array.from(clipboardData.items || []);
+
+        let fileToProcess = files.find(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+
+        if (!fileToProcess) {
+          const mediaItem = items.find(item => item.type.startsWith('image/') || item.type.startsWith('video/'));
+          if (mediaItem) {
+            fileToProcess = mediaItem.getAsFile();
+          }
+        }
+
+        if (fileToProcess) {
+          e.preventDefault();
+          e.stopPropagation();
+          handledExternal = true;
+
+          const isVideo = fileToProcess.type.startsWith('video/');
+          const isGif = fileToProcess.type === 'image/gif';
+          const isSvg = fileToProcess.type === 'image/svg+xml';
+
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const dataUrl = event.target.result;
+            if (isVideo) {
+              const tempVid = document.createElement('video');
+              tempVid.onloadedmetadata = () => {
+                window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                  detail: {
+                    videoUrl: dataUrl,
+                    pageIndex: activePageIndex,
+                    file: fileToProcess,
+                    isTemporary: true,
+                    videoWidth: tempVid.videoWidth,
+                    videoHeight: tempVid.videoHeight,
+                    isPortrait: tempVid.videoHeight > tempVid.videoWidth
+                  }
+                }));
+              };
+              tempVid.onerror = () => {
+                window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                  detail: { videoUrl: dataUrl, pageIndex: activePageIndex, file: fileToProcess, isTemporary: true }
+                }));
+              };
+              tempVid.src = dataUrl;
+            } else {
+              window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
+                detail: {
+                  dataUrl: dataUrl,
+                  pageIndex: activePageIndex,
+                  dataType: isSvg ? 'svg' : (isGif ? 'gif' : 'image')
+                }
+              }));
+            }
+          };
+          reader.readAsDataURL(fileToProcess);
+          return;
+        }
+
+        // Process pasted text data if not editing an input
+        if (!isEditingInput) {
+          const pastedText = clipboardData.getData('text/plain')?.trim() || '';
+          if (pastedText) {
+            // SVG code snippet pasted
+            if (pastedText.startsWith('<svg') && pastedText.includes('</svg>')) {
+              e.preventDefault();
+              e.stopPropagation();
+              handledExternal = true;
+              const encodedSvg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(pastedText);
+              window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
+                detail: {
+                  dataUrl: encodedSvg,
+                  pageIndex: activePageIndex,
+                  dataType: 'svg'
+                }
+              }));
+              return;
+            }
+
+            // Image Data URI or Image URL pasted
+            const lowerText = pastedText.toLowerCase();
+            const isDataUriImage = lowerText.startsWith('data:image/');
+            const isImageUrl = /^https?:\/\/.*\.(png|jpg|jpeg|gif|svg|webp|bmp)(\?.*)?$/i.test(pastedText);
+
+            if (isDataUriImage || isImageUrl) {
+              e.preventDefault();
+              e.stopPropagation();
+              handledExternal = true;
+              const isGif = lowerText.includes('.gif') || lowerText.startsWith('data:image/gif');
+              const isSvg = lowerText.includes('.svg') || lowerText.startsWith('data:image/svg+xml');
+              window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
+                detail: {
+                  dataUrl: pastedText,
+                  pageIndex: activePageIndex,
+                  dataType: isSvg ? 'svg' : (isGif ? 'gif' : 'image')
+                }
+              }));
+              return;
+            }
+          }
+        }
+      }
+
+      // Asynchronous Clipboard API Fallback (for system screenshots or copied file objects)
+      if (!handledExternal && !isEditingInput && navigator.clipboard && navigator.clipboard.read) {
+        try {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const item of clipboardItems) {
+            const mediaType = item.types.find(t => t.startsWith('image/') || t.startsWith('video/'));
+            if (mediaType) {
+              e.preventDefault();
+              e.stopPropagation();
+              const blob = await item.getType(mediaType);
+              const isVideo = mediaType.startsWith('video/');
+              const isGif = mediaType === 'image/gif';
+              const isSvg = mediaType === 'image/svg+xml';
+
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                const dataUrl = event.target.result;
+                if (isVideo) {
+                  window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                    detail: { videoUrl: dataUrl, pageIndex: activePageIndex, file: blob, isTemporary: true }
+                  }));
+                } else {
+                  window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
+                    detail: {
+                      dataUrl: dataUrl,
+                      pageIndex: activePageIndex,
+                      dataType: isSvg ? 'svg' : (isGif ? 'gif' : 'image')
+                    }
+                  }));
+                }
+              };
+              reader.readAsDataURL(blob);
+              break;
+            }
+          }
+        } catch (err) {
+          // Ignore permission errors
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleNativePaste);
+    return () => window.removeEventListener('paste', handleNativePaste);
+  }, [activePageIndex]);
 
   const loadTemplate = async (templateUrl, prefetchedContent = null) => {
     try {

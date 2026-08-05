@@ -12,6 +12,7 @@ import TopToolbar from "./TopToolbar";
 import AnimatedGizmo from "./Components/AnimatedGizmo";
 import { GlobalLoader } from "./Components/GlobalLoader";
 import RenderModel from "./Components/ModelLoaders";
+import PhysicsManager from "./Physics/PhysicsManager";
 import useModalHistory from "./hooks/useModalHistory";
 import Export3DModal from "./Components/Export3DModal";
 import AddModelModal from "./Components/AddModelModal";
@@ -118,9 +119,99 @@ export default function ThreedEditor() {
   // Right Panel & Sidebar State
   const [activeAccordion, setActiveAccordion] = useState("factor"); // "factor" | "position" | "lighting"
 
+  const defaultTransform = useMemo(() => ({
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 }
+  }), []);
+
+  const sanitizeTransformValues = useCallback((t) => {
+      if (!t) return defaultTransform;
+      const pos = t.position || { x: 0, y: 0, z: 0 };
+      const rot = t.rotation || { x: 0, y: 0, z: 0 };
+      let sc = t.scale || { x: 1, y: 1, z: 1 };
+
+      let sx = typeof sc.x === 'number' ? sc.x : 1;
+      let sy = typeof sc.y === 'number' ? sc.y : 1;
+      let sz = typeof sc.z === 'number' ? sc.z : 1;
+
+      // If scale was corrupted/saved as percentage (>= 50), sanitize back to 1.0 multiplier
+      if (Math.abs(sx) >= 50) sx = 1;
+      if (Math.abs(sy) >= 50) sy = 1;
+      if (Math.abs(sz) >= 50) sz = 1;
+
+      return {
+          position: { x: pos.x ?? 0, y: pos.y ?? 0, z: pos.z ?? 0 },
+          rotation: { x: rot.x ?? 0, y: rot.y ?? 0, z: rot.z ?? 0 },
+          scale: { x: sx, y: sy, z: sz }
+      };
+  }, [defaultTransform]);
+
   // Transform Tools State
   const [transformMode, setTransformMode] = useState(null); // 'translate', 'rotate', 'scale', null
-  const [transformValues, setTransformValues] = useState(threedState.transformValues);
+  const [transformValues, setRawTransformValues] = useState(() => sanitizeTransformValues(threedState.transformValues));
+
+  const setTransformValues = useCallback((valOrFn) => {
+      setRawTransformValues(prev => {
+          const raw = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn;
+          const next = sanitizeTransformValues(raw);
+          if (prev &&
+              prev.position?.x === next.position.x &&
+              prev.position?.y === next.position.y &&
+              prev.position?.z === next.position.z &&
+              prev.rotation?.x === next.rotation.x &&
+              prev.rotation?.y === next.rotation.y &&
+              prev.rotation?.z === next.rotation.z &&
+              prev.scale?.x === next.scale.x &&
+              prev.scale?.y === next.scale.y &&
+              prev.scale?.z === next.scale.z) {
+              return prev;
+          }
+          return next;
+      });
+  }, [sanitizeTransformValues]);
+
+  // Physics State (Rapier, Cannon-es, Ammo.js)
+  const [physicsEngine, setPhysicsEngine] = useState('none'); // 'rapier' | 'cannon' | 'ammo' | 'none'
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [gravity, setGravity] = useState([0, -9.81, 0]);
+  const [bodyType, setBodyType] = useState('dynamic');
+  const [colliderShape, setColliderShape] = useState('cuboid');
+  const [mass, setMass] = useState(1.0);
+  const [friction, setFriction] = useState(0.5);
+  const [restitution, setRestitution] = useState(0.3);
+  const [physicsResetTrigger, setPhysicsResetTrigger] = useState(0);
+  const handleSpawnPhysicsDemo = useCallback(() => {
+      if (physicsEngine === 'none') {
+          setPhysicsEngine('cannon');
+      }
+      setPhysicsResetTrigger(prev => prev + 1);
+      setIsSimulating(true);
+      if (toast && typeof toast.success === 'function') {
+          toast.success("Physics simulation active! Testing drop dynamics.");
+      }
+  }, [physicsEngine, toast]);
+
+  const physicsProps = useMemo(() => ({
+      physicsEngine,
+      setPhysicsEngine,
+      isSimulating,
+      setIsSimulating,
+      gravity,
+      setGravity,
+      bodyType,
+      setBodyType,
+      colliderShape,
+      setColliderShape,
+      mass,
+      setMass,
+      friction,
+      setFriction,
+      restitution,
+      setRestitution,
+      onResetPhysics: () => setPhysicsResetTrigger(prev => prev + 1),
+      onSpawnDemo: handleSpawnPhysicsDemo
+  }), [physicsEngine, isSimulating, gravity, bodyType, colliderShape, mass, friction, restitution, handleSpawnPhysicsDemo]);
 
   // --- History Management ---
   const [modelName, setModelName] = useState(threedState.modelName);
@@ -233,6 +324,12 @@ export default function ThreedEditor() {
               setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
               setIsSidebarCollapsed(false);
               setModelStats({ fileSize: modelData.size || "0 MB" });
+              resetHistory({
+                ...stateRef.current,
+                models: [newModel],
+                modelName: newModel.name,
+                selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
+              });
               return; // End here for ID-based load
             }
           } catch (err) {
@@ -264,6 +361,12 @@ export default function ThreedEditor() {
             setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
             setIsSidebarCollapsed(false);
             setModelStats({ fileSize: "0 MB" });
+            resetHistory({
+              ...stateRef.current,
+              models: [newModel],
+              modelName: newModel.name,
+              selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
+            });
             localStorage.removeItem('tempThreedEditModel');
             return; // End here for temp model load
           } catch(e) {
@@ -581,24 +684,34 @@ export default function ThreedEditor() {
       if (models.length === 0) {
           nextModelName = newModel.name;
           setModelName(nextModelName);
+          resetHistory({
+              ...stateRef.current,
+              models: nextModels,
+              modelName: nextModelName,
+              selectedMaterial: null
+          });
+      } else {
+          pushHistory({
+              ...stateRef.current,
+              models: nextModels,
+              modelName: nextModelName,
+              selectedMaterial: null // Reset selection on new model to be safe
+          });
       }
-      
-      pushHistory({
-          ...stateRef.current,
-          models: nextModels,
-          modelName: nextModelName,
-          selectedMaterial: null // Reset selection on new model to be safe
-      });
       
       setIsSidebarCollapsed(false);
   };
 
   const handleSetModelStats = useCallback((modelId, stats) => {
-      setModelStatsMap(prev => ({ ...prev, [modelId]: stats }));
+      setModelStatsMap(prev => {
+          if (JSON.stringify(prev[modelId]) === JSON.stringify(stats)) return prev;
+          return { ...prev, [modelId]: stats };
+      });
   }, []);
 
   const handleSetMaterialList = useCallback((modelId, list, dataMap) => {
       setModelMaterialLists(prev => {
+          if (JSON.stringify(prev[modelId]) === JSON.stringify(list)) return prev;
           const next = { ...prev, [modelId]: list };
           updateHistory({
               ...stateRef.current,
@@ -608,7 +721,10 @@ export default function ThreedEditor() {
       });
 
       if (dataMap) {
-          setModelMaterialDataMap(prev => ({ ...prev, [modelId]: dataMap }));
+          setModelMaterialDataMap(prev => {
+              if (JSON.stringify(prev[modelId]) === JSON.stringify(dataMap)) return prev;
+              return { ...prev, [modelId]: dataMap };
+          });
       }
   }, [updateHistory]);
 
@@ -938,17 +1054,25 @@ export default function ThreedEditor() {
   const handleUndo = useCallback(() => {
       const prevState = undo();
       if (prevState) {
-          if (prevState.models !== undefined) setModels(prevState.models);
+          const isCurrentModelPresent = models.length > 0;
+          const isPrevStateEmptyModels = prevState.models !== undefined && prevState.models.length === 0;
+
+          if (isPrevStateEmptyModels && isCurrentModelPresent) {
+              // Guard against wiping out active models and materials when undoing back to pre-upload initial state
+          } else {
+              if (prevState.models !== undefined) setModels(prevState.models);
+              if (prevState.modelMaterialLists !== undefined) setModelMaterialLists(prevState.modelMaterialLists);
+              if (prevState.modelName !== undefined && prevState.modelName !== "") setModelName(prevState.modelName);
+          }
+
           if (prevState.transformValues !== undefined) setTransformValues(prevState.transformValues);
           if (prevState.materialSettings !== undefined) setMaterialSettings(prevState.materialSettings);
-          if (prevState.modelName !== undefined) setModelName(prevState.modelName);
           if (prevState.hiddenMaterials !== undefined) setHiddenMaterials(new Set(prevState.hiddenMaterials));
           if (prevState.deletedMaterials !== undefined) setDeletedMaterials(new Set(prevState.deletedMaterials));
-          if (prevState.modelMaterialLists !== undefined) setModelMaterialLists(prevState.modelMaterialLists);
           if (prevState.selectedMaterial !== undefined) setSelectedMaterial(prevState.selectedMaterial);
           if (prevState.selectedTexture !== undefined) setSelectedTexture(prevState.selectedTexture);
       }
-  }, [undo]);
+  }, [undo, models.length]);
 
   const handleRedo = useCallback(() => {
       const nextState = redo();
@@ -1210,7 +1334,11 @@ export default function ThreedEditor() {
 
   const updateMaterialSetting = useCallback((key, val, fromSync = false) => {
     setMaterialSettings((prev) => {
-      if (prev[key] === val) return prev;
+      if (val !== null && typeof val === 'object') {
+          if (JSON.stringify(prev[key]) === JSON.stringify(val)) return prev;
+      } else if (prev[key] === val) {
+          return prev;
+      }
       
       const next = { ...prev, [key]: val };
       
@@ -1249,7 +1377,7 @@ export default function ThreedEditor() {
     if (file === null) {
       setMaterialSettings(prev => {
         const nextMaps = { ...(prev.maps || {}), [mapType]: null };
-        const next = { ...prev, maps: nextMaps };
+        const next = { ...prev, maps: nextMaps, useFactorColor: true };
         
         pushHistory({
             ...stateRef.current,
@@ -1563,12 +1691,20 @@ export default function ThreedEditor() {
         controlsRef.current.reset();
         setTargetPosition({ x: 0, y: 0, z: 0 });
     }
+    const defaultTransform = {
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 }
+    };
+    setTransformValues(defaultTransform);
+
     // Trigger scene-wide reset for model parts
     setSceneResetTrigger(prev => prev + 1);
 
     pushHistory({
         ...stateRef.current,
-        targetPosition: { x: 0, y: 0, z: 0 }
+        targetPosition: { x: 0, y: 0, z: 0 },
+        transformValues: defaultTransform
     });
   };
 
@@ -1842,6 +1978,9 @@ export default function ThreedEditor() {
         ...prev,
         useFactorColor: false
     }));
+    if (!selectedMaterial) {
+        setTransformMode(null);
+    }
   }, [selectedMaterial]);
 
   const handleTransformChange = useCallback((t) => {
@@ -1857,7 +1996,21 @@ export default function ThreedEditor() {
           scale: { x: t.scale.x, y: t.scale.y, z: t.scale.z }
       };
 
-      setTransformValues(nextTransform);
+      setTransformValues(prev => {
+          if (prev &&
+              prev.position?.x === nextTransform.position.x &&
+              prev.position?.y === nextTransform.position.y &&
+              prev.position?.z === nextTransform.position.z &&
+              prev.rotation?.x === nextTransform.rotation.x &&
+              prev.rotation?.y === nextTransform.rotation.y &&
+              prev.rotation?.z === nextTransform.rotation.z &&
+              prev.scale?.x === nextTransform.scale.x &&
+              prev.scale?.y === nextTransform.scale.y &&
+              prev.scale?.z === nextTransform.scale.z) {
+              return prev;
+          }
+          return nextTransform;
+      });
   }, []);
 
   const onTransformEnd = useCallback(() => {
@@ -1929,6 +2082,7 @@ export default function ThreedEditor() {
 
           <EditorToolbar
             hasModel={models.length > 0}
+            selectedMaterial={selectedMaterial}
             settings={settings}
             setSettings={setSettings}
             onClear={handleClearModel}
@@ -2055,39 +2209,52 @@ export default function ThreedEditor() {
               />
 
               <Suspense fallback={null}>
-                <group ref={sceneWrapperRef}>
-                  {models.map((model, index) => (
-                    <RenderModel
-                        key={model.id}
-                        ref={(r) => {
-                            if (index === 0) modelRef.current = r;
-                            if (r) modelRefs.current.set(model.id, r);
-                            else modelRefs.current.delete(model.id);
-                        }}
-                        type={model.type}
-                        url={model.url}
-                        wireframe={settings.wireframe}
-                        setModelStats={(stats) => handleSetModelStats(model.id, stats)}
-                        setMaterialList={(list) => handleSetMaterialList(model.id, list)}
-                        selectedMaterial={selectedMaterial}
-                        onSelectMaterial={handleSelectMaterial}
-                        modelName={model.name}
-                        transformMode={transformMode}
-                        transformValues={transformValues}
-                        materialSettings={materialSettings}
-                        hiddenMaterials={new Set([...hiddenMaterials, ...deletedMaterials])}
-                        onUpdateMaterialSetting={handleMaterialSync}
-                        selectedTexture={selectedTexture}
-                        resetKey={resetKey}
-                        sceneResetTrigger={sceneResetTrigger}
-                        uvUnwrapTrigger={uvUnwrapTrigger}
-                        onTextureApplied={handleTextureApplied}
-                        onTextureIdentified={handleTextureIdentified}
-                        onTransformEnd={handleTransformEnd}
-                        onTransformChange={handleTransformChange}
-                    />
-                  ))}
-                </group>
+                <PhysicsManager
+                    physicsEngine={physicsEngine}
+                    isSimulating={isSimulating}
+                    gravity={gravity}
+                    bodyType={bodyType}
+                    colliderShape={colliderShape}
+                    mass={mass}
+                    friction={friction}
+                    restitution={restitution}
+                    resetTrigger={physicsResetTrigger}
+                    sceneRef={sceneWrapperRef}
+                >
+                  <group ref={sceneWrapperRef}>
+                    {models.map((model, index) => (
+                      <RenderModel
+                          key={model.id}
+                          ref={(r) => {
+                              if (index === 0) modelRef.current = r;
+                              if (r) modelRefs.current.set(model.id, r);
+                              else modelRefs.current.delete(model.id);
+                          }}
+                          type={model.type}
+                          url={model.url}
+                          wireframe={settings.wireframe}
+                          setModelStats={(stats) => handleSetModelStats(model.id, stats)}
+                          setMaterialList={(list) => handleSetMaterialList(model.id, list)}
+                          selectedMaterial={selectedMaterial}
+                          onSelectMaterial={handleSelectMaterial}
+                          modelName={model.name}
+                          transformMode={transformMode}
+                          transformValues={transformValues}
+                          materialSettings={materialSettings}
+                          hiddenMaterials={new Set([...hiddenMaterials, ...deletedMaterials])}
+                          onUpdateMaterialSetting={handleMaterialSync}
+                          selectedTexture={selectedTexture}
+                          resetKey={resetKey}
+                          sceneResetTrigger={sceneResetTrigger}
+                          uvUnwrapTrigger={uvUnwrapTrigger}
+                          onTextureApplied={handleTextureApplied}
+                          onTextureIdentified={handleTextureIdentified}
+                          onTransformEnd={handleTransformEnd}
+                          onTransformChange={handleTransformChange}
+                      />
+                    ))}
+                  </group>
+                </PhysicsManager>
 
                 {transformMode && (selectedMaterial?.name === "Scene") && (
                     <TransformControls
@@ -2210,6 +2377,7 @@ export default function ThreedEditor() {
             <RightPanel
               onFileProcess={processFile}
               hasModel={models.length > 0}
+              physicsProps={physicsProps}
               onExport={() => setShowExportModal(true)}
               autoRotate={autoRotate}
               setAutoRotate={setAutoRotate}
@@ -2289,6 +2457,7 @@ export default function ThreedEditor() {
     </div>
   );
 }
+
 
 
 

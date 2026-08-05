@@ -5,6 +5,7 @@ import ColorPicker from "./ColorPicker";
 
 export default function EditorToolbar({ 
     hasModel, 
+    selectedMaterial,
     settings, 
     setSettings, 
     onClear, 
@@ -15,9 +16,11 @@ export default function EditorToolbar({
     onScreenshotClick,
     isScreenshotOpen
 }) {
+    const isTransformEnabled = hasModel && Boolean(selectedMaterial);
     const [showSettings, setShowSettings] = useState(false);
 
     const handleModeToggle = (mode) => {
+        if (!isTransformEnabled) return;
         if (transformMode === mode) {
             setTransformMode(null); // Toggle off
         } else {
@@ -186,19 +189,19 @@ export default function EditorToolbar({
                         icon="si:move-line" 
                         active={transformMode === 'translate'}
                         onClick={() => handleModeToggle('translate')}
-                        enabled 
+                        enabled={isTransformEnabled}
                     />
                     <ToolbarButton 
                         icon="mdi:rotate-orbit" 
                         active={transformMode === 'rotate'}
                         onClick={() => handleModeToggle('rotate')}
-                        enabled 
+                        enabled={isTransformEnabled}
                     />
                     <ToolbarButton 
                         icon="solar:scale-outline" 
                         active={transformMode === 'scale'}
                         onClick={() => handleModeToggle('scale')}
-                        enabled 
+                        enabled={isTransformEnabled}
                     />
                 </div>
             )}

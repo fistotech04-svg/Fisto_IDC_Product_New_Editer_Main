@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getVisualBBox, getCanvasBounds } from './MainEditor';
 import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight, Upload, Link, Check, FileText, Video } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ShapeProperties from './ShapeProperties';
@@ -37,26 +38,22 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
        const el = editorDoc.getElementById(targetId);
        if (el && typeof el.getBBox === 'function') {
           try {
-             const bbox = el.getBBox();
+             const bbox = getVisualBBox(el);
              let rawVal = 0;
-             if (targetAttr === 'width') rawVal = bbox.width;
-             else if (targetAttr === 'height') rawVal = bbox.height;
-             else if (targetAttr === 'x') rawVal = bbox.x;
-             else if (targetAttr === 'y') rawVal = bbox.y;
-             
+             let m = [1, 0, 0, 1, 0, 0];
              const transform = el.getAttribute('transform');
              if (transform && transform.includes('matrix')) {
                 const match = transform.match(/matrix\(([^)]+)\)/);
                 if (match) {
-                   const m = match[1].split(/[\s,]+/).map(parseFloat);
-                   if (m.length === 6) {
-                      if (targetAttr === 'width') rawVal *= Math.abs(m[0]);
-                      else if (targetAttr === 'height') rawVal *= Math.abs(m[3]);
-                      else if (targetAttr === 'x') rawVal += m[4];
-                      else if (targetAttr === 'y') rawVal += m[5];
-                   }
+                   const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+                   if (parsedM.length === 6) m = parsedM;
                 }
              }
+
+             if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
+             else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
+             else if (targetAttr === 'x') rawVal = bbox.x * m[0] + m[4];
+             else if (targetAttr === 'y') rawVal = bbox.y * m[3] + m[5];
 
              if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
                  const r = parseFloat(el.getAttribute('r')) || 0;
@@ -255,20 +252,31 @@ const RightSidebar = ({
          if (match) {
              const m = match[1].split(/[\s,]+/).map(parseFloat);
              if (m.length === 6) {
-                 const bbox = el.getBBox();
+                 const bbox = getVisualBBox(el);
+                 const bounds = getCanvasBounds(el, flipbookDimensions?.width, flipbookDimensions?.height);
+                 const visW = bbox.width * Math.abs(m[0]);
+                 const visH = bbox.height * Math.abs(m[3]);
+
                  if (targetAttr === 'x') {
-                     m[4] = newVal - bbox.x;
+                     newVal = Math.max(bounds.minX, Math.min(bounds.maxX - visW, newVal));
+                     m[4] = newVal - bbox.x * m[0];
                      updateElementAttribute(activePageIndex, selectedLayerId, {
                         'transform': `matrix(${m.join(', ')})`,
                         'data-x': m[4].toString()
                      });
                  } else {
-                     m[5] = newVal - bbox.y;
+                     newVal = Math.max(bounds.minY, Math.min(bounds.maxY - visH, newVal));
+                     m[5] = newVal - bbox.y * m[3];
                      updateElementAttribute(activePageIndex, selectedLayerId, {
                         'transform': `matrix(${m.join(', ')})`,
                         'data-y': m[5].toString()
                      });
                  }
+                 setTimeout(() => {
+                    if (typeof window.drawOverlayHighlight === 'function') {
+                       window.drawOverlayHighlight(el, 'selected');
+                    }
+                 }, 50);
                  return;
              }
          }
@@ -354,9 +362,9 @@ const RightSidebar = ({
        return;
      }
 
-     if (tag === 'path' || tag === 'polygon' || tag === 'g') {
+     if (tag === 'path' || tag === 'polygon' || tag === 'g' || tag === 'rect' || tag === 'image' || tag === 'foreignobject' || hasMatrix) {
        if (!el) return;
-       const bbox = el.getBBox();
+       const bbox = getVisualBBox(el);
        const targetVal = parseFloat(val);
        if (targetVal <= 0 || bbox.width === 0 || bbox.height === 0) return;
 
@@ -591,77 +599,70 @@ const RightSidebar = ({
         // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
         const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
         const actualEl = editorDoc.getElementById(selectedLayerId);
+        let measuredFromDom = false;
         if (actualEl && typeof actualEl.getBBox === 'function') {
            try {
-              const bbox = actualEl.getBBox();
-              w = bbox.width.toString();
-              h = bbox.height.toString();
-              x = bbox.x.toString();
-              y = bbox.y.toString();
-              
-              // If there's a matrix transform, it usually handles position.
-              // In this editor, interact.js uses matrix transforms for movement.
+              const bbox = getVisualBBox(actualEl);
+              let m = [1, 0, 0, 1, 0, 0];
               const transform = actualEl.getAttribute('transform');
               if (transform && transform.includes('matrix')) {
                  const match = transform.match(/matrix\(([^)]+)\)/);
                  if (match) {
-                    const m = match[1].split(/[\s,]+/).map(parseFloat);
-                    // matrix(a, b, c, d, e, f) -> e, f are translation
-                    if (m.length === 6) {
-                       x = (parseFloat(x) + m[4]).toString();
-                       y = (parseFloat(y) + m[5]).toString();
-                       // Width/Height are already "local" to the matrix if we use getBBox(),
-                       // but visual width/height should include scaling.
-                       w = (parseFloat(w) * Math.abs(m[0])).toString();
-                       h = (parseFloat(h) * Math.abs(m[3])).toString();
-                    }
+                    const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+                    if (parsedM.length === 6) m = parsedM;
                  }
               }
+              w = (bbox.width * Math.abs(m[0])).toString();
+              h = (bbox.height * Math.abs(m[3])).toString();
+              x = (bbox.x * m[0] + m[4]).toString();
+              y = (bbox.y * m[3] + m[5]).toString();
+              measuredFromDom = true;
            } catch (e) {
               console.warn("Failed to get BBox for element", e);
            }
         }
 
         // --- FALLBACK / OVERRIDE: Tags that have preferred source of truth ---
+        if (!measuredFromDom || (parseFloat(w) === 0 && parseFloat(h) === 0)) {
+           if (el.tagName === 'rect') {
+              if (!el.getAttribute('transform')) {
+                 w = el.getAttribute('width') || w;
+                 h = el.getAttribute('height') || h;
+                 x = el.getAttribute('x') || x;
+                 y = el.getAttribute('y') || y;
+              }
+           } else if (el.tagName === 'circle') {
+              const radius = parseFloat(el.getAttribute('r')) || 0;
+              w = (radius * 2).toString();
+              h = w;
+              if (!el.getAttribute('transform')) {
+                 x = (parseFloat(el.getAttribute('cx') || '0') - radius).toString();
+                 y = (parseFloat(el.getAttribute('cy') || '0') - radius).toString();
+              }
+           } else if (el.tagName === 'ellipse') {
+              const rx = parseFloat(el.getAttribute('rx')) || 0;
+              const ry = parseFloat(el.getAttribute('ry')) || 0;
+              w = (rx * 2).toString();
+              h = (ry * 2).toString();
+              if (!el.getAttribute('transform')) {
+                 x = (parseFloat(el.getAttribute('cx') || '0') - rx).toString();
+                 y = (parseFloat(el.getAttribute('cy') || '0') - ry).toString();
+              }
+           } else if (el.tagName === 'text') {
+              if (!el.getAttribute('transform')) {
+                 x = el.getAttribute('x') || x;
+                 y = el.getAttribute('y') || y;
+              }
+           } else if (el.tagName === 'image' || el.tagName === 'path' || el.tagName === 'g') {
+              if (parseFloat(w) === 0) w = el.getAttribute('width') || '0';
+              if (parseFloat(h) === 0) h = el.getAttribute('height') || '0';
+              if (parseFloat(x) === 0) x = el.getAttribute('x') || '0';
+              if (parseFloat(y) === 0) y = el.getAttribute('y') || '0';
+           }
+        }
+
         if (el.tagName === 'rect') {
-           // For simple rects, use attributes if transform is NOT present
-           if (!el.getAttribute('transform')) {
-              w = el.getAttribute('width') || w;
-              h = el.getAttribute('height') || h;
-              x = el.getAttribute('x') || x;
-              y = el.getAttribute('y') || y;
-           }
            r = el.getAttribute('rx') || '0';
-        } else if (el.tagName === 'circle') {
-           const radius = parseFloat(el.getAttribute('r')) || 0;
-           w = (radius * 2).toString();
-           h = w;
-           // Use cx/cy for position if no matrix
-           if (!el.getAttribute('transform')) {
-              x = (parseFloat(el.getAttribute('cx') || '0') - radius).toString();
-              y = (parseFloat(el.getAttribute('cy') || '0') - radius).toString();
-           }
-        } else if (el.tagName === 'ellipse') {
-           const rx = parseFloat(el.getAttribute('rx')) || 0;
-           const ry = parseFloat(el.getAttribute('ry')) || 0;
-           w = (rx * 2).toString();
-           h = (ry * 2).toString();
-           if (!el.getAttribute('transform')) {
-              x = (parseFloat(el.getAttribute('cx') || '0') - rx).toString();
-              y = (parseFloat(el.getAttribute('cy') || '0') - ry).toString();
-           }
-        } else if (el.tagName === 'text') {
-           // x/y on text is start position, bbox handles the rest
-           if (!el.getAttribute('transform')) {
-              x = el.getAttribute('x') || x;
-              y = el.getAttribute('y') || y;
-           }
-        } else if (el.tagName === 'image' || el.tagName === 'path' || el.tagName === 'g') {
-           // Fallback to width/height attributes if bbox failed or were zero
-           if (parseFloat(w) === 0) w = el.getAttribute('width') || '0';
-           if (parseFloat(h) === 0) h = el.getAttribute('height') || '0';
-           if (parseFloat(x) === 0) x = el.getAttribute('x') || '0';
-           if (parseFloat(y) === 0) y = el.getAttribute('y') || '0';
         }
 
         let fillStyle = el.getAttribute('fill') || '#000000';
