@@ -62,6 +62,49 @@ const debounce = (fn, delay = 150) => {
   };
 };
 
+const CustomSelect = ({ value, options, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative flex-1 custom-select-container" ref={dropdownRef}>
+      <div
+        className="flex items-center justify-between w-full h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="text-[0.75vw] text-gray-600">{value}</span>
+        <Icon icon={isOpen ? "lucide:chevron-up" : "lucide:chevron-down"} className="w-[0.9vw] h-[0.9vw] text-gray-500 pointer-events-none" />
+      </div>
+      {isOpen && (
+        <div className="absolute top-[100%] left-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 py-[0.3vw]">
+          {options.map((opt) => (
+            <div
+              key={opt}
+              className="px-[0.6vw] py-[0.4vw] text-[0.75vw] text-gray-700 hover:bg-gray-100 cursor-pointer"
+              onClick={() => {
+                onChange(opt);
+                setIsOpen(false);
+              }}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const VideoEditor = ({
   selectedElement,
   selectedLayerId,
@@ -101,6 +144,14 @@ const VideoEditor = ({
   const [controls, setControls] = useState(true);
   const [controlsSize, setControlsSize] = useState(100);
   const [muted, setMuted] = useState(false);
+
+  const [startTime, setStartTime] = useState("00:00:00");
+  const [endTime, setEndTime] = useState("08:52:21");
+  const [playbackSpeed, setPlaybackSpeed] = useState("1.0x");
+  const [resumeBehavior, setResumeBehavior] = useState("Resume from Last Position");
+  const [playVideoWhile, setPlayVideoWhile] = useState("Auto Play While on Page");
+  const [defaultVolume, setDefaultVolume] = useState(80);
+  const [disableFullScreen, setDisableFullScreen] = useState(false);
 
   const [opacity, setOpacity] = useState(100);
   const [coverOption, setCoverOption] = useState("auto"); // "upload" or "auto"
@@ -390,6 +441,23 @@ const VideoEditor = ({
       setLoop(target.loop || target.hasAttribute('loop'));
       setControls(target.controls || !target.classList.contains('hide-controls'));
       setMuted(target.muted || target.hasAttribute('muted'));
+      
+      setStartTime(target.getAttribute('data-start-time') || '');
+      setEndTime(target.getAttribute('data-end-time') || '');
+      setPlayVideoWhile(target.getAttribute('data-play-video-while') || 'Auto Play While on Page');
+      const pSpeed = target.getAttribute('data-playback-speed');
+      if (pSpeed) {
+        setPlaybackSpeed(pSpeed);
+      } else if (target.playbackRate) {
+        setPlaybackSpeed(target.playbackRate % 1 === 0 ? `${target.playbackRate}.0x` : `${target.playbackRate}x`);
+      } else {
+        setPlaybackSpeed('1.0x');
+      }
+      setResumeBehavior(target.getAttribute('data-resume-behavior') || 'Resume from Last Position');
+      const dVol = target.getAttribute('data-default-volume');
+      setDefaultVolume(dVol ? parseInt(dVol) : (target.volume !== undefined ? Math.round(target.volume * 100) : 100));
+      setDisableFullScreen(target.getAttribute('data-disable-fullscreen') === 'true');
+
       const rawCtrlSize = target.getAttribute('data-controls-size');
       const ctrlSize = rawCtrlSize ? parseInt(rawCtrlSize) : 100;
       setControlsSize(isNaN(ctrlSize) ? 100 : Math.max(0, Math.min(100, ctrlSize)));
@@ -1334,6 +1402,16 @@ const VideoEditor = ({
           target.loop = false;
         }
 
+        target.setAttribute('data-start-time', startTime);
+        target.setAttribute('data-end-time', endTime);
+        target.setAttribute('data-play-video-while', playVideoWhile);
+        target.setAttribute('data-playback-speed', playbackSpeed);
+        target.playbackRate = parseFloat(playbackSpeed.replace('x', ''));
+        target.setAttribute('data-resume-behavior', resumeBehavior);
+        target.setAttribute('data-default-volume', defaultVolume);
+        target.volume = defaultVolume / 100;
+        target.setAttribute('data-disable-fullscreen', disableFullScreen ? 'true' : 'false');
+
         // Always keep native controls OFF — custom controls bar handles the UI.
         // Use a data attribute so the custom controls useEffect knows the user preference.
         target.controls = false;
@@ -1426,7 +1504,7 @@ const VideoEditor = ({
     } catch (e) {
       console.error("Error applying video visuals:", e);
     }
-  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, muted, debouncedUpdate]);
+  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, muted, startTime, endTime, playVideoWhile, playbackSpeed, resumeBehavior, defaultVolume, disableFullScreen, debouncedUpdate]);
 
   useEffect(() => {
     applyVisuals();
@@ -2267,39 +2345,102 @@ const VideoEditor = ({
         </div>
 
         <div className="space-y-[0.8vw] px-[0.5vw]">
+          {/* Play Video While */}
+          <div className="flex items-center justify-between">
+            <span className="text-[0.75vw] font-medium text-gray-800 w-[6.5vw] ">Play Video While</span>
+            <span className="text-[0.75vw] font-medium text-gray-800 mr-[0.5vw]">:</span>
+            <CustomSelect
+              value={playVideoWhile}
+              options={["Auto Play While on Page", "Click to Play"]}
+              onChange={setPlayVideoWhile}
+            />
+          </div>
+
+          {/* Playback Speed */}
+          <div className="flex items-center justify-between">
+            <span className="text-[0.75vw] font-medium text-gray-800 w-[6.5vw]">Playback Speed</span>
+            <span className="text-[0.75vw] font-medium text-gray-800 mr-[0.5vw]">:</span>
+            <CustomSelect
+              value={playbackSpeed}
+              options={["0.5x", "1.0x", "1.5x", "2.0x"]}
+              onChange={setPlaybackSpeed}
+            />
+          </div>
+
+          {/* Resume Behavior */}
+          <div className="flex items-center justify-between">
+            <span className="text-[0.75vw] font-medium text-gray-800 w-[6.5vw] ">Resume Behavior</span>
+            <span className="text-[0.75vw] font-medium text-gray-800 mr-[0.5vw]">:</span>
+            <CustomSelect
+              value={resumeBehavior}
+              options={["Resume from Last Position", "Start from Beginning"]}
+              onChange={setResumeBehavior}
+            />
+          </div>
+
+          {/* Default Volume */}
+          <div className="flex items-center justify-between mt-[1vw] mb-[0.5vw]">
+            <span className="text-[0.75vw] font-medium text-gray-800 w-[6.5vw]">Default Volume</span>
+            <span className="text-[0.75vw] font-medium text-gray-800 mr-[0.5vw]">:</span>
+            <div className="flex items-center flex-1 gap-[0.5vw]">
+              <Icon icon="lucide:volume-2" className="w-[1vw] h-[1vw] text-[#4A3AFF]" />
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={defaultVolume}
+                onChange={(e) => setDefaultVolume(parseInt(e.target.value))}
+                className="flex-1 h-[0.2vw] w-[3vw] bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, #4A3AFF ${defaultVolume}%, #E5E7EB ${defaultVolume}%)`
+                }}
+              />
+              <style jsx="true">{`
+                input[type=range]::-webkit-slider-thumb {
+                  appearance: none;
+                  width: 0.8vw;
+                  height: 0.8vw;
+                  border-radius: 100%;
+                  background: #4A3AFF;
+                  cursor: pointer;
+                }
+              `}</style>
+              <div className="flex items-center justify-center border border-gray-200 rounded-[0.3vw] px-[0.5vw] py-[0.3vw] min-w-[2.5vw]">
+                <span className="text-[0.5vw] font-medium text-gray-900">{defaultVolume} %</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-[0.7vw]"></div>
+
           {[
             {
               label: "Disable Video Controls",
               value: !controls,
               onChange: (v) => {
                 updateElementAttribute('controls', !v);
-                if (v) {
-                  updateElementAttribute('autoplay', true);
-                }
               }
-            },
-            {
-              label: "Autoplay (Play video automatically)",
-              value: !controls ? true : autoplay,
-              disabled: !controls,
-              onChange: (v) => updateElementAttribute('autoplay', v)
             },
             {
               label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => {
                 updateElementAttribute('loop', v);
                 if (v) {
                   updateElementAttribute('autoplay', true);
+                  setPlayVideoWhile("Auto Play While on Page");
                 }
               }
             },
-            { label: "Muted", value: muted, onChange: (v) => updateElementAttribute('muted', v) }
+            {
+              label: "Disable Full Screen View",
+              value: disableFullScreen,
+              onChange: (v) => setDisableFullScreen(v)
+            }
           ].map((item, i) => (
-            <div key={i} className={`flex items-center justify-between ${item.disabled ? 'opacity-50' : ''}`}>
+            <div key={i} className="flex items-center justify-between py-[0.3vw]">
               <span className="text-[0.75vw] font-medium text-gray-800">{item.label}</span>
               <Switch enabled={item.value} onChange={item.onChange} disabled={item.disabled} />
             </div>
           ))}
-
         </div>
       </div>
 

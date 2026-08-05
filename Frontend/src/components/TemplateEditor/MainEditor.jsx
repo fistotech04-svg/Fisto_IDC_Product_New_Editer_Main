@@ -46,27 +46,54 @@ export const isElementCropped = (el) => {
   return false;
 };
 
+export const formatSmoothPathD = (pts) => {
+  if (!pts || pts.length === 0) return '';
+  if (pts.length === 1) return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+  if (pts.length === 2) return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)} L ${pts[1].x.toFixed(2)} ${pts[1].y.toFixed(2)}`;
+
+  let d = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+  const mid0x = (pts[0].x + pts[1].x) / 2;
+  const mid0y = (pts[0].y + pts[1].y) / 2;
+  d += ` L ${mid0x.toFixed(2)} ${mid0y.toFixed(2)}`;
+
+  for (let i = 1; i < pts.length - 1; i++) {
+    const xc = (pts[i].x + pts[i + 1].x) / 2;
+    const yc = (pts[i].y + pts[i + 1].y) / 2;
+    d += ` Q ${pts[i].x.toFixed(2)} ${pts[i].y.toFixed(2)}, ${xc.toFixed(2)} ${yc.toFixed(2)}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L ${last.x.toFixed(2)} ${last.y.toFixed(2)}`;
+  return d;
+};
+
+
 export const getVisualBBox = (el) => {
   if (!el || typeof el.getBBox !== 'function') return { x: 0, y: 0, width: 0, height: 0 };
 
-  const targetCropEl = (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"]') : null) ||
-    (typeof el.querySelector === 'function' ? el.querySelector('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"]') : null) ||
+  const targetCropEl = (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"], [clip-path*="clip-"]') : null) ||
+    (typeof el.querySelector === 'function' ? el.querySelector('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"], [clip-path*="clip-"]') : null) ||
     (isElementCropped(el) ? el : null);
 
   if (targetCropEl) {
-    const cropStr = targetCropEl.getAttribute('data-crop-data');
-    const svgRoot = targetCropEl.ownerSVGElement || targetCropEl.closest?.('svg') || document;
+    const cropStr = targetCropEl.getAttribute('data-crop-data') || el.getAttribute('data-crop-data');
+    const svgRoot = targetCropEl.ownerSVGElement || targetCropEl.closest?.('svg') || el.ownerSVGElement || document;
     let clipId = null;
-    const clipAttr = targetCropEl.getAttribute('clip-path') || el.getAttribute('clip-path') || '';
+    const clipAttr = targetCropEl.getAttribute('clip-path') || el.getAttribute('clip-path') || targetCropEl.querySelector?.('[clip-path]')?.getAttribute('clip-path') || el.querySelector?.('[clip-path]')?.getAttribute('clip-path') || '';
     const clipMatch = clipAttr.match(/url\(['"']?#([^)'"]+)['"']?\)/);
     if (clipMatch) clipId = clipMatch[1];
 
-    const clipEl = clipId ? svgRoot?.querySelector?.(`[id="${clipId}"]`) :
-      svgRoot?.querySelector?.(`[id="crop-group-clip-${targetCropEl.id}"], [id="crop-group-clip-${el.id}"]`);
+    const clipEl = clipId ? (svgRoot?.querySelector ? svgRoot.querySelector(`[id="${clipId}"]`) : document.getElementById(clipId)) :
+      svgRoot?.querySelector?.(`[id="crop-group-clip-${targetCropEl.id}"], [id="crop-clip-${targetCropEl.id}"], [id="crop-group-clip-${el.id}"], [id="crop-clip-${el.id}"], [id="clip-shape-${targetCropEl.id}"], [id="clip-shape-${el.id}"]`);
 
     if (clipEl && clipEl.firstElementChild) {
       try {
         const r = clipEl.firstElementChild;
+        if (typeof r.getBBox === 'function') {
+          const bb = r.getBBox();
+          if (bb && (bb.width > 0 || bb.height > 0)) {
+            return { x: bb.x, y: bb.y, width: bb.width, height: bb.height };
+          }
+        }
         const rx = parseFloat(r.getAttribute('x') || '0');
         const ry = parseFloat(r.getAttribute('y') || '0');
         const rw = parseFloat(r.getAttribute('width') || '0');
@@ -79,14 +106,15 @@ export const getVisualBBox = (el) => {
 
     if (cropStr && cropStr !== 'null') {
       let bboxW = 0, bboxH = 0, bboxX = 0, bboxY = 0;
-      if (targetCropEl.hasAttribute('data-crop-orig-w')) {
-        bboxW = parseFloat(targetCropEl.getAttribute('data-crop-orig-w') || '0');
-        bboxH = parseFloat(targetCropEl.getAttribute('data-crop-orig-h') || '0');
-        bboxX = parseFloat(targetCropEl.getAttribute('data-crop-orig-x') || '0');
-        bboxY = parseFloat(targetCropEl.getAttribute('data-crop-orig-y') || '0');
+      const targetForOrig = targetCropEl || el;
+      if (targetForOrig.hasAttribute('data-crop-orig-w')) {
+        bboxW = parseFloat(targetForOrig.getAttribute('data-crop-orig-w') || '0');
+        bboxH = parseFloat(targetForOrig.getAttribute('data-crop-orig-h') || '0');
+        bboxX = parseFloat(targetForOrig.getAttribute('data-crop-orig-x') || '0');
+        bboxY = parseFloat(targetForOrig.getAttribute('data-crop-orig-y') || '0');
       } else {
         try {
-          const bbox = targetCropEl.getBBox();
+          const bbox = el.getBBox();
           bboxW = bbox.width; bboxH = bbox.height; bboxX = bbox.x; bboxY = bbox.y;
         } catch (e) { }
       }
@@ -104,13 +132,16 @@ export const getVisualBBox = (el) => {
     }
   }
 
-  const clipAttr = el.getAttribute('clip-path') || el.style.clipPath || '';
-  if (clipAttr.includes('crop-')) {
+  const clipAttr = el.getAttribute('clip-path') || el.style?.clipPath || '';
+  if (clipAttr.includes('clip-') || clipAttr.includes('crop-')) {
     const clipMatch = clipAttr.match(/url\(['"']?#([^)'"]+)['"']?\)/);
     if (clipMatch && clipMatch[1]) {
       const clipEl = document.getElementById(clipMatch[1]);
       if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
-        try { return clipEl.firstElementChild.getBBox(); } catch (e) { }
+        try {
+          const bb = clipEl.firstElementChild.getBBox();
+          if (bb && (bb.width > 0 || bb.height > 0)) return bb;
+        } catch (e) { }
       }
     }
   }
@@ -236,6 +267,52 @@ export const getVisualBBox = (el) => {
   return el.getBBox();
 };
 
+export const getCanvasBounds = (svgElement, baseWidth = 210, baseHeight = 297) => {
+  const pW = baseWidth || 210;
+  const pH = baseHeight || 297;
+
+  let svgW = pW, svgH = pH;
+  if (svgElement) {
+    const viewBox = svgElement.getAttribute('viewBox');
+    if (viewBox) {
+      const parts = viewBox.split(/[\s,]+/).map(Number);
+      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+        svgW = parts[2];
+        svgH = parts[3];
+      }
+    }
+  }
+
+  const scaleX = svgW / pW;
+  const scaleY = svgH / pH;
+
+  // Dynamically scale canvas width to match actual MainEditor container viewport aspect ratio exactly
+  let aspect = 1.6;
+  const containerEl = typeof document !== 'undefined' ? document.getElementById('main-zoom-container')?.parentElement : null;
+  if (containerEl && containerEl.clientWidth > 0 && containerEl.clientHeight > 0) {
+    aspect = Math.max(1.0, containerEl.clientWidth / containerEl.clientHeight);
+  } else if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0) {
+    const availW = window.innerWidth * 0.8;
+    const availH = window.innerHeight * 0.78;
+    if (availH > 0) aspect = Math.max(1.0, availW / availH);
+  }
+
+  const canvasHeightMM = 1000;
+  const canvasWidthMM = Math.max(1000, Math.round(1000 * aspect));
+
+  const extraLeftMM = Math.max(0, (canvasWidthMM - pW) / 2);
+  const extraRightMM = Math.max(0, (canvasWidthMM - pW) / 2);
+  const extraTopMM = Math.max(0, (canvasHeightMM - pH) / 2);
+  const extraBottomMM = Math.max(0, (canvasHeightMM - pH) / 2);
+
+  const minX = -extraLeftMM * scaleX;
+  const maxX = svgW + extraRightMM * scaleX;
+  const minY = -extraTopMM * scaleY;
+  const maxY = svgH + extraBottomMM * scaleY;
+
+  return { minX, maxX, minY, maxY, extraLeftMM, extraRightMM, extraTopMM, extraBottomMM, scaleX, scaleY, pW, pH, svgW, svgH, canvasWidthMM, canvasHeightMM };
+};
+
 
 // Global style to ensure injected SVGs always fill their container perfectly
 const svgGlobalStyles = `
@@ -245,6 +322,10 @@ const svgGlobalStyles = `
     display: block !important;
     margin: 0 !important;
     padding: 0 !important;
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
+    shape-rendering: geometricPrecision !important;
+    text-rendering: geometricPrecision !important;
   }
 
   .page-svg-container.trim-view-on,
@@ -625,6 +706,8 @@ const MainEditor = ({
   const selectedLayerIdRef = useRef(null);
   const dragStateRef = useRef(null);
   const suppressClickRef = useRef(false);
+  const lastWheelTimeRef = useRef(0);       // ← tracks last Ctrl+scroll time to suppress spurious clicks
+  const wasRecentlyPanningRef = useRef(false); // ← tracks recent Space pan to suppress spurious clicks
   const isAltPressedRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0, target: null });
   const drawMeasurementOverlayRef = useRef(null);
@@ -899,6 +982,12 @@ const MainEditor = ({
       if (key === ' ' && !isSpaceDownRef.current) {
         if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || isEditingTextRef.current || document.activeElement.isContentEditable) return;
         e.preventDefault();
+        // Blur any focused interactive element (buttons, etc.) so Space doesn't
+        // re-trigger their click action on keyup.
+        const active = document.activeElement;
+        if (active && active !== document.body && typeof active.blur === 'function') {
+          active.blur();
+        }
         isSpaceDownRef.current = true;
         setIsSpaceDown(true);
       }
@@ -973,12 +1062,14 @@ const MainEditor = ({
       document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    // Use capture phase so our Space handler fires BEFORE the focused button's
+    // native Space-activates-button handler — ensuring preventDefault() works.
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', handleWindowBlur);
     // Cleanup to prevent leaks
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleWindowBlur);
     };
@@ -1624,16 +1715,81 @@ const MainEditor = ({
         if (!layerId) return;
 
         const showControls = video.getAttribute('data-show-controls') !== 'false';
+        
+        // APPLY CUSTOM VIDEO PROPERTIES
+        const pbSpeedStr = video.getAttribute('data-playback-speed');
+        if (pbSpeedStr) {
+           const pbSpeed = parseFloat(pbSpeedStr.replace('x', ''));
+           if (!isNaN(pbSpeed)) video.playbackRate = pbSpeed;
+        }
+
+        if (!video.hasAttribute('data-video-props-applied')) {
+            video.setAttribute('data-video-props-applied', 'true');
+            
+            const defVolStr = video.getAttribute('data-default-volume');
+            if (defVolStr) {
+                video.volume = parseInt(defVolStr) / 100;
+            }
+
+            const startTimeAttr = video.getAttribute('data-start-time');
+            let sTime = 0;
+            if (startTimeAttr) {
+              const parts = startTimeAttr.split(':').map(Number);
+              if (parts.length === 3) sTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              else if (parts.length === 2) sTime = parts[0] * 60 + parts[1];
+            }
+            const endTimeAttr = video.getAttribute('data-end-time');
+            let eTime = Infinity;
+            if (endTimeAttr) {
+              const parts = endTimeAttr.split(':').map(Number);
+              if (parts.length === 3) eTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              else if (parts.length === 2) eTime = parts[0] * 60 + parts[1];
+            }
+            video._startTime = sTime;
+            video._endTime = eTime;
+            
+            if (sTime > 0) {
+               video.currentTime = sTime;
+            }
+
+            video.addEventListener('timeupdate', () => {
+               if (video._startTime > 0 && video.currentTime < video._startTime - 0.5) {
+                   video.currentTime = video._startTime;
+               }
+               if (video._endTime < Infinity && video.currentTime >= video._endTime) {
+                   if (video.loop) {
+                       video.currentTime = video._startTime;
+                   } else {
+                       video.pause();
+                   }
+               }
+            });
+            
+            const resumeBehavior = video.getAttribute('data-resume-behavior');
+            if (resumeBehavior === "Start from Beginning") {
+                video.addEventListener('play', () => {
+                    if (video._wasPaused) {
+                        video.currentTime = video._startTime || 0;
+                    }
+                    video._wasPaused = false;
+                });
+                video.addEventListener('pause', () => {
+                    video._wasPaused = true;
+                });
+            }
+
+            const playVideoWhile = video.getAttribute('data-play-video-while');
+            if (playVideoWhile === "Auto Play While on Page") {
+                video.play().catch(()=>{});
+            } else if (playVideoWhile === "Click to Play") {
+                video.pause();
+            }
+        }
+
         const ctrlId = `custom-ctrl-${layerId}`;
         let bar = document.getElementById(ctrlId);
 
-        if (!showControls) {
-          if (bar) {
-            if (bar._cleanup) bar._cleanup();
-            bar.remove();
-          }
-          return;
-        }
+
 
         const mountPoint = video.parentElement || fo || liveEl;
         if (!mountPoint) return;
@@ -1650,6 +1806,17 @@ const MainEditor = ({
           if (repBtn) {
             repBtn.style.opacity = video.loop ? '1' : '0.5';
           }
+          
+          const topC = bar.querySelector('.custom-top-container');
+          const centerC = bar.querySelector('.custom-center-container');
+          const progC = bar.querySelector('.custom-prog-container');
+          const timeW = bar.querySelector('.custom-time-wrapper');
+          
+          if (topC) topC.style.visibility = showControls ? 'visible' : 'hidden';
+          if (centerC) centerC.style.visibility = showControls ? 'visible' : 'hidden';
+          if (progC) progC.style.visibility = showControls ? 'visible' : 'hidden';
+          if (timeW) timeW.style.visibility = showControls ? 'visible' : 'hidden';
+          if (repBtn) repBtn.style.visibility = showControls ? 'visible' : 'hidden';
         }
 
         if (!bar) {
@@ -1715,6 +1882,7 @@ const MainEditor = ({
 
           // Top Right: Volume
           const topContainer = document.createElement('div');
+          topContainer.className = 'custom-top-container';
           Object.assign(topContainer.style, {
             display: 'flex',
             justifyContent: 'flex-end',
@@ -1760,6 +1928,7 @@ const MainEditor = ({
 
           // Center: Rewind 3s, Forward 3s
           const centerContainer = document.createElement('div');
+          centerContainer.className = 'custom-center-container';
           Object.assign(centerContainer.style, {
             display: 'flex',
             alignItems: 'center',
@@ -1865,11 +2034,13 @@ const MainEditor = ({
           };
 
           const progContainer = document.createElement('div');
+          progContainer.className = 'custom-prog-container';
           Object.assign(progContainer.style, {
             flexGrow: '1', height: '1.2em', background: 'rgba(255,255,255,0.3)', position: 'relative', cursor: 'pointer', pointerEvents: 'auto', borderRadius: '0.2em',
           });
 
           const timeWrapper = document.createElement('div');
+          timeWrapper.className = 'custom-time-wrapper';
           Object.assign(timeWrapper.style, {
             position: 'relative',
             width: '28em',
@@ -2075,11 +2246,15 @@ const MainEditor = ({
           document.addEventListener('fullscreenchange', handleFsChange);
           document.addEventListener('webkitfullscreenchange', handleFsChange);
 
+          const disableFullScreen = video.getAttribute('data-disable-fullscreen') === 'true';
+
           bottomContainer.appendChild(playBtn);
           bottomContainer.appendChild(progContainer);
           bottomContainer.appendChild(timeWrapper);
           bottomContainer.appendChild(repeatBtn);
-          bottomContainer.appendChild(fsBtn);
+          if (!disableFullScreen) {
+             bottomContainer.appendChild(fsBtn);
+          }
 
           bar.appendChild(topContainer);
           bar.appendChild(centerContainer);
@@ -3318,11 +3493,21 @@ const MainEditor = ({
       measureTargetArray = targetEl;
       measureTarget = firstTarget;
     } else {
-      if (targetEl && targetEl !== svg && targetEl.id && targetEl.id !== selectedLayerIdRef.current && !selectedEl.contains(targetEl)) {
-        const isOverlay = targetEl.getAttribute('data-name') === 'Overlay' ||
-          targetEl.getAttribute('data-type') === 'background' ||
-          (targetEl.getAttribute('class') && targetEl.getAttribute('class').includes('overlay'));
-        if (!isOverlay) measureTarget = targetEl;
+      let actualTarget = targetEl;
+      if (actualTarget && actualTarget !== svg) {
+        const layerEl = (typeof actualTarget.closest === 'function')
+          ? actualTarget.closest('g[id], [data-type]:not([data-type="background"]):not([data-name="Overlay"]), [data-crop-data], [id]:not(svg):not(path):not(defs):not(clipPath)')
+          : null;
+        if (layerEl && layerEl !== svg) {
+          actualTarget = layerEl;
+        }
+      }
+
+      if (actualTarget && actualTarget !== svg && actualTarget !== selectedEl && !selectedEl.contains(actualTarget)) {
+        const isOverlay = actualTarget.getAttribute('data-name') === 'Overlay' ||
+          actualTarget.getAttribute('data-type') === 'background' ||
+          (actualTarget.getAttribute('class') && actualTarget.getAttribute('class').includes('overlay'));
+        if (!isOverlay) measureTarget = actualTarget;
       }
 
       if (!measureTarget) {
@@ -3357,19 +3542,18 @@ const MainEditor = ({
         }
       }
 
-      const targetCropEl = (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"]') : null) ||
-        (typeof el.querySelector === 'function' ? el.querySelector('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"]') : null) ||
-        (typeof el.getAttribute === 'function' && (el.getAttribute('data-object-fit') === 'Crop' || el.hasAttribute('data-crop-data') || el.hasAttribute('clip-path')) ? el : null);
-      const ctmNode = targetCropEl || el;
-
       let bbox = getVisualBBox(el);
       if (!bbox || (bbox.width === 0 && bbox.height === 0)) {
-        const rect = ctmNode.getBoundingClientRect();
-        if (rect.width > 0) {
-          bbox = { x: 0, y: 0, width: rect.width, height: rect.height };
-        }
+        try {
+          const bb = el.getBBox();
+          if (bb && (bb.width > 0 || bb.height > 0)) {
+            bbox = { x: bb.x, y: bb.y, width: bb.width, height: bb.height };
+          }
+        } catch (e) { }
       }
+      if (!bbox || (bbox.width === 0 && bbox.height === 0)) return null;
 
+      const ctmNode = el;
       const ctm = ctmNode.getScreenCTM();
       const overlayCtm = overlay.getScreenCTM();
       if (!ctm || !overlayCtm) return null;
@@ -3817,6 +4001,9 @@ const MainEditor = ({
 
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
+
+    // Freeze selection box during animation preview
+    if (el.getAttribute('data-is-animating') === 'true') return;
 
     // Suppress object selection box, hover highlights, and resize handles during Path Node Edit Mode
     if (nodeEditModeRef.current) {
@@ -4662,6 +4849,45 @@ const MainEditor = ({
       }
     });
   }, [multiSelectedIds]);
+
+  // ── Listen for Figma-style Undo/Redo instant selection rebind ────────────
+  useEffect(() => {
+    const handleRebindSelection = (e) => {
+      const { layerId } = e.detail || {};
+      const targetId = layerId || selectedLayerId;
+      if (!targetId) return;
+      const el = document.getElementById(targetId);
+      if (el && typeof drawOverlayHighlight === 'function') {
+        drawOverlayHighlight(el, 'selected');
+      }
+    };
+    window.addEventListener('rebind-selection-overlay', handleRebindSelection);
+    return () => window.removeEventListener('rebind-selection-overlay', handleRebindSelection);
+  }, [selectedLayerId]);
+
+  // ── Automatically restore/redraw selection overlay on page/selection changes ──
+  useEffect(() => {
+    if (!selectedLayerId && (!multiSelectedIds || multiSelectedIds.size === 0)) return;
+
+    const timer = setTimeout(() => {
+      if (selectedLayerId) {
+        const el = document.getElementById(selectedLayerId);
+        if (el && typeof drawOverlayHighlight === 'function') {
+          drawOverlayHighlight(el, 'selected');
+        }
+      }
+      if (multiSelectedIds && multiSelectedIds.size > 1) {
+        multiSelectedIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (el && typeof drawOverlayHighlight === 'function') {
+            drawOverlayHighlight(el, 'multi-child-selected');
+          }
+        });
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [pages, selectedLayerId, multiSelectedIds]);
 
   // ── Listen for interaction badge icon update events ───────────────────────
   useEffect(() => {
@@ -5609,8 +5835,35 @@ const MainEditor = ({
     }
   }, [multiSelectedIds]);
 
+  const bounds1000 = getCanvasBounds(null, baseWidth, baseHeight);
+  const workspaceWidthMM = bounds1000.canvasWidthMM || 1600;
+
+  const getMinZoomFor1000mm = useCallback(() => {
+    if (!editorContainerRef.current) return 15;
+    const container = editorContainerRef.current;
+    const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
+    if (containerWidth <= 0 || containerHeight <= 0) return 15;
+
+    const baseVhHeight = window.innerHeight * 0.78;
+    const pH = baseHeight || 297;
+    const bounds = getCanvasBounds(null, baseWidth, baseHeight);
+    const canvasWidthMM = bounds.canvasWidthMM || 1600;
+
+    const canvas1000PxHeight = baseVhHeight * (1000 / pH);
+    const canvasPxWidth = baseVhHeight * (canvasWidthMM / pH);
+
+    const scaleX = containerWidth / canvasPxWidth;
+    const scaleY = containerHeight / canvas1000PxHeight;
+
+    const fit1000Zoom = Math.min(scaleX, scaleY) * 100;
+    return Math.max(5, Math.round(fit1000Zoom));
+  }, [baseWidth, baseHeight]);
+
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 500));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 50));
+  const handleZoomOut = () => {
+    const minZ = getMinZoomFor1000mm();
+    setZoom(prev => Math.max(prev - 10, minZ));
+  };
 
   const handleAutoFitZoom = useCallback(() => {
     if (!editorContainerRef.current) return;
@@ -5653,8 +5906,8 @@ const MainEditor = ({
     // Use a safety margin (92%) of the arrow-adjusted space
     let autoZoom = Math.min(scaleX, scaleY) * 92;
 
-    // Allow auto-scaling down to 15% for wide/large page formats
-    autoZoom = Math.max(15, Math.min(300, autoZoom));
+    // Allow auto-scaling down to 1% for wide/large page formats
+    autoZoom = Math.max(1, Math.min(300, autoZoom));
 
     setZoom(Math.round(autoZoom));
   }, [baseWidth, baseHeight, activePageIndex, isDoublePage, pages.length]);
@@ -5692,8 +5945,14 @@ const MainEditor = ({
     const scaledWidth = baseCanvasWidth * currentScale;
     const scaledHeight = baseCanvasHeight * currentScale;
 
-    const maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2 + (window.innerWidth * 0.08));
-    const maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2 + (window.innerHeight * 0.05));
+    const bounds = getCanvasBounds(null, baseWidth, baseHeight);
+    const canvasWidthMM = bounds.canvasWidthMM || 1600;
+
+    const scaledCanvasW = (baseVhHeight * (canvasWidthMM / baseHeight)) * currentScale;
+    const scaledCanvasH = (baseVhHeight * (1000 / baseHeight)) * currentScale;
+
+    const maxPanX = Math.max(0, (scaledCanvasW - containerWidth) / 2);
+    const maxPanY = Math.max(0, (scaledCanvasH - containerHeight) / 2);
 
     setPan(prev => {
       const boundedX = Math.min(Math.max(prev.x, -maxPanX), maxPanX);
@@ -6682,7 +6941,7 @@ const MainEditor = ({
             };
 
             if (!dragState.thresholdMet) {
-              const DRAG_THRESHOLD = 10;
+              const DRAG_THRESHOLD = 2;
               const dxClient = event.clientX - dragState.initialClientX;
               const dyClient = event.clientY - dragState.initialClientY;
               const distance = Math.sqrt(dxClient * dxClient + dyClient * dyClient);
@@ -6759,14 +7018,17 @@ const MainEditor = ({
               }
             }
 
+            const viewBox = dragState.svgElement?.getAttribute('viewBox');
+            const [vX, vY, baseWidth, baseHeight] = viewBox ? viewBox.split(' ').map(Number) : [0, 0, 210, 297];
+
             if (dragState.multiDragItems) {
-              // Move ALL multi-selected elements
+              // Move ALL multi-selected elements freely across canvas
               for (const item of dragState.multiDragItems) {
                 const currentPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
                 if (!currentPointLocal || !item.startPointLocal) continue;
 
-                const dx = currentPointLocal.x - item.startPointLocal.x;
-                const dy = currentPointLocal.y - item.startPointLocal.y;
+                let dx = currentPointLocal.x - item.startPointLocal.x;
+                let dy = currentPointLocal.y - item.startPointLocal.y;
 
                 const translation = new DOMMatrix().translate(dx, dy);
                 const nextMatrix = translation.multiply(item.initialMatrix);
@@ -6774,13 +7036,13 @@ const MainEditor = ({
               }
               drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
             } else {
-              // Single element drag
+              // Single element drag freely across canvas
               const target = dragState.element;
               const currentPointLocal = getLocalPoint(dragState.svgElement, target.parentNode, event.clientX, event.clientY);
               if (!currentPointLocal || !dragState.startPointLocal) return;
 
-              const dx = currentPointLocal.x - dragState.startPointLocal.x;
-              const dy = currentPointLocal.y - dragState.startPointLocal.y;
+              let dx = currentPointLocal.x - dragState.startPointLocal.x;
+              let dy = currentPointLocal.y - dragState.startPointLocal.y;
 
               const translation = new DOMMatrix().translate(dx, dy);
               const nextMatrix = translation.multiply(dragState.initialMatrix);
@@ -6863,14 +7125,17 @@ const MainEditor = ({
               const minY = Math.min(pt1.y, pt2.y, pt3.y, pt4.y);
               const maxY = Math.max(pt1.y, pt2.y, pt3.y, pt4.y);
 
+              const bounds = getCanvasBounds(dragState.svgElement, baseWidth, baseHeight);
+              const MARGIN_MM = 10;
+
               let dx_root = 0;
               let dy_root = 0;
 
-              if (minX >= baseWidth) dx_root = (baseWidth - 10) - minX;
-              else if (maxX <= 0) dx_root = 10 - maxX;
+              if (minX < bounds.minX) dx_root = (bounds.minX + MARGIN_MM) - minX;
+              else if (maxX > bounds.maxX) dx_root = (bounds.maxX - MARGIN_MM) - maxX;
 
-              if (minY >= baseHeight) dy_root = (baseHeight - 10) - minY;
-              else if (maxY <= 0) dy_root = 10 - maxY;
+              if (minY < bounds.minY) dy_root = (bounds.minY + MARGIN_MM) - minY;
+              else if (maxY > bounds.maxY) dy_root = (bounds.maxY - MARGIN_MM) - maxY;
 
               if (dx_root !== 0 || dy_root !== 0) {
                 const rootToParent = parentCtm.inverse().multiply(rootCtm);
@@ -6888,7 +7153,7 @@ const MainEditor = ({
                 const endE = endMatrix.e;
                 const endF = endMatrix.f;
 
-                const duration = 400;
+                const duration = 200;
                 const startTime = performance.now();
                 const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
 
@@ -7987,8 +8252,8 @@ const MainEditor = ({
                           let cd = {};
                           try { if (cropDataStr && cropDataStr !== 'null') cd = JSON.parse(cropDataStr); } catch (e) { }
 
-                          cd.left = Math.max(0, cLeft);
-                          cd.top = Math.max(0, cTop);
+                          cd.left = cLeft;
+                          cd.top = cTop;
                           cd.width = Math.max(0, cWidth);
                           cd.height = Math.max(0, cHeight);
 
@@ -8121,7 +8386,11 @@ const MainEditor = ({
       }
     }
     finalHtml = finalHtml.replace(/<br\s*>/gi, '<br/>');
-    updatePageHtml(targetPageIndex, finalHtml);
+    if (updatePageHtmlRef.current) {
+      updatePageHtmlRef.current(targetPageIndex, finalHtml);
+    } else if (typeof updatePageHtml === 'function') {
+      updatePageHtml(targetPageIndex, finalHtml);
+    }
   };
 
   const resolveTargetParentForCreation = (svg, clientX, clientY) => {
@@ -8600,7 +8869,8 @@ const MainEditor = ({
         path.setAttribute('stroke-width', '2');
         path.setAttribute('stroke-linecap', 'round');
         path.setAttribute('stroke-linejoin', 'round');
-        path.setAttribute('d', `M ${pt.x} ${pt.y}`);
+        path.setAttribute('shape-rendering', 'geometricPrecision');
+        path.setAttribute('d', `M ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`);
 
         parentEl.appendChild(path);
         drawingPathRef.current = path;
@@ -8644,6 +8914,7 @@ const MainEditor = ({
           pathEl.setAttribute('stroke-width', '2');
           pathEl.setAttribute('stroke-linecap', 'round');
           pathEl.setAttribute('stroke-linejoin', 'round');
+          pathEl.setAttribute('shape-rendering', 'geometricPrecision');
           parentEl.appendChild(pathEl);
           drawingPathRef.current = pathEl;
           drawingPageIndexRef.current = pageIndex;
@@ -8917,30 +9188,32 @@ const MainEditor = ({
         if (startPoints && Object.keys(startPoints).length > 0) {
           Object.keys(startPoints).forEach(sIdxStr => {
             const sIdx = parseInt(sIdxStr);
-            const seg = paperPath.segments[sIdx];
+            const seg = paperPath?.segments?.[sIdx];
             if (seg && startPoints[sIdx]) {
               seg.point = startPoints[sIdx].add(delta);
             }
           });
         } else {
-          const seg = paperPath.segments[segIdx];
+          const seg = paperPath?.segments?.[segIdx];
           if (seg) seg.point = mousePoint;
         }
       } else if (mode === 'handle') {
-        const seg = paperPath.segments[segIdx];
+        const seg = paperPath?.segments?.[segIdx];
         if (seg) {
           applyHandleDrag(seg, handleSide, mousePoint, e.altKey);
         }
       } else if (mode === 'segment-bend') {
-        const curve = paperPath.curves[curveIndex];
+        const curve = paperPath?.curves?.[curveIndex];
         if (curve && startHandle1 && startHandle2) {
           curve.segment1.handleOut = startHandle1.add(delta.multiply(0.5));
           curve.segment2.handleIn = startHandle2.add(delta.multiply(-0.5));
         }
       }
 
-      pathEl.setAttribute('d', paperPath.pathData);
-      drawNodeEditOverlay(pathEl, paperPath, nodeEditPageIndexRef.current);
+      if (paperPath?.pathData) {
+        pathEl.setAttribute('d', paperPath.pathData);
+        drawNodeEditOverlay(pathEl, paperPath, nodeEditPageIndexRef.current);
+      }
       suppressClickRef.current = true;
       return;
     }
@@ -8972,18 +9245,20 @@ const MainEditor = ({
       const pt = getLocalPoint(svg, pathEl, e.clientX, e.clientY);
 
       paperScopeRef.current.activate();
-      const curve = paperPath.curves[curveIndex];
-      const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
+      const curve = paperPath?.curves?.[curveIndex];
+      if (curve) {
+        const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
 
-      // Symmetrical bending logic: point handles towards mouse
-      const p1 = curve.segment1.point;
-      const p2 = curve.segment2.point;
+        // Symmetrical bending logic: point handles towards mouse
+        const p1 = curve.segment1.point;
+        const p2 = curve.segment2.point;
 
-      // Factor of 0.45 creates a natural-looking bow that passes near the cursor
-      curve.segment1.handleOut = mousePoint.subtract(p1).multiply(0.45);
-      curve.segment2.handleIn = mousePoint.subtract(p2).multiply(0.45);
+        // Factor of 0.45 creates a natural-looking bow that passes near the cursor
+        curve.segment1.handleOut = mousePoint.subtract(p1).multiply(0.45);
+        curve.segment2.handleIn = mousePoint.subtract(p2).multiply(0.45);
 
-      pathEl.setAttribute('d', paperPath.pathData);
+        pathEl.setAttribute('d', paperPath.pathData);
+      }
       drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
 
       // ── SYNC WITH PEN TOOL STATE ──
@@ -9044,10 +9319,10 @@ const MainEditor = ({
       const pt = getLocalPoint(svg, drawingPathRef.current.parentElement, e.clientX, e.clientY);
 
       const lastPt = drawingPointsRef.current[drawingPointsRef.current.length - 1];
-      if (lastPt && Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) < 2) return;
+      if (lastPt && Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) < 1.5) return;
 
       drawingPointsRef.current.push(pt);
-      const d = drawingPointsRef.current.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+      const d = formatSmoothPathD(drawingPointsRef.current);
       drawingPathRef.current.setAttribute('d', d);
       suppressClickRef.current = true;
       return;
@@ -9416,27 +9691,14 @@ const MainEditor = ({
 
           if (points.length <= 1 && path) {
             const pt = points[0] || { x: 0, y: 0 };
-            path.setAttribute('d', `M ${pt.x.toFixed(1)} ${pt.y.toFixed(1)} L ${(pt.x + 0.1).toFixed(1)} ${pt.y.toFixed(1)}`);
-          } else if (points.length > 5 && path) {
-            // Path Simplification: node reduction for performance
+            path.setAttribute('d', `M ${pt.x.toFixed(2)} ${pt.y.toFixed(2)} L ${(pt.x + 0.1).toFixed(2)} ${pt.y.toFixed(2)}`);
+          } else if (points.length > 1 && path) {
             const simplified = points.filter((_, i) => i % 2 === 0 || i === points.length - 1);
-
-            let pathData = '';
-            if (tool === 'curve') {
-              // Smoothing logic for Curve tool
-              pathData = `M ${simplified[0].x.toFixed(1)} ${simplified[0].y.toFixed(1)}`;
-              for (let i = 1; i < simplified.length - 2; i++) {
-                const xc = (simplified[i].x + simplified[i + 1].x) / 2;
-                const yc = (simplified[i].y + simplified[i + 1].y) / 2;
-                pathData += ` Q ${simplified[i].x.toFixed(1)} ${simplified[i].y.toFixed(1)}, ${xc.toFixed(1)} ${yc.toFixed(1)}`;
-              }
-              const last = simplified.length - 1;
-              pathData += ` Q ${simplified[last - 1].x.toFixed(1)} ${simplified[last - 1].y.toFixed(1)}, ${simplified[last].x.toFixed(1)} ${simplified[last].y.toFixed(1)}`;
-            } else {
-              pathData = simplified.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-            }
+            const ptsToUse = simplified.length > 2 ? simplified : points;
+            const pathData = formatSmoothPathD(ptsToUse);
             path.setAttribute('d', pathData);
           }
+          path?.setAttribute('shape-rendering', 'geometricPrecision');
 
           if (svgEl && updatePageHtml) {
             updatePageHtml(pageIdx, svgEl.outerHTML);
@@ -10712,15 +10974,12 @@ const MainEditor = ({
           const isRootFolder = topFrames.some(f => f.id === frameId);
 
           if (isRootFolder) {
-            // ── Root Folder Gap (Canvas Background): Deselect everything
-            if (isPopupEditor && topFrames.length > 0) {
-              setSingleSelection(topFrames[0].id);
-            } else {
-              if (hitMultiSelectionGap) return; // Keep multi-selection intact!
-              setSingleSelection(null);
-              setCurrentFrameId(null);
-              currentFrameIdRef.current = null;
-            }
+            // ── Root Folder Gap (Canvas Background): Keep page root folder selected
+            if (hitMultiSelectionGap) return; // Keep multi-selection intact!
+            const rootId = (topFrames && topFrames.length > 0 ? topFrames[0].id : frameId);
+            setSingleSelection(rootId);
+            setCurrentFrameId(rootId);
+            currentFrameIdRef.current = rootId;
           } else {
             // ── Deeper Frame Gap: exit one level (select frame, keep entered)
             if (hitMultiSelectionGap) return; // Keep multi-selection intact!
@@ -10764,12 +11023,17 @@ const MainEditor = ({
           setCurrentFrameId(hitTopFrame.id);
           currentFrameIdRef.current = hitTopFrame.id;
         } else {
-          // Hit nothing? Deselect everything
+          // Hit nothing? Keep page root folder selected
           if (hitMultiSelectionGap) return; // Keep multi-selection intact!
-          if (isPopupEditor && topLevelEls.length > 0) {
-            setSingleSelection(topLevelEls[0].id);
+          const rootId = (topLevelEls && topLevelEls.length > 0 ? topLevelEls[0].id : pages[activePageIndex]?.layers?.[0]?.id);
+          if (rootId) {
+            setSingleSelection(rootId);
+            setCurrentFrameId(rootId);
+            currentFrameIdRef.current = rootId;
           } else {
             setSingleSelection(null);
+            setCurrentFrameId(null);
+            currentFrameIdRef.current = null;
           }
         }
         return;
@@ -10900,8 +11164,11 @@ const MainEditor = ({
         }
       }
 
-      if (isPopupEditor && topLevelEls.length > 0) {
-        setSingleSelection(topLevelEls[0].id);
+      if (topLevelEls && topLevelEls.length > 0) {
+        const rootId = topLevelEls[0].id;
+        setSingleSelection(rootId);
+        setCurrentFrameId(rootId);
+        currentFrameIdRef.current = rootId;
       } else {
         setSingleSelection(null);
         setCurrentFrameId(null);
@@ -11100,9 +11367,17 @@ const MainEditor = ({
       if (e.target.closest('.editor-ss-overlay') || e.target.closest('input')) return;
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
+        e.stopPropagation();
+        // Mark the exact time of this zoom wheel event so clicks fired shortly
+        // after (browser sometimes synthesises a click on wheel) get suppressed.
+        lastWheelTimeRef.current = Date.now();
+        suppressClickRef.current = true;
+        setTimeout(() => { suppressClickRef.current = false; }, 200);
+
         const delta = e.deltaY < 0 ? 5 : -5;
+        const minZ = getMinZoomFor1000mm();
         setZoom(prevZoom => {
-          const newZoom = Math.min(Math.max(prevZoom + delta, 50), 500);
+          const newZoom = Math.min(Math.max(prevZoom + delta, minZ), 500);
           if (newZoom !== prevZoom) {
             setPan(prevPan => {
               const rect = el.getBoundingClientRect();
@@ -11115,10 +11390,12 @@ const MainEditor = ({
               const oldScale = prevZoom / 100;
               const newScale = newZoom / 100;
 
-              return {
+              const newPan = {
                 x: mx - (mx - prevPan.x) * (newScale / oldScale),
                 y: my - (my - prevPan.y) * (newScale / oldScale)
               };
+              currentPanRef.current = newPan;
+              return newPan;
             });
           }
           return newZoom;
@@ -11343,7 +11620,7 @@ const MainEditor = ({
       />
       <div
         ref={editorContainerRef}
-        className={`flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden ${isPopupEditor ? 'bg-transparent' : 'bg-[#FBFBFB]'}`}
+        className={`flex-1 relative flex items-center justify-center  overflow-hidden ${isPopupEditor ? 'bg-transparent' : 'bg-[#FBFBFB]'}`}
         style={{ cursor: isSpaceDown ? (isPanningRef.current ? 'grabbing' : 'grab') : 'default' }}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -11352,12 +11629,15 @@ const MainEditor = ({
           }));
         }}
         onMouseDown={(e) => {
-          if (isSpaceDownRef.current) {
+          if (isSpaceDownRef.current || e.button === 1 || activeMainTool === 'hand') {
             e.preventDefault();
             e.stopPropagation();
             isPanningRef.current = true;
             lastPanPointRef.current = { x: e.clientX, y: e.clientY };
             setIsSpaceDown(true);
+            if (zoomContainerRef.current) {
+              zoomContainerRef.current.style.transition = 'none';
+            }
             return;
           }
         }}
@@ -11391,8 +11671,14 @@ const MainEditor = ({
             const scaledWidth = baseCanvasWidth * currentScale;
             const scaledHeight = baseCanvasHeight * currentScale;
 
-            const maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2 + (window.innerWidth * 0.08));
-            const maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2 + (window.innerHeight * 0.05));
+            const bounds = getCanvasBounds(null, baseWidth, baseHeight);
+            const canvasWidthMM = bounds.canvasWidthMM || 1600;
+
+            const scaledCanvasW = (baseVhHeight * (canvasWidthMM / baseHeight)) * currentScale;
+            const scaledCanvasH = (baseVhHeight * (1000 / baseHeight)) * currentScale;
+
+            const maxPanX = Math.max(0, (scaledCanvasW - containerWidth) / 2);
+            const maxPanY = Math.max(0, (scaledCanvasH - containerHeight) / 2);
 
             const boundedX = Math.min(Math.max(newX, -maxPanX), maxPanX);
             const boundedY = Math.min(Math.max(newY, -maxPanY), maxPanY);
@@ -11400,7 +11686,8 @@ const MainEditor = ({
             currentPanRef.current = { x: boundedX, y: boundedY };
 
             if (zoomContainerRef.current) {
-              zoomContainerRef.current.style.transform = `translate(${boundedX}px, ${boundedY}px) scale(${currentScale})`;
+              zoomContainerRef.current.style.transition = 'none';
+              zoomContainerRef.current.style.transform = `translate3d(${boundedX}px, ${boundedY}px, 0px) scale(${currentScale})`;
             }
             window.dispatchEvent(new CustomEvent('editor-pan-update', { detail: { x: boundedX, y: boundedY } }));
           }
@@ -11408,6 +11695,10 @@ const MainEditor = ({
         onMouseUp={(e) => {
           if (isPanningRef.current) {
             isPanningRef.current = false;
+            // Mark that we just finished panning so the immediately-following
+            // onClick does not accidentally select/deselect canvas elements.
+            wasRecentlyPanningRef.current = true;
+            setTimeout(() => { wasRecentlyPanningRef.current = false; }, 150);
             setIsSpaceDown(isSpaceDownRef.current);
             setPan(currentPanRef.current);
           }
@@ -11415,18 +11706,20 @@ const MainEditor = ({
         onMouseLeave={(e) => {
           if (isPanningRef.current) {
             isPanningRef.current = false;
+            wasRecentlyPanningRef.current = true;
+            setTimeout(() => { wasRecentlyPanningRef.current = false; }, 150);
             setIsSpaceDown(isSpaceDownRef.current);
             setPan(currentPanRef.current);
           }
         }}
         onClick={(e) => {
-          // If we just finished a drag or are panning, suppress background clicks
-          if (isPanningRef.current || isSpaceDownRef.current || suppressClickRef.current) {
+          // Suppress clicks that happen right after Ctrl+scroll zoom or Space panning
+          if (isPanningRef.current || isSpaceDownRef.current || suppressClickRef.current || wasRecentlyPanningRef.current) {
             e.preventDefault();
             e.stopPropagation();
             return;
           }
-          // ── Background Click: Deselect everything ─────────────────
+          // ── Background Click: Select active page root folder instead of clearing selection ─────────────────
           const container = e.target.closest('.page-svg-container');
           const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
 
@@ -11434,7 +11727,16 @@ const MainEditor = ({
             setActivePageIndex(pageIdx);
           }
 
-          if (setSelectedLayerId) {
+          const pageSvg = container?.querySelector('svg') || document.querySelector(`.page-svg-container[data-page-index="${pageIdx}"] svg`);
+          const topFrames = pageSvg ? getTopLevelFrames(pageSvg) : [];
+          const rootId = (topFrames && topFrames.length > 0 ? topFrames[0].id : pages[pageIdx]?.layers?.[0]?.id);
+
+          if (rootId) {
+            if (setSelectedLayerId) setSelectedLayerId(rootId);
+            if (setMultiSelectedIds) setMultiSelectedIds(new Set([rootId]));
+            if (setCurrentFrameId) setCurrentFrameId(rootId);
+            currentFrameIdRef.current = rootId;
+          } else if (setSelectedLayerId) {
             setSelectedLayerId(null);
             setMultiSelectedIds(new Set());
             setCurrentFrameId(null);
@@ -11923,33 +12225,21 @@ const MainEditor = ({
             }
           }}
         >
-          {/* Left Navigation-Button */}
-          <button
-            disabled={activePageIndex === 0}
-            onClick={handlePrevPage}
-            className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-30 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${activePageIndex === 0 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
-            style={{
-              left: `calc(50% - ${isCurrentlySpread
-                ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)`
-                : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
-                } * (${zoom / 100}) - 3.2vw)`,
-              top: '50%',
-              transform: 'translate(-50%, -50%)'
-            }}
-          >
-            <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[-90deg]" />
-          </button>
-
-          {/* Zoomable Canvas Container with Perimeter Shadow */}
+          {/* Zoomable Canvas Container */}
           <div
             id="main-zoom-container"
             ref={zoomContainerRef}
-            className={`flex items-center justify-center origin-center gap-[0] ${isPopupEditor ? 'bg-transparent border-none shadow-[0_30px_100px_-10px_rgba(0,0,0,0.3),_0_0_50px_rgba(0,0,0,0.05)]' : 'bg-white border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15),0_0_20px_-5px_rgba(0,0,0,0.05)]'} ${!isSpaceDown ? 'transition-all duration-300' : ''}`}
+            className="flex items-center justify-center origin-center relative"
             style={{
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom / 100})`,
-              borderRadius: isPopupEditor ? '1.2vw' : '0'
+              transformStyle: 'preserve-3d',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              imageRendering: 'high-quality',
             }}
           >
+            {/* Pages Container Centered */}
+            <div className="flex items-center justify-center gap-[0] relative z-10 shadow-[0_0_15px_rgba(0,0,0,0.20)] rounded-sm">
             {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
             {pages.length > 0 && (isDoublePage ? (spreadStartIndex > 0 && pages[spreadStartIndex]) : pages[activePageIndex]) && (
 
@@ -12290,7 +12580,7 @@ const MainEditor = ({
                           {isPageEmpty && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
                               <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
-                                Ready-made templates<br />are available for a quicker start
+                                Ready-made templates<br />are available for a
                               </div>
                               <button
                                 onClick={(e) => {
@@ -12316,40 +12606,61 @@ const MainEditor = ({
                 </div>
               </div>
             )}
+            </div>
           </div>
 
-          {/* Right Navigation Button */}
-          <button
-            disabled={isDoublePage
-              ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length))
-              : activePageIndex + 1 >= pages.length
-            }
-            onClick={handleNextPage}
-            className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-30 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${(isDoublePage
-              ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length))
-              : activePageIndex + 1 >= pages.length
-            ) ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'
-              }`}
-            style={{
-              right: `calc(50% - ${isCurrentlySpread
-                ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)`
-                : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
-                } * (${zoom / 100}) - 3.2vw)`,
-              top: '50%',
-              transform: 'translate(50%, -50%)'
-            }}
-          >
-            <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[90deg]" />
-          </button>
-
-          {/* Page Number Indicator */}
+          {/* Page Navigation Controls Widget */}
           {pages.length > 0 && (
-            <div className="absolute bottom-[0.5vw] right-[0.3vw] bg-white border border-gray-200 shadow-sm rounded-full px-[1vw] py-[0.4vw] flex items-center justify-center z-40 select-none pointer-events-none">
-              <span className="text-[#4B5563] text-[0.85vw] font-medium tracking-wide">
-                {isDoublePage && isCurrentlySpread
-                  ? `${spreadStartIndex + 1}-${Math.min(spreadStartIndex + 2, pages.length)} / ${pages.length}`
-                  : `${activePageIndex + 1} / ${pages.length}`}
-              </span>
+            <div className="absolute bottom-[1vw] right-[1vw] z-40 select-none">
+              {/* Single Common Container for Left Arrow, Page Number, and Right Arrow */}
+              <div className="bg-white border border-gray-200 shadow-sm rounded-full px-[1.1vw] py-[0.5vw] flex items-center gap-[0.8vw]">
+                {/* Left Arrow Button */}
+                <button
+                  disabled={activePageIndex === 0}
+                  onClick={handlePrevPage}
+                  className={`flex items-center justify-center transition-all duration-200 group ${
+                    activePageIndex === 0
+                      ? 'opacity-25 cursor-not-allowed'
+                      : 'cursor-pointer hover:scale-110 active:scale-95'
+                  }`}
+                  title="Previous Page"
+                >
+                  <Icon icon="ion:caret-up" width="1.4vw" height="1.4vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[-90deg]" />
+                </button>
+
+                {/* Center Page Number Text */}
+                <span className="text-[#4B5563] text-[0.85vw] font-medium tracking-wide">
+                  {isDoublePage && isCurrentlySpread
+                    ? `${spreadStartIndex + 1}-${Math.min(spreadStartIndex + 2, pages.length)} / ${pages.length}`
+                    : `${activePageIndex + 1} / ${pages.length}`}
+                </span>
+
+                {/* Right Arrow Button */}
+                <button
+                  disabled={
+                    isDoublePage
+                      ? activePageIndex === 0
+                        ? pages.length <= 1
+                        : isCurrentlySpread
+                        ? spreadStartIndex + 2 >= pages.length
+                        : spreadStartIndex + 1 >= pages.length
+                      : activePageIndex + 1 >= pages.length
+                  }
+                  onClick={handleNextPage}
+                  className={`flex items-center justify-center transition-all duration-200 group ${(
+                    isDoublePage
+                      ? activePageIndex === 0
+                        ? pages.length <= 1
+                        : isCurrentlySpread
+                        ? spreadStartIndex + 2 >= pages.length
+                        : spreadStartIndex + 1 >= pages.length
+                      : activePageIndex + 1 >= pages.length
+                  ) ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
+                  title="Next Page"
+                >
+                  <Icon icon="ion:caret-up" width="1.4vw" height="1.4vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[90deg]" />
+                </button>
+              </div>
             </div>
           )}
         </div>

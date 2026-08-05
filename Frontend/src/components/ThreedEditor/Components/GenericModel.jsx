@@ -1166,12 +1166,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                         });
                     }
 
-                    // Restore original map if it exists and no custom texture is applied
-                    if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap) {
+                    // Restore original map if it exists, no custom texture is applied, and user hasn't explicitly deleted it
+                    const currentMaps = materialSettings?.maps || {};
+                    if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap && !m.userData.is_map_removed && currentMaps.map !== null) {
                         m.map = m.userData.originalMap;
                         m.needsUpdate = true;
                     }
-                    if (!m.userData.appliedTextureId && !m.alphaMap && m.userData.originalAlphaMap) {
+                    if (!m.userData.appliedTextureId && !m.alphaMap && m.userData.originalAlphaMap && !m.userData.is_alphaMap_removed && currentMaps.alphaMap !== null) {
                         m.alphaMap = m.userData.originalAlphaMap;
                         m.needsUpdate = true;
                     }
@@ -1226,6 +1227,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                                     const cachedTex = globalTextureCache.get(cacheKey);
                                     m[mapProp] = cachedTex;
                                     if (m[mapProp].repeat) m[mapProp].repeat.set(texScaleX, texScaleY);
+                                    m.userData[`is_${mapProp}_removed`] = false;
                                     m.needsUpdate = true;
                                     return;
                                 }
@@ -1238,18 +1240,27 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                                     tex.repeat.set(texScaleX, texScaleY);
                                     globalTextureCache.set(cacheKey, tex);
                                     m[mapProp] = tex;
+                                    m.userData[`is_${mapProp}_removed`] = false;
                                     m.needsUpdate = true;
                                 });
+                            } else if (stateUrl === null || stateUrl === undefined || stateUrl === 'none') {
+                                if (m[mapProp]) {
+                                    m[mapProp] = null;
+                                    m.userData[`is_${mapProp}_removed`] = true;
+                                    m.needsUpdate = true;
+                                }
                             }
                         };
 
-                        if (stateMaps.map) syncMap('map', stateMaps.map, true);
-                        if (stateMaps.normalMap) syncMap('normalMap', stateMaps.normalMap);
-                        if (stateMaps.roughnessMap) syncMap('roughnessMap', stateMaps.roughnessMap);
-                        if (stateMaps.metalnessMap) syncMap('metalnessMap', stateMaps.metalnessMap);
-                        if (stateMaps.aoMap) syncMap('aoMap', stateMaps.aoMap);
-                        if (stateMaps.displacementMap) syncMap('displacementMap', stateMaps.displacementMap);
-                        if (stateMaps.emissiveMap) syncMap('emissiveMap', stateMaps.emissiveMap, true);
+                        syncMap('map', stateMaps.map, true);
+                        syncMap('normalMap', stateMaps.normalMap);
+                        syncMap('roughnessMap', stateMaps.roughnessMap);
+                        syncMap('metalnessMap', stateMaps.metalnessMap);
+                        syncMap('aoMap', stateMaps.aoMap);
+                        syncMap('displacementMap', stateMaps.displacementMap);
+                        syncMap('bumpMap', stateMaps.bumpMap);
+                        syncMap('alphaMap', stateMaps.alphaMap);
+                        syncMap('emissiveMap', stateMaps.emissiveMap, true);
                     }
                 });
             }
@@ -1285,28 +1296,31 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
 
   // Sync transformValues (from UI) to Object
   useEffect(() => {
-      if (!transformTarget || !transformValues || !transformValues.position || !transformValues.rotation || !transformValues.scale) return;
+      const targetObj = modelGroup || (scene && scene.parent ? scene.parent : scene);
+      if (!targetObj || !transformValues || !transformValues.position || !transformValues.rotation || !transformValues.scale) return;
       
       // Apply position
-      transformTarget.position.set(
+      targetObj.position.set(
           transformValues.position.x, 
           transformValues.position.y, 
           transformValues.position.z
       );
       
       // Apply rotation
-      transformTarget.rotation.set(
+      targetObj.rotation.set(
           transformValues.rotation.x, 
           transformValues.rotation.y, 
           transformValues.rotation.z
       );
       
       // Apply scale
-      transformTarget.scale.set(
+      targetObj.scale.set(
           transformValues.scale.x, 
           transformValues.scale.y, 
           transformValues.scale.z
       );
+      
+      targetObj.updateMatrixWorld?.(true);
 
       // Multi-mesh Sync: If this is a material-based selection, sync followers.
       // We only sync if the current transformTarget is the "leader" (the first mesh in relatedMeshes).
@@ -1472,18 +1486,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     followerOffsetsRef.current = new Map();
                 }
 
-                if (typeof onTransformChange === 'function') {
-                    onTransformChange({
-                        position: leader.position,
-                        rotation: leader.rotation,
-                        scale: leader.scale,
-                        original: leader.userData.originalTransform || {
-                            position: leader.position.clone(),
-                            rotation: leader.rotation.clone(),
-                            scale: leader.scale.clone()
-                        }
-                    });
-                }
                 return;
             }
         }
@@ -1559,30 +1561,22 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     // IMPORTANT: DO NOT fallback to modelGroup here. If a material was selected but no mesh was found,
     // we should select nothing for transformation (null), rather than the whole object.
     setTransformTarget(foundMesh);
-    
-    // Update transform values initially
-    if (typeof onTransformChange === 'function') {
-        const target = foundMesh;
-        if (target) {
-             onTransformChange({
-                position: target.position,
-                rotation: target.rotation,
-                scale: target.scale,
-                original: target.userData.originalTransform || {
-                    position: target.position.clone(),
-                    rotation: target.rotation.clone(),
-                    scale: target.scale.clone()
-                }
-            });
-        }
-    }
   }, [scene, selectedMaterial, modelName, onTransformChange, modelGroup]);
 
   // 5. Scene-Wide Reset Effect
   useEffect(() => {
     if (sceneResetTrigger > 0 && scene) {
         // Reset the root scene object
-        if (scene.userData.originalTransform) {
+        if (scene.userData.normalization) {
+            const norm = scene.userData.normalization;
+            const normScale = norm.scale ?? 1;
+            scene.position.set(norm.position[0], norm.position[1], norm.position[2]);
+            scene.rotation.set(0, 0, 0);
+            scene.scale.set(normScale, normScale, normScale);
+            scene.updateMatrix();
+            setPosition(norm.position);
+            setScale(norm.scale);
+        } else if (scene.userData.originalTransform) {
             const orig = scene.userData.originalTransform;
             scene.position.copy(orig.position);
             scene.rotation.copy(orig.rotation);
@@ -1619,12 +1613,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                  modelGroup.scale.set(1,1,1);
              }
              modelGroup.updateMatrixWorld(true);
-        }
-
-        // Reset the normalization states to exact captured values
-        if (scene.userData.normalization) {
-            setPosition(scene.userData.normalization.position);
-            setScale(scene.userData.normalization.scale);
         }
     }
   }, [sceneResetTrigger, scene, modelGroup]);

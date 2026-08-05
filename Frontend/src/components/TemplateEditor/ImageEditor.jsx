@@ -934,17 +934,17 @@ const ImageEditor = ({
             }
 
             let bb = { x: 0, y: 0, width: 100, height: 100 };
-            try { bb = targetElForShadow.getBBox(); } catch (e) { }
+            try { bb = (svgImageEl || targetElForShadow).getBBox(); } catch (e) { }
 
-            let cxStr = targetElForShadow.getAttribute('x') || '0';
-            let cyStr = targetElForShadow.getAttribute('y') || '0';
-            let cwStr = targetElForShadow.getAttribute('width') || '100%';
-            let chStr = targetElForShadow.getAttribute('height') || '100%';
+            let cxStr = liveElement.getAttribute('data-crop-orig-x') || svgImageEl?.getAttribute('x') || targetElForShadow.getAttribute('x') || '0';
+            let cyStr = liveElement.getAttribute('data-crop-orig-y') || svgImageEl?.getAttribute('y') || targetElForShadow.getAttribute('y') || '0';
+            let cwStr = liveElement.getAttribute('data-crop-orig-w') || svgImageEl?.getAttribute('width') || targetElForShadow.getAttribute('width') || '100%';
+            let chStr = liveElement.getAttribute('data-crop-orig-h') || svgImageEl?.getAttribute('height') || targetElForShadow.getAttribute('height') || '100%';
 
-            let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
-            let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
-            let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
-            let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+            let cx = cxStr.toString().includes('%') ? bb.x : parseFloat(cxStr) || 0;
+            let cy = cyStr.toString().includes('%') ? bb.y : parseFloat(cyStr) || 0;
+            let cw = cwStr.toString().includes('%') ? bb.width : parseFloat(cwStr) || 100;
+            let ch = chStr.toString().includes('%') ? bb.height : parseFloat(chStr) || 100;
 
             const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
             if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
@@ -976,7 +976,11 @@ const ImageEditor = ({
             d += ` Z`;
 
             shadowCaster.setAttribute('d', d);
-            shadowCaster.setAttribute('transform', trans);
+            if (liveElement.getAttribute('data-is-image-group') !== 'true') {
+              shadowCaster.setAttribute('transform', trans);
+            } else {
+              shadowCaster.removeAttribute('transform');
+            }
 
             shadowCaster.setAttribute('fill', 'black');
             shadowCaster.setAttribute('fill-opacity', (opacity / 100).toString());
@@ -1190,15 +1194,15 @@ const ImageEditor = ({
             }
 
             let bb = { x: 0, y: 0, width: 100, height: 100 };
-            try { bb = targetElForShadow.getBBox(); } catch (e) { }
-            let cxStr = targetElForShadow.getAttribute('x') || '0';
-            let cyStr = targetElForShadow.getAttribute('y') || '0';
-            let cwStr = targetElForShadow.getAttribute('width') || '100%';
-            let chStr = targetElForShadow.getAttribute('height') || '100%';
-            let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
-            let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
-            let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
-            let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+            try { bb = (svgImageEl || targetElForShadow).getBBox(); } catch (e) { }
+            let cxStr = liveElement.getAttribute('data-crop-orig-x') || svgImageEl?.getAttribute('x') || targetElForShadow.getAttribute('x') || '0';
+            let cyStr = liveElement.getAttribute('data-crop-orig-y') || svgImageEl?.getAttribute('y') || targetElForShadow.getAttribute('y') || '0';
+            let cwStr = liveElement.getAttribute('data-crop-orig-w') || svgImageEl?.getAttribute('width') || targetElForShadow.getAttribute('width') || '100%';
+            let chStr = liveElement.getAttribute('data-crop-orig-h') || svgImageEl?.getAttribute('height') || targetElForShadow.getAttribute('height') || '100%';
+            let cx = cxStr.toString().includes('%') ? bb.x : parseFloat(cxStr) || 0;
+            let cy = cyStr.toString().includes('%') ? bb.y : parseFloat(cyStr) || 0;
+            let cw = cwStr.toString().includes('%') ? bb.width : parseFloat(cwStr) || 100;
+            let ch = chStr.toString().includes('%') ? bb.height : parseFloat(chStr) || 100;
             const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
             if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
               try {
@@ -2184,21 +2188,22 @@ const ImageEditor = ({
             targetEl = svgImageEl.parentNode;
           }
           let box = { x: 0, y: 0, width: 100, height: 100 };
-          try { box = targetEl.getBBox(); } catch (e) { }
+          try { box = (svgImageEl || targetEl).getBBox(); } catch (e) { }
 
-          let ixStr = targetEl.getAttribute('x') || '0';
-          let iyStr = targetEl.getAttribute('y') || '0';
-          let iwStr = targetEl.getAttribute('width') || '100%';
-          let ihStr = targetEl.getAttribute('height') || '100%';
+          let ixStr = liveElement.getAttribute('data-crop-orig-x') || svgImageEl?.getAttribute('x') || targetEl.getAttribute('x') || '0';
+          let iyStr = liveElement.getAttribute('data-crop-orig-y') || svgImageEl?.getAttribute('y') || targetEl.getAttribute('y') || '0';
+          let iwStr = liveElement.getAttribute('data-crop-orig-w') || svgImageEl?.getAttribute('width') || targetEl.getAttribute('width') || '100%';
+          let ihStr = liveElement.getAttribute('data-crop-orig-h') || svgImageEl?.getAttribute('height') || targetEl.getAttribute('height') || '100%';
 
-          let ix = ixStr.includes('%') ? box.x : parseFloat(ixStr) || 0;
-          let iy = iyStr.includes('%') ? box.y : parseFloat(iyStr) || 0;
-          let iw = iwStr.includes('%') ? box.width : parseFloat(iwStr) || 100;
-          let ih = ihStr.includes('%') ? box.height : parseFloat(ihStr) || 100;
+          let ix = ixStr.toString().includes('%') ? box.x : parseFloat(ixStr) || 0;
+          let iy = iyStr.toString().includes('%') ? box.y : parseFloat(iyStr) || 0;
+          let iw = iwStr.toString().includes('%') ? box.width : parseFloat(iwStr) || 100;
+          let ih = ihStr.toString().includes('%') ? box.height : parseFloat(ihStr) || 100;
 
           // Apply crop mathematically to inner shadow dimensions
+          const effImgTypeInner = liveElement.getAttribute('data-object-fit') || imageType;
           const cropStr = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-          if (cropStr && cropStr !== 'null') {
+          if (effImgTypeInner === 'Crop' && cropStr && cropStr !== 'null') {
             try {
               const crop = JSON.parse(cropStr);
               ix = ix + (parseFloat(crop.left) / 100) * iw;
@@ -2208,7 +2213,11 @@ const ImageEditor = ({
             } catch (e) { }
           }
 
-          overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+          if (isContainer) {
+            overlay.removeAttribute('transform');
+          } else {
+            overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+          }
 
           const maxIR = Math.min(iw, ih) / 2;
           const i_tl = Math.max(0, Math.min(radius.tl || 0, maxIR));
@@ -2332,20 +2341,21 @@ const ImageEditor = ({
           }
 
           let bBox = { x: 0, y: 0, width: 100, height: 100 };
-          try { bBox = targetElForFill.getBBox(); } catch (e) { }
+          try { bBox = (svgImageEl || targetElForFill).getBBox(); } catch (e) { }
 
-          let bxStr = targetElForFill.getAttribute('x') || '0';
-          let byStr = targetElForFill.getAttribute('y') || '0';
-          let bwStr = targetElForFill.getAttribute('width') || '100%';
-          let bhStr = targetElForFill.getAttribute('height') || '100%';
+          let bxStr = liveElement.getAttribute('data-crop-orig-x') || svgImageEl?.getAttribute('x') || targetElForFill.getAttribute('x') || '0';
+          let byStr = liveElement.getAttribute('data-crop-orig-y') || svgImageEl?.getAttribute('y') || targetElForFill.getAttribute('y') || '0';
+          let bwStr = liveElement.getAttribute('data-crop-orig-w') || svgImageEl?.getAttribute('width') || targetElForFill.getAttribute('width') || '100%';
+          let bhStr = liveElement.getAttribute('data-crop-orig-h') || svgImageEl?.getAttribute('height') || targetElForFill.getAttribute('height') || '100%';
 
-          let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-          let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-          let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-          let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+          let bx = bxStr.toString().includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+          let by = byStr.toString().includes('%') ? bBox.y : parseFloat(byStr) || 0;
+          let bw = bwStr.toString().includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+          let bh = bhStr.toString().includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
+          const effImgTypeFill = liveElement.getAttribute('data-object-fit') || imageType;
           const cropStrFill = targetElForFill.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-          if (cropStrFill && cropStrFill !== 'null') {
+          if (effImgTypeFill === 'Crop' && cropStrFill && cropStrFill !== 'null') {
             try {
               const crop = JSON.parse(cropStrFill);
               bx = bx + (parseFloat(crop.left) / 100) * bw;
@@ -2424,7 +2434,13 @@ const ImageEditor = ({
 
           if (!isPatternShape) {
             fillLayer.removeAttribute('rx');
-            if (targetElForFill.getAttribute('transform')) fillLayer.setAttribute('transform', targetElForFill.getAttribute('transform'));
+            if (fillLayerParent === liveElement && liveElement.tagName?.toLowerCase() === 'g') {
+              fillLayer.removeAttribute('transform');
+            } else if (targetElForFill.getAttribute('transform')) {
+              fillLayer.setAttribute('transform', targetElForFill.getAttribute('transform'));
+            } else {
+              fillLayer.removeAttribute('transform');
+            }
           }
 
           liveElement.setAttribute('data-fill-color', backgroundColor.fill);
@@ -2480,12 +2496,31 @@ const ImageEditor = ({
         }
 
         if (!isImageNode) {
-          if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
+          let strokeStopsNonImg = backgroundColor.strokeStops;
+          let strokeGradTypeNonImg = backgroundColor.strokeGradientType || 'linear';
+          let strokeAngleNonImg = backgroundColor.strokeAngle || '0';
+          let strokeRadiusNonImg = backgroundColor.strokeRadius || '100';
+
+          if (backgroundColor.strokeType === 'gradient' && !strokeStopsNonImg && backgroundColor.stroke && backgroundColor.stroke.includes('gradient')) {
+            const parsed = parseGradient(backgroundColor.stroke);
+            if (parsed && parsed.stops) {
+              strokeStopsNonImg = JSON.stringify(parsed.stops.map(s => ({
+                color: s.color,
+                offset: s.offset,
+                opacity: s.opacity / 100
+              })));
+              strokeGradTypeNonImg = parsed.type.toLowerCase();
+              strokeAngleNonImg = (parsed.angle || 0).toString();
+              strokeRadiusNonImg = (parsed.radius || 100).toString();
+            }
+          }
+
+          if (backgroundColor.strokeType === 'gradient' && strokeStopsNonImg) {
             liveElement.setAttribute('stroke-type', 'gradient');
-            liveElement.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
-            liveElement.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
-            liveElement.setAttribute('stroke-angle', backgroundColor.strokeAngle || '0');
-            liveElement.setAttribute('stroke-radius', backgroundColor.strokeRadius || '100');
+            liveElement.setAttribute('stroke-gradient-type', strokeGradTypeNonImg);
+            liveElement.setAttribute('stroke-stops', strokeStopsNonImg);
+            liveElement.setAttribute('stroke-angle', strokeAngleNonImg);
+            liveElement.setAttribute('stroke-radius', strokeRadiusNonImg);
             syncGradient(liveElement.ownerDocument || document, liveElement, 'stroke');
           } else {
             liveElement.removeAttribute('stroke-type');
@@ -2543,12 +2578,21 @@ const ImageEditor = ({
           const syncOverlay = () => {
             if (!strokeOverlay.isConnected) return;
             const targetEl = svgImageEl || liveElement;
-            strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
-            strokeOverlay.style.transform = targetEl.style.transform;
-            strokeOverlay.style.translate = targetEl.style.translate;
-            strokeOverlay.style.scale = targetEl.style.scale;
-            strokeOverlay.style.rotate = targetEl.style.rotate;
-            strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
+            if (liveElement.getAttribute('data-is-image-group') !== 'true' && targetContainer !== liveElement) {
+              strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+              strokeOverlay.style.transform = targetEl.style.transform;
+              strokeOverlay.style.translate = targetEl.style.translate;
+              strokeOverlay.style.scale = targetEl.style.scale;
+              strokeOverlay.style.rotate = targetEl.style.rotate;
+              strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
+            } else {
+              strokeOverlay.removeAttribute('transform');
+              strokeOverlay.style.removeProperty('transform');
+              strokeOverlay.style.removeProperty('translate');
+              strokeOverlay.style.removeProperty('scale');
+              strokeOverlay.style.removeProperty('rotate');
+              strokeOverlay.style.removeProperty('transform-origin');
+            }
 
             let targetElForStrokeSync = svgImageEl || liveElement;
             if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
@@ -2556,20 +2600,21 @@ const ImageEditor = ({
             }
 
             let bBox = { x: 0, y: 0, width: 100, height: 100 };
-            try { bBox = targetElForStrokeSync.getBBox(); } catch (e) { }
+            try { bBox = (svgImageEl || targetElForStrokeSync).getBBox(); } catch (e) { }
 
-            let bxStr = targetElForStrokeSync.getAttribute('x') || '0';
-            let byStr = targetElForStrokeSync.getAttribute('y') || '0';
-            let bwStr = targetElForStrokeSync.getAttribute('width') || '100%';
-            let bhStr = targetElForStrokeSync.getAttribute('height') || '100%';
+            let bxStr = liveElement.getAttribute('data-crop-orig-x') || svgImageEl?.getAttribute('x') || targetElForStrokeSync.getAttribute('x') || '0';
+            let byStr = liveElement.getAttribute('data-crop-orig-y') || svgImageEl?.getAttribute('y') || targetElForStrokeSync.getAttribute('y') || '0';
+            let bwStr = liveElement.getAttribute('data-crop-orig-w') || svgImageEl?.getAttribute('width') || targetElForStrokeSync.getAttribute('width') || '100%';
+            let bhStr = liveElement.getAttribute('data-crop-orig-h') || svgImageEl?.getAttribute('height') || targetElForStrokeSync.getAttribute('height') || '100%';
 
-            let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-            let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-            let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-            let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+            let bx = bxStr.toString().includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+            let by = byStr.toString().includes('%') ? bBox.y : parseFloat(byStr) || 0;
+            let bw = bwStr.toString().includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+            let bh = bhStr.toString().includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
+            const effImgTypeStrokeSync = liveElement.getAttribute('data-object-fit') || imageType;
             const cropStrStroke = targetElForStrokeSync.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-            if (cropStrStroke && cropStrStroke !== 'null') {
+            if (effImgTypeStrokeSync === 'Crop' && cropStrStroke && cropStrStroke !== 'null') {
               try {
                 const crop = JSON.parse(cropStrStroke);
                 bx = bx + (parseFloat(crop.left) / 100) * bw;
@@ -2656,20 +2701,21 @@ const ImageEditor = ({
           }
 
           let bBox = { x: 0, y: 0, width: 100, height: 100 };
-          try { bBox = targetElForStroke.getBBox(); } catch (e) { }
+          try { bBox = (svgImageEl || targetElForStroke).getBBox(); } catch (e) { }
 
-          let bxStr = targetElForStroke.getAttribute('x') || '0';
-          let byStr = targetElForStroke.getAttribute('y') || '0';
-          let bwStr = targetElForStroke.getAttribute('width') || '100%';
-          let bhStr = targetElForStroke.getAttribute('height') || '100%';
+          let bxStr = liveElement.getAttribute('data-crop-orig-x') || svgImageEl?.getAttribute('x') || targetElForStroke.getAttribute('x') || '0';
+          let byStr = liveElement.getAttribute('data-crop-orig-y') || svgImageEl?.getAttribute('y') || targetElForStroke.getAttribute('y') || '0';
+          let bwStr = liveElement.getAttribute('data-crop-orig-w') || svgImageEl?.getAttribute('width') || targetElForStroke.getAttribute('width') || '100%';
+          let bhStr = liveElement.getAttribute('data-crop-orig-h') || svgImageEl?.getAttribute('height') || targetElForStroke.getAttribute('height') || '100%';
 
-          let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-          let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-          let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-          let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+          let bx = bxStr.toString().includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+          let by = byStr.toString().includes('%') ? bBox.y : parseFloat(byStr) || 0;
+          let bw = bwStr.toString().includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+          let bh = bhStr.toString().includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
+          const effImgTypeStroke = liveElement.getAttribute('data-object-fit') || imageType;
           const cropStrStroke = targetElForStroke.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-          if (cropStrStroke && cropStrStroke !== 'null') {
+          if (effImgTypeStroke === 'Crop' && cropStrStroke && cropStrStroke !== 'null') {
             try {
               const crop = JSON.parse(cropStrStroke);
               bx = bx + (parseFloat(crop.left) / 100) * bw;
@@ -2731,29 +2777,59 @@ const ImageEditor = ({
 
           strokeOverlay.setAttribute('d', getPathD(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
 
-          strokeOverlay.setAttribute('transform', targetElForStroke.getAttribute('transform') || '');
-          strokeOverlay.style.transform = targetElForStroke.style.transform;
-          strokeOverlay.style.translate = targetElForStroke.style.translate;
-          strokeOverlay.style.scale = targetElForStroke.style.scale;
-          strokeOverlay.style.rotate = targetElForStroke.style.rotate;
-          strokeOverlay.style.transformOrigin = targetElForStroke.style.transformOrigin;
+          strokeOverlay.setAttribute('d', getPathD(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
+
+          if (liveElement.getAttribute('data-is-image-group') !== 'true' && targetContainer !== liveElement) {
+            strokeOverlay.setAttribute('transform', targetElForStroke.getAttribute('transform') || '');
+            strokeOverlay.style.transform = targetElForStroke.style.transform;
+            strokeOverlay.style.translate = targetElForStroke.style.translate;
+            strokeOverlay.style.scale = targetElForStroke.style.scale;
+            strokeOverlay.style.rotate = targetElForStroke.style.rotate;
+            strokeOverlay.style.transformOrigin = targetElForStroke.style.transformOrigin;
+          } else {
+            strokeOverlay.removeAttribute('transform');
+            strokeOverlay.style.removeProperty('transform');
+            strokeOverlay.style.removeProperty('translate');
+            strokeOverlay.style.removeProperty('scale');
+            strokeOverlay.style.removeProperty('rotate');
+            strokeOverlay.style.removeProperty('transform-origin');
+          }
 
           strokeOverlay.setAttribute('fill', 'none');
 
           liveElement.setAttribute('data-stroke-color', backgroundColor.stroke);
           liveElement.setAttribute('data-stroke-type', backgroundColor.strokeType);
 
-          if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
-            liveElement.setAttribute('data-stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
-            liveElement.setAttribute('data-stroke-stops', backgroundColor.strokeStops || '');
-            liveElement.setAttribute('data-stroke-angle', backgroundColor.strokeAngle || '0');
-            liveElement.setAttribute('data-stroke-radius', backgroundColor.strokeRadius || '100');
+          let strokeStops = backgroundColor.strokeStops;
+          let strokeGradType = backgroundColor.strokeGradientType || 'linear';
+          let strokeAngle = backgroundColor.strokeAngle || '0';
+          let strokeRadius = backgroundColor.strokeRadius || '100';
+
+          if (backgroundColor.strokeType === 'gradient' && !strokeStops && backgroundColor.stroke && backgroundColor.stroke.includes('gradient')) {
+            const parsed = parseGradient(backgroundColor.stroke);
+            if (parsed && parsed.stops) {
+              strokeStops = JSON.stringify(parsed.stops.map(s => ({
+                color: s.color,
+                offset: s.offset,
+                opacity: s.opacity / 100
+              })));
+              strokeGradType = parsed.type.toLowerCase();
+              strokeAngle = (parsed.angle || 0).toString();
+              strokeRadius = (parsed.radius || 100).toString();
+            }
+          }
+
+          if (backgroundColor.strokeType === 'gradient' && strokeStops) {
+            liveElement.setAttribute('data-stroke-gradient-type', strokeGradType);
+            liveElement.setAttribute('data-stroke-stops', strokeStops);
+            liveElement.setAttribute('data-stroke-angle', strokeAngle);
+            liveElement.setAttribute('data-stroke-radius', strokeRadius);
 
             strokeOverlay.setAttribute('stroke-type', 'gradient');
-            strokeOverlay.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
-            strokeOverlay.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
-            strokeOverlay.setAttribute('stroke-angle', backgroundColor.strokeAngle || '0');
-            strokeOverlay.setAttribute('stroke-radius', backgroundColor.strokeRadius || '100');
+            strokeOverlay.setAttribute('stroke-gradient-type', strokeGradType);
+            strokeOverlay.setAttribute('stroke-stops', strokeStops);
+            strokeOverlay.setAttribute('stroke-angle', strokeAngle);
+            strokeOverlay.setAttribute('stroke-radius', strokeRadius);
             syncGradient(liveElement.ownerDocument || document, strokeOverlay, 'stroke');
           } else {
             liveElement.removeAttribute('data-stroke-gradient-type');
@@ -2774,7 +2850,7 @@ const ImageEditor = ({
           strokeOverlay.setAttribute('d', getPathD(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
 
           strokeOverlay.setAttribute('stroke-width', sw.toString());
-          strokeOverlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
+          strokeOverlay.setAttribute('stroke-opacity', ((backgroundColor.strokeOpacity / 100) * (opacity / 100)).toString());
 
           if (backgroundColor.strokeDashStyle === 'Dashed') {
             const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
@@ -2942,7 +3018,7 @@ const ImageEditor = ({
         }
 
         if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); innerGroup.appendChild(innerShadow); }
-        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); innerGroup.appendChild(stroke); }
+        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); liveElement.appendChild(stroke); }
       }
 
       // Debounce onUpdate

@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0",
     "@gltf-transform/core": "^4.3.0",
     "@gltf-transform/extensions": "^4.3.0",
     "@gltf-transform/functions": "^4.3.0",
@@ -20,12 +21,15 @@
     "@react-oauth/google": "^0.13.5",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@react-three/rapier": "^1.5.0",
     "@svgdotjs/svg.draggable.js": "^3.0.6",
     "@svgdotjs/svg.js": "^3.2.5",
     "@svgdotjs/svg.panzoom.js": "^2.1.2",
     "@tailwindcss/vite": "^4.1.18",
+    "ammo.js": "^0.0.10",
     "axios": "^1.13.2",
     "bwip-js": "^4.10.1",
+    "cannon-es": "^0.20.0",
     "dom-to-image-more": "^3.7.2",
     "dotenv": "^17.2.3",
     "fabric": "^7.2.0",

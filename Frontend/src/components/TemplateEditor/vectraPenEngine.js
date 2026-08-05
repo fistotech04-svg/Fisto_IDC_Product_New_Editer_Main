@@ -79,8 +79,8 @@ export function pathToDCombo(paths) {
     for (let i = 0; i < count; i++) {
       const a = path.nodes[i];
       const b = path.nodes[(i + 1) % n];
-      const x1 = Math.round(a.x * 10) / 10, y1 = Math.round(a.y * 10) / 10;
-      const x2 = Math.round(b.x * 10) / 10, y2 = Math.round(b.y * 10) / 10;
+      const x1 = Math.round(a.x * 100) / 100, y1 = Math.round(a.y * 100) / 100;
+      const x2 = Math.round(b.x * 100) / 100, y2 = Math.round(b.y * 100) / 100;
 
       if (segmentIsLine(a, b)) {
         const edgeKey = x1 < x2 || (x1 === x2 && y1 < y2)
