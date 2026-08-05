@@ -148,7 +148,7 @@ const Adjustment = ({
   };
 
   return (
-    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.4vw]">
+    <div ref={containerRef} className="flex flex-col font-sans">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'adjustment' ? null : 'adjustment')}

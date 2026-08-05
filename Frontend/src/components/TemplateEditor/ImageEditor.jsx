@@ -745,7 +745,11 @@ const ImageEditor = ({
     }
 
     // --- FORCE IMAGE GROUP STRUCTURE FOR IMAGES ---
-    if (isSvgEl && svgImageEl && liveElement.getAttribute('data-is-image-group') !== 'true') {
+    const isUserGroup = liveElement.getAttribute('data-type') === 'group' || 
+                        (liveElement.getAttribute('data-name') || '').toLowerCase() === 'group' || 
+                        (liveElement.id || '').startsWith('group-');
+
+    if (!isUserGroup && isSvgEl && svgImageEl && liveElement.getAttribute('data-is-image-group') !== 'true') {
       if (tagLower === 'image') {
         const parent = liveElement.parentNode;
         const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -3132,7 +3136,7 @@ const ImageEditor = ({
 
 
       {isMainPanelOpen && (
-        <div className="space-y-[0.60vw]">
+        <div className="flex flex-col gap-[0.4vw]">
 
           {isSlideshow ? (
             /* ── SLIDESHOW MODE: show only SlideshowProperties ── */
@@ -3356,7 +3360,7 @@ const ImageEditor = ({
                   <div className="flex gap-[0.25vw] items-center">
                     <button
                       onClick={() => setShowImageTypeDropdown(!showImageTypeDropdown)}
-                      className="flex items-center justify-between w-[6.5vw] px-[0.75vw] py-[0.55vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-sm hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-between w-[6.5vw] py-[0.35vw] px-[0.75vw] bg-white border border-gray-200 rounded-[0.45vw] shadow-xs hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
                     >
                       <span className="text-[0.85vw] font-normal text-gray-700">{imageType}</span>
                       <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showImageTypeDropdown ? 'rotate-180' : ''}`} />

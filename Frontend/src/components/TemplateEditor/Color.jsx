@@ -642,7 +642,7 @@ const Color = ({
   ];
 
   return (
-    <div ref={containerRef} className="flex flex-col font-sans">
+    <div ref={containerRef} className="flex flex-col gap-[0.4vw] font-sans">
       {isText && (isScrollable === true || selectedElementProps?.['data-scrollable'] === 'true') && (sizingMode === 'fixed' || selectedElementProps?.['data-sizing-mode'] === 'fixed') && (
         <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden mb-[1vw]">
           <div
@@ -1010,13 +1010,13 @@ const Color = ({
         </div>
       )}
       {!hideFill && (
-        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden mb-[1vw]">
+        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
           <div
             onClick={() => setOpenSubSection(openSubSection === 'color' || openSubSection === 'fillColor' ? null : 'fillColor')}
             className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
           >
             <div className="flex items-center gap-[0.5vw]">
-              <span className="font-semibold text-[0.85vw] text-gray-900">Fill Color</span>
+              <span className={`font-semibold text-[0.85vw] ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'text-gray-900' : 'text-gray-500'}`}>Fill Color</span>
             </div>
             <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
           </div>
@@ -1097,7 +1097,7 @@ const Color = ({
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <span className="font-semibold text-[0.85vw] text-gray-900">Stroke Color</span>
+            <span className={`font-semibold text-[0.85vw] ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'text-gray-900' : 'text-gray-500'}`}>Stroke Color</span>
           </div>
           <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
         </div>

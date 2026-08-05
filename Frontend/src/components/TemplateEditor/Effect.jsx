@@ -199,7 +199,7 @@ const Effect = ({
   }, [pseudoProps, shouldOpenPopupId]);
 
   return (
-    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
+    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'effect' ? null : 'effect')}
