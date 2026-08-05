@@ -2561,6 +2561,54 @@ const MainEditor = ({
         // in the user coordinate space of the overlay. Applying it again causes double-transform bugs.
       });
 
+      // Sync iframe scale
+      svg.querySelectorAll('foreignObject iframe').forEach(iframe => {
+        const fo = iframe.closest('foreignObject');
+        if (fo) {
+          let foW = parseFloat(fo.getAttribute('width') || '0');
+          let foH = parseFloat(fo.getAttribute('height') || '0');
+          
+          const parentG = fo.closest('g');
+          if (parentG && parentG.hasAttribute('data-width')) {
+            foW = parseFloat(parentG.getAttribute('data-width'));
+            foH = parseFloat(parentG.getAttribute('data-height'));
+          } else if (fo.getAttribute('width')?.includes('%')) {
+            const bbox = fo.getBoundingClientRect();
+            if (bbox.width > 0) {
+              const svgEl = fo.closest('svg');
+              const ctm = svgEl ? svgEl.getScreenCTM() : null;
+              const scale = ctm ? ctm.a : 1;
+              foW = bbox.width / scale;
+              foH = bbox.height / scale;
+            }
+          }
+          
+          let origW = parseFloat(iframe.getAttribute('data-original-width'));
+          let origH = parseFloat(iframe.getAttribute('data-original-height'));
+          
+          if (!origW || !origH || iframe.getAttribute('width') === '100%') {
+             origW = 640;
+             origH = 360;
+             iframe.setAttribute('data-original-width', '640');
+             iframe.setAttribute('data-original-height', '360');
+             iframe.setAttribute('width', '640');
+             iframe.setAttribute('height', '360');
+             iframe.style.width = '640px';
+             iframe.style.height = '360px';
+             iframe.style.transformOrigin = '0 0';
+          }
+          
+          if (foW > 0 && foH > 0 && origW > 0 && origH > 0) {
+            iframe.style.setProperty('width', origW + 'px', 'important');
+            iframe.style.setProperty('height', origH + 'px', 'important');
+            const scaleX = foW / origW;
+            const scaleY = foH / origH;
+            iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
+            iframe.style.setProperty('transform-origin', '0 0', 'important');
+          }
+        }
+      });
+
       // Cleanup orphan overlays
       svg.querySelectorAll('.svg-shape-stroke-overlay').forEach(overlay => {
         const targetId = overlay.getAttribute('data-target');
@@ -2734,15 +2782,29 @@ const MainEditor = ({
         const iframe = document.createElement('iframe');
         iframe.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
         iframe.src = finalEmbedUrl;
-        iframe.setAttribute('width', '100%');
-        iframe.setAttribute('height', '100%');
+        
+        const intrinsicW = 640;
+        const intrinsicH = 360;
+        
+        iframe.setAttribute('width', intrinsicW.toString());
+        iframe.setAttribute('height', intrinsicH.toString());
+        iframe.setAttribute('data-original-width', intrinsicW.toString());
+        iframe.setAttribute('data-original-height', intrinsicH.toString());
+        
         iframe.setAttribute('frameborder', '0');
         iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
         iframe.setAttribute('allowfullscreen', 'true');
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
+        
+        iframe.style.width = intrinsicW + 'px';
+        iframe.style.height = intrinsicH + 'px';
         iframe.style.border = 'none';
         iframe.style.display = 'block';
+        iframe.style.transformOrigin = '0 0';
+        
+        const scaleX = displayWidth / intrinsicW;
+        const scaleY = displayHeight / intrinsicH;
+        iframe.style.transform = `scale(${scaleX}, ${scaleY})`;
+        
         if (originalUrl) iframe.setAttribute('data-original-url', originalUrl);
         fo.appendChild(iframe);
       } else {
@@ -7812,6 +7874,20 @@ const MainEditor = ({
                 el.setAttribute('y', adjustedY);
                 el.setAttribute('width', adjustedWidth);
                 el.setAttribute('height', adjustedHeight);
+                
+                if (el.tagName.toLowerCase() === 'foreignobject') {
+                  const iframe = el.querySelector('iframe');
+                  if (iframe) {
+                    let origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+                    let origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                    if (origW > 0 && origH > 0 && adjustedWidth > 0 && adjustedHeight > 0) {
+                      const scaleX = adjustedWidth / origW;
+                      const scaleY = adjustedHeight / origH;
+                      iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
+                      iframe.style.setProperty('transform-origin', '0 0', 'important');
+                    }
+                  }
+                }
               } else if (isGroup && state.childrenData) {
                 const isMultiSel = el.tagName === 'multi';
 
@@ -8069,6 +8145,20 @@ const MainEditor = ({
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
+
+                        if (tag === 'foreignobject') {
+                          const iframe = child.querySelector('iframe');
+                          if (iframe) {
+                            let origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+                            let origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                            if (origW > 0 && origH > 0 && imgW > 0 && imgH > 0) {
+                              const scaleX = imgW / origW;
+                              const scaleY = imgH / origH;
+                              iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
+                              iframe.style.setProperty('transform-origin', '0 0', 'important');
+                            }
+                          }
+                        }
 
                         if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
                           const centerX = imgX + (imgW / 2);

@@ -1970,12 +1970,28 @@ const VideoEditor = ({
       target.setAttribute("src", finalUrl);
       target.setAttribute("data-original-url", url);
 
-      target.setAttribute("width", "100%");
-      target.setAttribute("height", "100%");
-      target.style.width = "100%";
-      target.style.height = "100%";
-      target.style.transform = "none";
-      target.style.objectFit = "contain";
+      if (isIframeTarget) {
+        const intrinsicW = 640;
+        const intrinsicH = 360;
+        target.setAttribute("width", intrinsicW.toString());
+        target.setAttribute("height", intrinsicH.toString());
+        target.setAttribute("data-original-width", intrinsicW.toString());
+        target.setAttribute("data-original-height", intrinsicH.toString());
+        target.style.width = intrinsicW + "px";
+        target.style.height = intrinsicH + "px";
+        target.style.transformOrigin = "0 0";
+        
+        const scaleX = newW / intrinsicW;
+        const scaleY = newH / intrinsicH;
+        target.style.transform = `scale(${scaleX}, ${scaleY})`;
+      } else {
+        target.setAttribute("width", "100%");
+        target.setAttribute("height", "100%");
+        target.style.width = "100%";
+        target.style.height = "100%";
+        target.style.transform = "none";
+        target.style.objectFit = "contain";
+      }
 
       if (liveElement) {
         const resizeAndCenter = (el, targetW, targetH) => {
@@ -2010,12 +2026,9 @@ const VideoEditor = ({
 
       if (!isIframeTarget) {
 
-        target.autoplay = true;
         target.muted = true;
-        target.setAttribute("autoplay", "");
         target.setAttribute("muted", "");
       }
-      setAutoplay(true);
       setPreviewSrc(finalUrl);
 
       target.setAttribute("data-filename", isIframeTarget ? "YouTube Video" : "Video URL");
@@ -2044,9 +2057,7 @@ const VideoEditor = ({
       newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
       newElement.src = finalUrl;
       newElement.controls = true;
-      newElement.autoplay = true;
       newElement.muted = true;
-      newElement.setAttribute("autoplay", "");
       newElement.setAttribute("muted", "");
     }
 
@@ -2056,12 +2067,28 @@ const VideoEditor = ({
     newElement.setAttribute("data-original-url", url);
     newElement.style.cssText = target.style.cssText;
 
-    newElement.setAttribute("width", "100%");
-    newElement.setAttribute("height", "100%");
-    newElement.style.width = "100%";
-    newElement.style.height = "100%";
-    newElement.style.transform = "none";
-    newElement.style.objectFit = "contain";
+    if (isIframeTarget) {
+      const intrinsicW = 640;
+      const intrinsicH = 360;
+      newElement.setAttribute("width", intrinsicW.toString());
+      newElement.setAttribute("height", intrinsicH.toString());
+      newElement.setAttribute("data-original-width", intrinsicW.toString());
+      newElement.setAttribute("data-original-height", intrinsicH.toString());
+      newElement.style.width = intrinsicW + "px";
+      newElement.style.height = intrinsicH + "px";
+      newElement.style.transformOrigin = "0 0";
+      
+      const scaleX = newW / intrinsicW;
+      const scaleY = newH / intrinsicH;
+      newElement.style.transform = `scale(${scaleX}, ${scaleY})`;
+    } else {
+      newElement.setAttribute("width", "100%");
+      newElement.setAttribute("height", "100%");
+      newElement.style.width = "100%";
+      newElement.style.height = "100%";
+      newElement.style.transform = "none";
+      newElement.style.objectFit = "contain";
+    }
 
     if (liveElement) {
       const resizeAndCenter = (el, targetW, targetH) => {
@@ -2077,7 +2104,10 @@ const VideoEditor = ({
         el.setAttribute("height", targetH);
       };
 
-      const fo = liveElement.tagName.toLowerCase() === "foreignobject" ? liveElement : (liveElement.querySelector("foreignObject") || liveElement.querySelector("foreignobject"));
+      const fo = liveElement.tagName.toLowerCase() === "foreignobject" 
+        ? liveElement 
+        : (liveElement.closest("foreignObject") || liveElement.querySelector("foreignObject") || liveElement.querySelector("foreignobject"));
+      
       if (fo) {
         resizeAndCenter(fo, newW, newH);
         fo.style.width = newW + "px";
@@ -2111,7 +2141,6 @@ const VideoEditor = ({
     }
     setUpdateTrigger(prev => prev + 1);
 
-    setAutoplay(true);
     setPreviewSrc(finalUrl);
     onUpdateRef.current?.();
   };
@@ -2211,7 +2240,18 @@ const VideoEditor = ({
           <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
             {previewSrc ? (
               previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
-                <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" allowFullScreen />
+                (() => {
+                  const match = previewSrc.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))((\w|-){11})/);
+                  const vidId = match ? match[1] : null;
+                  return vidId ? (
+                    <div className="relative w-full h-full rounded-[0.4vw] overflow-hidden group">
+                      <img src={`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/5 group-hover:bg-black/10 transition-colors pointer-events-none"></div>
+                    </div>
+                  ) : (
+                    <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" allowFullScreen />
+                  );
+                })()
               ) : (
                 <video src={previewSrc} className="w-full h-full object-cover" muted />
               )
@@ -2361,7 +2401,18 @@ const VideoEditor = ({
             ) : (
               previewSrc ? (
                 previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
-                  <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" />
+                  (() => {
+                    const match = previewSrc.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))((\w|-){11})/);
+                    const vidId = match ? match[1] : null;
+                    return vidId ? (
+                      <div className="relative w-full h-full rounded-[0.8vw] overflow-hidden group">
+                        <img src={`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/5 group-hover:bg-black/10 transition-colors pointer-events-none"></div>
+                      </div>
+                    ) : (
+                      <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" />
+                    );
+                  })()
                 ) : (
                   <video src={previewSrc} className="w-full h-full object-cover pointer-events-none" muted />
                 )
