@@ -149,9 +149,19 @@ const VideoEditor = ({
   const [endTime, setEndTime] = useState("08:52:21");
   const [playbackSpeed, setPlaybackSpeed] = useState("1.0x");
   const [resumeBehavior, setResumeBehavior] = useState("Resume from Last Position");
-  const [playVideoWhile, setPlayVideoWhile] = useState("Auto Play While on Page");
+  const [playVideoWhile, setPlayVideoWhile] = useState("Auto Play on Page Open");
   const [defaultVolume, setDefaultVolume] = useState(80);
   const [disableFullScreen, setDisableFullScreen] = useState(false);
+
+  // Video Player Controls toggles
+  const [playPauseButton, setPlayPauseButton] = useState(true);
+  const [skipButton, setSkipButton] = useState(true);
+  const [progressBar, setProgressBar] = useState(true);
+  const [loopButtonControl, setLoopButtonControl] = useState(true);
+  const [fullscreenButtonControl, setFullscreenButtonControl] = useState(true);
+  const [playbackSpeedMenu, setPlaybackSpeedMenu] = useState(true);
+  const [volumeControl, setVolumeControl] = useState(true);
+  const [downloadButton, setDownloadButton] = useState(true);
 
   const [opacity, setOpacity] = useState(100);
   const [coverOption, setCoverOption] = useState("auto"); // "upload" or "auto"
@@ -444,7 +454,7 @@ const VideoEditor = ({
       
       setStartTime(target.getAttribute('data-start-time') || '');
       setEndTime(target.getAttribute('data-end-time') || '');
-      setPlayVideoWhile(target.getAttribute('data-play-video-while') || 'Auto Play While on Page');
+      setPlayVideoWhile(target.getAttribute('data-play-video-while') || 'Auto Play on Page Open');
       const pSpeed = target.getAttribute('data-playback-speed');
       if (pSpeed) {
         setPlaybackSpeed(pSpeed);
@@ -457,6 +467,16 @@ const VideoEditor = ({
       const dVol = target.getAttribute('data-default-volume');
       setDefaultVolume(dVol ? parseInt(dVol) : (target.volume !== undefined ? Math.round(target.volume * 100) : 100));
       setDisableFullScreen(target.getAttribute('data-disable-fullscreen') === 'true');
+
+      // Video Player Controls
+      setPlayPauseButton(target.getAttribute('data-show-play-pause') !== 'false');
+      setSkipButton(target.getAttribute('data-show-skip-button') !== 'false');
+      setProgressBar(target.getAttribute('data-show-progress-bar') !== 'false');
+      setLoopButtonControl(target.getAttribute('data-show-loop-button') !== 'false');
+      setFullscreenButtonControl(target.getAttribute('data-show-fullscreen-button') !== 'false');
+      setPlaybackSpeedMenu(target.getAttribute('data-show-playback-speed-menu') !== 'false');
+      setVolumeControl(target.getAttribute('data-show-volume-control') !== 'false');
+      setDownloadButton(target.getAttribute('data-show-download-button') !== 'false');
 
       const rawCtrlSize = target.getAttribute('data-controls-size');
       const ctrlSize = rawCtrlSize ? parseInt(rawCtrlSize) : 100;
@@ -1417,6 +1437,16 @@ const VideoEditor = ({
         target.controls = false;
         target.removeAttribute('controls');
         target.setAttribute('data-show-controls', controls ? 'true' : 'false');
+        
+        target.setAttribute('data-show-play-pause', playPauseButton ? 'true' : 'false');
+        target.setAttribute('data-show-skip-button', skipButton ? 'true' : 'false');
+        target.setAttribute('data-show-progress-bar', progressBar ? 'true' : 'false');
+        target.setAttribute('data-show-loop-button', loopButtonControl ? 'true' : 'false');
+        target.setAttribute('data-show-fullscreen-button', fullscreenButtonControl ? 'true' : 'false');
+        target.setAttribute('data-show-playback-speed-menu', playbackSpeedMenu ? 'true' : 'false');
+        target.setAttribute('data-show-volume-control', volumeControl ? 'true' : 'false');
+        target.setAttribute('data-show-download-button', downloadButton ? 'true' : 'false');
+
         if (controls) {
           target.classList.remove('hide-controls');
         } else {
@@ -1504,7 +1534,7 @@ const VideoEditor = ({
     } catch (e) {
       console.error("Error applying video visuals:", e);
     }
-  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, muted, startTime, endTime, playVideoWhile, playbackSpeed, resumeBehavior, defaultVolume, disableFullScreen, debouncedUpdate]);
+  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, muted, startTime, endTime, playVideoWhile, playbackSpeed, resumeBehavior, defaultVolume, disableFullScreen, playPauseButton, skipButton, progressBar, loopButtonControl, fullscreenButtonControl, playbackSpeedMenu, volumeControl, downloadButton, debouncedUpdate]);
 
   useEffect(() => {
     applyVisuals();
@@ -1657,6 +1687,14 @@ const VideoEditor = ({
     else if (attr === 'controls') setControls(value);
     else if (attr === 'controlsSize') setControlsSize(value);
     else if (attr === 'muted') setMuted(value);
+    else if (attr === 'playPauseButton') setPlayPauseButton(value);
+    else if (attr === 'skipButton') setSkipButton(value);
+    else if (attr === 'progressBar') setProgressBar(value);
+    else if (attr === 'loopButtonControl') setLoopButtonControl(value);
+    else if (attr === 'fullscreenButtonControl') setFullscreenButtonControl(value);
+    else if (attr === 'playbackSpeedMenu') setPlaybackSpeedMenu(value);
+    else if (attr === 'volumeControl') setVolumeControl(value);
+    else if (attr === 'downloadButton') setDownloadButton(value);
   };
 
 
@@ -2337,10 +2375,10 @@ const VideoEditor = ({
         </div>
       </div>
 
-      {/* Video Playback Settings */}
+      {/* Default Playback Settings */}
       <div className="space-y-[1.2vw]">
         <div className="flex items-center gap-[0.5vw]">
-          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Video Playback Settings</span>
+          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Default Playback Settings</span>
           <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
         </div>
 
@@ -2351,7 +2389,7 @@ const VideoEditor = ({
             <span className="text-[0.75vw] font-medium text-gray-800 mr-[0.5vw]">:</span>
             <CustomSelect
               value={playVideoWhile}
-              options={["Auto Play While on Page", "Click to Play"]}
+              options={["Auto Play on Page Open", "Manual (Click to Play)"]}
               onChange={setPlayVideoWhile}
             />
           </div>
@@ -2373,7 +2411,7 @@ const VideoEditor = ({
             <span className="text-[0.75vw] font-medium text-gray-800 mr-[0.5vw]">:</span>
             <CustomSelect
               value={resumeBehavior}
-              options={["Resume from Last Position", "Start from Beginning"]}
+              options={["Resume from Last Position", "Restart Every Page Open"]}
               onChange={setResumeBehavior}
             />
           </div>
@@ -2415,25 +2453,20 @@ const VideoEditor = ({
 
           {[
             {
-              label: "Disable Video Controls",
-              value: !controls,
-              onChange: (v) => {
-                updateElementAttribute('controls', !v);
-              }
-            },
-            {
-              label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => {
+              label: "Loop Video", value: loop, onChange: (v) => {
                 updateElementAttribute('loop', v);
                 if (v) {
                   updateElementAttribute('autoplay', true);
-                  setPlayVideoWhile("Auto Play While on Page");
+                  setPlayVideoWhile("Auto Play on Page Open");
                 }
               }
             },
             {
-              label: "Disable Full Screen View",
-              value: disableFullScreen,
-              onChange: (v) => setDisableFullScreen(v)
+              label: "Video Player Controls",
+              value: controls,
+              onChange: (v) => {
+                updateElementAttribute('controls', v);
+              }
             }
           ].map((item, i) => (
             <div key={i} className="flex items-center justify-between py-[0.3vw]">
@@ -2443,6 +2476,33 @@ const VideoEditor = ({
           ))}
         </div>
       </div>
+
+      {controls && (
+        <div className="space-y-[1.2vw]">
+          <div className="flex items-center gap-[0.5vw]">
+            <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Video Player Controls</span>
+            <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+          </div>
+          
+          <div className="space-y-[0.8vw] px-[0.5vw]">
+            {[
+              { label: "Play/Pause Button", value: playPauseButton, onChange: (v) => updateElementAttribute('playPauseButton', v) },
+              { label: "Skip Forward/Backward (3 sec)", value: skipButton, onChange: (v) => updateElementAttribute('skipButton', v) },
+              { label: "Progress Bar", value: progressBar, onChange: (v) => updateElementAttribute('progressBar', v) },
+              { label: "Loop Button", value: loopButtonControl, onChange: (v) => updateElementAttribute('loopButtonControl', v) },
+              { label: "Fullscreen Button", value: fullscreenButtonControl, onChange: (v) => updateElementAttribute('fullscreenButtonControl', v) },
+              { label: "Playback Speed Menu", value: playbackSpeedMenu, onChange: (v) => updateElementAttribute('playbackSpeedMenu', v) },
+              { label: "Volume Control", value: volumeControl, onChange: (v) => updateElementAttribute('volumeControl', v) },
+              { label: "Download Button", value: downloadButton, onChange: (v) => updateElementAttribute('downloadButton', v) },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between py-[0.3vw]">
+                <span className="text-[0.75vw] font-medium text-gray-800">{item.label}</span>
+                <Switch enabled={item.value} onChange={item.onChange} disabled={item.disabled} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-[0.60vw] px-[0.3vw]">
         <Color
