@@ -978,22 +978,7 @@ const ImageEditor = ({
             }
 
             const trans = targetElForShadow.getAttribute('transform') || '';
-            const maxR = Math.min(cw, ch) / 2;
-            const tl = Math.max(0, Math.min(radius.tl || 0, maxR));
-            const tr = Math.max(0, Math.min(radius.tr || 0, maxR));
-            const br = Math.max(0, Math.min(radius.br || 0, maxR));
-            const bl = Math.max(0, Math.min(radius.bl || 0, maxR));
-
-            let d = `M ${cx + tl} ${cy}`;
-            d += ` L ${cx + cw - tr} ${cy}`;
-            if (tr > 0) d += ` A ${tr} ${tr} 0 0 1 ${cx + cw} ${cy + tr}`;
-            d += ` L ${cx + cw} ${cy + ch - br}`;
-            if (br > 0) d += ` A ${br} ${br} 0 0 1 ${cx + cw - br} ${cy + ch}`;
-            d += ` L ${cx + bl} ${cy + ch}`;
-            if (bl > 0) d += ` A ${bl} ${bl} 0 0 1 ${cx} ${cy + ch - bl}`;
-            d += ` L ${cx} ${cy + tl}`;
-            if (tl > 0) d += ` A ${tl} ${tl} 0 0 1 ${cx + tl} ${cy}`;
-            d += ` Z`;
+            let d = getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
 
             shadowCaster.setAttribute('d', d);
             if (liveElement.getAttribute('data-is-image-group') !== 'true') {
