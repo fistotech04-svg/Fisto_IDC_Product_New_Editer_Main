@@ -2406,7 +2406,7 @@ const PreviewArea = React.memo(({
             if (!screen) return;
 
             const { clientWidth, clientHeight } = screen;
-            const isCurrentlyFullscreen = !!document.fullscreenElement || isFullscreen;
+            const isCurrentlyFullscreen = (document.fullscreenElement === containerRef.current) || isFullscreen;
 
             const wFactor = isCurrentlyFullscreen ? (isToolbarHidden ? 0.80 : 0.70) : 0.70;
             const hFactor = isCurrentlyFullscreen ? (isToolbarHidden ? 0.85 : 0.80) : 0.80;
@@ -2868,7 +2868,7 @@ const PreviewArea = React.memo(({
 
     useEffect(() => {
         if (!useNativeFullscreen) return;
-        const onFSChange = () => setIsFullscreen(!!document.fullscreenElement);
+        const onFSChange = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
         document.addEventListener('fullscreenchange', onFSChange);
         document.addEventListener('webkitfullscreenchange', onFSChange);
         return () => {

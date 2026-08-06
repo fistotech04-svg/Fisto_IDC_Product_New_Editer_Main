@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { Upload, X, Check, Replace } from "lucide-react";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
+import { checkIsAnimatedWebp } from "./editorUtils";
 
 export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElement, selectedLayerId, activePageIndex, currentPageVId, flipbookVId, folderName, flipbookName }) {
   const [tempSelectedGif, setTempSelectedGif] = useState(null);
@@ -49,10 +50,13 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
     if (!file) return;
     
     // Check if it's a gif
-    const isGif = file.type === 'image/gif';
+    let isGif = file.type === 'image/gif';
+    if (!isGif && file.type.includes('webp')) {
+      isGif = await checkIsAnimatedWebp(file);
+    }
     
     if (!isGif) {
-      alert('Please select a valid GIF file');
+      alert('Please select a valid GIF or animated WebP file');
       return;
     }
 
@@ -234,14 +238,14 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
             </p>
             <Upload size="1.75vw" className="text-gray-300 mb-[0.5vw]" strokeWidth={1.5} />
             <p className="text-[0.65vw] text-gray-400 text-center px-[1vw]">
-              Supported File : <span className="font-medium">GIF</span>
+              Supported File : <span className="font-medium">GIF, Animated WebP</span>
             </p>
           </div>
           <input
             type="file"
             ref={galleryInputRef}
             onChange={handleModalFileUpload}
-            accept="image/gif"
+            accept="image/gif, image/webp"
             className="hidden"
           />
         </div>

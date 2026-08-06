@@ -4,6 +4,8 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
+import { checkIsAnimatedWebp } from './editorUtils';
+import FlipBookEngine from '../CustomizedEditor/FlipBookEngine';
 import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
 import paper from 'paper';
@@ -12574,12 +12576,15 @@ const MainEditor = ({
                                   // 3. Try reading external files dropped directly from Desktop / File Explorer
                                   if (!data && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                                     const files = Array.from(e.dataTransfer.files);
-                                    files.forEach((file, idx) => {
+                                    files.forEach(async (file, idx) => {
                                       const fileUrl = URL.createObjectURL(file);
                                       const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
 
                                       if (file.type.startsWith('image/')) {
-                                        const isGif = file.type === 'image/gif';
+                                        let isGif = file.type === 'image/gif';
+                                        if (!isGif && file.type.includes('webp')) {
+                                          isGif = await checkIsAnimatedWebp(file);
+                                        }
                                         window.dispatchEvent(new CustomEvent('add-image-to-editor', {
                                           detail: {
                                             pageIndex: displayIndex,

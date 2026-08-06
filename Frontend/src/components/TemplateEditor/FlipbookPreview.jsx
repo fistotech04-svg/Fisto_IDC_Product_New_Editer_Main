@@ -371,7 +371,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                     </div>
                   </div>
                 </div>
-
+              
                 <button
                   className="mt-auto mr-[0.9vw] flex items-start justify-start text-[#ff3333]"
                   title="Exit Preview"
