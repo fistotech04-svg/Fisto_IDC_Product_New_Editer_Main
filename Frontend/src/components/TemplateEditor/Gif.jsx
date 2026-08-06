@@ -2,6 +2,8 @@ import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import ReactDOM from 'react-dom';
 import axios from "axios";
 import { useParams } from "react-router-dom";
+import { initGifRunner } from './AnimationRunner';
+import useDeviceDetection from '../../hooks/useDeviceDetection';
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
 import {
   Image as ImageIcon,
@@ -90,8 +92,11 @@ const GifEditor = ({
   const [showGallery, setShowGallery] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [opacity, setOpacity] = useState(100);
-  const [imageType, setImageType] = useState('Fill');
+  const [imageType, setImageType] = useState('Fit');
   const [showImageTypeDropdown, setShowImageTypeDropdown] = useState(false);
+  const [loopCount, setLoopCount] = useState("Infinite");
+  const [customLoopCount, setCustomLoopCount] = useState("");
+  const [showLoopDropdown, setShowLoopDropdown] = useState(false);
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activePopup, setActivePopup] = useState(null);
 
@@ -221,8 +226,11 @@ const GifEditor = ({
     // Image Type
     const target = (svgImageEl || selectedElement);
     const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'none': 'Crop', 'fill': 'Stretch' };
-    const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'cover';
-    setImageType(fitMapRev[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
+    const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'contain';
+    setImageType(fitMapRev[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fit');
+
+    setLoopCount(target.getAttribute('data-loop-count') || selectedElement.getAttribute('data-loop-count') || 'Infinite');
+    setCustomLoopCount(target.getAttribute('data-custom-loop-count') || selectedElement.getAttribute('data-custom-loop-count') || '');
 
     // Filters & Effects
     if (selectedElement.hasAttribute('data-active-effects')) {
@@ -1446,6 +1454,8 @@ const GifEditor = ({
       liveElement.setAttribute('data-effect-shadows', s.toString());
       liveElement.setAttribute('data-effect-opacity', opacity.toString());
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));
+      liveElement.setAttribute('data-loop-count', loopCount);
+      liveElement.setAttribute('data-custom-loop-count', customLoopCount);
 
       liveElement.setAttribute('data-effect-radius-tl', (radius.tl || 0).toString());
       liveElement.setAttribute('data-effect-radius-tr', (radius.tr || 0).toString());
@@ -1536,9 +1546,11 @@ const GifEditor = ({
       if (isUpdatingDOMTimeoutRef.current) clearTimeout(isUpdatingDOMTimeoutRef.current);
       isUpdatingDOMTimeoutRef.current = setTimeout(() => {
         isUpdatingDOM.current = false;
+        // Trigger GIF runner to apply loop limits immediately in the workspace
+        initGifRunner(document);
       }, 50);
     }
-  }, [selectedElement, selectedLayerId, activePageIndex, filters, activeEffects, effectSettings, opacity, imageType, radius, isRadiusLinked, backgroundColor, getSvgImageEl]);
+  }, [selectedElement, selectedLayerId, activePageIndex, filters, activeEffects, effectSettings, opacity, imageType, radius, isRadiusLinked, backgroundColor, getSvgImageEl, loopCount, customLoopCount]);
 
   // Trigger applyVisuals when state changes
   useEffect(() => {
@@ -1633,7 +1645,7 @@ const GifEditor = ({
   const handleGifUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.type !== "image/gif") return;
+    if (file.type !== "image/gif" && file.type !== "image/webp") return;
 
     const url = URL.createObjectURL(file);
     const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
@@ -1805,7 +1817,7 @@ const GifEditor = ({
         </div>
       </div>
 
-      <input ref={fileInputRef} type="file" accept="image/gif" onChange={handleGifUpload} className="hidden" />
+      <input ref={fileInputRef} type="file" accept="image/gif, image/webp" onChange={handleGifUpload} className="hidden" />
 
       <div className="flex flex-col gap-[0.4vw]">
 
@@ -1818,6 +1830,59 @@ const GifEditor = ({
           <div className="flex items-center gap-[1vw] pb-[0.5vw]">
             <input type="range" min="0" max="100" value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="flex-1 cursor-pointer custom-range-slider" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }} />
             <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{opacity}%</span>
+          </div>
+        </div>
+
+        <div className="space-y-[0.5vw]">
+          <div className="flex items-center gap-[0.5vw]">
+            <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Gif Playback Settings</span>
+            <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
+          </div>
+          <div className="flex flex-col gap-[0.5vw] pb-[0.5vw]">
+
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between w-[9.5vw]">
+                <span className="text-[0.8vw] font-medium text-gray-800 truncate" title="Repeat ( Loop Count )">Repeat ( Loop Count )</span>
+                <span className="text-[0.8vw] font-medium text-gray-800">:</span>
+              </div>
+              <div className="relative">
+                <div
+                  className="flex items-center justify-between w-[10.5vw] h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
+                  onClick={() => { setShowLoopDropdown(!showLoopDropdown); setShowPlayWhileDropdown(false); }}
+                >
+                  <span className="text-[0.75vw] text-gray-600 truncate">{loopCount === "Custom" ? customLoopCount || "Custom" : loopCount}</span>
+                  <Icon icon="lucide:chevron-down" className="w-[0.9vw] h-[0.9vw] text-gray-500 flex-shrink-0" />
+                </div>
+                {showLoopDropdown && (
+                  <div className="absolute top-full left-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 py-[0.3vw] flex flex-col items-center">
+                    {["None", "Once", "Twice", "Thrice", "Infinite"].map((opt) => (
+                      <div
+                        key={opt}
+                        className="px-[0.6vw] py-[0.4vw] text-[0.75vw] text-gray-700 hover:bg-gray-100 cursor-pointer w-full text-center"
+                        onClick={() => { setLoopCount(opt); setShowLoopDropdown(false); }}
+                      >
+                        {opt}
+                      </div>
+                    ))}
+                    <div className="w-[90%] h-[1px] bg-gray-100 my-[0.3vw]"></div>
+                    <div className="flex items-center gap-[0.3vw] px-[0.6vw] py-[0.2vw] w-full justify-center">
+                      <input
+                        type="number"
+                        placeholder="Custom"
+                        value={customLoopCount}
+                        onChange={(e) => {
+                          setCustomLoopCount(e.target.value);
+                          setLoopCount("Custom");
+                        }}
+                        className="w-[3.5vw] h-[1.6vw] text-[0.7vw] border border-gray-200 rounded-[0.2vw] px-[0.3vw] outline-none text-center"
+                      />
+                      <span className="text-[0.75vw] text-gray-600">times</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

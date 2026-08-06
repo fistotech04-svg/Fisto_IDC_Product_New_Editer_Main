@@ -358,3 +358,124 @@ export const initAnimationRunner = function(doc) {
 
   handleTrigger();
 };
+
+export const initGifRunner = function(doc) {
+  const gifElements = doc.querySelectorAll('[data-loop-count]');
+  
+  gifElements.forEach(el => {
+    const playWhile = el.getAttribute('data-play-gif-while');
+    const loopCount = el.getAttribute('data-loop-count');
+    const customLoop = parseInt(el.getAttribute('data-custom-loop-count')) || 1;
+    
+    // Find the actual image element
+    const img = el.tagName.toLowerCase() === 'image' || el.tagName.toLowerCase() === 'img' ? el : el.querySelector('image, img');
+    if (!img) return;
+
+    const originalSrc = img.getAttribute('data-original-src') || img.getAttribute('href') || img.src || img.getAttribute('xlink:href');
+    if (!originalSrc || !originalSrc.toLowerCase().includes('.gif')) return;
+
+    // Save the original src so we can restart it later
+    if (!img.hasAttribute('data-original-src')) {
+      img.setAttribute('data-original-src', originalSrc);
+    }
+
+    const freezeGif = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      const tempImg = new Image();
+      tempImg.crossOrigin = "anonymous";
+      tempImg.onload = () => {
+        canvas.width = tempImg.naturalWidth || tempImg.width || 100;
+        canvas.height = tempImg.naturalHeight || tempImg.height || 100;
+        ctx.drawImage(tempImg, 0, 0, canvas.width, canvas.height);
+        try {
+          const staticSrc = canvas.toDataURL('image/png');
+          if (img.tagName.toLowerCase() === 'image') {
+            img.setAttribute('href', staticSrc);
+            try { img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", staticSrc); } catch(e){}
+          } else {
+            img.src = staticSrc;
+          }
+        } catch(e) {
+          // If CORS prevents canvas read, we can't easily freeze it natively without a proxy
+          console.warn("Could not freeze GIF due to CORS", e);
+        }
+      };
+      tempImg.src = originalSrc;
+    };
+
+    const playGif = () => {
+      // Reload gif to restart animation from frame 1
+      const separator = originalSrc.includes('?') ? '&' : '?';
+      const freshSrc = `${originalSrc}${separator}t=${Date.now()}`;
+      
+      if (img.tagName.toLowerCase() === 'image') {
+        img.setAttribute('href', freshSrc);
+        try { img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", freshSrc); } catch(e){}
+      } else {
+        img.src = freshSrc;
+      }
+    };
+
+    if (playWhile === 'Manual (Click to play)') {
+      if (!el.__gifBound) {
+        freezeGif();
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (el.__isPlaying) {
+            freezeGif();
+            el.__isPlaying = false;
+          } else {
+            playGif();
+            el.__isPlaying = true;
+          }
+        });
+        el.__gifBound = true;
+      }
+    } else {
+      // Autoplay while on page
+      if (!el.__gifBound) {
+        playGif();
+        el.__gifBound = true;
+      }
+    }
+
+    // Handle precise loop counts with gifuct-js
+    let maxLoops = Infinity;
+    if (loopCount === 'Once') maxLoops = 1;
+    else if (loopCount === 'Twice') maxLoops = 2;
+    else if (loopCount === 'Thrice') maxLoops = 3;
+    else if (loopCount === 'Custom') maxLoops = customLoop;
+
+    if (maxLoops !== Infinity && maxLoops > 0) {
+      import('gifuct-js').then(({ parseGIF, decompressFrames }) => {
+        fetch(originalSrc)
+          .then(resp => resp.arrayBuffer())
+          .then(buff => {
+            const gif = parseGIF(buff);
+            const frames = decompressFrames(gif, true);
+            const totalDuration = frames.reduce((sum, frame) => sum + (frame.delay || 100), 0);
+            
+            // Sync start time by re-triggering the GIF exactly now
+            if (playWhile !== 'Manual (Click to play)') {
+               playGif();
+               el.__isPlaying = true;
+               
+               if (el.__gifTimeout) clearTimeout(el.__gifTimeout);
+               el.__gifTimeout = setTimeout(() => {
+                 if (el.__isPlaying !== false) {
+                    freezeGif();
+                    el.__isPlaying = false;
+                 }
+               }, totalDuration * maxLoops);
+            }
+          })
+          .catch(err => console.error("Error parsing GIF for loop count", err));
+      }).catch(err => {
+        console.warn("gifuct-js not installed. Run 'npm install gifuct-js' for exact loop counts.", err);
+      });
+    }
+  });
+};
