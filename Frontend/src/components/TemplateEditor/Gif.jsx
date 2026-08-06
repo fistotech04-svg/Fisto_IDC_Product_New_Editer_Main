@@ -739,17 +739,6 @@ const GifEditor = ({
       // Always clear box-shadow to ensure we only use the drop-shadow filter
       liveElement.style.boxShadow = 'none';
 
-      // --- Object Fit ---
-      const fitMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill', 'Crop': 'contain' };
-      const objectFit = fitMap[imageType] || 'contain';
-      if (svgImageEl) {
-        svgImageEl.style.objectFit = objectFit;
-        const preserveMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Stretch': 'none', 'Crop': 'xMidYMid meet' };
-        svgImageEl.setAttribute('preserveAspectRatio', preserveMap[imageType] || 'xMidYMid meet');
-      } else {
-        liveElement.style.objectFit = objectFit;
-      }
-
       // --- Background & Stroke ---
       if (isSvgEl) {
         let fillLayer = liveElement.querySelector('.gif-fill-layer') || liveElement.querySelector('.image-fill-layer');
@@ -1729,43 +1718,7 @@ const GifEditor = ({
         <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
-      {/* Gif fix type */}
-      <div className="flex items-center justify-between relative z-20">
-        <div className="flex items-center gap-[0.5vw] flex-1">
-          <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Gif fix type</span>
-          <div className="h-[0px] flex-1 border-t border-dashed border-gray-300 mx-[0.25vw]" />
-        </div>
-        <div className="relative">
-          <div className="flex gap-[0.25vw] items-center">
-            <button
-              onClick={() => setShowImageTypeDropdown(!showImageTypeDropdown)}
-              className="flex items-center justify-between w-[6.5vw] py-[0.35vw] px-[0.75vw] bg-white border border-gray-200 rounded-[0.45vw] shadow-xs hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
-            >
-              <span className="text-[0.85vw] font-normal text-gray-700">{imageType || "Fit"}</span>
-              <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showImageTypeDropdown ? 'rotate-180' : ''}`} />
-            </button>
-          </div>
-          {showImageTypeDropdown && (
-            <>
-              <div className="fixed inset-0 z-[90]" onClick={() => setShowImageTypeDropdown(false)} />
-              <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl overflow-hidden z-[100] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150">
-                {["Fit", "Fill", "Stretch"].map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => {
-                      setImageType(type);
-                      setShowImageTypeDropdown(false);
-                    }}
-                    className="px-[1vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 hover:text-[#4D47FF] transition-colors text-left cursor-pointer"
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+
 
       {/* Upload/Replace Row */}
       <div className="flex items-center gap-[1vw] pt-[0.5vw]">

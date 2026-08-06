@@ -1073,14 +1073,6 @@ const VideoEditor = ({
         }
       }
 
-      // Object Fit
-      const fitMap = {
-        'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill',
-        'fit': 'contain', 'fill': 'cover', 'stretch': 'fill'
-      };
-      const targetFit = fitMap[videoType] || 'contain';
-      target.style.objectFit = targetFit;
-      target.setAttribute('data-object-fit', videoType);
 
       // Metadata & Effects
       const f = filters;
@@ -2204,44 +2196,7 @@ const VideoEditor = ({
         </div>
 
 
-        {/* Video fix type */}
-        <div className="flex items-center justify-between relative z-20">
-          <div className="flex items-center gap-[0.5vw] flex-1">
-            <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Video fix type</span>
-            <div className="h-[0px] flex-1 border-t border-dashed border-gray-300 mx-[0.25vw]" />
-          </div>
-          <div className="relative">
-            <div className="flex gap-[0.25vw] items-center">
-              <button
-                onClick={() => setShowVideoTypeDropdown(!showVideoTypeDropdown)}
-                className="flex items-center justify-between w-[6.5vw] py-[0.35vw] px-[0.75vw] bg-white border border-gray-200 rounded-[0.45vw] shadow-xs hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
-              >
-                <span className="text-[0.85vw] font-normal text-gray-700">{videoType || "Fit"}</span>
-                <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showVideoTypeDropdown ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-            {showVideoTypeDropdown && (
-              <>
-                <div className="fixed inset-0 z-[90]" onClick={() => setShowVideoTypeDropdown(false)} />
-                <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl overflow-hidden z-[100] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150">
-                  {["Fit", "Fill", "Stretch"].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        setVideoType(type);
-                        setShowVideoTypeDropdown(false);
-                        debouncedUpdate();
-                      }}
-                      className="px-[1vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 hover:text-[#4D47FF] transition-colors text-left cursor-pointer"
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+
 
         {/* Video Info Row */}
         <div className="flex items-center gap-[1vw] pt-[0.5vw]">
