@@ -4268,6 +4268,9 @@ const TemplateEditor = () => {
         setPages={setPages}
         updatePageBackground={updatePageBackground}
         selectedLayerId={selectedLayerId}
+        setSelectedLayerId={setSelectedLayerId}
+        multiSelectedIds={multiSelectedIds}
+        setMultiSelectedIds={setMultiSelectedIds}
         updateElementAttribute={updateElementAttribute}
         deleteLayer={deleteLayer}
         onPreview={() => setShowPreview(true)}

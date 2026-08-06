@@ -6,6 +6,7 @@ import {
   Layout, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine,
   Ban, Trash2, FilePlus, GripVertical,
   Folder, Type, Image as ImageIcon, Square, Circle, Triangle, Star, Minus,
+  Video, ImagePlay,
   ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock,
   Scissors, Clipboard, ArrowUpRight
 } from 'lucide-react';
@@ -118,15 +119,30 @@ const LayerItem = ({
 
   // Icon Helper based on element type
   const getLayerIcon = () => {
-    const isImageByName = layer.name && layer.name.toLowerCase().includes('image');
-    if (layer.type === 'image' || isImageByName) {
+    const nameLower = (layer.name || '').toLowerCase();
+    const typeLower = (layer.type || '').toLowerCase();
+
+    // 1. Check Video
+    const isVideo = typeLower === 'video' || nameLower.includes('video') || typeLower === 'foreignobject' || layer['data-type'] === 'video';
+    if (isVideo) {
+      return <Video size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
+    }
+
+    // 2. Check GIF
+    const isGif = typeLower === 'gif' || nameLower.includes('gif') || layer['data-type'] === 'gif' || layer['data-is-gif-group'] === 'true';
+    if (isGif) {
+      return <ImagePlay size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
+    }
+
+    // 3. Check Image
+    const isImageByName = typeLower === 'image' || nameLower.includes('image');
+    if (isImageByName) {
       return <ImageIcon size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
     }
 
-    switch (layer.type) {
+    switch (typeLower) {
       case 'g': return <Folder size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
-      case 'text':
-      case 'foreignobject': return <Type size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
+      case 'text': return <Type size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'rect': return <Square size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'circle':
       case 'ellipse': return <Circle size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;

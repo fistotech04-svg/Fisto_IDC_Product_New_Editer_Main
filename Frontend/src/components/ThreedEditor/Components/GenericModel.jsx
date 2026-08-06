@@ -46,7 +46,7 @@ const getTextureSource = (tex) => {
     }
 };
 
-const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled }, ref) => {
+const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures }, ref) => {
   const [position, setPosition] = useState([0, 0, 0]);
   const [scale, setScale] = useState(1);
   const groupRef = React.useRef(null);
@@ -54,6 +54,31 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
   const [syncedSelectionSignature, setSyncedSelectionSignature] = useState(null);
   const activeTextureRef = React.useRef(selectedTexture);
   activeTextureRef.current = selectedTexture;
+
+  // Live toggle for Texture Inclusion in Export Preview
+  useEffect(() => {
+      if (!scene || includeTextures === undefined) return;
+      const TEX_KEYS = ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','alphaMap','bumpMap','displacementMap'];
+      scene.traverse((child) => {
+          if (child.isMesh && child.material) {
+              const mats = Array.isArray(child.material) ? child.material : [child.material];
+              mats.forEach((mat) => {
+                  if (!mat.userData.origTexturesSnap) {
+                      const snap = {};
+                      TEX_KEYS.forEach(k => { snap[k] = mat[k]; });
+                      mat.userData.origTexturesSnap = snap;
+                  }
+
+                  if (includeTextures === false) {
+                      TEX_KEYS.forEach(k => { mat[k] = null; });
+                  } else if (includeTextures === true && mat.userData.origTexturesSnap) {
+                      TEX_KEYS.forEach(k => { mat[k] = mat.userData.origTexturesSnap[k]; });
+                  }
+                  mat.needsUpdate = true;
+              });
+          }
+      });
+  }, [scene, includeTextures]);
 
   // Multi-mesh transform support for shared materials
   const relatedMeshesRef = React.useRef([]);

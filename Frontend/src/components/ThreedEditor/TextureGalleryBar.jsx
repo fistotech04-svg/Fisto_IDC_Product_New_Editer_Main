@@ -6,13 +6,15 @@ import AddMaterial from "./Components/AddMaterial";
 import AlertModal from "../AlertModal";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
 
-export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, selectedTextureId, onAddMaterialClick, refreshTrigger }) {
+export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, selectedTextureId, onAddMaterialClick, refreshTrigger, onSelectColor, selectedColor }) {
     const scrollRef = React.useRef(null);
     const [localSelected, setLocalSelected] = useState(null);
     const [uploadedTextures, setUploadedTextures] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
 
+    const [mainTab, setMainTab] = useState("texture"); // "texture" | "color"
     const [activeTab, setActiveTab] = useState("predefined"); // "predefined" | "uploaded"
+    const [selectedColorState, setSelectedColorState] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [menuOpenId, setMenuOpenId] = useState(null);
@@ -32,6 +34,106 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
 
     // Use data from centralized file
     const predefinedTextures = textureData;
+
+    const colorMaterials = useMemo(() => [
+        { 
+            id: 'c-black',  name: 'Black Matte', hex: '#111111', color: '#111111',
+            normal: 40, roughness: 85, metallic: 5, ao: 100, bump: 25, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#555555', dark: '#000000' 
+        },
+        { 
+            id: 'c-white',  name: 'White Ceramic', hex: '#ffffff', color: '#ffffff',
+            normal: 10, roughness: 15, metallic: 0, ao: 100, bump: 5, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#ffffff', dark: '#cccccc' 
+        },
+        { 
+            id: 'c-gray',   name: 'Gray Industrial', hex: '#808080', color: '#808080',
+            normal: 45, roughness: 50, metallic: 45, ao: 90, bump: 20, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#bbbbbb', dark: '#444444' 
+        },
+        { 
+            id: 'c-beige',  name: 'Beige Satin', hex: '#d7c4b7', color: '#d7c4b7',
+            normal: 30, roughness: 65, metallic: 10, ao: 95, bump: 15, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#f0e6df', dark: '#a89487' 
+        },
+        { 
+            id: 'c-brown',  name: 'Brown Leather', hex: '#653818', color: '#653818',
+            normal: 75, roughness: 70, metallic: 15, ao: 85, bump: 50, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#995d31', dark: '#3b1d08' 
+        },
+        { 
+            id: 'c-red',    name: 'Red Car Gloss', hex: '#e53935', color: '#e53935',
+            normal: 15, roughness: 12, metallic: 25, ao: 100, bump: 5, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#ff6659', dark: '#9a0007' 
+        },
+        { 
+            id: 'c-orange', name: 'Orange Amber', hex: '#fb8c00', color: '#fb8c00',
+            normal: 25, roughness: 25, metallic: 20, ao: 95, bump: 10, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#ffad42', dark: '#bb4d00' 
+        },
+        { 
+            id: 'c-yellow', name: 'Yellow Neon Glow', hex: '#fdd835', color: '#fdd835',
+            normal: 10, roughness: 20, metallic: 10, ao: 100, bump: 5, emissiveColor: '#fdd835', emissiveIntensity: 45,
+            light: '#fff263', dark: '#c49000' 
+        },
+        { 
+            id: 'c-green',  name: 'Green Emerald', hex: '#43a047', color: '#43a047',
+            normal: 40, roughness: 30, metallic: 75, ao: 90, bump: 25, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#6abf69', dark: '#00600f' 
+        },
+        { 
+            id: 'c-blue',   name: 'Blue Metallic', hex: '#1e88e5', color: '#1e88e5',
+            normal: 35, roughness: 25, metallic: 80, ao: 95, bump: 15, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#63a4ff', dark: '#004ba0' 
+        },
+        { 
+            id: 'c-navy',   name: 'Navy Anodized Steel', hex: '#0d1b2a', color: '#0d1b2a',
+            normal: 50, roughness: 28, metallic: 88, ao: 100, bump: 30, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#2c3e50', dark: '#04080e' 
+        },
+        { 
+            id: 'c-purple', name: 'Purple Velvet', hex: '#8e24aa', color: '#8e24aa',
+            normal: 70, roughness: 80, metallic: 10, ao: 85, bump: 55, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#ae52d4', dark: '#4a0072' 
+        },
+        { 
+            id: 'c-pink',   name: 'Pink Pearl', hex: '#e91e63', color: '#e91e63',
+            normal: 20, roughness: 18, metallic: 40, ao: 100, bump: 8, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#ff6090', dark: '#b0003a' 
+        },
+        { 
+            id: 'c-cyan',   name: 'Cyan Glossy', hex: '#00acc1', color: '#00acc1',
+            normal: 15, roughness: 14, metallic: 15, ao: 100, bump: 5, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#5ddef4', dark: '#007c91' 
+        },
+        { 
+            id: 'c-teal',   name: 'Teal Brushed Metal', hex: '#00897b', color: '#00897b',
+            normal: 60, roughness: 42, metallic: 82, ao: 90, bump: 35, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#4ebaaa', dark: '#005b4f' 
+        },
+        { 
+            id: 'c-gold',   name: 'Gold Polished', hex: '#d4af37', color: '#d4af37',
+            normal: 10, roughness: 8, metallic: 96, ao: 100, bump: 5, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#ffe082', dark: '#997a15' 
+        },
+        { 
+            id: 'c-silver', name: 'Silver Chrome', hex: '#c0c0c0', color: '#c0c0c0',
+            normal: 5, roughness: 5, metallic: 98, ao: 100, bump: 2, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#ffffff', dark: '#8a8a8a' 
+        },
+        { 
+            id: 'c-bronze', name: 'Bronze Vintage', hex: '#cd7f32', color: '#cd7f32',
+            normal: 65, roughness: 38, metallic: 88, ao: 90, bump: 40, emissiveColor: '#000000', emissiveIntensity: 0,
+            light: '#ffa500', dark: '#8b4513' 
+        }
+    ], []);
+
+    const selectedColorName = useMemo(() => {
+        const activeColor = selectedColorState || selectedColor;
+        if (!activeColor) return "None";
+        const found = colorMaterials.find(c => c.hex.toLowerCase() === activeColor.toLowerCase());
+        return found ? found.name : activeColor;
+    }, [selectedColorState, selectedColor, colorMaterials]);
 
     const fetchUploadedTextures = useCallback(async () => {
         const userStr = localStorage.getItem("user");
@@ -321,95 +423,123 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                 {/* Header / Toolbar */}
                 <div className="flex items-center justify-between px-[1.25vw] pt-[1vw] pb-[0.5vw]">
                     <div className="flex items-center gap-[1.5vw]">
-                        {/* Segmented Tab Toggle */}
+                        {/* Primary Mode Tabs: Texture Material vs Color Material */}
                         <div className="flex bg-[#f3f4f6] p-[0.3vw] rounded-[0.5vw] border border-gray-100 gap-[0.3vw]">
                             <button 
-                                onClick={() => setActiveTab("predefined")}
-                                className={`px-[0.8vw] py-[0.3vw] text-[0.65vw] font-semibold  rounded-[0.4vw] transition-all duration-200 ${activeTab === "predefined" ? "bg-black text-white shadow-sm" : "bg-white cursor-pointer text-[#9ca3af] hover:text-gray-600 shadow-sm"}`}
+                                onClick={() => setMainTab("texture")}
+                                className={`px-[0.8vw] py-[0.3vw] text-[0.65vw] font-semibold rounded-[0.4vw] transition-all duration-200 ${
+                                    mainTab === "texture" 
+                                        ? "bg-black text-white shadow-sm" 
+                                        : "bg-white cursor-pointer text-[#9ca3af] hover:text-gray-600 shadow-sm"
+                                }`}
                             >
-                                Predefined
+                                Texture Material
                             </button>
                             <button 
-                                onClick={() => setActiveTab("uploaded")}
-                                className={`px-[0.8vw] py-[0.3vw] text-[0.65vw] font-semibold rounded-[0.4vw] transition-all duration-200 ${activeTab === "uploaded" ? "bg-black text-white shadow-sm" : "bg-white cursor-pointer text-[#9ca3af] hover:text-gray-600 shadow-sm"}`}
+                                onClick={() => setMainTab("color")}
+                                className={`px-[0.8vw] py-[0.3vw] text-[0.65vw] font-semibold rounded-[0.4vw] transition-all duration-200 ${
+                                    mainTab === "color" 
+                                        ? "bg-black text-white shadow-sm" 
+                                        : "bg-white cursor-pointer text-[#9ca3af] hover:text-gray-600 shadow-sm"
+                                }`}
                             >
-                                Uploaded
+                                Color Material
                             </button>
                         </div>
 
-                        {/* Material Category Selector */}
-                        <div className="flex items-center gap-[0.7vw]">
-                            <span className="text-[0.7vw] font-semibold text-gray-800">Material Category :</span>
-                            <div 
-                                onClick={(e) => { e.stopPropagation(); setIsDropdownOpen(!isDropdownOpen); }}
-                                className="relative px-[0.8vw] py-[0.4vw] bg-[#f3f4f6] rounded-[0.5vw] border border-gray-100 flex items-center justify-between min-w-[8vw] cursor-pointer hover:bg-gray-100 transition-colors category-dropdown-container"
-                            >
-                                <span className="text-[0.7vw] font-semibold text-gray-800 capitalize">{selectedCategory} ({categories[selectedCategory] || 0})</span>
-                                <Icon icon="heroicons:chevron-down-20-solid" width="0.8vw" className={`text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180 text-black" : ""}`} />
-                                
-                                {/* Dropdown Menu */}
-                                <div className={`absolute bottom-full left-0 mb-[0.3vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-xl transition-all z-40 min-w-full max-h-[7.5vw] overflow-y-auto custom-scrollbar ${isDropdownOpen ? "opacity-100 visible translate-y-0" : "opacity-0 invisible translate-y-2"}`}>
-                                {Object.entries(categories).map(([cat, count]) => {
-                                    const isSelected = cat === selectedCategory;
-                                    const catData = fetchedCategories.find(c => c.name === cat);
+                        {/* Sub-Tabs (Predefined / Uploaded) - ONLY visible when mainTab === "texture" */}
+                        {mainTab === "texture" && (
+                            <div className="flex bg-[#f3f4f6] p-[0.3vw] rounded-[0.5vw] border border-gray-100 gap-[0.3vw] animate-in fade-in duration-200">
+                                <button 
+                                    onClick={() => setActiveTab("predefined")}
+                                    className={`px-[0.8vw] py-[0.3vw] text-[0.65vw] font-semibold rounded-[0.4vw] transition-all duration-200 ${activeTab === "predefined" ? "bg-black text-white shadow-sm" : "bg-white cursor-pointer text-[#9ca3af] hover:text-gray-600 shadow-sm"}`}
+                                >
+                                    Predefined
+                                </button>
+                                <button 
+                                    onClick={() => setActiveTab("uploaded")}
+                                    className={`px-[0.8vw] py-[0.3vw] text-[0.65vw] font-semibold rounded-[0.4vw] transition-all duration-200 ${activeTab === "uploaded" ? "bg-black text-white shadow-sm" : "bg-white cursor-pointer text-[#9ca3af] hover:text-gray-600 shadow-sm"}`}
+                                >
+                                    Uploaded
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Material Category Selector - ONLY visible when mainTab === "texture" */}
+                        {mainTab === "texture" && (
+                            <div className="flex items-center gap-[0.7vw] animate-in fade-in duration-200">
+                                <span className="text-[0.7vw] font-semibold text-gray-800">Material Category :</span>
+                                <div 
+                                    onClick={(e) => { e.stopPropagation(); setIsDropdownOpen(!isDropdownOpen); }}
+                                    className="relative px-[0.8vw] py-[0.4vw] bg-[#f3f4f6] rounded-[0.5vw] border border-gray-100 flex items-center justify-between min-w-[8vw] cursor-pointer hover:bg-gray-100 transition-colors category-dropdown-container"
+                                >
+                                    <span className="text-[0.7vw] font-semibold text-gray-800 capitalize">{selectedCategory} ({categories[selectedCategory] || 0})</span>
+                                    <Icon icon="heroicons:chevron-down-20-solid" width="0.8vw" className={`text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180 text-black" : ""}`} />
                                     
-                                    return (
-                                        <div 
-                                            key={cat}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedCategory(cat);
-                                                setIsDropdownOpen(false);
-                                            }}                                            
-                                            className={`px-[0.8vw] py-[0.5vw] text-[0.65vw] font-semibold transition-colors cursor-pointer flex items-center justify-between group/cat-item ${
-                                                isSelected 
-                                                    ? "bg-[#5d5efc] text-white" 
-                                                    : "text-gray-600 hover:bg-gray-100"
-                                            }`}
-                                        >
-                                            {renamingCategoryId === catData?._id ? (
-                                                <div className="flex items-center gap-[0.3vw] flex-1" onClick={(e) => e.stopPropagation()}>
-                                                    <input 
-                                                        autoFocus
-                                                        className="bg-white text-black px-[0.4vw] py-[0.1vw] rounded-[0.2vw] w-full"
-                                                        value={renameValue}
-                                                        onChange={(e) => setRenameValue(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') submitRename();
-                                                            if (e.key === 'Escape') setRenamingCategoryId(null);
+                                    {/* Dropdown Menu */}
+                                    <div className={`absolute bottom-full left-0 mb-[0.3vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-xl transition-all z-40 min-w-full max-h-[7.5vw] overflow-y-auto custom-scrollbar ${isDropdownOpen ? "opacity-100 visible translate-y-0" : "opacity-0 invisible translate-y-2"}`}>
+                                    {Object.entries(categories).map(([cat, count]) => {
+                                        const isSelected = cat === selectedCategory;
+                                        const catData = fetchedCategories.find(c => c.name === cat);
+                                        
+                                        return (
+                                            <div 
+                                                key={cat}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedCategory(cat);
+                                                    setIsDropdownOpen(false);
+                                                }}                                            
+                                                className={`px-[0.8vw] py-[0.5vw] text-[0.65vw] font-semibold transition-colors cursor-pointer flex items-center justify-between group/cat-item ${
+                                                    isSelected 
+                                                        ? "bg-[#5d5efc] text-white" 
+                                                        : "text-gray-600 hover:bg-gray-100"
+                                                }`}
+                                            >
+                                                {renamingCategoryId === catData?._id ? (
+                                                    <div className="flex items-center gap-[0.3vw] flex-1" onClick={(e) => e.stopPropagation()}>
+                                                        <input 
+                                                            autoFocus
+                                                            className="bg-white text-black px-[0.4vw] py-[0.1vw] rounded-[0.2vw] w-full"
+                                                            value={renameValue}
+                                                            onChange={(e) => setRenameValue(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') submitRename();
+                                                                if (e.key === 'Escape') setRenamingCategoryId(null);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <span>{cat} ({count})</span>
+                                                )}
+                                                
+                                                {/* Three-dot menu for category (Only for user categories, skip "All") */}
+                                                {cat !== "All" && activeTab === "uploaded" && catData && !renamingCategoryId && (
+                                                    <button 
+                                                        className={`w-[1.1vw] h-[1.1vw] rounded-[0.3vw] flex items-center justify-center category-menu-toggle transition-all ${isSelected ? "text-white hover:bg-white/20" : "text-gray-400 opacity-0 group-hover/cat-item:opacity-100 hover:bg-gray-200"}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const rect = e.currentTarget.getBoundingClientRect();
+                                                            setCategoryMenuPosition({ x: rect.left, y: rect.top });
+                                                            setCategoryMenuOpenId(categoryMenuOpenId === catData._id ? null : catData._id);
                                                         }}
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <span>{cat} ({count})</span>
-                                            )}
-                                            
-                                            {/* Three-dot menu for category (Only for user categories, skip "All") */}
-                                            {cat !== "All" && activeTab === "uploaded" && catData && !renamingCategoryId && (
-                                                <button 
-                                                    className={`w-[1.1vw] h-[1.1vw] rounded-[0.3vw] flex items-center justify-center category-menu-toggle transition-all ${isSelected ? "text-white hover:bg-white/20" : "text-gray-400 opacity-0 group-hover/cat-item:opacity-100 hover:bg-gray-200"}`}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const rect = e.currentTarget.getBoundingClientRect();
-                                                        setCategoryMenuPosition({ x: rect.left, y: rect.top });
-                                                        setCategoryMenuOpenId(categoryMenuOpenId === catData._id ? null : catData._id);
-                                                    }}
-                                                >
-                                                    <Icon icon="heroicons:ellipsis-vertical-20-solid" width="0.8vw" />
-                                                </button>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                                    >
+                                                        <Icon icon="heroicons:ellipsis-vertical-20-solid" width="0.8vw" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Selected Info & Close (Right) */}
                     <div className="flex items-center gap-[1.5vw]">
                         {/* Confirmation Buttons (Moved Here) */}
-                        {pendingTexture && (
+                        {pendingTexture && mainTab === "texture" && (
                             <div className="flex items-center gap-[0.6vw] animate-in fade-in slide-in-from-right-2 duration-300">
                                 <span className="text-[0.7vw] font-semibold text-gray-800">Replace Texture :</span>
                                 <div className="flex items-center gap-[0.4vw]">
@@ -430,10 +560,14 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                         )}
 
                         <div className="flex items-center gap-[0.8vw]">
-                            <span className="text-[0.7vw] font-semibold text-gray-800">Selected Texture :</span>
+                            <span className="text-[0.7vw] font-semibold text-gray-800">
+                                {mainTab === "color" ? "Selected Color :" : "Selected Texture :"}
+                            </span>
                             <div className="px-[0.8vw] py-[0.4vw] bg-[#f3f4f6] rounded-[0.5vw] border border-gray-100 min-w-[7vw] flex items-center justify-center">
                                 <span className="text-[0.7vw] font-semibold text-black">
-                                    {pendingTexture ? pendingTexture.name : selectedTextureName}
+                                    {mainTab === "color" 
+                                        ? selectedColorName 
+                                        : (pendingTexture ? pendingTexture.name : selectedTextureName)}
                                 </span>
                             </div>
                         </div>
@@ -452,8 +586,8 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
 
                 {/* Gallery Scroll Area */}
                 <div className="flex-1 relative flex items-center px-[1.2vw] gap-[1.5vw]">
-                    {/* NEW: Upload Box (Only for Uploaded Tab) - Placed outside scroll to sit on the left */}
-                    {activeTab === "uploaded" && (
+                    {/* NEW: Upload Box (Only for Uploaded Tab in Texture mode) */}
+                    {mainTab === "texture" && activeTab === "uploaded" && (
                         <div 
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -489,83 +623,149 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                         className="flex-1 overflow-x-auto custom-scrollbar px-[0.83vw] h-full flex items-center"
                     >
                         <div className="flex items-center gap-[1.2vw] min-w-max mx-auto px-[1vw] py-[1.2vw]">
-                            {filteredTextures.length === 0 && (
-                                <div className="flex items-center justify-center py-[2vw]">
-                                    <span className="text-[0.75vw] text-gray-400/80 font-semibold tracking-wide flex items-center gap-[0.5vw]">
-                                        <Icon icon="heroicons:information-circle-20-solid" width="1vw" />
-                                        No Materials Found
-                                    </span>
-                                </div>
-                            )}
+                            {mainTab === "color" ? (
+                                colorMaterials.map((col) => {
+                                    const activeColorVal = selectedColorState || selectedColor;
+                                    const isSelected = activeColorVal && activeColorVal.toLowerCase() === col.hex.toLowerCase();
 
-                            {filteredTextures.map((tex, idx) => {
-                                const isActive = selectedTextureId === tex.id || (!selectedTextureId && localSelected === (tex.id || tex.name));
-                                
-                                let imageSrc = resolveUploadsPath(tex.thumb || tex.preview);
+                                    const isMetallic = col.metallic >= 70;
+                                    const isEmissive = col.emissiveIntensity > 0;
+                                    const isRough = col.roughness >= 70;
 
-                                return (
-                                    <div 
-                                        key={idx} 
-                                        className="flex flex-col items-center gap-[0.4vw] cursor-pointer group transition-all duration-300 relative"
-                                        style={{ width: "4.5vw" }} // Fixed container width to prevent layout shift
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSelect(tex);
-                                        }}
-                                    >
-                                        <div
-                                            className={`relative transition-all duration-500 ease-out shadow-lg overflow-hidden bg-[#1a1a1a] ${
-                                                isActive
-                                                ? "w-[4.17vw] h-[4.17vw] rounded-[0.8vw] z-20 scale-[1.35] shadow-[0_0_20px_rgba(0,0,0,0.3)] border-none"
-                                                : "w-[4.17vw] h-[4.17vw] rounded-[0.8vw] border-none group-hover:scale-110 z-0"
-                                            }`}
+                                    const sphereBg = isMetallic
+                                        ? `radial-gradient(circle at 28% 22%, #ffffff 0%, ${col.light} 28%, ${col.hex} 60%, ${col.dark} 100%)`
+                                        : isRough
+                                        ? `radial-gradient(circle at 45% 45%, ${col.light} 0%, ${col.hex} 70%, ${col.dark} 100%)`
+                                        : `radial-gradient(circle at 35% 30%, ${col.light}, ${col.hex} 55%, ${col.dark} 100%)`;
+
+                                    const sphereShadow = isEmissive
+                                        ? `0 0 12px ${col.hex}, inset -2px -4px 6px rgba(0,0,0,0.3)`
+                                        : isMetallic
+                                        ? `inset -2px -4px 6px rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.25)`
+                                        : `inset -2px -4px 6px rgba(0,0,0,0.45), 0 4px 8px rgba(0,0,0,0.2)`;
+
+                                    const pbrTooltip = `${col.name}\nBase Color: ${col.color}\nNormal: ${col.normal}%\nRoughness: ${col.roughness}%\nMetalness: ${col.metallic}%\nAmbient Occlusion: ${col.ao}%\nEmissive: ${col.emissiveIntensity}%\nHeight (Bump): ${col.bump}%`;
+
+                                    return (
+                                        <div 
+                                            key={col.id} 
+                                            className="flex flex-col items-center gap-[0.2vw] cursor-pointer group transition-all duration-300 relative"
+                                            style={{ width: "4.5vw" }}
+                                            title={pbrTooltip}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedColorState(col.hex);
+                                                if (onSelectColor) onSelectColor(col);
+                                            }}
                                         >
-                                            {tex.id === 'none' ? (
-                                                <div className="w-full h-full flex items-center justify-center bg-black text-white/40">
-                                                    <Icon icon="mdi:block" width="2.5vw" height="2.5vw" />
-                                                </div>
-                                            ) : (
-                                                <img 
-                                                    src={imageSrc} 
-                                                    alt={tex.name} 
-                                                    className={`w-full h-full object-cover p-[0.1vw] transition-transform duration-500 ${!isActive ? "group-hover:scale-95" : ""}`}
-                                                    loading="lazy"
-                                                />
-                                            )}
-                                            {/* Subtle Inner Glow */}
-                                            <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
-
-                                            {/* Three Dot Button (Only for Uploaded) */}
-                                            {activeTab === "uploaded" && (
+                                            <div
+                                                className={`relative transition-all duration-500 ease-out shadow-md overflow-hidden bg-[#f3f4f6] border border-gray-200/60 flex items-center justify-center p-[0.3vw] ${
+                                                    isSelected
+                                                        ? "w-[4.17vw] h-[4.17vw] rounded-[0.8vw] z-20 scale-[1.35] shadow-[0_4px_20px_rgba(0,0,0,0.15)] border-gray-300"
+                                                        : "w-[4.17vw] h-[4.17vw] rounded-[0.8vw] group-hover:scale-110 z-0"
+                                                }`}
+                                            >
                                                 <div 
-                                                    className="absolute top-[0.3vw] right-[0.3vw] w-[1vw] h-[1vw] bg-white rounded-[0.75vw] flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-lg hover:scale-110 active:scale-95 transition-all z-30 pointer-events-auto menu-toggle-btn"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const rect = e.currentTarget.getBoundingClientRect();
-                                                        setMenuPosition({ 
-                                                            x: rect.left, 
-                                                            y: rect.top 
-                                                        });
-                                                        setMenuOpenId(menuOpenId === tex.id ? null : tex.id);
-                                                        setShowMoveTo(false);
+                                                    className="w-full h-full rounded-full transition-transform duration-500"
+                                                    style={{
+                                                        background: sphereBg,
+                                                        boxShadow: sphereShadow
                                                     }}
-                                                >
-                                                    <Icon icon="heroicons:ellipsis-vertical-20-solid" className="text-gray-500" width="0.9vw" />
-                                                </div>
-                                            )}
+                                                />
+                                                {/* Subtle Specular Highlight */}
+                                                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
+                                            </div>
+                                            <span
+                                                className={`text-[0.6vw] font-bold text-center w-full truncate transition-all duration-500 ease-out mt-[0.5vw] ${
+                                                    isSelected ? "text-[#5d5efc] translate-y-[0.8vw]" : "text-gray-600 translate-y-0"
+                                                }`}
+                                            >
+                                                {col.name}
+                                            </span>
                                         </div>
+                                    );
+                                })
+                            ) : (
+                                <>
+                                    {filteredTextures.length === 0 && (
+                                        <div className="flex items-center justify-center py-[2vw]">
+                                            <span className="text-[0.75vw] text-gray-400/80 font-semibold tracking-wide flex items-center gap-[0.5vw]">
+                                                <Icon icon="heroicons:information-circle-20-solid" width="1vw" />
+                                                No Materials Found
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {filteredTextures.map((tex, idx) => {
+                                        const isActive = selectedTextureId === tex.id || (!selectedTextureId && localSelected === (tex.id || tex.name));
                                         
-                                        <span
-                                            className={`text-[0.6vw] font-bold text-center w-full truncate transition-all duration-500 ease-out mt-[0.5vw] ${
-                                                isActive ? "text-[#5d5efc] translate-y-[0.8vw]" : "text-gray-500 translate-y-0"
-                                            }`}
-                                            title={tex.name}
-                                        >
-                                            {tex.name}
-                                        </span>
-                                    </div>
-                                );
-                            })}
+                                        let imageSrc = resolveUploadsPath(tex.thumb || tex.preview);
+
+                                        return (
+                                            <div 
+                                                key={idx} 
+                                                className="flex flex-col items-center gap-[0.4vw] cursor-pointer group transition-all duration-300 relative"
+                                                style={{ width: "4.5vw" }} // Fixed container width to prevent layout shift
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSelect(tex);
+                                                }}
+                                            >
+                                                <div
+                                                    className={`relative transition-all duration-500 ease-out shadow-md overflow-hidden bg-[#f3f4f6] border border-gray-200/60 ${
+                                                        isActive
+                                                        ? "w-[4.17vw] h-[4.17vw] rounded-[0.8vw] z-20 scale-[1.35] shadow-[0_4px_20px_rgba(0,0,0,0.15)] border-gray-300"
+                                                        : "w-[4.17vw] h-[4.17vw] rounded-[0.8vw] group-hover:scale-110 z-0"
+                                                    }`}
+                                                >
+                                                    {tex.id === 'none' ? (
+                                                        <div className="w-full h-full flex items-center justify-center bg-black text-white/40">
+                                                            <Icon icon="mdi:block" width="2.5vw" height="2.5vw" />
+                                                        </div>
+                                                    ) : (
+                                                        <img 
+                                                            src={imageSrc} 
+                                                            alt={tex.name} 
+                                                            className={`w-full h-full object-cover p-[0.1vw] transition-transform duration-500 ${!isActive ? "group-hover:scale-95" : ""}`}
+                                                            loading="lazy"
+                                                        />
+                                                    )}
+                                                    {/* Subtle Inner Glow */}
+                                                    <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
+
+                                                    {/* Three Dot Button (Only for Uploaded) */}
+                                                    {activeTab === "uploaded" && (
+                                                        <div 
+                                                            className="absolute top-[0.3vw] right-[0.3vw] w-[1vw] h-[1vw] bg-white rounded-[0.75vw] flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-lg hover:scale-110 active:scale-95 transition-all z-30 pointer-events-auto menu-toggle-btn"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                                setMenuPosition({ 
+                                                                    x: rect.left, 
+                                                                    y: rect.top 
+                                                                });
+                                                                setMenuOpenId(menuOpenId === tex.id ? null : tex.id);
+                                                                setShowMoveTo(false);
+                                                            }}
+                                                        >
+                                                            <Icon icon="heroicons:ellipsis-vertical-20-solid" className="text-gray-500" width="0.9vw" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                <span
+                                                    className={`text-[0.6vw] font-bold text-center w-full truncate transition-all duration-500 ease-out mt-[0.5vw] ${
+                                                        isActive ? "text-[#5d5efc] translate-y-[0.8vw]" : "text-gray-500 translate-y-0"
+                                                    }`}
+                                                    title={tex.name}
+                                                >
+                                                    {tex.name}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
                         </div>
                     </div>
 

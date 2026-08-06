@@ -594,7 +594,7 @@ export default function CameraModal({
                                             <Canvas
                                                 ref={canvasRef}
                                                 className="camera-modal-canvas"
-                                                shadows
+                                                shadows={{ type: THREE.PCFSoftShadowMap }}
                                                 gl={{ 
                                                     preserveDrawingBuffer: true,
                                                     antialias: true,
@@ -608,9 +608,43 @@ export default function CameraModal({
                                                 }}
                                             >
                                                 <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} />
-                                                <ambientLight intensity={1.5} />
-                                                <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={2} castShadow />
-                                                <pointLight position={[-10, -10, -10]} intensity={1} />
+                                                <ambientLight intensity={(materialSettings?.shadow ?? 50) / 40} />
+                                                <spotLight
+                                                    position={[
+                                                        materialSettings?.lightPosition?.x ?? 5, 
+                                                        materialSettings?.lightPosition?.y ?? 10, 
+                                                        materialSettings?.lightPosition?.z ?? 5
+                                                    ]}
+                                                    angle={0.25}
+                                                    penumbra={1}
+                                                    intensity={(materialSettings?.reflection ?? 50) / 20} 
+                                                    castShadow
+                                                    shadow-bias={-0.00005}
+                                                    shadow-normalBias={0.04}
+                                                    shadow-radius={(materialSettings?.softness ?? 50) / 8} 
+                                                    shadow-mapSize={[2048, 2048]}
+                                                    shadow-camera-near={0.1}
+                                                    shadow-camera-far={40}
+                                                />
+                                                <directionalLight
+                                                    position={[
+                                                        -(materialSettings?.lightPosition?.x ?? 5), 
+                                                        materialSettings?.lightPosition?.y ?? 8, 
+                                                        -(materialSettings?.lightPosition?.z ?? 5)
+                                                    ]}
+                                                    intensity={(materialSettings?.reflection ?? 50) / 40}
+                                                    castShadow
+                                                    shadow-bias={-0.00005}
+                                                    shadow-normalBias={0.04}
+                                                    shadow-radius={(materialSettings?.softness ?? 50) / 8}
+                                                    shadow-mapSize={[2048, 2048]}
+                                                    shadow-camera-left={-7}
+                                                    shadow-camera-right={7}
+                                                    shadow-camera-top={7}
+                                                    shadow-camera-bottom={-7}
+                                                    shadow-camera-near={0.1}
+                                                    shadow-camera-far={40}
+                                                />
                                                 
                                                 <Center>
                                                     <group>
@@ -634,14 +668,20 @@ export default function CameraModal({
                                                     </group>
                                                 </Center>
 
-                                                {bgColor !== 'transparent' && (
-                                                    <ContactShadows position={[0, -0.01, 0]} opacity={(materialSettings.shadow ?? 50) / 100} scale={50} blur={2} far={5} />
-                                                )}
+                                                <ContactShadows 
+                                                    position={[0, -0.005, 0]} 
+                                                    opacity={(materialSettings?.shadow ?? 50) / 100} 
+                                                    scale={50} 
+                                                    blur={2.5} 
+                                                    far={5} 
+                                                    resolution={1024}
+                                                    color="#000000"
+                                                />
                                                 <Environment 
-                                                    files={materialSettings.maps?.envMap || null}
-                                                    preset={materialSettings.maps?.envMap ? null : (materialSettings.environment || 'city')} 
-                                                    environmentIntensity={(materialSettings.reflection ?? 50) / 50}
-                                                    rotation={[0, (materialSettings.envRotation || 0) * (Math.PI / 180), 0]}
+                                                    files={materialSettings?.maps?.envMap || null}
+                                                    preset={materialSettings?.maps?.envMap ? null : 'studio'} 
+                                                    environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
+                                                    rotation={[0, (materialSettings?.envRotation || 0) * (Math.PI / 180), 0]}
                                                 />
                                                 <OrbitControls makeDefault enableDamping={true} dampingFactor={0.1} enableZoom={false} target={[0, 0, 0]} />
                                                 <ZoomManager zoom={zoom} />

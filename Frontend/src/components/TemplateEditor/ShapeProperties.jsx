@@ -361,7 +361,7 @@ const ShapeProperties = ({
   const isPenChosen = activeMainTool === 'pen';
 
   return (
-    <div className="flex flex-col font-sans">
+    <div className="flex flex-col gap-[0.4vw] font-sans">
 
       <div className="flex items-center gap-[0.75vw] mb-[0.2vw]">
         <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Shape Properties</span>
@@ -398,7 +398,7 @@ const ShapeProperties = ({
         </div>
       )}
 
-      <div className="mt-[0.4vw]">
+      <div>
         <Color
           openSubSection={openSubSection}
           setOpenSubSection={setOpenSubSection}

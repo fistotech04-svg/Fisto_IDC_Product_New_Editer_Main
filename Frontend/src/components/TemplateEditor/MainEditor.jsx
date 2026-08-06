@@ -30,6 +30,9 @@ export const isElementCropped = (el) => {
   const name = el.getAttribute('data-name');
   if (type === 'frame' || type === 'background' || name === 'Overlay') return false;
 
+  const isUserGroup = (type === 'group' || (name || '').toLowerCase() === 'group' || (el.id || '').startsWith('group-')) && el.getAttribute('data-is-image-group') !== 'true';
+  if (isUserGroup) return false;
+
   const hasCropData = el.getAttribute('data-crop-data') && el.getAttribute('data-crop-data') !== 'null';
   const hasObjectFitCrop = el.getAttribute('data-object-fit') === 'Crop';
   const hasCropInset = el.hasAttribute('data-effect-crop-inset');
@@ -70,9 +73,17 @@ export const formatSmoothPathD = (pts) => {
 export const getVisualBBox = (el) => {
   if (!el || typeof el.getBBox !== 'function') return { x: 0, y: 0, width: 0, height: 0 };
 
-  const targetCropEl = (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"], [clip-path*="clip-"]') : null) ||
+  const isUserGroup = el.tagName?.toLowerCase() === 'g' && (
+    el.getAttribute('data-type') === 'group' ||
+    (el.getAttribute('data-name') || '').toLowerCase() === 'group' ||
+    (el.id || '').startsWith('group-')
+  ) && el.getAttribute('data-is-image-group') !== 'true';
+
+  const targetCropEl = !isUserGroup ? (
+    (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"], [clip-path*="clip-"]') : null) ||
     (typeof el.querySelector === 'function' ? el.querySelector('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"], [clip-path*="clip-"]') : null) ||
-    (isElementCropped(el) ? el : null);
+    (isElementCropped(el) ? el : null)
+  ) : null;
 
   if (targetCropEl) {
     const cropStr = targetCropEl.getAttribute('data-crop-data') || el.getAttribute('data-crop-data');
@@ -2871,11 +2882,15 @@ const MainEditor = ({
               cy = bbox.y + bbox.height / 2;
             }
           } catch (e) {
-            // Fallback to SVG center if BBox fails
             const svgW = parseFloat(svg.getAttribute('width') || baseWidth.toString());
             const svgH = parseFloat(svg.getAttribute('height') || baseHeight.toString());
             cx = svgW / 2;
             cy = svgH / 2;
+          }
+
+          if (e.detail?.dropPoint && typeof e.detail.dropPoint.x === 'number') {
+            cx = e.detail.dropPoint.x;
+            cy = e.detail.dropPoint.y;
           }
 
           fo.setAttribute('x', (cx - displayWidth / 2).toString());
@@ -2898,10 +2913,21 @@ const MainEditor = ({
       }
     };
 
+    const handleAddImage = (e) => {
+      const { url, gifUrl, pageIndex, dropPoint, type } = e.detail || {};
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const mediaUrl = gifUrl || url;
+      if (!mediaUrl) return;
+      const dataType = type || (gifUrl || mediaUrl.toLowerCase().endsWith('.gif') ? 'gif' : 'image');
+      insertImageIntoPage(targetPageIndex, mediaUrl, dataType, dropPoint);
+    };
+
     window.addEventListener('add-icon-to-editor', handleAddIcon);
+    window.addEventListener('add-image-to-editor', handleAddImage);
     window.addEventListener('upload-video-to-editor', handleUploadVideo);
     return () => {
       window.removeEventListener('add-icon-to-editor', handleAddIcon);
+      window.removeEventListener('add-image-to-editor', handleAddImage);
       window.removeEventListener('upload-video-to-editor', handleUploadVideo);
     };
   }, [activePageIndex, pages, updatePageHtml, setSelectedLayerId]);
@@ -4810,7 +4836,10 @@ const MainEditor = ({
       if (!el) return;
 
       const matrix = getElementMatrix(el);
-      const bbox = el.getBBox();
+      let bbox = getVisualBBox(el);
+      if (!bbox || (bbox.width === 0 && bbox.height === 0)) {
+        try { bbox = el.getBBox(); } catch(e) {}
+      }
 
       // Calculate local center
       const localCx = bbox.x + bbox.width / 2;
@@ -4854,7 +4883,10 @@ const MainEditor = ({
       if (!el) return;
 
       const matrix = getElementMatrix(el);
-      const bbox = el.getBBox();
+      let bbox = getVisualBBox(el);
+      if (!bbox || (bbox.width === 0 && bbox.height === 0)) {
+        try { bbox = el.getBBox(); } catch(e) {}
+      }
 
       // Calculate local center
       const localCx = bbox.x + bbox.width / 2;
@@ -6103,7 +6135,7 @@ const MainEditor = ({
     return () => observer.disconnect();
   }, [handleAutoFitZoom]);
 
-  const insertImageIntoPage = (pageIdx, dataUrl, dataType = 'image') => {
+  const insertImageIntoPage = (pageIdx, dataUrl, dataType = 'image', dropPoint = null) => {
     // 1. Find the SVG of the target page
     const container = document.querySelector(`.page-svg-container[data-page-index="${pageIdx}"]`);
     const svg = container?.querySelector('svg');
@@ -6182,8 +6214,8 @@ const MainEditor = ({
             displayWidth = (imgWidth / imgHeight) * displayHeight;
           }
 
-          const cx = pX + pWidth / 2;
-          const cy = pY + pHeight / 2;
+          const cx = dropPoint && typeof dropPoint.x === 'number' ? dropPoint.x : (pX + pWidth / 2);
+          const cy = dropPoint && typeof dropPoint.y === 'number' ? dropPoint.y : (pY + pHeight / 2);
 
           newGroup.setAttribute('data-object-fit', 'Fit');
           newImg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
@@ -6700,11 +6732,13 @@ const MainEditor = ({
       current = current.parentElement || current.parentNode;
     }
 
+    let deepestElementWithId = null;
+
     while (current && current !== canvasRoot && current.tagName) {
       const tagName = current.tagName.toLowerCase();
 
       if (tagName === 'svg') {
-        return null;
+        return deepestElementWithId;
       }
 
       // Auto-assign an id to id-less text elements from SVG templates so they
@@ -6717,7 +6751,7 @@ const MainEditor = ({
         current.getAttribute('data-name') !== 'Overlay'
       ) {
         current.id = `text-${Math.random().toString(36).substr(2, 9)}`;
-        return current;
+        if (!deepestElementWithId) deepestElementWithId = current;
       }
 
       if (
@@ -6730,6 +6764,21 @@ const MainEditor = ({
         if (tagName === 'image' && current.parentNode?.getAttribute('data-is-image-group') === 'true') {
           // Skip the inner image and let it traverse to the parent group
         } else {
+          if (!deepestElementWithId) deepestElementWithId = current;
+        }
+      }
+
+      // Check if current is a User Group (<g data-type="group"> or <g data-name="Group"> or id starting with "group-")
+      const isUserGroup = current.id && (
+        current.getAttribute('data-type') === 'group' ||
+        (current.getAttribute('data-name') || '').toLowerCase() === 'group' ||
+        current.id.startsWith('group-')
+      ) && current.getAttribute('data-is-image-group') !== 'true';
+
+      if (isUserGroup && selectedSelectToolRef.current !== 'direct') {
+        const frameId = currentFrameIdRef.current;
+        // If this group is not the currently entered frame/context, return the User Group!
+        if (frameId !== current.id) {
           return current;
         }
       }
@@ -6737,7 +6786,7 @@ const MainEditor = ({
       current = current.parentNode;
     }
 
-    return null;
+    return deepestElementWithId;
   };
 
   const safeRectChecker = (element) => {
@@ -7685,8 +7734,9 @@ const MainEditor = ({
             if (dir === 'e' || dir === 'w') scaleY = 1;
 
             // Maintain Aspect Ratio for images, text, or if Shift key is held (only for corners, but force for text on all handles to prevent distortion)
-            const childImage = el.tagName?.toLowerCase() === 'g' ? el.querySelector('image, img') : null;
-            const isImage = el.getAttribute('data-type') === 'image' || el.tagName?.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-image-group') === 'true' || (el.getAttribute('data-name') || '').toLowerCase().includes('image') || !!childImage;
+            const isUserGroupResize = (el.getAttribute('data-type') === 'group' || (el.getAttribute('data-name') || '').toLowerCase() === 'group' || (el.id || '').startsWith('group-')) && el.getAttribute('data-is-image-group') !== 'true';
+            const childImage = (!isUserGroupResize && el.tagName?.toLowerCase() === 'g') ? el.querySelector('image, img') : null;
+            const isImage = !isUserGroupResize && (el.getAttribute('data-type') === 'image' || el.tagName?.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-image-group') === 'true' || (el.getAttribute('data-name') || '').toLowerCase().includes('image') || !!childImage);
             const isElementInCropMode = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
             const isScaledImage = isImage && !isElementInCropMode;
             const src = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || (childImage ? (childImage.getAttribute('href') || childImage.getAttribute('xlink:href') || childImage.getAttribute('src')) : '') || '';
@@ -11580,12 +11630,16 @@ const MainEditor = ({
 
     const getElBBox = (el) => {
       try {
-        const rect = el.getBoundingClientRect();
-        const ctm = svg.getScreenCTM().inverse();
-        const p1 = new DOMPoint(rect.left, rect.top).matrixTransform(ctm);
-        const p2 = new DOMPoint(rect.right, rect.bottom).matrixTransform(ctm);
-        const p3 = new DOMPoint(rect.left, rect.bottom).matrixTransform(ctm);
-        const p4 = new DOMPoint(rect.right, rect.top).matrixTransform(ctm);
+        const vBox = getVisualBBox(el);
+        const ctm = el.getScreenCTM();
+        const svgCTMInv = svg.getScreenCTM()?.inverse();
+        if (!ctm || !svgCTMInv) return null;
+
+        const toSvgMatrix = svgCTMInv.multiply(ctm);
+        const p1 = new DOMPoint(vBox.x, vBox.y).matrixTransform(toSvgMatrix);
+        const p2 = new DOMPoint(vBox.x + vBox.width, vBox.y).matrixTransform(toSvgMatrix);
+        const p3 = new DOMPoint(vBox.x + vBox.width, vBox.y + vBox.height).matrixTransform(toSvgMatrix);
+        const p4 = new DOMPoint(vBox.x, vBox.y + vBox.height).matrixTransform(toSvgMatrix);
 
         const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
         const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
@@ -11651,9 +11705,10 @@ const MainEditor = ({
 
         const tag = el.tagName.toLowerCase();
         const isText = tag === 'text' || el.getAttribute('data-type') === 'text';
+        const isCropped = isElementCropped(el) || el.getAttribute('data-is-image-group') === 'true' || el.hasAttribute('data-crop-data');
         const hasTransform = el.getAttribute('transform');
 
-        if (isText || (hasTransform && hasTransform !== 'matrix(1 0 0 1 0 0)')) {
+        if (isText || isCropped || (hasTransform && hasTransform !== 'matrix(1 0 0 1 0 0)')) {
           const matrix = typeof getElementMatrix === 'function' ? getElementMatrix(el) : new DOMMatrix(el.getAttribute('transform') || '');
           const nextMatrix = new DOMMatrix().translate(localDx, localDy).multiply(matrix);
           if (typeof matrixToTransform === 'function') el.setAttribute('transform', matrixToTransform(nextMatrix));
@@ -12474,33 +12529,126 @@ const MainEditor = ({
                               onMouseLeave={handleSvgMouseLeave}
                               onClick={handleSvgClick}
                               onDragOver={(e) => {
-                                e.preventDefault(); // Necessary to allow dropping
+                                e.preventDefault(); // Necessary to allow dropping external assets
                                 e.dataTransfer.dropEffect = 'copy';
                               }}
                               onDrop={(e) => {
                                 e.preventDefault();
                                 try {
-                                  const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                                  const svg = e.currentTarget.querySelector('svg');
+                                  if (!svg) return;
+
+                                  // Convert screen coordinates to SVG coordinates
+                                  const pt = svg.createSVGPoint();
+                                  pt.x = e.clientX;
+                                  pt.y = e.clientY;
+                                  const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+                                  const dropPoint = { x: svgP.x, y: svgP.y };
+
+                                  let data = null;
+
+                                  // 1. Try reading JSON data
+                                  const rawJson = e.dataTransfer.getData('application/json');
+                                  if (rawJson) {
+                                    try { data = JSON.parse(rawJson); } catch (_) {}
+                                  }
+
+                                  // 2. Try reading URL or text from external window/tab
+                                  if (!data) {
+                                    const rawUri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+                                    if (rawUri && rawUri.trim()) {
+                                      const trimmed = rawUri.trim();
+                                      if (trimmed.startsWith('http') || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('/')) {
+                                        const lower = trimmed.toLowerCase();
+                                        if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.includes('youtube.com') || lower.includes('youtu.be') || lower.includes('vimeo')) {
+                                          data = { type: 'video', url: trimmed };
+                                        } else if (lower.endsWith('.gif')) {
+                                          data = { type: 'gif', url: trimmed };
+                                        } else {
+                                          data = { type: 'image', url: trimmed };
+                                        }
+                                      }
+                                    }
+                                  }
+
+                                  // 3. Try reading external files dropped directly from Desktop / File Explorer
+                                  if (!data && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                                    const files = Array.from(e.dataTransfer.files);
+                                    files.forEach((file, idx) => {
+                                      const fileUrl = URL.createObjectURL(file);
+                                      const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
+
+                                      if (file.type.startsWith('image/')) {
+                                        const isGif = file.type === 'image/gif';
+                                        window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                          detail: {
+                                            pageIndex: displayIndex,
+                                            url: fileUrl,
+                                            gifUrl: isGif ? fileUrl : undefined,
+                                            name: file.name,
+                                            type: isGif ? 'gif' : 'image',
+                                            dropPoint: offsetPoint
+                                          }
+                                        }));
+                                      } else if (file.type.startsWith('video/')) {
+                                        window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                                          detail: {
+                                            pageIndex: displayIndex,
+                                            videoUrl: fileUrl,
+                                            file,
+                                            originalUrl: fileUrl,
+                                            dropPoint: offsetPoint
+                                          }
+                                        }));
+                                      }
+                                    });
+                                    return;
+                                  }
+
+                                  if (!data) return;
+
                                   if (data.type === 'icon') {
-                                    const svg = e.currentTarget.querySelector('svg');
-                                    if (!svg) return;
-
-                                    // Convert screen coordinates to SVG coordinates
-                                    const pt = svg.createSVGPoint();
-                                    pt.x = e.clientX;
-                                    pt.y = e.clientY;
-                                    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-
                                     window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
                                       detail: {
                                         pageIndex: displayIndex,
                                         icon: data.icon,
-                                        dropPoint: { x: svgP.x, y: svgP.y }
+                                        dropPoint
+                                      }
+                                    }));
+                                  } else if (data.type === 'image' || data.type === 'upload' || data.url) {
+                                    window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                      detail: {
+                                        pageIndex: displayIndex,
+                                        url: data.url || data.src,
+                                        name: data.name || 'Image',
+                                        type: 'image',
+                                        dropPoint
+                                      }
+                                    }));
+                                  } else if (data.type === 'gif') {
+                                    window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                      detail: {
+                                        pageIndex: displayIndex,
+                                        url: data.url || data.src,
+                                        gifUrl: data.url || data.src,
+                                        name: data.name || 'GIF',
+                                        type: 'gif',
+                                        dropPoint
+                                      }
+                                    }));
+                                  } else if (data.type === 'video') {
+                                    window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                                      detail: {
+                                        pageIndex: displayIndex,
+                                        videoUrl: data.url || data.src,
+                                        file: data.file,
+                                        originalUrl: data.url || data.src,
+                                        dropPoint
                                       }
                                     }));
                                   }
                                 } catch (err) {
-                                  // ignore
+                                  console.error('[MainEditor] Drop error:', err);
                                 }
                               }}
                               // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick

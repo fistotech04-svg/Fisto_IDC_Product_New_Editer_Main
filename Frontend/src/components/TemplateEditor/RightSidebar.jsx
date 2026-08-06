@@ -13,6 +13,7 @@ import AnimationPanel from './AnimationPanel';
 import InteractionPanel from './InteractionPanel';
 import PopupTemplateSelection from './PopupTemplateSelection';
 import Model3DEditor from './Model3DEditor';
+import GroupProperties from './GroupProperties';
 import ImportViaUrlModal from './ImportViaUrlModal';
 import ColorPicker, { parseGradient } from './ColorPicker';
 import MediaGalleryPopup from './MediaGalleryPopup';
@@ -143,6 +144,9 @@ const RightSidebar = ({
   setPages,
   updatePageBackground,
   selectedLayerId,
+  setSelectedLayerId,
+  multiSelectedIds = null,
+  setMultiSelectedIds,
   updateElementAttribute,
   deleteLayer,
   onPreview,
@@ -742,19 +746,28 @@ const RightSidebar = ({
         
         const isGif = isGifFile || lowerDataName.includes('gif') || lowerId.includes('gif') || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif';
 
-        const isImage = (lowerTagName.includes('image') || 
+        const isUserGroup = lowerTagName === 'g' && (
+          dataType === 'group' || 
+          lowerDataName === 'group' || 
+          lowerId.startsWith('group-') || 
+          el.getAttribute('data-type') === 'group' ||
+          (!el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group'))
+        ) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true' && el.getAttribute('data-is-gif-group') !== 'true';
+
+        const isImage = !isUserGroup && (lowerTagName.includes('image') || 
                         lowerTagName === 'img' || 
                         dataType === 'image' ||
                         lowerDataName.includes('image') ||
                         lowerId.includes('image') || 
                         !!(el.getAttribute('href') || el.getAttribute('xlink:href')) ||
-                        (lowerTagName === 'g' && hasImageChild) ||
+                        (lowerTagName === 'g' && hasImageChild && el.getAttribute('data-is-image-group') === 'true') ||
                         isPatternImage) && !isGif && !isPdfBackground;
 
         const isVideo = lowerTagName === 'video' || lowerTagName === 'iframe' || dataType === 'video' || lowerDataName.includes('video') || lowerId.includes('video') || (lowerTagName === 'foreignobject' && el.querySelector('video, iframe'));
         const isText = (lowerTagName === 'text' || lowerTagName === 'tspan' || (lowerTagName === 'foreignobject' && !isVideo)) || dataType === 'text' || lowerDataName.includes('text') || lowerId.includes('text');
         const isIcon = dataType === 'icon' || lowerDataName.includes('icon') || lowerId.includes('icon') || lowerTagName.includes('lucide') || el.classList.contains('lucide') || el.classList.contains('iconify');
 
+        props.isUserGroup = isUserGroup;
         props.isImage = isImage;
         props.isText = isText;
         props.isVideo = isVideo;
@@ -1173,7 +1186,61 @@ const RightSidebar = ({
                 <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">
                   {(selectedElementProps || activeMainTool === 'grid') ? (
                     <div className="flex flex-col gap-[1.5vw]">
-                      {selectedElementProps?.isImage ? (
+                      {(selectedElementProps?.isUserGroup || (multiSelectedIds && multiSelectedIds.size > 1)) ? (
+                        <GroupProperties
+                          selectedElement={(() => {
+                            const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                            if (selectedLayerId) return editorDoc.getElementById(selectedLayerId);
+                            return null;
+                          })()}
+                          multiSelectedIds={multiSelectedIds}
+                          isMultiSelect={multiSelectedIds && multiSelectedIds.size > 1}
+                          selectedLayerId={selectedLayerId}
+                          activePageIndex={activePageIndex}
+                          onUpdate={(newHtml) => {
+                            window.__skipCanvasUpdateForPage = activePageIndex;
+                            if (typeof newHtml === 'string') {
+                              updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                            } else {
+                              const svgRoot = (() => {
+                                const targetId = selectedLayerId || (multiSelectedIds && multiSelectedIds.size > 0 ? Array.from(multiSelectedIds)[0] : null);
+                                const el = document.getElementById(targetId);
+                                if (!el) return null;
+                                const container = el.closest('.page-svg-container');
+                                if (container) {
+                                  const canvasContent = container.querySelector('[id^="canvas-content-"]');
+                                  return canvasContent ? canvasContent.querySelector('svg') : container.querySelector('svg');
+                                }
+                                let node = el;
+                                let lastSvg = null;
+                                while (node) {
+                                  if (node.tagName?.toLowerCase() === 'svg') lastSvg = node;
+                                  node = node.parentElement;
+                                }
+                                return lastSvg;
+                              })();
+                              if (svgRoot) {
+                                const serializer = new XMLSerializer();
+                                const html = serializer.serializeToString(svgRoot);
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                              } else {
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
+                              }
+                            }
+                          }}
+                          onDeleteLayer={() => {
+                            if (multiSelectedIds && multiSelectedIds.size > 1) {
+                              multiSelectedIds.forEach(id => deleteLayer?.(activePageIndex, id));
+                              if (setMultiSelectedIds) setMultiSelectedIds(new Set());
+                              if (setSelectedLayerId) setSelectedLayerId(null);
+                            } else {
+                              deleteLayer?.(activePageIndex, selectedLayerId);
+                            }
+                          }}
+                          setSelectedLayerId={setSelectedLayerId}
+                          setMultiSelectedIds={setMultiSelectedIds}
+                        />
+                      ) : selectedElementProps?.isImage ? (
                         <ImageEditor 
                           selectedElement={(() => {
                             const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;

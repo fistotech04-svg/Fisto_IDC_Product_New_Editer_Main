@@ -1712,7 +1712,7 @@ const GifEditor = ({
   if (!selectedElement) return null;
 
   return (
-    <div className="relative flex flex-col gap-[1vw] w-full font-sans h-full overflow-y-auto no-scrollbar">
+    <div className="relative flex flex-col gap-[0.4vw] w-full font-sans h-full overflow-y-auto no-scrollbar">
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -1729,31 +1729,40 @@ const GifEditor = ({
         <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
-      <div className="flex items-center gap-[0.5vw] mt-[0.5vw] ml-[0.2vw]">
-        <span className="text-[0.8vw] font-medium text-gray-800">Gif fix type :</span>
+      {/* Gif fix type */}
+      <div className="flex items-center justify-between relative z-20">
+        <div className="flex items-center gap-[0.5vw] flex-1">
+          <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Gif fix type</span>
+          <div className="h-[0px] flex-1 border-t border-dashed border-gray-300 mx-[0.25vw]" />
+        </div>
         <div className="relative">
-          <div
-            className="flex items-center justify-between w-[10.5vw] h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
-            onClick={() => setShowImageTypeDropdown(!showImageTypeDropdown)}
-          >
-            <span className="text-[0.75vw] text-gray-600">{imageType || "Fit"}</span>
-            <Icon icon="lucide:chevron-down" className="w-[0.9vw] h-[0.9vw] text-gray-500" />
+          <div className="flex gap-[0.25vw] items-center">
+            <button
+              onClick={() => setShowImageTypeDropdown(!showImageTypeDropdown)}
+              className="flex items-center justify-between w-[6.5vw] py-[0.35vw] px-[0.75vw] bg-white border border-gray-200 rounded-[0.45vw] shadow-xs hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
+            >
+              <span className="text-[0.85vw] font-normal text-gray-700">{imageType || "Fit"}</span>
+              <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showImageTypeDropdown ? 'rotate-180' : ''}`} />
+            </button>
           </div>
           {showImageTypeDropdown && (
-            <div className="absolute top-full left-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 py-[0.3vw]">
-              {["Fit", "Fill", "Stretch"].map((type) => (
-                <div
-                  key={type}
-                  className="px-[0.6vw] py-[0.4vw] text-[0.75vw] text-gray-700 hover:bg-gray-100 cursor-pointer"
-                  onClick={() => {
-                    setImageType(type);
-                    setShowImageTypeDropdown(false);
-                  }}
-                >
-                  {type}
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="fixed inset-0 z-[90]" onClick={() => setShowImageTypeDropdown(false)} />
+              <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl overflow-hidden z-[100] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150">
+                {["Fit", "Fill", "Stretch"].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      setImageType(type);
+                      setShowImageTypeDropdown(false);
+                    }}
+                    className="px-[1vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 hover:text-[#4D47FF] transition-colors text-left cursor-pointer"
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -1810,7 +1819,7 @@ const GifEditor = ({
 
       <input ref={fileInputRef} type="file" accept="image/gif, image/webp" onChange={handleGifUpload} className="hidden" />
 
-      <div className="space-y-[0.60vw] px-[0.3vw]">
+      <div className="flex flex-col gap-[0.4vw]">
 
 
         <div className="space-y-[0.5vw]">
