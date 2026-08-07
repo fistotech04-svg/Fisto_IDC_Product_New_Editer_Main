@@ -6,12 +6,13 @@ const TRANSITION_DURATION = 450; // ms
 
 /* ─── Main Component ─────────────────────────────────────────────────────────── */
 const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
-  const images = settings.images || [];
-  const effectiveAutoPlay = settings.autoPlay ?? true;
-  const speed = settings.speed || 3;
-  const infiniteLoop = settings.infiniteLoop ?? true;
-  const showDots = settings.showDots ?? true;
-  const imageFit = settings.imageFitType === 'Fit All' ? 'contain' : 'cover';
+  const gallerySettings = settings?.gallery || settings || {};
+  const images = gallerySettings.images || [];
+  const effectiveAutoPlay = gallerySettings.autoPlay ?? true;
+  const speed = gallerySettings.speed || 3;
+  const infiniteLoop = gallerySettings.infiniteLoop ?? true;
+  const showDots = gallerySettings.showDots ?? true;
+  const imageFit = gallerySettings.imageFitType === 'Fit All' ? 'contain' : 'cover';
   const dragToSlide = true;
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -178,8 +179,6 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
             <button
               className="absolute z-[210] transition-all cursor-pointer left-[8cqw] p-[1cqw]"
               style={{ color: primaryColor, backgroundColor: 'transparent' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = secondaryColor}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               onClick={(e) => { e.stopPropagation(); goPrev(); setIsPlaying(false); }}
             >
               {NavIconRenderer({
@@ -284,8 +283,6 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
             <button
               className="absolute z-[210] transition-all cursor-pointer right-[8cqw] p-[1cqw]"
               style={{ color: primaryColor, backgroundColor: 'transparent' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = secondaryColor}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               onClick={(e) => { e.stopPropagation(); goNext(); setIsPlaying(false); }}
             >
               {NavIconRenderer({

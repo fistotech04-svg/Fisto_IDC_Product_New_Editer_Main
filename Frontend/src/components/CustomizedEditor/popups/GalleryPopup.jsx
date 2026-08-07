@@ -178,8 +178,6 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
             <button
               className={`absolute z-[210] transition-all cursor-pointer ${isTablet ? 'left-[2vw] p-[0.4vw]' : 'left-[3vw] p-[0.5vw]'}`}
               style={{ color: primaryColor, backgroundColor: 'transparent' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = secondaryColor}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               onClick={(e) => { e.stopPropagation(); goPrev(); setIsPlaying(false); }}
             >
               {NavIconRenderer({
@@ -284,8 +282,6 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
             <button
               className={`absolute z-[210] transition-all cursor-pointer ${isTablet ? 'right-[2.5vw] p-[0.4vw]' : 'right-[3vw] p-[0.5vw]'}`}
               style={{ color: primaryColor, backgroundColor: 'transparent' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = secondaryColor}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               onClick={(e) => { e.stopPropagation(); goNext(); setIsPlaying(false); }}
             >
               {NavIconRenderer({

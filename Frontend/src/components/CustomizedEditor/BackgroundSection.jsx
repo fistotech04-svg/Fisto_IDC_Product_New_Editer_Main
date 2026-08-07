@@ -96,7 +96,7 @@ const AnimatedThemeItem = React.memo(({ name, isSelected, onSelect }) => {
       onMouseLeave={() => setIsHovered(false)}
       className="group cursor-pointer flex flex-col gap-2"
     >
-      <div className={`aspect-video w-full h-20 rounded-lg bg-black border-2 relative overflow-hidden transition-all ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}>
+      <div className={`aspect-[6/5] w-full rounded-lg bg-black border-2 relative overflow-hidden transition-all ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <ThemePreview name={name} isLive={isSelected || isHovered} />
           </div>
@@ -111,7 +111,7 @@ const AnimatedThemeItem = React.memo(({ name, isSelected, onSelect }) => {
 const VideoThemeItem = React.memo(({ vdo, i, isSelected, onSelect }) => (
   <div 
     onClick={() => onSelect(vdo)}
-    className={`aspect-video w-full h-20 rounded-lg bg-black border-2 relative overflow-hidden transition-all cursor-pointer ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
+    className={`aspect-[6/5] w-full rounded-lg bg-black border-2 relative overflow-hidden transition-all cursor-pointer ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
   >
     <video src={vdo} className="w-full h-full object-cover" muted loop preload="metadata" onMouseEnter={(e) => e.target.play()} onMouseLeave={(e) => e.target.pause()} />
     <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center'}`}>
@@ -123,7 +123,7 @@ const VideoThemeItem = React.memo(({ vdo, i, isSelected, onSelect }) => (
 const ImageThemeItem = React.memo(({ img, i, isSelected, onSelect }) => (
   <div 
     onClick={() => onSelect(img)}
-    className={`aspect-video w-full h-20 rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all cursor-pointer group ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
+    className={`aspect-[6/5] w-full rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all cursor-pointer group ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
   >
     <img src={img} alt={`Background Theme ${i}`} className="w-full h-full object-cover" loading="eager" decoding="async" />
     <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center opacity-0 group-hover:opacity-100'}`}>
@@ -215,7 +215,7 @@ const AnimationThemeItem = React.memo(({ name, isSelected, onSelect }) => {
       onMouseLeave={() => setIsHovered(false)}
       className="group cursor-pointer flex flex-col gap-2"
     >
-      <div className={`aspect-video w-full h-20 rounded-lg bg-black border-2 relative overflow-hidden transition-all ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200'}`}>
+      <div className={`aspect-[6/5] w-full rounded-lg bg-black border-2 relative overflow-hidden transition-all ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200'}`}>
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-white/10">
           <AnimationPreview name={name} isLive={isSelected || isHovered} />
         </div>
@@ -639,79 +639,51 @@ const BackgroundSection = ({
   return (
     <div className="px-[1vw] flex flex-col relative">
       {/* Tabs */}
-      <div className="sticky top-0 z-[50] grid grid-cols-3 gap-[0.55vw] py-[0.5vw] pb-[1vw] mb-[1vw] bg-[#ffffff] -mx-[1vw] px-[1vw] border-b border-gray-50">
-        {['Background', 'Themes', 'Animations'].map((tab) => (
-          <button 
-            key={tab}
-            onClick={() => setActiveTab(tab)} 
-            className={`w-full py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all active:scale-95 border border-transparent ${
-              activeTab === tab 
-                ? 'text-black bg-white shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)] border-gray-500/20' 
-                : 'text-gray-400 bg-white shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="sticky top-0 z-[50] pt-[0.5vw] bg-white mb-[0.5vw] -mx-[1vw] px-[1vw] border-b-[0.15vw] border-gray-200">
+        <div className="flex items-center justify-between">
+          {['Background', 'Themes', 'Animations'].map((tab) => (
+            <button 
+              key={tab}
+              onClick={() => setActiveTab(tab)} 
+              className={`pb-[0.5vw] mb-[-0.15vw] mt-[0.5vw] text-[0.85vw] font-medium transition-all border-b-[0.15vw] flex-1 ${
+                activeTab === tab 
+                  ? 'text-gray-900 border-gray-900' 
+                  : 'text-gray-400 border-transparent hover:text-gray-600'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {activeTab === 'Background' && (
-        <div className="flex flex-col gap-[1vw]">
-          <div className="flex items-center justify-between w-full mb-[0.5vw]">
-            <PremiumDropdown 
-              options={['Solid', 'Gradient', 'Image']}
-              value={bgStyle}
-              onChange={(style) => setBgStyle(style)}
-              width="7vw"
-              align="right"
-            />
-
-            {bgStyle === 'Gradient' && (
-              <PremiumDropdown 
-                options={['Linear', 'Radial', 'Angular', 'Diamond']}
-                value={backgroundSettings.gradientType || 'Linear'}
-                onChange={(type) => {
-                  const newAngle = type === 'Radial' ? 0 : (backgroundSettings.gradientAngle || 0);
-                  const gradient = generateGradientString(
-                    type, 
-                    backgroundSettings.gradientStops || [],
-                    newAngle,
-                    backgroundSettings.gradientRadius || 100
-                  );
-                  onUpdateBackground({ 
-                    ...backgroundSettings, 
-                    gradientType: type, 
-                    gradientAngle: newAngle,
-                    gradient 
-                  });
-                }}
-                width="7vw"
-                align="right"
-                
-              />
-            )}
-
-            {bgStyle === 'Image' && (
-              <PremiumDropdown 
-                options={backgroundSettings.image ? ['Fit', 'Fill', 'Stretch', 'Crop'] : ['Fit', 'Fill', 'Stretch']}
-                value={backgroundSettings.fit}
-                onChange={(fill) => {
-                  if (fill === 'Crop') {
-                    setShowBgCropOverlay(true);
-                  } else {
-                    onUpdateBackground({ ...backgroundSettings, fit: fill });
-                  }
-                }}
-                width="6vw"
-                align="right"
-              />
-            )}
+        <div className="flex flex-col gap-[0.5vw] mt-[0.5vw]">
+          {/* Style Tabs (Solid Color, Gradient, Image) */}
+          <div className="flex items-center justify-between gap-[0.5vw] w-full">
+             {['Solid', 'Gradient', 'Image'].map((styleLabel) => {
+               const styleValue = styleLabel === 'Solid Color' ? 'Solid' : styleLabel;
+               return (
+                 <button
+                   key={styleValue}
+                   onClick={() => setBgStyle(styleValue)}
+                   className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${
+                     bgStyle === styleValue
+                       ? 'bg-white text-gray-900 shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
+                       : 'bg-white text-gray-400 shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
+                   }`}
+                 >
+                   {styleLabel}
+                 </button>
+               )
+             })}
           </div>
+
 
           {bgStyle === 'Solid' && (
             <div className="flex flex-col gap-[1.5vw]">
               <div className="mb-[0.5vw]">
-                <div className="flex items-center gap-[1vw] mb-[1.25vw]">
+                <div className="flex items-center gap-[1vw] mb-[1.25vw] mt-[1vw]">
                   <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Pick Colors From Pallet</span>
                   <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
                 </div>
@@ -804,19 +776,44 @@ const BackgroundSection = ({
           )}
 
           {bgStyle === 'Gradient' && (
-            <div className="space-y-[1.5vw] ">
+            <div className="space-y-[0.5vw]">
+
               <div>
-                <div className="flex items-center gap-[0.75vw] mb-[2vw]">
-                  <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Customize your Color</span>
+                <div className="flex items-center gap-[0.75vw] mb-[1vw] mt-[1vw]">
+                  <span className="text-[0.85vw] font-semibold text-gray-900 pb-[0.5vw]">Customize your Color</span>
                   <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
                   <div className="flex gap-[0.5vw]">
-                    <button onClick={resetGradient} className="w-[2.25vw] h-[2.25vw] flex items-center justify-center bg-white border border-gray-100 rounded-[0.5vw] shadow-[0_0.2vw_0.4vw_rgba(0,0,0,0.08)] hover:bg-gray-50 transition-colors" title="Reset Gradient">
+                    <button onClick={resetGradient} className="w-[2vw] h-[2vw] flex items-center justify-center bg-white border border-gray-100 rounded-[0.5vw] shadow-[0_0.2vw_0.4vw_rgba(0,0,0,0.08)] hover:bg-gray-50 transition-colors" title="Reset Gradient">
                       <Icon icon="ix:reset" className="w-[1.2vw] h-[1.2vw] text-gray-600" />
                     </button>
-                    <button onClick={reverseGradient} className="w-[2.25vw] h-[2.25vw] flex items-center justify-center bg-white border border-gray-100 rounded-[0.5vw] shadow-[0_0.2vw_0.4vw_rgba(0,0,0,0.08)] hover:bg-gray-50 transition-colors" title="Swap Directions">
+                    <button onClick={reverseGradient} className="w-[2vw] h-[2vw] flex items-center justify-center bg-white border border-gray-100 rounded-[0.5vw] shadow-[0_0.2vw_0.4vw_rgba(0,0,0,0.08)] hover:bg-gray-50 transition-colors" title="Swap Directions">
                       <ArrowLeftRight size="1.2vw" className="text-gray-600" />
                     </button>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-start w-full mb-[1vw] mt-[-0.5vw]">
+                  <PremiumDropdown 
+                    options={['Linear', 'Radial', 'Angular', 'Diamond']}
+                    value={backgroundSettings.gradientType || 'Linear'}
+                    onChange={(type) => {
+                      const newAngle = type === 'Radial' ? 0 : (backgroundSettings.gradientAngle || 0);
+                      const gradient = generateGradientString(
+                        type, 
+                        backgroundSettings.gradientStops || [],
+                        newAngle,
+                        backgroundSettings.gradientRadius || 100
+                      );
+                      onUpdateBackground({ 
+                        ...backgroundSettings, 
+                        gradientType: type, 
+                        gradientAngle: newAngle,
+                        gradient 
+                      });
+                    }}
+                    width="6vw"
+                    align="right"
+                  />
                 </div>
 
                 <div className="space-y-[0.75vw] mb-[1.5vw]">
@@ -1031,9 +1028,24 @@ const BackgroundSection = ({
           {bgStyle === 'Image' && (
             <div className="flex flex-col gap-[1vw]">
               <div className="mb-[0.5vw]">
-                <div className="flex items-center gap-[1vw] mb-[0.25vw]">
+                <div className="flex items-center gap-[1vw] mb-[1vw] mt-[1vw]">
                   <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Upload Image</span>
-                  <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
+                  <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
+                  {backgroundSettings.image && (
+                    <PremiumDropdown 
+                      options={['Fit', 'Fill', 'Stretch', 'Crop']}
+                      value={backgroundSettings.fit}
+                      onChange={(fill) => {
+                        if (fill === 'Crop') {
+                          setShowBgCropOverlay(true);
+                        } else {
+                          onUpdateBackground({ ...backgroundSettings, fit: fill });
+                        }
+                      }}
+                      width="5vw"
+                      align="right"
+                    />
+                  )}
                 </div>
                 
                 <input 
@@ -1241,40 +1253,33 @@ const BackgroundSection = ({
       )}
 
       {activeTab === 'Themes' && (
-        <div className={`flex flex-col gap-[1vw] relative ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className={`flex flex-col relative ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}>
           {isTransitioning && (
             <div className="absolute inset-0 z-[100] flex items-center justify-center bg-white/10 backdrop-blur-[1px]">
-               <div className="flex flex-col items-center gap-2">
+               <div className="flex flex-col items-center gap-[2vw]">
                  <Icon icon="svg-spinners:ring-resize" className="w-8 h-8 text-[#3B3C8A]" />
                  <span className="text-[0.7vw] font-semibold text-gray-500">Optimizing...</span>
                </div>
             </div>
           )}
-        <div className="flex flex-col gap-[1vw]">
-          <div className="sticky top-[6.7vh] z-[50] grid grid-cols-2 gap-[1vw] py-[0.5vw]  bg-[#ffffff] -mx-[1vw] -mt-[1vw] px-[0.5vw] pr-[1.9vw] pl-[1.5vw] border-b border-gray-50 ">
-            {['Background Themes', 'Animated Themes'].map((tab) => (
-              <button 
-                key={tab}
-                onClick={() => setThemeType(tab)} 
-                className={`w-full py-[0.5vw] text-[0.85vw] font-semibold transition-all active:scale-95 relative ${
-                  themeType === tab 
-                    ? 'text-black' 
-                    : 'text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                {themeType === tab ? (
-                  <div className="flex flex-col items-center">
-                    <div className="flex items-center justify-center w-full gap-[0.45vw]">
-                      <span>{tab.split(' ')[0]}</span>
-                      <span>{tab.split(' ')[1]}</span>
-                    </div>
-                    <div className="absolute bottom-[-0vw] w-[7.5vw] h-[0.13vw] bg-[#3B3C8A] rounded-full"></div>
-                  </div>
-                ) : (
-                  tab
-                )}
-              </button>
-            ))}
+        <div className="flex flex-col gap-[0.5vw] ">
+          <div className="sticky top-0 z-[50] flex items-center justify-between gap-[0.5vw] w-full mb-[0.5vw] bg-white py-[0.5vw]">
+             {['Static', 'Dynamic'].map((tabLabel) => {
+               const tabValue = tabLabel === 'Static' ? 'Background Themes' : 'Animated Themes';
+               return (
+                 <button
+                   key={tabValue}
+                   onClick={() => setThemeType(tabValue)}
+                   className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${
+                     themeType === tabValue
+                       ? 'bg-white text-gray-900 shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
+                       : 'bg-white text-gray-400 shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
+                   }`}
+                 >
+                   {tabLabel}
+                 </button>
+               )
+             })}
           </div>
 
           <div className={`flex flex-col gap-[1vw] px-1 pb-2 ${themeType !== 'Animated Themes' ? 'hidden' : ''}`}>
@@ -1301,7 +1306,7 @@ const BackgroundSection = ({
                 }} 
                 className="group cursor-pointer flex flex-col gap-[1vw]"
               >
-                <div className={`aspect-video w-full h-20 rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all flex items-center justify-center ${!selectedTheme ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.02]' : 'border-gray-100 hover:border-gray-200'}`}>
+                <div className={`aspect-[6/5] w-full rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all flex items-center justify-center ${!selectedTheme ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.02]' : 'border-gray-100 hover:border-gray-200'}`}>
                   <Icon icon="lucide:ban" className="w-6 h-6 text-gray-300" />
                   <div className={`absolute inset-x-0 transition-all duration-300 ${!selectedTheme ? 'top-1/2 -translate-y-1/2 py-2 bg-black/40 flex items-center justify-center scale-[1.02]' : 'bottom-0 py-1 bg-gray/40 backdrop-blur-md text-center'}`}>
                     <span className={`text-[0.75vw] font-semibold transition-colors duration-300 ${!selectedTheme ? 'text-white' : 'text-gray-800'}`}>None</span>
@@ -1335,7 +1340,7 @@ const BackgroundSection = ({
       )}
 
       {activeTab === 'Animations' && (
-        <div className="grid grid-cols-3 gap-2 px-1 pb-2">
+        <div className="grid grid-cols-3 gap-[0.5vw] px-[0.5vw] pb-[1vw] pt-[1vw]">
           {/* None Option */}
           <div 
             onClick={() => {
@@ -1348,7 +1353,7 @@ const BackgroundSection = ({
             }} 
             className="group cursor-pointer flex flex-col gap-2"
           >
-            <div className={`aspect-video w-full h-20 rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all flex items-center justify-center ${backgroundSettings.animation === 'None' || !backgroundSettings.animation ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.02]' : 'border-gray-100 hover:border-gray-200'}`}>
+            <div className={`aspect-[6/5] w-full rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all flex items-center justify-center ${backgroundSettings.animation === 'None' || !backgroundSettings.animation ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.02]' : 'border-gray-100 hover:border-gray-200'}`}>
               <Icon icon="lucide:ban" className="w-6 h-6 text-gray-300" />
               <div className={`absolute inset-x-0 transition-all duration-300 ${
                 (backgroundSettings.animation === 'None' || !backgroundSettings.animation) 

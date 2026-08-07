@@ -166,7 +166,7 @@ const AccordionItem = ({ title, isOpen, onToggle, children }) => (
 
 const MAX_GALLERY_IMAGES = 12;
 
-const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = [], targetAccordion }) => {
+const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = [], targetAccordion, inlineMode }) => {
   const [openAccordion, setOpenAccordion] = useState(targetAccordion || 'layout');
   const [bookAppearance, setBookAppearance] = useState({});
 
@@ -563,6 +563,679 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     setLibraryTargetIndex(null);
     updateGallery('previewOpen', Date.now());
   };
+
+  if (inlineMode === 'sound') {
+    return (
+      <div className="space-y-[1.5vw] p-[1vw]">
+        <div>
+          <SectionHeader title="Flip Sound" />
+          <div className="space-y-[1vw] pl-[1vw]">
+            {[
+              { id: 'None', label: 'None' },
+              { id: 'Hard Cover Flip', label: 'Classic Book Flip' },
+              { id: 'Soft Paper Flip', label: 'Soft cover page' },
+              { id: 'Classic Book Flip', label: 'Hard Cover Page' }
+            ].map((s) => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  if (!settings.sound?.pageSpecificSound) {
+                    updateNested('sound', 'flipSound', s.id);
+                  }
+                }}
+                disabled={settings.sound?.pageSpecificSound}
+                className={`w-full flex items-center gap-[1.25vw] bg-transparent transition-all group ${settings.sound?.pageSpecificSound ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className={`w-[1.5vw] h-[1.5vw] flex items-center justify-center rounded-full transition-all ${settings.sound?.flipSound === s.id
+                  ? 'bg-gray-300 text-black shadow-md border-transparent'
+                  : 'bg-white border-[1.5px] border-black text-black shadow-sm group-hover:border-[#4A3AFF]'
+                  }`}>
+                  {settings.sound?.flipSound === s.id && s.id !== 'None' ? (
+                    <div className="w-[1vw] h-[1vw] text-black">
+                      <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="10" width="3" height="10" rx="1" fill="currentColor">
+                          <animate attributeName="y" values="10;6;10;14;10" dur="0.8s" repeatCount="indefinite" />
+                          <animate attributeName="height" values="10;14;10;6;10" dur="0.8s" repeatCount="indefinite" />
+                        </rect>
+                        <rect x="9" y="6" width="3" height="14" rx="1" fill="currentColor">
+                          <animate attributeName="y" values="6;10;14;10;6" dur="1s" repeatCount="indefinite" />
+                          <animate attributeName="height" values="14;10;6;10;14" dur="1s" repeatCount="indefinite" />
+                        </rect>
+                        <rect x="14" y="12" width="3" height="8" rx="1" fill="currentColor">
+                          <animate attributeName="y" values="12;8;12;16;12" dur="0.7s" repeatCount="indefinite" />
+                          <animate attributeName="height" values="8;12;8;4;8" dur="0.7s" repeatCount="indefinite" />
+                        </rect>
+                        <rect x="19" y="8" width="3" height="12" rx="1" fill="currentColor">
+                          <animate attributeName="y" values="8;12;8;4;8" dur="0.9s" repeatCount="indefinite" />
+                          <animate attributeName="height" values="12;8;12;16;12" dur="0.9s" repeatCount="indefinite" />
+                        </rect>
+                      </svg>
+                    </div>
+                  ) : (
+                    <Icon icon={s.id === 'None' ? 'mdi:music-off' : 'mdi:music'} className="w-[1.2vw] h-[1.2vw]" color={settings.sound?.flipSound === s.id ? 'black' : 'black'} />
+                  )}
+                </div>
+                <span className={`text-[0.75vw] font-semibold ${settings.sound?.flipSound === s.id ? 'text-gray-900' : 'text-gray-500'
+                  }`}>{s.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between mt-[1.25vw] pl-[0.2vw]">
+            <div className="flex flex-col">
+              <span className="text-[0.75vw] font-semibold text-gray-700 leading-tight">Add specific sound effect for pages :</span>
+              {settings.sound?.pageSpecificSound && (
+                <span className="text-[0.65vw] text-[#4A3AFF] font-medium mt-[0.2vw]">
+                  {isHardCoverEnabled ? 'Combination of both soft and hard cover music' : 'Soft cover page music only'}
+                </span>
+              )}
+            </div>
+            <Switch
+              enabled={settings.sound?.pageSpecificSound}
+              onChange={(val) => updateNested('sound', 'pageSpecificSound', val)}
+            />
+          </div>
+        </div>
+
+        <div>
+          <SectionHeader title="Background Sound" />
+          <input type="file" ref={bgSoundInputRef} onChange={handleBgSoundUpload} accept=".mp3, .wav, .m4a" className="hidden" />
+          <div
+            className={`border-2 border-dashed border-gray-400 rounded-[0.5vw] p-[0.8vw] flex flex-col items-center justify-center gap-[0.50vw] cursor-pointer hover:border-[#4A3AFF]/50 transition-all mb-[1.5vw] group/upload ${settings.sound?.bgSound?.startsWith('BG Sound') && parseInt(settings.sound.bgSound.split(' ')[2]) >= 5 ? 'border-[#4A3AFF] bg-[#4A3AFF]/5' : 'bg-transparent'}`}
+            onClick={() => bgSoundInputRef.current?.click()}
+          >
+            <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw]" />
+
+            {settings.sound?.isUploadingBg ? (
+              <span className="text-[0.75vw] font-semibold text-gray-400 animate-pulse">Uploading...</span>
+            ) : (
+              <span className="text-[0.75vw] font-semibold text-[#9BA1A6]">Upload - MP3, WAV, M4A</span>
+            )}
+          </div>
+          <div className="space-y-[0.5vw]">
+            {[
+              { id: 'None', label: 'None' },
+              { id: 'BG Sound 1', label: 'Bg Sound 1' },
+              { id: 'BG Sound 2', label: 'Bg Sound 2' },
+              { id: 'BG Sound 3', label: 'Bg Sound 3' },
+              { id: 'BG Sound 4', label: 'Bg Sound 4' },
+              ...(settings.sound?.customBgSounds || [])
+            ].map((s, sIdx) => (
+              <button
+                key={s.id}
+                onClick={() => updateNested('sound', 'bgSound', s.id)}
+                className={`w-full flex items-center justify-between px-[0.9vw] py-[0.3vw] transition-all group ${settings.sound?.bgSound === s.id
+                  ? 'bg-transparent'
+                  : 'bg-transparent '
+                  }`}
+              >
+                <div className="flex items-center gap-[1.25vw] overflow-hidden truncate">
+                  <div className={`w-[1.5vw] h-[1.5vw] flex items-center justify-center rounded-full transition-all shrink-0 ${settings.sound?.bgSound === s.id ? 'bg-gray-300 text-black shadow-md border-transparent' : 'bg-white border-[1.5px] border-black text-black shadow-sm group-hover:border-[#4A3AFF]'
+                    }`}>
+                    {settings.sound?.bgSound === s.id && s.id !== 'None' ? (
+                      <div className="w-[1vw] h-[1vw] text-black">
+                        <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <rect x="4" y="10" width="3" height="10" rx="1" fill="currentColor">
+                            <animate attributeName="y" values="10;6;10;14;10" dur="0.8s" repeatCount="indefinite" />
+                            <animate attributeName="height" values="10;14;10;6;10" dur="0.8s" repeatCount="indefinite" />
+                          </rect>
+                          <rect x="9" y="6" width="3" height="14" rx="1" fill="currentColor">
+                            <animate attributeName="y" values="6;10;14;10;6" dur="1s" repeatCount="indefinite" />
+                            <animate attributeName="height" values="14;10;6;10;14" dur="1s" repeatCount="indefinite" />
+                          </rect>
+                          <rect x="14" y="12" width="3" height="8" rx="1" fill="currentColor">
+                            <animate attributeName="y" values="12;8;12;16;12" dur="0.7s" repeatCount="indefinite" />
+                            <animate attributeName="height" values="8;12;8;4;8" dur="0.7s" repeatCount="indefinite" />
+                          </rect>
+                          <rect x="19" y="8" width="3" height="12" rx="1" fill="currentColor">
+                            <animate attributeName="y" values="8;12;8;4;8" dur="0.9s" repeatCount="indefinite" />
+                            <animate attributeName="height" values="12;8;12;16;12" dur="0.9s" repeatCount="indefinite" />
+                          </rect>
+                        </svg>
+                      </div>
+                    ) : (
+                      <Icon icon={s.id === 'None' ? 'mdi:music-off' : 'mdi:music'} className="w-[1.2vw] h-[1.2vw]" color={settings.sound?.bgSound === s.id ? 'black' : 'black'} />
+                    )}
+                  </div>
+                  <span className={`text-[0.75vw] font-semibold truncate ${settings.sound?.bgSound === s.id ? 'text-gray-900' : 'text-gray-500'
+                    }`}>{s.label}</span>
+                </div>
+
+                {sIdx > 4 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteCustomSound(s.id); }}
+                    className="opacity-0 group-hover:opacity-100 p-[0.2vw] text-gray-400 hover:text-red-500 transition-all shrink-0"
+                    title="Delete Sound"
+                  >
+                    <Trash2 size="0.95vw" />
+                  </button>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (inlineMode === 'gallery') {
+    return (
+      <div className="space-y-[1.25vw] p-[1vw]">
+        {/* Top Controls: Mode & Fit */}
+        <div className="flex items-center justify-between px-[0.5vw]">
+          <span className="text-[0.75vw] font-semibold text-gray-700">Image Fix Type</span>
+          <div className="flex-1 border-b border-dashed border-gray-200 mx-[0.75vw]" />
+          {/* Fit Dropdown */}
+
+          <div className="relative z-20">
+            <button
+              onClick={() => setShowFitDropdown(!showFitDropdown)}
+              className="flex items-center justify-between gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-white border border-gray-100 rounded-[0.4vw] shadow-lg hover:border-gray-800 transition-all text-[0.75vw] font-medium text-gray-700 min-w-[5vw]"
+            >
+              <span>{gallery.imageFitType || 'Fill All'}</span>
+              <ChevronDown size="0.8vw" className={`text-gray-500 transition-transform ${showFitDropdown ? 'rotate-180' : ''}`} />
+            </button>
+            {showFitDropdown && (
+              <>
+                <div className="fixed inset-0 z-[90]" onClick={() => setShowFitDropdown(false)} />
+                <div className="absolute right-0 top-full mt-[0.25vw] w-full min-w-[5vw] bg-white border border-gray-200 rounded-[0.4vw] shadow-xl z-[100] py-[0.25vw] overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                  {['Fit All', 'Fill All'].map(type => (
+                    <button
+                      key={type}
+                      onClick={() => {
+                        updateGallery('imageFitType', type);
+                        setShowFitDropdown(false);
+                      }}
+                      className="w-full text-left px-[0.75vw] py-[0.5vw] text-[0.7vw] font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600"
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Info Row */}
+        <div className="flex items-center gap-[0.4vw]">
+          <div className="relative">
+            <button
+              className="w-[1.1vw] h-[1.1vw] rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-[0.6vw] font-semibold hover:bg-gray-100 transition-colors"
+              onMouseEnter={() => setShowInfoTooltip(true)}
+              onMouseLeave={() => setShowInfoTooltip(false)}
+            >
+              i
+            </button>
+            {showInfoTooltip && (
+              <div className="absolute left-[1.5vw] top-0 bg-gray-800 text-white text-[0.65vw] px-[0.75vw] py-[0.4vw] rounded-[0.4vw] whitespace-nowrap z-50 shadow-lg">
+                You can add up to 12 images in Gallery
+              </div>
+            )}
+          </div>
+          <span className="text-[0.7vw] text-gray-500">You can add up to 12 images in Gallery *</span>
+        </div>
+
+        {/* Upload & Gallery Buttons Area */}
+        <div className={slideshowImages.length > 0 ? "flex items-center gap-[0.8vw] w-full" : "flex flex-col items-center gap-[0.5vw] w-full"}>
+          {/* Upload Box */}
+          <div
+            onClick={() => {
+              if (fileInputRef.current) fileInputRef.current.value = '';
+              fileInputRef.current?.click();
+            }}
+            className={`border-2 border-dashed border-gray-400 rounded-[0.5vw] flex flex-col items-center justify-center cursor-pointer transition-all px-[0.5vw] hover:border-gray-500 hover:bg-gray-50/50 ${slideshowImages.length > 0 ? 'flex-1 h-[4.5vw] gap-[0vw] w-[90%]' : 'w-full h-[5.5vw] gap-[0.5vw] w-[100%]'}`}
+          >
+            <span className={`text-gray-500 font-medium text-center leading-snug ${slideshowImages.length > 0 ? 'text-[0.55vw]' : 'text-[0.65vw]'}`}>Drag & drop or <br className={slideshowImages.length > 0 ? 'block' : 'hidden'} /><span className="text-[#4A3AFF]">Upload</span></span>
+            <Upload size={slideshowImages.length > 0 ? "0.9vw" : "1vw"} className="text-gray-400 my-[0.2vw]" />
+            <span className={`text-gray-400 font-medium text-center leading-snug ${slideshowImages.length > 0 ? 'text-[0.45vw]' : 'text-[0.55vw]'}`}>Supported File Format : <br className={slideshowImages.length > 0 ? 'block' : 'hidden'} />JPG, PNG</span>
+          </div>
+
+          <span className="text-[0.7vw] font-semibold text-gray-400 shrink-0">OR</span>
+
+          {/* Image Gallery Button */}
+          <button
+            onClick={() => setShowLibrary(true)}
+            className={`relative bg-black rounded-[0.5vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5 ${slideshowImages.length > 0 ? 'flex-1 h-[4.5vw] w-[10%]' : 'w-[100%] h-[3vw]'}`}
+          >
+            <div className="absolute inset-0 flex opacity-30 group-hover:opacity-40 transition-opacity">
+              <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1493612276216-ee3925520721?q=80&w=300&auto=format&fit=crop')" }}></div>
+              <div className="flex-1 bg-cover bg-center border-x border-white/10" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=300&auto=format&fit=crop')" }}></div>
+              <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=300&auto=format&fit=crop')" }}></div>
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-r from-gray/10 via-gray/20 to-gray/40 group-hover:via-gray/20 transition-all"></div>
+            <div className={`relative z-10 flex ${slideshowImages.length > 0 ? 'flex-col gap-[0.2vw]' : 'flex-row gap-[0.5vw]'} items-center justify-center px-[0.5vw] text-center w-full`}>
+              <Icon icon="clarity:image-gallery-solid" className={`${slideshowImages.length > 0 ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1vw] h-[1.2vw]'} text-white shrink-0`} />
+              <div className={`font-semibold text-white leading-tight ${slideshowImages.length > 0 ? 'text-[0.65vw]' : 'text-[0.85vw]'}`}>Image Gallery
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="image/png, image/jpeg, image/jpg, .png, .jpg, .jpeg" className="hidden" />
+        <input type="file" ref={replaceInputRef} onChange={handleReplaceFileChange} accept="image/png, image/jpeg, image/jpg, .png, .jpg, .jpeg" className="hidden" />
+
+        {/* Uploaded Images Grid */}
+        {slideshowImages.length > 0 && (
+          <div className="mt-[1vw]">
+            <SectionHeader title="Uploaded Images" />
+            <div className="grid grid-cols-4 gap-[0.65vw] px-[0.125vw]">
+              {slideshowImages.map((img, i) => (
+                <div key={img.id || i} className="relative group/slot">
+                  <div
+                    className={`aspect-[1/1] w-full rounded-[0.3vw] cursor-pointer border-[0.1vw] transition-all duration-300 relative flex items-center justify-center group/card hover:scale-[1.05] hover:-translate-y-[0.25vw] hover:z-20 ${activeSlideIndex === i
+                      ? 'border-gray-500 bg-gray-100 shadow-[0_0.65vw_1.25vw_-0.4vw_rgba(99,102,241,0.3)]'
+                      : 'border-gray-200 hover:border-gray-400 hover:shadow-[0_0.75vw_1.5vw_-0.5vw_rgba(0,0,0,0.15)] bg-white shadow-sm'
+                      }`}
+                    onClick={() => {
+                      setActiveSlideIndex(i);
+                      if (img && !img.isUploading) {
+                        const current = gallery.imageFitType || 'Fill All';
+                        updateGallery('imageFitType', current === 'Fit All' ? 'Fill All' : 'Fit All');
+                      }
+                    }}
+                  >
+                    {img.isUploading ? (
+                      <div className="flex flex-col items-center justify-center gap-[0.375vw] w-full h-full">
+                        <div className="w-[1.2vw] h-[1.2vw] border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : (
+                      <img src={img.url} className="w-full h-full rounded-[0.3vw] transition-all duration-300" style={{ objectFit: (gallery.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain' }} alt="" />
+                    )}
+
+                    {/* Actions Menu Trigger */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenContextMenu(openContextMenu === i ? null : i);
+                      }}
+                      className={`absolute -top-[0.375vw] -right-[0.375vw] w-[1.75vw] h-[1.75vw] rounded-full bg-white shadow-[0_0.1vw_0.5vw_rgba(0,0,0,0.15)] border-[0.1vw] border-gray-200 flex items-center justify-center transition-all duration-200 z-30 ${openContextMenu === i ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover/card:opacity-100 group-hover/card:scale-100'
+                        } hover:bg-gray-50 active:scale-125`}
+                    >
+                      <MoreVertical size="0.7vw" className="text-gray-600" strokeWidth={2.5} />
+                    </button>
+                  </div>
+
+                  {/* Context Menu */}
+                  {openContextMenu === i && (
+                    <>
+                      <div className="fixed inset-0 z-[105]" onClick={() => setOpenContextMenu(null)} />
+                      <div className={`absolute top-[40%] mt-[0.25vw] w-[7.5vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-2xl z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${(i % 4) >= 2 ? 'right-0' : 'left-0'
+                        }`}>
+                        <button
+                          onClick={() => {
+                            if (img) {
+                              setReplaceTargetIndex(i);
+                              if (replaceInputRef.current) replaceInputRef.current.value = '';
+                              replaceInputRef.current?.click();
+                              setOpenContextMenu(null);
+                            }
+                          }}
+                          className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-gray-700 hover:bg-gray-50 text-left border-b border-gray-50 transition-colors flex items-center gap-[0.5vw]"
+                        >
+                          Replace Image
+                        </button>
+                        <button
+                          onClick={() => {
+                            setLibraryTargetIndex(i);
+                            setShowLibrary(true);
+                            setOpenContextMenu(null);
+                          }}
+                          className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-gray-700 hover:bg-gray-50 text-left border-b border-gray-50 transition-colors flex items-center gap-[0.5vw]"
+                        >
+                          Image Gallery
+                        </button>
+                        {img && (
+                          <button
+                            onClick={() => {
+                              setCropTargetIndex(i);
+                              setIsCropping(true);
+                              setOpenContextMenu(null);
+                            }}
+                            className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-gray-700 hover:bg-gray-50 text-left border-b border-gray-50 transition-colors flex items-center gap-[0.5vw]"
+                          >
+                            Crop Image
+                          </button>
+                        )}
+                        {img && (
+                          <button
+                            onClick={() => confirmDeleteImage(i)}
+                            className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-red-500 hover:bg-red-50 text-left transition-colors flex items-center gap-[0.5vw]"
+                          >
+                            Delete Image
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── GALLERY CONTROLS ────────────────────────────────── */}
+        <div className="space-y-[0.5vw] mb-[0.5vw]">
+          {/* Slide Effect */}
+          <div className="space-y-[0.75vw] ">
+            <SectionHeader title="Slide Effect" />
+            <div className="flex items-center justify-between px-[0.5vw]">
+              <span className="text-[0.75vw] font-medium text-gray-700">Select Slide Effects :</span>
+              <PremiumDropdown
+                options={['Linear', 'Fade', 'Slide', 'Push', 'Flip', 'Reveal']}
+                value={gallery.transitionEffect || 'Linear'}
+                onChange={(val) => updateGallery('transitionEffect', val)}
+                width="7vw"
+                align="right"
+                buttonClassName="!border-gray-500 !rounded-[0.5vw]"
+              />
+            </div>
+          </div>
+
+          {/* Popup Customization */}
+          <div className="space-y-[0.75vw]">
+            <SectionHeader title="Popup Customization" />
+            <ColorPickerItem
+              label="Primary"
+              color={gallery.primaryColor || '#575C9C'}
+              opacity={gallery.primaryOpacity || 100}
+              onChange={(val) => updateGallery('primaryColor', val)}
+              onOpacityChange={(val) => updateGallery('primaryOpacity', val)}
+              onClick={(e) => openPicker('primary', e)}
+            />
+            <ColorPickerItem
+              label="Secondary"
+              color={gallery.secondaryColor || '#9B9B9B'}
+              opacity={gallery.secondaryOpacity || 100}
+              onChange={(val) => updateGallery('secondaryColor', val)}
+              onOpacityChange={(val) => updateGallery('secondaryOpacity', val)}
+              onClick={(e) => openPicker('secondary', e)}
+            />
+            <ColorPickerItem
+              label="BG Color"
+              color={gallery.bgColor || '#FFFFFF'}
+              opacity={gallery.bgOpacity || 80}
+              onChange={(val) => updateGallery('bgColor', val)}
+              onOpacityChange={(val) => updateGallery('bgOpacity', val)}
+              onClick={(e) => openPicker('bg', e)}
+            />
+          </div>
+
+          {/* Other Controls */}
+          <div className="space-y-[0.75vw] mt-[1vw]">
+            <SectionHeader title="Other Controls" />
+
+            <div className="flex flex-col gap-[0.8vw] ">
+              {/* Manual Navigation Icon Row */}
+              <div className="flex items-center justify-between px-[0.5vw]">
+                <span className="text-[0.75vw] font-medium text-gray-600">Navigation icon :</span>
+
+                {/* Icon Style Preview Card */}
+                <div
+                  className="w-[6vw] h-[3.5vw] bg-white shadow-sm border border-gray-100 rounded-[0.4vw] flex items-center justify-center gap-[0.6vw] relative group/nav shrink-0 cursor-pointer transition-all"
+                  onClick={() => setShowNavStylesPopup(true)}
+                >
+                  {/* Hover Overlay Button */}
+                  <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1.5vw] h-[1.5vw] bg-white shadow-md rounded-[0.3vw] flex items-center justify-center scale-90 opacity-0 group-hover/nav:opacity-100 group-hover/nav:scale-100 transition-all duration-300">
+                    <Icon icon="lucide:arrow-right-left" className="w-[0.8vw] h-[0.8vw] text-gray-700" />
+                  </div>
+
+                  {/* Icon Content (Blurred on hover) */}
+                  <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:blur-[1px]">
+                    <div className="flex items-center justify-center shrink-0 bg-black rounded-[0.2vw] p-[0.2vw]">
+                      {NavIconRenderer({ styleId: gallery.navStyle || 1, size: "1.3vw", color: "white" }).left}
+                    </div>
+                    <div className="flex items-center justify-center shrink-0 bg-black rounded-[0.2vw] p-[0.2vw]">
+                      {NavIconRenderer({ styleId: gallery.navStyle || 1, size: "1.3vw", color: "white" }).right}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Auto Slide Mode Toggle */}
+              <div className="flex items-center justify-between px-[0.5vw]">
+                <span className="text-[0.8vw] font-medium text-gray-600">Auto Slide Mode</span>
+                <div className="flex-1 border-b border-dashed border-gray-200 mx-[0.5vw]" />
+                <Switch enabled={gallery.autoSlide ?? true} onChange={(v) => updateGallery('autoSlide', v)} />
+              </div>
+
+              {/* Slide Duration Stepper - Conditional Visibility */}
+              {(gallery.autoSlide ?? true) && (
+                <div className="flex items-center justify-start gap-[1vw] px-[0.5vw] animate-in fade-in slide-in-from-top-1 duration-200">
+                  <span className="text-[0.75vw] font-medium text-gray-600">Slide Duration</span>
+                  <div className="flex items-center gap-[0.4vw]">
+                    <button
+                      onClick={() => updateGallery('speed', Math.max(1, (gallery.speed || 3) - 1))}
+                      className="text-gray-400 hover:text-gray-700 transition-colors"
+                    >
+                      <ChevronLeft size="1.2vw" />
+                    </button>
+                    <div className="min-w-[3.5vw] py-[0.35vw] border border-gray-400 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm">
+                      <span className="text-[0.85vw] font-medium text-gray-900">{(gallery.speed || 3)}s</span>
+                    </div>
+                    <button
+                      onClick={() => updateGallery('speed', Math.min(20, (gallery.speed || 3) + 1))}
+                      className="text-gray-400 hover:text-gray-700 transition-colors"
+                    >
+                      <ChevronRight size="1.2vw" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between px-[0.5vw]">
+                <span className="text-[0.8vw] font-medium text-gray-600">Infinity Loop Mode</span>
+                <div className="flex-1 border-b border-dashed border-gray-200 mx-[0.75vw]" />
+                <Switch enabled={gallery.infiniteLoop ?? true} onChange={(v) => updateGallery('infiniteLoop', v)} />
+              </div>
+
+              <div className="flex items-center justify-between px-[0.5vw]">
+                <span className="text-[0.8vw] font-medium text-gray-600 ">Pagination Dots</span>
+                <div className="flex-1 border-b border-dashed border-gray-200 mx-[0.75vw]" />
+                <Switch enabled={gallery.showDots ?? true} onChange={(v) => updateGallery('showDots', v)} />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Modals from Gallery Option (Library, Pickers) */}
+        {showLibrary && (
+          <div className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            style={{ width: '320px', height: '540px', top: '50%', left: '24vw', transform: 'translate(-50%, -50%)' }}>
+            <div className="flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
+              <h2 className="text-[1vw] font-semibold text-gray-900">Image Gallery</h2>
+              <button onClick={() => setShowLibrary(false)} className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+                <X className="w-[1.2vw] h-[1.2vw] text-gray-400" />
+              </button>
+            </div>
+
+            <div className="px-[1vw] py-[0.5vw]">
+              <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.2vw]">Upload your Image</h3>
+              <p className="text-[0.7vw] text-gray-400 mb-[1vw]">
+                <span>You Can Reuse The File Which Is Uploaded In Gallery</span>
+                <span className="text-red-500">*</span>
+              </p>
+              <div
+                onClick={() => galleryInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file && file.type.startsWith('image/')) {
+                    handleLibraryFileUpload({ target: { files: [file] } });
+                  }
+                }}
+                className="w-full h-[12vh] rounded-2xl flex flex-col items-center justify-center bg-white hover:bg-indigo-50 transition-all cursor-pointer group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+              >
+                <p className="text-[0.9vw] text-gray-600 font-semibold mb-[0.5vw]">Drag & Drop or <span className="text-[#4F46E5] font-semibold">Upload</span></p>
+                <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw] text-gray-400 mb-2" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[0.7vw] font-semibold text-gray-500">Supported File</span>
+                  <span className="text-[0.7vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
+                </div>
+              </div>
+              <input type="file" ref={galleryInputRef} onChange={handleLibraryFileUpload} accept="image/*" className="hidden" />
+            </div>
+
+            <div
+              className="hide-scrollbar overflow-y-auto px-[1vw] py-[0.5vw] flex-1"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.5vw]">Uploaded Images</h3>
+              {uploadedImages.length > 0 ? (
+                <div className="grid grid-cols-3 gap-[0.5vw]">
+                  {uploadedImages.map((img, index) => (
+                    <div key={img.id || index} className="group cursor-pointer flex flex-col items-center" onClick={() => setLocalLibrarySelected(img)}>
+                      <div className={`aspect-square w-full rounded-[0.5vw] overflow-hidden border-[0.15vw] transition-all ${localLibrarySelected?.url === img.url ? 'border-indigo-600 shadow-md scale-[1.02]' : 'hover:border-indigo-400 border-gray-100'}`}>
+                        <img src={img.url} className="w-full h-full object-cover" alt="" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-[2vw] text-gray-400">
+                  <p className="text-[0.8vw]">No uploaded images yet</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-[0.75vw] border-t flex justify-end gap-[0.5vw] bg-white mt-auto">
+              <button
+                onClick={() => { setShowLibrary(false); setLocalLibrarySelected(null); }}
+                className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] hover:bg-gray-50"
+              >
+                <X size="0.9vw" /> Close
+              </button>
+              <button
+                onClick={handlePlaceFromLibrary}
+                disabled={!localLibrarySelected}
+                className={`flex-1 h-[2vw] rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] transition-all ${localLibrarySelected ? 'bg-black text-white hover:bg-zinc-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+              >
+                <Check size="0.9vw" /> Place
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activePopupPicker && createPortal(
+          <ColorPicker
+            color={
+              activePopupPicker === 'primary' ? (gallery.primaryColor || '#575C9C') :
+                activePopupPicker === 'secondary' ? (gallery.secondaryColor || '#9B9B9B') :
+                  (gallery.bgColor || '#FFFFFF')
+            }
+            onChange={(color) => {
+              if (activePopupPicker === 'primary') updateGallery('primaryColor', color);
+              else if (activePopupPicker === 'secondary') updateGallery('secondaryColor', color);
+              else updateGallery('bgColor', color);
+            }}
+            onClose={() => setActivePopupPicker(null)}
+            style={{ position: 'fixed', top: popupPickerPos.y, left: popupPickerPos.x, zIndex: 1100, transform: 'none' }}
+            opacity={
+              activePopupPicker === 'primary' ? (gallery.primaryOpacity ?? 100) :
+                activePopupPicker === 'secondary' ? (gallery.secondaryOpacity ?? 100) :
+                  (gallery.bgOpacity ?? 80)
+            }
+            onOpacityChange={(val) => {
+              if (activePopupPicker === 'primary') updateGallery('primaryOpacity', val);
+              else if (activePopupPicker === 'secondary') updateGallery('secondaryOpacity', val);
+              else updateGallery('bgOpacity', val);
+            }}
+          />,
+          document.body
+        )}
+
+        {showDotColorPicker && createPortal(
+          <ColorPicker
+            color={settings.gallery?.dotColor || '#4F46E5'}
+            onChange={(color) => updateGallery('dotColor', color)}
+            onClose={() => setShowDotColorPicker(false)}
+            style={{ position: 'fixed', top: dotPickerPos.y, left: dotPickerPos.x, zIndex: 1100, transform: 'none' }}
+            opacity={100}
+            onOpacityChange={() => { }}
+          />,
+          document.body
+        )}
+
+        {showNavColorPicker && createPortal(
+          <ColorPicker
+            color={settings.gallery?.navIconColor || '#000000'}
+            onChange={(color) => updateGallery('navIconColor', color)}
+            onClose={() => setShowNavColorPicker(false)}
+            style={{ position: 'fixed', top: navPickerPos.y, left: navPickerPos.x, zIndex: 1100, transform: 'none' }}
+            opacity={100}
+            onOpacityChange={() => { }}
+          />,
+          document.body
+        )}
+
+        {showNavStylesPopup && (
+          <NavIconStylesPopup
+            currentStyle={settings.gallery?.navStyle || 1}
+            onClose={() => setShowNavStylesPopup(false)}
+            onSelect={(styleId) => updateGallery('navStyle', styleId)}
+          />
+        )}
+
+        {/* Crop Overlay */}
+        {isCropping && cropTargetIndex !== null && slideshowImages[cropTargetIndex]?.url && (
+          <ImageCropOverlay
+            imageSrc={slideshowImages[cropTargetIndex].url}
+            element={null}
+            onSave={(cropData) => {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const [x, y, w, h] = cropData.inset.match(/\d+(\.\d+)?%/g).map(v => parseFloat(v) / 100);
+
+                canvas.width = img.width * (w || 1);
+                canvas.height = img.height * (h || 1);
+
+                ctx.drawImage(img, img.width * x, img.height * y, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob(async (blob) => {
+                  const file = new File([blob], `cropped_${Date.now()}.png`, { type: 'image/png' });
+                  const uploadedData = await uploadFile(file, slideshowImages[cropTargetIndex].file_v_id);
+
+                  updateGallery('images', current =>
+                    current.map((item, idx) => {
+                      if (idx === cropTargetIndex) {
+                        return uploadedData
+                          ? { ...item, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false }
+                          : { ...item, isUploading: false };
+                      }
+                      return item;
+                    })
+                  );
+                }, 'image/png');
+
+                setIsCropping(false);
+                setCropTargetIndex(null);
+              };
+              img.src = slideshowImages[cropTargetIndex].url;
+            }}
+            onCancel={() => {
+              setIsCropping(false);
+              setCropTargetIndex(null);
+            }}
+          />
+        )}
+
+        <AlertModal
+          isOpen={deleteImageIndex !== null}
+          onClose={() => setDeleteImageIndex(null)}
+          onConfirm={handleDeleteImage}
+          type="warning"
+          title="Delete Image"
+          message="Are you sure you want to delete this image? This action cannot be undone."
+          showCancel={true}
+          confirmText="Delete"
+          cancelText="Cancel"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-white relative overflow-visible">
