@@ -74,7 +74,7 @@ const CustomizedEditor = () => {
   const { folder, v_id, page } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { setExportHandler, setSaveHandler, setPreviewHandler, setHasUnsavedChanges, hasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, currentBook, setCurrentBook, activeDevice, setActiveDevice } = useOutletContext() || {};
+  const { setExportHandler, setSaveHandler, setPreviewHandler, setClearHandler, setHasUnsavedChanges, hasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, currentBook, setCurrentBook, activeDevice, setActiveDevice } = useOutletContext() || {};
   const [bookName, setBookName] = useState(() => currentBook?.flipbookName || 'Name of the Book');
   const [activeSubView, setActiveSubView] = useState(null);
   const [otherSetupTarget, setOtherSetupTarget] = useState(null);
@@ -570,8 +570,40 @@ const CustomizedEditor = () => {
     };
     const key = `customized_editor_setup_${v_id || 'default'}`;
     localStorage.setItem(key, JSON.stringify(settings));
-    saveToDB(key, settings);
-  }, [menuBarSettings, otherSetupSettings, visibilitySettings, leadFormSettings]);
+
+    if (v_id && isDataLoaded) {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          const updatedShare = {
+            ...(shareSettings || {}),
+            access: visibilitySettings?.type || 'Public',
+            password: visibilitySettings?.password || '',
+            accessKey: visibilitySettings?.accessKey || '',
+            isPasswordSaved: Boolean(visibilitySettings?.isPasswordSaved),
+            inviteOnly: visibilitySettings?.inviteOnly || {}
+          };
+          axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+            emailId: user.emailId,
+            v_id: v_id,
+            folderName: folder || 'Recent Book',
+            bookName: v_id,
+            newName: bookName,
+            share: updatedShare,
+            settings: settings
+          }).then((res) => {
+            if (res.data?.share) {
+              setShareSettings(res.data.share);
+            }
+          }).catch(err => console.error("Visibility auto-save failed:", err));
+        } catch (e) {
+          console.error("User parse error in visibility auto-save", e);
+        }
+      }
+    }
+  }, [menuBarSettings, otherSetupSettings, visibilitySettings, leadFormSettings, isDataLoaded, v_id, folder, bookName]);
 
   // Save Branding Logic
   useEffect(() => {
@@ -609,6 +641,14 @@ const CustomizedEditor = () => {
         folderName: folder,
         bookName: v_id,
         newName: bookName,
+        share: {
+          ...(shareSettings || {}),
+          access: visibilitySettings?.type || 'Public',
+          password: visibilitySettings?.password || '',
+          accessKey: visibilitySettings?.accessKey || '',
+          isPasswordSaved: Boolean(visibilitySettings?.isPasswordSaved),
+          inviteOnly: visibilitySettings?.inviteOnly || {}
+        },
         settings: {
           logo: logoSettings,
           profile: profileSettings,
@@ -625,6 +665,7 @@ const CustomizedEditor = () => {
       };
 
       await axios.post(`${backendUrl}/api/flipbook/update-settings`, payload);
+      setShareSettings(payload.share);
 
       if (setHasUnsavedChanges) {
         setHasUnsavedChanges(false);
@@ -686,34 +727,57 @@ const CustomizedEditor = () => {
   const handlePreviewRef = useRef(handlePreview);
   handlePreviewRef.current = handlePreview;
   const stablePreviewHandler = useCallback(() => handlePreviewRef.current?.(), []);
+  const handleClearAllPages = useCallback(() => {
+    const defaultW = currentBook?.width || 210;
+    const defaultH = currentBook?.height || 297;
+    setPages(prevPages => 
+      prevPages.map((p, i) => {
+        const blankSvg = createDefaultPageData(p.name || `Page ${i + 1}`, defaultW, defaultH);
+        return {
+          ...p,
+          content: blankSvg,
+          html: blankSvg
+        };
+      })
+    );
+    if (setHasUnsavedChanges) setHasUnsavedChanges(true);
+  }, [currentBook, setHasUnsavedChanges]);
 
   // Export/Save Handlers for Context (Registration)
   useEffect(() => {
     if (setExportHandler) setExportHandler(() => stableExportHandler);
     if (setSaveHandler) setSaveHandler(() => stableSaveHandler);
     if (setPreviewHandler) setPreviewHandler(() => stablePreviewHandler);
+    if (setClearHandler) setClearHandler(() => handleClearAllPages);
+
+    window.addEventListener('trigger-clear-flipbook', handleClearAllPages);
 
     return () => {
       if (setExportHandler) setExportHandler(null);
       if (setSaveHandler) setSaveHandler(null);
       if (setPreviewHandler) setPreviewHandler(null);
+      if (setClearHandler) setClearHandler(null);
+      window.removeEventListener('trigger-clear-flipbook', handleClearAllPages);
     };
-  }, [setExportHandler, setSaveHandler, setPreviewHandler, stableSaveHandler, stableExportHandler, stablePreviewHandler]);
+  }, [setExportHandler, setSaveHandler, setPreviewHandler, setClearHandler, stableSaveHandler, stableExportHandler, stablePreviewHandler, handleClearAllPages]);
 
   // Sync Current Book to Navbar
   useEffect(() => {
     if (setCurrentBook) {
-      // Use flipbookName to match TemplateEditor's expected key
-      // Merge with previous state to avoid losing other metadata
       setCurrentBook(prev => ({
         ...(prev || {}),
         folder: folder,
         flipbookName: bookName,
         v_id: v_id,
-        share: shareSettings
+        share: shareSettings,
+        pages: pages,
+        settings: {
+          ...(prev?.settings || {}),
+          visibility: visibilitySettings
+        }
       }));
     }
-  }, [setCurrentBook, folder, v_id, bookName, shareSettings]);
+  }, [setCurrentBook, folder, v_id, bookName, shareSettings, pages, visibilitySettings]);
 
   const [isLoading, setIsLoading] = useState(true);
   const initialLoadRef = useRef(true);
@@ -947,6 +1011,33 @@ const CustomizedEditor = () => {
             }
             setShareSettings(shareData);
 
+            if (shareData) {
+              setVisibilitySettings(prev => ({
+                ...prev,
+                type: shareData.access || prev.type || 'Public',
+                password: shareData.password || prev.password || '',
+                accessKey: shareData.accessKey || prev.accessKey || '',
+                isPasswordSaved: shareData.isPasswordSaved !== undefined ? shareData.isPasswordSaved : prev.isPasswordSaved,
+                inviteOnly: shareData.inviteOnly || prev.inviteOnly || {}
+              }));
+            }
+
+            if (setCurrentBook) {
+              setCurrentBook(prev => ({
+                ...(prev || {}),
+                isPublished: res.data.isPublished !== undefined ? Boolean(res.data.isPublished) : Boolean(res.data.meta?.isPublished),
+                flipbookName: res.data.meta?.flipbookName || res.data.name || prev?.flipbookName,
+                quotes: res.data.quotes || res.data.meta?.quotes || prev?.quotes || '',
+                about: res.data.about || res.data.meta?.about || prev?.about || '',
+                category: res.data.category || res.data.meta?.category || prev?.category || 'Product Based',
+                language: res.data.language || res.data.meta?.language || prev?.language || 'English',
+                tags: res.data.tags || res.data.meta?.tags || prev?.tags || [],
+                meta: {
+                  ...(prev?.meta || {}),
+                  ...(res.data.meta || {})
+                }
+              }));
+            }
           }
         } catch (err) {
           console.error("CustomizedEditor: Failed to fetch flipbook", err);
@@ -1063,6 +1154,7 @@ const CustomizedEditor = () => {
             onBack={handleBack}
             settings={visibilitySettings}
             onUpdate={setVisibilitySettings}
+            bookName={bookName}
           />
         );
       case 'statistic':
@@ -1137,6 +1229,8 @@ const CustomizedEditor = () => {
             visibilitySettings={visibilitySettings}
             onUpdateVisibility={setVisibilitySettings}
             onPreview={stablePreviewHandler}
+            currentBook={currentBook}
+            setCurrentBook={setCurrentBook}
           />
         </div>
 

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import ExportModal from '../components/ExportModal';
+import PublishModal from '../components/PublishModal';
+import AlertModal from '../components/AlertModal';
 import axios from 'axios';
 
 import { getFromDB, saveToDB } from '../utils/dbUtils';
@@ -65,9 +67,11 @@ const Editor = () => {
     }
   };
 
+  const navigate = useNavigate();
   const [exportHandler, setExportHandler] = useState(null);
   const [saveHandler, setSaveHandler] = useState(null);
   const [previewHandler, setPreviewHandler] = useState(null);
+  const [clearHandler, setClearHandler] = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [canSave, setCanSave] = useState(true);
   const [currentBook, setCurrentBook] = useState(null);
@@ -108,9 +112,117 @@ const Editor = () => {
     }
   };
 
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [isUnpublishWarningOpen, setIsUnpublishWarningOpen] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
+
   const handlePublish = () => {
-    console.log("Publishing project...");
-    // Add publish logic here
+    const isBookPublished = Boolean(
+      currentBook?.isPublished || 
+      currentBook?.published || 
+      currentBook?.is_published || 
+      currentBook?.status === 'publish' ||
+      currentBook?.status === 'published' ||
+      currentBook?.meta?.isPublished
+    );
+
+    if (isBookPublished) {
+      setIsUnpublishWarningOpen(true);
+    } else {
+      setIsPublishModalOpen(true);
+    }
+  };
+
+  const confirmUnpublish = async () => {
+    setIsUnpublishing(true);
+    try {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const v_id = currentBook?.v_id || currentBook?.realName;
+      const userEmail = user?.emailId || currentBook?.userEmail;
+
+      if (userEmail && v_id) {
+        await axios.post(`${backendUrl}/api/flipbook/unpublish`, {
+          emailId: userEmail,
+          v_id: v_id
+        });
+      }
+      setCurrentBook(prev => ({
+        ...(prev || {}),
+        isPublished: false,
+        tags: [],
+        meta: {
+          ...(prev?.meta || {}),
+          tags: [],
+          isPublished: false
+        }
+      }));
+    } catch (err) {
+      console.error("Failed to unpublish flipbook:", err);
+    } finally {
+      setIsUnpublishing(false);
+      setIsUnpublishWarningOpen(false);
+    }
+  };
+
+  const [isClearWarningOpen, setIsClearWarningOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleClearFlipbook = () => {
+    setIsClearWarningOpen(true);
+  };
+
+  const confirmClear = async () => {
+    setIsClearing(true);
+    try {
+      if (clearHandler) {
+        clearHandler();
+      } else {
+        window.dispatchEvent(new CustomEvent('trigger-clear-flipbook'));
+      }
+    } catch (err) {
+      console.error("Failed to clear flipbook:", err);
+    } finally {
+      setIsClearing(false);
+      setIsClearWarningOpen(false);
+    }
+  };
+
+  const handleDeleteFlipbook = () => {
+    setIsDeleteWarningOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const emailId = user?.emailId || currentBook?.userEmail;
+
+      const pathParts = window.location.pathname.split('/');
+      const folderName = currentBook?.folder || currentBook?.folderName || (pathParts.length >= 4 ? decodeURIComponent(pathParts[3]) : 'My_Flipbooks');
+      const bookName = currentBook?.flipbookName || currentBook?.realName || currentBook?.title || (pathParts.length >= 5 ? decodeURIComponent(pathParts[4]) : '');
+
+      if (emailId && bookName) {
+        await axios.delete(`${backendUrl}/api/flipbook/delete`, {
+          data: {
+            emailId: emailId,
+            folderName: Array.isArray(folderName) ? folderName[0] : folderName,
+            bookName: bookName
+          }
+        });
+      }
+      navigate('/my-flipbooks');
+    } catch (err) {
+      console.error("Failed to delete flipbook:", err);
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteWarningOpen(false);
+    }
   };
 
   // 3D Editor Persistence State
@@ -223,6 +335,7 @@ const Editor = () => {
     setExportHandler, 
     setSaveHandler,
     setPreviewHandler,
+    setClearHandler,
     hasUnsavedChanges,
     setHasUnsavedChanges,
     canSave,
@@ -257,6 +370,8 @@ const Editor = () => {
         onSave={handleSave}
         onPreview={handlePreview}
         onPublish={handlePublish}
+        onClearFlipbook={handleClearFlipbook}
+        onDeleteFlipbook={handleDeleteFlipbook}
         hasUnsavedChanges={hasUnsavedChanges}
         canSave={canSave}
         saveSuccessInfo={saveSuccessInfo}
@@ -278,6 +393,62 @@ const Editor = () => {
         currentBook={currentBook}
         pages={exportContext.pages}
         currentPageIndex={exportContext.activePageIndex}
+      />
+
+      {/* Publish Modal */}
+      <PublishModal 
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+        currentBook={currentBook}
+        onPublishSuccess={(data) => {
+          setCurrentBook(prev => ({
+            ...(prev || {}),
+            ...(data || {}),
+            isPublished: true
+          }));
+        }}
+      />
+
+      {/* Unpublish Warning Modal */}
+      <AlertModal 
+        isOpen={isUnpublishWarningOpen}
+        onClose={() => setIsUnpublishWarningOpen(false)}
+        onConfirm={confirmUnpublish}
+        type="warning"
+        title="Unpublish Flipbook"
+        message="Are you sure you want to unpublish this flipbook? Unpublishing will clear all tags."
+        showCancel={true}
+        confirmText="Yes, Unpublish"
+        cancelText="Cancel"
+        isLoading={isUnpublishing}
+      />
+
+      {/* Clear Warning Modal */}
+      <AlertModal 
+        isOpen={isClearWarningOpen}
+        onClose={() => setIsClearWarningOpen(false)}
+        onConfirm={confirmClear}
+        type="warning"
+        title="Clear Flipbook"
+        message="Are you sure you want to clear all page content from this flipbook? All page elements will be reset."
+        showCancel={true}
+        confirmText="Yes, Clear"
+        cancelText="Cancel"
+        isLoading={isClearing}
+      />
+
+      {/* Delete Warning Modal */}
+      <AlertModal 
+        isOpen={isDeleteWarningOpen}
+        onClose={() => setIsDeleteWarningOpen(false)}
+        onConfirm={confirmDelete}
+        type="error"
+        title="Delete Flipbook"
+        message="Are you sure you want to delete this flipbook? This action cannot be undone."
+        showCancel={true}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        isLoading={isDeleting}
       />
     </div>
   );

@@ -1043,7 +1043,9 @@ router.get("/list", async (req, res) => {
         size: formatSize(totalSize),
         image: firstImageAssetMap.get(doc.v_id) || null,
         mtime: doc.lastUpdated || doc.createdAt,
-        share: doc.share || null,
+        share: doc.Customized_Settings?.Visibility || doc.share || null,
+        Visibility: doc.Customized_Settings?.Visibility || doc.share || null,
+        isPublished: Boolean(doc.isPublished),
       });
     }
 
@@ -1075,7 +1077,9 @@ router.get("/list", async (req, res) => {
         size: formatSize(bookSizeMap.get(doc.v_id) || 0),
         image: firstImageAssetMap.get(doc.v_id) || null,
         mtime: doc.lastUpdated || doc.createdAt,
-        share: doc.share || null,
+        share: doc.Customized_Settings?.Visibility || doc.share || null,
+        Visibility: doc.Customized_Settings?.Visibility || doc.share || null,
+        isPublished: Boolean(doc.isPublished),
       };
     });
 
@@ -1342,10 +1346,17 @@ router.post("/folder/duplicate", async (req, res) => {
         flipbookName: newBookName,
         pages: newPages,
         v_id: newVId,
-        settings: doc.settings,
+        Customized_Settings: {
+          ...(doc.Customized_Settings || doc.settings || {}),
+          Visibility: {
+            shareId: nanoid(12),
+            access: doc.Customized_Settings?.Visibility?.access || doc.share?.access || 'public'
+          }
+        },
+        settings: doc.Customized_Settings || doc.settings || {},
         share: {
           shareId: nanoid(12),
-          access: doc.share?.access || 'public'
+          access: doc.Customized_Settings?.Visibility?.access || doc.share?.access || 'public'
         },
         lastUpdated: new Date(),
       });
@@ -1460,10 +1471,17 @@ router.post("/duplicate", async (req, res) => {
         flipbookName: copyName,
         pages: newPages,
         v_id: newFlipbookVId,
-        settings: sourceDoc.settings || {},
+        Customized_Settings: {
+          ...(sourceDoc.Customized_Settings || sourceDoc.settings || {}),
+          Visibility: {
+            shareId: nanoid(12),
+            access: sourceDoc.Customized_Settings?.Visibility?.access || sourceDoc.share?.access || 'public'
+          }
+        },
+        settings: sourceDoc.Customized_Settings || sourceDoc.settings || {},
         share: {
           shareId: nanoid(12),
-          access: sourceDoc.share?.access || 'public'
+          access: sourceDoc.Customized_Settings?.Visibility?.access || sourceDoc.share?.access || 'public'
         },
         lastUpdated: new Date(),
       });
@@ -1691,15 +1709,16 @@ router.get("/get", async (req, res) => {
       }));
     }
 
-    // Ensure shareId exists (Auto-heal for legacy data)
-    let finalShare = dbBook ? dbBook.share : {};
+    // Ensure shareId / Visibility exists (Auto-heal for legacy data)
+    let finalVisibility = dbBook ? (dbBook.Customized_Settings?.Visibility || dbBook.share) : {};
     if (dbBook) {
-      if (!dbBook.share || !dbBook.share.shareId) {
-        finalShare = {
-          shareId: dbBook.share?.shareId || nanoid(12),
-          access: dbBook.share?.access || 'public'
+      if (!finalVisibility || !finalVisibility.shareId) {
+        finalVisibility = {
+          shareId: finalVisibility?.shareId || nanoid(12),
+          access: finalVisibility?.access || 'public'
         };
-        dbBook.set('share', finalShare);
+        dbBook.set('Customized_Settings.Visibility', finalVisibility);
+        dbBook.set('share', finalVisibility);
         try {
           await dbBook.save();
         } catch (saveErr) {
@@ -1709,15 +1728,26 @@ router.get("/get", async (req, res) => {
     }
 
     const docMeta = dbBook?.meta || {};
-    const docWidth = dbBook?.width || docMeta.width || dbBook?.settings?.width;
-    const docHeight = dbBook?.height || docMeta.height || dbBook?.settings?.height;
-    const docTemplateId = dbBook?.templateId || docMeta.templateId || dbBook?.settings?.templateId;
-    const docOrientation = dbBook?.orientation || docMeta.orientation || dbBook?.settings?.orientation;
+    const rawSettings = dbBook ? (dbBook.Customized_Settings || dbBook.settings || {}) : {};
+    const docSettings = { ...rawSettings };
+    delete docSettings.visibility;
+    const docWidth = dbBook?.width || docMeta.width || docSettings?.width;
+    const docHeight = dbBook?.height || docMeta.height || docSettings?.height;
+    const docTemplateId = dbBook?.templateId || docMeta.templateId || docSettings?.templateId;
+    const docOrientation = dbBook?.orientation || docMeta.orientation || docSettings?.orientation;
 
     res.json({
       pages,
-      settings: dbBook ? (dbBook.settings || {}) : {},
-      share: finalShare,
+      Customized_Settings: docSettings,
+      settings: docSettings,
+      Visibility: finalVisibility,
+      share: finalVisibility,
+      isPublished: dbBook ? Boolean(dbBook.isPublished) : false,
+      quotes: dbBook?.quotes || docMeta.quotes || "",
+      about: dbBook?.about || docMeta.about || "",
+      category: dbBook?.category || docMeta.category || "Product Based",
+      language: dbBook?.language || docMeta.language || "English",
+      tags: dbBook?.tags || docMeta.tags || [],
       meta: {
         ...docMeta,
         flipbookName: effectiveBookName,
@@ -1727,6 +1757,12 @@ router.get("/get", async (req, res) => {
         height: docHeight,
         templateId: docTemplateId,
         orientation: docOrientation,
+        isPublished: dbBook ? Boolean(dbBook.isPublished) : false,
+        quotes: dbBook?.quotes || docMeta.quotes || "",
+        about: dbBook?.about || docMeta.about || "",
+        category: dbBook?.category || docMeta.category || "Product Based",
+        language: dbBook?.language || docMeta.language || "English",
+        tags: dbBook?.tags || docMeta.tags || [],
         baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
       },
     });
@@ -1740,20 +1776,75 @@ router.get("/get", async (req, res) => {
 // @desc    Update flipbook settings (branding, appearance, etc.)
 router.post("/update-settings", async (req, res) => {
   try {
-    const { emailId, v_id, settings, newName, share, meta, width, height, templateId, orientation } = req.body;
+    const { emailId, v_id, settings, Customized_Settings, newName, share, Visibility, meta, width, height, templateId, orientation, category, language, tags, quotes, about } = req.body;
     if (!emailId || !v_id) {
       return res.status(400).json({ message: "Missing emailId or v_id" });
     }
 
+    const existingDoc = await Flipbook.findOne({ userEmail: emailId, v_id: v_id });
     const updateData = {};
-    if (settings) updateData.settings = settings;
+
+    const incomingSettings = Customized_Settings || settings;
+    const incomingVis = Visibility || share;
+
+    if (incomingSettings || incomingVis) {
+      const currentSettings = existingDoc?.Customized_Settings || existingDoc?.settings || {};
+      const currentVis = currentSettings.Visibility || existingDoc?.share || {};
+
+      let finalVis = currentVis;
+      if (incomingVis) {
+        finalVis = {
+          ...currentVis,
+          ...incomingVis,
+          shareId: incomingVis.shareId || currentVis.shareId || nanoid(12)
+        };
+      }
+
+      const cleanIncoming = { ...(incomingSettings || {}) };
+      delete cleanIncoming.visibility;
+      delete cleanIncoming.Visibility;
+
+      const cleanCurrent = { ...(currentSettings || {}) };
+      delete cleanCurrent.visibility;
+      delete cleanCurrent.Visibility;
+
+      const mergedCustomizedSettings = {
+        ...cleanCurrent,
+        ...cleanIncoming,
+        Visibility: finalVis
+      };
+
+      updateData.Customized_Settings = mergedCustomizedSettings;
+      updateData.settings = mergedCustomizedSettings;
+      updateData.share = finalVis;
+    }
+
     if (newName) updateData.flipbookName = newName;
-    if (share) updateData.share = share;
-    if (meta) updateData.meta = meta;
     if (width) updateData.width = Number(width);
     if (height) updateData.height = Number(height);
     if (templateId) updateData.templateId = templateId;
     if (orientation) updateData.orientation = orientation;
+
+    if (category) updateData.category = category;
+    if (language) updateData.language = language;
+    if (tags) updateData.tags = tags;
+    if (quotes !== undefined) updateData.quotes = quotes;
+    if (about !== undefined) updateData.about = about;
+
+    // Merge meta safely
+    if (meta || category || language || tags || quotes !== undefined || about !== undefined) {
+      const currentMeta = existingDoc?.meta || {};
+      updateData.meta = {
+        ...currentMeta,
+        ...(meta || {}),
+        ...(category ? { category } : {}),
+        ...(language ? { language } : {}),
+        ...(tags ? { tags } : {}),
+        ...(quotes !== undefined ? { quotes } : {}),
+        ...(about !== undefined ? { about } : {})
+      };
+    }
+
     updateData.lastUpdated = new Date();
 
     const updatedDoc = await Flipbook.findOneAndUpdate(
@@ -1766,123 +1857,198 @@ router.post("/update-settings", async (req, res) => {
       return res.status(404).json({ message: "Flipbook not found" });
     }
 
-    res.json({ message: "Settings updated", v_id: updatedDoc.v_id });
+    const activeVis = updatedDoc.Customized_Settings?.Visibility || updatedDoc.share;
+    res.json({
+      message: "Settings updated",
+      v_id: updatedDoc.v_id,
+      Visibility: activeVis,
+      share: activeVis,
+      Customized_Settings: updatedDoc.Customized_Settings || updatedDoc.settings
+    });
   } catch (err) {
     console.error("Error updating settings:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// @route   GET /api/flipbook/public/get/:v_id
+// @route   POST /api/flipbook/publish
+// @desc    Publish a flipbook with category, language, tags & quotes
+router.post('/publish', async (req, res) => {
+  try {
+    const { emailId, v_id, bookName, category, language, tags, quotes } = req.body;
+    if (!emailId || !v_id) {
+      return res.status(400).json({ message: "Missing emailId or v_id" });
+    }
+
+    const updateData = {
+      isPublished: true,
+      lastUpdated: new Date(),
+      'meta.publishedAt': new Date()
+    };
+
+    if (bookName) updateData.flipbookName = bookName;
+    if (category) updateData['meta.category'] = category;
+    if (language) updateData['meta.language'] = language;
+    if (tags) updateData['meta.tags'] = tags;
+    if (quotes !== undefined) updateData['meta.quotes'] = quotes;
+
+    const updatedDoc = await Flipbook.findOneAndUpdate(
+      { userEmail: emailId, v_id: v_id },
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!updatedDoc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    res.json({ message: "Flipbook published successfully", flipbook: updatedDoc });
+  } catch (err) {
+    console.error("Error publishing flipbook:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   POST /api/flipbook/unpublish
+// @desc    Unpublish a flipbook
+router.post('/unpublish', async (req, res) => {
+  try {
+    const { emailId, v_id } = req.body;
+    if (!emailId || !v_id) {
+      return res.status(400).json({ message: "Missing emailId or v_id" });
+    }
+
+    const updatedDoc = await Flipbook.findOneAndUpdate(
+      { userEmail: emailId, v_id: v_id },
+      { $set: { isPublished: false, tags: [], 'meta.tags': [], lastUpdated: new Date() } },
+      { new: true }
+    );
+
+    if (!updatedDoc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    res.json({ message: "Flipbook unpublished successfully", flipbook: updatedDoc });
+  } catch (err) {
+    console.error("Error unpublishing flipbook:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   GET /api/flipbook/public/get/:shareId
 // @desc    Get specific flipbook content publicly for sharing
 router.get("/public/get/:shareId", async (req, res) => {
   try {
     const { shareId } = req.params;
     if (!shareId) return res.status(400).json({ message: "Missing shareId" });
 
-    // Find by the new dedicated shareId
-    const dbDoc = await Flipbook.findOne({ "share.shareId": shareId });
+    // Find by shareId inside Customized_Settings.Visibility or legacy share
+    const dbDoc = await Flipbook.findOne({
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId }
+      ]
+    });
     if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
 
-    // Check if the flipbook is private (allow access if requested by the book owner)
+    const vis = dbDoc.Customized_Settings?.Visibility || dbDoc.share || {};
+
     const reqEmail = req.query.emailId;
-    if (dbDoc.share?.access === 'private' && (!reqEmail || reqEmail !== dbDoc.userEmail)) {
-      return res.status(403).json({ message: "This flipbook is private" });
+    const isOwner = reqEmail && reqEmail === dbDoc.userEmail;
+
+    // Publication check (Owner can view unpublished, public users cannot)
+    if (!isOwner && dbDoc.isPublished === false) {
+      return res.status(403).json({
+        message: "This flipbook is unpublished.",
+        isUnpublished: true
+      });
     }
 
-    const emailId = dbDoc.userEmail;
-    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    
-    const folders = Array.isArray(dbDoc.folderName) ? dbDoc.folderName : [dbDoc.folderName];
-    const realFolder = folders.find(f => f !== 'Recent Book' && f !== 'Recent book');
-    const effectiveFolderName = realFolder || folders[0] || "Recent Book";
+    // Check visibility access controls
+    const accessMode = (vis.access || 'public').toLowerCase();
+    const reqPassword = req.query.password;
+    const reqAccessKey = req.query.accessKey;
 
-    const bookPath = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-      effectiveFolderName,
-      dbDoc.flipbookName,
-    );
+    // 1. Private access check
+    if (accessMode === 'private' && (!reqEmail || reqEmail !== dbDoc.userEmail)) {
+      return res.status(403).json({ message: "This flipbook is private", isPrivate: true });
+    }
 
-    console.log(`[PublicGet] v_id: ${dbDoc.v_id}, effectiveFolderName: ${effectiveFolderName}, bookPath: ${bookPath}`);
-
-    // AUTO-HEAL: If DB has no pages but files exist on disk, populate it
-    if (!dbDoc.pages || dbDoc.pages.length === 0) {
-      if (fs.existsSync(bookPath)) {
-        try {
-          const files = await fs.promises.readdir(bookPath);
-          const svgFiles = files.filter(f => f.endsWith('.svg') || f.endsWith('.html')).sort((a, b) => {
-            const aNum = parseInt(a.match(/\d+/)?.[0] || 0);
-            const bNum = parseInt(b.match(/\d+/)?.[0] || 0);
-            return aNum - bNum;
+    // 2. Password Protect access check
+    if (accessMode === 'password' || accessMode === 'password protect') {
+      const isOwner = reqEmail && reqEmail === dbDoc.userEmail;
+      if (!isOwner) {
+        const passwordMatches = reqPassword && reqPassword === vis.password;
+        const keyMatches = reqAccessKey && reqAccessKey === vis.accessKey;
+        if (!passwordMatches && !keyMatches) {
+          return res.status(401).json({
+            message: "Password or Access Key required",
+            isPasswordProtected: true,
+            bookName: dbDoc.flipbookName
           });
-
-          if (svgFiles.length > 0) {
-            const autoHealedPages = svgFiles.map((fileName, idx) => ({
-              pageNumber: idx + 1,
-              name: `Page ${idx + 1}`,
-              fileName: fileName,
-              v_id: `page_${nanoid(8)}`
-            }));
-
-            dbDoc.pages = autoHealedPages;
-            await dbDoc.save();
-          }
-        } catch (e) {
-          console.error(`[PublicGet] Auto-heal failed for v_id: ${dbDoc.v_id}`, e);
         }
       }
     }
 
-    // Sort and read pages from Supabase Storage (fallback to local disk)
-    dbDoc.pages.sort((a, b) => a.pageNumber - b.pageNumber);
-    const flipbookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${dbDoc.flipbookName}`;
+    // 3. Invite Only Access check
+    if (accessMode === 'invite_only' || accessMode === 'invite only access') {
+      const isOwner = reqEmail && reqEmail === dbDoc.userEmail;
+      if (!isOwner) {
+        const allowedEmails = (vis.inviteOnly?.emails || []).map(e => (e.email || e).toLowerCase());
+        const allowedDomains = (vis.inviteOnly?.domains || []).map(d => (d.domain || d).toLowerCase());
+        
+        const userEmailLower = (reqEmail || '').toLowerCase();
+        const userDomainLower = userEmailLower.includes('@') ? userEmailLower.split('@')[1] : '';
 
-    const pagePromises = dbDoc.pages.map(async (p) => {
-      try {
-        const supabasePath = `${flipbookPrefix}/${p.fileName}`;
-        let buf = await downloadFileFromSupabase(supabasePath);
+        const isEmailAllowed = allowedEmails.includes(userEmailLower);
+        const isDomainAllowed = allowedDomains.some(dom => userDomainLower === dom || userDomainLower.endsWith('.' + dom));
 
-        if (!buf || buf.length === 0) {
-          const filePath = path.join(bookPath, p.fileName);
-          if (fs.existsSync(filePath)) {
-            buf = await fs.promises.readFile(filePath);
-          }
+        if (!userEmailLower || (!isEmailAllowed && !isDomainAllowed)) {
+          return res.status(403).json({ message: "Invite only access required", isInviteOnly: true });
         }
+      }
+    }
 
-        const content = buf ? rewriteUploadsToSupabase(buf.toString("utf8"), flipbookPrefix) : "";
-        return { name: p.name, html: content, v_id: p.v_id };
+    // Fetch pages
+    const sanitizedEmail = dbDoc.userEmail.replace(/[@.]/g, "_");
+    const realFolderName = Array.isArray(dbDoc.folderName)
+      ? dbDoc.folderName.find(f => f !== "Recent Book") || "My_Flipbooks"
+      : dbDoc.folderName;
+
+    const pagePromises = (dbDoc.pages || []).map(async (p) => {
+      try {
+        const filePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolderName}/${dbDoc.flipbookName}/${p.fileName}`;
+        const content = await getFileFromSupabase(filePath);
+        return {
+          id: p.pageNumber,
+          name: p.name,
+          html: content || "",
+          v_id: p.v_id,
+        };
       } catch (e) {
         return null;
       }
     });
-    const pages = (await Promise.all(pagePromises)).filter(Boolean);
 
-    const docMeta = dbDoc?.meta || {};
-    const docWidth = dbDoc?.width || docMeta.width || dbDoc?.settings?.width;
-    const docHeight = dbDoc?.height || docMeta.height || dbDoc?.settings?.height;
-    const docTemplateId = dbDoc?.templateId || docMeta.templateId || dbDoc?.settings?.templateId;
-    const docOrientation = dbDoc?.orientation || docMeta.orientation || dbDoc?.settings?.orientation;
+    const pages = (await Promise.all(pagePromises)).filter(Boolean);
+    const docMeta = dbDoc.meta || {};
+    const docSettings = dbDoc.Customized_Settings || dbDoc.settings || {};
 
     res.json({
+      v_id: dbDoc.v_id,
+      flipbookName: dbDoc.flipbookName,
+      folderName: realFolderName,
+      userEmail: dbDoc.userEmail,
       pages,
-      settings: dbDoc.settings || {},
-      meta: {
-        ...docMeta,
-        flipbookName: dbDoc.flipbookName,
-        folderName: effectiveFolderName,
-        v_id: dbDoc.v_id,
-        width: docWidth,
-        height: docHeight,
-        templateId: docTemplateId,
-        orientation: docOrientation,
-        baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${dbDoc.flipbookName}/`
-      },
+      Customized_Settings: docSettings,
+      settings: docSettings,
+      Visibility: vis,
+      share: vis,
+      isPublished: Boolean(dbDoc.isPublished),
+      meta: docMeta,
     });
   } catch (err) {
-    console.error("Error in public/get:", err);
+    console.error("Error in /public/get:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1896,7 +2062,12 @@ router.get("/check-owner/:shareId", async (req, res) => {
     
     if (!shareId || !emailId) return res.status(400).json({ message: "Missing shareId or emailId" });
 
-    const dbDoc = await Flipbook.findOne({ "share.shareId": shareId });
+    const dbDoc = await Flipbook.findOne({
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId }
+      ]
+    });
     if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
 
     if (dbDoc.userEmail !== emailId) {
@@ -1906,6 +2077,72 @@ router.get("/check-owner/:shareId", async (req, res) => {
     res.json({ message: "Authorized", isOwner: true });
   } catch (err) {
     console.error("Error in check-owner:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   POST /api/flipbook/public/verify-password
+// @desc    Verify password or accessKey for a password-protected flipbook
+router.post("/public/verify-password", async (req, res) => {
+  try {
+    const { shareId, password, accessKey } = req.body;
+    if (!shareId) return res.status(400).json({ message: "Missing shareId" });
+
+    const dbDoc = await Flipbook.findOne({
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId }
+      ]
+    });
+    if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
+
+    const vis = dbDoc.Customized_Settings?.Visibility || dbDoc.share || {};
+    const passwordMatches = password && password === vis.password;
+    const keyMatches = accessKey && accessKey === vis.accessKey;
+
+    if (passwordMatches || keyMatches) {
+      return res.json({ success: true, message: "Verification successful" });
+    }
+
+    return res.status(401).json({ success: false, message: "Invalid password or access key" });
+  } catch (err) {
+    console.error("Error verifying password:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   POST /api/flipbook/public/verify-invite
+// @desc    Verify if user email or domain is allowed for an invite-only flipbook
+router.post("/public/verify-invite", async (req, res) => {
+  try {
+    const { shareId, email } = req.body;
+    if (!shareId || !email) return res.status(400).json({ message: "Missing shareId or email" });
+
+    const dbDoc = await Flipbook.findOne({
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId }
+      ]
+    });
+    if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
+
+    const vis = dbDoc.Customized_Settings?.Visibility || dbDoc.share || {};
+    const userEmailLower = email.trim().toLowerCase();
+    const userDomainLower = userEmailLower.includes('@') ? userEmailLower.split('@')[1] : '';
+
+    const allowedEmails = (vis.inviteOnly?.emails || []).map(e => (e.email || e).toLowerCase());
+    const allowedDomains = (vis.inviteOnly?.domains || []).map(d => (d.domain || d).toLowerCase());
+
+    const isEmailAllowed = allowedEmails.includes(userEmailLower);
+    const isDomainAllowed = allowedDomains.some(dom => userDomainLower === dom || userDomainLower.endsWith('.' + dom));
+
+    if (isEmailAllowed || isDomainAllowed) {
+      return res.json({ success: true, message: "Invite access verified" });
+    }
+
+    return res.status(403).json({ success: false, message: "Your email or domain is not authorized to view this flipbook" });
+  } catch (err) {
+    console.error("Error verifying invite:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
