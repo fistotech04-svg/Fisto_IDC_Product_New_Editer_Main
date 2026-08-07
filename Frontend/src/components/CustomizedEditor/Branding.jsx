@@ -156,7 +156,7 @@ const Branding = ({ type = 'logo', logoSettings, onUpdateLogo, profileSettings, 
       <div className="h-[8vh] flex items-center justify-between px-[1vw] border-b border-gray-100">
         <div className="flex items-center gap-[0.5vw]">
           <Icon icon="lucide:gem" className="w-[1vw] h-[1vw] text-gray-700 font-semibold" />
-          <span className="text-[1vw] font-semibold text-gray-900">Logo</span>
+          <span className="text-[1vw] font-semibold text-gray-900">Branding</span>
         </div>
         <button onClick={onBack} className="text-gray-600 hover:text-gray-900">
           <Icon icon="ic:round-arrow-back" className="w-[1.25vw] h-[1.25vw]" />

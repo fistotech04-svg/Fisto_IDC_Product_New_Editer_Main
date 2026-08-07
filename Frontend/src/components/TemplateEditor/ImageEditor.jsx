@@ -3164,8 +3164,8 @@ const ImageEditor = ({
                     el.removeAttribute('data-is-slideshow');
                     el.removeAttribute('data-slideshow');
                     el.removeAttribute('data-active-index');
-                    el.removeAttribute('data-slideshow-manual');
-                    el.removeAttribute('data-last-slide-time');
+                    el._slideshowManual = false;
+                    delete el._lastSlideTime;
                     if (el.dataset) {
                       delete el.dataset.slideshowInitialized;
                     }
@@ -3284,8 +3284,8 @@ const ImageEditor = ({
                           el.removeAttribute('data-is-slideshow');
                           el.removeAttribute('data-slideshow');
                           el.removeAttribute('data-active-index');
-                          el.removeAttribute('data-slideshow-manual');
-                          el.removeAttribute('data-last-slide-time');
+                          el._slideshowManual = false;
+                          delete el._lastSlideTime;
                           if (el.dataset) {
                             delete el.dataset.slideshowInitialized;
                           }

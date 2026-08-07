@@ -378,7 +378,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                   onClick={onClose}
                 >
                   <Icon
-                    icon="famicons:exit-outline"
+                    icon="lucide:log-out"
                     className={`w-[1.7vw] h-[1.7vw] transition-transform duration-300 ${draggerTabLeft < 10 ? 'rotate-0' : 'rotate-180'}`}
                   />
                 </button>
@@ -498,7 +498,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                   onClick={(e) => { e.stopPropagation(); onClose(); }}
                 >
                   <Icon
-                    icon="famicons:exit-outline"
+                    icon="lucide:log-out"
                     className={`w-[1.7vw] h-[1.7vw] transition-transform duration-300 ${draggerTabLeft < 10 ? 'rotate-0' : 'rotate-180'}`}
                   />
                 </button>

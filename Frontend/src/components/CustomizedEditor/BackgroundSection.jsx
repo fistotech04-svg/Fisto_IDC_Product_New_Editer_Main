@@ -259,6 +259,26 @@ const BackgroundSection = ({
   const [showBgCropOverlay, setShowBgCropOverlay] = useState(false);
   const galleryInputRef = useRef(null);
 
+  const handleEyeDropper = async () => {
+    if (!window.EyeDropper) return;
+    const eyeDropper = new window.EyeDropper();
+    try {
+      const result = await eyeDropper.open();
+      const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
+      let newOpacity = 100;
+      if (colorStr && colorStr.length === 9) {
+        newOpacity = Math.round((parseInt(colorStr.slice(7, 9), 16) / 255) * 100);
+      }
+      let alphaHex = '';
+      if (newOpacity < 100) {
+        alphaHex = Math.round((newOpacity / 100) * 255).toString(16).padStart(2, '0').toUpperCase();
+      }
+      onUpdateBackground({ ...backgroundSettings, style: 'Solid', color: result.sRGBHex.toUpperCase() + alphaHex });
+    } catch (e) {
+      console.log('EyeDropper cancelled or failed', e);
+    }
+  };
+
   // Load gallery images from localStorage on mount
   useEffect(() => {
     const savedImages = localStorage.getItem('customized_editor_gallery');
@@ -638,18 +658,17 @@ const BackgroundSection = ({
 
   return (
     <div className="px-[1vw] flex flex-col relative">
-      {/* Tabs */}
-      <div className="sticky top-0 z-[50] pt-[0.5vw] bg-white mb-[0.5vw] -mx-[1vw] px-[1vw] border-b-[0.15vw] border-gray-200">
-        <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-[50] bg-white mb-[0.5vw] -mx-[1vw] px-[1.5vw] border-b-[0.15vw] border-gray-200">
+        <div className="flex items-center justify-center">
           {['Background', 'Themes', 'Animations'].map((tab) => (
             <button 
-              key={tab}
-              onClick={() => setActiveTab(tab)} 
-              className={`pb-[0.5vw] mb-[-0.15vw] mt-[0.5vw] text-[0.85vw] font-medium transition-all border-b-[0.15vw] flex-1 ${
-                activeTab === tab 
-                  ? 'text-gray-900 border-gray-900' 
-                  : 'text-gray-400 border-transparent hover:text-gray-600'
-              }`}
+               key={tab}
+               onClick={() => setActiveTab(tab)} 
+               className={`pb-[1vw] pt-[0.5vw] mb-[-0.15vw] mt-[0.5vw] text-[0.85vw] font-medium transition-all border-b-[0.15vw] flex-1 ${
+                 activeTab === tab 
+                   ? 'text-gray-900 border-gray-900' 
+                   : 'text-gray-400 border-transparent hover:text-gray-600'
+               }`}
             >
               {tab}
             </button>
@@ -692,7 +711,7 @@ const BackgroundSection = ({
                   <span className="text-[0.75vw] font-semibold text-gray-700">Fill :</span>
                   <div className="flex-1 flex gap-[0.5vw] items-center color-picker-trigger">
                     <div 
-                      className="w-[2vw] h-[2vw] border border-gray-600 rounded-[0.5vw] shadow-sm cursor-pointer hover:border-indigo-400 transition-colors" 
+                      className="w-[2vw] h-[2vw] border border-gray-200 rounded-[0.5vw] shadow-[0_2px_4px_rgba(0,0,0,0.06)] cursor-pointer hover:border-indigo-400 transition-colors" 
                       style={{ backgroundColor: (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color }}
                       onClick={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -700,7 +719,7 @@ const BackgroundSection = ({
                         setShowColorPicker(true);
                       }}
                     />
-                    <div className="flex-1 h-[2vw] border border-gray-600 rounded-[0.5vw] flex items-center px-[0.75vw] justify-between bg-white hover:border-indigo-400 transition-colors">
+                    <div className="flex-1 h-[2vw] border border-gray-200 rounded-[0.5vw] flex items-center px-[0.75vw] justify-between bg-white hover:border-indigo-400 transition-colors shadow-[0_2px_4px_rgba(0,0,0,0.04)]">
                       <input 
                          type="text"
                          value={(() => {
@@ -724,7 +743,7 @@ const BackgroundSection = ({
                            }
                            onUpdateBackground({ ...backgroundSettings, style: 'Solid', color: validHex + alphaHex });
                          }}
-                         className="text-[0.85vw] font-medium text-gray-700 font-mono bg-transparent w-[4vw] outline-none"
+                         className="text-[0.85vw] font-medium text-gray-700 font-mono bg-transparent w-[5vw] outline-none"
                       />
                       <DraggableSpan 
                          label={`${(() => {
@@ -748,9 +767,18 @@ const BackgroundSection = ({
                          }}
                          min={0}
                          max={100}
-                         className="text-[0.85vw] font-medium text-gray-500"
+                         className="text-[0.85vw] font-medium text-gray-400 font-mono"
                       />
                     </div>
+                    {window.EyeDropper && (
+                      <button
+                        onClick={handleEyeDropper}
+                        className="w-[2vw] h-[2vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-center bg-white shadow-sm hover:border-indigo-400 hover:bg-gray-50 transition-all cursor-pointer"
+                        title="Eye Dropper"
+                      >
+                        <Icon icon="lucide:pipette" className="w-[1vw] h-[1vw] text-gray-500 hover:text-gray-800" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1028,7 +1056,7 @@ const BackgroundSection = ({
           {bgStyle === 'Image' && (
             <div className="flex flex-col gap-[1vw]">
               <div className="mb-[0.5vw]">
-                <div className="flex items-center gap-[1vw] mb-[1vw] mt-[1vw]">
+                <div className="flex items-center gap-[0.5vw] mt-[1vw]">
                   <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Upload Image</span>
                   <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
                   {backgroundSettings.image && (
@@ -1065,7 +1093,7 @@ const BackgroundSection = ({
 
                 {backgroundSettings.image ? (
                   <div 
-                    className="flex items-center gap-[1vw] pt-[0.5vw]"
+                    className="flex items-center gap-[1vw] "
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -1135,7 +1163,7 @@ const BackgroundSection = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-[0.75vw] mb-[1vw]">
+                  <div className="flex flex-col gap-[0.75vw] mb-[1vw] ">
                     {/* Drag & Drop Box */}
                     <div
                       onClick={() => fileInputRef.current?.click()}
@@ -1219,7 +1247,7 @@ const BackgroundSection = ({
                 .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
                 .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
               `}</style>
-              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[0.5vw]">
+              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[-0.5vw] ">
                 <span className="text-[0.85vw] font-semibold text-black whitespace-nowrap">Opacity :</span>
                 <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
                   <input 
@@ -1234,8 +1262,7 @@ const BackgroundSection = ({
                     }}
                   />
                 </div>
-                <div className="min-w-[3.5
-                vw] h-[2vw] border-[0.1vw] border-gray-200 rounded-[0.3vw] flex items-center justify-center text-[0.8vw] font-medium text-black bg-white shadow-sm px-[0.5vw]">
+                <div className="min-w-[3.5vw] h-[2vw] border-[0.1vw] border-gray-200 rounded-[0.3vw] flex items-center justify-center text-[0.8vw] font-medium text-black bg-white shadow-sm px-[0.5vw]">
                   {backgroundSettings.opacity} %
                 </div>
               </div>
