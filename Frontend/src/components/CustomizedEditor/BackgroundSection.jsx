@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
-import { ArrowLeftRight, Minus, RefreshCw, ChevronDown, X, Check } from 'lucide-react';
+import { ArrowLeftRight, Minus, RefreshCw, ChevronDown, X, Check, Upload, Image as ImageIcon, ChevronRight, Link } from 'lucide-react';
 import backgroundComponents from './Backgrounds';
 import animationComponents from './Animations';
 import PremiumDropdown from './PremiumDropdown';
@@ -1064,119 +1064,146 @@ const BackgroundSection = ({
                 />
 
                 {backgroundSettings.image ? (
-                  <div className="flex items-start gap-[0.75vw] pb-[1.25vw]">
-                    {/* Current Image */}
-                    <div className="flex flex-col items-center gap-[0.35vw]">
-                      <div className="relative w-[5.5vw] h-[5vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white flex items-center justify-center group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}>
-                        <img 
-                          src={backgroundSettings.image} 
-                          alt="Thumbnail" 
-                          className={`w-full h-full rounded-[0.5vw] ${backgroundSettings?.cropData ? 'object-cover' : 'object-fill'}`} 
-                          style={(() => {
-                            const cd = backgroundSettings?.cropData;
-                            return cd && cd.inset ? { 
-                              clipPath: cd.inset, 
-                              WebkitClipPath: cd.inset, 
-                              transform: `translate(${cd.offX}%, ${cd.offY}%) scale(${cd.scale})`, 
-                              transformOrigin: 'center center' 
-                            } : {};
-                          })()}
-                        />
-                        {/* Hover overlay */}
-                        <div
-                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer"
-                          onClick={() => onUpdateBackground({ ...backgroundSettings, image: null })}
+                  <div 
+                    className="flex items-center gap-[1vw] pt-[0.5vw]"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        const file = e.dataTransfer.files[0];
+                        if (file.type.startsWith('image/')) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => onUpdateBackground({ ...backgroundSettings, style: 'Image', image: event.target.result });
+                          reader.readAsDataURL(file);
+                        }
+                      }
+                    }}
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
+                      <img 
+                        src={backgroundSettings.image} 
+                        alt="Thumbnail" 
+                        className={`w-full h-full ${backgroundSettings?.cropData ? 'object-cover' : 'object-fill'}`} 
+                        style={(() => {
+                          const cd = backgroundSettings?.cropData;
+                          return cd && cd.inset ? { 
+                            clipPath: cd.inset, 
+                            WebkitClipPath: cd.inset, 
+                            transform: `translate(${cd.offX}%, ${cd.offY}%) scale(${cd.scale})`, 
+                            transformOrigin: 'center center' 
+                          } : {};
+                        })()}
+                      />
+                    </div>
+
+                    {/* Info & Actions */}
+                    <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.1vw]">
+                      <div className="flex flex-col gap-[0.1vw] mt-[0.6vw]">
+                        <span className="text-[0.9vw] font-medium text-gray-700 truncate w-[10vw] mt-[0.8vw]" title="Image">
+                          Image
+                        </span>
+                        <span className="text-[0.75vw] text-gray-400 mt-[0.3vw]">
+                          Unknown Size
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-[0.5vw] mt-[0.3vw]">
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
                         >
-                          <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
-                          <span className="text-[0.5vw] text-white font-semibold">Remove</span>
-                        </div>
+                          Replace image
+                        </button>
+                        <button
+                          onClick={() => onUpdateBackground({ ...backgroundSettings, image: null })}
+                          className="p-[0.4vw] bg-gray-100 text-gray-500 rounded-[0.3vw] border border-gray-200 cursor-pointer transition-none"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[0.9vw] h-[0.9vw]">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                          </svg>
+                        </button>
                       </div>
-                      <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
-                    </div>
-
-                    {/* Arrow */}
-                    <div className="flex items-center justify-center shrink-0 h-[5vw]">
-                      <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]/100" />
-                    </div>
-
-                    {/* Replace Upload Box */}
-                    <div className="flex flex-col items-center gap-[0.35vw] flex-1">
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-indigo-400', 'bg-indigo-50/20'); }}
-                        onDragLeave={(e) => { e.currentTarget.classList.remove('border-indigo-400', 'bg-indigo-50/20'); }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.currentTarget.classList.remove('border-indigo-400', 'bg-indigo-50/20');
-                          const file = e.dataTransfer.files[0];
-                          if (file && file.type.startsWith('image/')) {
-                            const reader = new FileReader();
-                            reader.onload = (event) => onUpdateBackground({ ...backgroundSettings, style: 'Image', image: event.target.result });
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="w-full h-[5vw] rounded-[0.5vw] flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 transition-all bg-white"
-                        style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
-                      >
-                        <p className="text-[0.6vw] font-medium text-gray-600 text-center mb-[0.1vw]">
-                          Drag & Drop or <span className="text-[#4F46E5] font-semibold">Upload</span>
-                        </p>
-                        <Icon icon="lucide:upload" className="w-[0.8vw] h-[0.8vw] text-gray-400 mb-[0.35vw]" />
-                        <div className="flex flex-col items-center">
-                          <span className="text-[0.5vw] font-semibold text-gray-500">Supported File</span>
-                          <span className="text-[0.5vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
-                        </div>
-                      </div>
-                      {/* Spacer to match the height of 'Current' text for vertical symmetry */}
-                      <span className="text-[0.6vw] opacity-0 pointer-events-none select-none">Spacer</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-[1vw] mb-[1vw]">
-                    <div className="flex flex-col items-center">
-                      <div 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-[14vw] h-[7vw] rounded-[1vw] flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50  transition-all group bg-white py-[0.75vw]"
-                        style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
-                      >
-                        <p className="text-[0.8vw] font-medium text-gray-600 text-center mb-[0.4vw]">
-                          Drag & Drop or <span className="text-[#4F46E5] font-bold">Upload</span>
-                        </p>
-                        <Icon icon="lucide:upload" className="w-[1.5vw] h-[1.5vw] text-gray-400 mb-[0.5vw]" />
-                        <div className="flex flex-col items-center">
-                          <span className="text-[0.65vw] font-semibold text-gray-500">Supported File</span>
-                          <span className="text-[0.65vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
-                        </div>
+                  <div className="flex flex-col gap-[0.75vw] mb-[1vw]">
+                    {/* Drag & Drop Box */}
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const file = e.dataTransfer.files[0];
+                        if (file && file.type.startsWith('image/')) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => onUpdateBackground({ ...backgroundSettings, style: 'Image', image: event.target.result });
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="w-full border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-[#4c5add] hover:bg-gray-50/50 group shadow-sm"
+                    >
+                      <div className="text-[0.75vw] font-medium text-gray-700 mb-[0.5vw]">
+                        Drag & Drop or <span className="text-[#4c5add] font-bold">Upload</span>
                       </div>
+                      <div className="mb-[0.5vw] text-gray-400 group-hover:text-[#4c5add] transition-colors">
+                        <Upload size="1.3vw" strokeWidth={1.5} />
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[0.65vw] font-semibold text-gray-600 mb-[0.05vw]">Supported File</div>
+                        <div className="text-[0.58vw] text-gray-400 font-normal">Image</div>
+                      </div>
+                    </div>
+
+                    {/* OR Divider */}
+                    <div className="text-[0.6vw] font-medium text-gray-400 text-center uppercase tracking-wider my-[0.15vw]">
+                      OR
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col gap-[0.5vw]">
+                      {/* Browse by Gallery */}
+                      <button
+                        onClick={() => setShowGallery(true)}
+                        className="w-full rounded-[0.65vw] p-[0.6vw] px-[0.75vw] bg-[#0c0f17] hover:bg-black text-white flex items-center justify-between shadow-md cursor-pointer transition-all border border-gray-800 group relative overflow-hidden"
+                      >
+                        <div className="flex items-center gap-[0.6vw]">
+                          <div className="w-[1.8vw] h-[1.8vw] rounded-[0.45vw] bg-white text-gray-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <ImageIcon size="0.95vw" />
+                          </div>
+                          <span className="text-[0.75vw] font-semibold text-white tracking-wide">Browse by Gallery</span>
+                        </div>
+                        <ChevronRight size="0.8vw" className="text-gray-400 group-hover:text-white transition-colors" />
+                      </button>
+
+                      {/* Import via URL */}
+                      <button
+                        onClick={() => alert("Import via URL coming soon!")}
+                        className="w-full rounded-[0.65vw] p-[0.6vw] px-[0.75vw] bg-[#3195ff] hover:bg-[#2087f5] text-white flex items-center justify-between shadow-md cursor-pointer transition-all group"
+                      >
+                        <div className="flex items-center gap-[0.6vw]">
+                          <div className="w-[1.8vw] h-[1.8vw] rounded-[0.45vw] bg-white text-[#3195ff] flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <Link size="0.95vw" />
+                          </div>
+                          <span className="text-[0.75vw] font-semibold text-white tracking-wide">Import via URL</span>
+                        </div>
+                        <ChevronRight size="0.8vw" className="text-white/80 group-hover:text-white transition-colors" />
+                      </button>
                     </div>
                   </div>
                 )}
-
-                <button 
-                              onClick={() => setShowGallery(true)}
-                              className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5"
-                            >
-                              {/* Background Images Overlay */}
-                              <div className="absolute inset-0 flex gap-[0.5vw] opacity-20 group-hover:opacity-40 transition-opacity">
-                                <div className="flex-1 bg-cover bg-center" 
-                                style={{ backgroundImage: "url('https://images.unsplash.com/photo-1493612276216-ee3925520721?q=80&w=300&auto=format&fit=crop')" }}>
-                                </div>
-                                <div className="flex-1 bg-cover bg-center" 
-                                 style={{ backgroundImage: "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=300&auto=format&fit=crop')" }}>
-                                </div>
-                                <div className="flex-1 bg-cover bg-center" 
-                                    style={{ backgroundImage: "url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=300&auto=format&fit=crop')" }}>
-                                </div>
-                              </div>
-                              {/* Dark Gradient Overlay */}
-                              <div className="absolute inset-0 bg-gradient-to-r from-gray/10 via-gray/20 to-gray/40 group-hover:via-gray/20 transition-all"></div>
-                              
-                             {/* Content */}
-                           <div className="relative z-10 flex items-center gap-[0.75vw]">
-                               <Icon icon="clarity:image-gallery-solid" className="w-[1vw] h-[1.2vw] text-white" />
-                             <span className="text-[0.95vw] font-semibold text-white ">Image Gallery</span>
-                           </div>
-                            </button>
               </div>
             </div>
           )}
@@ -1185,18 +1212,32 @@ const BackgroundSection = ({
           {/* Opacity Slider and Adjustments - Only show for Image and Video */}
           {bgStyle === 'Image' && backgroundSettings.image ? (
             <>
-              <div className="">
-                <SectionLabel 
-                label="Opacity"
-                />
-                <AdjustmentSlider 
-                  value={backgroundSettings.opacity} 
-                  onChange={(val) => onUpdateBackground({ ...backgroundSettings, opacity: val })} 
-                  onReset={() => onUpdateBackground({ ...backgroundSettings, opacity: 100 })}
-                  min={0}
-                  max={100}
-                  unit="%"
-                />
+              <style>{`
+                .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
+                .custom-range-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
+                .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
+                .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
+                .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
+              `}</style>
+              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[0.5vw]">
+                <span className="text-[0.85vw] font-semibold text-black whitespace-nowrap">Opacity :</span>
+                <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
+                  <input 
+                    type="range" 
+                    min={0} 
+                    max={100} 
+                    value={backgroundSettings.opacity} 
+                    onChange={(e) => onUpdateBackground({ ...backgroundSettings, opacity: parseInt(e.target.value) })}
+                    className="w-full cursor-pointer custom-range-slider"
+                    style={{ 
+                      backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${backgroundSettings.opacity}%, #E2E8F0 ${backgroundSettings.opacity}%, #E2E8F0 100%)` 
+                    }}
+                  />
+                </div>
+                <div className="min-w-[3.5
+                vw] h-[2vw] border-[0.1vw] border-gray-200 rounded-[0.3vw] flex items-center justify-center text-[0.8vw] font-medium text-black bg-white shadow-sm px-[0.5vw]">
+                  {backgroundSettings.opacity} %
+                </div>
               </div>
 
               {/* Adjustment Section */}
