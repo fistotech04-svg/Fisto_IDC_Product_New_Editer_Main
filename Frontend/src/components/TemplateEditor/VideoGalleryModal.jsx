@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { Upload, X, Check, Replace } from "lucide-react";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
+import { checkIsAnimatedWebp } from "./editorUtils";
 
 export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, selectedLayerId, activePageIndex, currentPageVId, flipbookVId, folderName, flipbookName }) {
   const [tempSelectedVideo, setTempSelectedVideo] = useState(null);
@@ -51,10 +52,13 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
     
     // Check if it's a video or gif
     const isVideo = file.type.startsWith('video/');
-    const isGif = file.type === 'image/gif';
+    let isGif = file.type === 'image/gif';
+    if (!isGif && file.type.includes('webp')) {
+      isGif = await checkIsAnimatedWebp(file);
+    }
     
     if (!isVideo && !isGif) {
-      alert('Please select a valid Video or GIF file');
+      alert('Please select a valid Video, GIF, or animated WebP file');
       return;
     }
 
@@ -237,14 +241,14 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
             </p>
             <Upload size="1.75vw" className="text-gray-300 mb-[0.5vw]" strokeWidth={1.5} />
             <p className="text-[0.65vw] text-gray-400 text-center px-[1vw]">
-              Supported Files : <span className="font-medium">MP4, WEBM, GIF</span>
+              Supported Files : <span className="font-medium">MP4, WEBM, GIF, Animated WebP</span>
             </p>
           </div>
           <input
             type="file"
             ref={galleryInputRef}
             onChange={handleModalFileUpload}
-            accept="video/*,image/gif"
+            accept="video/*,image/gif,image/webp"
             className="hidden"
           />
         </div>

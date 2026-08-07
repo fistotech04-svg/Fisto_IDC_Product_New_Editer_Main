@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
+import { checkIsAnimatedWebp } from './editorUtils';
 
 const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
   const [galleryType, setGalleryType] = useState('All');
@@ -44,9 +45,9 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
   const filteredAssets = React.useMemo(() => {
     return galleryAssets.filter(asset => {
       if (galleryType === 'All') return true;
-      if (galleryType === 'Image Gallery' && asset.type === 'image' && !asset.file.type.includes('gif')) return true;
+      if (galleryType === 'Image Gallery' && asset.type === 'image' && !asset.isAnimated) return true;
       if (galleryType === 'Video Gallery' && asset.type === 'video') return true;
-      if (galleryType === 'GIF Gallery' && asset.file.type.includes('gif')) return true;
+      if (galleryType === 'GIF Gallery' && asset.isAnimated) return true;
       return false;
     });
   }, [galleryAssets, galleryType]);
@@ -57,33 +58,48 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     if (e.target.files?.length) {
-      const newAssets = Array.from(e.target.files).map(newFile => {
+      const newAssetsPromises = Array.from(e.target.files).map(async newFile => {
         const objectUrl = URL.createObjectURL(newFile);
         const isVideo = newFile.type.startsWith('video/');
+        let isAnimated = false;
+        if (newFile.type.includes('gif')) {
+          isAnimated = true;
+        } else if (newFile.type.includes('webp')) {
+          isAnimated = await checkIsAnimatedWebp(newFile);
+        }
         return {
           id: objectUrl,
           name: newFile.name.replace(/\.[^/.]+$/, ''),
           url: objectUrl,
           type: isVideo ? 'video' : 'image',
+          isAnimated,
           file: newFile
         };
       });
+      const newAssets = await Promise.all(newAssetsPromises);
       setGalleryAssets(prev => [...newAssets, ...prev]);
     }
   };
 
-  const handleReplaceFileChange = (e) => {
+  const handleReplaceFileChange = async (e) => {
     if (e.target.files?.length && itemToReplaceId) {
       const newFile = e.target.files[0];
       const newUrl = URL.createObjectURL(newFile);
       const isVideo = newFile.type.startsWith('video/');
+      let isAnimated = false;
+      if (newFile.type.includes('gif')) {
+        isAnimated = true;
+      } else if (newFile.type.includes('webp')) {
+        isAnimated = await checkIsAnimatedWebp(newFile);
+      }
       const updatedAsset = {
         id: newUrl,
         name: newFile.name.replace(/\.[^/.]+$/, ''),
         url: newUrl,
         type: isVideo ? 'video' : 'image',
+        isAnimated,
         file: newFile
       };
       
@@ -225,7 +241,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
                         setActiveGalleryDropdown(null);
                       }}
                     >
-                      Replace {item.type === 'video' ? 'Video' : item.file?.type.includes('gif') ? 'Gif' : 'Image'}
+                      Replace {item.type === 'video' ? 'Video' : item.isAnimated ? 'Gif' : 'Image'}
                     </button>
                     <button 
                       className="text-[0.7vw] font-medium text-red-600 hover:bg-red-50 text-left px-[0.5vw] py-[0.3vw]"

@@ -1480,6 +1480,50 @@ const getIframeContent = (html, pageNumber) => {
                         user-select: text !important;
                     }
 
+                    .flipbook-text-outer,
+                    foreignObject[data-scrollable="true"]>div.flipbook-text-outer {
+                        width: 100% !important;
+                        height: 100% !important;
+                        display: block !important;
+                        box-sizing: border-box !important;
+                        padding: 24px 6px 24px 16px !important;
+                        background-color: var(--bg-fill, transparent) !important;
+                        border: calc(var(--bg-stroke-width, 0) * 1px) solid var(--bg-stroke, transparent) !important;
+                        border-radius: var(--bg-rx, 0px) !important;
+                        position: relative;
+                        overflow: hidden !important;
+                    }
+                    
+                    .flipbook-text-viewport {
+                        width: 100% !important;
+                        height: 100% !important;
+                        overflow: hidden !important;
+                        position: relative;
+                    }
+                    
+                    .flipbook-text-viewport::after {
+                        content: "";
+                        position: absolute;
+                        bottom: 0;
+                        left: 0;
+                        right: 14px;
+                        height: 24px;
+                        background: linear-gradient(to top, rgba(0,0,0,0.15), transparent);
+                        pointer-events: none;
+                        z-index: 10;
+                        border-bottom-left-radius: var(--bg-rx, 16px);
+                        border-bottom-right-radius: var(--bg-rx, 16px);
+                    }
+                    
+                    .flipbook-text-scrollbar {
+                        width: 100% !important;
+                        height: 100% !important;
+                        overflow-y: auto !important;
+                        overflow-x: hidden !important;
+                        display: block !important;
+                        box-sizing: border-box !important;
+                    }
+
                     foreignObject[data-scrollable="true"] * {
                         -webkit-user-select: text !important;
                         user-select: text !important;
@@ -2406,7 +2450,7 @@ const PreviewArea = React.memo(({
             if (!screen) return;
 
             const { clientWidth, clientHeight } = screen;
-            const isCurrentlyFullscreen = !!document.fullscreenElement || isFullscreen;
+            const isCurrentlyFullscreen = (document.fullscreenElement === containerRef.current) || isFullscreen;
 
             const wFactor = isCurrentlyFullscreen ? (isToolbarHidden ? 0.80 : 0.70) : 0.70;
             const hFactor = isCurrentlyFullscreen ? (isToolbarHidden ? 0.85 : 0.80) : 0.80;
@@ -2868,7 +2912,7 @@ const PreviewArea = React.memo(({
 
     useEffect(() => {
         if (!useNativeFullscreen) return;
-        const onFSChange = () => setIsFullscreen(!!document.fullscreenElement);
+        const onFSChange = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
         document.addEventListener('fullscreenchange', onFSChange);
         document.addEventListener('webkitfullscreenchange', onFSChange);
         return () => {

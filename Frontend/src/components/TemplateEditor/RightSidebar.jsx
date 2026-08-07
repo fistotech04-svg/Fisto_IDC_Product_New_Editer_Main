@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { getVisualBBox, getCanvasBounds } from './MainEditor';
 import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight, Upload, Link, Check, FileText, Video } from 'lucide-react';
 import { Icon } from '@iconify/react';
+import { checkIsAnimatedWebp } from './editorUtils';
 import ShapeProperties from './ShapeProperties';
 import PenToolProperties from './PenToolProperties';
 import ImageEditor from './ImageEditor';
@@ -487,7 +488,10 @@ const RightSidebar = ({
     }
 
     const isVideo = file.type.startsWith('video/');
-    const isGif = file.type === 'image/gif';
+    let isGif = file.type === 'image/gif';
+    if (!isGif && file.type.includes('webp')) {
+      isGif = await checkIsAnimatedWebp(file);
+    }
     const isSvg = file.type === 'image/svg+xml';
     
     const storedUser = localStorage.getItem('user');

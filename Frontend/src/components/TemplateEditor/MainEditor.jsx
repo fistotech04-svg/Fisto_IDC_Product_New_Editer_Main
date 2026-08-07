@@ -4,6 +4,8 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
+import { checkIsAnimatedWebp } from './editorUtils';
+import FlipBookEngine from '../CustomizedEditor/FlipBookEngine';
 import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
 import paper from 'paper';
@@ -14,6 +16,7 @@ import {
   exitNodeEditModeHelper
 } from './penToolEngine';
 import PenToolProperties from './PenToolProperties';
+import { CropController, isElementCropped } from './Crop';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -24,30 +27,6 @@ const SHAPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org
 const TYPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 15 15'><path fill='%23000' d='M10.5 1a.5.5 0 0 1 0 1c-.922 0-1.54.23-1.92.563C8.206 2.89 8 3.366 8 4v3h1.25a.5.5 0 0 1 0 1H8v3c0 .634.207 1.11.58 1.437c.38.333.998.563 1.92.563a.5.5 0 0 1 0 1c-1.078 0-1.96-.27-2.58-.812a2.6 2.6 0 0 1-.42-.47q-.177.256-.42.47C6.46 13.73 5.577 14 4.5 14a.5.5 0 0 1 0-1c.922 0 1.54-.23 1.92-.563c.373-.326.58-.803.58-1.437V8H5.75a.5.5 0 0 1 0-1H7V4c0-.634-.207-1.11-.58-1.437C6.04 2.23 5.423 2 4.5 2a.5.5 0 0 1 0-1c1.078 0 1.96.27 2.58.812q.243.213.42.468q.177-.255.42-.468C8.54 1.27 9.423 1 10.5 1' /></svg>") 7 7, text`;
 const DIRECT_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="-20 -20 300 300"><path d="M238.448 92.6028L0 0L90.103 241.348C90.7404 243.045 91.8924 244.501 93.3985 245.514C94.9045 246.526 96.6895 247.045 98.5048 246.997C100.32 246.949 102.075 246.337 103.525 245.246C104.976 244.156 106.049 242.641 106.596 240.913L130.069 164.711L209.652 242.219C211.287 243.841 213.498 244.751 215.804 244.751C218.109 244.751 220.321 243.841 221.956 242.219L242.462 221.753C244.088 220.122 245 217.914 245 215.614C245 213.313 244.088 211.106 242.462 209.474L163.141 132.315L238.448 109.062C240.163 108.47 241.65 107.359 242.703 105.884C243.755 104.409 244.321 102.643 244.321 100.833C244.321 99.0218 243.755 97.256 242.703 95.781C241.65 94.306 240.163 93.195 238.448 92.6028Z" fill="black" transform="rotate(18, 0, 0)"/></svg>') 1 1, auto`;
 
-export const isElementCropped = (el) => {
-  if (!el || typeof el.getAttribute !== 'function') return false;
-  const type = el.getAttribute('data-type');
-  const name = el.getAttribute('data-name');
-  if (type === 'frame' || type === 'background' || name === 'Overlay') return false;
-
-  const isUserGroup = (type === 'group' || (name || '').toLowerCase() === 'group' || (el.id || '').startsWith('group-')) && el.getAttribute('data-is-image-group') !== 'true';
-  if (isUserGroup) return false;
-
-  const hasCropData = el.getAttribute('data-crop-data') && el.getAttribute('data-crop-data') !== 'null';
-  const hasObjectFitCrop = el.getAttribute('data-object-fit') === 'Crop';
-  const hasCropInset = el.hasAttribute('data-effect-crop-inset');
-  const clipAttr = el.getAttribute('clip-path') || '';
-  const hasCropClip = clipAttr.includes('crop-');
-
-  if (hasCropData || hasObjectFitCrop || hasCropInset || hasCropClip) return true;
-
-  if (typeof el.querySelector === 'function') {
-    const croppedChild = el.querySelector('[data-crop-data]:not([data-crop-data="null"]), [data-object-fit="Crop"], [clip-path*="crop-"]');
-    if (croppedChild) return true;
-  }
-
-  return false;
-};
 
 export const formatSmoothPathD = (pts) => {
   if (!pts || pts.length === 0) return '';
@@ -3300,6 +3279,7 @@ const MainEditor = ({
   };
 
   // ── IN-PLACE CROP PAN & ZOOM OVERLAY CONTROLLER ────────────────────────────
+  /*
   const [activeCropId, setActiveCropId] = useState(null);
   const activeCropIdRef = useRef(null);
   activeCropIdRef.current = activeCropId;
@@ -3602,6 +3582,7 @@ const MainEditor = ({
       }
     };
   }, [activeCropId, activePageIndex, zoom]);
+  */
 
   const clearMeasurementOverlay = () => {
     document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
@@ -11796,6 +11777,13 @@ const MainEditor = ({
       onClick={closeAllDropdowns}
       onContextMenu={(e) => e.preventDefault()}
     >
+      <CropController
+        activePageIndex={activePageIndex}
+        zoom={zoom}
+        saveModifiedPageHtml={saveModifiedPageHtml}
+        drawOverlayHighlight={drawOverlayHighlight}
+        getVisualBBox={getVisualBBox}
+      />
       <TopToolbar
         zoom={zoom}
         onZoomIn={handleZoomIn}
@@ -12574,12 +12562,15 @@ const MainEditor = ({
                                   // 3. Try reading external files dropped directly from Desktop / File Explorer
                                   if (!data && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                                     const files = Array.from(e.dataTransfer.files);
-                                    files.forEach((file, idx) => {
+                                    files.forEach(async (file, idx) => {
                                       const fileUrl = URL.createObjectURL(file);
                                       const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
 
                                       if (file.type.startsWith('image/')) {
-                                        const isGif = file.type === 'image/gif';
+                                        let isGif = file.type === 'image/gif';
+                                        if (!isGif && file.type.includes('webp')) {
+                                          isGif = await checkIsAnimatedWebp(file);
+                                        }
                                         window.dispatchEvent(new CustomEvent('add-image-to-editor', {
                                           detail: {
                                             pageIndex: displayIndex,

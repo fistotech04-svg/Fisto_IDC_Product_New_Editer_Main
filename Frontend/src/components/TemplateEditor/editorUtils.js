@@ -266,3 +266,29 @@ export const detectMediaType = (inputUrl) => {
 
   return 'image';
 };
+
+export const checkIsAnimatedWebp = async (fileOrBlob) => {
+  if (!fileOrBlob || !fileOrBlob.type.includes('webp')) return false;
+  try {
+    const buffer = await fileOrBlob.slice(0, 256).arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    if (bytes[0] === 82 && bytes[1] === 73 && bytes[2] === 70 && bytes[3] === 70 &&
+        bytes[8] === 87 && bytes[9] === 69 && bytes[10] === 66 && bytes[11] === 80) {
+      for (let i = 12; i < bytes.length - 4; i++) {
+        if (bytes[i] === 65 && bytes[i+1] === 78 && bytes[i+2] === 77 && bytes[i+3] === 70) {
+          return true;
+        }
+        if (bytes[i] === 65 && bytes[i+1] === 78 && bytes[i+2] === 73 && bytes[i+3] === 77) {
+          return true;
+        }
+      }
+      if (bytes[12] === 86 && bytes[13] === 80 && bytes[14] === 56 && bytes[15] === 88) {
+         const flags = bytes[20];
+         if ((flags & 2) !== 0) return true;
+      }
+    }
+  } catch (e) {
+    console.error("Error checking WebP animation", e);
+  }
+  return false;
+};
