@@ -36,6 +36,7 @@
     "face-api.js": "^0.20.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.31.0",
+    "gifuct-js": "^2.1.2",
     "html2canvas": "^1.4.1",
     "install": "^0.13.0",
     "interactjs": "^1.10.27",

@@ -136,7 +136,7 @@ const VideoEditor = ({
 
   const [previewSrc, setPreviewSrc] = useState(null);
   const [posterSrc, setPosterSrc] = useState(null);
-  const [videoType, setVideoType] = useState("Fill");
+  const [videoType, setVideoType] = useState("Fit");
   const [showVideoTypeDropdown, setShowVideoTypeDropdown] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [autoplay, setAutoplay] = useState(false);
@@ -149,9 +149,19 @@ const VideoEditor = ({
   const [endTime, setEndTime] = useState("08:52:21");
   const [playbackSpeed, setPlaybackSpeed] = useState("1.0x");
   const [resumeBehavior, setResumeBehavior] = useState("Resume from Last Position");
-  const [playVideoWhile, setPlayVideoWhile] = useState("Auto Play While on Page");
+  const [playVideoWhile, setPlayVideoWhile] = useState("Auto Play on Page Open");
   const [defaultVolume, setDefaultVolume] = useState(80);
   const [disableFullScreen, setDisableFullScreen] = useState(false);
+
+  // Video Player Controls toggles
+  const [playPauseButton, setPlayPauseButton] = useState(true);
+  const [skipButton, setSkipButton] = useState(true);
+  const [progressBar, setProgressBar] = useState(true);
+  const [loopButtonControl, setLoopButtonControl] = useState(true);
+  const [fullscreenButtonControl, setFullscreenButtonControl] = useState(true);
+  const [playbackSpeedMenu, setPlaybackSpeedMenu] = useState(true);
+  const [volumeControl, setVolumeControl] = useState(true);
+  const [downloadButton, setDownloadButton] = useState(true);
 
   const [opacity, setOpacity] = useState(100);
   const [coverOption, setCoverOption] = useState("auto"); // "upload" or "auto"
@@ -444,7 +454,7 @@ const VideoEditor = ({
       
       setStartTime(target.getAttribute('data-start-time') || '');
       setEndTime(target.getAttribute('data-end-time') || '');
-      setPlayVideoWhile(target.getAttribute('data-play-video-while') || 'Auto Play While on Page');
+      setPlayVideoWhile(target.getAttribute('data-play-video-while') || 'Auto Play on Page Open');
       const pSpeed = target.getAttribute('data-playback-speed');
       if (pSpeed) {
         setPlaybackSpeed(pSpeed);
@@ -458,12 +468,22 @@ const VideoEditor = ({
       setDefaultVolume(dVol ? parseInt(dVol) : (target.volume !== undefined ? Math.round(target.volume * 100) : 100));
       setDisableFullScreen(target.getAttribute('data-disable-fullscreen') === 'true');
 
+      // Video Player Controls
+      setPlayPauseButton(target.getAttribute('data-show-play-pause') !== 'false');
+      setSkipButton(target.getAttribute('data-show-skip-button') !== 'false');
+      setProgressBar(target.getAttribute('data-show-progress-bar') !== 'false');
+      setLoopButtonControl(target.getAttribute('data-show-loop-button') !== 'false');
+      setFullscreenButtonControl(target.getAttribute('data-show-fullscreen-button') !== 'false');
+      setPlaybackSpeedMenu(target.getAttribute('data-show-playback-speed-menu') !== 'false');
+      setVolumeControl(target.getAttribute('data-show-volume-control') !== 'false');
+      setDownloadButton(target.getAttribute('data-show-download-button') !== 'false');
+
       const rawCtrlSize = target.getAttribute('data-controls-size');
       const ctrlSize = rawCtrlSize ? parseInt(rawCtrlSize) : 100;
       setControlsSize(isNaN(ctrlSize) ? 100 : Math.max(0, Math.min(100, ctrlSize)));
-      const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'Fill';
+      const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'contain';
       const reverseMap = { 'contain': 'Fit', 'cover': 'Fill', 'fill': 'Stretch' };
-      setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
+      setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fit');
     } else if (target.tagName === "IFRAME") {
       setPreviewSrc(target.src || null);
 
@@ -1417,6 +1437,16 @@ const VideoEditor = ({
         target.controls = false;
         target.removeAttribute('controls');
         target.setAttribute('data-show-controls', controls ? 'true' : 'false');
+        
+        target.setAttribute('data-show-play-pause', playPauseButton ? 'true' : 'false');
+        target.setAttribute('data-show-skip-button', skipButton ? 'true' : 'false');
+        target.setAttribute('data-show-progress-bar', progressBar ? 'true' : 'false');
+        target.setAttribute('data-show-loop-button', loopButtonControl ? 'true' : 'false');
+        target.setAttribute('data-show-fullscreen-button', fullscreenButtonControl ? 'true' : 'false');
+        target.setAttribute('data-show-playback-speed-menu', playbackSpeedMenu ? 'true' : 'false');
+        target.setAttribute('data-show-volume-control', volumeControl ? 'true' : 'false');
+        target.setAttribute('data-show-download-button', downloadButton ? 'true' : 'false');
+
         if (controls) {
           target.classList.remove('hide-controls');
         } else {
@@ -1504,7 +1534,7 @@ const VideoEditor = ({
     } catch (e) {
       console.error("Error applying video visuals:", e);
     }
-  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, muted, startTime, endTime, playVideoWhile, playbackSpeed, resumeBehavior, defaultVolume, disableFullScreen, debouncedUpdate]);
+  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, muted, startTime, endTime, playVideoWhile, playbackSpeed, resumeBehavior, defaultVolume, disableFullScreen, playPauseButton, skipButton, progressBar, loopButtonControl, fullscreenButtonControl, playbackSpeedMenu, volumeControl, downloadButton, debouncedUpdate]);
 
   useEffect(() => {
     applyVisuals();
@@ -1657,6 +1687,14 @@ const VideoEditor = ({
     else if (attr === 'controls') setControls(value);
     else if (attr === 'controlsSize') setControlsSize(value);
     else if (attr === 'muted') setMuted(value);
+    else if (attr === 'playPauseButton') setPlayPauseButton(value);
+    else if (attr === 'skipButton') setSkipButton(value);
+    else if (attr === 'progressBar') setProgressBar(value);
+    else if (attr === 'loopButtonControl') setLoopButtonControl(value);
+    else if (attr === 'fullscreenButtonControl') setFullscreenButtonControl(value);
+    else if (attr === 'playbackSpeedMenu') setPlaybackSpeedMenu(value);
+    else if (attr === 'volumeControl') setVolumeControl(value);
+    else if (attr === 'downloadButton') setDownloadButton(value);
   };
 
 
@@ -1932,12 +1970,28 @@ const VideoEditor = ({
       target.setAttribute("src", finalUrl);
       target.setAttribute("data-original-url", url);
 
-      target.setAttribute("width", "100%");
-      target.setAttribute("height", "100%");
-      target.style.width = "100%";
-      target.style.height = "100%";
-      target.style.transform = "none";
-      target.style.objectFit = "contain";
+      if (isIframeTarget) {
+        const intrinsicW = 640;
+        const intrinsicH = 360;
+        target.setAttribute("width", intrinsicW.toString());
+        target.setAttribute("height", intrinsicH.toString());
+        target.setAttribute("data-original-width", intrinsicW.toString());
+        target.setAttribute("data-original-height", intrinsicH.toString());
+        target.style.width = intrinsicW + "px";
+        target.style.height = intrinsicH + "px";
+        target.style.transformOrigin = "0 0";
+        
+        const scaleX = newW / intrinsicW;
+        const scaleY = newH / intrinsicH;
+        target.style.transform = `scale(${scaleX}, ${scaleY})`;
+      } else {
+        target.setAttribute("width", "100%");
+        target.setAttribute("height", "100%");
+        target.style.width = "100%";
+        target.style.height = "100%";
+        target.style.transform = "none";
+        target.style.objectFit = "contain";
+      }
 
       if (liveElement) {
         const resizeAndCenter = (el, targetW, targetH) => {
@@ -1972,12 +2026,9 @@ const VideoEditor = ({
 
       if (!isIframeTarget) {
 
-        target.autoplay = true;
         target.muted = true;
-        target.setAttribute("autoplay", "");
         target.setAttribute("muted", "");
       }
-      setAutoplay(true);
       setPreviewSrc(finalUrl);
 
       target.setAttribute("data-filename", isIframeTarget ? "YouTube Video" : "Video URL");
@@ -2006,9 +2057,7 @@ const VideoEditor = ({
       newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
       newElement.src = finalUrl;
       newElement.controls = true;
-      newElement.autoplay = true;
       newElement.muted = true;
-      newElement.setAttribute("autoplay", "");
       newElement.setAttribute("muted", "");
     }
 
@@ -2018,12 +2067,28 @@ const VideoEditor = ({
     newElement.setAttribute("data-original-url", url);
     newElement.style.cssText = target.style.cssText;
 
-    newElement.setAttribute("width", "100%");
-    newElement.setAttribute("height", "100%");
-    newElement.style.width = "100%";
-    newElement.style.height = "100%";
-    newElement.style.transform = "none";
-    newElement.style.objectFit = "contain";
+    if (isIframeTarget) {
+      const intrinsicW = 640;
+      const intrinsicH = 360;
+      newElement.setAttribute("width", intrinsicW.toString());
+      newElement.setAttribute("height", intrinsicH.toString());
+      newElement.setAttribute("data-original-width", intrinsicW.toString());
+      newElement.setAttribute("data-original-height", intrinsicH.toString());
+      newElement.style.width = intrinsicW + "px";
+      newElement.style.height = intrinsicH + "px";
+      newElement.style.transformOrigin = "0 0";
+      
+      const scaleX = newW / intrinsicW;
+      const scaleY = newH / intrinsicH;
+      newElement.style.transform = `scale(${scaleX}, ${scaleY})`;
+    } else {
+      newElement.setAttribute("width", "100%");
+      newElement.setAttribute("height", "100%");
+      newElement.style.width = "100%";
+      newElement.style.height = "100%";
+      newElement.style.transform = "none";
+      newElement.style.objectFit = "contain";
+    }
 
     if (liveElement) {
       const resizeAndCenter = (el, targetW, targetH) => {
@@ -2039,7 +2104,10 @@ const VideoEditor = ({
         el.setAttribute("height", targetH);
       };
 
-      const fo = liveElement.tagName.toLowerCase() === "foreignobject" ? liveElement : (liveElement.querySelector("foreignObject") || liveElement.querySelector("foreignobject"));
+      const fo = liveElement.tagName.toLowerCase() === "foreignobject" 
+        ? liveElement 
+        : (liveElement.closest("foreignObject") || liveElement.querySelector("foreignObject") || liveElement.querySelector("foreignobject"));
+      
       if (fo) {
         resizeAndCenter(fo, newW, newH);
         fo.style.width = newW + "px";
@@ -2073,7 +2141,6 @@ const VideoEditor = ({
     }
     setUpdateTrigger(prev => prev + 1);
 
-    setAutoplay(true);
     setPreviewSrc(finalUrl);
     onUpdateRef.current?.();
   };
@@ -2181,7 +2248,18 @@ const VideoEditor = ({
           <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
             {previewSrc ? (
               previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
-                <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" allowFullScreen />
+                (() => {
+                  const match = previewSrc.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))((\w|-){11})/);
+                  const vidId = match ? match[1] : null;
+                  return vidId ? (
+                    <div className="relative w-full h-full rounded-[0.4vw] overflow-hidden group">
+                      <img src={`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/5 group-hover:bg-black/10 transition-colors pointer-events-none"></div>
+                    </div>
+                  ) : (
+                    <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" allowFullScreen />
+                  );
+                })()
               ) : (
                 <video src={previewSrc} className="w-full h-full object-cover" muted />
               )
@@ -2331,7 +2409,18 @@ const VideoEditor = ({
             ) : (
               previewSrc ? (
                 previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
-                  <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" />
+                  (() => {
+                    const match = previewSrc.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))((\w|-){11})/);
+                    const vidId = match ? match[1] : null;
+                    return vidId ? (
+                      <div className="relative w-full h-full rounded-[0.8vw] overflow-hidden group">
+                        <img src={`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/5 group-hover:bg-black/10 transition-colors pointer-events-none"></div>
+                      </div>
+                    ) : (
+                      <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" />
+                    );
+                  })()
                 ) : (
                   <video src={previewSrc} className="w-full h-full object-cover pointer-events-none" muted />
                 )
@@ -2345,10 +2434,10 @@ const VideoEditor = ({
         </div>
       </div>
 
-      {/* Video Playback Settings */}
+      {/* Default Playback Settings */}
       <div className="space-y-[1.2vw]">
         <div className="flex items-center gap-[0.5vw]">
-          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Video Playback Settings</span>
+          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Default Playback Settings</span>
           <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
         </div>
 
@@ -2359,7 +2448,7 @@ const VideoEditor = ({
             <span className="text-[0.75vw] font-medium text-gray-800 mr-[0.5vw]">:</span>
             <CustomSelect
               value={playVideoWhile}
-              options={["Auto Play While on Page", "Click to Play"]}
+              options={["Auto Play on Page Open", "Manual (Click to Play)"]}
               onChange={setPlayVideoWhile}
             />
           </div>
@@ -2381,7 +2470,7 @@ const VideoEditor = ({
             <span className="text-[0.75vw] font-medium text-gray-800 mr-[0.5vw]">:</span>
             <CustomSelect
               value={resumeBehavior}
-              options={["Resume from Last Position", "Start from Beginning"]}
+              options={["Resume from Last Position", "Restart Every Page Open"]}
               onChange={setResumeBehavior}
             />
           </div>
@@ -2423,25 +2512,20 @@ const VideoEditor = ({
 
           {[
             {
-              label: "Disable Video Controls",
-              value: !controls,
-              onChange: (v) => {
-                updateElementAttribute('controls', !v);
-              }
-            },
-            {
-              label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => {
+              label: "Loop Video", value: loop, onChange: (v) => {
                 updateElementAttribute('loop', v);
                 if (v) {
                   updateElementAttribute('autoplay', true);
-                  setPlayVideoWhile("Auto Play While on Page");
+                  setPlayVideoWhile("Auto Play on Page Open");
                 }
               }
             },
             {
-              label: "Disable Full Screen View",
-              value: disableFullScreen,
-              onChange: (v) => setDisableFullScreen(v)
+              label: "Video Player Controls",
+              value: controls,
+              onChange: (v) => {
+                updateElementAttribute('controls', v);
+              }
             }
           ].map((item, i) => (
             <div key={i} className="flex items-center justify-between py-[0.3vw]">
@@ -2452,7 +2536,34 @@ const VideoEditor = ({
         </div>
       </div>
 
-      <div className="flex flex-col gap-[0.4vw]">
+      {controls && (
+        <div className="space-y-[1.2vw]">
+          <div className="flex items-center gap-[0.5vw]">
+            <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Video Player Controls</span>
+            <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+          </div>
+          
+          <div className="space-y-[0.8vw] px-[0.5vw]">
+            {[
+              { label: "Play/Pause Button", value: playPauseButton, onChange: (v) => updateElementAttribute('playPauseButton', v) },
+              { label: "Skip Forward/Backward (3 sec)", value: skipButton, onChange: (v) => updateElementAttribute('skipButton', v) },
+              { label: "Progress Bar", value: progressBar, onChange: (v) => updateElementAttribute('progressBar', v) },
+              { label: "Loop Button", value: loopButtonControl, onChange: (v) => updateElementAttribute('loopButtonControl', v) },
+              { label: "Fullscreen Button", value: fullscreenButtonControl, onChange: (v) => updateElementAttribute('fullscreenButtonControl', v) },
+              { label: "Playback Speed Menu", value: playbackSpeedMenu, onChange: (v) => updateElementAttribute('playbackSpeedMenu', v) },
+              { label: "Volume Control", value: volumeControl, onChange: (v) => updateElementAttribute('volumeControl', v) },
+              { label: "Download Button", value: downloadButton, onChange: (v) => updateElementAttribute('downloadButton', v) },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between py-[0.3vw]">
+                <span className="text-[0.75vw] font-medium text-gray-800">{item.label}</span>
+                <Switch enabled={item.value} onChange={item.onChange} disabled={item.disabled} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-[0.60vw] px-[0.3vw]">
         <Color
           openSubSection={openSubSection}
           setOpenSubSection={setOpenSubSection}

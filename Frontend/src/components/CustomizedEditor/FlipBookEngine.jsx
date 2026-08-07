@@ -16,6 +16,7 @@ import React, {
     useMemo,
 } from 'react';
 import HTMLFlipBook from 'react-pageflip';
+import { initGifRunner } from '../TemplateEditor/AnimationRunner';
 
 /* ─────────────────────────────── helpers ─────────────────────────────── */
 
@@ -294,7 +295,14 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             <iframe
                                 title={`Page ${i + 1}`}
                                 srcDoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
-                                onLoad={(e) => { e.target.style.opacity = 1; }}
+                                onLoad={(e) => { 
+                                    e.target.style.opacity = 1; 
+                                    try {
+                                        if (e.target.contentDocument) {
+                                            initGifRunner(e.target.contentDocument);
+                                        }
+                                    } catch(err) { console.error("Error init gif runner", err); }
+                                }}
                                 frameBorder="0"
                                 style={{ position: 'absolute', inset: 0, border: 'none', outline: 'none', width: '100%', height: '100%', pointerEvents: 'auto', borderRadius: 'inherit', opacity: 0.01, transition: 'opacity 0.3s ease' }}
                             />
@@ -487,6 +495,11 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 iframe.style.cssText = 'position:absolute;inset:0;border:none;outline:none;width:100%;height:100%;pointer-events:auto;opacity:0.01;transition:opacity 0.3s ease;border-radius:inherit;';
                 iframe.onload = () => {
                     iframe.style.opacity = '1';
+                    try {
+                        if (iframe.contentDocument) {
+                            initGifRunner(iframe.contentDocument);
+                        }
+                    } catch(err) { console.error("Error init gif runner", err); }
                 };
                 inner.appendChild(iframe);
 

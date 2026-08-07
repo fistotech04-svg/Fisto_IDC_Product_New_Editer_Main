@@ -1790,10 +1790,13 @@ const MainEditor = ({
             }
 
             const playVideoWhile = video.getAttribute('data-play-video-while');
-            if (playVideoWhile === "Auto Play While on Page") {
-                video.play().catch(()=>{});
-            } else if (playVideoWhile === "Click to Play") {
-                video.pause();
+            if (video._prevPlayVideoWhile !== playVideoWhile) {
+                video._prevPlayVideoWhile = playVideoWhile;
+                if (playVideoWhile === "Auto Play While on Page" || playVideoWhile === "Auto Play on Page Open") {
+                    video.play().catch(()=>{});
+                } else if (playVideoWhile === "Click to Play" || playVideoWhile === "Manual (Click to Play)") {
+                    video.pause();
+                }
             }
         }
 
@@ -1823,11 +1826,31 @@ const MainEditor = ({
           const progC = bar.querySelector('.custom-prog-container');
           const timeW = bar.querySelector('.custom-time-wrapper');
           
-          if (topC) topC.style.visibility = showControls ? 'visible' : 'hidden';
-          if (centerC) centerC.style.visibility = showControls ? 'visible' : 'hidden';
-          if (progC) progC.style.visibility = showControls ? 'visible' : 'hidden';
-          if (timeW) timeW.style.visibility = showControls ? 'visible' : 'hidden';
-          if (repBtn) repBtn.style.visibility = showControls ? 'visible' : 'hidden';
+          const volBtn = bar.querySelector('.custom-vol-btn');
+          const rewindBtn = bar.querySelector('.custom-rewind-btn');
+          const forwardBtn = bar.querySelector('.custom-forward-btn');
+          const playBtn = bar.querySelector('.custom-play-btn');
+          const fsBtn = bar.querySelector('.custom-fs-btn');
+          const dlBtn = bar.querySelector('.custom-download-btn');
+
+          const showPlayPause = video.getAttribute('data-show-play-pause') !== 'false';
+          const showSkipButton = video.getAttribute('data-show-skip-button') !== 'false';
+          const showProgressBar = video.getAttribute('data-show-progress-bar') !== 'false';
+          const showLoopButton = video.getAttribute('data-show-loop-button') !== 'false';
+          const showFullscreenButton = video.getAttribute('data-show-fullscreen-button') !== 'false';
+          const showVolumeControl = video.getAttribute('data-show-volume-control') !== 'false';
+          const showDownloadButton = video.getAttribute('data-show-download-button') !== 'false';
+
+          if (volBtn) volBtn.style.display = showVolumeControl ? '' : 'none';
+          if (rewindBtn) rewindBtn.style.display = showSkipButton ? 'flex' : 'none';
+          if (forwardBtn) forwardBtn.style.display = showSkipButton ? 'flex' : 'none';
+          if (playBtn) playBtn.style.display = showPlayPause ? '' : 'none';
+          if (repBtn) repBtn.style.display = showLoopButton ? '' : 'none';
+          if (fsBtn) fsBtn.style.display = showFullscreenButton ? '' : 'none';
+          if (dlBtn) dlBtn.style.display = showDownloadButton ? '' : 'none';
+          if (progC) progC.style.display = showProgressBar ? '' : 'none';
+          
+          bar.style.display = showControls ? 'flex' : 'none';
         }
 
         if (!bar) {
@@ -1902,6 +1925,7 @@ const MainEditor = ({
           });
 
           const volumeBtn = document.createElement('button');
+          volumeBtn.className = 'custom-vol-btn';
           Object.assign(volumeBtn.style, {
             background: 'none',
             border: 'none',
@@ -1955,6 +1979,7 @@ const MainEditor = ({
           const FORWARD_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>`;
 
           const rewindBtn = document.createElement('button');
+          rewindBtn.className = 'custom-rewind-btn';
           Object.assign(rewindBtn.style, {
             background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', pointerEvents: 'auto', opacity: '0.9', whiteSpace: 'nowrap', position: 'relative'
           });
@@ -1981,6 +2006,7 @@ const MainEditor = ({
           rewindBtn.onclick = (e) => { e.stopPropagation(); video.currentTime -= 3; if (setSelectedLayerId) setSelectedLayerId(layerId); };
 
           const forwardBtn = document.createElement('button');
+          forwardBtn.className = 'custom-forward-btn';
           Object.assign(forwardBtn.style, {
             background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', pointerEvents: 'auto', opacity: '0.9', whiteSpace: 'nowrap', position: 'relative'
           });
@@ -2027,6 +2053,7 @@ const MainEditor = ({
           const PAUSE_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
 
           const playBtn = document.createElement('button');
+          playBtn.className = 'custom-play-btn';
           Object.assign(playBtn.style, {
             background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: "8em", height: "8em", pointerEvents: 'auto', flexShrink: '0',
           });
@@ -2054,7 +2081,7 @@ const MainEditor = ({
           timeWrapper.className = 'custom-time-wrapper';
           Object.assign(timeWrapper.style, {
             position: 'relative',
-            width: '28em',
+            width: '23em',
             height: '8em',
             flexShrink: '0',
             marginLeft: '1em'
@@ -2144,8 +2171,49 @@ const MainEditor = ({
 
           const FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
           const EXIT_FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>`;
+          const DOWNLOAD_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+
+          const dlBtn = document.createElement('button');
+          dlBtn.className = 'custom-download-btn';
+          Object.assign(dlBtn.style, {
+            background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '5em', height: '5em', pointerEvents: 'auto', flexShrink: '0',
+          });
+          dlBtn.innerHTML = DOWNLOAD_SVG;
+          dlBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const sourceUrl = video.src || video.querySelector('source')?.src;
+            if (sourceUrl) {
+              try {
+                dlBtn.style.opacity = '0.5';
+                dlBtn.style.pointerEvents = 'none';
+                const response = await fetch(sourceUrl);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = sourceUrl.split('/').pop() || 'video.mp4';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+              } catch (err) {
+                console.error("Failed to download video, falling back to direct link", err);
+                const a = document.createElement('a');
+                a.href = sourceUrl;
+                a.download = sourceUrl.split('/').pop() || 'video.mp4';
+                a.target = '_blank';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              } finally {
+                dlBtn.style.opacity = '1';
+                dlBtn.style.pointerEvents = 'auto';
+              }
+            }
+          };
 
           const fsBtn = document.createElement('button');
+          fsBtn.className = 'custom-fs-btn';
           Object.assign(fsBtn.style, {
             background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '5em', height: '5em', pointerEvents: 'auto', flexShrink: '0',
           });
@@ -2263,6 +2331,7 @@ const MainEditor = ({
           bottomContainer.appendChild(progContainer);
           bottomContainer.appendChild(timeWrapper);
           bottomContainer.appendChild(repeatBtn);
+          bottomContainer.appendChild(dlBtn);
           if (!disableFullScreen) {
              bottomContainer.appendChild(fsBtn);
           }
@@ -2503,6 +2572,54 @@ const MainEditor = ({
         // in the user coordinate space of the overlay. Applying it again causes double-transform bugs.
       });
 
+      // Sync iframe scale
+      svg.querySelectorAll('foreignObject iframe').forEach(iframe => {
+        const fo = iframe.closest('foreignObject');
+        if (fo) {
+          let foW = parseFloat(fo.getAttribute('width') || '0');
+          let foH = parseFloat(fo.getAttribute('height') || '0');
+          
+          const parentG = fo.closest('g');
+          if (parentG && parentG.hasAttribute('data-width')) {
+            foW = parseFloat(parentG.getAttribute('data-width'));
+            foH = parseFloat(parentG.getAttribute('data-height'));
+          } else if (fo.getAttribute('width')?.includes('%')) {
+            const bbox = fo.getBoundingClientRect();
+            if (bbox.width > 0) {
+              const svgEl = fo.closest('svg');
+              const ctm = svgEl ? svgEl.getScreenCTM() : null;
+              const scale = ctm ? ctm.a : 1;
+              foW = bbox.width / scale;
+              foH = bbox.height / scale;
+            }
+          }
+          
+          let origW = parseFloat(iframe.getAttribute('data-original-width'));
+          let origH = parseFloat(iframe.getAttribute('data-original-height'));
+          
+          if (!origW || !origH || iframe.getAttribute('width') === '100%') {
+             origW = 640;
+             origH = 360;
+             iframe.setAttribute('data-original-width', '640');
+             iframe.setAttribute('data-original-height', '360');
+             iframe.setAttribute('width', '640');
+             iframe.setAttribute('height', '360');
+             iframe.style.width = '640px';
+             iframe.style.height = '360px';
+             iframe.style.transformOrigin = '0 0';
+          }
+          
+          if (foW > 0 && foH > 0 && origW > 0 && origH > 0) {
+            iframe.style.setProperty('width', origW + 'px', 'important');
+            iframe.style.setProperty('height', origH + 'px', 'important');
+            const scaleX = foW / origW;
+            const scaleY = foH / origH;
+            iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
+            iframe.style.setProperty('transform-origin', '0 0', 'important');
+          }
+        }
+      });
+
       // Cleanup orphan overlays
       svg.querySelectorAll('.svg-shape-stroke-overlay').forEach(overlay => {
         const targetId = overlay.getAttribute('data-target');
@@ -2676,15 +2793,29 @@ const MainEditor = ({
         const iframe = document.createElement('iframe');
         iframe.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
         iframe.src = finalEmbedUrl;
-        iframe.setAttribute('width', '100%');
-        iframe.setAttribute('height', '100%');
+        
+        const intrinsicW = 640;
+        const intrinsicH = 360;
+        
+        iframe.setAttribute('width', intrinsicW.toString());
+        iframe.setAttribute('height', intrinsicH.toString());
+        iframe.setAttribute('data-original-width', intrinsicW.toString());
+        iframe.setAttribute('data-original-height', intrinsicH.toString());
+        
         iframe.setAttribute('frameborder', '0');
         iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
         iframe.setAttribute('allowfullscreen', 'true');
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
+        
+        iframe.style.width = intrinsicW + 'px';
+        iframe.style.height = intrinsicH + 'px';
         iframe.style.border = 'none';
         iframe.style.display = 'block';
+        iframe.style.transformOrigin = '0 0';
+        
+        const scaleX = displayWidth / intrinsicW;
+        const scaleY = displayHeight / intrinsicH;
+        iframe.style.transform = `scale(${scaleX}, ${scaleY})`;
+        
         if (originalUrl) iframe.setAttribute('data-original-url', originalUrl);
         fo.appendChild(iframe);
       } else {
@@ -7793,6 +7924,20 @@ const MainEditor = ({
                 el.setAttribute('y', adjustedY);
                 el.setAttribute('width', adjustedWidth);
                 el.setAttribute('height', adjustedHeight);
+                
+                if (el.tagName.toLowerCase() === 'foreignobject') {
+                  const iframe = el.querySelector('iframe');
+                  if (iframe) {
+                    let origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+                    let origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                    if (origW > 0 && origH > 0 && adjustedWidth > 0 && adjustedHeight > 0) {
+                      const scaleX = adjustedWidth / origW;
+                      const scaleY = adjustedHeight / origH;
+                      iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
+                      iframe.style.setProperty('transform-origin', '0 0', 'important');
+                    }
+                  }
+                }
               } else if (isGroup && state.childrenData) {
                 const isMultiSel = el.tagName === 'multi';
 
@@ -8050,6 +8195,20 @@ const MainEditor = ({
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
+
+                        if (tag === 'foreignobject') {
+                          const iframe = child.querySelector('iframe');
+                          if (iframe) {
+                            let origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+                            let origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                            if (origW > 0 && origH > 0 && imgW > 0 && imgH > 0) {
+                              const scaleX = imgW / origW;
+                              const scaleY = imgH / origH;
+                              iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
+                              iframe.style.setProperty('transform-origin', '0 0', 'important');
+                            }
+                          }
+                        }
 
                         if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
                           const centerX = imgX + (imgW / 2);
