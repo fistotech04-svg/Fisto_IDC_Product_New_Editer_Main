@@ -16,6 +16,17 @@ const ShareViewBook = () => {
     const [error, setError] = useState(null);
     const [retryAttempt, setRetryAttempt] = useState(0);
 
+    const [accessMode, setAccessMode] = useState(null); // null | 'password' | 'login'
+    const [passwordInput, setPasswordInput] = useState('');
+    const [passwordError, setPasswordError] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
+
+    // Get current logged-in user email
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    const currentUserEmail = user?.emailId || user?.email || '';
+
     const getBackendUrl = () => {
         if (import.meta.env.VITE_BACKEND_URL) {
             return import.meta.env.VITE_BACKEND_URL;
@@ -93,12 +104,20 @@ const ShareViewBook = () => {
         const maxRetries = 3;
         let cancelled = false;
 
-        const fetchBook = async () => {
+        const fetchBook = async (passVal = '') => {
             try {
                 const backendUrl = getBackendUrl();
                 console.log(`Fetching public flipbook: ${shareId} (Attempt ${retryCount + 1}/${maxRetries + 1})`);
 
+                const params = {};
+                if (currentUserEmail) params.emailId = currentUserEmail;
+                if (passVal) {
+                    params.password = passVal;
+                    params.accessKey = passVal;
+                }
+
                 const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, {
+                    params,
                     timeout: 15000 // 15s timeout for slow connections
                 });
 
@@ -186,27 +205,49 @@ const ShareViewBook = () => {
                 // Only update state if the component is still mounted
                 setBookData(processedData);
                 setError(null);
+                setAccessMode(null);
                 setLoading(false); // ✅ Only stop loading on SUCCESS
             } catch (err) {
                 if (cancelled) return;
                 console.error(`Error fetching public flipbook (attempt ${retryCount + 1}):`, err);
 
+                const status = err.response?.status;
+                const errData = err.response?.data || {};
+
                 // Retry on network errors or 5xx server errors — keep loading=true
-                const isRetryable = !err.response || err.response.status >= 500;
+                const isRetryable = !err.response || status >= 500;
                 if (retryCount < maxRetries && isRetryable) {
                     retryCount++;
                     setRetryAttempt(retryCount); // Show retry progress in UI
-                    // Exponential back-off: 1s, 2s, 4s
                     const delay = Math.pow(2, retryCount - 1) * 1000;
                     console.log(`Retrying in ${delay}ms...`);
-                    setTimeout(fetchBook, delay);
+                    setTimeout(() => fetchBook(passVal), delay);
                     return; // ⬅️ Keep loading=true while retry is pending
                 }
 
-                // All retries exhausted — now show the error
-                if (err.response?.status === 403) {
+                // Handle access control statuses
+                if (status === 401 || errData.isPasswordProtected) {
+                    setAccessMode('password');
+                    setError(null);
+                    setLoading(false);
+                    return;
+                }
+
+                if (status === 403) {
+                    if (errData.isInviteOnly) {
+                        if (!currentUserEmail) {
+                            setAccessMode('login');
+                            setError(null);
+                            setLoading(false);
+                            return;
+                        } else {
+                            setError("This flipbook is private. Your email is not authorized to access this book.");
+                            setLoading(false);
+                            return;
+                        }
+                    }
                     setError("This flipbook is private.");
-                } else if (err.response?.status === 404) {
+                } else if (status === 404) {
                     setError("Flipbook not found.");
                 } else {
                     setError("Flipbook not found or private.");
@@ -218,7 +259,52 @@ const ShareViewBook = () => {
         if (shareId) fetchBook();
 
         return () => { cancelled = true; }; // Cleanup to prevent state updates after unmount
-    }, [shareId]);
+    }, [shareId, currentUserEmail]);
+
+    const handlePasswordSubmit = async (e) => {
+        e.preventDefault();
+        if (!passwordInput.trim()) {
+            setPasswordError("Please enter your password or access key.");
+            return;
+        }
+        setPasswordError('');
+        setIsSubmittingPassword(true);
+        try {
+            const backendUrl = getBackendUrl();
+            const params = {
+                password: passwordInput.trim(),
+                accessKey: passwordInput.trim()
+            };
+            if (currentUserEmail) params.emailId = currentUserEmail;
+
+            const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, { params });
+
+            let processedData = res.data;
+            if (processedData?.settings) {
+                if (processedData.settings.otherSetup && !processedData.settings.othersetup) {
+                    processedData.settings.othersetup = processedData.settings.otherSetup;
+                }
+            }
+            if (processedData.pages) {
+                const bUrl = processedData.meta?.baseUrl ? resolveUploadsPath(processedData.meta.baseUrl) : '';
+                processedData.pages = processedData.pages.map(p => {
+                    let html = p.html || p.content || '';
+                    if (html.includes('nullassets/') && bUrl) html = html.split('nullassets/').join(`${bUrl}assets/`);
+                    if (html.includes('./assets/') && bUrl) html = html.split('./assets/').join(`${bUrl}assets/`);
+                    html = rewriteHtmlUploadsToSupabase(html);
+                    return { ...p, html };
+                });
+            }
+
+            setBookData(processedData);
+            setAccessMode(null);
+            setError(null);
+        } catch (err) {
+            setPasswordError(err.response?.data?.message || "Invalid Password or Access Key.");
+        } finally {
+            setIsSubmittingPassword(false);
+        }
+    };
 
     if (loading) return (
         <div className="flex h-screen flex-col gap-4 items-center justify-center bg-white">
@@ -228,6 +314,106 @@ const ShareViewBook = () => {
                     Connecting… (attempt {retryAttempt + 1} of 4)
                 </p>
             )}
+        </div>
+    );
+
+    if (accessMode === 'password') return (
+        <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-900 font-sans p-4">
+            <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-md w-full border border-slate-100 animate-in zoom-in-95 duration-200">
+                <div className="w-14 h-14 rounded-2xl bg-[#eaebf7] flex items-center justify-center mx-auto mb-4 border border-[#5551FF]/20">
+                    <Icon icon="lucide:lock" className="w-7 h-7 text-[#5551FF]" />
+                </div>
+                
+                <div className="text-center space-y-1">
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Protected Flipbook</h1>
+                    <p className="text-sm text-slate-500 font-normal">
+                        Enter the password or access key to view this flipbook.
+                    </p>
+                </div>
+
+                <form onSubmit={handlePasswordSubmit} className="mt-6 space-y-4">
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-800 block">Password or Access Key</label>
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                value={passwordInput}
+                                onChange={(e) => {
+                                    setPasswordInput(e.target.value);
+                                    if (passwordError) setPasswordError('');
+                                }}
+                                placeholder="Enter key..."
+                                className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:outline-none focus:border-[#5551FF] focus:ring-2 focus:ring-[#5551FF]/10 transition-all pr-10 shadow-xs"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                            >
+                                <Icon icon={showPassword ? "lucide:eye" : "lucide:eye-off"} className="w-4 h-4" />
+                            </button>
+                        </div>
+                        {passwordError && (
+                            <p className="text-xs text-red-500 font-medium pt-0.5">{passwordError}</p>
+                        )}
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={isSubmittingPassword}
+                        className="w-full bg-[#5551FF] hover:bg-[#4338ca] text-white py-3 rounded-xl text-sm font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                    >
+                        {isSubmittingPassword ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                        ) : (
+                            <>
+                                <Icon icon="lucide:key-round" className="w-4 h-4" />
+                                <span>Unlock Flipbook</span>
+                            </>
+                        )}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+
+    if (accessMode === 'login') return (
+        <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-900 font-sans p-4">
+            <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-md w-full text-center border border-slate-100 animate-in zoom-in-95 duration-200">
+                <div className="w-14 h-14 rounded-2xl bg-[#eaebf7] flex items-center justify-center mx-auto mb-4 border border-[#5551FF]/20">
+                    <Icon icon="lucide:user-check" className="w-7 h-7 text-[#5551FF]" />
+                </div>
+
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Invited Access Only</h1>
+                <p className="text-sm text-slate-500 font-normal mt-2 leading-relaxed">
+                    This flipbook is restricted to invited readers. Please log in with your invited email address to view this book.
+                </p>
+
+                <div className="mt-7 space-y-3">
+                    <button
+                        onClick={() => navigate(`/?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
+                        className="w-full bg-[#5551FF] hover:bg-[#4338ca] text-white py-3 rounded-xl text-sm font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                    >
+                        <Icon icon="lucide:log-in" className="w-4 h-4" />
+                        <span>Log In to Access</span>
+                    </button>
+
+                    <button
+                        onClick={() => navigate(`/signup?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
+                        className="w-full bg-white border border-[#5551FF] text-[#5551FF] hover:bg-[#eaebf7] py-3 rounded-xl text-sm font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                    >
+                        <Icon icon="lucide:user-plus" className="w-4 h-4" />
+                        <span>Sign Up to Access</span>
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/')}
+                        className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-3 rounded-xl text-sm font-bold transition-all shadow-xs cursor-pointer"
+                    >
+                        Back to Home
+                    </button>
+                </div>
+            </div>
         </div>
     );
 

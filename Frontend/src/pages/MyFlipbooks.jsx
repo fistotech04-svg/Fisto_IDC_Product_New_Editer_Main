@@ -1697,7 +1697,15 @@ export default function MyFlipbooks() {
                                                     <button 
                                                         onClick={() => {
                                                             const shareId = book.shareId || book.share?.shareId || book.v_id || encodeURIComponent(book.realName);
-                                                            window.open(`/share=public/${shareId}`, '_blank');
+                                                            const rawAcc = String(book.share?.access || book.settings?.visibility?.type || 'public').toLowerCase();
+                                                            const accessPrefix = rawAcc.includes('private')
+                                                                ? 'share=private'
+                                                                : rawAcc.includes('password')
+                                                                ? 'share=password'
+                                                                : rawAcc.includes('invite')
+                                                                ? 'share=invite'
+                                                                : 'share=public';
+                                                            window.open(`/${accessPrefix}/${shareId}`, '_blank');
                                                         }}
                                                         className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
                                                     >

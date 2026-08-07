@@ -217,6 +217,7 @@ const TemplateEditor = () => {
   const {
     setSaveHandler,
     setPreviewHandler,
+    setClearHandler,
     setHasUnsavedChanges,
     hasUnsavedChanges,
     triggerSaveSuccess,
@@ -974,6 +975,31 @@ const TemplateEditor = () => {
       if (setSaveHandler) setSaveHandler(null);
     };
   }, [setSaveHandler]);
+
+  const handleClearAllPages = useCallback(() => {
+    setPages(prevPages => 
+      prevPages.map((p, i) => {
+        const name = p.name || `Page ${i + 1}`;
+        const { html, layers } = createDefaultPageData(name, currentBook?.width, currentBook?.height);
+        return {
+          ...p,
+          html: html,
+          layers: layers || []
+        };
+      })
+    );
+    if (setHasUnsavedChanges) setHasUnsavedChanges(true);
+  }, [currentBook, setHasUnsavedChanges]);
+
+  useEffect(() => {
+    if (setClearHandler) setClearHandler(() => handleClearAllPages);
+    window.addEventListener('trigger-clear-flipbook', handleClearAllPages);
+
+    return () => {
+      if (setClearHandler) setClearHandler(null);
+      window.removeEventListener('trigger-clear-flipbook', handleClearAllPages);
+    };
+  }, [setClearHandler, handleClearAllPages]);
 
   // Register Preview Handler to Navbar
   const stablePreviewHandler = useCallback(async () => {

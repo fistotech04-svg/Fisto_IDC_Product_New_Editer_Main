@@ -9,6 +9,7 @@ import OtherSetup from './OtherSetup';
 import LeadForm from './LeadForm';
 import Visibility from './Visibility';
 import Statistic from './Statistic';
+import FlipbookInfoModal from '../FlipbookInfoModal';
 
 const AttachedCurve = ({ position }) => {
   const isTop = position.includes('top');
@@ -58,10 +59,11 @@ const SubNavItem = ({ label, icon, isActive, onClick }) => (
   </button>
 );
 
-const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPanelCollapsed, setIsPanelCollapsed, pageCount, visibilitySettings, onUpdateVisibility, canUndo, canRedo, onUndo, onRedo, onPreview }) => {
+const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPanelCollapsed, setIsPanelCollapsed, pageCount, visibilitySettings, onUpdateVisibility, canUndo, canRedo, onUndo, onRedo, onPreview, currentBook, setCurrentBook }) => {
   const navigate = useNavigate();
   const { folder, v_id } = useParams();
   const [openSection, setOpenSection] = useState(null);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
   const handleGoToPageEditor = () => {
     const path = folder ? `/editor/${folder}/${v_id}` : `/editor/${v_id}`;
@@ -72,9 +74,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
     if (!subView) return null;
     if (subView === 'logo' || subView === 'profile') return 'branding';
     if (['background', 'layout', 'bookappearance'].includes(subView)) return 'appearance';
-    if (subView === 'visibility') return 'visibility';
-    // Standalone items that also have submenus or just toggle the panel
-    if (['menubar', 'othersetup', 'leadform', 'statistic'].includes(subView)) return subView;
+    if (['menubar', 'othersetup', 'leadform', 'visibility', 'statistic'].includes(subView)) return subView;
     return null;
   };
 
@@ -83,6 +83,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
   const [tabTop, setTabTop] = useState(154);
   const [isDragging, setIsDragging] = useState(false);
   const sidebarRef = useRef(null);
+  const bookNameInputRef = useRef(null);
   const hasMovedRef = useRef(false);
   const isManuallyPositioned = useRef(false); // true after user drags to a custom position
 
@@ -244,22 +245,30 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
         </div>
       )}
 
-      {/* Book Title Section */}
-      <div className="px-[1.5vw] py-[1vh] flex flex-col shrink-0 border-b border-gray-100">
-        <div className="flex items-center justify-between border-b border-black pb-[0.2vw]">
+      {/* Book Title Section Card */}
+      <div className="px-[0.75vw] py-[0.4vw] shrink-0 border-b border-gray-100">
+        <div className="bg-white rounded-[0.6vw] border border-gray-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[0.75vw] py-[0.45vw] flex flex-col justify-between transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]">
           <input
+            ref={bookNameInputRef}
             type="text"
             value={bookName}
             onChange={(e) => setBookName(e.target.value)}
-            className="text-[1vw] font-medium text-gray-800 bg-transparent border-none focus:ring-0 focus:outline-none w-full p-0"
+            className="text-[0.92vw] font-medium text-gray-900 bg-transparent border-none focus:ring-0 focus:outline-none w-full p-0 leading-snug placeholder-gray-400 font-sans tracking-tight"
             placeholder="Name of the Book"
           />
-          <Icon icon="mdi:rename" className="w-[1.25vw] h-[1.25vw] text-gray-800 cursor-pointer" />
-        </div>
 
-        <div className="flex justify-end mt-[1vh]">
-          <div className="bg-[#F3F4F6] px-[0.65vw] py-[0.1vw] rounded-[0.4vw]">
-            <span className="text-[0.8vw] font-medium text-gray-700">{pageCount || 0} Pages</span>
+          <div className="flex items-center justify-between mt-[0.25vw]">
+            <span className="text-[0.72vw] text-gray-500 font-medium tracking-wide">
+              Pages : {pageCount || 10}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsInfoModalOpen(true)}
+              className="text-[#373d8a] hover:text-[#2a2e6b] transition-colors cursor-pointer"
+              title="Edit Flipbook Information"
+            >
+              <Icon icon="ph:pencil-simple-fill" className="w-[0.95vw] h-[0.95vw]" />
+            </button>
           </div>
         </div>
       </div>
@@ -354,44 +363,10 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           id="section-visibility"
           icon="mdi:visibility-outline"
           label="Visibility"
-          isOpen={openSection === 'visibility'}
-          onClick={() => toggleSection('visibility')}
-          isActive={openSection ? openSection === 'visibility' : parentSection === 'visibility'}
-        >
-          <div className="mb-[0.5vw] p-[0.5vw] rounded-[1vw] border border-[#DBDBEA] bg-white space-y-[0.25vw] shadow-sm">
-            {[
-              { id: 'Public', label: 'Public' },
-              { id: 'Private', label: 'Private' },
-              { id: 'Password Protect', label: 'Password Protect' },
-              { id: 'Invite only Access', label: 'Invite only Access' }
-            ].map((option) => (
-              <label
-                key={option.id}
-                className={`flex items-center gap-[0.75vw] px-[1.25vw] py-[0.75vw] rounded-[0.75vw] cursor-pointer transition-all ${visibilitySettings.type === option.id ? 'bg-[#eeeffc]' : 'hover:bg-gray-50'
-                  }`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  onUpdateVisibility({ ...visibilitySettings, type: option.id });
-                  setActiveSubView('visibility');
-                }}
-              >
-                <div className="relative flex items-center justify-center">
-                  <input
-                    type="radio"
-                    name="visibility-type"
-                    checked={visibilitySettings.type === option.id}
-                    onChange={() => { }} // Handled by label click
-                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-600 transition-all bg-white"
-                  />
-                  <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-600 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
-                </div>
-                <span className={`text-[0.75vw] font-medium ${visibilitySettings.type === option.id ? 'text-indigo-900' : 'text-gray-600'}`}>
-                  {option.label}
-                </span>
-              </label>
-            ))}
-          </div>
-        </SidebarItem>
+          isActive={openSection ? openSection === 'visibility' : activeSubView === 'visibility'}
+          onClick={() => setActiveSubView(activeSubView === 'visibility' ? null : 'visibility')}
+          hasDropdown={false}
+        />
 
         <SidebarItem
           id="section-statistic"
@@ -413,6 +388,32 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           <span>Go to Page Editor</span>
         </button>
       </div>
+      {/* Flipbook Information Modal */}
+      <FlipbookInfoModal 
+        isOpen={isInfoModalOpen}
+        onClose={() => setIsInfoModalOpen(false)}
+        currentBook={currentBook || { flipbookName: bookName, pageCount: pageCount }}
+        onSaveSuccess={(data) => {
+          if (data?.bookName) setBookName(data.bookName);
+          if (setCurrentBook) {
+            setCurrentBook(prev => ({
+              ...(prev || {}),
+              flipbookName: data?.bookName || prev?.flipbookName,
+              quotes: data?.quotes,
+              about: data?.about,
+              category: data?.category,
+              language: data?.language,
+              meta: {
+                ...(prev?.meta || {}),
+                quotes: data?.quotes,
+                about: data?.about,
+                category: data?.category,
+                language: data?.language
+              }
+            }));
+          }
+        }}
+      />
     </div>
   );
 };

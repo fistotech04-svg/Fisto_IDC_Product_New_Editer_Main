@@ -33,6 +33,10 @@ const flipbookSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    isPublished: {
+        type: Boolean,
+        default: false
+    },
     meta: {
         type: Object,
         default: {}
@@ -41,20 +45,38 @@ const flipbookSchema = new mongoose.Schema({
     height: { type: Number },
     templateId: { type: String },
     orientation: { type: String },
-    settings: {
+    Customized_Settings: {
         type: Object,
-        default: {}
-    },
-    share: {
-        shareId: {
-            type: String,
-            default: () => nanoid(12),
-            unique: true
-        },
-        access: {
-            type: String,
-            enum: ['public', 'private'],
-            default: 'public'
+        default: {},
+        Visibility: {
+            shareId: {
+                type: String,
+                default: () => nanoid(12),
+                sparse: true
+            },
+            access: {
+                type: String,
+                enum: ['public', 'private', 'password', 'invite_only', 'Public', 'Private', 'Password Protect', 'Invite Only Access'],
+                default: 'public'
+            },
+            password: { type: String, default: '' },
+            accessKey: { type: String, default: '' },
+            isPasswordSaved: { type: Boolean, default: false },
+            inviteOnly: {
+                autoExpire: {
+                    enabled: { type: Boolean, default: false },
+                    days: { type: String, default: '0 Days' },
+                    time: { type: String, default: '5 Mins' }
+                },
+                emails: [{
+                    email: { type: String },
+                    status: { type: String, default: 'valid' }
+                }],
+                domains: [{
+                    domain: { type: String },
+                    status: { type: String, default: 'valid' }
+                }]
+            }
         }
     }
 });
