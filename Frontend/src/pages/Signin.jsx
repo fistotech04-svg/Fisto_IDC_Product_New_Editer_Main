@@ -82,7 +82,9 @@ export default function Signin() {
         if (res.data.user) {
           localStorage.setItem('user', JSON.stringify({ ...res.data.user, isLoggedIn: true }));
           toast.success('Login successful with Google!');
-          navigate('/home');
+          const searchParams = new URLSearchParams(location.search);
+          const redirectUrl = searchParams.get('redirect') || '/home';
+          navigate(redirectUrl);
         }
       } catch (err) {
         console.error('Google Auth Error:', err);
@@ -109,7 +111,9 @@ export default function Signin() {
         if (res.data.user) {
           localStorage.setItem('user', JSON.stringify({ ...res.data.user, isLoggedIn: true }));
           toast.success('Welcome back!');
-          navigate('/home');
+          const searchParams = new URLSearchParams(location.search);
+          const redirectUrl = searchParams.get('redirect') || '/home';
+          navigate(redirectUrl);
         }
       } catch (err) {
         console.error('Google One Tap Error:', err);
@@ -139,7 +143,9 @@ export default function Signin() {
       }
 
       toast.success('Login successful!');
-      navigate('/home');
+      const searchParams = new URLSearchParams(location.search);
+      const redirectUrl = searchParams.get('redirect') || '/home';
+      navigate(redirectUrl);
     } catch (err) {
       console.error('Login error:', err.response?.data?.message || err.message);
       toast.error(err.response?.data?.message || 'Login failed');

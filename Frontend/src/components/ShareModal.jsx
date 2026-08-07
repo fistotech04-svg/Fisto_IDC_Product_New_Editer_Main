@@ -990,7 +990,20 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
     if (!isOpen) return null;
 
-    let publicUrl = flipbookUrl || (currentBook ? `${window.location.origin}/share=public/${currentBook.shareId || currentBook.share?.shareId || ''}` : window.location.href);
+    const accessVal = currentBook?.share?.access || currentBook?.shareAccess || currentBook?.settings?.visibility?.type || 'public';
+    const rawAcc = String(accessVal).toLowerCase();
+    const accessPrefix = rawAcc.includes('private')
+        ? 'share=private'
+        : rawAcc.includes('password')
+        ? 'share=password'
+        : rawAcc.includes('invite')
+        ? 'share=invite'
+        : 'share=public';
+
+    let publicUrl = flipbookUrl || (currentBook ? `${window.location.origin}/${accessPrefix}/${currentBook.shareId || currentBook.share?.shareId || ''}` : window.location.href);
+    if (publicUrl.includes('/share=')) {
+        publicUrl = publicUrl.replace(/\/share=[^\/]+/, `/${accessPrefix}`);
+    }
 
     if (activeLayout) {
         try {
