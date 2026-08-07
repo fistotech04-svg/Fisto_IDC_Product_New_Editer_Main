@@ -9,7 +9,7 @@ import ShareModal from './ShareModal';
 import EditorSettingsModal from './EditorSettingsModal';
 
 
-const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving, activeDevice, setActiveDevice, currentBook }) => {
+const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDeleteFlipbook, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving, activeDevice, setActiveDevice, currentBook }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isEditorSettingsOpen, setIsEditorSettingsOpen] = useState(false);
@@ -320,7 +320,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
                 title="Publish Project"
               >
                 <Icon icon="lucide:upload" className="w-[1.1vw] h-[1.1vw]" />
-                <span className="font-medium text-[0.85vw] whitespace-nowrap">Publish</span>
+                <span className="font-medium text-[0.85vw] whitespace-nowrap">{(currentBook?.isPublished || currentBook?.published || currentBook?.is_published || currentBook?.status === 'publish' || currentBook?.meta?.isPublished) ? 'Unpublish' : 'Publish'}</span>
               </button>
               
               <div className="w-[0.1vw] h-[1.5vw] bg-white/20"></div>
@@ -341,17 +341,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
                   <button 
                     onClick={() => {
                       setIsPublishMenuOpen(false);
-                      // Handle Unpublish
-                    }}
-                    className="w-full px-[1vw] py-[0.6vw] text-center text-gray-700 hover:bg-gray-50 transition-colors font-medium text-[0.8vw] cursor-pointer"
-                  >
-                    Unpublish
-                  </button>
-                  <div className="mx-[1vw] border-b-[0.1vw] border-[#00A58E]/30 my-[0.1vw]"></div>
-                  <button 
-                    onClick={() => {
-                      setIsPublishMenuOpen(false);
-                      // Handle Clear
+                      if (onClearFlipbook) onClearFlipbook();
                     }}
                     className="w-full px-[1vw] py-[0.6vw] text-center text-gray-700 hover:bg-gray-50 transition-colors font-medium text-[0.8vw] cursor-pointer"
                   >
@@ -360,7 +350,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
                   <button 
                     onClick={() => {
                       setIsPublishMenuOpen(false);
-                      // Handle Delete
+                      if (onDeleteFlipbook) onDeleteFlipbook();
                     }}
                     className="w-full px-[1vw] py-[0.6vw] text-center text-red-500 hover:bg-red-50 transition-colors font-bold text-[0.8vw] cursor-pointer"
                   >

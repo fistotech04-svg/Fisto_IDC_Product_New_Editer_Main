@@ -15,6 +15,7 @@ import PdfProcessingLoader from '../PdfProcessingLoader';
 import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
 import Model3DPreviewModal from './Interaction3DPreview';
 import { getSupabaseBaseUrl, resolveUploadsPath } from '../../utils/supabaseUtils';
+import { checkIsAnimatedWebp } from './editorUtils';
 
 
 /**
@@ -216,6 +217,7 @@ const TemplateEditor = () => {
   const {
     setSaveHandler,
     setPreviewHandler,
+    setClearHandler,
     setHasUnsavedChanges,
     hasUnsavedChanges,
     triggerSaveSuccess,
@@ -973,6 +975,31 @@ const TemplateEditor = () => {
       if (setSaveHandler) setSaveHandler(null);
     };
   }, [setSaveHandler]);
+
+  const handleClearAllPages = useCallback(() => {
+    setPages(prevPages => 
+      prevPages.map((p, i) => {
+        const name = p.name || `Page ${i + 1}`;
+        const { html, layers } = createDefaultPageData(name, currentBook?.width, currentBook?.height);
+        return {
+          ...p,
+          html: html,
+          layers: layers || []
+        };
+      })
+    );
+    if (setHasUnsavedChanges) setHasUnsavedChanges(true);
+  }, [currentBook, setHasUnsavedChanges]);
+
+  useEffect(() => {
+    if (setClearHandler) setClearHandler(() => handleClearAllPages);
+    window.addEventListener('trigger-clear-flipbook', handleClearAllPages);
+
+    return () => {
+      if (setClearHandler) setClearHandler(null);
+      window.removeEventListener('trigger-clear-flipbook', handleClearAllPages);
+    };
+  }, [setClearHandler, handleClearAllPages]);
 
   // Register Preview Handler to Navbar
   const stablePreviewHandler = useCallback(async () => {
@@ -3358,7 +3385,10 @@ const TemplateEditor = () => {
           handledExternal = true;
 
           const isVideo = fileToProcess.type.startsWith('video/');
-          const isGif = fileToProcess.type === 'image/gif';
+          let isGif = fileToProcess.type === 'image/gif';
+          if (!isGif && fileToProcess.type.includes('webp')) {
+            isGif = await checkIsAnimatedWebp(fileToProcess);
+          }
           const isSvg = fileToProcess.type === 'image/svg+xml';
 
           const reader = new FileReader();
@@ -3454,7 +3484,10 @@ const TemplateEditor = () => {
               e.stopPropagation();
               const blob = await item.getType(mediaType);
               const isVideo = mediaType.startsWith('video/');
-              const isGif = mediaType === 'image/gif';
+              let isGif = mediaType === 'image/gif';
+              if (!isGif && mediaType.includes('webp')) {
+                isGif = await checkIsAnimatedWebp(blob);
+              }
               const isSvg = mediaType === 'image/svg+xml';
 
               const reader = new FileReader();
@@ -4268,6 +4301,9 @@ const TemplateEditor = () => {
         setPages={setPages}
         updatePageBackground={updatePageBackground}
         selectedLayerId={selectedLayerId}
+        setSelectedLayerId={setSelectedLayerId}
+        multiSelectedIds={multiSelectedIds}
+        setMultiSelectedIds={setMultiSelectedIds}
         updateElementAttribute={updateElementAttribute}
         deleteLayer={deleteLayer}
         onPreview={() => setShowPreview(true)}

@@ -770,7 +770,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
   }, [backgroundColor, radius, isRadiusLinked, activeEffects, effectSettings, activePageIndex, selectedLayerId]);
 
   return (
-    <>
+    <div className="flex flex-col gap-[0.4vw]">
       <Color
         openSubSection={openSubSection}
         setOpenSubSection={setOpenSubSection}
@@ -809,7 +809,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         showDetailedPicker={showDetailedPicker}
         setShowDetailedPicker={setShowDetailedPicker}
       />
-    </>
+    </div>
   );
 };
 
@@ -2449,7 +2449,7 @@ const TextEditor = ({
   if (!selectedElement) return null;
 
   return (
-    <div className="w-full space-y-[1vw] font-sans text-gray-800">
+    <div className="w-full flex flex-col gap-[0.4vw] font-sans text-gray-800">
       {/* Header */}
       <div className="flex items-center gap-[0.75vw]">
         <h2 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Text Property</h2>
@@ -2745,7 +2745,7 @@ const TextEditor = ({
       </div>
 
       {/* Accordions */}
-      <div className="space-y-[0.65vw] mt-[1vw]">
+      <div className="flex flex-col gap-[0.4vw]">
         {/* Accordions from ShapeProperties */}
         <div className="shape-properties-container">
           <TextEditorSubComponentAdapter

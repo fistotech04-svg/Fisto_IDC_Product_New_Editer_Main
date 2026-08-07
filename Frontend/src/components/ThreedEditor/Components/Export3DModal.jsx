@@ -139,12 +139,7 @@ export default function Export3DModal({
   selectedMaterial = null,
   materialList = []
 }) {
-  const [exportScope, setExportScope] = useState(
-    selectedMaterial && 
-    (selectedMaterial.isGroup || (selectedMaterial.name !== modelName && selectedMaterial.name !== "Scene" && selectedMaterial.name !== "Multiple Selection"))
-      ? 'selection' 
-      : 'full'
-  );
+  const [exportScope, setExportScope] = useState('full');
 
   const containerRef = useRef();
 
@@ -544,6 +539,7 @@ export default function Export3DModal({
                                                      url={model.url}
                                                      isSelectionDisabled={true}
                                                      shouldClone={true}
+                                                     includeTextures={includeTextures}
                                                      transformValues={transformValues}
                                                      materialSettings={materialSettings}
                                                      hiddenMaterials={effectiveHiddenMaterials}
@@ -663,54 +659,22 @@ export default function Export3DModal({
                                     <input 
                                         type="checkbox"
                                         checked={includeTextures}
-                                        onChange={(e) => setIncludeTextures(e.target.checked)}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setIncludeTextures(checked);
+                                            setEmbedTextures(checked);
+                                        }}
                                         className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.12vw] border-gray-300 rounded-[0.25vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm"
                                     />
                                     <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={4} />
                                 </div>
                                 <span className="text-gray-900 font-bold text-[0.75vw]">Include Textures</span>
                             </label>
-
-                            {includeTextures && (
-                                <div className="pl-[1.9vw] flex flex-col gap-[1vw] animate-in fade-in slide-in-from-left-1 duration-200">
-                                    <label className="flex items-center gap-[0.8vw] cursor-pointer group">
-                                        <div className="relative flex items-center justify-center">
-                                            <input 
-                                                type="checkbox"
-                                                checked={embedTextures}
-                                                onChange={(e) => {
-                                                    setEmbedTextures(e.target.checked);
-                                                    if (e.target.checked) setExportSeparate(false);
-                                                }}
-                                                className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.12vw] border-gray-300 rounded-[0.25vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm"
-                                            />
-                                            <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={4} />
-                                        </div>
-                                        <span className="text-gray-600 font-medium text-[0.75vw]">Embed inside file (Recommended)</span>
-                                    </label>
-
-                                    <label className="flex items-center gap-[0.8vw] cursor-pointer group">
-                                        <div className="relative flex items-center justify-center">
-                                            <input 
-                                                type="checkbox"
-                                                checked={exportSeparate}
-                                                onChange={(e) => {
-                                                    setExportSeparate(e.target.checked);
-                                                    if (e.target.checked) setEmbedTextures(false);
-                                                }}
-                                                className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.12vw] border-gray-300 rounded-[0.25vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm"
-                                            />
-                                            <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={4} />
-                                        </div>
-                                        <span className="text-gray-600 font-medium text-[0.75vw]">Export textures as separate files</span>
-                                    </label>
-                                </div>
-                            )}
                         </div>
                     </div>
 
                     {/* Texture Quality / Resolution */}
-                    <div className="flex flex-col gap-[0.8vw]">
+                    <div className={`flex flex-col gap-[0.8vw] transition-opacity duration-200 ${!includeTextures ? 'opacity-40 pointer-events-none select-none' : ''}`}>
                         <div className="flex items-center gap-[0.8vw]">
                             <h3 className="text-[1vw] font-bold text-gray-800 tracking-tight">Texture Quality / Resolution</h3>
                             <div className="h-[0.1vw] bg-gray-200 flex-1"></div>
@@ -725,6 +689,7 @@ export default function Export3DModal({
                             ].map(q => (
                                 <button 
                                     key={q.name}
+                                    disabled={!includeTextures}
                                     onClick={() => setQuality(q.name)}
                                     className={`flex flex-col items-center justify-center py-[0.5vw] rounded-[0.4vw] border-[0.1vw] transition-all ${
                                         quality === q.name 

@@ -71,7 +71,9 @@ export default function Signup() {
       }
       
       toast.success('Signup successful!');
-      navigate('/home');
+      const searchParams = new URLSearchParams(location.search);
+      const redirectUrl = searchParams.get('redirect') || '/home';
+      navigate(redirectUrl);
     } catch (err) {
       console.error('Signup error:', err.response?.data?.message || err.message);
       toast.error(err.response?.data?.message || 'Signup failed');

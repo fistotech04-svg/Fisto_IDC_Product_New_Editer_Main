@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import axios from 'axios';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
+import { checkIsAnimatedWebp } from './editorUtils';
 
 const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) => {
   const [replaceModalTab, setReplaceModalTab] = useState('Upload');
@@ -16,6 +17,54 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
   const fileInputRefGallery = useRef(null);
   const fileInputRefReplaceItem = useRef(null);
   const [itemToReplaceId, setItemToReplaceId] = useState(null);
+
+  const validateMediaFile = async (file) => {
+    if (mediaType === 'video') return file.type.startsWith('video/');
+    if (mediaType === 'gif') {
+      if (file.type.includes('gif')) return true;
+      if (file.type.includes('webp')) return await checkIsAnimatedWebp(file);
+      return false;
+    }
+    if (mediaType === 'image') {
+      if (file.type.startsWith('video/')) return false;
+      if (file.type.includes('gif')) return false;
+      if (file.type.includes('webp')) {
+        const isAnimated = await checkIsAnimatedWebp(file);
+        return !isAnimated;
+      }
+      return true;
+    }
+    return true;
+  };
+
+  const handleUploadFile = async (file) => {
+    if (!file) return;
+    if (await validateMediaFile(file)) {
+      setReplaceModalFile(file);
+    } else {
+      alert(mediaType === 'gif' ? 'Please upload a GIF or animated WebP file.' : mediaType === 'image' ? 'Please upload a static image (not animated WebP or GIF).' : 'Please upload a valid video file.');
+    }
+  };
+
+  const handleGalleryFiles = async (files) => {
+    const validFiles = [];
+    for (const f of files) {
+      if (await validateMediaFile(f)) validFiles.push(f);
+    }
+    if (validFiles.length !== files.length) {
+      alert(`Some files were ignored because they are not valid ${mediaType}s.`);
+    }
+    if (validFiles.length > 0) {
+      const newAssets = validFiles.map(newFile => ({
+        id: URL.createObjectURL(newFile),
+        name: newFile.name.replace(/\.[^/.]+$/, ''),
+        url: URL.createObjectURL(newFile),
+        isLocal: true,
+        file: newFile
+      }));
+      setGalleryAssets(prev => [...newAssets, ...prev]);
+    }
+  };
 
   useEffect(() => {
     if (replaceModalFile) {
@@ -123,7 +172,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     onDrop={e => {
                       e.preventDefault();
                       if (e.dataTransfer.files?.length) {
-                        setReplaceModalFile(e.dataTransfer.files[0]);
+                        handleUploadFile(e.dataTransfer.files[0]);
                       }
                     }}
                   >
@@ -140,21 +189,21 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                             e.preventDefault();
                             e.stopPropagation();
                             if (e.dataTransfer.files?.length) {
-                              setReplaceModalFile(e.dataTransfer.files[0]);
+                              handleUploadFile(e.dataTransfer.files[0]);
                             }
                           }}
                         >
                           <Icon icon="lucide:upload" className="w-[0.8vw] h-[0.8vw] stroke-[2]" />
                           Browse Files
                           <input type="file" ref={fileInputRefUpload} className="hidden" accept={mediaType === 'video' ? 'video/mp4' : 'image/*'} onChange={e => {
-                            if (e.target.files?.length) setReplaceModalFile(e.target.files[0]);
+                            if (e.target.files?.length) handleUploadFile(e.target.files[0]);
                           }} onClick={(e) => { e.target.value = null; }} />
                         </div>
                       </div>
                     </div>
                   </div>
                   <div className="mt-[1.5vw] text-[0.8vw] text-gray-500 space-y-[0.2vw] shrink-0">
-                    <p>Supported File : {mediaType === 'video' ? 'MP4, MKV, WEBM' : mediaType === 'gif' ? 'GIF' : 'JPG, PNG, WEBP, SVG'}</p>
+                    <p>Supported File : {mediaType === 'video' ? 'MP4, MKV, WEBM' : mediaType === 'gif' ? 'GIF, WEBP' : 'JPG, PNG, WEBP, SVG'}</p>
                     <p>Max file size : 50MB</p>
                   </div>
                 </>
@@ -175,14 +224,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                       e.preventDefault();
                       e.stopPropagation();
                       if (e.dataTransfer.files?.length) {
-                        const newAssets = Array.from(e.dataTransfer.files).map(newFile => ({
-                          id: URL.createObjectURL(newFile),
-                          name: newFile.name.replace(/\.[^/.]+$/, ''),
-                          url: URL.createObjectURL(newFile),
-                          isLocal: true,
-                          file: newFile
-                        }));
-                        setGalleryAssets(prev => [...newAssets, ...prev]);
+                        handleGalleryFiles(Array.from(e.dataTransfer.files));
                       }
                     }}
                   >
@@ -190,25 +232,19 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     <span className="text-[0.85vw] font-medium">Browse Files</span>
                     <input type="file" ref={fileInputRefGallery} className="hidden" accept={mediaType === 'video' ? 'video/mp4' : 'image/*'} multiple onChange={e => {
                       if (e.target.files?.length) {
-                        const newAssets = Array.from(e.target.files).map(newFile => {
-                          const objectUrl = URL.createObjectURL(newFile);
-                          return {
-                            id: objectUrl,
-                            name: newFile.name.replace(/\.[^/.]+$/, ''),
-                            url: objectUrl,
-                            isLocal: true,
-                            file: newFile
-                          };
-                        });
-                        setGalleryAssets(prev => [...newAssets, ...prev]);
+                        handleGalleryFiles(Array.from(e.target.files));
                       }
                     }} onClick={(e) => { e.target.value = null; }} />
                   </div>
                 </div>
               </div>
-              <input type="file" ref={fileInputRefReplaceItem} className="hidden" accept={mediaType === 'video' ? 'video/mp4' : 'image/*'} onChange={e => {
+              <input type="file" ref={fileInputRefReplaceItem} className="hidden" accept={mediaType === 'video' ? 'video/mp4' : 'image/*'} onChange={async e => {
                 if (e.target.files?.length && itemToReplaceId) {
                   const newFile = e.target.files[0];
+                  if (!(await validateMediaFile(newFile))) {
+                    alert(mediaType === 'gif' ? 'Please upload a GIF or animated WebP file.' : mediaType === 'image' ? 'Please upload a static image (not animated WebP or GIF).' : 'Please upload a valid video file.');
+                    return;
+                  }
                   const newUrl = URL.createObjectURL(newFile);
                   const updatedAsset = {
                     id: newUrl,
@@ -368,9 +404,9 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                             setReplaceModalFile(null);
                           }
                         } else if (mediaType === 'gif') {
-                          const isGif = /\.gif(\?.*)?$/i.test(finalUrl);
+                          const isGif = /\.(gif|webp)(\?.*)?$/i.test(finalUrl);
                           if (!isGif) {
-                            setImportUrlError('Please enter a valid GIF URL.');
+                            setImportUrlError('Please enter a valid GIF or WEBP URL.');
                             setReplaceModalFile(null);
                           } else {
                             setImportUrlError('');
@@ -425,7 +461,9 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     } else {
                       const response = await fetch(replaceModalFile.url);
                       const blob = await response.blob();
-                      const file = new File([blob], replaceModalFile.name + (mediaType === 'video' ? '.mp4' : mediaType === 'gif' ? '.gif' : '.png'), { type: blob.type || (mediaType === 'video' ? 'video/mp4' : mediaType === 'gif' ? 'image/gif' : 'image/png') });
+                      const ext = mediaType === 'video' ? '.mp4' : mediaType === 'gif' ? (blob.type === 'image/webp' || replaceModalFile.url?.toLowerCase().includes('.webp') ? '.webp' : '.gif') : '.png';
+                      const mimeType = blob.type || (mediaType === 'video' ? 'video/mp4' : mediaType === 'gif' ? (ext === '.webp' ? 'image/webp' : 'image/gif') : 'image/png');
+                      const file = new File([blob], replaceModalFile.name + ext, { type: mimeType });
                       onReplace(file);
                     }
                   } catch (e) {

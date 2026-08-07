@@ -1724,7 +1724,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         <div className="flex items-center gap-[0.4vw] px-[0.25vw]">
           <div className="relative">
             <button
-              className="w-[1.1vw] h-[1.1vw] rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-[0.6vw] font-semibold hover:bg-gray-100 transition-colors"
+              className="w-[1vw] h-[1vw] rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-[0.6vw] font-semibold hover:bg-gray-100 transition-colors"
               onMouseEnter={() => setShowInfoTooltip(true)}
               onMouseLeave={() => setShowInfoTooltip(false)}
             >
@@ -1736,7 +1736,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
               </div>
             )}
           </div>
-          <span className="text-[0.75vw] text-gray-400 font-medium italic">You can add up to 4 images in Gallery</span><span className="text-[0.95vw] text-red-500 "> *</span>
+          <span className="text-[0.6vw] text-gray-400 italic">You can add up to 4 images in Gallery</span><span className="text-[0.95vw] text-red-500 "> *</span>
         </div>
 
         {/* Opacity */}
