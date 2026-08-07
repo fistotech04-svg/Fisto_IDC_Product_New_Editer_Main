@@ -12,7 +12,9 @@ import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import axios from 'axios';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
+import { fontFamilies, fontWeights } from '../../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
+import ColorPicker from './ColorPicker';
 const GlbModel = ({ url }) => {
   const { scene } = useGLTF(url);
   return (
@@ -59,6 +61,152 @@ const GlbThumbnail = ({ dataUrl }) => {
   );
 };
 
+const ZoomTargetThumbnail = ({ targetId }) => {
+  const [svgContent, setSvgContent] = useState(null);
+  const [viewBox, setViewBox] = useState('0 0 100 100');
+  const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+
+  useEffect(() => {
+    if (!targetId || !editorDoc) return;
+
+    const updateThumb = () => {
+      const el = editorDoc.getElementById(targetId);
+      if (el) {
+        const pageSvg = el.closest('svg');
+
+        let localBox = { x: 0, y: 0, width: 100, height: 100 };
+        let absBox = { x: 0, y: 0, width: 100, height: 100 };
+
+        try {
+          if (typeof el.getBBox === 'function') {
+            localBox = el.getBBox();
+          } else {
+            const rect = el.getBoundingClientRect();
+            localBox = { x: 0, y: 0, width: rect.width || 100, height: rect.height || 100 };
+          }
+        } catch (e) { }
+
+        if (pageSvg && typeof pageSvg.createSVGPoint === 'function') {
+          try {
+            const elRect = el.getBoundingClientRect();
+            const ctm = pageSvg.getScreenCTM();
+            if (ctm) {
+              const inverseCtm = ctm.inverse();
+              const pt1 = pageSvg.createSVGPoint();
+              pt1.x = elRect.left; pt1.y = elRect.top;
+              const svgPt1 = pt1.matrixTransform(inverseCtm);
+
+              const pt2 = pageSvg.createSVGPoint();
+              pt2.x = elRect.right; pt2.y = elRect.bottom;
+              const svgPt2 = pt2.matrixTransform(inverseCtm);
+
+              absBox = { x: svgPt1.x, y: svgPt1.y, width: svgPt2.x - svgPt1.x, height: svgPt2.y - svgPt1.y };
+            } else {
+              absBox = localBox;
+            }
+          } catch (e) {
+            absBox = localBox;
+          }
+        } else {
+          absBox = localBox;
+        }
+
+        const padding = 10;
+        const isFreeFrame = el.getAttribute('data-name')?.toLowerCase() === 'free frame' || el.getAttribute('data-type') === 'free-frame';
+
+        if (isFreeFrame && pageSvg) {
+          const framePadding = 0;
+          const viewBoxStr = `${absBox.x - framePadding} ${absBox.y - framePadding} ${absBox.width + framePadding * 2} ${absBox.height + framePadding * 2}`;
+          setViewBox(viewBoxStr);
+
+          // For Free Frames, capture the exact area underneath it by cloning the parent SVG
+          const clone = pageSvg.cloneNode(true);
+          const frameInClone = clone.getElementById(targetId) || clone.querySelector(`[id="${targetId}"]`);
+          if (frameInClone) frameInClone.style.display = 'none'; // hide the dashed box itself
+
+          // Scale up the intrinsic size so it expands to fill the preview container
+          const ratio = absBox.height / absBox.width;
+          clone.setAttribute('width', '10000');
+          clone.setAttribute('height', String(10000 * ratio));
+          clone.setAttribute('viewBox', viewBoxStr);
+          clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+          clone.style.width = 'auto'; // allow max-width/max-height to scale it proportionally
+          clone.style.height = 'auto';
+          clone.style.maxWidth = '100%';
+          clone.style.maxHeight = '100%';
+          clone.style.overflow = 'hidden';
+
+          setSvgContent(clone.outerHTML);
+        } else {
+          const viewBoxStr = `${localBox.x - padding} ${localBox.y - padding} ${localBox.width + padding * 2} ${localBox.height + padding * 2}`;
+          setViewBox(viewBoxStr);
+
+          // For normal elements, isolate and display the element directly (worked perfectly before)
+          const clone = el.cloneNode(true);
+          if (clone.style) {
+            clone.style.display = 'block';
+            clone.style.opacity = '1';
+            clone.style.visibility = 'visible';
+            clone.style.transform = 'none';
+          }
+          if (typeof clone.removeAttribute === 'function') clone.removeAttribute('transform');
+
+          let finalHTML = clone.outerHTML;
+          const isSVG = el instanceof SVGElement || el.tagName.toLowerCase() === 'svg' || el.tagName.toLowerCase() === 'g' || el.tagName.toLowerCase() === 'image';
+          if (!isSVG) {
+            finalHTML = `<foreignObject x="${localBox.x}" y="${localBox.y}" width="${localBox.width}" height="${localBox.height}">${clone.outerHTML}</foreignObject>`;
+          }
+          setSvgContent(finalHTML);
+        }
+      } else {
+        setSvgContent(null);
+      }
+    };
+
+    updateThumb();
+
+    let timeoutId;
+    const handleUpdate = (e) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (!e.detail || e.detail.elementId === targetId || e.type === 'canvas-updated') {
+          updateThumb();
+        }
+      }, 300);
+    };
+
+    window.addEventListener('update-interaction-badge', handleUpdate);
+    window.addEventListener('canvas-updated', handleUpdate);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('update-interaction-badge', handleUpdate);
+      window.removeEventListener('canvas-updated', handleUpdate);
+    };
+  }, [targetId, editorDoc]);
+
+  if (!svgContent) {
+    return (
+      <div className="w-full h-[22vh] rounded-[0.6vw] bg-gray-100 flex items-center justify-center border border-gray-200 shadow-sm animate-pulse">
+        <Icon icon="tabler:photo" className="text-gray-400 text-[2vw]" />
+      </div>
+    );
+  }
+
+  const isFullSvg = svgContent.trim().toLowerCase().startsWith('<svg');
+
+  return (
+    <div className="w-full h-[22vh] rounded-[0.6vw] bg-white border border-gray-200 shadow-sm flex items-center justify-center overflow-hidden p-[0.4vw]">
+      {isFullSvg ? (
+        <div className="w-full h-full flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:object-contain [&>svg]:overflow-hidden" dangerouslySetInnerHTML={{ __html: svgContent }} />
+      ) : (
+        <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" className="max-w-full max-h-full object-contain overflow-hidden" dangerouslySetInnerHTML={{ __html: svgContent }} />
+      )}
+    </div>
+  );
+};
+
 // Helper for international phone validation
 const validatePhoneNumber = (value) => {
   if (!value) return true; // Empty is treated as valid (not yet filled)
@@ -85,17 +233,33 @@ const validatePhoneNumber = (value) => {
 };
 
 
-const CallInteractionInput = ({ initialValue, onSave }) => {
+const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
   const [localValue, setLocalValue] = useState(initialValue || '');
+  const [dialCode, setDialCode] = useState('91');
   const [isSaved, setIsSaved] = useState(true);
 
-  const hasDigits = localValue.replace(/\D/g, '').length > 0;
-  const isInvalid = !validatePhoneNumber(localValue);
-  const isValidAndFilled = validatePhoneNumber(localValue) && hasDigits;
+  const cleanLocal = localValue.replace(/\D/g, '');
+  let isInvalid = false;
+  let hasDigits = false;
+
+  if (isWhatsApp) {
+    const localNumber = localValue.replace(/^\+91/, '').replace(/\D/g, '');
+    hasDigits = localNumber.length > 0;
+    if (hasDigits) {
+      const firstDigit = localNumber.charAt(0);
+      const validStart = ['6', '7', '8', '9'].includes(firstDigit);
+      isInvalid = !validStart || localNumber.length !== 10;
+    }
+  } else {
+    hasDigits = cleanLocal.length > 0;
+    isInvalid = hasDigits && !validatePhoneNumber(localValue);
+  }
+
+  const isValidAndFilled = hasDigits && !isInvalid;
   const isUnsavedValid = isValidAndFilled && !isSaved;
 
+  const textColor = isInvalid ? '#EF4444' : '#374151';
   const borderColor = isUnsavedValid ? '#22C55E' : (isInvalid ? '#EF4444' : '#D1D5DB');
-  const textColor = isUnsavedValid ? '#22C55E' : (isInvalid ? '#EF4444' : '#374151');
   const bgColor = isUnsavedValid ? '#F0FDF4' : (isInvalid ? '#FEF2F2' : '#F3F4F6');
 
   useEffect(() => {
@@ -105,84 +269,132 @@ const CallInteractionInput = ({ initialValue, onSave }) => {
 
   return (
     <div className="w-full h-full relative">
-      <PhoneInput
-        country={'in'}
-        preferredCountries={['in', 'us', 'gb']}
-        countryCodeEditable={false}
-        value={localValue.replace(/^\+/, '')}
-        onChange={(phone) => {
-          const formatted = phone.startsWith('+') ? phone : '+' + phone;
-          setLocalValue(formatted);
-          setIsSaved(false);
-        }}
-        onBlur={() => {
-          if (localValue !== initialValue) {
-            onSave(localValue);
-            setIsSaved(true);
-          }
-        }}
-        placeholder="1234567890"
-        containerStyle={{
-          width: '100%',
-          height: '100%'
-        }}
-        inputStyle={{
-          width: '100%',
-          height: '100%',
-          border: `1px solid ${borderColor}`,
-          borderRadius: '0.6vw',
-          fontSize: '0.85vw',
-          color: textColor,
-          fontWeight: '500',
-          paddingLeft: '3.4vw',
-          backgroundColor: '#FFFFFF',
-          outline: 'none',
-          boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
-          transition: 'all 0.3s ease'
-        }}
-        buttonStyle={{
-          backgroundColor: bgColor,
-          border: `1px solid ${borderColor}`,
-          borderRight: 'none',
-          borderRadius: '0.6vw 0 0 0.6vw',
-          width: '3vw',
-          height: '100%',
-          top: '0',
-          left: '0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0',
-          transition: 'all 0.3s ease'
-        }}
-        dropdownStyle={{
-          width: '14vw',
-          maxHeight: '20vh',
-          fontSize: '0.8vw',
-          borderRadius: '0.6vw',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-          border: '1px solid #E5E7EB',
-          textAlign: 'left'
-        }}
-      />
+      {isWhatsApp ? (
+        <div className="relative w-full h-full bg-white rounded-[0.6vw]">
+          <div className="absolute left-[0.6vw] top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center z-10">
+            <Icon icon="ic:outline-whatsapp" className="text-[#22C55E] text-[1.4vw]" />
+          </div>
+          <div className="absolute left-[2.4vw] top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center bg-[#F3F4F6] rounded-[0.4vw] px-[0.4vw] h-[70%] z-10">
+            <span className="text-[0.85vw] text-gray-700 font-medium">+91</span>
+            <Icon icon="lucide:chevron-down" className="text-gray-500 text-[0.8vw] ml-[0.3vw]" />
+          </div>
+          <input
+            type="text"
+            value={localValue.replace(/^\+91/, '').replace(/\D/g, '')}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, '');
+              if (val.length <= 10) {
+                setLocalValue(val ? '+91' + val : '');
+                setIsSaved(false);
+              }
+            }}
+            onBlur={() => {
+              if (localValue !== initialValue) {
+                onSave(localValue);
+                setIsSaved(true);
+              }
+            }}
+            placeholder="1234567890"
+            className="w-full h-full rounded-[0.6vw] text-[0.85vw] font-medium text-gray-700 outline-none transition-all bg-transparent relative z-0"
+            style={{
+              paddingLeft: '6vw',
+              border: `1px solid ${borderColor}`,
+              boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
+              color: textColor
+            }}
+          />
+        </div>
+      ) : (
+        <PhoneInput
+          country={'in'}
+          preferredCountries={['in', 'us', 'gb']}
+          disableCountryCode={true}
+          value={localValue}
+          onChange={(phone, data) => {
+            const formatted = phone.startsWith('+') ? phone : '+' + phone;
+            setLocalValue(formatted);
+            if (data && data.dialCode) {
+              setDialCode(data.dialCode);
+            }
+            setIsSaved(false);
+          }}
+          onBlur={() => {
+            if (localValue !== initialValue) {
+              onSave(localValue);
+              setIsSaved(true);
+            }
+          }}
+          placeholder="1234567890"
+          containerStyle={{
+            width: '100%',
+            height: '100%'
+          }}
+          inputStyle={{
+            width: '100%',
+            height: '100%',
+            border: `1px solid ${borderColor}`,
+            borderRadius: '0.6vw',
+            fontSize: '0.85vw',
+            color: textColor,
+            fontWeight: '500',
+            paddingLeft: '5.8vw',
+            backgroundColor: '#FFFFFF',
+            outline: 'none',
+            boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
+            transition: 'all 0.3s ease'
+          }}
+          buttonStyle={{
+            backgroundColor: bgColor,
+            border: `1px solid ${borderColor}`,
+            borderRight: 'none',
+            borderRadius: '0.6vw 0 0 0.6vw',
+            width: '5.2vw',
+            height: '100%',
+            top: '0',
+            left: '0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            paddingLeft: '0.6vw',
+            transition: 'all 0.3s ease'
+          }}
+          dropdownStyle={{
+            width: '14vw',
+            maxHeight: '20vh',
+            fontSize: '0.8vw',
+            borderRadius: '0.6vw',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+            border: '1px solid #E5E7EB',
+            textAlign: 'left',
+            zIndex: 50
+          }}
+        />
+      )}
+      {!isWhatsApp && (
+        <div
+          className="absolute left-[1.8vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-700 text-[0.85vw] font-medium z-10 flex items-center px-[0.2vw] h-[80%]"
+          style={{ backgroundColor: bgColor }}
+        >
+          <span>+{dialCode}</span>
+          <Icon icon="lucide:chevron-down" className="text-gray-500 text-[0.8vw] ml-[0.3vw]" />
+        </div>
+      )}
+      {/* Green Checkmark inside input when valid */}
+      {isValidAndFilled && (
+        <div className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+          <div className="w-[1vw] h-[1vw] bg-[#22C55E] rounded-full flex items-center justify-center">
+            <Icon icon="lucide:check" className="text-white text-[0.7vw]" strokeWidth="3" />
+          </div>
+        </div>
+      )}
       {isInvalid && (
-        <div className="absolute left-[0.2vw] -bottom-[1.8vh] text-[#EF4444] text-[0.6vw] font-medium whitespace-nowrap z-10">
+        <div className="absolute left-[0.2vw] -bottom-[2.5vh] text-[#EF4444] text-[0.7vw] font-normal whitespace-nowrap z-10">
           Please enter the valid number *
         </div>
       )}
-      {isUnsavedValid && (
-        <div className="absolute right-0 -bottom-[4vh] z-10">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSave(localValue);
-              setIsSaved(true);
-            }}
-            className="flex items-center gap-[0.3vw] bg-[#22C55E] hover:bg-[#16A34A] text-white px-[0.8vw] py-[0.5vh] rounded-[0.3vw] shadow-sm transition-colors"
-          >
-            <Icon icon="lucide:check" className="text-[0.9vw]" />
-            <span className="text-[0.75vw] font-medium">Done</span>
-          </button>
+      {isValidAndFilled && !isWhatsApp && (
+        <div className="absolute left-[0.2vw] -bottom-[2.5vh] text-[#22C55E] text-[0.7vw] font-normal whitespace-nowrap z-10">
+          Phone Number Linked
         </div>
       )}
     </div>
@@ -200,7 +412,7 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
       setDropdownStyles({
         position: 'fixed',
         left: `${rect.left}px`,
-        bottom: `${window.innerHeight - rect.top + 5}px`, // Open upwards, 5px gap
+        top: `${rect.bottom + 5}px`, // Open downwards, 5px gap
         width: '11vw',
         zIndex: 999999
       });
@@ -226,7 +438,7 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
       <div
         ref={triggerRef}
         data-dropdown-trigger="true"
-        className="py-[0.7vh] bg-white border border-gray-200/80 shadow-sm hover:shadow-md hover:border-[#5145F6]/40 rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] cursor-pointer transition-all duration-300 relative select-none group"
+        className="h-[3.5vh] bg-white border border-gray-200/80 shadow-sm hover:shadow-md hover:border-[#5145F6]/40 rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] cursor-pointer transition-all duration-300 relative select-none group"
         onClick={(e) => {
           e.stopPropagation();
           setOpenDropdownId(isDropdownOpen ? null : item.id);
@@ -241,13 +453,13 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
       {isDropdownOpen && dropdownStyles.left && createPortal(
         <div
           data-dropdown-menu="true"
-          className="bg-white/95 backdrop-blur-md border border-gray-100 rounded-[0.8vw] shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col p-[0.4vw] max-h-[39vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 origin-bottom-left"
+          className="bg-white border border-gray-200 rounded-[0.8vw] shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col gap-[0.5vh] p-[0.5vw] max-h-[45vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-left"
           style={dropdownStyles}
         >
           {actionTypes.map(action => (
             <div
               key={action.id}
-              className="flex items-center gap-[0.8vw] px-[0.8vw] py-[0.7vh] rounded-[0.4vw] hover:bg-indigo-50/60 cursor-pointer transition-colors group"
+              className="flex items-center gap-[0.8vw] px-[0.8vw] py-[0.8vh] rounded-[0.4vw] bg-[#F9FAFB] hover:bg-gray-100 cursor-pointer transition-colors group"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdownId(null);
@@ -274,8 +486,8 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
                 }, 50);
               }}
             >
-              <Icon icon={action.icon} className="text-gray-600 text-[1.2vw]" />
-              <span className="text-[0.85vw] text-gray-700 font-medium">{action.label}</span>
+              <Icon icon={action.icon} className="text-gray-600 text-[1.3vw]" />
+              <span className="text-[0.9vw] text-gray-700 font-medium">{action.label}</span>
             </div>
           ))}
         </div>,
@@ -296,6 +508,7 @@ const CommonDropBox = ({
   subText,
   renderPreview,
   boxClassName, // override entire box classes if needed
+  boxStyle, // custom styles
   hideInput = false,
   isUploading = false,
 }) => {
@@ -331,6 +544,7 @@ const CommonDropBox = ({
         className={
           boxClassName || "w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all overflow-hidden p-[0.3vw] gap-[0.5vh]"
         }
+        style={boxStyle}
       >
         {isUploading ? (
           <div className="flex flex-col items-center justify-center w-full h-full bg-transparent">
@@ -398,6 +612,8 @@ const InteractionPanel = ({
   const [audioPlaybackTimes, setAudioPlaybackTimes] = useState({});
   const [audioProgressPercent, setAudioProgressPercent] = useState({});
   const [tooltipSettingsOverrides, setTooltipSettingsOverrides] = useState({});
+  const [linkBehaviorOverrides, setLinkBehaviorOverrides] = useState({});
+  const [whatsappMessageOverrides, setWhatsappMessageOverrides] = useState({});
   const activeAudioRef = useRef(null);
 
   // Clean up audio on unmount
@@ -420,14 +636,16 @@ const InteractionPanel = ({
 
   const actionTypes = [
     { id: 'open-link', label: 'Open Link', icon: 'gg:link' },
-    { id: 'navigate-to', label: 'Navigate to', icon: 'famicons:navigate-circle-outline' },
+    { id: 'whatsapp', label: 'WhatsApp', icon: 'ic:outline-whatsapp' },
+    { id: 'email', label: 'Email', icon: 'ic:outline-mail' },
     { id: 'call', label: 'Call', icon: 'fluent:call-24-regular' },
-    { id: 'zoom', label: 'Zoom', icon: 'tabler:zoom-in-area' },
-    { id: 'download', label: 'Download', icon: 'mynaui:download' },
+    { id: 'navigate-to', label: 'Navigate to', icon: 'iconoir:page-search' },
+    { id: '3d-viewer', label: '3D Viewer', icon: 'mage:box-3d' },
     { id: 'popup', label: 'Popup', icon: 'carbon:popup' },
-    { id: 'tooltip', label: 'Tooltip', icon: 'fluent:tooltip-quote-12-regular' },
-    { id: '3d-viewer', label: '3D Viewer', icon: 'gis:cube-3d' },
-    { id: 'audio', label: 'Audio', icon: 'iconoir:sound-high-solid' }
+    { id: 'slideshow', label: 'Slideshow', icon: 'clarity:image-gallery-line' },
+    { id: 'zoom', label: 'Zoom', icon: 'fluent:zoom-in-32-regular' },
+    { id: 'download', label: 'Download', icon: 'mynaui:download' },
+    { id: 'info-box', label: 'Info Box', icon: 'fontisto:info' }
   ];
   const [selectedActionType, setSelectedActionType] = useState(actionTypes[0]);
 
@@ -483,6 +701,8 @@ const InteractionPanel = ({
       setItemTriggerOverrides({});
       setLocalInputValues({});
       setTooltipSettingsOverrides({});
+      setLinkBehaviorOverrides({});
+      setWhatsappMessageOverrides({});
       prevLayerIdRef.current = selectedLayerId;
     }
   }, [selectedLayerId, selectedElementProps]);
@@ -847,6 +1067,11 @@ const InteractionPanel = ({
       if (foundEl) {
         const info = detectTypeFromElement(foundEl, id);
 
+        const imageEl = foundEl.querySelector('image');
+        const isHotspot = foundEl.getAttribute('data-is-hotspot') === 'true' || 
+                          (foundEl.getAttribute('data-type') === 'icon' && imageEl && imageEl.getAttribute('width') === '52');
+        const hotspotIconSrc = isHotspot && imageEl ? imageEl.getAttribute('href') : null;
+
         list.push({
           id: foundEl.id,
           tagName: foundEl.tagName,
@@ -856,7 +1081,12 @@ const InteractionPanel = ({
           value: foundEl.getAttribute('data-interaction-value') || '',
           tooltipSettings: foundEl.getAttribute('data-tooltip-settings') || '',
           trigger: foundEl.getAttribute('data-interaction-trigger') || 'click',
-          pageIndex: foundPageIndex
+          linkBehavior: foundEl.getAttribute('data-interaction-link-behavior') || 'current',
+          zoomTargetId: foundEl.getAttribute('data-zoom-target') || null,
+          zoomLevel: foundEl.getAttribute('data-zoom-level') || '2X',
+          pageIndex: foundPageIndex,
+          isHotspot: isHotspot,
+          hotspotIconSrc: hotspotIconSrc
         });
       }
     });
@@ -997,45 +1227,7 @@ const InteractionPanel = ({
   return (
     <div className="flex flex-col gap-[3vh] p-[1.5vw] bg-[#fbfbfb] h-full overflow-y-auto no-scrollbar">
 
-      {/* Select Free Frame Section */}
-      <div className="space-y-[1.2vw]">
-        <div className="flex items-center gap-[0.4vw]">
-          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Select Free Frame</span>
-          <div className="h-px flex-grow bg-gray-100"></div>
-        </div>
-        <div
-          onClick={() => {
-            window.dispatchEvent(new CustomEvent('add-free-frame', {
-              detail: { pageIndex: activePageIndex }
-            }));
-          }}
-          className="w-[18vw] mx-auto h-[6vw] border-[0.15vw] border-dashed border-black bg-[#E5E7EB]/40 flex flex-col items-center justify-center cursor-pointer hover:bg-[#E5E7EB]/60 transition-all group relative"
-          style={{ borderDasharray: "10, 15" }}
-        >
-          {/* Perfect Corner markers - Top Left */}
-          <div className="absolute -top-[0.225vw] -left-[0.225vw] w-[1vw] h-[1vw]">
-            <div className="absolute top-0 left-0 w-full h-[0.3vw] bg-black"></div>
-            <div className="absolute top-0 left-0 w-[0.3vw] h-full bg-black"></div>
-          </div>
-          {/* Perfect Corner markers - Top Right */}
-          <div className="absolute -top-[0.225vw] -right-[0.225vw] w-[1vw] h-[1vw]">
-            <div className="absolute top-0 right-0 w-full h-[0.3vw] bg-black"></div>
-            <div className="absolute top-0 right-0 w-[0.3vw] h-full bg-black"></div>
-          </div>
-          {/* Perfect Corner markers - Bottom Left */}
-          <div className="absolute -bottom-[0.225vw] -left-[0.225vw] w-[1vw] h-[1vw]">
-            <div className="absolute bottom-0 left-0 w-full h-[0.3vw] bg-black"></div>
-            <div className="absolute bottom-0 left-0 w-[0.3vw] h-full bg-black"></div>
-          </div>
-          {/* Perfect Corner markers - Bottom Right */}
-          <div className="absolute -bottom-[0.225vw] -right-[0.225vw] w-[1vw] h-[1vw]">
-            <div className="absolute bottom-0 right-0 w-full h-[0.3vw] bg-black"></div>
-            <div className="absolute bottom-0 right-0 w-[0.3vw] h-full bg-black"></div>
-          </div>
 
-          <span className="text-[0.8vw] font-medium text-gray-600">Click To Add Free Frame</span>
-        </div>
-      </div>
 
       {/* Add Interaction Button Removed */}      {/* Interactions in this Page Section */}
       <div className="space-y-[1.5vh] mt-[2vh]">
@@ -1104,7 +1296,7 @@ const InteractionPanel = ({
                   {/* Card Header / Settings */}
                   <div className="flex flex-col">
                     {/* Top Row: Icon + Dropdowns */}
-                    <div className={`flex items-center justify-between gap-[0.8vw] ${isCollapsed ? 'py-[1.6vh] pl-[0.8vw] pr-[1.2vw]' : 'pt-[2vh] pl-[0.8vw] pr-[1.2vw] pb-[2vh]'}`}>
+                    <div className={`flex items-center justify-between gap-[0.8vw] ${isCollapsed ? 'py-[1.6vh] pl-[0.8vw] pr-[1.2vw]' : 'pt-[1.2vh] pl-[0.8vw] pr-[1.2vw] pb-[1.2vh]'}`}>
                       <div className="flex items-center gap-[0.8vw]">
                         {/* Touch Icon */}
                         <div className="flex-shrink-0 text-gray-500 flex items-center pl-[0.6vw]">
@@ -1133,22 +1325,27 @@ const InteractionPanel = ({
                             {(() => {
                               const triggerDropId = `trigger-drop-${item.id}`;
                               const isTriggerDropOpen = openDropdownId === triggerDropId;
+                              const canHover = resolvedActionId === 'tooltip';
 
                               return (
                                 <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                                   <div
                                     data-dropdown-trigger="true"
-                                    className="py-[0.8vh] pl-[0.8vw] pr-[1.6vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-pointer select-none hover:bg-gray-200 transition-colors"
+                                    className={`h-[3.5vh] pl-[0.8vw] ${canHover ? 'pr-[1.6vw] cursor-pointer hover:bg-gray-200' : 'pr-[0.8vw] cursor-default'} bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center select-none transition-colors`}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setOpenDropdownId(isTriggerDropOpen ? null : triggerDropId);
+                                      if (canHover) {
+                                        setOpenDropdownId(isTriggerDropOpen ? null : triggerDropId);
+                                      }
                                     }}
                                   >
-                                    <span className="text-[0.9vw] text-gray-700 font-normal font-sans capitalize">{resolvedTrigger}</span>
-                                    <Icon icon="lucide:chevron-down" className={`text-gray-500 text-[0.8vw] absolute right-[0.4vw] transition-transform duration-200 ${isTriggerDropOpen ? 'rotate-180' : ''}`} />
+                                    <span className="text-[0.9vw] text-gray-700 font-normal font-sans capitalize">{canHover ? resolvedTrigger : 'Click'}</span>
+                                    {canHover && (
+                                      <Icon icon="lucide:chevron-down" className={`text-gray-500 text-[0.8vw] absolute right-[0.4vw] transition-transform duration-200 ${isTriggerDropOpen ? 'rotate-180' : ''}`} />
+                                    )}
                                   </div>
 
-                                  {isTriggerDropOpen && (
+                                  {isTriggerDropOpen && canHover && (
                                     <div data-dropdown-menu="true" className="absolute right-0 top-[calc(100%+0.4vh)] z-[99999] w-full bg-white border border-gray-200 rounded-[0.5vw] shadow-xl py-[0.5vh] flex flex-col">
                                       <div
                                         className={`px-[0.8vw] py-[0.6vh] text-[0.85vw] font-sans cursor-pointer transition-colors ${resolvedTrigger === 'click' ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
@@ -1169,10 +1366,9 @@ const InteractionPanel = ({
                                         Click
                                       </div>
                                       <div
-                                        className={`px-[0.8vw] py-[0.6vh] text-[0.85vw] font-sans transition-colors ${resolvedTrigger === 'hover' ? 'bg-gray-100 text-gray-900 font-medium' : ''} ${resolvedActionId !== 'tooltip' ? 'text-gray-400 cursor-not-allowed bg-gray-50/50' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}`}
+                                        className={`px-[0.8vw] py-[0.6vh] text-[0.85vw] font-sans cursor-pointer transition-colors ${resolvedTrigger === 'hover' ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (resolvedActionId !== 'tooltip') return;
                                           setItemTriggerOverrides(prev => ({ ...prev, [item.id]: 'hover' }));
                                           setOpenDropdownId(null);
                                           setTimeout(() => {
@@ -1184,7 +1380,6 @@ const InteractionPanel = ({
                                             }
                                           }, 50);
                                         }}
-                                        title={resolvedActionId !== 'tooltip' ? 'Hover is only available for Tooltip' : ''}
                                       >
                                         Hover
                                       </div>
@@ -1239,11 +1434,27 @@ const InteractionPanel = ({
                         className="bg-gradient-to-b from-gray-50/40 to-transparent"
                       >
                         <div className="w-full border-t border-gray-100/60"></div>
-                        <div className="flex flex-col gap-[1.5vh] w-full px-[1.6vw] pt-[4vh] pb-[4vh]">
+                        
+                        {/* Hotspot Preset Preview Section */}
+                        {item.isHotspot && item.hotspotIconSrc && (
+                          <div className="w-full px-[1.6vw] pt-[1.5vh]">
+                            <div className="w-full h-[12vh] bg-white border border-gray-200/60 rounded-[0.5vw] flex items-center justify-center relative shadow-sm">
+                              <img src={item.hotspotIconSrc} alt="Hotspot" className="w-[3.5vw] h-[3.5vw] object-contain pointer-events-none" />
+                              <div className="absolute top-[0.6vw] right-[0.6vw] cursor-pointer text-gray-500 hover:text-gray-700 transition-colors bg-white rounded-md">
+                                <Icon icon="lucide:edit" className="text-[1.1vw]" strokeWidth="2.5" />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1.5vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
                           <div className="flex items-start gap-[0.5vw] w-full">
                             {(() => {
+                              if (item.isHotspot) return null;
+                              if (['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup'].includes(resolvedActionId)) return null;
+
                               const labelMarginClass =
-                                ['download', 'audio', '3d-viewer', 'popup', 'zoom'].includes(resolvedActionId) ? 'mt-[3.5vh]' :
+                                ['audio', '3d-viewer', 'zoom'].includes(resolvedActionId) ? 'mt-[3.5vh]' :
                                   resolvedActionId === 'tooltip' ? 'mt-[1.6vh]' :
                                     resolvedActionId === 'call' ? 'mt-[0.1vh]' : 'mt-0';
 
@@ -1276,53 +1487,477 @@ const InteractionPanel = ({
                                 const isPageDropOpen = openDropdownId === pageDropId;
                                 const selectedPage = resolvedValue || '1';
                                 return (
-                                  <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                    <div
-                                      data-dropdown-trigger="true"
-                                      className="w-[8.5vw] h-[4vh] border border-gray-900 rounded-[0.5vw] flex items-center justify-between px-[0.6vw] bg-white cursor-pointer select-none"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (!isPageDropOpen) {
-                                          const rect = e.currentTarget.getBoundingClientRect();
-                                          const spaceBelow = window.innerHeight - rect.bottom;
-                                          setDropdownDirectionOverrides(prev => ({ ...prev, [pageDropId]: spaceBelow < 250 ? 'up' : 'down' }));
-                                        }
-                                        setOpenDropdownId(isPageDropOpen ? null : pageDropId);
-                                      }}
-                                    >
-                                      <span className="text-[0.8vw] text-gray-700 font-medium font-sans">Page {selectedPage}</span>
-                                      <Icon
-                                        icon="lucide:chevron-down"
-                                        className={`text-gray-700 text-[1vw] transition-transform duration-200 ${isPageDropOpen ? 'rotate-180' : ''}`}
-                                      />
-                                    </div>
-                                    {isPageDropOpen && (
-                                      <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-[8.5vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl py-[0.5vh] max-h-[15vh] overflow-y-auto ${dropdownDirectionOverrides[pageDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
-                                        {Array.from({ length: pages?.length || 0 }, (_, i) => (
-                                          <div
-                                            key={i + 1}
-                                            className={`px-[0.8vw] py-[0.7vh] text-[0.8vw] font-sans cursor-pointer rounded-[0.3vw] mx-[0.3vw] transition-colors ${String(i + 1) === String(selectedPage) ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              const val = (i + 1).toString();
-                                              setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
-                                              setOpenDropdownId(null);
-                                              setTimeout(() => {
-                                                if (updateElementAttribute) {
-                                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                  updateElementAttribute(targetIdx, item.id, {
-                                                    'data-interaction': 'navigate-to',
-                                                    'data-interaction-value': val
-                                                  });
-                                                }
-                                              }, 250);
-                                            }}
-                                          >
-                                            Page {i + 1}
-                                          </div>
-                                        ))}
+                                  <div className="flex flex-col w-full gap-[0.8vh]" onClick={(e) => e.stopPropagation()}>
+                                    <span className="text-[0.8vw] text-black font-normal">Select Page to Navigate</span>
+                                    <div className="relative w-full">
+                                      <div
+                                        data-dropdown-trigger="true"
+                                        className="w-full h-[4.5vh] border border-gray-500 rounded-[0.5vw] flex items-center justify-between px-[0.8vw] bg-white cursor-pointer select-none"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!isPageDropOpen) {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const spaceBelow = window.innerHeight - rect.bottom;
+                                            setDropdownDirectionOverrides(prev => ({ ...prev, [pageDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                          }
+                                          setOpenDropdownId(isPageDropOpen ? null : pageDropId);
+                                        }}
+                                      >
+                                        <span className="text-[0.8vw] text-gray-700 font-medium font-sans">Page {selectedPage}</span>
+                                        <Icon
+                                          icon="lucide:chevron-down"
+                                          className={`text-gray-700 text-[1vw] transition-transform duration-200 ${isPageDropOpen ? 'rotate-180' : ''}`}
+                                        />
                                       </div>
-                                    )}
+                                      {isPageDropOpen && (
+                                        <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.6vw] shadow-xl py-[0.5vh] max-h-[15vh] overflow-y-auto ${dropdownDirectionOverrides[pageDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
+                                          {Array.from({ length: pages?.length || 0 }, (_, i) => (
+                                            <div
+                                              key={i + 1}
+                                              className={`px-[0.8vw] py-[0.7vh] text-[0.8vw] font-sans cursor-pointer rounded-[0.3vw] mx-[0.3vw] transition-colors ${String(i + 1) === String(selectedPage) ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const val = (i + 1).toString();
+                                                setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
+                                                setOpenDropdownId(null);
+                                                setTimeout(() => {
+                                                  if (updateElementAttribute) {
+                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                    updateElementAttribute(targetIdx, item.id, {
+                                                      'data-interaction': 'navigate-to',
+                                                      'data-interaction-value': val
+                                                    });
+                                                  }
+                                                }, 250);
+                                              }}
+                                            >
+                                              Page {i + 1}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()
+                            ) : resolvedActionId === 'info-box' ? (
+                              (() => {
+                                let infoData = {
+                                  text: '', fontFamily: 'Poppins', fontWeight: 'Regular', fontSize: '14',
+                                  textColor: '#555555', bgColor: '#FFFFFF', animationStyle: 'Default', animationSpeed: 'Default'
+                                };
+                                try {
+                                  if (resolvedValue && resolvedValue.startsWith('{')) {
+                                    infoData = { ...infoData, ...JSON.parse(resolvedValue) };
+                                  }
+                                } catch (e) { }
+
+                                const handleInfoChange = (key, val) => {
+                                  const newData = { ...infoData, [key]: val };
+                                  const storedVal = JSON.stringify(newData);
+                                  setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                };
+
+                                const saveInfoToCanvas = (dataToSave = infoData) => {
+                                  if (updateElementAttribute) {
+                                    const storedVal = JSON.stringify(dataToSave);
+                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                    updateElementAttribute(targetIdx, item.id, {
+                                      'data-interaction': 'info-box',
+                                      'data-interaction-value': storedVal
+                                    });
+                                  }
+                                };
+
+                                const updateInfo = (key, val) => {
+                                  const newData = { ...infoData, [key]: val };
+                                  handleInfoChange(key, val);
+                                  setTimeout(() => saveInfoToCanvas(newData), 50);
+                                };
+
+                                return (
+                                  <div className="flex flex-col w-full gap-[1.2vh]" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex flex-col gap-[0.8vh]">
+                                      <span className="text-[0.85vw] text-black font-medium">Enter Information</span>
+                                      <div className="relative w-full">
+                                        <textarea
+                                          className="w-full h-[9vh] border border-gray-300 rounded-[0.4vw] p-[0.6vw] pb-[1.5vw] outline-none resize-none focus:border-[#5145F6] transition-colors"
+                                          style={{
+                                            color: infoData.textColor,
+                                            backgroundColor: infoData.bgColor,
+                                            fontFamily: infoData.fontFamily,
+                                            fontWeight: infoData.fontWeight === 'Bold' ? '800' : infoData.fontWeight === 'Semi Bold' ? '600' : infoData.fontWeight === 'Medium' ? '500' : infoData.fontWeight === 'Regular' ? '400' : infoData.fontWeight === 'Light' ? '200' : infoData.fontWeight === 'Extra Light' ? '100' : infoData.fontWeight === 'Thin' ? '50' : 'normal',
+                                            fontSize: `${infoData.fontSize}px`
+                                          }}
+                                          placeholder="Enter text"
+                                          maxLength={100}
+                                          value={infoData.text}
+                                          onChange={(e) => handleInfoChange('text', e.target.value)}
+                                          onBlur={() => saveInfoToCanvas()}
+                                        />
+                                        <span className="absolute bottom-[0.4vw] right-[0.6vw] text-[0.7vw] text-gray-400 font-medium">
+                                          {(infoData.text || '').length}/100
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-[0.8vh]">
+                                      <div className="relative w-full">
+                                        {(() => {
+                                          const fontDropId = `info-font-drop-${item.id}`;
+                                          const isFontDropOpen = openDropdownId === fontDropId;
+                                          return (
+                                            <>
+                                              <div
+                                                data-dropdown-trigger="true"
+                                                className={`w-full h-[4vh] border ${isFontDropOpen ? 'border-[#5145F6]' : 'border-gray-300'} rounded-[0.4vw] flex items-center justify-between px-[0.8vw] bg-white cursor-pointer select-none transition-colors`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (!isFontDropOpen) {
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                                    setDropdownDirectionOverrides(prev => ({ ...prev, [fontDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                                  }
+                                                  setOpenDropdownId(isFontDropOpen ? null : fontDropId);
+                                                }}
+                                              >
+                                                <span className="text-[0.8vw] text-gray-600 truncate">{infoData.fontFamily}</span>
+                                                <Icon
+                                                  icon="lucide:chevron-down"
+                                                  className={`text-gray-400 text-[1vw] transition-transform duration-200 ${isFontDropOpen ? 'rotate-180' : ''}`}
+                                                />
+                                              </div>
+                                              {isFontDropOpen && (
+                                                <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.6vw] shadow-lg py-[0.5vh] max-h-[20vh] overflow-y-auto ${dropdownDirectionOverrides[fontDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
+                                                  {fontFamilies.map(font => (
+                                                    <div
+                                                      key={font}
+                                                      className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer transition-colors ${font === infoData.fontFamily ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                      style={{ fontFamily: font }}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        updateInfo('fontFamily', font);
+                                                        setOpenDropdownId(null);
+                                                      }}
+                                                    >
+                                                      {font}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
+                                      </div>
+                                      <div className="flex gap-[0.8vw]">
+                                        <div className="relative w-[65%]">
+                                          {(() => {
+                                            const weightDropId = `info-weight-drop-${item.id}`;
+                                            const isWeightDropOpen = openDropdownId === weightDropId;
+                                            const infoFontWeights = [
+                                              { label: 'Thin', value: '50' },
+                                              { label: 'Extra Light', value: '100' },
+                                              { label: 'Light', value: '200' },
+                                              { label: 'Regular', value: '400' },
+                                              { label: 'Medium', value: '500' },
+                                              { label: 'Semi Bold', value: '600' },
+                                              { label: 'Bold', value: '800' }
+                                            ];
+                                            return (
+                                              <>
+                                                <div
+                                                  data-dropdown-trigger="true"
+                                                  className={`w-full h-[4vh] border ${isWeightDropOpen ? 'border-[#5145F6]' : 'border-gray-300'} rounded-[0.4vw] flex items-center justify-between px-[0.8vw] bg-white cursor-pointer select-none transition-colors`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (!isWeightDropOpen) {
+                                                      const rect = e.currentTarget.getBoundingClientRect();
+                                                      const spaceBelow = window.innerHeight - rect.bottom;
+                                                      setDropdownDirectionOverrides(prev => ({ ...prev, [weightDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                                    }
+                                                    setOpenDropdownId(isWeightDropOpen ? null : weightDropId);
+                                                  }}
+                                                >
+                                                  <span className="text-[0.8vw] text-gray-600 truncate">{infoData.fontWeight}</span>
+                                                  <Icon
+                                                    icon="lucide:chevron-down"
+                                                    className={`text-gray-400 text-[1vw] transition-transform duration-200 ${isWeightDropOpen ? 'rotate-180' : ''}`}
+                                                  />
+                                                </div>
+                                                {isWeightDropOpen && (
+                                                  <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.6vw] shadow-lg py-[0.5vh] max-h-[20vh] overflow-y-auto ${dropdownDirectionOverrides[weightDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
+                                                    {infoFontWeights.map(fw => (
+                                                      <div
+                                                        key={fw.label}
+                                                        className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer transition-colors ${fw.label === infoData.fontWeight ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                        style={{ fontWeight: fw.value }}
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          updateInfo('fontWeight', fw.label);
+                                                          setOpenDropdownId(null);
+                                                        }}
+                                                      >
+                                                        {fw.label}
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                        <div className="relative w-[35%]">
+                                          {(() => {
+                                            const sizeDropId = `info-size-drop-${item.id}`;
+                                            const isSizeDropOpen = openDropdownId === sizeDropId;
+                                            const sizes = Array.from({ length: 50 }, (_, i) => String((i + 1) * 2));
+                                            return (
+                                              <>
+                                                <div
+                                                  data-dropdown-trigger="true"
+                                                  className={`w-full h-[4vh] border ${isSizeDropOpen ? 'border-[#5145F6]' : 'border-gray-300'} rounded-[0.4vw] flex items-center justify-between px-[0.8vw] bg-white cursor-pointer select-none transition-colors`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (!isSizeDropOpen) {
+                                                      const rect = e.currentTarget.getBoundingClientRect();
+                                                      const spaceBelow = window.innerHeight - rect.bottom;
+                                                      setDropdownDirectionOverrides(prev => ({ ...prev, [sizeDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                                    }
+                                                    setOpenDropdownId(isSizeDropOpen ? null : sizeDropId);
+                                                  }}
+                                                >
+                                                  <span className="text-[0.8vw] text-gray-600 truncate">{infoData.fontSize}</span>
+                                                  <Icon
+                                                    icon="lucide:chevron-down"
+                                                    className={`text-gray-400 text-[1vw] transition-transform duration-200 ${isSizeDropOpen ? 'rotate-180' : ''}`}
+                                                  />
+                                                </div>
+                                                {isSizeDropOpen && (
+                                                  <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.6vw] shadow-lg py-[0.5vh] max-h-[20vh] overflow-y-auto ${dropdownDirectionOverrides[sizeDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
+                                                    {sizes.map(size => (
+                                                      <div
+                                                        key={size}
+                                                        className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer text-center transition-colors ${size === String(infoData.fontSize) ? 'bg-[#5145F6] text-white font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          updateInfo('fontSize', size);
+                                                          setOpenDropdownId(null);
+                                                        }}
+                                                      >
+                                                        {size}
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-[0.8vw] mt-[0.5vh]">
+                                      <span className="text-[0.85vw] text-black font-semibold">Colors</span>
+                                      <div className="flex-1 h-[1px] bg-gray-200"></div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-[0.8vh]">
+                                      {(() => {
+                                        const colorDropId = `info-text-color-${item.id}`;
+                                        const isColorDropOpen = openDropdownId === colorDropId;
+                                        return (
+                                          <div className="flex items-center justify-between relative">
+                                            <span className="text-[0.85vw] text-gray-800 font-medium">Text Color :</span>
+                                            <div className="flex items-center gap-[0.5vw]">
+                                              <div
+                                                data-dropdown-trigger="true"
+                                                className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 cursor-pointer"
+                                                style={{ backgroundColor: infoData.textColor }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setOpenDropdownId(isColorDropOpen ? null : colorDropId);
+                                                }}
+                                              />
+                                              <div className="flex items-center justify-between w-[9vw] h-[4vh] border border-gray-300 rounded-[0.4vw] px-[0.6vw] bg-white">
+                                                <input
+                                                  type="text"
+                                                  className="text-[0.8vw] text-gray-600 outline-none w-[4.5vw] bg-transparent uppercase"
+                                                  value={infoData.textColor}
+                                                  onChange={(e) => handleInfoChange('textColor', e.target.value)}
+                                                  onBlur={() => saveInfoToCanvas()}
+                                                />
+                                                <span className="text-[0.8vw] text-gray-600">100%</span>
+                                              </div>
+                                            </div>
+                                            {isColorDropOpen && createPortal(
+                                              <>
+                                                <div className="fixed inset-0 z-[55] cursor-default" onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); saveInfoToCanvas(); }} />
+                                                <div data-dropdown-menu="true" className="fixed z-[60]" style={{ right: '15vw', top: '45vh' }} onClick={(e) => e.stopPropagation()}>
+                                                  <ColorPicker
+                                                    color={infoData.textColor}
+                                                    onChange={(color) => handleInfoChange('textColor', color)}
+                                                    onClose={() => { setOpenDropdownId(null); saveInfoToCanvas(); }}
+                                                    hidePalette={true}
+                                                    disableGradient={true}
+                                                  />
+                                                </div>
+                                              </>,
+                                              document.body
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {(() => {
+                                        const bgColorDropId = `info-bg-color-${item.id}`;
+                                        const isBgColorDropOpen = openDropdownId === bgColorDropId;
+                                        return (
+                                          <div className="flex items-center justify-between relative">
+                                            <span className="text-[0.85vw] text-gray-800 font-medium">Bg Color :</span>
+                                            <div className="flex items-center gap-[0.5vw]">
+                                              <div
+                                                data-dropdown-trigger="true"
+                                                className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 cursor-pointer"
+                                                style={{ backgroundColor: infoData.bgColor }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setOpenDropdownId(isBgColorDropOpen ? null : bgColorDropId);
+                                                }}
+                                              />
+                                              <div className="flex items-center justify-between w-[9vw] h-[4vh] border border-gray-300 rounded-[0.4vw] px-[0.6vw] bg-white">
+                                                <input
+                                                  type="text"
+                                                  className="text-[0.8vw] text-gray-600 outline-none w-[4.5vw] bg-transparent uppercase"
+                                                  value={infoData.bgColor}
+                                                  onChange={(e) => handleInfoChange('bgColor', e.target.value)}
+                                                  onBlur={() => saveInfoToCanvas()}
+                                                />
+                                                <span className="text-[0.8vw] text-gray-600">100%</span>
+                                              </div>
+                                            </div>
+                                            {isBgColorDropOpen && createPortal(
+                                              <>
+                                                <div className="fixed inset-0 z-[55] cursor-default" onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); saveInfoToCanvas(); }} />
+                                                <div data-dropdown-menu="true" className="fixed z-[60]" style={{ right: '15vw', top: '45vh' }} onClick={(e) => e.stopPropagation()}>
+                                                  <ColorPicker
+                                                    color={infoData.bgColor}
+                                                    onChange={(color) => handleInfoChange('bgColor', color)}
+                                                    onClose={() => { setOpenDropdownId(null); saveInfoToCanvas(); }}
+                                                    hidePalette={true}
+                                                    disableGradient={true}
+                                                  />
+                                                </div>
+                                              </>,
+                                              document.body
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+
+                                    <div className="flex items-center gap-[0.8vw] mt-[0.5vh]">
+                                      <span className="text-[0.85vw] text-black font-semibold">Animation</span>
+                                      <div className="flex-1 h-[1px] bg-gray-200"></div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-[1vh]">
+                                      {(() => {
+                                        const animStyleDropId = `info-anim-style-${item.id}`;
+                                        const isAnimStyleDropOpen = openDropdownId === animStyleDropId;
+                                        const animStyles = ['Default', 'Fade in', 'Slide up', 'Zoom in', 'Bounce in'];
+                                        return (
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[0.85vw] text-gray-800 font-medium">Animation Style :</span>
+                                            <div className="relative w-[10vw]">
+                                              <div
+                                                data-dropdown-trigger="true"
+                                                className={`w-full h-[4vh] border ${isAnimStyleDropOpen ? 'border-[#5145F6]' : 'border-gray-300'} rounded-[0.4vw] flex items-center justify-between px-[0.8vw] bg-white cursor-pointer select-none transition-colors`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (!isAnimStyleDropOpen) {
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                                    setDropdownDirectionOverrides(prev => ({ ...prev, [animStyleDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                                  }
+                                                  setOpenDropdownId(isAnimStyleDropOpen ? null : animStyleDropId);
+                                                }}
+                                              >
+                                                <span className="text-[0.8vw] text-gray-600 truncate">{infoData.animationStyle}</span>
+                                                <Icon
+                                                  icon="lucide:chevron-down"
+                                                  className={`text-gray-400 text-[1vw] transition-transform duration-200 ${isAnimStyleDropOpen ? 'rotate-180' : ''}`}
+                                                />
+                                              </div>
+                                              {isAnimStyleDropOpen && (
+                                                <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.6vw] shadow-lg py-[0.5vh] max-h-[20vh] overflow-y-auto ${dropdownDirectionOverrides[animStyleDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
+                                                  {animStyles.map(style => (
+                                                    <div
+                                                      key={style}
+                                                      className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer transition-colors ${style === infoData.animationStyle ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        updateInfo('animationStyle', style);
+                                                        setOpenDropdownId(null);
+                                                      }}
+                                                    >
+                                                      {style}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                      {(() => {
+                                        const animSpeedDropId = `info-anim-speed-${item.id}`;
+                                        const isAnimSpeedDropOpen = openDropdownId === animSpeedDropId;
+                                        const animSpeeds = ['Default', 'Slow', 'Medium', 'Fast'];
+                                        return (
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[0.85vw] text-gray-800 font-medium">Animation Speed :</span>
+                                            <div className="relative w-[10vw]">
+                                              <div
+                                                data-dropdown-trigger="true"
+                                                className={`w-full h-[4vh] border ${isAnimSpeedDropOpen ? 'border-[#5145F6]' : 'border-gray-300'} rounded-[0.4vw] flex items-center justify-between px-[0.8vw] bg-white cursor-pointer select-none transition-colors`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (!isAnimSpeedDropOpen) {
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                                    setDropdownDirectionOverrides(prev => ({ ...prev, [animSpeedDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                                  }
+                                                  setOpenDropdownId(isAnimSpeedDropOpen ? null : animSpeedDropId);
+                                                }}
+                                              >
+                                                <span className="text-[0.8vw] text-gray-600 truncate">{infoData.animationSpeed}</span>
+                                                <Icon
+                                                  icon="lucide:chevron-down"
+                                                  className={`text-gray-400 text-[1vw] transition-transform duration-200 ${isAnimSpeedDropOpen ? 'rotate-180' : ''}`}
+                                                />
+                                              </div>
+                                              {isAnimSpeedDropOpen && (
+                                                <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.6vw] shadow-lg py-[0.5vh] max-h-[20vh] overflow-y-auto ${dropdownDirectionOverrides[animSpeedDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
+                                                  {animSpeeds.map(speed => (
+                                                    <div
+                                                      key={speed}
+                                                      className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer transition-colors ${speed === infoData.animationSpeed ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        updateInfo('animationSpeed', speed);
+                                                        setOpenDropdownId(null);
+                                                      }}
+                                                    >
+                                                      {speed}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
                                   </div>
                                 );
                               })()
@@ -1336,9 +1971,13 @@ const InteractionPanel = ({
                                 } catch (e) { }
 
                                 return (
-                                  <div className="flex-1 flex flex-col items-center justify-center gap-[0.5vh]" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex flex-col w-full gap-[0.8vh]" onClick={(e) => e.stopPropagation()}>
+                                    <span className="text-[0.85vw] text-black font-normal">{fileMeta ? "Download Preview" : "Upload Download File"}</span>
                                     <CommonDropBox
-                                      className="w-full"
+                                      boxClassName={`w-full h-[18vh] rounded-[0.6vw] flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative ${fileMeta ? 'p-0' : 'bg-[#F3F4F6] hover:bg-gray-100 p-[0.3vw] gap-[0.5vh]'}`}
+                                      boxStyle={!fileMeta ? {
+                                        backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='10' ry='10' stroke='%238A94A6' stroke-width='2' stroke-dasharray='5%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e")`
+                                      } : {}}
                                       id={`download-upload-${item.id}`}
                                       accept="*"
                                       onFileSelect={(file) => {
@@ -1371,13 +2010,83 @@ const InteractionPanel = ({
                                       renderPreview={(meta) => {
                                         const isImage = meta.type?.startsWith('image/') || meta.name?.match(/\.(jpg|jpeg|png|gif)$/i);
                                         const cleanData = meta.data ? meta.data.replace('data:download-', 'data:').trim() : '';
+
+                                        const optionsDropId = `download-options-${item.id}`;
+                                        const isOptionsDropOpen = openDropdownId === optionsDropId;
+
+                                        const threeDots = (
+                                          <div className="absolute top-[0.4vw] right-[0.4vw] z-[20]" onClick={(e) => e.stopPropagation()}>
+                                            <div
+                                              data-dropdown-trigger="true"
+                                              className="bg-white rounded-[0.2vw] shadow-sm p-[0.1vw] flex items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setOpenDropdownId(isOptionsDropOpen ? null : optionsDropId);
+                                              }}
+                                            >
+                                              <Icon icon="lucide:more-vertical" className="text-gray-700 text-[1vw]" />
+                                            </div>
+                                            {isOptionsDropOpen && (
+                                              <div data-dropdown-menu="true" className="absolute right-0 top-[calc(100%+0.2vw)] bg-white border border-gray-200 rounded-[0.4vw] shadow-lg py-[0.4vh] min-w-[7vw] z-[99999] flex flex-col">
+                                                <div
+                                                  className="px-[0.8vw] py-[0.6vh] text-[0.8vw] text-gray-700 hover:bg-gray-50 cursor-pointer flex items-center gap-[0.4vw]"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdownId(null);
+                                                    const inputEl = document.getElementById(`download-upload-${item.id}`);
+                                                    if (inputEl) inputEl.click();
+                                                  }}
+                                                >
+                                                  <Icon icon="lucide:refresh-cw" className="text-[0.9vw]" /> Replace
+                                                </div>
+                                                <div
+                                                  className="px-[0.8vw] py-[0.6vh] text-[0.8vw] text-red-600 hover:bg-red-50 cursor-pointer flex items-center gap-[0.4vw]"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdownId(null);
+                                                    setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                    if (updateElementAttribute) {
+                                                      updateElementAttribute(targetIdx, item.id, {
+                                                        'data-interaction': 'download',
+                                                        'data-interaction-value': ''
+                                                      });
+                                                    }
+                                                  }}
+                                                >
+                                                  <Icon icon="lucide:trash-2" className="text-[0.9vw]" /> Delete
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+
                                         if (isImage && cleanData) {
-                                          return <img src={cleanData} alt={meta.name} className="w-full h-full object-contain" />;
+                                          return (
+                                            <>
+                                              <img src={cleanData} alt={meta.name} className="w-full h-full object-contain bg-[#F8F9FA]" />
+                                              {threeDots}
+                                            </>
+                                          );
                                         }
-                                        return <Icon icon="fluent:document-checkmark-24-regular" className="text-[#5145F6] text-[2vw]" />;
+                                        return (
+                                          <div className="w-full h-full bg-[#F3F4F6] flex flex-col items-center justify-center relative border border-gray-200">
+                                            <Icon icon="fluent:document-checkmark-24-regular" className="text-[#5145F6] text-[2vw]" />
+                                            <span className="text-[0.6vw] font-medium text-gray-500 mt-[0.2vh] truncate text-center w-[12vw]" title={meta.name}>
+                                              {meta.name}
+                                            </span>
+                                            {threeDots}
+                                          </div>
+                                        );
                                       }}
-                                      emptyIcon="prime:upload"
-                                      subText="File Format : Any"
+                                      emptyIcon=""
+                                      emptyTitle={
+                                        <div className="flex items-center gap-[0.4vw]">
+                                          <Icon icon="lucide:plus" className="text-[1.2vw] text-[#9CA3AF]" />
+                                          <span className="text-[0.85vw] text-[#9CA3AF] font-medium">Add Download File</span>
+                                        </div>
+                                      }
+                                      subText=""
                                     />
                                   </div>
                                 );
@@ -1386,306 +2095,359 @@ const InteractionPanel = ({
                               (() => {
                                 const val = item.value || '';
                                 return (
-                                  <div
-                                    className="w-[10.5vw] flex-shrink-0 h-[4.2vh] relative ml-[-0.4vw]"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <CallInteractionInput
-                                      initialValue={val}
-                                      onSave={(newValue) => {
-                                        if (updateElementAttribute) {
-                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                          updateElementAttribute(targetIdx, item.id, {
-                                            'data-interaction': 'call',
-                                            'data-interaction-value': newValue
-                                          });
-                                        }
-                                      }}
-                                    />
+                                  <div className="flex flex-col w-full gap-[0.8vh]" onClick={(e) => e.stopPropagation()}>
+                                    <span className="text-[0.85vw] text-black font-normal">Enter your Number</span>
+                                    <div className="relative w-full h-[4.5vh]">
+                                      <CallInteractionInput
+                                        initialValue={val}
+                                        onSave={(newValue) => {
+                                          if (updateElementAttribute) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction': 'call',
+                                              'data-interaction-value': newValue
+                                            });
+                                          }
+                                        }}
+                                      />
+                                    </div>
                                   </div>
                                 );
                               })()
-                            ) : resolvedActionId === 'tooltip' ? (
-                              <div
-                                className="flex-1 flex items-center justify-end"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveLayerId(item.id);
-                                  window.dispatchEvent(new CustomEvent('select-layer', {
-                                    detail: { layerId: item.id }
-                                  }));
-                                }}
-                              >
-                                <div className="w-[8.2vw] h-[7.2vh] border border-gray-400 rounded-[0.4vw] bg-white flex items-center justify-center relative cursor-pointer hover:border-indigo-400 transition-all duration-200">
-                                  <div className="flex flex-col items-center select-none w-[80%]">
-                                    <div className="w-full h-[3.2vh] bg-[#262626] rounded-[0.2vw] flex items-center justify-center text-white text-[0.8vw] font-normal leading-none">
-                                      Tooltip
-                                    </div>
-                                    <div
-                                      style={{
-                                        width: 0,
-                                        height: 0,
-                                        borderLeft: '5px solid transparent',
-                                        borderRight: '5px solid transparent',
-                                        borderTop: '6px solid #262626',
-                                        marginTop: '-1px'
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            ) : resolvedActionId === 'audio' ? (
+                            ) : resolvedActionId === 'slideshow' ? (
                               (() => {
-                                let audioMeta = null;
+                                let images = [];
                                 try {
-                                  if (resolvedValue && resolvedValue.startsWith('{')) {
-                                    audioMeta = JSON.parse(resolvedValue);
+                                  if (resolvedValue) {
+                                    images = JSON.parse(resolvedValue);
+                                    if (!Array.isArray(images)) images = [];
                                   }
                                 } catch (e) { }
-                                const hasAudio = !!resolvedValue;
-                                const audioName = audioMeta ? audioMeta.name : (resolvedValue ? resolvedValue.split('/').pop() : 'Audio File');
+
                                 return (
-                                  <div className="flex-1 flex flex-col items-end justify-center gap-[0.5vh]" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex flex-col w-full gap-[1.5vh] pb-[1vh]" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex flex-col w-full gap-[0.3vh]">
+                                      <div className="flex items-center w-full">
+                                        <span className="text-[0.85vw] text-black font-semibold mr-[0.5vw]">Upload Images</span>
+                                        <div className="flex-1 border-t border-gray-300 mt-[0.2vh]"></div>
+                                      </div>
+                                      <span className="text-[0.6vw] text-gray-400">You Can Add up to only 6 Images in slideshow <span className="text-red-500">*</span></span>
+                                    </div>
+
+                                    {/* Hidden File Input */}
                                     <input
                                       type="file"
-                                      id={`audio-upload-${item.id}`}
+                                      id={`slideshow-upload-${item.id}`}
                                       className="hidden"
-                                      accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                                      accept="image/*"
+                                      multiple
                                       onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file && updateElementAttribute) {
-                                          const storedUser = localStorage.getItem('user');
-                                          if (!storedUser) { alert("You must be logged in to upload audio."); return; }
+                                        const files = Array.from(e.target.files);
+                                        if (!files.length) return;
 
-                                          setUploadingItems(prev => ({ ...prev, [item.id]: true }));
+                                        const spaceLeft = 6 - images.length;
+                                        const filesToAdd = files.slice(0, spaceLeft);
 
+                                        if (files.length > spaceLeft) {
+                                          alert(`You can only add up to 6 images. Only the first ${spaceLeft} were added.`);
+                                        }
+
+                                        let loadedImages = [...images];
+                                        let loadedCount = 0;
+
+                                        filesToAdd.forEach((file) => {
                                           const reader = new FileReader();
-                                          reader.onload = () => {
-                                            const base64Data = reader.result;
-                                            const tempAudio = new Audio(base64Data);
-
-                                            const saveAudioMetadata = (durationStr) => {
-                                              const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: base64Data });
+                                          reader.onload = (event) => {
+                                            loadedImages.push({
+                                              name: file.name,
+                                              data: event.target.result
+                                            });
+                                            loadedCount++;
+                                            if (loadedCount === filesToAdd.length) {
+                                              const storedVal = JSON.stringify(loadedImages);
                                               setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
                                               const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                              updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
-                                              setUploadingItems(prev => ({ ...prev, [item.id]: false }));
-                                            };
-
-                                            tempAudio.onloadedmetadata = () => {
-                                              const durationSec = tempAudio.duration;
-                                              let durationStr = '3:15';
-                                              if (!isNaN(durationSec) && isFinite(durationSec)) {
-                                                const mins = Math.floor(durationSec / 60);
-                                                const secs = Math.floor(durationSec % 60);
-                                                durationStr = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-                                              }
-                                              saveAudioMetadata(durationStr);
-                                            };
-                                            tempAudio.onerror = () => { saveAudioMetadata('3:15'); };
+                                              if (updateElementAttribute) updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'slideshow', 'data-interaction-value': storedVal });
+                                            }
                                           };
-                                          reader.onerror = () => setUploadingItems(prev => ({ ...prev, [item.id]: false }));
                                           reader.readAsDataURL(file);
-                                        }
+                                        });
                                       }}
                                     />
-                                    {hasAudio ? (
-                                      <div className="flex items-center" title={audioName}>
-                                        {(() => {
-                                          const isPlaying = playingAudioId === item.id;
-                                          return (
+
+                                    {images.length > 0 && (
+                                      <div className="flex items-center gap-[0.5vw] flex-wrap mt-[0.2vh]">
+                                        {images.map((img, idx) => (
+                                          <div key={idx} className="relative w-[3.2vw] h-[3.2vw] rounded-[0.4vw] overflow-hidden border border-gray-300 shadow-sm group bg-white shrink-0">
+                                            <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
                                             <div
-                                              className="relative w-[5.6vw] h-[5.6vw] flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-200"
-                                              onClick={() => {
-                                                if (isPlaying) {
-                                                  if (activeAudioRef.current) activeAudioRef.current.pause();
-                                                  setPlayingAudioId(null);
-                                                } else {
-                                                  if (activeAudioRef.current) activeAudioRef.current.pause();
-                                                  let rawData = audioMeta?.data || resolvedValue;
-                                                  const audioSrc = rawData ? rawData.trim() : '';
-                                                  if (audioSrc) {
-                                                    try {
-                                                      const audio = new Audio(audioSrc);
-                                                      activeAudioRef.current = audio;
-                                                      setPlayingAudioId(item.id);
-                                                      setAudioPlaybackTimes(prev => ({ ...prev, [item.id]: '0:00' }));
-                                                      setAudioProgressPercent(prev => ({ ...prev, [item.id]: 0 }));
-                                                      audio.ontimeupdate = () => {
-                                                        const cur = audio.currentTime;
-                                                        const tot = audio.duration || 1;
-                                                        const mins = Math.floor(cur / 60);
-                                                        const secs = Math.floor(cur % 60);
-                                                        setAudioPlaybackTimes(prev => ({ ...prev, [item.id]: `${mins}:${secs < 10 ? '0' : ''}${secs}` }));
-                                                        setAudioProgressPercent(prev => ({ ...prev, [item.id]: (cur / tot) * 100 }));
-                                                      };
-                                                      audio.play().catch(err => { console.error("Audio playback failed", err); setPlayingAudioId(null); });
-                                                      audio.onended = () => { setPlayingAudioId(null); setAudioPlaybackTimes(prev => ({ ...prev, [item.id]: '0:00' })); setAudioProgressPercent(prev => ({ ...prev, [item.id]: 0 })); };
-                                                    } catch (err) { console.error("Failed to construct Audio", err); }
-                                                  }
-                                                }
+                                              className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const newImages = [...images];
+                                                newImages.splice(idx, 1);
+                                                const storedVal = JSON.stringify(newImages);
+                                                setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                                const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                if (updateElementAttribute) updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'slideshow', 'data-interaction-value': storedVal });
                                               }}
                                             >
-                                              <svg className="absolute inset-0 w-full h-full transform -rotate-90 pointer-events-none drop-shadow-sm" viewBox="0 0 100 100">
-                                                <circle cx="50" cy="50" r="46" stroke="#D1D5DB" strokeWidth="4.5" fill="none" />
-                                                <circle cx="50" cy="50" r="46" stroke={isPlaying ? "#4A3AFF" : "#818CF8"} strokeWidth="4.5" fill="none" strokeDasharray="289.02" strokeDashoffset={289.02 - ((audioProgressPercent[item.id] || 0) / 100) * 289.02} strokeLinecap="round" className="transition-all duration-300 ease-linear" />
-                                              </svg>
-                                              <div className="absolute inset-0 m-[4px] bg-white rounded-full flex flex-col items-center justify-center pointer-events-none">
-                                                <Icon icon="iconoir:sound-high-solid" className="text-black text-[1.6vw] mb-[0.3vh]" />
-                                                <span className="text-[0.6vw] text-gray-600 font-medium tracking-wide leading-none select-none">
-                                                  {audioPlaybackTimes[item.id] || '0:00'} / {audioMeta?.duration || '3:15'}
-                                                </span>
-                                              </div>
+                                              <Icon icon="lucide:trash-2" className="text-white text-[1vw]" />
                                             </div>
-                                          );
-                                        })()}
-                                      </div>
-                                    ) : (
-                                      <div className="flex flex-col items-center justify-center w-full">
-                                        <CommonDropBox
-                                          id={`audio-upload-${item.id}`}
-                                          accept="audio/*,.mp3,.wav,.m4a,.ogg"
-                                          hideInput={true}
-                                          onFileSelect={(file) => {
-                                            const isAudio = file && (file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3') || file.name.toLowerCase().endsWith('.wav') || file.name.toLowerCase().endsWith('.m4a') || file.name.toLowerCase().endsWith('.ogg'));
-                                            if (isAudio && updateElementAttribute) {
-                                              const storedUser = localStorage.getItem('user');
-                                              if (!storedUser) {
-                                                alert("You must be logged in to upload audio.");
-                                                return;
-                                              }
-                                              const user = JSON.parse(storedUser);
+                                          </div>
+                                        ))}
 
-                                              const reader = new FileReader();
-                                              reader.onload = () => {
-                                                const base64Data = reader.result;
-                                                const tempAudio = new Audio(base64Data);
-
-                                                const saveAudioMetadata = (durationStr) => {
-                                                  const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: base64Data });
-                                                  setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
-                                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                  updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
-                                                  setUploadingItems(prev => ({ ...prev, [item.id]: false }));
-                                                };
-
-                                                tempAudio.onloadedmetadata = () => {
-                                                  const durationSec = tempAudio.duration;
-                                                  let durationStr = '3:15';
-                                                  if (!isNaN(durationSec) && isFinite(durationSec)) { const mins = Math.floor(durationSec / 60); const secs = Math.floor(durationSec % 60); durationStr = `${mins}:${secs < 10 ? '0' : ''}${secs}`; }
-                                                  saveAudioMetadata(durationStr);
-                                                };
-                                                tempAudio.onerror = () => { saveAudioMetadata('3:15'); };
-                                              };
-                                              reader.onerror = () => setUploadingItems(prev => ({ ...prev, [item.id]: false }));
-                                              reader.readAsDataURL(file);
-                                            }
-                                          }}
-                                          fileMeta={null}
-                                          isUploading={uploadingItems[item.id]}
-                                          emptyIcon="material-symbols:audio-file"
-                                          subText="File Format : MP3, WAV, OGG"
-                                        />
+                                        {images.length < 6 && (
+                                          <div
+                                            className="w-[3.2vw] h-[3.2vw] rounded-[0.4vw] border-[1.5px] border-dashed border-gray-400 bg-gray-50/80 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors shrink-0"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              document.getElementById(`slideshow-upload-${item.id}`).click();
+                                            }}
+                                          >
+                                            <Icon icon="lucide:upload" className="text-gray-400 text-[1vw] mb-[0.2vh]" />
+                                            <span className="text-[0.6vw] text-gray-400 font-medium">Upload</span>
+                                          </div>
+                                        )}
                                       </div>
                                     )}
+
+                                    {images.length === 0 && (
+                                      <div
+                                        className="w-full h-[8.5vh] rounded-[0.8vw] border-[2px] border-dashed border-gray-400/80 bg-[#F5F5F5] flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors relative"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          document.getElementById(`slideshow-upload-${item.id}`).click();
+                                        }}
+                                      >
+                                        <div className="flex items-center text-gray-500 gap-[0.5vw] pointer-events-none">
+                                          <Icon icon="lucide:plus" className="text-[1.2vw]" />
+                                          <span className="text-[0.9vw] font-medium tracking-wide">Add Image</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    <div className="flex flex-col gap-[1vh] mt-[0.5vh]">
+                                      {(() => {
+                                        const effectDropId = `slideshow-effect-${item.id}`;
+                                        const isEffectDropOpen = openDropdownId === effectDropId;
+                                        const slideshowEffects = [
+                                          { value: 'Spring Bounce', label: 'Spring Bounce' },
+                                          { value: 'Cover Flow', label: 'Cover Flow' },
+                                          { value: 'Play Cards', label: 'Play Cards' },
+                                          { value: '3D Flip', label: '3D Flip' },
+                                          { value: 'Zoom', label: 'Zoom' },
+                                          { value: 'Drop', label: 'Drop' }
+                                        ];
+                                        const savedEffect = document.getElementById(item.id)?.getAttribute('data-interaction-slideshow-effect');
+                                        const currentEffect = itemValueOverrides[effectDropId] || savedEffect || 'Play Cards';
+                                        const currentEffectLabel = slideshowEffects.find(e => e.value === currentEffect)?.label || 'Play Cards';
+
+                                        return (
+                                          <div className="flex items-center justify-between relative">
+                                            <span className="text-[0.8vw] text-black font-medium whitespace-nowrap">Transaction Effects :</span>
+                                            <div
+                                              data-dropdown-trigger="true"
+                                              className={`w-[8.5vw] h-[3.5vh] border ${isEffectDropOpen ? 'border-[#5145F6]' : 'border-gray-600'} rounded-[0.4vw] flex items-center justify-between px-[0.6vw] cursor-pointer bg-white transition-colors`}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!isEffectDropOpen) {
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const spaceBelow = window.innerHeight - rect.bottom;
+                                                  setDropdownDirectionOverrides(prev => ({ ...prev, [effectDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                                }
+                                                setOpenDropdownId(isEffectDropOpen ? null : effectDropId);
+                                              }}
+                                            >
+                                              <span className="text-[0.75vw] text-gray-600 truncate">{currentEffectLabel}</span>
+                                              <Icon icon="lucide:chevron-down" className={`text-gray-600 text-[0.9vw] transition-transform duration-200 ${isEffectDropOpen ? 'rotate-180' : ''}`} />
+                                            </div>
+                                            {isEffectDropOpen && (
+                                              <div data-dropdown-menu="true" className={`absolute right-0 w-[8.5vw] z-[99999] bg-white border border-gray-200 rounded-[0.5vw] shadow-[0_4px_20px_rgba(0,0,0,0.08)] py-[0.5vh] ${dropdownDirectionOverrides[effectDropId] === 'up' ? 'bottom-[calc(100%+0.5vh)] origin-bottom' : 'top-[calc(100%+0.5vh)] origin-top'}`}>
+                                                {slideshowEffects.map(eff => (
+                                                  <div
+                                                    key={eff.value}
+                                                    className={`px-[1vw] py-[1vh] text-[0.85vw] cursor-pointer transition-colors ${eff.value === currentEffect ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setItemValueOverrides(prev => ({ ...prev, [effectDropId]: eff.value }));
+                                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                      if (updateElementAttribute) updateElementAttribute(targetIdx, item.id, { 'data-interaction-slideshow-effect': eff.value });
+                                                      setOpenDropdownId(null);
+                                                    }}
+                                                  >
+                                                    {eff.label}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {(() => {
+                                        const speedDropId = `slideshow-speed-${item.id}`;
+                                        const isSpeedDropOpen = openDropdownId === speedDropId;
+                                        const slideshowSpeeds = ['Slow', 'Medium', 'Fast'];
+                                        const savedSpeed = document.getElementById(item.id)?.getAttribute('data-interaction-slideshow-speed');
+                                        const currentSpeed = itemValueOverrides[speedDropId] || savedSpeed || 'Medium';
+
+                                        return (
+                                          <div className="flex items-center justify-between relative">
+                                            <span className="text-[0.8vw] text-black font-medium whitespace-nowrap">Transaction Speed :</span>
+                                            <div
+                                              data-dropdown-trigger="true"
+                                              className={`w-[8.5vw] h-[3.5vh] border ${isSpeedDropOpen ? 'border-[#5145F6]' : 'border-gray-600'} rounded-[0.4vw] flex items-center justify-between px-[0.6vw] cursor-pointer bg-white transition-colors`}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!isSpeedDropOpen) {
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const spaceBelow = window.innerHeight - rect.bottom;
+                                                  setDropdownDirectionOverrides(prev => ({ ...prev, [speedDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                                }
+                                                setOpenDropdownId(isSpeedDropOpen ? null : speedDropId);
+                                              }}
+                                            >
+                                              <span className="text-[0.75vw] text-gray-600 truncate">{currentSpeed}</span>
+                                              <Icon icon="lucide:chevron-down" className={`text-gray-600 text-[0.9vw] transition-transform duration-200 ${isSpeedDropOpen ? 'rotate-180' : ''}`} />
+                                            </div>
+                                            {isSpeedDropOpen && (
+                                              <div data-dropdown-menu="true" className={`absolute right-0 w-[8.5vw] z-[99999] bg-white border border-gray-200 rounded-[0.5vw] shadow-[0_4px_20px_rgba(0,0,0,0.08)] py-[0.5vh] ${dropdownDirectionOverrides[speedDropId] === 'up' ? 'bottom-[calc(100%+0.5vh)] origin-bottom' : 'top-[calc(100%+0.5vh)] origin-top'}`}>
+                                                {slideshowSpeeds.map(spd => (
+                                                  <div
+                                                    key={spd}
+                                                    className={`px-[1vw] py-[1vh] text-[0.85vw] cursor-pointer transition-colors ${spd === currentSpeed ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setItemValueOverrides(prev => ({ ...prev, [speedDropId]: spd }));
+                                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                      if (updateElementAttribute) updateElementAttribute(targetIdx, item.id, { 'data-interaction-slideshow-speed': spd });
+                                                      setOpenDropdownId(null);
+                                                    }}
+                                                  >
+                                                    {spd}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
                                   </div>
                                 );
                               })()
                             ) : resolvedActionId === 'popup' ? (
-                              resolvedValue ? (
-                                <div className="flex-1 relative w-full h-[11vh] rounded-[0.6vw] group shadow-sm border border-gray-200">
-                                  {/* Inner container for image to keep rounded corners without clipping the dropdown */}
-                                  <div className="absolute inset-0 rounded-[0.6vw] overflow-hidden pointer-events-none">
-                                    {TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image ? (
-                                      <img
-                                        src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image}
-                                        alt="Selected Template"
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : null}
-                                    {/* Dim Overlay */}
-                                    <div className="absolute inset-0 bg-black/40"></div>
-                                  </div>
+                              <div className="flex flex-col w-full">
+                                <span className="text-[0.9vw] font-medium text-black mb-[1vh]">Popup Preview</span>
+                                {resolvedValue ? (
+                                  <div className="flex flex-col gap-[1.5vh] w-full">
+                                    <div className="w-full bg-white rounded-[0.5vw] border border-gray-100 flex flex-col p-[0.3vw] shadow-sm relative overflow-visible group">
+                                      <div className="flex items-center justify-between px-[0.6vw] pt-[0.4vh] pb-[0.6vh]">
+                                        <span className="text-[0.6vw] text-gray-500">Enter Popup Heading here</span>
+                                        <span className="text-[0.7vw] text-gray-400">×</span>
+                                      </div>
 
-                                  {/* Edit Button overlay in center */}
-                                  <div
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (onCustomizePopup) {
-                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                        onCustomizePopup(resolvedValue, item.id, targetIdx);
-                                      }
-                                    }}
-                                    className="absolute inset-0 m-auto w-[2.2vw] h-[2.2vw] bg-white/30 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center cursor-pointer hover:bg-white/40 transition-all shadow-md z-10"
-                                    title="Customize Template"
-                                  >
-                                    <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.3vw]" />
-                                  </div>
-                                  {/* 3 dots menu */}
-                                  <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
-                                    <div
-                                      className="p-[0.2vw] cursor-pointer"
-                                      data-dropdown-trigger="true"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
-                                      }}
-                                    >
-                                      <Icon icon="bi:three-dots-vertical" className="text-white drop-shadow-md text-[1.2vw]" />
-                                    </div>
+                                      {/* Inner container for image */}
+                                      <div className="relative w-full h-[18vh] rounded-[0.4vw] overflow-hidden bg-[#F4F5F7] border border-gray-100">
+                                        {TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image ? (
+                                          <img
+                                            src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image}
+                                            alt="Selected Template"
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : null}
 
-                                    {openDropdownId === `popup-${item.id}` && (
-                                      <div
-                                        data-dropdown-menu="true"
-                                        className="absolute top-[100%] right-0 mt-[2.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
-                                      >
-                                        <div
-                                          className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setOpenDropdownId(null);
-                                            setActiveTemplateSelectionId(item.id);
-                                          }}
-                                        >
-                                          <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
-                                          <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Change Template</span>
-                                        </div>
-                                        <div
-                                          className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setOpenDropdownId(null);
-                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
-                                            if (updateElementAttribute) {
-                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                              updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
-                                            }
-                                          }}
-                                        >
-                                          <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
-                                          <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Delete</span>
+                                        {/* 3 dots menu inside the image box */}
+                                        <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
+                                          <div
+                                            className="p-[0.2vw] cursor-pointer bg-white/50 backdrop-blur-sm rounded-[0.2vw] opacity-0 group-hover:opacity-100 transition-opacity"
+                                            data-dropdown-trigger="true"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
+                                            }}
+                                          >
+                                            <Icon icon="bi:three-dots-vertical" className="text-gray-800 drop-shadow-md text-[1.2vw]" />
+                                          </div>
                                         </div>
                                       </div>
-                                    )}
+
+                                      {/* 3 dots dropdown menu (placed outside hidden overflow) */}
+                                      {openDropdownId === `popup-${item.id}` && (
+                                        <div
+                                          data-dropdown-menu="true"
+                                          className="absolute top-[4vh] right-[0.5vw] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
+                                        >
+                                          <div
+                                            className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group/menu"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setOpenDropdownId(null);
+                                              setActiveTemplateSelectionId(item.id);
+                                            }}
+                                          >
+                                            <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover/menu:text-black" />
+                                            <span className="text-[0.75vw] text-gray-700 font-medium group-hover/menu:text-gray-900">Change Template</span>
+                                          </div>
+                                          <div
+                                            className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group/menu"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setOpenDropdownId(null);
+                                              setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                              if (updateElementAttribute) {
+                                                const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
+                                              }
+                                            }}
+                                          >
+                                            <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover/menu:text-red-600" />
+                                            <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover/menu:text-red-600">Delete</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Edit Button */}
+                                    <div
+                                      className="w-full bg-white border border-gray-100 shadow-sm rounded-[0.5vw] flex items-center justify-center py-[1vh] cursor-pointer hover:shadow-md transition-shadow gap-[0.8vw] group"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (onCustomizePopup) {
+                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          onCustomizePopup(resolvedValue, item.id, targetIdx);
+                                        }
+                                      }}
+                                    >
+                                      <Icon icon="bx:edit" className="text-[1.4vw] text-black group-hover:text-gray-700 transition-colors" />
+                                      <span className="text-[1vw] text-black font-medium group-hover:text-gray-700 transition-colors">Edit Popup</span>
+                                    </div>
                                   </div>
-                                </div>
-                              ) : (
-                                <div
-                                  onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
-                                  className="w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors group relative overflow-hidden"
-                                >
-                                  <span className="text-[0.75vw] text-[#6B7280] font-normal text-center select-none mb-[0.2vh]">
-                                    Click to Choose <span className="text-[#5145F6] font-semibold group-hover:underline">Template</span>
-                                  </span>
-                                  <svg width="1.6vw" height="1.6vw" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-[#6B7280] group-hover:text-[#5145F6] transition-colors">
-                                    <rect x="3" y="4" width="18" height="4" rx="1" />
-                                    <rect x="3" y="10" width="7" height="10" rx="1" />
-                                    <line x1="13" y1="11" x2="21" y2="11" />
-                                    <line x1="13" y1="15" x2="21" y2="15" />
-                                    <line x1="13" y1="19" x2="18" y2="19" />
-                                  </svg>
-                                </div>
-                              )
+                                ) : (
+                                  <div className="w-full bg-[#FAFAFA] rounded-[0.5vw] border border-gray-100 flex flex-col p-[0.3vw] shadow-sm relative overflow-hidden group">
+                                    <div className="flex items-center justify-between px-[0.6vw] pt-[0.4vh] pb-[0.6vh]">
+                                      <span className="text-[0.6vw] text-gray-500">Enter Popup Heading here</span>
+                                      <span className="text-[0.7vw] text-gray-400">×</span>
+                                    </div>
+                                    <div
+                                      onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
+                                      className="w-full relative py-[1.8vh] border-[1.5px] border-dashed border-[#A0AEC0] rounded-[0.4vw] bg-[#F4F5F7] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors group overflow-hidden"
+                                    >
+                                      <div className="flex flex-col items-center gap-[1vh] mt-[0.2vh]">
+                                        <div className="flex items-center gap-[0.5vw] text-[#8A94A6] group-hover:text-gray-600 transition-colors">
+                                          <Icon icon="lucide:plus" className="text-[1.2vw]" strokeWidth="2" />
+                                          <span className="text-[0.95vw] font-medium">Add Popup File</span>
+                                        </div>
+                                        <span className="text-[0.75vw] text-gray-400">or</span>
+                                        <div className="flex items-center gap-[0.5vw] bg-white px-[1.5vw] py-[0.8vh] rounded-[0.4vw] shadow-[0_2px_4px_rgba(0,0,0,0.05)] border border-gray-100 mt-[0.2vh] hover:shadow-md transition-shadow">
+                                          <Icon icon="bx:layout" className="text-[1.2vw] text-black" />
+                                          <span className="text-[0.9vw] text-black font-medium">Choose Template</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             ) : resolvedActionId === '3d-viewer' ? (
                               (() => {
                                 let fileMeta = null;
@@ -1924,17 +2686,266 @@ const InteractionPanel = ({
                                 );
                               })()
                             ) : resolvedActionId === 'zoom' ? (
-                              <div className="flex flex-col items-center justify-center gap-[0.2vh] w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] cursor-pointer hover:bg-gray-50 transition-all group">
-                                <span className="text-[0.75vw] text-[#6B7280] font-normal text-center select-none">
-                                  Customize <span className="text-[#5145F6] font-semibold group-hover:underline">Zoom Frame</span>
-                                </span>
-                                <Icon icon="tabler:zoom-in-area" className="text-[#6B7280] text-[1.6vw] group-hover:text-[#5145F6] transition-colors" />
+                              <div className="flex flex-col w-full gap-[1vh]" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex flex-col gap-[0.5vh]">
+                                  <span className="text-[0.8vw] text-gray-800 font-medium select-none">Zoom View</span>
+                                  <ZoomTargetThumbnail targetId={item.id} />
+                                </div>
+
+                                <div className="flex items-center justify-between w-full mt-[0.5vh]">
+                                  <span className="text-[0.85vw] text-gray-600 font-medium whitespace-nowrap">Zoom Level :</span>
+                                  <div className="relative w-[12vw]">
+                                    <select
+                                      className="w-full appearance-none h-[4vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-300 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6]"
+                                      value={item.zoomLevel || '2X'}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setTimeout(() => {
+                                          if (updateElementAttribute) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, { 'data-zoom-level': val });
+                                          }
+                                        }, 0);
+                                      }}
+                                    >
+                                      <option value="1.5X">1.5X</option>
+                                      <option value="2X">2X</option>
+                                      <option value="2.5X">2.5X</option>
+                                      <option value="3X">3X</option>
+                                    </select>
+                                    <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 text-[1vw] pointer-events-none" />
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between w-full">
+                                  <span className="text-[0.85vw] text-gray-600 font-medium whitespace-nowrap">Zoom Speed :</span>
+                                  <div className="relative w-[12vw]">
+                                    <select
+                                      className="w-full appearance-none h-[4vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-300 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6]"
+                                      value={resolvedValue || 'Medium'}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
+                                        setTimeout(() => {
+                                          if (updateElementAttribute) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction': 'zoom',
+                                              'data-interaction-value': val
+                                            });
+                                          }
+                                        }, 50);
+                                      }}
+                                    >
+                                      <option value="Slow">Slow</option>
+                                      <option value="Medium">Medium</option>
+                                      <option value="Fast">Fast</option>
+                                    </select>
+                                    <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 text-[1vw] pointer-events-none" />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : resolvedActionId === 'open-link' ? (
+                              <div className="flex flex-col w-full gap-[0.8vh]" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex flex-col gap-[0.2vh]">
+                                  <span className="text-[0.8vw] text-gray-800 font-normal select-none">Enter your link</span>
+                                  <div className="w-full h-[4.5vh] border border-[#C5C5C5] rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden hover:border-gray-400 focus-within:border-[#5145F6] transition-colors shadow-sm">
+                                    <Icon icon="ph:globe" className="text-gray-500 text-[1.2vw] flex-shrink-0 mr-[0.5vw]" />
+                                    <input
+                                      type="text"
+                                      placeholder="https://maps.app.go..."
+                                      value={localInputValues[item.id] !== undefined ? localInputValues[item.id] : (resolvedValue || '')}
+                                      className="flex-1 text-[0.85vw] text-gray-600 placeholder-gray-400 bg-transparent outline-none truncate font-medium"
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setLocalInputValues(prev => ({ ...prev, [item.id]: val }));
+                                      }}
+                                      onBlur={() => {
+                                        const val = localInputValues[item.id];
+                                        if (val !== undefined && val !== resolvedValue) {
+                                          if (updateElementAttribute) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction': 'open-link',
+                                              'data-interaction-value': val
+                                            });
+                                          }
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') e.target.blur();
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-[0.2vh]">
+                                  <span className="text-[0.8vw] text-gray-800 font-normal select-none">Behavior</span>
+                                  <div className="relative w-full">
+                                    <select
+                                      className="w-full appearance-none h-[4.5vh] px-[1vw] pr-[2.5vw] text-[0.85vw] text-gray-600 font-normal border border-[#C5C5C5] rounded-[0.5vw] bg-white outline-none focus:border-[#5145F6] shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
+                                      value={linkBehaviorOverrides[item.id] || item.linkBehavior || 'current'}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setLinkBehaviorOverrides(prev => ({ ...prev, [item.id]: val }));
+                                        if (updateElementAttribute) {
+                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          updateElementAttribute(targetIdx, item.id, {
+                                            'data-interaction-link-behavior': val
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <option value="current">Open in - Current Tab</option>
+                                      <option value="new">Open in - New Tab</option>
+                                    </select>
+                                    <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-500 text-[1vw] pointer-events-none" />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : resolvedActionId === 'whatsapp' ? (
+                              <div className="flex flex-col w-full gap-[1.5vh]" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex flex-col gap-[0.4vh]">
+                                  <span className="text-[0.8vw] text-gray-800 font-normal select-none">Enter your WhatsApp Number</span>
+                                  <div className="w-full h-[4.5vh]">
+                                    <CallInteractionInput
+                                      initialValue={localInputValues[item.id] !== undefined ? localInputValues[item.id] : (resolvedValue || '')}
+                                      onSave={(val) => {
+                                        setLocalInputValues(prev => ({ ...prev, [item.id]: val }));
+                                        if (updateElementAttribute) {
+                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          updateElementAttribute(targetIdx, item.id, {
+                                            'data-interaction': 'whatsapp',
+                                            'data-interaction-value': val
+                                          });
+                                        }
+                                      }}
+                                      isWhatsApp={true}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-[0.4vh]">
+                                  <div className="flex items-center gap-[0.3vw]">
+                                    <span className="text-[0.8vw] text-gray-800 font-normal select-none">Pre filled Message</span>
+                                    <span className="text-[0.6vw] text-gray-500 font-normal select-none">(Optional)</span>
+                                  </div>
+                                  <div className="relative w-full h-[4.5vh] border border-[#C5C5C5] rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden hover:border-gray-400 focus-within:border-[#5145F6] transition-colors shadow-sm">
+                                    <Icon icon="lucide:message-square-text" className="text-gray-500 text-[1.1vw] flex-shrink-0 mr-[0.5vw]" />
+                                    <input
+                                      type="text"
+                                      placeholder="Hello! I have a question"
+                                      maxLength={100}
+                                      value={whatsappMessageOverrides[item.id] !== undefined ? whatsappMessageOverrides[item.id] : (item.whatsappMessage || '')}
+                                      className="flex-1 text-[0.85vw] text-gray-600 placeholder-gray-400 bg-transparent outline-none font-normal"
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setWhatsappMessageOverrides(prev => ({ ...prev, [item.id]: val }));
+                                      }}
+                                      onBlur={() => {
+                                        const val = whatsappMessageOverrides[item.id];
+                                        if (val !== undefined && val !== item.whatsappMessage) {
+                                          if (updateElementAttribute) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction-whatsapp-message': val
+                                            });
+                                          }
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') e.target.blur();
+                                      }}
+                                    />
+                                    <span className="text-[0.7vw] text-gray-400 ml-[0.5vw] select-none whitespace-nowrap">
+                                      {((whatsappMessageOverrides[item.id] !== undefined ? whatsappMessageOverrides[item.id] : (item.whatsappMessage || '')) || '').length}/100
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-[0.4vh]">
+                                  <span className="text-[0.8vw] text-gray-800 font-normal select-none">Behavior</span>
+                                  <div className="relative w-full">
+                                    <select
+                                      className="w-full appearance-none h-[4.5vh] px-[1vw] pr-[2.5vw] text-[0.85vw] text-gray-600 font-normal border border-[#C5C5C5] rounded-[0.5vw] bg-white outline-none focus:border-[#5145F6] shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
+                                      value={linkBehaviorOverrides[item.id] || item.linkBehavior || 'current'}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setLinkBehaviorOverrides(prev => ({ ...prev, [item.id]: val }));
+                                        if (updateElementAttribute) {
+                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          updateElementAttribute(targetIdx, item.id, {
+                                            'data-interaction-link-behavior': val
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <option value="current">Open in - Current Tab</option>
+                                      <option value="new">Open in - New Tab</option>
+                                    </select>
+                                    <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-500 text-[1vw] pointer-events-none" />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : resolvedActionId === 'email' ? (
+                              <div className="flex flex-col w-full gap-[1.5vh]" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex flex-col gap-[0.4vh]">
+                                  <span className="text-[0.8vw] text-gray-800 font-normal select-none">Enter your Email Address</span>
+                                  <div className="w-full h-[4.5vh] border border-gray-400 rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden hover:border-gray-500 focus-within:border-[#5145F6] transition-colors shadow-sm">
+                                    <Icon icon="ic:outline-mail" className="text-gray-600 text-[1.2vw] mr-[0.5vw]" />
+                                    <input
+                                      type="email"
+                                      placeholder="Enter Email Id"
+                                      value={localInputValues[item.id] !== undefined ? localInputValues[item.id] : (resolvedValue || '')}
+                                      className="w-full h-full text-[0.85vw] font-medium text-gray-700 placeholder-gray-400 bg-transparent outline-none truncate"
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setLocalInputValues(prev => ({ ...prev, [item.id]: val }));
+                                      }}
+                                      onBlur={() => {
+                                        const val = localInputValues[item.id];
+                                        if (val !== undefined && val !== resolvedValue) {
+                                          if (updateElementAttribute) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction': 'email',
+                                              'data-interaction-value': val
+                                            });
+                                          }
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') e.target.blur();
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-[0.4vh]">
+                                  <span className="text-[0.8vw] text-gray-800 font-normal select-none">Behavior</span>
+                                  <div className="relative w-full">
+                                    <select
+                                      className="w-full appearance-none h-[4.5vh] px-[1vw] pr-[2.5vw] text-[0.85vw] text-gray-600 font-normal border border-gray-400 rounded-[0.5vw] bg-white outline-none focus:border-[#5145F6] shadow-sm hover:border-gray-500 transition-colors cursor-pointer"
+                                      value={linkBehaviorOverrides[item.id] || item.linkBehavior || 'current'}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setLinkBehaviorOverrides(prev => ({ ...prev, [item.id]: val }));
+                                        if (updateElementAttribute) {
+                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          updateElementAttribute(targetIdx, item.id, {
+                                            'data-interaction-link-behavior': val
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <option value="current">Open in - Current Tab</option>
+                                      <option value="new">Open in - New Tab</option>
+                                    </select>
+                                    <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-500 text-[1vw] pointer-events-none" />
+                                  </div>
+                                </div>
                               </div>
                             ) : (
                               <div className="flex-1 h-[4vh] border border-gray-400 rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden">
                                 <input
                                   type="text"
-                                  placeholder="Enter URL..."
+                                  placeholder={resolvedActionId === 'email' ? "Enter Email Address..." : "Enter URL..."}
                                   value={localInputValues[item.id] !== undefined ? localInputValues[item.id] : (resolvedValue || '')}
                                   className="w-full text-[0.8vw] text-gray-700 placeholder-gray-400 bg-transparent outline-none truncate"
                                   onChange={(e) => {
@@ -1963,161 +2974,137 @@ const InteractionPanel = ({
                             )}
                           </div>
 
-                          {/* Tooltip extra options (Animation) */}
-                          {resolvedActionId === 'tooltip' && (
-                            <div className="flex flex-col gap-[1.2vh] w-full mt-[1.5vh]">
-                              <div className="flex items-center gap-[0.4vw]">
-                                <span className="text-[0.8vw] font-bold text-gray-800 whitespace-nowrap">Animation</span>
-                                <div className="h-[1px] flex-grow bg-gray-150"></div>
-                              </div>
-                              <div className="relative" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-                                <select
-                                  className="w-full appearance-none h-[3.8vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-200 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6] cursor-pointer"
-                                  value={(tooltipSettingsOverrides[item.id] && tooltipSettingsOverrides[item.id].animation !== undefined) ? tooltipSettingsOverrides[item.id].animation : (tooltipSettings.animation || 'Default')}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setTooltipSettingsOverrides(prev => ({ ...prev, [item.id]: { ...prev[item.id], animation: val } }));
-                                    if (updateElementAttribute) {
-                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                      const newSettings = { ...tooltipSettings, animation: val };
-                                      updateElementAttribute(targetIdx, item.id, {
-                                        'data-tooltip-settings': JSON.stringify(newSettings)
-                                      });
-                                    }
-                                  }}
-                                >
-                                  <option value="Default">Default</option>
-                                  <option value="Fade In /Out">Fade In /Out</option>
-                                  <option value="Slide Up">Slide Up</option>
-                                  <option value="Zoom In">Zoom In</option>
-                                  <option value="Bounce In">Bounce In</option>
-                                </select>
-                                <Icon icon="lucide:chevron-down" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 text-[0.9vw] pointer-events-none" />
-                              </div>
-
-                              <div className="flex items-center justify-between w-full mt-[0.5vh]" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-                                <span className="text-[0.8vw] text-gray-500 font-medium whitespace-nowrap">Speed :</span>
-                                <div className="relative w-[11.2vw]">
-                                  <select
-                                    className="w-full appearance-none h-[3.8vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-200 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6] cursor-pointer"
-                                    value={(tooltipSettingsOverrides[item.id] && tooltipSettingsOverrides[item.id].speed !== undefined) ? tooltipSettingsOverrides[item.id].speed : (tooltipSettings.speed || 'Medium')}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setTooltipSettingsOverrides(prev => ({ ...prev, [item.id]: { ...prev[item.id], speed: val } }));
-                                      if (updateElementAttribute) {
-                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                        const newSettings = { ...tooltipSettings, speed: val };
-                                        updateElementAttribute(targetIdx, item.id, {
-                                          'data-tooltip-settings': JSON.stringify(newSettings)
-                                        });
-                                      }
-                                    }}
-                                  >
-                                    <option value="Slow">Slow</option>
-                                    <option value="Medium">Medium</option>
-                                    <option value="Fast">Fast</option>
-                                  </select>
-                                  <Icon icon="lucide:chevron-down" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 text-[0.9vw] pointer-events-none" />
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          {/* Tooltip extra options removed */}
 
                           {/* Popup extra options */}
                           {resolvedActionId === 'popup' && (
-                            <div className="flex flex-col gap-[1.5vh] w-full mt-[0.5vh]">
-                              {/* Animation Section Header */}
-                              <div className="flex items-center gap-[0.5vw] w-full">
-                                <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Animation</span>
-                                <div className="h-[0.1vh] flex-1 bg-gray-200"></div>
-                              </div>
-
+                            <div className="flex flex-col gap-[1.5vh] w-full mt-[1.5vh]">
                               {/* Animation Dropdown */}
-                              <div className="relative w-full">
-                                <select
-                                  value={item.popupAnimation || 'Fade In /Out'}
-                                  onChange={(e) => {
-                                    if (updateElementAttribute) {
-                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                      updateElementAttribute(targetIdx, item.id, {
-                                        'data-interaction-popup-animation': e.target.value
-                                      });
-                                    }
-                                  }}
-                                  className="w-full h-[4.5vh] px-[1vw] text-[0.8vw] text-gray-600 border border-[#C5C5C5] rounded-[0.6vw] bg-white outline-none focus:border-[#4A3AFF] appearance-none pr-[2.5vw] font-medium shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
-                                >
-                                  <option value="Fade In /Out">Fade In /Out</option>
-                                  <option value="Slide Up">Slide Up</option>
-                                  <option value="Slide Down">Slide Down</option>
-                                  <option value="Zoom In">Zoom In</option>
-                                </select>
-                                <div className="absolute right-[1vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                  <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="6 9 12 15 18 9"></polyline>
-                                  </svg>
+                              <div className="flex items-center w-full gap-[0.5vw]">
+                                <span className="w-[6.5vw] text-[0.9vw] text-black font-medium whitespace-nowrap">Animation :</span>
+                                <div className="relative flex-1">
+                                  {(() => {
+                                    const animDropId = `popup-anim-${item.id}`;
+                                    const isAnimDropOpen = openDropdownId === animDropId;
+                                    const popupAnimations = [
+                                      { value: 'Fade In /Out', label: 'Fade in' },
+                                      { value: 'Slide Up', label: 'Slide Up' },
+                                      { value: 'Slide Down', label: 'Slide Down' },
+                                      { value: 'Zoom In', label: 'Zoom In' }
+                                    ];
+                                    const savedAnim = document.getElementById(item.id)?.getAttribute('data-interaction-popup-animation');
+                                    const currentAnim = itemValueOverrides[animDropId] || savedAnim || item.popupAnimation || 'Fade In /Out';
+                                    const currentAnimLabel = popupAnimations.find(a => a.value === currentAnim)?.label || 'Fade in';
+
+                                    return (
+                                      <>
+                                        <div
+                                          data-dropdown-trigger="true"
+                                          className={`w-full h-[4.5vh] border ${isAnimDropOpen ? 'border-[#5145F6]' : 'border-gray-400'} rounded-[0.4vw] flex items-center justify-between px-[1vw] bg-white cursor-pointer select-none transition-colors`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!isAnimDropOpen) {
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              const spaceBelow = window.innerHeight - rect.bottom;
+                                              setDropdownDirectionOverrides(prev => ({ ...prev, [animDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                            }
+                                            setOpenDropdownId(isAnimDropOpen ? null : animDropId);
+                                          }}
+                                        >
+                                          <span className="text-[0.85vw] text-gray-600 font-medium truncate">{currentAnimLabel}</span>
+                                          <Icon
+                                            icon="lucide:chevron-down"
+                                            className={`text-gray-400 text-[1.2vw] transition-transform duration-200 ${isAnimDropOpen ? 'rotate-180' : ''}`}
+                                          />
+                                        </div>
+                                        {isAnimDropOpen && (
+                                          <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.5vw] shadow-[0_4px_20px_rgba(0,0,0,0.08)] py-[0.5vh] ${dropdownDirectionOverrides[animDropId] === 'up' ? 'bottom-[calc(100%+0.5vh)] origin-bottom' : 'top-[calc(100%+0.5vh)] origin-top'}`}>
+                                            {popupAnimations.map(anim => (
+                                              <div
+                                                key={anim.value}
+                                                className={`px-[1vw] py-[1vh] text-[0.85vw] cursor-pointer transition-colors ${anim.value === currentAnim ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setItemValueOverrides(prev => ({ ...prev, [animDropId]: anim.value }));
+                                                  if (updateElementAttribute) {
+                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                    updateElementAttribute(targetIdx, item.id, {
+                                                      'data-interaction-popup-animation': anim.value
+                                                    });
+                                                  }
+                                                  setOpenDropdownId(null);
+                                                }}
+                                              >
+                                                {anim.label}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 
                               {/* Animation Speed Dropdown */}
-                              <div className="flex items-center justify-between w-full">
-                                <span className="text-[0.85vw] text-gray-700 font-medium whitespace-nowrap">Animation Speed :</span>
-                                <div className="relative w-[9vw]">
-                                  <select
-                                    className="w-full appearance-none h-[4.5vh] px-[1vw] pr-[1vw] text-[0.8vw] text-gray-600 border border-[#C5C5C5] rounded-[0.6vw] bg-white outline-none focus:border-[#4A3AFF] pr-[2.5vw] font-medium shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
-                                    value={item.popupSpeed || 'Medium'}
-                                    onChange={(e) => {
-                                      if (updateElementAttribute) {
-                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                        updateElementAttribute(targetIdx, item.id, {
-                                          'data-interaction-popup-speed': e.target.value
-                                        });
-                                      }
-                                    }}
-                                  >
-                                    <option value="Slow">Slow</option>
-                                    <option value="Medium">Medium</option>
-                                    <option value="Fast">Fast</option>
-                                  </select>
-                                  <div className="absolute right-[1vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                    <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                  </div>
+                              <div className="flex items-center w-full gap-[0.5vw]">
+                                <span className="w-[6.5vw] text-[0.9vw] text-black font-medium whitespace-nowrap">Speed :</span>
+                                <div className="relative flex-1">
+                                  {(() => {
+                                    const speedDropId = `popup-speed-${item.id}`;
+                                    const isSpeedDropOpen = openDropdownId === speedDropId;
+                                    const popupSpeeds = ['Slow', 'Medium', 'Fast'];
+                                    const savedSpeed = document.getElementById(item.id)?.getAttribute('data-interaction-popup-speed');
+                                    const currentSpeed = itemValueOverrides[speedDropId] || savedSpeed || item.popupSpeed || 'Medium';
+
+                                    return (
+                                      <>
+                                        <div
+                                          data-dropdown-trigger="true"
+                                          className={`w-full h-[4.5vh] border ${isSpeedDropOpen ? 'border-[#5145F6]' : 'border-gray-400'} rounded-[0.4vw] flex items-center justify-between px-[1vw] bg-white cursor-pointer select-none transition-colors`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!isSpeedDropOpen) {
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              const spaceBelow = window.innerHeight - rect.bottom;
+                                              setDropdownDirectionOverrides(prev => ({ ...prev, [speedDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                            }
+                                            setOpenDropdownId(isSpeedDropOpen ? null : speedDropId);
+                                          }}
+                                        >
+                                          <span className="text-[0.85vw] text-gray-600 font-medium truncate">{currentSpeed}</span>
+                                          <Icon
+                                            icon="lucide:chevron-down"
+                                            className={`text-gray-400 text-[1.2vw] transition-transform duration-200 ${isSpeedDropOpen ? 'rotate-180' : ''}`}
+                                          />
+                                        </div>
+                                        {isSpeedDropOpen && (
+                                          <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.5vw] shadow-[0_4px_20px_rgba(0,0,0,0.08)] py-[0.5vh] ${dropdownDirectionOverrides[speedDropId] === 'up' ? 'bottom-[calc(100%+0.5vh)] origin-bottom' : 'top-[calc(100%+0.5vh)] origin-top'}`}>
+                                            {popupSpeeds.map(speed => (
+                                              <div
+                                                key={speed}
+                                                className={`px-[1vw] py-[1vh] text-[0.85vw] cursor-pointer transition-colors ${speed === currentSpeed ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setItemValueOverrides(prev => ({ ...prev, [speedDropId]: speed }));
+                                                  if (updateElementAttribute) {
+                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                    updateElementAttribute(targetIdx, item.id, {
+                                                      'data-interaction-popup-speed': speed
+                                                    });
+                                                  }
+                                                  setOpenDropdownId(null);
+                                                }}
+                                              >
+                                                {speed}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </div>
-                              </div>
-                            </div>
-                          )}
-                          {/* Zoom speed row */}
-                          {resolvedActionId === 'zoom' && (
-                            <div className="flex items-center justify-between w-full mt-[1vh]">
-                              <span className="text-[0.85vw] text-gray-600 font-medium whitespace-nowrap">Zoom Speed :</span>
-                              <div className="relative w-[12vw]">
-                                <select
-                                  className="w-full appearance-none h-[4vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-300 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6]"
-                                  value={resolvedValue || 'Medium'}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
-                                    setTimeout(() => {
-                                      if (updateElementAttribute) {
-                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                        updateElementAttribute(targetIdx, item.id, {
-                                          'data-interaction': 'zoom',
-                                          'data-interaction-value': val
-                                        });
-                                      }
-                                    }, 50);
-                                  }}
-                                >
-                                  <option value="Slow">Slow</option>
-                                  <option value="Medium">Medium</option>
-                                  <option value="Fast">Fast</option>
-                                </select>
-                                <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 text-[1vw] pointer-events-none" />
                               </div>
                             </div>
                           )}
@@ -2126,11 +3113,22 @@ const InteractionPanel = ({
                         {/* Card Footer (Highlight Component) */}
                         <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw]`}>
                           <div className="flex items-center gap-[0.6vw]">
-                            {/* Custom Radio Button */}
-                            <div className="w-[1.1vw] h-[1.1vw] flex-shrink-0 rounded-full border-[0.15vw] border-[#5145F6] flex items-center justify-center bg-white">
-                              <div className="w-[0.45vw] h-[0.45vw] rounded-full bg-[#5145F6]"></div>
-                            </div>
-                            <span className="text-[0.8vw] text-gray-600 font-medium">Highlight the Component</span>
+                            {['open-link', 'whatsapp', 'email'].includes(resolvedActionId) ? (
+                              <>
+                                <div className="w-[1.1vw] h-[1.1vw] flex-shrink-0 rounded-[0.25vw] bg-[#5145F6] flex items-center justify-center cursor-pointer shadow-sm">
+                                  <Icon icon="mdi:check" className="text-white text-[0.85vw]" />
+                                </div>
+                                <span className="text-[0.8vw] text-gray-600 font-normal">Highlight interaction in preview</span>
+                              </>
+                            ) : (
+                              <>
+                                {/* Custom Checkbox */}
+                                <div className="w-[1.2vw] h-[1.2vw] flex-shrink-0 rounded-[0.25vw] bg-[#5145F6] flex items-center justify-center">
+                                  <Icon icon="lucide:check" className="text-white text-[0.9vw]" strokeWidth="3" />
+                                </div>
+                                <span className="text-[0.85vw] text-gray-600 font-medium">Highlight interaction in preview</span>
+                              </>
+                            )}
                           </div>
 
                           {/* Trash Icon */}

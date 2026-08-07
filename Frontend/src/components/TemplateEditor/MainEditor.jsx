@@ -14,7 +14,7 @@ import {
   exitNodeEditModeHelper
 } from './penToolEngine';
 import PenToolProperties from './PenToolProperties';
-
+import HotspotPresetPopup from './HotspotPresetPopup';
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
 const CUR_PEN_CLOSE = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Ccircle cx='17' cy='16' r='4' fill='none' stroke='black' stroke-width='3'/%3E%3Ccircle cx='17' cy='16' r='4' fill='none' stroke='white' stroke-width='1.6'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -678,6 +678,7 @@ const MainEditor = ({
 
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
   const [selectedPenTool, setSelectedPenTool] = useState('pen'); // 'pen', 'curve', 'pencil'
+  const [showHotspotPopup, setShowHotspotPopup] = useState(false);
   const [selectedShapeTool, setSelectedShapeTool] = useState('rectangle'); // 'rectangle', 'circle', 'polygon', 'line', 'star'
   const [zoom, setZoom] = useState(90);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -1715,75 +1716,75 @@ const MainEditor = ({
         if (!layerId) return;
 
         const showControls = video.getAttribute('data-show-controls') !== 'false';
-        
+
         // APPLY CUSTOM VIDEO PROPERTIES
         const pbSpeedStr = video.getAttribute('data-playback-speed');
         if (pbSpeedStr) {
-           const pbSpeed = parseFloat(pbSpeedStr.replace('x', ''));
-           if (!isNaN(pbSpeed)) video.playbackRate = pbSpeed;
+          const pbSpeed = parseFloat(pbSpeedStr.replace('x', ''));
+          if (!isNaN(pbSpeed)) video.playbackRate = pbSpeed;
         }
 
         if (!video.hasAttribute('data-video-props-applied')) {
-            video.setAttribute('data-video-props-applied', 'true');
-            
-            const defVolStr = video.getAttribute('data-default-volume');
-            if (defVolStr) {
-                video.volume = parseInt(defVolStr) / 100;
-            }
+          video.setAttribute('data-video-props-applied', 'true');
 
-            const startTimeAttr = video.getAttribute('data-start-time');
-            let sTime = 0;
-            if (startTimeAttr) {
-              const parts = startTimeAttr.split(':').map(Number);
-              if (parts.length === 3) sTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
-              else if (parts.length === 2) sTime = parts[0] * 60 + parts[1];
-            }
-            const endTimeAttr = video.getAttribute('data-end-time');
-            let eTime = Infinity;
-            if (endTimeAttr) {
-              const parts = endTimeAttr.split(':').map(Number);
-              if (parts.length === 3) eTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
-              else if (parts.length === 2) eTime = parts[0] * 60 + parts[1];
-            }
-            video._startTime = sTime;
-            video._endTime = eTime;
-            
-            if (sTime > 0) {
-               video.currentTime = sTime;
-            }
+          const defVolStr = video.getAttribute('data-default-volume');
+          if (defVolStr) {
+            video.volume = parseInt(defVolStr) / 100;
+          }
 
-            video.addEventListener('timeupdate', () => {
-               if (video._startTime > 0 && video.currentTime < video._startTime - 0.5) {
-                   video.currentTime = video._startTime;
-               }
-               if (video._endTime < Infinity && video.currentTime >= video._endTime) {
-                   if (video.loop) {
-                       video.currentTime = video._startTime;
-                   } else {
-                       video.pause();
-                   }
-               }
-            });
-            
-            const resumeBehavior = video.getAttribute('data-resume-behavior');
-            if (resumeBehavior === "Start from Beginning") {
-                video.addEventListener('play', () => {
-                    if (video._wasPaused) {
-                        video.currentTime = video._startTime || 0;
-                    }
-                    video._wasPaused = false;
-                });
-                video.addEventListener('pause', () => {
-                    video._wasPaused = true;
-                });
-            }
+          const startTimeAttr = video.getAttribute('data-start-time');
+          let sTime = 0;
+          if (startTimeAttr) {
+            const parts = startTimeAttr.split(':').map(Number);
+            if (parts.length === 3) sTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else if (parts.length === 2) sTime = parts[0] * 60 + parts[1];
+          }
+          const endTimeAttr = video.getAttribute('data-end-time');
+          let eTime = Infinity;
+          if (endTimeAttr) {
+            const parts = endTimeAttr.split(':').map(Number);
+            if (parts.length === 3) eTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else if (parts.length === 2) eTime = parts[0] * 60 + parts[1];
+          }
+          video._startTime = sTime;
+          video._endTime = eTime;
 
-            const playVideoWhile = video.getAttribute('data-play-video-while');
-            if (playVideoWhile === "Auto Play While on Page") {
-                video.play().catch(()=>{});
-            } else if (playVideoWhile === "Click to Play") {
+          if (sTime > 0) {
+            video.currentTime = sTime;
+          }
+
+          video.addEventListener('timeupdate', () => {
+            if (video._startTime > 0 && video.currentTime < video._startTime - 0.5) {
+              video.currentTime = video._startTime;
+            }
+            if (video._endTime < Infinity && video.currentTime >= video._endTime) {
+              if (video.loop) {
+                video.currentTime = video._startTime;
+              } else {
                 video.pause();
+              }
             }
+          });
+
+          const resumeBehavior = video.getAttribute('data-resume-behavior');
+          if (resumeBehavior === "Start from Beginning") {
+            video.addEventListener('play', () => {
+              if (video._wasPaused) {
+                video.currentTime = video._startTime || 0;
+              }
+              video._wasPaused = false;
+            });
+            video.addEventListener('pause', () => {
+              video._wasPaused = true;
+            });
+          }
+
+          const playVideoWhile = video.getAttribute('data-play-video-while');
+          if (playVideoWhile === "Auto Play While on Page") {
+            video.play().catch(() => { });
+          } else if (playVideoWhile === "Click to Play") {
+            video.pause();
+          }
         }
 
         const ctrlId = `custom-ctrl-${layerId}`;
@@ -1806,12 +1807,12 @@ const MainEditor = ({
           if (repBtn) {
             repBtn.style.opacity = video.loop ? '1' : '0.5';
           }
-          
+
           const topC = bar.querySelector('.custom-top-container');
           const centerC = bar.querySelector('.custom-center-container');
           const progC = bar.querySelector('.custom-prog-container');
           const timeW = bar.querySelector('.custom-time-wrapper');
-          
+
           if (topC) topC.style.visibility = showControls ? 'visible' : 'hidden';
           if (centerC) centerC.style.visibility = showControls ? 'visible' : 'hidden';
           if (progC) progC.style.visibility = showControls ? 'visible' : 'hidden';
@@ -2253,7 +2254,7 @@ const MainEditor = ({
           bottomContainer.appendChild(timeWrapper);
           bottomContainer.appendChild(repeatBtn);
           if (!disableFullScreen) {
-             bottomContainer.appendChild(fsBtn);
+            bottomContainer.appendChild(fsBtn);
           }
 
           bar.appendChild(topContainer);
@@ -2345,15 +2346,15 @@ const MainEditor = ({
         }, 10);
       }
     };
-    
+
     const observer = new MutationObserver(() => {
       cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(updateScrollbarStyles);
     });
-    
+
     updateScrollbarStyles();
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
-    
+
     return () => {
       observer.disconnect();
       cancelAnimationFrame(animationFrameId);
@@ -2550,9 +2551,13 @@ const MainEditor = ({
       g.setAttribute('data-type', 'icon');
       // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
       g.setAttribute('transform', `translate(${centerX - 6}, ${centerY - 6}) scale(0.5)`);
-      g.setAttribute('fill', 'none');
-      g.setAttribute('stroke', '#000000');
-      g.setAttribute('stroke-width', '1');
+      if (!e.detail.isHotspot) {
+        g.setAttribute('fill', 'none');
+        g.setAttribute('stroke', '#000000');
+        g.setAttribute('stroke-width', '1');
+      } else {
+        g.setAttribute('data-is-hotspot', 'true');
+      }
 
 
       if (icon.Component) {
@@ -11894,6 +11899,78 @@ const MainEditor = ({
           </div>
         )}
 
+        {/* Interaction Group: Sub Tools - HIDDEN for PDF projects */}
+        {!isPdfProject && activeTopTool === 'interaction' && (
+          <div className="absolute right-0 top-[25vh] z-[100]">
+            <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
+
+              {/* Cover Top Border */}
+              <div className="absolute top-0 right-0 w-[0.8vw] h-[1.5px] bg-[#F1F3F4] z-10" />
+              {/* Perfect Inverted Corner Top */}
+              <div className="absolute right-0 w-[0.8vw] h-[0.8vw] pointer-events-none z-20" style={{ top: 'calc(-0.8vw + 0.5px)' }}>
+                <svg className="overflow-visible" width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M100 100 V0 C100 55.2285 55.2285 100 0 100 H100Z" fill="#F1F3F4" />
+                  <path d="M0 100 C55.2285 100 100 55.2285 100 0" stroke="#D1D5DB" strokeWidth="6" />
+                </svg>
+              </div>
+
+              {/* Cover Bottom Border */}
+              <div className="absolute bottom-0 right-0 w-[0.8vw] h-[1.5px] bg-[#F1F3F4] z-10" />
+              {/* Perfect Inverted Corner Bottom */}
+              <div className="absolute right-0 w-[0.8vw] h-[0.8vw] pointer-events-none z-20" style={{ bottom: 'calc(-0.8vw + 0.5px)' }}>
+                <svg className="overflow-visible" width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M100 0 V100 C100 44.7715 55.2285 0 0 0 H100Z" fill="#F1F3F4" />
+                  <path d="M0 0 C55.2285 0 100 44.7715 100 100" stroke="#D1D5DB" strokeWidth="6" />
+                </svg>
+              </div>
+
+              {/* Select Tool */}
+              <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw]">
+                <button
+                  className="w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer bg-white shadow-sm hover:bg-gray-50"
+                >
+                  <Icon icon="clarity:cursor-arrow-line" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                </button>
+                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+              </div>
+
+              {/* Frame Tool */}
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh]">
+                <button
+                  onClick={() => {
+                    if (setActiveMainTool) setActiveMainTool('shapes');
+                    setSelectedShapeTool('free-frame');
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${selectedShapeTool === 'free-frame' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon icon="iconoir:frame-alt" width="1.2vw" height="1.2vw" className={selectedShapeTool === 'free-frame' ? 'text-[#111827]' : 'text-[#4B5563]'} />
+                </button>
+                <div className="w-[0.7vw]"></div>
+              </div>
+
+              {/* Hotspot Tool */}
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] relative" id="hotspot-trigger-container">
+                <button
+                  onClick={() => setShowHotspotPopup(!showHotspotPopup)}
+                  className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${showHotspotPopup ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon icon="material-symbols:ads-click-rounded" width="1.2vw" height="1.2vw" className={showHotspotPopup ? 'text-[#111827]' : 'text-[#4B5563]'} />
+                </button>
+                <div className="w-[0.7vw]"></div>
+                {showHotspotPopup && (
+                  <HotspotPresetPopup
+                    onClose={() => setShowHotspotPopup(false)}
+                    onSelectPreset={(presetId) => {
+                      console.log('Selected preset:', presetId);
+                      // Future logic for handling the selected preset
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bottom Group: Creation & Widgets - HIDDEN for PDF projects */}
         {!isPdfProject && activeTopTool === 'editor' && (
           <div className="absolute right-0 top-[25vh] z-50">
@@ -12240,372 +12317,372 @@ const MainEditor = ({
           >
             {/* Pages Container Centered */}
             <div className="flex items-center justify-center gap-[0] relative z-10 shadow-[0_0_15px_rgba(0,0,0,0.20)] rounded-sm">
-            {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
-            {pages.length > 0 && (isDoublePage ? (spreadStartIndex > 0 && pages[spreadStartIndex]) : pages[activePageIndex]) && (
+              {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
+              {pages.length > 0 && (isDoublePage ? (spreadStartIndex > 0 && pages[spreadStartIndex]) : pages[activePageIndex]) && (
 
-              <div className="relative group/page">
-                {/* Page Control Button (Floating Above Top) Removed as per user request */}
+                <div className="relative group/page">
+                  {/* Page Control Button (Floating Above Top) Removed as per user request */}
 
-                {/* A4 Canvas Page 1 Inner */}
-                <div
-                  className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
-                  style={isPopupEditor ? {
-                    width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
-                    height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
-                    borderRadius: '1.2vw',
-                    backgroundColor: '#ffffff'
-                  } : {
-                    height: '78vh',
-                    aspectRatio: canvasAspectRatio,
-                    minHeight: '400px',
-                  }}
-                >
-                  {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
-                    <style>{svgGlobalStyles}</style>
-                    {(() => {
-                      const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
-                      const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
-                      const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
-                      const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
-                      const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
+                  {/* A4 Canvas Page 1 Inner */}
+                  <div
+                    className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
+                    style={isPopupEditor ? {
+                      width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
+                      height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
+                      borderRadius: '1.2vw',
+                      backgroundColor: '#ffffff'
+                    } : {
+                      height: '78vh',
+                      aspectRatio: canvasAspectRatio,
+                      minHeight: '400px',
+                    }}
+                  >
+                    {/* Page Content */}
+                    <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
+                      <style>{svgGlobalStyles}</style>
+                      {(() => {
+                        const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
+                        const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
+                        const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
+                        const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
+                        const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
 
-                      const pageHtml = pages[displayIndex]?.html;
-                      const isPageEmpty = !pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0));
+                        const pageHtml = pages[displayIndex]?.html;
+                        const isPageEmpty = !pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0));
 
-                      return (
-                        <div
-                          className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
-                          style={{ cursor: (isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
-                        >
-                          {pageHtml && (
-                            <div
-                              id={`canvas-content-${displayIndex}`}
-                              className="w-full h-full flex items-center justify-center"
-                              ref={(el) => {
-                                if (el) {
-                                  const newHtml = getHtmlToRender(displayIndex, pages[displayIndex]?.html);
-                                  if (window.__skipCanvasUpdateForPage === displayIndex) {
-                                    window.__skipCanvasUpdateForPage = -1;
-                                    el.__lastHtml = newHtml;
-                                  } else if (el.__lastHtml !== newHtml) {
-                                    const parser = new DOMParser();
-                                    const doc = parser.parseFromString(newHtml, 'text/html');
-                                    const newChildren = Array.from(doc.body.childNodes);
+                        return (
+                          <div
+                            className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
+                            style={{ cursor: (isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
+                          >
+                            {pageHtml && (
+                              <div
+                                id={`canvas-content-${displayIndex}`}
+                                className="w-full h-full flex items-center justify-center"
+                                ref={(el) => {
+                                  if (el) {
+                                    const newHtml = getHtmlToRender(displayIndex, pages[displayIndex]?.html);
+                                    if (window.__skipCanvasUpdateForPage === displayIndex) {
+                                      window.__skipCanvasUpdateForPage = -1;
+                                      el.__lastHtml = newHtml;
+                                    } else if (el.__lastHtml !== newHtml) {
+                                      const parser = new DOMParser();
+                                      const doc = parser.parseFromString(newHtml, 'text/html');
+                                      const newChildren = Array.from(doc.body.childNodes);
 
-                                    const oldChildren = Array.from(el.childNodes);
-                                    const maxLength = Math.max(oldChildren.length, newChildren.length);
+                                      const oldChildren = Array.from(el.childNodes);
+                                      const maxLength = Math.max(oldChildren.length, newChildren.length);
 
-                                    for (let i = 0; i < maxLength; i++) {
-                                      if (!oldChildren[i]) {
-                                        el.appendChild(newChildren[i].cloneNode(true));
-                                      } else if (!newChildren[i]) {
-                                        el.removeChild(oldChildren[i]);
-                                      } else {
-                                        syncDOM(oldChildren[i], newChildren[i]);
+                                      for (let i = 0; i < maxLength; i++) {
+                                        if (!oldChildren[i]) {
+                                          el.appendChild(newChildren[i].cloneNode(true));
+                                        } else if (!newChildren[i]) {
+                                          el.removeChild(oldChildren[i]);
+                                        } else {
+                                          syncDOM(oldChildren[i], newChildren[i]);
+                                        }
                                       }
+
+                                      el.__lastHtml = newHtml;
                                     }
-
-                                    el.__lastHtml = newHtml;
                                   }
-                                }
-                              }}
-                              onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                              onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
-                              onMouseLeave={handleSvgMouseLeave}
-                              onClick={handleSvgClick}
-                              onDragOver={(e) => {
-                                e.preventDefault(); // Necessary to allow dropping
-                                e.dataTransfer.dropEffect = 'copy';
-                              }}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                try {
-                                  const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                                  if (data.type === 'icon') {
-                                    const svg = e.currentTarget.querySelector('svg');
-                                    if (!svg) return;
-
-                                    // Convert screen coordinates to SVG coordinates
-                                    const pt = svg.createSVGPoint();
-                                    pt.x = e.clientX;
-                                    pt.y = e.clientY;
-                                    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-
-                                    window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        icon: data.icon,
-                                        dropPoint: { x: svgP.x, y: svgP.y }
-                                      }
-                                    }));
-                                  }
-                                } catch (err) {
-                                  // ignore
-                                }
-                              }}
-                              // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
-                              onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
-                            />
-                          )}
-                          {/* Selection Overlay (Overlay rotated element perfectly) */}
-                          <svg
-                            id={`highlight-overlay-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-
-                          {/* HTML Overlay for Resize Handles (Clickable) */}
-                          <div
-                            id={`highlight-overlay-html-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-                          <AnimatePresence>
-                            {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
-                              <SelectionTooltip
-                                selectedId={selectedLayerId}
-                                multiSelectedIds={multiSelectedIds}
-                                zoom={zoom}
-                                setActiveTopTool={setActiveTopTool}
-                                pageIndex={displayIndex}
-                                activePageIndex={activePageIndex}
-                                updateElementAttribute={updateElementAttribute}
-                                activeTopTool={activeTopTool}
-                              />
-                            )}
-                          </AnimatePresence>
-
-
-
-                          {/* Marquee Selection Box */}
-                          <div
-                            ref={marqueeOverlayRef1}
-                            style={{
-                              position: 'absolute',
-                              border: '1px solid #6366F1',
-                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                              pointerEvents: 'none',
-                              zIndex: 1000,
-                              display: 'none'
-                            }}
-                          />
-
-                          {isPageEmpty && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
-                              <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
-                                Ready-made templates<br />are available for a quicker start
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenTemplateModal(displayIndex);
                                 }}
-                                className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
-                              >
-                                Add Templates
-                              </button>
-                              <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
-                                (or)
-                              </div>
-                              <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
-                                Create your own Design
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+                                onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                                onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
+                                onMouseLeave={handleSvgMouseLeave}
+                                onClick={handleSvgClick}
+                                onDragOver={(e) => {
+                                  e.preventDefault(); // Necessary to allow dropping
+                                  e.dataTransfer.dropEffect = 'copy';
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  try {
+                                    const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                                    if (data.type === 'icon') {
+                                      const svg = e.currentTarget.querySelector('svg');
+                                      if (!svg) return;
 
-                  </div>
+                                      // Convert screen coordinates to SVG coordinates
+                                      const pt = svg.createSVGPoint();
+                                      pt.x = e.clientX;
+                                      pt.y = e.clientY;
+                                      const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
 
-                </div>
-              </div>
-            )}
-
-            {/* Subtle Center Divider for Double Page - Only show if it's a spread */}
-            {isCurrentlySpread && (
-              <div className="w-[1px] h-[78vh] bg-gray-100/50 relative z-10 shrink-0"></div>
-            )}
-
-            {/* A4 Canvas Page 2 (Visible if Double Page is enabled OR Right-Side Cover) */}
-            {(activePageIndex === 0 ? (isDoublePage && pages[0]) : isCurrentlySpread) && (
-
-              <div className="relative group/page">
-                {/* Page Control Button (Floating Above Top - Right Side) Removed as per user request */}
-
-                {/* A4 Canvas Page 2 Inner */}
-                <div
-                  className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
-                  style={isPopupEditor ? {
-                    width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
-                    height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
-                    borderRadius: '1.2vw',
-                    backgroundColor: '#ffffff'
-                  } : {
-                    height: '78vh',
-                    aspectRatio: canvasAspectRatio,
-                    minHeight: '400px',
-                  }}
-                >
-                  {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
-
-                    <style>{svgGlobalStyles}</style>
-                    {(() => {
-                      const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
-                      const page = pages[displayIndex];
-                      const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
-                      const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
-                      const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
-
-
-                      const pageHtml = page?.html;
-                      const isPageEmpty = !pageHtml || (page?.layers?.length === 1 && (!page.layers[0].children || page.layers[0].children.length === 0));
-
-                      return (
-                        <div
-                          className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
-                          style={{ cursor: ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
-                        >
-                          {pageHtml && (
-                            <div
-                              id={`canvas-content-${displayIndex}`}
-                              className="w-full h-full flex items-center justify-center"
-                              ref={(el) => {
-                                if (el) {
-                                  const newHtml = getHtmlToRender(displayIndex, page.html);
-                                  if (window.__skipCanvasUpdateForPage === displayIndex) {
-                                    window.__skipCanvasUpdateForPage = -1;
-                                    el.__lastHtml = newHtml;
-                                  } else if (el.__lastHtml !== newHtml) {
-                                    const parser = new DOMParser();
-                                    const doc = parser.parseFromString(newHtml, 'text/html');
-                                    const newChildren = Array.from(doc.body.childNodes);
-
-                                    const oldChildren = Array.from(el.childNodes);
-                                    const maxLength = Math.max(oldChildren.length, newChildren.length);
-
-                                    for (let i = 0; i < maxLength; i++) {
-                                      if (!oldChildren[i]) {
-                                        el.appendChild(newChildren[i].cloneNode(true));
-                                      } else if (!newChildren[i]) {
-                                        el.removeChild(oldChildren[i]);
-                                      } else {
-                                        syncDOM(oldChildren[i], newChildren[i]);
-                                      }
+                                      window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          icon: data.icon,
+                                          dropPoint: { x: svgP.x, y: svgP.y }
+                                        }
+                                      }));
                                     }
-
-                                    el.__lastHtml = newHtml;
+                                  } catch (err) {
+                                    // ignore
                                   }
-                                }
-                              }}
-                              onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                              onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
-                              onMouseLeave={handleSvgMouseLeave}
-                              onClick={handleSvgClick}
-                              // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
-                              onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
-                            />
-                          )}
-                          {/* Selection Overlay (Overlay rotated element perfectly) */}
-                          <svg
-                            id={`highlight-overlay-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-
-                          {/* HTML Overlay for Resize Handles (Clickable) */}
-                          <div
-                            id={`highlight-overlay-html-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-                          <AnimatePresence>
-                            {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
-                              <SelectionTooltip
-                                selectedId={selectedLayerId}
-                                multiSelectedIds={multiSelectedIds}
-                                zoom={zoom}
-                                setActiveTopTool={setActiveTopTool}
-                                pageIndex={displayIndex}
-                                activePageIndex={activePageIndex}
-                                updateElementAttribute={updateElementAttribute}
-                                activeTopTool={activeTopTool}
+                                }}
+                                // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
+                                onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
                               />
                             )}
-                          </AnimatePresence>
+                            {/* Selection Overlay (Overlay rotated element perfectly) */}
+                            <svg
+                              id={`highlight-overlay-${displayIndex}`}
+                              className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            />
+
+                            {/* HTML Overlay for Resize Handles (Clickable) */}
+                            <div
+                              id={`highlight-overlay-html-${displayIndex}`}
+                              className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            />
+                            <AnimatePresence>
+                              {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                                <SelectionTooltip
+                                  selectedId={selectedLayerId}
+                                  multiSelectedIds={multiSelectedIds}
+                                  zoom={zoom}
+                                  setActiveTopTool={setActiveTopTool}
+                                  pageIndex={displayIndex}
+                                  activePageIndex={activePageIndex}
+                                  updateElementAttribute={updateElementAttribute}
+                                  activeTopTool={activeTopTool}
+                                />
+                              )}
+                            </AnimatePresence>
 
 
-                          {/* Marquee Selection Box */}
-                          <div
-                            ref={marqueeOverlayRef2}
-                            style={{
-                              position: 'absolute',
-                              border: '1px solid #6366F1',
-                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                              pointerEvents: 'none',
-                              zIndex: 1000,
-                              display: 'none'
-                            }}
-                          />
 
-                          {/* In-Place Crop Mode Banner & Floating Overlay */}
-                          {activeCropId && activePageIndex === displayIndex && (
-                            <div className="absolute inset-0 pointer-events-none z-[2500]">
-                              {/* Semi-transparent white backdrop */}
-                              <div className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] pointer-events-none" />
-                              {/* Floating action banner */}
-                              <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto bg-[#181825] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-4 border border-white/20 animate-in fade-in slide-in-from-top-4 duration-200">
-                                <div className="flex items-center gap-2.5 text-xs font-medium">
-                                  <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-indigo-400/30">
-                                    Crop Mode
-                                  </span>
-                                  <span className="text-gray-200 text-xs">Drag image to move • Scroll mouse wheel to zoom</span>
+                            {/* Marquee Selection Box */}
+                            <div
+                              ref={marqueeOverlayRef1}
+                              style={{
+                                position: 'absolute',
+                                border: '1px solid #6366F1',
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                pointerEvents: 'none',
+                                zIndex: 1000,
+                                display: 'none'
+                              }}
+                            />
+
+                            {isPageEmpty && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
+                                <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
+                                  Ready-made templates<br />are available for a quicker start
                                 </div>
                                 <button
-                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setActiveCropId(null);
-                                    activeCropIdRef.current = null;
+                                    onOpenTemplateModal(displayIndex);
                                   }}
-                                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3.5 py-1 rounded-full font-semibold transition-all active:scale-95 shadow-md flex items-center gap-1.5 cursor-pointer"
+                                  className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
                                 >
-                                  <span>Done</span>
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                  </svg>
+                                  Add Templates
                                 </button>
+                                <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
+                                  (or)
+                                </div>
+                                <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
+                                  Create your own Design
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
+                        );
+                      })()}
 
-                          {isPageEmpty && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
-                              <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
-                                Ready-made templates<br />are available for a
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenTemplateModal(displayIndex);
-                                }}
-                                className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
-                              >
-                                Add Templates
-                              </button>
-                              <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
-                                (or)
-                              </div>
-                              <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
-                                Create your own Design
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    </div>
+
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Subtle Center Divider for Double Page - Only show if it's a spread */}
+              {isCurrentlySpread && (
+                <div className="w-[1px] h-[78vh] bg-gray-100/50 relative z-10 shrink-0"></div>
+              )}
+
+              {/* A4 Canvas Page 2 (Visible if Double Page is enabled OR Right-Side Cover) */}
+              {(activePageIndex === 0 ? (isDoublePage && pages[0]) : isCurrentlySpread) && (
+
+                <div className="relative group/page">
+                  {/* Page Control Button (Floating Above Top - Right Side) Removed as per user request */}
+
+                  {/* A4 Canvas Page 2 Inner */}
+                  <div
+                    className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
+                    style={isPopupEditor ? {
+                      width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
+                      height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
+                      borderRadius: '1.2vw',
+                      backgroundColor: '#ffffff'
+                    } : {
+                      height: '78vh',
+                      aspectRatio: canvasAspectRatio,
+                      minHeight: '400px',
+                    }}
+                  >
+                    {/* Page Content */}
+                    <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+
+                      <style>{svgGlobalStyles}</style>
+                      {(() => {
+                        const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
+                        const page = pages[displayIndex];
+                        const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
+                        const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
+                        const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
+
+
+                        const pageHtml = page?.html;
+                        const isPageEmpty = !pageHtml || (page?.layers?.length === 1 && (!page.layers[0].children || page.layers[0].children.length === 0));
+
+                        return (
+                          <div
+                            className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
+                            style={{ cursor: ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
+                          >
+                            {pageHtml && (
+                              <div
+                                id={`canvas-content-${displayIndex}`}
+                                className="w-full h-full flex items-center justify-center"
+                                ref={(el) => {
+                                  if (el) {
+                                    const newHtml = getHtmlToRender(displayIndex, page.html);
+                                    if (window.__skipCanvasUpdateForPage === displayIndex) {
+                                      window.__skipCanvasUpdateForPage = -1;
+                                      el.__lastHtml = newHtml;
+                                    } else if (el.__lastHtml !== newHtml) {
+                                      const parser = new DOMParser();
+                                      const doc = parser.parseFromString(newHtml, 'text/html');
+                                      const newChildren = Array.from(doc.body.childNodes);
+
+                                      const oldChildren = Array.from(el.childNodes);
+                                      const maxLength = Math.max(oldChildren.length, newChildren.length);
+
+                                      for (let i = 0; i < maxLength; i++) {
+                                        if (!oldChildren[i]) {
+                                          el.appendChild(newChildren[i].cloneNode(true));
+                                        } else if (!newChildren[i]) {
+                                          el.removeChild(oldChildren[i]);
+                                        } else {
+                                          syncDOM(oldChildren[i], newChildren[i]);
+                                        }
+                                      }
+
+                                      el.__lastHtml = newHtml;
+                                    }
+                                  }
+                                }}
+                                onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                                onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
+                                onMouseLeave={handleSvgMouseLeave}
+                                onClick={handleSvgClick}
+                                // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
+                                onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
+                              />
+                            )}
+                            {/* Selection Overlay (Overlay rotated element perfectly) */}
+                            <svg
+                              id={`highlight-overlay-${displayIndex}`}
+                              className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            />
+
+                            {/* HTML Overlay for Resize Handles (Clickable) */}
+                            <div
+                              id={`highlight-overlay-html-${displayIndex}`}
+                              className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            />
+                            <AnimatePresence>
+                              {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                                <SelectionTooltip
+                                  selectedId={selectedLayerId}
+                                  multiSelectedIds={multiSelectedIds}
+                                  zoom={zoom}
+                                  setActiveTopTool={setActiveTopTool}
+                                  pageIndex={displayIndex}
+                                  activePageIndex={activePageIndex}
+                                  updateElementAttribute={updateElementAttribute}
+                                  activeTopTool={activeTopTool}
+                                />
+                              )}
+                            </AnimatePresence>
+
+
+                            {/* Marquee Selection Box */}
+                            <div
+                              ref={marqueeOverlayRef2}
+                              style={{
+                                position: 'absolute',
+                                border: '1px solid #6366F1',
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                pointerEvents: 'none',
+                                zIndex: 1000,
+                                display: 'none'
+                              }}
+                            />
+
+                            {/* In-Place Crop Mode Banner & Floating Overlay */}
+                            {activeCropId && activePageIndex === displayIndex && (
+                              <div className="absolute inset-0 pointer-events-none z-[2500]">
+                                {/* Semi-transparent white backdrop */}
+                                <div className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] pointer-events-none" />
+                                {/* Floating action banner */}
+                                <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto bg-[#181825] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-4 border border-white/20 animate-in fade-in slide-in-from-top-4 duration-200">
+                                  <div className="flex items-center gap-2.5 text-xs font-medium">
+                                    <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-indigo-400/30">
+                                      Crop Mode
+                                    </span>
+                                    <span className="text-gray-200 text-xs">Drag image to move • Scroll mouse wheel to zoom</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveCropId(null);
+                                      activeCropIdRef.current = null;
+                                    }}
+                                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3.5 py-1 rounded-full font-semibold transition-all active:scale-95 shadow-md flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    <span>Done</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {isPageEmpty && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
+                                <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
+                                  Ready-made templates<br />are available for a
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenTemplateModal(displayIndex);
+                                  }}
+                                  className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
+                                >
+                                  Add Templates
+                                </button>
+                                <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
+                                  (or)
+                                </div>
+                                <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
+                                  Create your own Design
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -12618,11 +12695,10 @@ const MainEditor = ({
                 <button
                   disabled={activePageIndex === 0}
                   onClick={handlePrevPage}
-                  className={`flex items-center justify-center transition-all duration-200 group ${
-                    activePageIndex === 0
+                  className={`flex items-center justify-center transition-all duration-200 group ${activePageIndex === 0
                       ? 'opacity-25 cursor-not-allowed'
                       : 'cursor-pointer hover:scale-110 active:scale-95'
-                  }`}
+                    }`}
                   title="Previous Page"
                 >
                   <Icon icon="ion:caret-up" width="1.4vw" height="1.4vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[-90deg]" />
@@ -12642,8 +12718,8 @@ const MainEditor = ({
                       ? activePageIndex === 0
                         ? pages.length <= 1
                         : isCurrentlySpread
-                        ? spreadStartIndex + 2 >= pages.length
-                        : spreadStartIndex + 1 >= pages.length
+                          ? spreadStartIndex + 2 >= pages.length
+                          : spreadStartIndex + 1 >= pages.length
                       : activePageIndex + 1 >= pages.length
                   }
                   onClick={handleNextPage}
@@ -12652,8 +12728,8 @@ const MainEditor = ({
                       ? activePageIndex === 0
                         ? pages.length <= 1
                         : isCurrentlySpread
-                        ? spreadStartIndex + 2 >= pages.length
-                        : spreadStartIndex + 1 >= pages.length
+                          ? spreadStartIndex + 2 >= pages.length
+                          : spreadStartIndex + 1 >= pages.length
                       : activePageIndex + 1 >= pages.length
                   ) ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
                   title="Next Page"
