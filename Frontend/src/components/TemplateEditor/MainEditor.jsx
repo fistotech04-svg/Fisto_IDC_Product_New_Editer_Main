@@ -15,6 +15,8 @@ import {
   drawNodeEditOverlay as drawNodeEditOverlayExt, clearPenToolNodes as clearPenToolNodesExt, drawPenToolNodes as drawPenToolNodesExt, drawBendingNodes as drawBendingNodesExt, renderVectraOverlay as renderVectraOverlayExt, clearVectraOverlay as clearVectraOverlayExt, generatePathData,
   exitNodeEditModeHelper
 } from './penToolEngine';
+
+import HotspotPresetPopup from './HotspotPresetPopup';
 import PenToolProperties from './PenToolProperties';
 import { CropController, isElementCropped } from './Crop';
 
@@ -668,6 +670,7 @@ const MainEditor = ({
 
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
   const [selectedPenTool, setSelectedPenTool] = useState('pen'); // 'pen', 'curve', 'pencil'
+  const [showHotspotPopup, setShowHotspotPopup] = useState(false);
   const [selectedShapeTool, setSelectedShapeTool] = useState('rectangle'); // 'rectangle', 'circle', 'polygon', 'line', 'star'
   const [zoom, setZoom] = useState(90);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -2657,9 +2660,13 @@ const MainEditor = ({
       g.setAttribute('data-type', 'icon');
       // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
       g.setAttribute('transform', `translate(${centerX - 6}, ${centerY - 6}) scale(0.5)`);
-      g.setAttribute('fill', 'none');
-      g.setAttribute('stroke', '#000000');
-      g.setAttribute('stroke-width', '1');
+      if (!e.detail.isHotspot) {
+        g.setAttribute('fill', 'none');
+        g.setAttribute('stroke', '#000000');
+        g.setAttribute('stroke-width', '1');
+      } else {
+        g.setAttribute('data-is-hotspot', 'true');
+      }
 
 
       if (icon.Component) {
@@ -12092,6 +12099,78 @@ const MainEditor = ({
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+          </div>
+        )}
+
+  {/* Interaction Group: Sub Tools - HIDDEN for PDF projects */}
+        {!isPdfProject && activeTopTool === 'interaction' && (
+          <div className="absolute right-0 top-[25vh] z-[100]">
+            <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
+
+              {/* Cover Top Border */}
+              <div className="absolute top-0 right-0 w-[0.8vw] h-[1.5px] bg-[#F1F3F4] z-10" />
+              {/* Perfect Inverted Corner Top */}
+              <div className="absolute right-0 w-[0.8vw] h-[0.8vw] pointer-events-none z-20" style={{ top: 'calc(-0.8vw + 0.5px)' }}>
+                <svg className="overflow-visible" width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M100 100 V0 C100 55.2285 55.2285 100 0 100 H100Z" fill="#F1F3F4" />
+                  <path d="M0 100 C55.2285 100 100 55.2285 100 0" stroke="#D1D5DB" strokeWidth="6" />
+                </svg>
+              </div>
+
+              {/* Cover Bottom Border */}
+              <div className="absolute bottom-0 right-0 w-[0.8vw] h-[1.5px] bg-[#F1F3F4] z-10" />
+              {/* Perfect Inverted Corner Bottom */}
+              <div className="absolute right-0 w-[0.8vw] h-[0.8vw] pointer-events-none z-20" style={{ bottom: 'calc(-0.8vw + 0.5px)' }}>
+                <svg className="overflow-visible" width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M100 0 V100 C100 44.7715 55.2285 0 0 0 H100Z" fill="#F1F3F4" />
+                  <path d="M0 0 C55.2285 0 100 44.7715 100 100" stroke="#D1D5DB" strokeWidth="6" />
+                </svg>
+              </div>
+
+              {/* Select Tool */}
+              <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw]">
+                <button
+                  className="w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer bg-white shadow-sm hover:bg-gray-50"
+                >
+                  <Icon icon="clarity:cursor-arrow-line" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                </button>
+                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+              </div>
+
+              {/* Frame Tool */}
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh]">
+                <button
+                  onClick={() => {
+                    if (setActiveMainTool) setActiveMainTool('shapes');
+                    setSelectedShapeTool('free-frame');
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${selectedShapeTool === 'free-frame' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon icon="iconoir:frame-alt" width="1.2vw" height="1.2vw" className={selectedShapeTool === 'free-frame' ? 'text-[#111827]' : 'text-[#4B5563]'} />
+                </button>
+                <div className="w-[0.7vw]"></div>
+              </div>
+
+              {/* Hotspot Tool */}
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] relative" id="hotspot-trigger-container">
+                <button
+                  onClick={() => setShowHotspotPopup(!showHotspotPopup)}
+                  className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${showHotspotPopup ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon icon="material-symbols:ads-click-rounded" width="1.2vw" height="1.2vw" className={showHotspotPopup ? 'text-[#111827]' : 'text-[#4B5563]'} />
+                </button>
+                <div className="w-[0.7vw]"></div>
+                {showHotspotPopup && (
+                  <HotspotPresetPopup
+                    onClose={() => setShowHotspotPopup(false)}
+                    onSelectPreset={(presetId) => {
+                      console.log('Selected preset:', presetId);
+                      // Future logic for handling the selected preset
+                    }}
+                  />
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -553,7 +553,10 @@ const getInteractionScript = (pageNumber) => `
     [data-interaction="zoom"],
     [data-interaction="popup"],
     [data-interaction="tooltip"],
+    [data-interaction="info-box"],
     [data-interaction="call"],
+    [data-interaction="whatsapp"],
+    [data-interaction="email"],
     [data-interaction="audio"],
     [data-interaction="3d-viewer"] {
       cursor: pointer !important;
@@ -587,7 +590,9 @@ const getInteractionScript = (pageNumber) => `
                    if ((type === 'link' || type === 'open-link') && value) {
                        e.preventDefault();
                        e.stopPropagation();
-                       window.open(value.startsWith('http') ? value : 'https://' + value, '_blank');
+                       const behavior = el.dataset.interactionLinkBehavior || el.getAttribute('data-interaction-link-behavior') || 'current';
+                       const target = behavior === 'new' ? '_blank' : '_top';
+                       window.open(value.startsWith('http') ? value : 'https://' + value, target);
                    } else if (type === 'navigate-to' && value) {
                        e.preventDefault();
                        e.stopPropagation();
@@ -628,12 +633,34 @@ const getInteractionScript = (pageNumber) => `
                        e.preventDefault();
                        e.stopPropagation();
                        var customHtml = el.dataset.interactionPopupCustomHtml || el.getAttribute('data-interaction-popup-custom-html');
+                       var popupAnim = el.dataset.interactionPopupAnimation || el.getAttribute('data-interaction-popup-animation') || 'Fade In /Out';
+                       var popupSpeed = el.dataset.interactionPopupSpeed || el.getAttribute('data-interaction-popup-speed') || 'Medium';
                        if (customHtml) {
                            window.parent.postMessage({
                                type: 'show-popup-interaction',
                                html: customHtml,
-                               templateId: value
+                               templateId: value,
+                               animation: popupAnim,
+                               speed: popupSpeed
                            }, '*');
+                       }
+                   }  else if (type === 'slideshow') {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       var effect = el.dataset.interactionSlideshowEffect || el.getAttribute('data-interaction-slideshow-effect') || 'Play Cards';
+                       var speed = el.dataset.interactionSlideshowSpeed || el.getAttribute('data-interaction-slideshow-speed') || 'Medium';
+                       try {
+                           var parsedImages = JSON.parse(value);
+                           if (parsedImages && parsedImages.length > 0) {
+                               window.parent.postMessage({
+                                   type: 'show-slideshow-interaction',
+                                   images: parsedImages,
+                                   effect: effect,
+                                   speed: speed
+                               }, '*');
+                           }
+                       } catch(e) {
+                           console.error('Failed to parse slideshow interaction images', e);
                        }
                    }  else if (type === '3d-viewer') {
                        e.preventDefault();
@@ -684,10 +711,71 @@ const getInteractionScript = (pageNumber) => `
                         } catch(err) {
                             console.error('Failed to parse or play audio interaction', err);
                         }
+                    } else if (type === 'whatsapp' && value) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const behavior = el.dataset.interactionLinkBehavior || el.getAttribute('data-interaction-link-behavior') || 'current';
+                        const target = behavior === 'new' ? '_blank' : '_top';
+                        
+                        const msg = el.dataset.interactionWhatsappMessage || el.getAttribute('data-interaction-whatsapp-message');
+                        let url = 'https://wa.me/' + value.replace(/[^0-9]/g, '');
+                        if (msg) {
+                            url += '?text=' + encodeURIComponent(msg);
+                        }
+                        window.open(url, target);
                     } else if (type === 'call' && value) {
                         e.preventDefault();
                         e.stopPropagation();
                         window.open('tel:' + value, '_blank');
+                    } else if (type === 'email' && value) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const behavior = el.dataset.interactionLinkBehavior || el.getAttribute('data-interaction-link-behavior') || 'current';
+                        const target = behavior === 'new' ? '_blank' : '_top';
+                        window.parent.postMessage({ type: 'open-email', value: value, target: target }, '*');
+                    } else if (type === 'info-box') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        var isShowing = el.dataset.infoBoxShowing === 'true';
+                        if (isShowing) {
+                            el.dataset.infoBoxShowing = 'false';
+                            window.parent.postMessage({ type: 'hide-tooltip' }, '*');
+                        } else {
+                            document.querySelectorAll('[data-info-box-showing="true"]').forEach(function(other) {
+                                other.dataset.infoBoxShowing = 'false';
+                            });
+                            el.dataset.infoBoxShowing = 'true';
+                            var rect = el.getBoundingClientRect();
+                            var settingsStr = el.getAttribute('data-interaction-value');
+                            var settings = null;
+                            try { if (settingsStr) settings = JSON.parse(settingsStr); } catch(e){}
+                            if (settings) {
+                                settings.isInfoBox = true;
+                                settings.shape = settings.shape || 'bottom-center';
+                            } else {
+                                settings = { isInfoBox: true, shape: 'bottom-center' };
+                            }
+                            var absLeft = rect.left, absTop = rect.top, absW = rect.width, absH = rect.height;
+                            try {
+                                var iframe = window.frameElement;
+                                if (iframe) {
+                                    var fr = iframe.getBoundingClientRect();
+                                    var sx = fr.width / (window.innerWidth || 1);
+                                    var sy = fr.height / (window.innerHeight || 1);
+                                    absLeft = fr.left + rect.left * sx;
+                                    absTop  = fr.top  + rect.top  * sy;
+                                    absW    = rect.width  * sx;
+                                    absH    = rect.height * sy;
+                                }
+                            } catch(err) {}
+                            window.parent.postMessage({
+                                type: 'show-tooltip',
+                                abs: { left: absLeft, top: absTop, width: absW, height: absH },
+                                settings: settings,
+                                pageNumber: window._pageNumber,
+                                elementId: el.id
+                            }, '*');
+                        }
                     } else if (type === 'tooltip') {
                         const trigger = el.dataset.interactionTrigger || el.getAttribute('data-interaction-trigger') || 'click';
                         if (trigger === 'click') {
@@ -1382,6 +1470,7 @@ const getIframeContent = (html, pageNumber) => {
                     [data-interaction="download"][data-interaction-value]:not([data-interaction-value=""]),
                     [data-interaction="zoom"],
                     [data-interaction="tooltip"],
+                    [data-interaction="info-box"],
                     [data-interaction="popup"] {
                         cursor: pointer !important;
                     }
@@ -1393,6 +1482,7 @@ const getIframeContent = (html, pageNumber) => {
                     [data-interaction="download"] *,
                     [data-interaction="zoom"] *,
                     [data-interaction="tooltip"] *,
+                    [data-interaction="info-box"] *,
                     [data-interaction="popup"] * {
                         cursor: pointer !important;
                     }
@@ -1833,8 +1923,10 @@ const TooltipOverlay = React.memo(({ tooltip }) => {
 
     const isReversedOrder = shape.startsWith('top') || shape.startsWith('left');
 
-    const animType = settings.animation || 'Default';
-    const speed = (settings.speed || 'Medium').toLowerCase();
+    const rawAnimType = settings.animation || settings.animationStyle || 'Default';
+    const animType = rawAnimType.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    
+    const speed = (settings.speed || settings.animationSpeed || 'Medium').toLowerCase();
     const durationMap = {
         'slow': 0.8,
         'medium': 0.5,
@@ -1934,7 +2026,7 @@ const TooltipOverlay = React.memo(({ tooltip }) => {
                             backgroundColor: settings.bgColor || '#1F2937',
                             color: settings.textColor || '#FFFFFF',
                             fontFamily: settings.fontFamily || 'sans-serif',
-                            fontWeight: settings.bold ? 'bold' : (settings.fontWeight === 'Bold' ? '700' : settings.fontWeight === 'SemiBold' ? '600' : settings.fontWeight === 'Medium' ? '500' : 'normal'),
+                            fontWeight: settings.bold ? 'bold' : (settings.fontWeight === 'Bold' ? '800' : settings.fontWeight === 'Semi Bold' ? '600' : settings.fontWeight === 'Medium' ? '500' : settings.fontWeight === 'Regular' ? '400' : settings.fontWeight === 'Light' ? '200' : settings.fontWeight === 'Extra Light' ? '100' : settings.fontWeight === 'Thin' ? '50' : 'normal'),
                             fontStyle: settings.italic ? 'italic' : 'normal',
                             fontSize: Math.max(9, (settings.fontSize || 14)) + 'px',
                             textAlign: settings.align || 'center',
@@ -1946,7 +2038,7 @@ const TooltipOverlay = React.memo(({ tooltip }) => {
                             justifyContent: 'center',
                             wordBreak: 'break-word',
                             whiteSpace: 'pre-wrap',
-                            padding: '7px 14px',
+                            padding: settings.isInfoBox ? '14px' : '7px 14px',
                             borderRadius: '7px',
                             boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
                             order: isReversedOrder ? 2 : 1
@@ -1966,7 +2058,7 @@ const TooltipOverlay = React.memo(({ tooltip }) => {
                             {settings.text || 'Tooltip'}
                         </div>
                     </div>
-                    <div style={tailStyle} />
+                    {!settings.isInfoBox && <div style={tailStyle} />}
                 </motion.div>
             </div>
         </motion.div>
@@ -2538,6 +2630,7 @@ const PreviewArea = React.memo(({
     const [showGalleryPopup, setShowGalleryPopup] = useState(false);
     const [showSoundPopup, setShowSoundPopup] = useState(false);
     const [activePopupInteraction, setActivePopupInteraction] = useState(null);
+    const [activeSlideshowInteraction, setActiveSlideshowInteraction] = useState(null);
 
     // Audio Logic (Centralized in Sound.jsx)
     // Audio state (for UI/Layout sync)
@@ -2844,6 +2937,12 @@ const PreviewArea = React.memo(({
                 } catch (err) {
                     forceDownload(e.data.value, 'download');
                 }
+            } else if (e.data && e.data.type === 'open-email') {
+                if (e.data.target === '_blank') {
+                    window.open('mailto:' + e.data.value, '_blank');
+                } else {
+                    window.location.href = 'mailto:' + e.data.value;
+                }
             } else if (e.data && e.data.type === 'show-tooltip') {
                 setActiveTooltip(e.data);
             } else if (e.data && e.data.type === 'hide-tooltip') {
@@ -2852,6 +2951,10 @@ const PreviewArea = React.memo(({
                 setActivePopupInteraction(e.data);
             } else if (e.data && e.data.type === 'hide-popup-interaction') {
                 setActivePopupInteraction(null);
+            } else if (e.data && e.data.type === 'show-slideshow-interaction') {
+                setActiveSlideshowInteraction({ ...e.data, currentIndex: 0 });
+            } else if (e.data && e.data.type === 'hide-slideshow-interaction') {
+                setActiveSlideshowInteraction(null);
             } else if (e.data && e.data.type === 'show-3d-viewer' && e.data.url) {
                 let finalUrl = e.data.url;
                 if (typeof finalUrl === 'string' && finalUrl.startsWith('/uploads/')) {
@@ -5329,10 +5432,30 @@ const PreviewArea = React.memo(({
                                 onClick={() => setActivePopupInteraction(null)}
                             >
                                 <motion.div
-                                    initial={{ scale: 0.95, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 0.95, opacity: 0 }}
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                    initial={(() => {
+                                        const anim = activePopupInteraction?.animation || 'Fade In /Out';
+                                        if (anim === 'Slide Up') return { y: 50, opacity: 0 };
+                                        if (anim === 'Slide Down') return { y: -50, opacity: 0 };
+                                        if (anim === 'Zoom In') return { scale: 0.5, opacity: 0 };
+                                        return { opacity: 0 }; // Fade In /Out
+                                    })()}
+                                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                                    exit={(() => {
+                                        const anim = activePopupInteraction?.animation || 'Fade In /Out';
+                                        if (anim === 'Slide Up') return { y: 50, opacity: 0 };
+                                        if (anim === 'Slide Down') return { y: -50, opacity: 0 };
+                                        if (anim === 'Zoom In') return { scale: 0.5, opacity: 0 };
+                                        return { opacity: 0 };
+                                    })()}
+                                    transition={{ 
+                                        duration: (() => {
+                                            const s = activePopupInteraction?.speed || 'Medium';
+                                            if (s === 'Slow') return 0.6;
+                                            if (s === 'Fast') return 0.15;
+                                            return 0.3; // Medium
+                                        })(),
+                                        ease: "easeOut" 
+                                    }}
                                     className="relative pointer-events-auto flex items-center justify-center"
                                     style={{
                                         width: (() => {
@@ -5368,6 +5491,97 @@ const PreviewArea = React.memo(({
                                     </button>
                                     <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
                                 </motion.div>
+                            </motion.div>
+                        )}
+                        {activeSlideshowInteraction && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="absolute inset-0 z-[100000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-[2vw]"
+                                onClick={() => setActiveSlideshowInteraction(null)}
+                            >
+                                <button
+                                    onClick={() => setActiveSlideshowInteraction(null)}
+                                    className="absolute top-[2vw] right-[2vw] z-[100001] bg-white rounded-full p-[0.6vw] md:p-2 shadow-[0_4px_12px_rgba(0,0,0,0.1)] hover:bg-gray-100 transition-colors border border-gray-200"
+                                >
+                                    <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
+                                </button>
+                                
+                                <div className="relative w-full h-full max-w-[55vw] max-h-[75vh] bg-white rounded-2xl shadow-2xl border border-gray-100 p-[1vw] flex items-center justify-center overflow-hidden" style={{ perspective: '1200px' }} onClick={e => e.stopPropagation()}>
+                                    <AnimatePresence mode="wait">
+                                        <motion.img
+                                            key={activeSlideshowInteraction.currentIndex}
+                                            src={activeSlideshowInteraction.images[activeSlideshowInteraction.currentIndex]?.data || activeSlideshowInteraction.images[activeSlideshowInteraction.currentIndex]?.url}
+                                            initial={(() => {
+                                                const effect = activeSlideshowInteraction.effect || 'Play Cards';
+                                                if (effect === 'Spring Bounce') return { scale: 0.3, opacity: 0 };
+                                                if (effect === 'Cover Flow') return { x: 300, rotateY: -60, scale: 0.7, opacity: 0 };
+                                                if (effect === 'Slide') return { x: 300, opacity: 0 };
+                                                if (effect === 'Zoom') return { scale: 0.5, opacity: 0 };
+                                                if (effect === 'Drop') return { y: -300, opacity: 0 };
+                                                if (effect === '3D Flip') return { rotateY: 90, opacity: 0 };
+                                                if (effect === 'Play Cards') return { scale: 0.8, y: 100, opacity: 0, rotateZ: -8 };
+                                                return { opacity: 0 }; // Fade
+                                            })()}
+                                            animate={{ x: 0, y: 0, scale: 1, opacity: 1, rotateY: 0, rotateZ: 0 }}
+                                            exit={(() => {
+                                                const effect = activeSlideshowInteraction.effect || 'Play Cards';
+                                                if (effect === 'Spring Bounce') return { scale: 1.5, opacity: 0 };
+                                                if (effect === 'Cover Flow') return { x: -300, rotateY: 60, scale: 0.7, opacity: 0 };
+                                                if (effect === 'Slide') return { x: -300, opacity: 0 };
+                                                if (effect === 'Zoom') return { scale: 1.2, opacity: 0 };
+                                                if (effect === 'Drop') return { y: 300, opacity: 0 };
+                                                if (effect === '3D Flip') return { rotateY: -90, opacity: 0 };
+                                                if (effect === 'Play Cards') return { scale: 0.8, y: -100, opacity: 0, rotateZ: 8 };
+                                                return { opacity: 0 }; // Fade
+                                            })()}
+                                            transition={(() => {
+                                                const s = activeSlideshowInteraction.speed || 'Medium';
+                                                let dur = 0.5;
+                                                if (s === 'Slow') dur = 0.8;
+                                                if (s === 'Fast') dur = 0.3;
+                                                
+                                                if (activeSlideshowInteraction.effect === 'Spring Bounce') {
+                                                    return { type: 'spring', bounce: 0.6, duration: dur * 1.5 };
+                                                }
+                                                return { duration: dur, ease: "easeInOut" };
+                                            })()}
+                                            className="absolute max-w-[95%] max-h-[95%] object-contain rounded-[0.5vw]"
+                                        />
+                                    </AnimatePresence>
+
+                                    {/* Arrows */}
+                                    {activeSlideshowInteraction.images.length > 1 && (
+                                        <>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveSlideshowInteraction(prev => ({
+                                                        ...prev,
+                                                        currentIndex: prev.currentIndex === 0 ? prev.images.length - 1 : prev.currentIndex - 1
+                                                    }));
+                                                }}
+                                                className="absolute left-[0.5vw] bg-white/90 hover:bg-white rounded-full p-[0.6vw] shadow-lg z-[100001] backdrop-blur-sm transition-transform hover:scale-110"
+                                            >
+                                                <Icon icon="lucide:chevron-left" className="w-[1.2vw] h-[1.2vw] text-gray-800" />
+                                            </button>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveSlideshowInteraction(prev => ({
+                                                        ...prev,
+                                                        currentIndex: (prev.currentIndex + 1) % prev.images.length
+                                                    }));
+                                                }}
+                                                className="absolute right-[0.5vw] bg-white/90 hover:bg-white rounded-full p-[0.6vw] shadow-lg z-[100001] backdrop-blur-sm transition-transform hover:scale-110"
+                                            >
+                                                <Icon icon="lucide:chevron-right" className="w-[1.2vw] h-[1.2vw] text-gray-800" />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </motion.div>
                         )}
                         {active3DModelUrl && (
