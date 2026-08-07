@@ -1740,43 +1740,40 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         </div>
 
         {/* Opacity */}
-        <div className="space-y-[0.5vw]">
-          <div className="flex items-center">
-            <span className="text-[0.9vw]  font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
-            <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
-          </div>
-          <div className="flex items-center gap-[1vw]">
-            <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={localOpacity}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setLocalOpacity(val);
-                  if (selectedElement) {
-                    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                    const targetElement = pageContainer?.querySelector(`[id="${selectedElement.id}"]`) || selectedElement;
-                    if (targetElement) {
-                      targetElement.setAttribute('opacity', (val / 100).toString());
-                      targetElement.style.opacity = (val / 100).toString();
+        <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[0.5vw]">
+          <span className="text-[0.85vw] font-semibold text-black whitespace-nowrap">Opacity :</span>
+          <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={localOpacity}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setLocalOpacity(val);
+                if (selectedElement) {
+                  const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                  const targetElement = pageContainer?.querySelector(`[id="${selectedElement.id}"]`) || selectedElement;
+                  if (targetElement) {
+                    targetElement.setAttribute('opacity', (val / 100).toString());
+                    targetElement.style.opacity = (val / 100).toString();
 
-                      const imgEl = getSvgImageEl(targetElement);
-                      if (imgEl && imgEl !== targetElement) {
-                        imgEl.setAttribute('opacity', (val / 100).toString());
-                        imgEl.style.setProperty('opacity', (val / 100).toString(), 'important');
-                      }
+                    const imgEl = getSvgImageEl(targetElement);
+                    if (imgEl && imgEl !== targetElement) {
+                      imgEl.setAttribute('opacity', (val / 100).toString());
+                      imgEl.style.setProperty('opacity', (val / 100).toString(), 'important');
                     }
                   }
-                }}
-                onMouseUp={(e) => onUpdateOpacity(Number(e.target.value))}
-                onTouchEnd={(e) => onUpdateOpacity(Number(e.target.value))}
-                className="w-full cursor-pointer custom-range-slider"
-                style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${localOpacity}%, #E2E8F0 ${localOpacity}%, #E2E8F0 100%)` }}
-              />
-            </div>
-            <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{localOpacity} %</span>
+                }
+              }}
+              onMouseUp={(e) => onUpdateOpacity(Number(e.target.value))}
+              onTouchEnd={(e) => onUpdateOpacity(Number(e.target.value))}
+              className="w-full cursor-pointer custom-range-slider"
+              style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${localOpacity}%, #E2E8F0 ${localOpacity}%, #E2E8F0 100%)` }}
+            />
+          </div>
+          <div className="min-w-[3.5vw] h-[2vw] border-[0.1vw] border-gray-200 rounded-[0.3vw] flex items-center justify-center text-[0.8vw] font-medium text-black bg-white shadow-sm px-[0.5vw]">
+            {localOpacity} %
           </div>
         </div>
 

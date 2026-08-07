@@ -3,9 +3,10 @@ import { Icon } from '@iconify/react';
 import { ChevronLeft, ChevronRight, X, Play, Pause } from 'lucide-react';
 
 const GalleryPopup = ({ onClose, settings }) => {
-    const images = settings.images || [];
+    const gallerySettings = settings?.gallery || settings || {};
+    const images = gallerySettings.images || [];
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [isPlaying, setIsPlaying] = useState(settings.autoPlay ?? true);
+    const [isPlaying, setIsPlaying] = useState(gallerySettings.autoPlay ?? true);
     const [progress, setProgress] = useState(0);
     const progressIntervalRef = useRef(null);
 
@@ -18,7 +19,7 @@ const GalleryPopup = ({ onClose, settings }) => {
     const handleNext = () => {
         setCurrentIndex(prev => {
             if (prev < images.length - 1) return prev + 1;
-            if (settings.infiniteLoop) return 0;
+            if (gallerySettings.infiniteLoop) return 0;
             setIsPlaying(false);
             return prev;
         });
@@ -28,7 +29,7 @@ const GalleryPopup = ({ onClose, settings }) => {
     const handlePrev = () => {
         setCurrentIndex(prev => {
             if (prev > 0) return prev - 1;
-            if (settings.infiniteLoop) return images.length - 1;
+            if (gallerySettings.infiniteLoop) return images.length - 1;
             return prev;
         });
         setProgress(0);
@@ -37,7 +38,7 @@ const GalleryPopup = ({ onClose, settings }) => {
     // Progress bar & Auto-play logic
     useEffect(() => {
         if (isPlaying && images.length > 1) {
-            const speed = (settings.speed || 2) * 1000;
+            const speed = (gallerySettings.speed || 2) * 1000;
             const updateInterval = 50; // Update every 50ms for smoothness
             const step = 100 / (speed / updateInterval);
 
@@ -54,11 +55,11 @@ const GalleryPopup = ({ onClose, settings }) => {
             clearInterval(progressIntervalRef.current);
         }
         return () => clearInterval(progressIntervalRef.current);
-    }, [isPlaying, currentIndex, images.length, settings.speed, settings.infiniteLoop]);
+    }, [isPlaying, currentIndex, images.length, gallerySettings.speed, gallerySettings.infiniteLoop]);
 
     if (!images || images.length === 0) return null;
 
-    const objectFit = settings.imageFitType === 'Fit All' ? 'contain' : 'cover';
+    const objectFit = gallerySettings.imageFitType === 'Fit All' ? 'contain' : 'cover';
 
     return (
         <div className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-md flex items-center justify-center p-[2vw] animate-in fade-in duration-300" onClick={onClose}>
