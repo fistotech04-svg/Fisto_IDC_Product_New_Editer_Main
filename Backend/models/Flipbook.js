@@ -37,6 +37,11 @@ const flipbookSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    category: { type: String, default: 'Product Based' },
+    language: { type: String, default: 'English' },
+    tags: [{ type: String }],
+    quotes: { type: String, default: '' },
+    about: { type: String, default: '' },
     meta: {
         type: Object,
         default: {}
@@ -62,11 +67,14 @@ const flipbookSchema = new mongoose.Schema({
             password: { type: String, default: '' },
             accessKey: { type: String, default: '' },
             isPasswordSaved: { type: Boolean, default: false },
+            otp: { type: String, default: null },
             inviteOnly: {
                 autoExpire: {
                     enabled: { type: Boolean, default: false },
                     days: { type: String, default: '0 Days' },
-                    time: { type: String, default: '5 Mins' }
+                    time: { type: String, default: '5 Mins' },
+                    duration: { type: String, default: '5 Mins' },
+                    grantedAt: { type: Date, default: Date.now }
                 },
                 emails: [{
                     email: { type: String },
@@ -85,5 +93,9 @@ const flipbookSchema = new mongoose.Schema({
 flipbookSchema.index({ userEmail: 1, folderName: 1, flipbookName: 1 }, { unique: true });
 
 const Flipbook = mongoose.model('Flipbook', flipbookSchema);
+
+// Auto-drop problematic legacy non-sparse unique index share.shareId_1 if it exists in MongoDB
+Flipbook.collection.dropIndex('share.shareId_1').catch(() => {});
+Flipbook.collection.dropIndex('Customized_Settings.Visibility.shareId_1').catch(() => {});
 
 export default Flipbook;

@@ -13,7 +13,6 @@ import {
   drawNodeEditOverlay as drawNodeEditOverlayExt, clearPenToolNodes as clearPenToolNodesExt, drawPenToolNodes as drawPenToolNodesExt, drawBendingNodes as drawBendingNodesExt, renderVectraOverlay as renderVectraOverlayExt, clearVectraOverlay as clearVectraOverlayExt, generatePathData,
   exitNodeEditModeHelper
 } from './penToolEngine';
-import PenToolProperties from './PenToolProperties';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -5817,8 +5816,19 @@ const MainEditor = ({
 
         if (deleted && updatePageHtml) {
           updatePageHtml(activePageIndex, svg.outerHTML);
-          if (setSelectedLayerId) setSelectedLayerId(null);
-          if (setMultiSelectedIds) setMultiSelectedIds(new Set());
+          const topFrames = getTopLevelFrames(svg);
+          const rootId = (topFrames && topFrames.length > 0 ? topFrames[0].id : pages[activePageIndex]?.layers?.[0]?.id);
+          if (rootId) {
+            if (setSelectedLayerId) setSelectedLayerId(rootId);
+            if (setMultiSelectedIds) setMultiSelectedIds(new Set([rootId]));
+            if (setCurrentFrameId) setCurrentFrameId(rootId);
+            currentFrameIdRef.current = rootId;
+          } else {
+            if (setSelectedLayerId) setSelectedLayerId(null);
+            if (setMultiSelectedIds) setMultiSelectedIds(new Set());
+            if (setCurrentFrameId) setCurrentFrameId(null);
+            currentFrameIdRef.current = null;
+          }
         }
       } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         // Core Logic: Move selected element with arrow keys
@@ -6034,15 +6044,26 @@ const MainEditor = ({
     const container = editorContainerRef.current;
     const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
 
+    // If container layout is not fully rendered yet (e.g. during page load / loading transition)
+    if (containerWidth < 300 || containerHeight < 200) {
+      setTimeout(() => {
+        if (editorContainerRef.current) {
+          const rect = editorContainerRef.current.getBoundingClientRect();
+          if (rect.width >= 300 && rect.height >= 200) {
+            handleAutoFitZoom();
+          }
+        }
+      }, 100);
+      return;
+    }
+
     // Account for padding (p-[1vw])
     const padding = window.innerWidth * 0.01;
     // Reserve space for left and right navigation arrows (approx 4vw each side)
     const arrowSpace = window.innerWidth * 0.08;
 
-    const availWidth = containerWidth - (padding * 2) - arrowSpace;
-    const availHeight = containerHeight - (padding * 2);
-
-    if (availWidth <= 0 || availHeight <= 0) return;
+    const availWidth = Math.max(100, containerWidth - (padding * 2) - arrowSpace);
+    const availHeight = Math.max(100, containerHeight - (padding * 2));
 
     // Total width and height of the flipbook pages at 100% zoom
     // Note: The canvas has height: 78vh in the CSS
@@ -6054,10 +6075,10 @@ const MainEditor = ({
     const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
 
     // Calculate effective aspect ratio
-    let totalWidth = baseWidth;
-    let totalHeight = baseHeight;
+    let totalWidth = baseWidth || 210;
+    let totalHeight = baseHeight || 297;
     if (isCurrentlySpread) {
-      totalWidth = 2 * baseWidth;
+      totalWidth = 2 * totalWidth;
     }
 
     const baseCanvasHeight = baseVhHeight;
@@ -6066,13 +6087,13 @@ const MainEditor = ({
     const scaleX = availWidth / baseCanvasWidth;
     const scaleY = availHeight / baseCanvasHeight;
 
-    // Use a safety margin (92%) of the arrow-adjusted space
-    let autoZoom = Math.min(scaleX, scaleY) * 92;
+    // Use a safety margin (90%) of the arrow-adjusted space
+    let autoZoom = Math.min(scaleX, scaleY) * 90;
 
-    // Allow auto-scaling down to 1% for wide/large page formats
-    autoZoom = Math.max(1, Math.min(300, autoZoom));
+    // Ensure auto-scale has a comfortable minimum zoom on load (between 55% and 250%)
+    autoZoom = Math.max(55, Math.min(250, Math.round(autoZoom)));
 
-    setZoom(Math.round(autoZoom));
+    setZoom(autoZoom);
   }, [baseWidth, baseHeight, activePageIndex, isDoublePage, pages.length]);
 
   const handleResetZoom = () => {
@@ -6080,9 +6101,17 @@ const MainEditor = ({
     setPan({ x: 0, y: 0 });
   };
 
-  // ── Auto-Fit Zoom on Page/Spread/Dimension Change ──────────────────────────
+  // ── Auto-Fit Zoom on Page/Spread/Dimension Change & Initial Load ────────────
   useEffect(() => {
     handleAutoFitZoom();
+    const t1 = setTimeout(handleAutoFitZoom, 100);
+    const t2 = setTimeout(handleAutoFitZoom, 350);
+    const t3 = setTimeout(handleAutoFitZoom, 700);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, [activePageIndex, isDoublePage, pages.length, baseWidth, baseHeight, handleAutoFitZoom]);
 
   // ── Bound Panning ──────────────────────────────────────────────────────────
@@ -6135,7 +6164,24 @@ const MainEditor = ({
     return () => observer.disconnect();
   }, [handleAutoFitZoom]);
 
-  const insertImageIntoPage = (pageIdx, dataUrl, dataType = 'image', dropPoint = null) => {
+  const insertImageIntoPage = (pageIdx, rawDataUrl, dataType = 'image', dropPoint = null) => {
+    if (!rawDataUrl) return;
+
+    // 0. Clean & sanitize URL (handle HTML snippets, newlines in text/uri-list, quotes)
+    let dataUrl = typeof rawDataUrl === 'string' ? rawDataUrl.trim() : rawDataUrl;
+    if (typeof dataUrl === 'string') {
+      if (dataUrl.includes('\n') || dataUrl.includes('\r')) {
+        const lines = dataUrl.split(/[\r\n]+/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+        if (lines.length > 0) dataUrl = lines[0];
+      }
+      if (dataUrl.includes('<img') || dataUrl.includes('<a ')) {
+        const match = dataUrl.match(/(?:src|href)=["']([^"']+)["']/i);
+        if (match && match[1]) {
+          dataUrl = match[1];
+        }
+      }
+    }
+
     // 1. Find the SVG of the target page
     const container = document.querySelector(`.page-svg-container[data-page-index="${pageIdx}"]`);
     const svg = container?.querySelector('svg');
@@ -6178,11 +6224,10 @@ const MainEditor = ({
 
     newGroup.appendChild(newImg);
 
-    // Load image to get dimensions
-    const i = new Image();
-    i.onload = () => {
-      const imgWidth = i.width || 100;
-      const imgHeight = i.height || 100;
+    let inserted = false;
+    const placeImageInFrame = (imgWidth = 100, imgHeight = 100) => {
+      if (inserted) return;
+      inserted = true;
 
       // Append to root frame
       const topFrames = getTopLevelFrames(svg);
@@ -6231,10 +6276,14 @@ const MainEditor = ({
             saveModifiedPageHtml(pageIdx, svg);
           }
 
-          // Select the newly added group
+          // Select the newly added group while preserving root folder context
           if (setSelectedLayerId) setSelectedLayerId(groupId);
           if (setMultiSelectedIds) setMultiSelectedIds(new Set([groupId]));
           if (setActiveMainTool) setActiveMainTool('select');
+          if (setCurrentFrameId && rootFrame.id) {
+            setCurrentFrameId(rootFrame.id);
+            currentFrameIdRef.current = rootFrame.id;
+          }
 
           console.log(`[MainEditor] Image ${groupId} uploaded and inserted into page ${pageIdx}`);
         } catch (err) {
@@ -6244,8 +6293,17 @@ const MainEditor = ({
         console.error("[MainEditor] No root frame found to append image.");
       }
     };
+
+    // Load image to get dimensions
+    const i = new Image();
+    i.referrerPolicy = 'no-referrer';
+    i.onload = () => {
+      placeImageInFrame(i.width || 100, i.height || 100);
+    };
     i.onerror = (err) => {
-      console.error("[MainEditor] Failed to load uploaded image data URL", err);
+      console.warn("[MainEditor] JS image preloader warning/error, inserting with default dimensions fallback:", err);
+      // Fallback to inserting image element into SVG even if JS preloader triggered onerror (e.g. CORS/referrer restriction)
+      placeImageInFrame(100, 100);
     };
     i.src = dataUrl;
   };
@@ -10659,13 +10717,28 @@ const MainEditor = ({
         const container = foTarget.closest('.page-svg-container');
         foTarget.remove();
         cleanup();
-        if (setSelectedLayerId) setSelectedLayerId(null);
-        selectedLayerIdRef.current = null;
-        if (setMultiSelectedIds) {
-          setMultiSelectedIds(new Set());
-          multiSelectedIdsRef.current = new Set();
+        const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
+        const topFrames = svgRoot ? getTopLevelFrames(svgRoot) : [];
+        const rootId = (topFrames && topFrames.length > 0 ? topFrames[0].id : pages[pageIdx]?.layers?.[0]?.id);
+
+        if (rootId) {
+          if (setSelectedLayerId) setSelectedLayerId(rootId);
+          selectedLayerIdRef.current = rootId;
+          if (setMultiSelectedIds) {
+            setMultiSelectedIds(new Set([rootId]));
+            multiSelectedIdsRef.current = new Set([rootId]);
+          }
+          if (setCurrentFrameId) setCurrentFrameId(rootId);
+          currentFrameIdRef.current = rootId;
+        } else {
+          if (setSelectedLayerId) setSelectedLayerId(null);
+          selectedLayerIdRef.current = null;
+          if (setMultiSelectedIds) {
+            setMultiSelectedIds(new Set());
+            multiSelectedIdsRef.current = new Set();
+          }
         }
-        if (container) saveModifiedPageHtml(parseInt(container.getAttribute('data-page-index')), svgRoot);
+        if (container) saveModifiedPageHtml(pageIdx, svgRoot);
         return;
       }
 
@@ -12553,11 +12626,28 @@ const MainEditor = ({
                                     try { data = JSON.parse(rawJson); } catch (_) {}
                                   }
 
-                                  // 2. Try reading URL or text from external window/tab
+                                  // 2. Try reading URL or text from external window/tab (e.g. Canva assets, web pages)
                                   if (!data) {
+                                    const rawHtml = e.dataTransfer.getData('text/html');
                                     const rawUri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-                                    if (rawUri && rawUri.trim()) {
-                                      const trimmed = rawUri.trim();
+                                    let extractedUrl = null;
+
+                                    if (rawHtml) {
+                                      const match = rawHtml.match(/(?:src|href)=["']([^"']+)["']/i);
+                                      if (match && match[1]) {
+                                        extractedUrl = match[1];
+                                      }
+                                    }
+
+                                    if (!extractedUrl && rawUri && rawUri.trim()) {
+                                      const lines = rawUri.trim().split(/[\r\n]+/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+                                      if (lines.length > 0) {
+                                        extractedUrl = lines[0];
+                                      }
+                                    }
+
+                                    if (extractedUrl) {
+                                      const trimmed = extractedUrl.trim();
                                       if (trimmed.startsWith('http') || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('/')) {
                                         const lower = trimmed.toLowerCase();
                                         if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.includes('youtube.com') || lower.includes('youtu.be') || lower.includes('vimeo')) {
