@@ -281,11 +281,11 @@ const TemplateEditor = () => {
 
   // Automatically switch to the Properties panel ('select' tool) when an element 
   // is selected while the Uploads panel is active.
-  useEffect(() => {
-    if (selectedLayerId) {
-      setActiveMainTool((prev) => prev === 'upload' ? 'select' : prev);
-    }
-  }, [selectedLayerId]);
+  // useEffect(() => {
+  //   if (selectedLayerId) {
+  //     setActiveMainTool((prev) => prev === 'upload' ? 'select' : prev);
+  //   }
+  // }, [selectedLayerId]);
 
   // 3D Customization States
   const [is3DModalOpen, setIs3DModalOpen] = useState(false);
@@ -2980,14 +2980,16 @@ const TemplateEditor = () => {
 
   const deleteLayer = (pageIndex, ids) => {
     const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
+    const page = pages[pageIndex];
+    if (!page) return;
     saveToHistory();
     setPages(prev => {
       const updated = [...prev];
-      const page = updated[pageIndex];
-      if (!page || !page.html || !page.layers) return updated;
+      const targetPage = updated[pageIndex];
+      if (!targetPage || !targetPage.html || !targetPage.layers) return updated;
 
       const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const doc = parser.parseFromString(targetPage.html, 'image/svg+xml');
 
       const deleteFromLayers = (layersList) => {
         for (let i = layersList.length - 1; i >= 0; i--) {
@@ -3006,13 +3008,13 @@ const TemplateEditor = () => {
         }
       };
 
-      const newLayers = JSON.parse(JSON.stringify(page.layers));
+      const newLayers = JSON.parse(JSON.stringify(targetPage.layers));
       deleteFromLayers(newLayers);
 
       const serializer = new XMLSerializer();
       const newHtml = serializer.serializeToString(doc.documentElement);
 
-      updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
+      updated[pageIndex] = { ...targetPage, layers: newLayers, html: newHtml };
       return updated;
     });
 
