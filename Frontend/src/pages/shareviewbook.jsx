@@ -4,8 +4,41 @@ import axios from 'axios';
 import FlipbookPreview from '../components/TemplateEditor/FlipbookPreview';
 import { LAYOUT_DEFAULT_COLORS } from '../components/CustomizedEditor/Layout';
 import { Icon } from '@iconify/react';
-import { Ghost, ArrowLeft, Home, BookOpen } from 'lucide-react';
+import { Ghost, ArrowLeft, Home, BookOpen, Clock } from 'lucide-react';
 import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
+
+const checkInviteAutoExpired = (autoExpire, fallbackDate) => {
+  if (!autoExpire || !autoExpire.enabled) return false;
+
+  const rawGranted = autoExpire.grantedAt || autoExpire.createdAt || fallbackDate;
+  if (!rawGranted) return false;
+  const grantedAt = new Date(rawGranted).getTime();
+
+  const daysStr = String(autoExpire.days || '0');
+  const daysMatch = daysStr.match(/(\d+)/);
+  const daysNum = daysMatch ? parseInt(daysMatch[1], 10) : 0;
+
+  const timeStr = String(autoExpire.time || '0');
+  const timeMatch = timeStr.match(/(\d+)/);
+  const timeNum = timeMatch ? parseInt(timeMatch[1], 10) : 0;
+
+  let timeInMs = 0;
+  if (timeStr.toLowerCase().includes('hour')) {
+    timeInMs = timeNum * 60 * 60 * 1000;
+  } else {
+    timeInMs = timeNum * 60 * 1000;
+  }
+
+  const daysInMs = daysNum * 24 * 60 * 60 * 1000;
+  const totalAllowedMs = daysInMs + timeInMs;
+
+  if (totalAllowedMs <= 0) return false;
+
+  const now = Date.now();
+  const elapsed = now - grantedAt;
+
+  return elapsed > totalAllowedMs;
+};
 
 const ShareViewBook = () => {
     const { shareId } = useParams();
@@ -26,6 +59,42 @@ const ShareViewBook = () => {
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
     const currentUserEmail = user?.emailId || user?.email || '';
+
+    // Live auto-expire timer check while watching book
+    useEffect(() => {
+        if (!bookData || error) return;
+
+        const vis = bookData.Customized_Settings?.Visibility || bookData.share || {};
+        const accessMode = (vis.access || 'public').toLowerCase();
+
+        const storedUser = localStorage.getItem('user');
+        let email = '';
+        try {
+            const u = storedUser ? JSON.parse(storedUser) : null;
+            email = (u?.emailId || u?.email || (typeof storedUser === 'string' && !storedUser.startsWith('{') ? storedUser : '')).toLowerCase();
+        } catch (e) {}
+
+        const isOwner = email && email.toLowerCase() === (bookData.userEmail || '').toLowerCase();
+
+        if (accessMode.includes('invite') && !isOwner) {
+            const autoExpire = vis.inviteOnly?.autoExpire;
+            if (autoExpire && autoExpire.enabled) {
+                if (checkInviteAutoExpired(autoExpire, bookData.updatedAt || bookData.createdAt)) {
+                    setError("Time Expired! The access time granted for this flipbook has expired.");
+                    return;
+                }
+
+                const interval = setInterval(() => {
+                    if (checkInviteAutoExpired(autoExpire, bookData.updatedAt || bookData.createdAt)) {
+                        setError("Time Expired! The access time granted for this flipbook has expired.");
+                        clearInterval(interval);
+                    }
+                }, 2000);
+
+                return () => clearInterval(interval);
+            }
+        }
+    }, [bookData, error]);
 
     const getBackendUrl = () => {
         if (import.meta.env.VITE_BACKEND_URL) {
@@ -202,6 +271,18 @@ const ShareViewBook = () => {
                     }
                 }
 
+                // Sync URL path to match actual access mode (e.g. /share=public/ vs /share=private/)
+                const rawAccMode = String(processedData?.Visibility?.access || processedData?.share?.access || 'public').toLowerCase();
+                let targetPrefix = 'share=public';
+                if (rawAccMode.includes('private')) targetPrefix = 'share=private';
+                else if (rawAccMode.includes('password')) targetPrefix = 'share=password';
+                else if (rawAccMode.includes('invite')) targetPrefix = 'share=invite';
+
+                const expectedPath = `/${targetPrefix}/${shareId}`;
+                if (location.pathname !== expectedPath) {
+                    navigate(`${expectedPath}${location.search}`, { replace: true });
+                }
+
                 // Only update state if the component is still mounted
                 setBookData(processedData);
                 setError(null);
@@ -214,6 +295,20 @@ const ShareViewBook = () => {
                 const status = err.response?.status;
                 const errData = err.response?.data || {};
 
+                // Auto-sync URL path if visibility mode changed on backend
+                const errAccMode = String(errData.accessMode || (errData.isPrivate ? 'private' : errData.isPasswordProtected ? 'password' : errData.isInviteOnly ? 'invite' : '')).toLowerCase();
+                if (errAccMode) {
+                    let targetPrefix = 'share=public';
+                    if (errAccMode.includes('private')) targetPrefix = 'share=private';
+                    else if (errAccMode.includes('password')) targetPrefix = 'share=password';
+                    else if (errAccMode.includes('invite')) targetPrefix = 'share=invite';
+
+                    const expectedPath = `/${targetPrefix}/${shareId}`;
+                    if (location.pathname !== expectedPath) {
+                        navigate(`${expectedPath}${location.search}`, { replace: true });
+                    }
+                }
+
                 // Retry on network errors or 5xx server errors — keep loading=true
                 const isRetryable = !err.response || status >= 500;
                 if (retryCount < maxRetries && isRetryable) {
@@ -223,6 +318,16 @@ const ShareViewBook = () => {
                     console.log(`Retrying in ${delay}ms...`);
                     setTimeout(() => fetchBook(passVal), delay);
                     return; // ⬅️ Keep loading=true while retry is pending
+                }
+
+                // Populate preview book data if returned by backend for background blur effect
+                if (errData.pages || errData.bookName) {
+                    setBookData({
+                        flipbookName: errData.bookName || 'Protected Flipbook',
+                        pages: errData.pages || [],
+                        meta: errData.meta || {},
+                        Customized_Settings: errData.Customized_Settings || {}
+                    });
                 }
 
                 // Handle access control statuses
@@ -235,22 +340,32 @@ const ShareViewBook = () => {
 
                 if (status === 403) {
                     if (errData.isInviteOnly) {
+                        if (errData.isExpired) {
+                            setError(errData.message || "Time Expired! The access time granted for this flipbook has expired.");
+                            setLoading(false);
+                            return;
+                        }
                         if (!currentUserEmail) {
                             setAccessMode('login');
                             setError(null);
                             setLoading(false);
                             return;
                         } else {
-                            setError("This flipbook is private. Your email is not authorized to access this book.");
+                            setError(errData.message || "This flipbook has invite-only access. Your email is not authorized to access this book.");
                             setLoading(false);
                             return;
                         }
                     }
-                    setError("This flipbook is private.");
+                    if (errData.isUnpublished) {
+                        setError(errData.message || "This Flipbook not Yet Published");
+                        setLoading(false);
+                        return;
+                    }
+                    setError(errData.message || "This flipbook is private.");
                 } else if (status === 404) {
                     setError("Flipbook not found.");
                 } else {
-                    setError("Flipbook not found or private.");
+                    setError(errData.message || "Flipbook not found or private.");
                 }
                 setLoading(false); // ✅ Stop loading only after all retries fail
             }
@@ -264,7 +379,7 @@ const ShareViewBook = () => {
     const handlePasswordSubmit = async (e) => {
         e.preventDefault();
         if (!passwordInput.trim()) {
-            setPasswordError("Please enter your password or access key.");
+            setPasswordError("Please enter access key.");
             return;
         }
         setPasswordError('');
@@ -272,8 +387,8 @@ const ShareViewBook = () => {
         try {
             const backendUrl = getBackendUrl();
             const params = {
-                password: passwordInput.trim(),
-                accessKey: passwordInput.trim()
+                accessKey: passwordInput.trim(),
+                password: passwordInput.trim()
             };
             if (currentUserEmail) params.emailId = currentUserEmail;
 
@@ -300,11 +415,13 @@ const ShareViewBook = () => {
             setAccessMode(null);
             setError(null);
         } catch (err) {
-            setPasswordError(err.response?.data?.message || "Invalid Password or Access Key.");
+            setPasswordError(err.response?.data?.message || "Invalid Access Key.");
         } finally {
             setIsSubmittingPassword(false);
         }
     };
+
+    const isMobileDevice = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     if (loading) return (
         <div className="flex h-screen flex-col gap-4 items-center justify-center bg-white">
@@ -318,100 +435,141 @@ const ShareViewBook = () => {
     );
 
     if (accessMode === 'password') return (
-        <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-900 font-sans p-4">
-            <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-md w-full border border-slate-100 animate-in zoom-in-95 duration-200">
-                <div className="w-14 h-14 rounded-2xl bg-[#eaebf7] flex items-center justify-center mx-auto mb-4 border border-[#5551FF]/20">
-                    <Icon icon="lucide:lock" className="w-7 h-7 text-[#5551FF]" />
+        <div className="relative w-screen h-screen overflow-hidden select-none bg-slate-950">
+            {/* Background Flipbook with Blur */}
+            {bookData && bookData.pages && bookData.pages.length > 0 ? (
+                <div className="absolute inset-0 filter blur-[10px] opacity-40 scale-105 pointer-events-none overflow-hidden select-none" style={varsObject}>
+                    <style>{`:root { ${layoutColorVars} }`}</style>
+                    <FlipbookPreview
+                        pages={bookData.pages}
+                        pageName={bookData.meta?.flipbookName || bookData.flipbookName || 'Protected Flipbook'}
+                        settings={{ ...(bookData.meta || {}), ...settings }}
+                        isMobile={isMobileDevice}
+                        onClose={null}
+                        baseUrl={bookData.meta?.baseUrl ? `${getBackendUrl()}${bookData.meta.baseUrl}` : null}
+                        isPublishedPreview={true}
+                    />
                 </div>
-                
-                <div className="text-center space-y-1">
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Protected Flipbook</h1>
-                    <p className="text-sm text-slate-500 font-normal">
-                        Enter the password or access key to view this flipbook.
-                    </p>
-                </div>
+            ) : (
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black opacity-80"></div>
+            )}
 
-                <form onSubmit={handlePasswordSubmit} className="mt-6 space-y-4">
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-800 block">Password or Access Key</label>
-                        <div className="relative">
-                            <input
-                                type={showPassword ? "text" : "password"}
-                                value={passwordInput}
-                                onChange={(e) => {
-                                    setPasswordInput(e.target.value);
-                                    if (passwordError) setPasswordError('');
-                                }}
-                                placeholder="Enter key..."
-                                className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:outline-none focus:border-[#5551FF] focus:ring-2 focus:ring-[#5551FF]/10 transition-all pr-10 shadow-xs"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                            >
-                                <Icon icon={showPassword ? "lucide:eye" : "lucide:eye-off"} className="w-4 h-4" />
-                            </button>
-                        </div>
-                        {passwordError && (
-                            <p className="text-xs text-red-500 font-medium pt-0.5">{passwordError}</p>
-                        )}
+            {/* Dark Overlay & Protected Flipbook Modal */}
+            <div className="fixed inset-0 z-[99999] w-full min-h-screen flex flex-col items-center justify-center bg-black/60 backdrop-blur-md text-slate-900 font-sans p-[1vw] select-none animate-in fade-in duration-200">
+                <div className="bg-white rounded-[1.2vw] p-[1.4vw] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] w-[25vw] min-w-[320px] max-w-[420px] border border-white/20 animate-in zoom-in-95 duration-200">
+                    {/* Lock Badge */}
+                    <div className="w-[3.2vw] h-[3.2vw] min-w-[44px] min-h-[44px] rounded-[0.8vw] bg-[#EEEDFF] border border-[#5551FF]/15 flex items-center justify-center mx-auto mb-[1vw]">
+                        <Icon icon="lucide:lock" className="w-[1.6vw] h-[1.6vw] min-w-[22px] min-h-[22px] text-[#5551FF]" />
+                    </div>
+                    
+                    {/* Title & Subtitle */}
+                    <div className="text-center space-y-[0.2vw] mb-[1.2vw]">
+                        <h1 className="text-[1.2vw] min-text-[18px] font-extrabold text-slate-900 tracking-tight">Protected Flipbook</h1>
+                        <p className="text-[0.72vw] text-slate-500 font-normal leading-relaxed max-w-[90%] mx-auto">
+                            Enter the access key to view this flipbook.
+                        </p>
                     </div>
 
-                    <button
-                        type="submit"
-                        disabled={isSubmittingPassword}
-                        className="w-full bg-[#5551FF] hover:bg-[#4338ca] text-white py-3 rounded-xl text-sm font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                    >
-                        {isSubmittingPassword ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                        ) : (
-                            <>
-                                <Icon icon="lucide:key-round" className="w-4 h-4" />
-                                <span>Unlock Flipbook</span>
-                            </>
-                        )}
-                    </button>
-                </form>
+                    {/* Password / Key Form */}
+                    <form onSubmit={handlePasswordSubmit} className="space-y-[0.8vw]">
+                        <div className="space-y-[0.35vw]">
+                            <label className="text-[0.78vw] font-semibold text-gray-900 block text-left">Access Key</label>
+                            <div className="relative">
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    value={passwordInput}
+                                    onChange={(e) => {
+                                        setPasswordInput(e.target.value);
+                                        if (passwordError) setPasswordError('');
+                                    }}
+                                    placeholder="Enter Access Key..."
+                                    className="w-full bg-white border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.55vw] text-[0.78vw] font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#5551FF] focus:ring-2 focus:ring-[#5551FF]/10 transition-all pr-[2.2vw] shadow-xs"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-[0.7vw] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                >
+                                    <Icon icon={showPassword ? "lucide:eye" : "lucide:eye-off"} className="w-[1vw] h-[1vw] min-w-[14px] min-h-[14px]" />
+                                </button>
+                            </div>
+                            {passwordError && (
+                                <p className="text-[0.7vw] text-red-500 font-medium pt-[0.1vw]">{passwordError}</p>
+                            )}
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isSubmittingPassword}
+                            className="w-full bg-black hover:bg-gray-900 active:scale-[0.99] text-white py-[0.55vw] rounded-[0.5vw] text-[0.78vw] font-bold transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-[0.4vw] mt-[0.6vw]"
+                        >
+                            {isSubmittingPassword ? (
+                                <div className="animate-spin rounded-full h-[0.9vw] w-[0.9vw] min-h-[14px] min-w-[14px] border-2 border-white border-t-transparent" />
+                            ) : (
+                                <>
+                                    <Icon icon="lucide:key-round" className="w-[0.9vw] h-[0.9vw] min-w-[14px] min-h-[14px]" />
+                                    <span>Unlock Flipbook</span>
+                                </>
+                            )}
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );
 
     if (accessMode === 'login') return (
-        <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-900 font-sans p-4">
-            <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-md w-full text-center border border-slate-100 animate-in zoom-in-95 duration-200">
-                <div className="w-14 h-14 rounded-2xl bg-[#eaebf7] flex items-center justify-center mx-auto mb-4 border border-[#5551FF]/20">
-                    <Icon icon="lucide:user-check" className="w-7 h-7 text-[#5551FF]" />
+        <div className="relative w-screen h-screen overflow-hidden select-none bg-slate-950">
+            {/* Background Flipbook with Blur */}
+            {bookData && bookData.pages && bookData.pages.length > 0 ? (
+                <div className="absolute inset-0 filter blur-[10px] opacity-40 scale-105 pointer-events-none overflow-hidden select-none" style={varsObject}>
+                    <style>{`:root { ${layoutColorVars} }`}</style>
+                    <FlipbookPreview
+                        pages={bookData.pages}
+                        pageName={bookData.meta?.flipbookName || bookData.flipbookName || 'Invited Access Only'}
+                        settings={{ ...(bookData.meta || {}), ...settings }}
+                        isMobile={isMobileDevice}
+                        onClose={null}
+                        baseUrl={bookData.meta?.baseUrl ? `${getBackendUrl()}${bookData.meta.baseUrl}` : null}
+                        isPublishedPreview={true}
+                    />
                 </div>
+            ) : (
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black opacity-80"></div>
+            )}
 
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Invited Access Only</h1>
-                <p className="text-sm text-slate-500 font-normal mt-2 leading-relaxed">
-                    This flipbook is restricted to invited readers. Please log in with your invited email address to view this book.
-                </p>
+            {/* Dark Overlay & Invited Access Card */}
+            <div className="fixed inset-0 z-[99999] w-full min-h-screen flex flex-col items-center justify-center bg-black/60 backdrop-blur-md text-slate-900 font-sans p-[1vw] select-none animate-in fade-in duration-200">
+                <div className="bg-white rounded-[1.2vw] p-[1.4vw] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] w-[25vw] min-w-[320px] max-w-[420px] border border-white/20 animate-in zoom-in-95 duration-200 text-center">
+                    {/* Badge */}
+                    <div className="w-[3.2vw] h-[3.2vw] min-w-[44px] min-h-[44px] rounded-[0.8vw] bg-[#EEEDFF] border border-[#5551FF]/15 flex items-center justify-center mx-auto mb-[1vw]">
+                        <Icon icon="lucide:user-check" className="w-[1.6vw] h-[1.6vw] min-w-[22px] min-h-[22px] text-[#5551FF]" />
+                    </div>
 
-                <div className="mt-7 space-y-3">
-                    <button
-                        onClick={() => navigate(`/?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
-                        className="w-full bg-[#5551FF] hover:bg-[#4338ca] text-white py-3 rounded-xl text-sm font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                    >
-                        <Icon icon="lucide:log-in" className="w-4 h-4" />
-                        <span>Log In to Access</span>
-                    </button>
+                    {/* Title & Description */}
+                    <h1 className="text-[1.2vw] min-text-[18px] font-extrabold text-slate-900 tracking-tight">Invited Access Only</h1>
+                    <p className="text-[0.72vw] text-slate-500 font-normal mt-[0.3vw] leading-relaxed max-w-[90%] mx-auto">
+                        This flipbook is restricted to invited readers. Please log in with your invited email address to view this book.
+                    </p>
 
-                    <button
-                        onClick={() => navigate(`/signup?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
-                        className="w-full bg-white border border-[#5551FF] text-[#5551FF] hover:bg-[#eaebf7] py-3 rounded-xl text-sm font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
-                    >
-                        <Icon icon="lucide:user-plus" className="w-4 h-4" />
-                        <span>Sign Up to Access</span>
-                    </button>
+                    {/* Buttons */}
+                    <div className="mt-[1.2vw] space-y-[0.6vw]">
+                        <button
+                            onClick={() => navigate(`/?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
+                            className="w-full bg-black hover:bg-gray-900 active:scale-[0.99] text-white py-[0.55vw] rounded-[0.5vw] text-[0.78vw] font-bold transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-[0.4vw]"
+                        >
+                            <Icon icon="lucide:log-in" className="w-[0.9vw] h-[0.9vw] min-w-[14px] min-h-[14px]" />
+                            <span>Log In to Access</span>
+                        </button>
 
-                    <button
-                        onClick={() => navigate('/')}
-                        className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-3 rounded-xl text-sm font-bold transition-all shadow-xs cursor-pointer"
-                    >
-                        Back to Home
-                    </button>
+                        <button
+                            onClick={() => navigate(`/signup?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
+                            className="w-full bg-white border border-gray-300 text-slate-800 hover:bg-gray-50 active:scale-[0.99] py-[0.55vw] rounded-[0.5vw] text-[0.78vw] font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-[0.4vw]"
+                        >
+                            <Icon icon="lucide:user-plus" className="w-[0.9vw] h-[0.9vw] min-w-[14px] min-h-[14px]" />
+                            <span>Sign Up to Access</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -423,27 +581,53 @@ const ShareViewBook = () => {
 
             <div className="relative z-10 w-full max-w-[40vw] px-[2vw] text-center">
                 <div className="inline-flex items-center justify-center p-[0.75vw] mb-[2.5vw] rounded-[1vw] bg-slate-50 border border-slate-100 shadow-sm">
-                    <Ghost className="w-[2.5vw] h-[2.5vw] text-slate-900" strokeWidth={1.5} />
+                    {error && error.toLowerCase().includes('time expired') ? (
+                        <Clock className="w-[2.5vw] h-[2.5vw] text-red-500" strokeWidth={1.5} />
+                    ) : error && (error === "This flipbook is private." || error.toLowerCase().includes('private')) ? (
+                        <Icon icon="lucide:lock" className="w-[2.5vw] h-[2.5vw] text-slate-800" />
+                    ) : error && error.toLowerCase().includes('published') ? (
+                        <Icon icon="lucide:eye-off" className="w-[2.5vw] h-[2.5vw] text-slate-800" />
+                    ) : (
+                        <Ghost className="w-[2.5vw] h-[2.5vw] text-slate-900" strokeWidth={1.5} />
+                    )}
                 </div>
 
                 <div className="space-y-[1.5vw]">
                     <div className="space-y-[0.5vw]">
                         <p className="text-[0.875vw] font-bold tracking-[0.2em] uppercase text-slate-400">
-                            {error === "This flipbook is private." ? "Access Denied" : "Error 404"}
+                            {error && error.toLowerCase().includes('time expired') 
+                              ? "Access Expired" 
+                              : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
+                              ? "Access Denied" 
+                              : error && error.toLowerCase().includes('published')
+                              ? "Unpublished"
+                              : "Error 404"}
                         </p>
                         <h1 className="text-[3.5vw] font-extrabold tracking-tight text-slate-900 leading-tight">
-                            {error || "Flipbook not found."}
+                            {error && error.toLowerCase().includes('time expired')
+                              ? "Access Expired" 
+                              : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
+                              ? "This Flipbook is Private" 
+                              : error && error.toLowerCase().includes('published')
+                              ? "This Flipbook is Not Yet Published"
+                              : error || "Flipbook Not Found"}
                         </h1>
                     </div>
 
                     <p className="text-[1.125vw] text-slate-500 leading-relaxed max-w-[30vw] mx-auto">
-                        Sorry, we couldn't find the flipbook you're looking for. It might have been moved, deleted, or set to private.
+                        {error && error.toLowerCase().includes('time expired')
+                          ? "The access time granted for this flipbook has expired. Please ask the owner to grant you a new invitation."
+                          : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
+                          ? "This flipbook has been set to private by its owner and is not accessible to public readers."
+                          : error && error.toLowerCase().includes('published')
+                          ? "This flipbook has not been published by its creator yet. Please check back later."
+                          : "Sorry, we couldn't find the flipbook you're looking for. It might have been deleted or the link is invalid."}
                     </p>
                 </div>
 
                 <div className="mt-[3vw] flex flex-col sm:flex-row items-center justify-center gap-[1vw]">
-                    {/* Try Again — only for non-403/404 errors (i.e., network/server issues) */}
-                    {error !== "This flipbook is private." && error !== "Flipbook not found." && (
+                    {/* Try Again — only for non-permanent errors (network/server issues) */}
+                    {error && !error.toLowerCase().includes('private') && !error.toLowerCase().includes('expired') && !error.toLowerCase().includes('published') && !error.toLowerCase().includes('not found') && (
                         <button
                             onClick={() => window.location.reload()}
                             className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-[0.5vw] px-[2vw] py-[1vw] bg-[#4A3AFF] text-white font-semibold rounded-full hover:bg-[#3a2aef] transition-all duration-300 shadow-xl shadow-indigo-200 active:scale-95 overflow-hidden text-[1vw]"
@@ -453,7 +637,7 @@ const ShareViewBook = () => {
                     )}
 
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => navigate('/home')}
                         className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-[0.5vw] px-[2vw] py-[1vw] bg-slate-950 text-white font-semibold rounded-full hover:bg-slate-800 transition-all duration-300 shadow-xl shadow-slate-200 active:scale-95 overflow-hidden text-[1vw]"
                     >
                         <Home className="w-[1.25vw] h-[1.25vw]" />
@@ -510,7 +694,7 @@ const ShareViewBook = () => {
 
                     <div className="mt-[3vw] flex justify-center">
                         <button
-                            onClick={() => navigate('/')}
+                            onClick={() => navigate('/home')}
                             className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-[0.5vw] px-[2vw] py-[1vw] bg-slate-950 text-white font-semibold rounded-full hover:bg-slate-800 transition-all duration-300 shadow-xl shadow-slate-200 active:scale-95 overflow-hidden text-[1vw]"
                         >
                             <Home className="w-[1.25vw] h-[1.25vw]" />
@@ -521,8 +705,6 @@ const ShareViewBook = () => {
             </div>
         );
     }
-
-    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     return (
         <div

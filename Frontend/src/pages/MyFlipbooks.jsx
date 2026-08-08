@@ -1016,10 +1016,23 @@ export default function MyFlipbooks() {
 
         let matchesStatus = true;
         if (statusFilter !== 'All Status') {
-            if (statusFilter === 'Public') matchesStatus = book.isPublic !== false;
-            else if (statusFilter === 'Private') matchesStatus = book.isPublic === false;
-            else if (statusFilter === 'Protected') matchesStatus = book.status === 'protected' || book.isProtected === true;
-            else if (statusFilter === 'Email') matchesStatus = book.status === 'email' || book.isEmailProtected === true;
+            const rawAcc = String(
+                book.Visibility?.access || 
+                book.Visibility?.type || 
+                book.Customized_Settings?.Visibility?.access || 
+                book.Customized_Settings?.Visibility?.type || 
+                book.settings?.Visibility?.access || 
+                book.settings?.Visibility?.type || 
+                book.share?.access || 
+                book.share?.type || 
+                book.access || 
+                (book.isPublic === false ? 'private' : 'public')
+            ).toLowerCase().trim();
+
+            if (statusFilter === 'Public') matchesStatus = rawAcc.includes('public') && !rawAcc.includes('private') && !rawAcc.includes('password') && !rawAcc.includes('invite');
+            else if (statusFilter === 'Private') matchesStatus = rawAcc.includes('private') || book.isPublic === false;
+            else if (statusFilter === 'Protected') matchesStatus = rawAcc.includes('password') || rawAcc.includes('protect');
+            else if (statusFilter === 'Email' || statusFilter === 'Invite') matchesStatus = rawAcc.includes('invite') || rawAcc.includes('email');
         }
         return matchesFolder && matchesSearch && matchesStatus;
     }).sort((a, b) => {
@@ -1674,11 +1687,55 @@ export default function MyFlipbooks() {
                                                                 <h3 className="text-[1.125vw] font-bold text-gray-800">{book.title}</h3>
                                                             )}
 
-                                                            {/* Public / Private Pill */}
-                                                            <div className={`flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold ${book.isPublic !== false ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
-                                                                {book.isPublic !== false ? <Icon icon="subway:world-1" className="w-[0.6vw] h-[0.6vw]" /> : <Lock size="0.6vw" />}
-                                                                {book.isPublic !== false ? 'Public' : 'Private'}
-                                                            </div>
+                                                            {/* Dynamic Visibility Pill Badge */}
+                                                            {(() => {
+                                                                const rawAcc = String(
+                                                                    book.Visibility?.access || 
+                                                                    book.Visibility?.type || 
+                                                                    book.Customized_Settings?.Visibility?.access || 
+                                                                    book.Customized_Settings?.Visibility?.type || 
+                                                                    book.settings?.Visibility?.access || 
+                                                                    book.settings?.Visibility?.type || 
+                                                                    book.share?.access || 
+                                                                    book.share?.type || 
+                                                                    book.access || 
+                                                                    (book.isPublic === false ? 'private' : 'public')
+                                                                ).toLowerCase().trim();
+
+                                                                if (rawAcc.includes('password') || rawAcc.includes('protect')) {
+                                                                    return (
+                                                                        <div className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold bg-amber-100 text-amber-700 border border-amber-200/60">
+                                                                            <Icon icon="lucide:key-round" className="w-[0.6vw] h-[0.6vw]" />
+                                                                            <span>Password</span>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                if (rawAcc.includes('invite') || rawAcc.includes('email')) {
+                                                                    return (
+                                                                        <div className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200/60">
+                                                                            <Icon icon="lucide:user-check" className="w-[0.6vw] h-[0.6vw]" />
+                                                                            <span>Invite Only</span>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                if (rawAcc.includes('private') || book.isPublic === false) {
+                                                                    return (
+                                                                        <div className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold bg-gray-100 text-gray-700 border border-gray-200/60">
+                                                                            <Lock size="0.6vw" />
+                                                                            <span>Private</span>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                return (
+                                                                    <div className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold bg-green-100 text-green-700 border border-green-200/60">
+                                                                        <Icon icon="subway:world-1" className="w-[0.6vw] h-[0.6vw]" />
+                                                                        <span>Public</span>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </div>
                                                         <p className="text-[0.65vw] text-gray-400 font-medium mt-[0.25vw]">{book.pages} Pages</p>
                                                     </div>
@@ -1696,8 +1753,8 @@ export default function MyFlipbooks() {
                                                 <div className="flex items-center justify-between w-full mt-auto pt-[0.5vw]">
                                                     <button 
                                                         onClick={() => {
-                                                            const shareId = book.shareId || book.share?.shareId || book.v_id || encodeURIComponent(book.realName);
-                                                            const rawAcc = String(book.share?.access || book.settings?.visibility?.type || 'public').toLowerCase();
+                                                            const shareId = book.Visibility?.shareId || book.Customized_Settings?.Visibility?.shareId || book.shareId || book.share?.shareId || book.v_id || encodeURIComponent(book.realName);
+                                                            const rawAcc = String(book.Visibility?.access || book.Customized_Settings?.Visibility?.access || book.share?.access || 'public').toLowerCase();
                                                             const accessPrefix = rawAcc.includes('private')
                                                                 ? 'share=private'
                                                                 : rawAcc.includes('password')

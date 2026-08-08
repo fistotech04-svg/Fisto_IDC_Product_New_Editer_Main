@@ -990,20 +990,37 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
     if (!isOpen) return null;
 
-    const accessVal = currentBook?.share?.access || currentBook?.shareAccess || currentBook?.settings?.visibility?.type || 'public';
-    const rawAcc = String(accessVal).toLowerCase();
-    const accessPrefix = rawAcc.includes('private')
-        ? 'share=private'
-        : rawAcc.includes('password')
-        ? 'share=password'
-        : rawAcc.includes('invite')
-        ? 'share=invite'
-        : 'share=public';
+    const accessVal = 
+        currentBook?.type ||
+        currentBook?.access ||
+        currentBook?.Visibility?.type ||
+        currentBook?.Visibility?.access ||
+        currentBook?.Customized_Settings?.Visibility?.type ||
+        currentBook?.Customized_Settings?.Visibility?.access ||
+        currentBook?.share?.type ||
+        currentBook?.share?.access ||
+        currentBook?.shareAccess ||
+        'public';
 
-    let publicUrl = flipbookUrl || (currentBook ? `${window.location.origin}/${accessPrefix}/${currentBook.shareId || currentBook.share?.shareId || ''}` : window.location.href);
-    if (publicUrl.includes('/share=')) {
-        publicUrl = publicUrl.replace(/\/share=[^\/]+/, `/${accessPrefix}`);
-    }
+    const rawAcc = String(accessVal).toLowerCase();
+    const accessPrefix = 
+        (rawAcc.includes('private') && !rawAcc.includes('protect')) || rawAcc === 'private'
+            ? 'share=private'
+            : rawAcc.includes('password') || rawAcc.includes('protect')
+            ? 'share=password'
+            : rawAcc.includes('invite')
+            ? 'share=invite'
+            : 'share=public';
+
+    const shareIdVal = 
+        currentBook?.shareId || 
+        currentBook?.share?.shareId || 
+        currentBook?.Customized_Settings?.Visibility?.shareId || 
+        currentBook?.Visibility?.shareId || 
+        currentBook?.v_id || 
+        '';
+
+    let publicUrl = `${window.location.origin}/${accessPrefix}/${shareIdVal}`;
 
     if (activeLayout) {
         try {

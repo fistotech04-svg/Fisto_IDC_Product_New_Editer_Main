@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown, Plus, Info, Upload, Pencil } from 'lucide-react';
+import { X, ChevronDown, Plus, Info, Upload } from 'lucide-react';
 import axios from 'axios';
 import { useToast } from './CustomToast';
 
@@ -9,21 +9,28 @@ const PublishModal = ({ isOpen, onClose, currentBook, onPublishSuccess }) => {
 
   const [bookName, setBookName] = useState('');
   const [quotes, setQuotes] = useState('');
+  const [about, setAbout] = useState('');
   const [category, setCategory] = useState('Product Based');
   const [language, setLanguage] = useState('English');
   const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState(['Tag 1', 'Tag 2', 'Tag 3', 'Tag 4']);
+  const [tags, setTags] = useState([]);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [errors, setErrors] = useState({});
 
   // Sync state when currentBook changes or modal opens
   useEffect(() => {
     if (isOpen && currentBook) {
-      setBookName(currentBook.flipbookName || currentBook.realName || currentBook.title || 'Name of the book');
-      setQuotes(currentBook.quotes || '');
-      setCategory(currentBook.category || 'Product Based');
-      setLanguage(currentBook.language || 'English');
+      setBookName(currentBook.flipbookName || currentBook.realName || currentBook.title || '');
+      setQuotes(currentBook.quotes || currentBook.quote || currentBook.tagline || currentBook.meta?.quotes || currentBook.meta?.quote || currentBook.meta?.tagline || '');
+      setAbout(currentBook.about || currentBook.meta?.about || '');
+      setCategory(currentBook.category || currentBook.meta?.category || 'Product Based');
+      setLanguage(currentBook.language || currentBook.meta?.language || 'English');
+      setErrors({});
+      
       if (currentBook.tags && Array.isArray(currentBook.tags)) {
         setTags(currentBook.tags);
+      } else if (currentBook.meta?.tags && Array.isArray(currentBook.meta.tags)) {
+        setTags(currentBook.meta.tags);
       } else {
         setTags([]);
       }
@@ -56,6 +63,22 @@ const PublishModal = ({ isOpen, onClose, currentBook, onPublishSuccess }) => {
   };
 
   const handlePublishClick = async () => {
+    // Validate required fields
+    const newErrors = {};
+    if (!bookName.trim()) newErrors.bookName = "Flipbook Name is required.";
+    if (!quotes.trim()) newErrors.quotes = "Quote / Tagline is required.";
+    if (!about.trim()) newErrors.about = "About description is required.";
+    if (!category.trim()) newErrors.category = "Category is required.";
+    if (!language.trim()) newErrors.language = "Language is required.";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      const firstErr = Object.values(newErrors)[0];
+      toast?.error?.(firstErr || "Please fill in all required fields.");
+      return;
+    }
+
+    setErrors({});
     setIsPublishing(true);
     try {
       const storedUser = localStorage.getItem('user');
@@ -68,16 +91,34 @@ const PublishModal = ({ isOpen, onClose, currentBook, onPublishSuccess }) => {
         await axios.post(`${backendUrl}/api/flipbook/publish`, {
           emailId: userEmail,
           v_id: v_id,
-          bookName: bookName,
-          category: category,
-          language: language,
+          bookName: bookName.trim(),
+          category: category.trim(),
+          language: language.trim(),
           tags: tags,
-          quotes: quotes
+          quotes: quotes.trim(),
+          about: about.trim(),
+          meta: {
+            ...(currentBook?.meta || {}),
+            quotes: quotes.trim(),
+            about: about.trim(),
+            category: category.trim(),
+            language: language.trim(),
+            tags: tags
+          }
         });
       }
 
       toast?.success?.("Flipbook published successfully!");
-      if (onPublishSuccess) onPublishSuccess({ bookName, category, language, tags, quotes });
+      if (onPublishSuccess) {
+        onPublishSuccess({
+          bookName: bookName.trim(),
+          category: category.trim(),
+          language: language.trim(),
+          tags,
+          quotes: quotes.trim(),
+          about: about.trim()
+        });
+      }
       onClose();
     } catch (err) {
       console.error("Publish failed:", err);
@@ -88,246 +129,294 @@ const PublishModal = ({ isOpen, onClose, currentBook, onPublishSuccess }) => {
   };
 
   const modalJsx = (
-    <div className="fixed inset-0 z-[999999] flex items-center justify-center">
-      {/* Backdrop matching ShareModal */}
+    <div className="fixed inset-0 z-[999999] flex items-center justify-center p-[1vw]">
+      {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" 
         onClick={onClose}
       />
 
-      {/* Modal Container matching ShareModal w-[52vw] */}
+      {/* Modal Container */}
       <div 
-        className="relative bg-white w-[52vw] max-h-[90vh] rounded-[1vw] shadow-2xl animate-in fade-in zoom-in-95 duration-300 font-sans overflow-y-auto"
+        className="relative bg-white w-[54vw] max-h-[94vh] rounded-[1.2vw] shadow-2xl animate-in fade-in zoom-in-95 duration-300 font-sans p-[1.6vw] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header matching ShareModal */}
-        <div className="px-[1.2vw] py-[0.8vw] flex items-center gap-[0.8vw] border-b border-gray-50">
-          <h2 className="text-[1.1vw] font-bold text-gray-900 whitespace-nowrap">Publish Flipbook</h2>
+        {/* Header */}
+        <div className="flex items-center gap-[1vw] mb-[0.2vw]">
+          <h2 className="text-[1.2vw] font-bold text-gray-900 whitespace-nowrap tracking-tight">Publish Flipbook</h2>
           <div className="flex-1 h-[1px] bg-gray-200" />
           <button
             onClick={onClose}
-            className="p-[0.3vw] rounded-full hover:bg-gray-100 transition-colors border border-red-200 text-red-500 cursor-pointer"
+            className="p-[0.35vw] rounded-full hover:bg-gray-100 transition-colors border border-red-200 text-red-500 cursor-pointer flex-shrink-0"
           >
             <X size="1vw" />
           </button>
         </div>
 
-        <p className="text-[0.75vw] text-gray-400 font-medium px-[1.2vw] pt-[0.4vw]">
+        <p className="text-[0.78vw] text-gray-400 font-medium mb-[1.2vw]">
           Make your flipbook live and share it with your audience
         </p>
 
-        {/* Modal Body matching ShareModal 2-Column layout */}
-        <div className="p-[1.2vw] pt-[0.6vw] flex flex-col gap-[1vw]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-[1.2vw]">
-            {/* Left Column */}
-            <div className="space-y-[0.8vw]">
-              {/* Book Preview Image Card */}
-              <div className="relative rounded-[0.8vw] bg-[#edd8cd] p-[0.8vw] h-[14vw] flex items-center justify-center shadow-inner overflow-hidden border border-amber-100/50">
-                {thumbnailUrl ? (
-                  <img 
-                    src={thumbnailUrl} 
-                    alt="Flipbook Cover" 
-                    className="max-h-full max-w-full object-contain rounded-[0.5vw] shadow-md"
-                  />
-                ) : (
-                  <div className="relative w-[11vw] h-[12vw] flex items-center justify-center">
-                    {/* Styled Mockup Cover matching screenshot */}
-                    <div className="absolute w-[8vw] h-[11vw] bg-gradient-to-br from-orange-500 to-amber-600 rounded-[0.5vw] shadow-xl transform -rotate-6 border border-orange-400 p-[0.6vw] flex flex-col justify-between text-white">
-                      <span className="text-[0.6vw] font-bold tracking-widest uppercase opacity-80">Hard.Cover</span>
-                      <div>
-                        <h3 className="text-[0.75vw] font-black leading-tight">Hard.Cover Book</h3>
-                        <p className="text-[0.55vw] opacity-90 mt-[0.1vw]">Free .psd Mockup</p>
-                      </div>
-                    </div>
-                    <div className="absolute w-[8vw] h-[11vw] bg-gradient-to-br from-amber-600 to-orange-500 rounded-[0.5vw] shadow-2xl transform rotate-6 border border-amber-400 p-[0.6vw] flex flex-col justify-between text-white">
-                      <span className="text-[0.6vw] font-bold tracking-widest uppercase opacity-80">Hard.Cover</span>
-                      <div>
-                        <h3 className="text-[0.75vw] font-black leading-tight">Hard.Cover Book</h3>
-                        <p className="text-[0.55vw] opacity-90 mt-[0.1vw]">Free .psd Mockup</p>
-                      </div>
+        {/* 2-Column Grid Layout */}
+        <div className="grid grid-cols-2 gap-[1.5vw]">
+          {/* Left Column */}
+          <div className="flex flex-col justify-between gap-[0.9vw]">
+            {/* Book Preview Image Card */}
+            <div className="relative rounded-[0.9vw] bg-[#edd8cd] h-[17.5vw] flex items-center justify-center shadow-inner overflow-hidden border border-amber-100/40">
+              {thumbnailUrl ? (
+                <img 
+                  src={thumbnailUrl} 
+                  alt="Flipbook Cover" 
+                  className="max-h-full max-w-full object-contain rounded-[0.5vw] shadow-md"
+                />
+              ) : (
+                <div className="relative w-[14vw] h-[15vw] flex items-center justify-center">
+                  <div className="absolute w-[10vw] h-[13.5vw] bg-gradient-to-br from-orange-500 to-amber-600 rounded-[0.6vw] shadow-xl transform -rotate-6 border border-orange-400 p-[0.7vw] flex flex-col justify-between text-white">
+                    <span className="text-[0.7vw] font-bold tracking-widest uppercase opacity-85">HARD.COVER</span>
+                    <div>
+                      <h3 className="text-[0.85vw] font-black leading-tight">Hard.Cover Book</h3>
+                      <p className="text-[0.6vw] opacity-90 mt-[0.1vw]">Free .psd Mockup</p>
                     </div>
                   </div>
-                )}
-
-                {/* Pages Badge */}
-                <div className="absolute bottom-[0.6vw] right-[0.6vw] bg-white/90 backdrop-blur-md px-[0.6vw] py-[0.25vw] rounded-[0.4vw] text-[0.7vw] font-bold text-gray-800 shadow-xs border border-white/50">
-                  {pageCount} Pages
+                  <div className="absolute w-[10vw] h-[13.5vw] bg-gradient-to-br from-amber-600 to-orange-500 rounded-[0.6vw] shadow-2xl transform rotate-6 border border-amber-400 p-[0.7vw] flex flex-col justify-between text-white">
+                    <span className="text-[0.7vw] font-bold tracking-widest uppercase opacity-85">HARD.COVER</span>
+                    <div>
+                      <h3 className="text-[0.85vw] font-black leading-tight">Hard.Cover Book</h3>
+                      <p className="text-[0.6vw] opacity-90 mt-[0.1vw]">Free .psd Mockup</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
+              {/* Pages Badge */}
+              <div className="absolute bottom-[0.6vw] right-[0.6vw] bg-white/90 backdrop-blur-md px-[0.6vw] py-[0.25vw] rounded-[0.4vw] text-[0.7vw] font-bold text-gray-800 shadow-xs border border-white/50">
+                {pageCount} Pages
+              </div>
+            </div>
+
+            {/* Bottom Input Group */}
+            <div className="flex flex-col gap-[0.8vw]">
               {/* Flipbook Name */}
               <div>
-                <label className="text-[0.8vw] font-bold text-gray-900 mb-[0.3vw] block">Flipbook Name</label>
+                <label className="text-[0.82vw] font-bold text-gray-900 mb-[0.3vw] block">
+                  Flipbook Name <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
                   <input
                     type="text"
-                    disabled
+                    maxLength={20}
                     value={bookName}
-                    onChange={(e) => setBookName(e.target.value)}
+                    onChange={(e) => {
+                      setBookName(e.target.value);
+                      if (errors.bookName) setErrors(prev => ({ ...prev, bookName: null }));
+                    }}
                     placeholder="Name of the book"
-                    className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.78vw] font-medium text-gray-500 bg-gray-50 cursor-not-allowed shadow-xs"
+                    className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pr-[3.2vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none shadow-xs transition-colors ${errors.bookName ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
                   />
+                  <span className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-[0.7vw] text-gray-300 font-normal select-none">
+                    {bookName.length}/20
+                  </span>
                 </div>
+                {errors.bookName && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.bookName}</p>}
               </div>
 
-              {/* Quotes */}
+              {/* Quote / Tagline */}
               <div>
-                <label className="text-[0.8vw] font-bold text-gray-900 mb-[0.3vw] block">Quotes</label>
+                <label className="text-[0.82vw] font-bold text-gray-900 mb-[0.3vw] block">
+                  Quote / Tagline <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
-                  <textarea
-                    rows={2}
-                    disabled
+                  <input
+                    type="text"
+                    maxLength={20}
                     value={quotes}
-                    onChange={(e) => setQuotes(e.target.value)}
+                    onChange={(e) => {
+                      setQuotes(e.target.value);
+                      if (errors.quotes) setErrors(prev => ({ ...prev, quotes: null }));
+                    }}
                     placeholder="Quotes About Book"
-                    className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.78vw] font-medium text-gray-500 bg-gray-50 cursor-not-allowed shadow-xs resize-none"
+                    className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pr-[3.2vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none shadow-xs transition-colors ${errors.quotes ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
                   />
+                  <span className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-[0.7vw] text-gray-300 font-normal select-none">
+                    {quotes.length}/20
+                  </span>
                 </div>
-              </div>
-            </div>
-
-            {/* Right Column */}
-            <div className="flex flex-col justify-between space-y-[0.8vw]">
-              <div className="space-y-[0.8vw]">
-                {/* Select Category */}
-                <div>
-                  <label className="text-[0.8vw] font-bold text-gray-900 mb-[0.3vw] block">Select Category</label>
-                  <div className="relative">
-                    <select
-                      disabled
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.78vw] font-medium text-gray-500 bg-gray-50 cursor-not-allowed appearance-none shadow-xs"
-                    >
-                      <option value="Product Based">Product Based</option>
-                      <option value="Business">Business</option>
-                      <option value="Catalog">Catalog</option>
-                      <option value="Brochure">Brochure</option>
-                      <option value="Magazine">Magazine</option>
-                      <option value="Portfolio">Portfolio</option>
-                      <option value="Education">Education</option>
-                      <option value="Other">Other</option>
-                    </select>
-                    <ChevronDown size="0.9vw" className="text-gray-400 absolute right-[0.8vw] top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Language */}
-                <div>
-                  <label className="text-[0.8vw] font-bold text-gray-900 mb-[0.3vw] block">
-                    Language <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      disabled
-                      value={language}
-                      onChange={(e) => setLanguage(e.target.value)}
-                      className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.78vw] font-medium text-gray-500 bg-gray-50 cursor-not-allowed appearance-none shadow-xs"
-                    >
-                      <option value="English">English</option>
-                      <option value="Spanish">Spanish</option>
-                      <option value="French">French</option>
-                      <option value="German">German</option>
-                      <option value="Italian">Italian</option>
-                      <option value="Portuguese">Portuguese</option>
-                      <option value="Tamil">Tamil</option>
-                      <option value="Japanese">Japanese</option>
-                      <option value="Chinese">Chinese</option>
-                    </select>
-                    <ChevronDown size="0.9vw" className="text-gray-400 absolute right-[0.8vw] top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Add 5 Search Tags */}
-                <div>
-                  <label className="text-[0.8vw] font-bold text-gray-900 mb-[0.3vw] block">Add 5 Search Tags</label>
-                  <div className="relative border border-gray-300 rounded-[0.5vw] p-[0.3vw] pr-[2.4vw] bg-white flex items-center shadow-xs min-h-[2.2vw]">
-                    <div className="flex items-center gap-[0.4vw] overflow-x-auto flex-1 py-[0.1vw]">
-                      {tags.map((tag, idx) => (
-                        <div key={idx} className="bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-[0.35vw] px-[0.5vw] py-[0.2vw] flex items-center gap-[0.3vw] text-[0.72vw] font-semibold text-gray-700 whitespace-nowrap transition-colors flex-shrink-0">
-                          <span>{tag}</span>
-                          <button 
-                            type="button" 
-                            onClick={() => handleRemoveTag(idx)}
-                            className="text-gray-400 hover:text-gray-700 cursor-pointer"
-                          >
-                            <X size="0.7vw" />
-                          </button>
-                        </div>
-                      ))}
-
-                      {tags.length < 5 && (
-                        <input
-                          type="text"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddTag();
-                            }
-                          }}
-                          placeholder="Add tag..."
-                          className="text-[0.72vw] font-medium px-[0.4vw] py-[0.2vw] outline-none text-gray-800 flex-1 min-w-[5vw]"
-                        />
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleAddTag}
-                      disabled={tags.length >= 5}
-                      className="absolute right-[0.3vw] top-1/2 -translate-y-1/2 w-[1.6vw] h-[1.6vw] bg-[#2b308b] hover:bg-[#20246a] text-white rounded-[0.35vw] flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 z-10 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Plus size="0.9vw" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Visibility Info Box */}
-                <div className="bg-[#edf2fe] border border-blue-100 rounded-[0.8vw] p-[0.7vw] space-y-[0.2vw]">
-                  <div className="flex items-center gap-[0.4vw]">
-                    <Info size="0.9vw" className="text-[#4338ca] flex-shrink-0" />
-                    <span className="text-[0.75vw] font-semibold text-gray-800">
-                      Visibility : <span className="text-[#4338ca] font-bold">{visibilityMode}</span>
-                    </span>
-                  </div>
-                  <p className="text-[0.68vw] text-gray-500 leading-normal pl-[1.3vw]">
-                    This flipbook will be published as {visibilityMode}.<br />
-                    Change later from: <strong className="text-gray-700 font-semibold">Customize &gt; Visibility</strong>
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-[0.6vw] pt-[0.4vw]">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-[1.2vw] py-[0.5vw] rounded-[0.4vw] border border-gray-900 bg-white text-gray-900 text-[0.78vw] font-semibold flex items-center gap-[0.4vw] hover:bg-gray-50 transition-all cursor-pointer shadow-xs"
-                >
-                  <X size="0.9vw" />
-                  <span>Cancel</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handlePublishClick}
-                  disabled={isPublishing}
-                  className="px-[1.2vw] py-[0.5vw] rounded-[0.4vw] bg-[#00a58e] hover:bg-[#008a76] text-white text-[0.78vw] font-semibold flex items-center gap-[0.4vw] transition-all shadow-md cursor-pointer disabled:opacity-70"
-                >
-                  {isPublishing ? (
-                    <div className="w-[0.9vw] h-[0.9vw] border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Upload size="0.9vw" />
-                      <span>Publish Book</span>
-                    </>
-                  )}
-                </button>
+                {errors.quotes && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.quotes}</p>}
               </div>
             </div>
           </div>
+
+          {/* Right Column */}
+          <div className="flex flex-col gap-[0.8vw]">
+            {/* About */}
+            <div>
+              <label className="text-[0.82vw] font-bold text-gray-900 mb-[0.3vw] block">
+                About <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <textarea
+                  rows={3}
+                  maxLength={100}
+                  value={about}
+                  onChange={(e) => {
+                    setAbout(e.target.value);
+                    if (errors.about) setErrors(prev => ({ ...prev, about: null }));
+                  }}
+                  placeholder="About Book"
+                  className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pb-[1.5vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none shadow-xs resize-none h-[5.5vw] transition-colors ${errors.about ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
+                />
+                <span className="absolute right-[0.8vw] bottom-[0.5vw] text-[0.7vw] text-gray-300 font-normal select-none">
+                  {about.length}/100
+                </span>
+              </div>
+              {errors.about && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.about}</p>}
+            </div>
+
+            {/* Select Category */}
+            <div>
+              <label className="text-[0.82vw] font-bold text-gray-900 mb-[0.3vw] block">
+                Select Category <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  value={category}
+                  onChange={(e) => {
+                    setCategory(e.target.value);
+                    if (errors.category) setErrors(prev => ({ ...prev, category: null }));
+                  }}
+                  className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.8vw] font-normal text-gray-800 bg-white focus:outline-none appearance-none cursor-pointer shadow-xs transition-colors ${errors.category ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
+                >
+                  <option value="Product Based">Product Based</option>
+                  <option value="Business">Business</option>
+                  <option value="Catalog">Catalog</option>
+                  <option value="Brochure">Brochure</option>
+                  <option value="Magazine">Magazine</option>
+                  <option value="Portfolio">Portfolio</option>
+                  <option value="Education">Education</option>
+                  <option value="Other">Other</option>
+                </select>
+                <ChevronDown size="1vw" className="text-gray-500 absolute right-[0.8vw] top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              {errors.category && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.category}</p>}
+            </div>
+
+            {/* Language */}
+            <div>
+              <label className="text-[0.82vw] font-bold text-gray-900 mb-[0.3vw] block">
+                Language <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  value={language}
+                  onChange={(e) => {
+                    setLanguage(e.target.value);
+                    if (errors.language) setErrors(prev => ({ ...prev, language: null }));
+                  }}
+                  className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.8vw] font-normal text-gray-800 bg-white focus:outline-none appearance-none cursor-pointer shadow-xs transition-colors ${errors.language ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
+                >
+                  <option value="English">English</option>
+                  <option value="Spanish">Spanish</option>
+                  <option value="French">French</option>
+                  <option value="German">German</option>
+                  <option value="Italian">Italian</option>
+                  <option value="Portuguese">Portuguese</option>
+                  <option value="Tamil">Tamil</option>
+                  <option value="Japanese">Japanese</option>
+                  <option value="Chinese">Chinese</option>
+                </select>
+                <ChevronDown size="1vw" className="text-gray-500 absolute right-[0.8vw] top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              {errors.language && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.language}</p>}
+            </div>
+
+            {/* Add 5 Search Tags */}
+            <div>
+              <label className="text-[0.82vw] font-bold text-gray-900 mb-[0.3vw] block">Add 5 Search Tags</label>
+              <div className="relative border border-gray-300 rounded-[0.5vw] p-[0.3vw] pr-[2.4vw] bg-white flex items-center shadow-xs min-h-[2.2vw]">
+                <div className="flex items-center gap-[0.4vw] overflow-x-auto flex-1 py-[0.1vw]">
+                  {tags.map((tag, idx) => (
+                    <div key={idx} className="bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-[0.35vw] px-[0.5vw] py-[0.2vw] flex items-center gap-[0.3vw] text-[0.72vw] font-semibold text-gray-700 whitespace-nowrap transition-colors flex-shrink-0">
+                      <span>{tag}</span>
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveTag(idx)}
+                        className="text-gray-400 hover:text-gray-700 cursor-pointer"
+                      >
+                        <X size="0.7vw" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {tags.length < 5 && (
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                      placeholder="Add tag..."
+                      className="text-[0.72vw] font-medium px-[0.4vw] py-[0.2vw] outline-none text-gray-800 flex-1 min-w-[5vw]"
+                    />
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddTag}
+                  disabled={tags.length >= 5}
+                  className="absolute right-[0.3vw] top-1/2 -translate-y-1/2 w-[1.6vw] h-[1.6vw] bg-[#2b308b] hover:bg-[#20246a] text-white rounded-[0.35vw] flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus size="0.9vw" />
+                </button>
+              </div>
+            </div>
+
+            {/* Visibility Info Box */}
+            <div className="bg-[#edf2fe] border border-blue-100 rounded-[0.8vw] p-[0.7vw] space-y-[0.2vw]">
+              <div className="flex items-center gap-[0.4vw]">
+                <Info size="0.9vw" className="text-[#4338ca] flex-shrink-0" />
+                <span className="text-[0.75vw] font-semibold text-gray-800">
+                  Visibility : <span className="text-[#4338ca] font-bold">{visibilityMode}</span>
+                </span>
+              </div>
+              <p className="text-[0.68vw] text-gray-500 leading-normal pl-[1.3vw]">
+                This flipbook will be published as {visibilityMode}.<br />
+                Change later from: <strong className="text-gray-700 font-semibold">Customize &gt; Visibility</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-[0.6vw] pt-[1.2vw] mt-[0.8vw] border-t border-gray-200">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-[1.2vw] py-[0.55vw] rounded-[0.4vw] border border-gray-900 bg-white text-gray-900 text-[0.8vw] font-semibold flex items-center gap-[0.4vw] hover:bg-gray-50 transition-all cursor-pointer shadow-xs"
+          >
+            <X size="0.9vw" />
+            <span>Cancel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePublishClick}
+            disabled={isPublishing}
+            className="px-[1.2vw] py-[0.55vw] rounded-[0.4vw] bg-[#00a58e] hover:bg-[#008a76] text-white text-[0.8vw] font-semibold flex items-center gap-[0.4vw] transition-all shadow-md cursor-pointer disabled:opacity-70"
+          >
+            {isPublishing ? (
+              <div className="w-[0.9vw] h-[0.9vw] border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Upload size="0.9vw" />
+                <span>Publish Book</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

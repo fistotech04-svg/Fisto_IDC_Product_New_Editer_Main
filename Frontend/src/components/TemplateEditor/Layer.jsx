@@ -1109,6 +1109,12 @@ const Layer = ({
                             } else {
                               setActivePageIndex(index);
                             }
+                            const rootId = page.layers?.[0]?.id;
+                            if (rootId) {
+                              if (setSelectedLayerId) setSelectedLayerId(rootId);
+                              if (setMultiSelectedIds) setMultiSelectedIds(new Set([rootId]));
+                              if (setCurrentFrameId) setCurrentFrameId(rootId);
+                            }
                           }}
                           onContextMenu={(e) => handleMenuClick(e, page.id)}
                           className="flex items-center py-[1.2vh] px-[1vw] relative group/pageitem"

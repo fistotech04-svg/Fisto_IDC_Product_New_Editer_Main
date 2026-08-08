@@ -15,6 +15,7 @@ import FlipbookPreview from '../TemplateEditor/FlipbookPreview.jsx';
 import { getFromDB, saveToDB } from '../../utils/dbUtils';
 import { getDominantColors, REACT_BITS_THEMES_COLORS } from '../../utils/colorExtractor';
 import { getSupabaseBaseUrl } from '../../utils/supabaseUtils';
+import PasswordProtectModal from '../PasswordProtectModal';
 
 
 // Helper functions for color synchronization (matching Layout.jsx logic)
@@ -530,7 +531,9 @@ const CustomizedEditor = () => {
         notifyOnView: true,
         autoExpire: {
           enabled: true,
-          duration: '5 Days'
+          days: '0 Days',
+          time: '5 Mins',
+          duration: '5 Mins'
         },
         emails: [
           { email: 'naveen1234@gmail.com', status: 'valid' }
@@ -603,7 +606,7 @@ const CustomizedEditor = () => {
         }
       }
     }
-  }, [menuBarSettings, otherSetupSettings, visibilitySettings, leadFormSettings, isDataLoaded, v_id, folder, bookName]);
+  }, [menuBarSettings, otherSetupSettings, leadFormSettings, isDataLoaded, v_id, folder, bookName]);
 
   // Save Branding Logic
   useEffect(() => {
@@ -761,21 +764,56 @@ const CustomizedEditor = () => {
     };
   }, [setExportHandler, setSaveHandler, setPreviewHandler, setClearHandler, stableSaveHandler, stableExportHandler, stablePreviewHandler, handleClearAllPages]);
 
-  // Sync Current Book to Navbar
+  // Sync Current Book to Navbar and ShareModal in real-time
   useEffect(() => {
     if (setCurrentBook) {
-      setCurrentBook(prev => ({
-        ...(prev || {}),
-        folder: folder,
-        flipbookName: bookName,
-        v_id: v_id,
-        share: shareSettings,
-        pages: pages,
-        settings: {
-          ...(prev?.settings || {}),
-          visibility: visibilitySettings
-        }
-      }));
+      const currentAccess = visibilitySettings?.type || visibilitySettings?.access || 'Public';
+      const effectiveShareId = 
+        shareSettings?.shareId || 
+        visibilitySettings?.shareId || 
+        visibilitySettings?.Visibility?.shareId || 
+        '';
+
+      setCurrentBook(prev => {
+        const sId = effectiveShareId || prev?.shareId || prev?.share?.shareId || prev?.Customized_Settings?.Visibility?.shareId || v_id;
+        return {
+          ...(prev || {}),
+          folder: folder,
+          flipbookName: bookName,
+          v_id: v_id,
+          shareId: sId,
+          type: currentAccess,
+          access: currentAccess,
+          shareAccess: currentAccess,
+          share: {
+            ...(prev?.share || {}),
+            ...shareSettings,
+            ...visibilitySettings,
+            shareId: sId,
+            access: currentAccess
+          },
+          Visibility: {
+            ...(prev?.Visibility || {}),
+            ...visibilitySettings,
+            shareId: sId,
+            access: currentAccess
+          },
+          Customized_Settings: {
+            ...(prev?.Customized_Settings || {}),
+            Visibility: {
+              ...(prev?.Customized_Settings?.Visibility || {}),
+              ...visibilitySettings,
+              shareId: sId,
+              access: currentAccess
+            }
+          },
+          pages: pages,
+          settings: {
+            ...(prev?.settings || {}),
+            visibility: visibilitySettings
+          }
+        };
+      });
     }
   }, [setCurrentBook, folder, v_id, bookName, shareSettings, pages, visibilitySettings]);
 
@@ -1158,6 +1196,8 @@ const CustomizedEditor = () => {
             settings={visibilitySettings}
             onUpdate={setVisibilitySettings}
             bookName={bookName}
+            v_id={v_id}
+            folder={folder}
           />
         );
       case 'statistic':
@@ -1206,15 +1246,45 @@ const CustomizedEditor = () => {
     return vars;
   }, [layoutSettings, layoutColors]);
 
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return v_id ? sessionStorage.getItem(`unlocked_${v_id}`) === 'true' : false;
+  });
+
+  const accessMode = (
+    visibilitySettings?.type || 
+    visibilitySettings?.access || 
+    currentBook?.share?.access || 
+    currentBook?.share?.type || 
+    ''
+  ).toLowerCase().trim();
+
+  const isPasswordProtected = accessMode.includes('password');
+
+  useEffect(() => {
+    if (!isPasswordProtected && v_id) {
+      sessionStorage.removeItem(`unlocked_${v_id}`);
+      const currentShareId = currentBook?.share?.shareId || visibilitySettings?.shareId;
+      if (currentShareId) sessionStorage.removeItem(`unlocked_${currentShareId}`);
+      setIsUnlocked(false);
+    }
+  }, [isPasswordProtected, v_id, currentBook?.share?.shareId, visibilitySettings?.shareId]);
+
   return (
     <div
-      className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans select-none"
+      className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans select-none relative"
       style={layoutColorVars ? Object.fromEntries(layoutColorVars.split(';').filter(v => v.trim()).map(v => {
         const i = v.indexOf(':');
         return [v.slice(0, i).trim(), v.slice(i + 1).trim()];
       })) : {}}
     >
       <style>{`:root { ${layoutColorVars} }`}</style>
+      {!isLoading && isPasswordProtected && !isUnlocked && (
+        <PasswordProtectModal
+          v_id={v_id}
+          shareId={currentBook?.share?.shareId || visibilitySettings?.shareId}
+          onUnlock={() => setIsUnlocked(true)}
+        />
+      )}
       {/* Navbar handled by parent layout */}
 
 
