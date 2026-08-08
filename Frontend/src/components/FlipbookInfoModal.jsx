@@ -15,6 +15,7 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [errors, setErrors] = useState({});
 
   // Sync state when currentBook changes or modal opens
   useEffect(() => {
@@ -24,6 +25,7 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
       setAbout(currentBook.about || currentBook.meta?.about || '');
       setCategory(currentBook.category || currentBook.meta?.category || 'Product Based');
       setLanguage(currentBook.language || currentBook.meta?.language || 'English');
+      setErrors({});
       
       if (currentBook.tags && Array.isArray(currentBook.tags)) {
         setTags(currentBook.tags);
@@ -61,6 +63,22 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
   };
 
   const handleSaveClick = async () => {
+    // Validate required fields
+    const newErrors = {};
+    if (!bookName.trim()) newErrors.bookName = "Flipbook Name is required.";
+    if (!quotes.trim()) newErrors.quotes = "Quote / Tagline is required.";
+    if (!about.trim()) newErrors.about = "About description is required.";
+    if (!category.trim()) newErrors.category = "Category is required.";
+    if (!language.trim()) newErrors.language = "Language is required.";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      const firstErr = Object.values(newErrors)[0];
+      toast?.error?.(firstErr || "Please fill in all required fields.");
+      return;
+    }
+
+    setErrors({});
     setIsSaving(true);
     try {
       const storedUser = localStorage.getItem('user');
@@ -73,18 +91,18 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
         await axios.post(`${backendUrl}/api/flipbook/update-settings`, {
           emailId: userEmail,
           v_id: v_id,
-          newName: bookName,
-          category: category,
-          language: language,
+          newName: bookName.trim(),
+          category: category.trim(),
+          language: language.trim(),
           tags: tags,
-          quotes: quotes,
-          about: about,
+          quotes: quotes.trim(),
+          about: about.trim(),
           meta: {
             ...(currentBook?.meta || {}),
-            quotes: quotes,
-            about: about,
-            category: category,
-            language: language,
+            quotes: quotes.trim(),
+            about: about.trim(),
+            category: category.trim(),
+            language: language.trim(),
             tags: tags
           }
         });
@@ -92,7 +110,7 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
 
       toast?.success?.("Flipbook information updated successfully!");
       if (onSaveSuccess) {
-        onSaveSuccess({ bookName, quotes, about, category, language, tags });
+        onSaveSuccess({ bookName: bookName.trim(), quotes: quotes.trim(), about: about.trim(), category: category.trim(), language: language.trim(), tags });
       }
       onClose();
     } catch (err) {
@@ -176,14 +194,18 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
                     type="text"
                     maxLength={20}
                     value={bookName}
-                    onChange={(e) => setBookName(e.target.value)}
+                    onChange={(e) => {
+                      setBookName(e.target.value);
+                      if (errors.bookName) setErrors(prev => ({ ...prev, bookName: null }));
+                    }}
                     placeholder="Name of the book"
-                    className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pr-[3.2vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none focus:border-gray-400 shadow-xs"
+                    className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pr-[3.2vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none shadow-xs transition-colors ${errors.bookName ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
                   />
                   <span className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-[0.7vw] text-gray-300 font-normal select-none">
                     {bookName.length}/20
                   </span>
                 </div>
+                {errors.bookName && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.bookName}</p>}
               </div>
 
               {/* Quote / Tagline */}
@@ -196,14 +218,18 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
                     type="text"
                     maxLength={20}
                     value={quotes}
-                    onChange={(e) => setQuotes(e.target.value)}
+                    onChange={(e) => {
+                      setQuotes(e.target.value);
+                      if (errors.quotes) setErrors(prev => ({ ...prev, quotes: null }));
+                    }}
                     placeholder="Quotes About Book"
-                    className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pr-[3.2vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none focus:border-gray-400 shadow-xs"
+                    className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pr-[3.2vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none shadow-xs transition-colors ${errors.quotes ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
                   />
                   <span className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-[0.7vw] text-gray-300 font-normal select-none">
                     {quotes.length}/20
                   </span>
                 </div>
+                {errors.quotes && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.quotes}</p>}
               </div>
             </div>
           </div>
@@ -220,14 +246,18 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
                   rows={3}
                   maxLength={100}
                   value={about}
-                  onChange={(e) => setAbout(e.target.value)}
+                  onChange={(e) => {
+                    setAbout(e.target.value);
+                    if (errors.about) setErrors(prev => ({ ...prev, about: null }));
+                  }}
                   placeholder="About Book"
-                  className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pb-[1.5vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none focus:border-gray-400 shadow-xs resize-none h-[5.5vw]"
+                  className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pb-[1.5vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none shadow-xs resize-none h-[5.5vw] transition-colors ${errors.about ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
                 />
                 <span className="absolute right-[0.8vw] bottom-[0.5vw] text-[0.7vw] text-gray-300 font-normal select-none">
                   {about.length}/100
                 </span>
               </div>
+              {errors.about && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.about}</p>}
             </div>
 
             {/* Category */}
@@ -238,8 +268,11 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
               <div className="relative">
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.8vw] font-normal text-gray-800 bg-white focus:outline-none focus:border-gray-400 appearance-none cursor-pointer shadow-xs"
+                  onChange={(e) => {
+                    setCategory(e.target.value);
+                    if (errors.category) setErrors(prev => ({ ...prev, category: null }));
+                  }}
+                  className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.8vw] font-normal text-gray-800 bg-white focus:outline-none appearance-none cursor-pointer shadow-xs transition-colors ${errors.category ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
                 >
                   <option value="Product Based">Product Based</option>
                   <option value="Business">Business</option>
@@ -252,6 +285,7 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
                 </select>
                 <ChevronDown size="1vw" className="text-gray-500 absolute right-[0.8vw] top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
+              {errors.category && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.category}</p>}
             </div>
 
             {/* Language */}
@@ -262,8 +296,11 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
               <div className="relative">
                 <select
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="w-full border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.8vw] font-normal text-gray-800 bg-white focus:outline-none focus:border-gray-400 appearance-none cursor-pointer shadow-xs"
+                  onChange={(e) => {
+                    setLanguage(e.target.value);
+                    if (errors.language) setErrors(prev => ({ ...prev, language: null }));
+                  }}
+                  className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.8vw] font-normal text-gray-800 bg-white focus:outline-none appearance-none cursor-pointer shadow-xs transition-colors ${errors.language ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
                 >
                   <option value="English">English</option>
                   <option value="Spanish">Spanish</option>
@@ -277,6 +314,7 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
                 </select>
                 <ChevronDown size="1vw" className="text-gray-500 absolute right-[0.8vw] top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
+              {errors.language && <p className="text-[0.68vw] text-red-500 font-medium mt-[0.2vw]">{errors.language}</p>}
             </div>
 
 

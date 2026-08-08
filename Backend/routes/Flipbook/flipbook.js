@@ -3,8 +3,21 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
+import nodemailer from "nodemailer";
+import bcrypt from "bcryptjs";
 import Flipbook from "../../models/Flipbook.js"; // Import Model
 import { nanoid } from "nanoid";
+
+const compareKeys = async (input, stored) => {
+  if (!input || !stored) return false;
+  const inStr = String(input).trim();
+  const stStr = String(stored).trim();
+
+  if (stStr.startsWith('$2a$') || stStr.startsWith('$2b$')) {
+    return await bcrypt.compare(inStr, stStr);
+  }
+  return inStr === stStr;
+};
 import multer from "multer";
 import FlipbookAsset from "../../models/FlipbookAsset.js";
 import UserSettings from "../../models/UserSettings.js";
@@ -13,6 +26,17 @@ import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder } from "../../config/supabase.js";
+
+// Helper to get Gmail Transporter
+const getTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_APP_PASSWORD,
+    },
+  });
+};
 
 
 
@@ -649,11 +673,28 @@ router.post("/save", async (req, res) => {
     const widthVal = isSquare ? 210 : (req.body.width || incomingMeta.width || req.body.settings?.width);
     const heightVal = isSquare ? 210 : (req.body.height || incomingMeta.height || req.body.settings?.height);
 
+    const existingShare = existingDoc?.share || existingDoc?.Customized_Settings?.Visibility || {};
+    const effectiveShareId = existingShare.shareId || req.body.share?.shareId || req.body.Customized_Settings?.Visibility?.shareId || nanoid(12);
+
     const updateSet = {
       flipbookName: flipbookName, // Ensure name is updated if it changed
       pages: dbPages,
       lastUpdated: new Date(),
       folderName: uniqueFolders, // Update tags
+      share: {
+        ...existingShare,
+        ...(req.body.share || {}),
+        shareId: effectiveShareId
+      },
+      Customized_Settings: {
+        ...(existingDoc?.Customized_Settings || {}),
+        ...(req.body.Customized_Settings || {}),
+        Visibility: {
+          ...existingShare,
+          ...(req.body.Customized_Settings?.Visibility || {}),
+          shareId: effectiveShareId
+        }
+      },
       meta: {
         ...(existingDoc?.meta || {}),
         ...incomingMeta,
@@ -1798,6 +1839,22 @@ router.post("/update-settings", async (req, res) => {
           ...incomingVis,
           shareId: incomingVis.shareId || currentVis.shareId || nanoid(12)
         };
+
+        // Encrypt / hash password if provided and not already bcrypt hashed
+        if (finalVis.password && typeof finalVis.password === 'string' && finalVis.password.trim() !== '') {
+          const passStr = finalVis.password.trim();
+          if (!passStr.startsWith('$2a$') && !passStr.startsWith('$2b$')) {
+            finalVis.password = await bcrypt.hash(passStr, 10);
+          }
+        }
+
+        // Encrypt / hash accessKey if provided and not already bcrypt hashed
+        if (finalVis.accessKey && typeof finalVis.accessKey === 'string' && finalVis.accessKey.trim() !== '') {
+          const keyStr = finalVis.accessKey.trim();
+          if (!keyStr.startsWith('$2a$') && !keyStr.startsWith('$2b$')) {
+            finalVis.accessKey = await bcrypt.hash(keyStr, 10);
+          }
+        }
       }
 
       const cleanIncoming = { ...(incomingSettings || {}) };
@@ -1875,7 +1932,7 @@ router.post("/update-settings", async (req, res) => {
 // @desc    Publish a flipbook with category, language, tags & quotes
 router.post('/publish', async (req, res) => {
   try {
-    const { emailId, v_id, bookName, category, language, tags, quotes } = req.body;
+    const { emailId, v_id, bookName, category, language, tags, quotes, about } = req.body;
     if (!emailId || !v_id) {
       return res.status(400).json({ message: "Missing emailId or v_id" });
     }
@@ -1886,11 +1943,30 @@ router.post('/publish', async (req, res) => {
       'meta.publishedAt': new Date()
     };
 
-    if (bookName) updateData.flipbookName = bookName;
-    if (category) updateData['meta.category'] = category;
-    if (language) updateData['meta.language'] = language;
-    if (tags) updateData['meta.tags'] = tags;
-    if (quotes !== undefined) updateData['meta.quotes'] = quotes;
+    if (bookName) {
+      updateData.flipbookName = bookName;
+      updateData['meta.flipbookName'] = bookName;
+    }
+    if (category) {
+      updateData.category = category;
+      updateData['meta.category'] = category;
+    }
+    if (language) {
+      updateData.language = language;
+      updateData['meta.language'] = language;
+    }
+    if (tags) {
+      updateData.tags = tags;
+      updateData['meta.tags'] = tags;
+    }
+    if (quotes !== undefined) {
+      updateData.quotes = quotes;
+      updateData['meta.quotes'] = quotes;
+    }
+    if (about !== undefined) {
+      updateData.about = about;
+      updateData['meta.about'] = about;
+    }
 
     const updatedDoc = await Flipbook.findOneAndUpdate(
       { userEmail: emailId, v_id: v_id },
@@ -1935,6 +2011,42 @@ router.post('/unpublish', async (req, res) => {
   }
 });
 
+// Helper to check if Invite Only auto expire timer has passed
+const checkInviteAutoExpired = (autoExpire, fallbackDate) => {
+  if (!autoExpire || !autoExpire.enabled) return false;
+
+  const rawGranted = autoExpire.grantedAt || autoExpire.createdAt || fallbackDate;
+  if (!rawGranted) return false;
+  const grantedAt = new Date(rawGranted).getTime();
+
+  // Parse days: e.g. "0 Days", "1 Days", "5 Days"
+  const daysStr = String(autoExpire.days || '0');
+  const daysMatch = daysStr.match(/(\d+)/);
+  const daysNum = daysMatch ? parseInt(daysMatch[1], 10) : 0;
+
+  // Parse time: e.g. "5 Mins", "15 Mins", "30 Mins", "1 Hour"
+  const timeStr = String(autoExpire.time || '0');
+  const timeMatch = timeStr.match(/(\d+)/);
+  const timeNum = timeMatch ? parseInt(timeMatch[1], 10) : 0;
+
+  let timeInMs = 0;
+  if (timeStr.toLowerCase().includes('hour')) {
+    timeInMs = timeNum * 60 * 60 * 1000;
+  } else {
+    timeInMs = timeNum * 60 * 1000;
+  }
+
+  const daysInMs = daysNum * 24 * 60 * 60 * 1000;
+  const totalAllowedMs = daysInMs + timeInMs;
+
+  if (totalAllowedMs <= 0) return false;
+
+  const now = Date.now();
+  const elapsed = now - grantedAt;
+
+  return elapsed > totalAllowedMs;
+};
+
 // @route   GET /api/flipbook/public/get/:shareId
 // @desc    Get specific flipbook content publicly for sharing
 router.get("/public/get/:shareId", async (req, res) => {
@@ -1942,7 +2054,7 @@ router.get("/public/get/:shareId", async (req, res) => {
     const { shareId } = req.params;
     if (!shareId) return res.status(400).json({ message: "Missing shareId" });
 
-    // Find by shareId inside Customized_Settings.Visibility or legacy share
+    // Find strictly by shareId inside Customized_Settings.Visibility or share
     const dbDoc = await Flipbook.findOne({
       $or: [
         { "Customized_Settings.Visibility.shareId": shareId },
@@ -1955,43 +2067,56 @@ router.get("/public/get/:shareId", async (req, res) => {
 
     const reqEmail = req.query.emailId;
     const isOwner = reqEmail && reqEmail === dbDoc.userEmail;
+    const accessMode = (vis.access || 'public').toLowerCase();
 
-    // Publication check (Owner can view unpublished, public users cannot)
-    if (!isOwner && dbDoc.isPublished === false) {
+    // Publication check (Owner can view unpublished flipbook, public readers cannot view ANY unpublished flipbook)
+    if (!isOwner && (dbDoc.isPublished === false || !dbDoc.isPublished)) {
       return res.status(403).json({
-        message: "This flipbook is unpublished.",
+        message: "This Flipbook not Yet Published",
         isUnpublished: true
       });
     }
 
     // Check visibility access controls
-    const accessMode = (vis.access || 'public').toLowerCase();
     const reqPassword = req.query.password;
     const reqAccessKey = req.query.accessKey;
 
+    // Pre-build preview page structures for background blur preview
+    const previewPages = (dbDoc.pages || []).map(p => ({
+      id: p.pageNumber,
+      name: p.name,
+      fileName: p.fileName,
+      html: "",
+      v_id: p.v_id
+    }));
+
     // 1. Private access check
-    if (accessMode === 'private' && (!reqEmail || reqEmail !== dbDoc.userEmail)) {
-      return res.status(403).json({ message: "This flipbook is private", isPrivate: true });
+    if (accessMode.includes('private') && (!reqEmail || reqEmail !== dbDoc.userEmail)) {
+      return res.status(403).json({ message: "This flipbook is private", isPrivate: true, accessMode: 'private' });
     }
 
-    // 2. Password Protect access check
-    if (accessMode === 'password' || accessMode === 'password protect') {
+    // 2. Password Protect access check (Strictly require matching Access Key ONLY)
+    if (accessMode.includes('password')) {
       const isOwner = reqEmail && reqEmail === dbDoc.userEmail;
       if (!isOwner) {
-        const passwordMatches = reqPassword && reqPassword === vis.password;
-        const keyMatches = reqAccessKey && reqAccessKey === vis.accessKey;
-        if (!passwordMatches && !keyMatches) {
+        const inputKey = (reqAccessKey || reqPassword || '').trim();
+        const keyMatches = await compareKeys(inputKey, vis.accessKey);
+        if (!keyMatches) {
           return res.status(401).json({
-            message: "Password or Access Key required",
+            message: "Invalid Access Key",
             isPasswordProtected: true,
-            bookName: dbDoc.flipbookName
+            bookName: dbDoc.flipbookName,
+            accessMode: 'password',
+            pages: previewPages,
+            meta: dbDoc.meta || {},
+            Customized_Settings: dbDoc.Customized_Settings || dbDoc.settings || {}
           });
         }
       }
     }
 
     // 3. Invite Only Access check
-    if (accessMode === 'invite_only' || accessMode === 'invite only access') {
+    if (accessMode.includes('invite')) {
       const isOwner = reqEmail && reqEmail === dbDoc.userEmail;
       if (!isOwner) {
         const allowedEmails = (vis.inviteOnly?.emails || []).map(e => (e.email || e).toLowerCase());
@@ -2004,40 +2129,136 @@ router.get("/public/get/:shareId", async (req, res) => {
         const isDomainAllowed = allowedDomains.some(dom => userDomainLower === dom || userDomainLower.endsWith('.' + dom));
 
         if (!userEmailLower || (!isEmailAllowed && !isDomainAllowed)) {
-          return res.status(403).json({ message: "Invite only access required", isInviteOnly: true });
+          return res.status(403).json({
+            message: "Invite only access required",
+            isInviteOnly: true,
+            accessMode: 'invite',
+            pages: previewPages,
+            meta: dbDoc.meta || {},
+            Customized_Settings: dbDoc.Customized_Settings || dbDoc.settings || {}
+          });
+        }
+
+        // Check Auto Expire timer for invited readers
+        const autoExpire = vis.inviteOnly?.autoExpire;
+        if (autoExpire && autoExpire.enabled) {
+          const isExpired = checkInviteAutoExpired(autoExpire, dbDoc.updatedAt || dbDoc.createdAt);
+          if (isExpired) {
+            return res.status(403).json({
+              message: "Time Expired! The access time granted for this flipbook has expired.",
+              isExpired: true,
+              isInviteOnly: true,
+              accessMode: 'invite',
+              pages: previewPages,
+              meta: dbDoc.meta || {},
+              Customized_Settings: dbDoc.Customized_Settings || dbDoc.settings || {}
+            });
+          }
         }
       }
     }
 
     // Fetch pages
     const sanitizedEmail = dbDoc.userEmail.replace(/[@.]/g, "_");
-    const realFolderName = Array.isArray(dbDoc.folderName)
-      ? dbDoc.folderName.find(f => f !== "Recent Book") || "My_Flipbooks"
-      : dbDoc.folderName;
+    const realFolders = Array.isArray(dbDoc.folderName)
+      ? dbDoc.folderName.filter(f => f !== "Recent Book" && f !== "Recent book")
+      : [dbDoc.folderName];
+    const effectiveFolderName = realFolders.length > 0 ? realFolders[0] : "My_Flipbooks";
+    const effectiveBookName = dbDoc.flipbookName;
+
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    const bookPath = path.join(
+      uploadsDir,
+      sanitizedEmail,
+      FLIPBOOK_ROOT,
+      effectiveFolderName,
+      effectiveBookName,
+    );
+
+    // AUTO-HEAL: If DB has no pages but files exist on disk, populate it
+    if (!dbDoc.pages || dbDoc.pages.length === 0) {
+      if (fs.existsSync(bookPath)) {
+        try {
+          const files = await fs.promises.readdir(bookPath);
+          const svgFiles = files.filter(f => f.endsWith('.svg') || f.endsWith('.html')).sort((a, b) => {
+            const aNum = parseInt(a.match(/\d+/)?.[0] || 0);
+            const bNum = parseInt(b.match(/\d+/)?.[0] || 0);
+            return aNum - bNum;
+          });
+
+          if (svgFiles.length > 0) {
+            const autoHealedPages = svgFiles.map((fileName, idx) => ({
+              pageNumber: idx + 1,
+              name: `Page ${idx + 1}`,
+              fileName: fileName,
+              v_id: `page_${nanoid(8)}`
+            }));
+
+            dbDoc.pages = autoHealedPages;
+            await dbDoc.save();
+          }
+        } catch (e) {
+          console.error(`[PublicGet] Auto-heal failed for v_id: ${dbDoc.v_id}`, e);
+        }
+      }
+    }
+
+    if (dbDoc.pages) {
+      dbDoc.pages.sort((a, b) => a.pageNumber - b.pageNumber);
+    }
+    const flipbookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}`;
 
     const pagePromises = (dbDoc.pages || []).map(async (p) => {
       try {
-        const filePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolderName}/${dbDoc.flipbookName}/${p.fileName}`;
-        const content = await getFileFromSupabase(filePath);
+        const supabasePath = `${flipbookPrefix}/${p.fileName}`;
+        let buf = await downloadFileFromSupabase(supabasePath);
+
+        if (!buf || buf.length === 0) {
+          const localFilePath = path.join(bookPath, p.fileName);
+          if (fs.existsSync(localFilePath)) {
+            buf = await fs.promises.readFile(localFilePath);
+          }
+        }
+
+        const content = buf ? rewriteUploadsToSupabase(buf.toString("utf8"), flipbookPrefix) : "";
         return {
           id: p.pageNumber,
           name: p.name,
+          fileName: p.fileName,
           html: content || "",
           v_id: p.v_id,
         };
       } catch (e) {
-        return null;
+        return {
+          id: p.pageNumber,
+          name: p.name,
+          fileName: p.fileName,
+          html: "",
+          v_id: p.v_id,
+        };
       }
     });
 
-    const pages = (await Promise.all(pagePromises)).filter(Boolean);
+    let pages = (await Promise.all(pagePromises)).filter(Boolean);
+
+    // Fallback: If pages returned no content, map DB metadata pages
+    if (pages.length === 0 && dbDoc.pages && dbDoc.pages.length > 0) {
+      pages = dbDoc.pages.map(p => ({
+        id: p.pageNumber,
+        name: p.name,
+        fileName: p.fileName,
+        html: "",
+        v_id: p.v_id,
+      }));
+    }
+
     const docMeta = dbDoc.meta || {};
     const docSettings = dbDoc.Customized_Settings || dbDoc.settings || {};
 
     res.json({
       v_id: dbDoc.v_id,
       flipbookName: dbDoc.flipbookName,
-      folderName: realFolderName,
+      folderName: effectiveFolderName,
       userEmail: dbDoc.userEmail,
       pages,
       Customized_Settings: docSettings,
@@ -2045,7 +2266,13 @@ router.get("/public/get/:shareId", async (req, res) => {
       Visibility: vis,
       share: vis,
       isPublished: Boolean(dbDoc.isPublished),
-      meta: docMeta,
+      meta: {
+        ...docMeta,
+        flipbookName: effectiveBookName,
+        folderName: effectiveFolderName,
+        v_id: dbDoc.v_id,
+        baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
+      },
     });
   } catch (err) {
     console.error("Error in /public/get:", err);
@@ -2097,17 +2324,183 @@ router.post("/public/verify-password", async (req, res) => {
     if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
 
     const vis = dbDoc.Customized_Settings?.Visibility || dbDoc.share || {};
-    const passwordMatches = password && password === vis.password;
-    const keyMatches = accessKey && accessKey === vis.accessKey;
+    const inputKey = accessKey || password;
 
-    if (passwordMatches || keyMatches) {
-      return res.json({ success: true, message: "Verification successful" });
+    if (inputKey) {
+      const isKeyMatch = await compareKeys(inputKey, vis.accessKey);
+      if (isKeyMatch) {
+        return res.json({ success: true, message: "Verification successful" });
+      }
     }
 
-    return res.status(401).json({ success: false, message: "Invalid password or access key" });
+    return res.status(401).json({ success: false, message: "Invalid Access Key" });
   } catch (err) {
     console.error("Error verifying password:", err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   POST /api/flipbook/verify-credential
+// @desc    Verify current password or access key for editing visibility settings
+router.post('/verify-credential', async (req, res) => {
+  try {
+    const { v_id, input, mode } = req.body;
+    if (!input) return res.status(400).json({ message: "Missing input" });
+
+    if (v_id) {
+      const dbDoc = await Flipbook.findOne({
+        $or: [{ v_id: v_id }, { flipbookName: v_id }]
+      });
+
+      if (dbDoc) {
+        const vis = dbDoc.Customized_Settings?.Visibility || dbDoc.share || {};
+
+        if (mode === 'password') {
+          const isPassMatch = await compareKeys(input, vis.password);
+          if (isPassMatch) {
+            return res.json({ success: true, message: "Verification successful" });
+          }
+          return res.status(400).json({ message: "Current password is incorrect." });
+        } else if (mode === 'accessKey') {
+          const isKeyMatch = await compareKeys(input, vis.accessKey);
+          if (isKeyMatch) {
+            return res.json({ success: true, message: "Verification successful" });
+          }
+          return res.status(400).json({ message: "Current access key is incorrect." });
+        } else {
+          const isPassMatch = await compareKeys(input, vis.password);
+          const isKeyMatch = await compareKeys(input, vis.accessKey);
+          if (isPassMatch || isKeyMatch) {
+            return res.json({ success: true, message: "Verification successful" });
+          }
+        }
+      }
+    }
+
+    return res.status(400).json({ message: mode === 'accessKey' ? "Current access key is incorrect." : "Current password is incorrect." });
+  } catch (err) {
+    console.error("Error verifying credential:", err);
+    res.status(500).json({ message: "Server error verifying credential" });
+  }
+});
+
+// @route   POST /api/flipbook/send-visibility-otp
+// @desc    Send OTP to user email for visibility settings & store OTP in Flipbook model
+router.post('/send-visibility-otp', async (req, res) => {
+  try {
+    const { emailId, v_id } = req.body;
+    if (!emailId) return res.status(400).json({ message: "Missing emailId" });
+
+    // Generate 4-digit OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const hashedOtp = await bcrypt.hash(otp, 10);
+
+    // Store hashed OTP in Flipbook document if v_id is provided
+    if (v_id) {
+      await Flipbook.findOneAndUpdate(
+        { v_id: v_id },
+        { 
+          $set: { 
+            'Customized_Settings.Visibility.otp': hashedOtp,
+            'share.otp': hashedOtp 
+          } 
+        }
+      );
+    }
+
+    // Try sending email via Nodemailer
+    try {
+      const transporter = getTransporter();
+      await transporter.sendMail({
+        from: `Fisto <${process.env.EMAIL_USER || 'no-reply@fistotech.com'}>`,
+        to: emailId,
+        subject: 'Your Verification Code',
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+            <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eaeaea;">
+              <div style="background: linear-gradient(135deg, #4c5add, #3f4bc0); padding: 30px 20px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: 2px;">FIST-O</h1>
+              </div>
+              <div style="padding: 40px 30px;">
+                <h2 style="color: #333333; font-size: 22px; font-weight: 600; margin-top: 0; text-align: center;">Verification Code</h2>
+                <p style="color: #555555; font-size: 16px; line-height: 1.6;">Hello,</p>
+                <p style="color: #555555; font-size: 16px; line-height: 1.6;">Please use the verification code below to update your flipbook security settings.</p>
+                
+                <div style="background-color: #f8f9fe; border: 2px dashed #4c5add; border-radius: 8px; padding: 24px; text-align: center; margin: 30px 0;">
+                  <span style="display: block; font-size: 36px; font-weight: 700; color: #4c5add; letter-spacing: 8px; margin-left: 8px;">${otp}</span>
+                </div>
+
+                <p style="color: #777777; font-size: 14px; line-height: 1.6; margin-bottom: 0;">
+                  This code is valid for a limited time. If you did not request this code, you can safely ignore this email.
+                </p>
+              </div>
+              <div style="background-color: #f9f9f9; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
+                <p style="color: #999999; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} Fisto Tech. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+      });
+    } catch (emailErr) {
+      console.error("Nodemailer error sending visibility OTP:", emailErr);
+      console.log(`[DEV OTP FALLBACK] Visibility OTP for ${emailId} (${v_id}): ${otp}`);
+    }
+
+    return res.json({ success: true, message: "OTP sent successfully", devOtp: otp });
+  } catch (err) {
+    console.error("Error sending visibility OTP:", err);
+    res.status(500).json({ message: "Server error sending OTP" });
+  }
+});
+
+// @route   POST /api/flipbook/verify-visibility-otp
+// @desc    Verify OTP stored in Flipbook Visibility settings
+router.post('/verify-visibility-otp', async (req, res) => {
+  try {
+    const { emailId, v_id, otp } = req.body;
+    if (!otp) return res.status(400).json({ message: "Missing OTP code" });
+
+    const inputOtp = String(otp).trim();
+
+    if (v_id) {
+      const dbDoc = await Flipbook.findOne({
+        $or: [{ v_id: v_id }, { flipbookName: v_id }]
+      });
+
+      if (dbDoc) {
+        const storedOtp = dbDoc.Customized_Settings?.Visibility?.otp || dbDoc.share?.otp;
+        if (storedOtp) {
+          const isOtpMatch = (await bcrypt.compare(inputOtp, String(storedOtp).trim())) || String(storedOtp).trim() === inputOtp;
+          if (isOtpMatch) {
+            // Clear OTP after successful verification
+            await Flipbook.updateOne({ _id: dbDoc._id }, { $unset: { 'Customized_Settings.Visibility.otp': 1, 'share.otp': 1 } });
+            return res.json({ success: true, message: "OTP verified successfully" });
+          }
+        }
+      }
+    }
+
+    // Fallback user OTP verify check if User model has OTP
+    const userDoc = await User.findOne({ 
+      $or: [{ emailId: emailId }, { emailId: { $regex: new RegExp(`^${(emailId || '').trim()}$`, 'i') } }]
+    });
+
+    if (userDoc && userDoc.otp) {
+      const isMatch = await bcrypt.compare(inputOtp, userDoc.otp);
+      if (isMatch) {
+        userDoc.otp = null;
+        await userDoc.save();
+        return res.json({ success: true, message: "OTP verified successfully" });
+      }
+    }
+
+    return res.status(400).json({ message: "Invalid OTP code" });
+  } catch (err) {
+    console.error("Error verifying visibility OTP:", err);
+    res.status(500).json({ message: "Server error verifying OTP" });
   }
 });
 
@@ -2137,6 +2530,19 @@ router.post("/public/verify-invite", async (req, res) => {
     const isDomainAllowed = allowedDomains.some(dom => userDomainLower === dom || userDomainLower.endsWith('.' + dom));
 
     if (isEmailAllowed || isDomainAllowed) {
+      // Check Auto Expire timer
+      const autoExpire = vis.inviteOnly?.autoExpire;
+      if (autoExpire && autoExpire.enabled) {
+        const isExpired = checkInviteAutoExpired(autoExpire, dbDoc.updatedAt || dbDoc.createdAt);
+        if (isExpired) {
+          return res.status(403).json({
+            success: false,
+            isExpired: true,
+            message: "Time Expired! The access time granted for this flipbook has expired."
+          });
+        }
+      }
+
       return res.json({ success: true, message: "Invite access verified" });
     }
 
