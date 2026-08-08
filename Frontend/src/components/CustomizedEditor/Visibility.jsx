@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
+import axios from 'axios';
 import PremiumDropdown from './PremiumDropdown';
+import { useToast } from '../CustomToast';
 
 const VISIBILITY_OPTIONS = [
   {
@@ -496,7 +498,7 @@ const DayPickerPopover = ({ value, onChange }) => {
   );
 };
 
-const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
+const Visibility = ({ onBack, settings, onUpdate, bookName, v_id, folder }) => {
   const [activeAccordion, setActiveAccordion] = useState('email'); // 'email' or 'domain'
   const [createPassword, setCreatePassword] = useState(settings?.password || '');
   const [confirmPassword, setConfirmPassword] = useState(settings?.password || '');
@@ -513,6 +515,167 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
   const [otpValues, setOtpValues] = useState(['', '', '', '']);
   const [resendTimer, setResendTimer] = useState(23);
   const otpRefs = useRef([]);
+
+  const [localSettings, setLocalSettings] = useState(() => ({ ...(settings || {}) }));
+  const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings(prev => ({ ...prev, ...settings }));
+    }
+  }, [settings]);
+
+  let toast = null;
+  try {
+    toast = useToast();
+  } catch (e) {
+    // optional fallback
+  }
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [saveErrorMsg, setSaveErrorMsg] = useState('');
+
+  const triggerSuccessToast = (msg) => {
+    setSaveSuccessMsg(msg);
+    if (toast && typeof toast.success === 'function') {
+      toast.success(msg);
+    }
+    setTimeout(() => setSaveSuccessMsg(''), 3500);
+  };
+
+  const triggerErrorToast = (msg) => {
+    setSaveErrorMsg(msg);
+    if (toast && typeof toast.error === 'function') {
+      toast.error(msg);
+    }
+    setTimeout(() => setSaveErrorMsg(''), 4000);
+  };
+
+  const handleSaveVisibility = async () => {
+    if (!isDirty) return;
+    setIsSaving(true);
+    setSaveSuccessMsg('');
+    setSaveErrorMsg('');
+    try {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const emailId = user?.emailId || user?.email;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+      const currentVid = v_id || localSettings?.v_id || settings?.v_id || settings?.bookName || bookName;
+      const currentFolder = folder || localSettings?.folderName || settings?.folderName || 'Recent Book';
+
+      const curAuto = localSettings?.inviteOnly?.autoExpire || settings?.inviteOnly?.autoExpire || {};
+      const saveDays = curAuto.days ?? '0 Days';
+      const saveTime = curAuto.time ?? '5 Mins';
+      const dNum = parseInt((String(saveDays).match(/\d+/) || [0])[0], 10);
+      const tNum = parseInt((String(saveTime).match(/\d+/) || [0])[0], 10);
+      const saveDuration = (dNum > 0 && tNum > 0) ? `${saveDays} ${saveTime}` : dNum > 0 ? saveDays : saveTime;
+
+      const targetAccess = (localSettings?.type || settings?.type || 'Public').trim();
+      const isInviteAccess = targetAccess.toLowerCase().startsWith('invite');
+
+      const updatedShare = {
+        access: localSettings?.type || settings?.type || 'Public',
+        password: createPassword || localSettings?.password || settings?.password || '',
+        accessKey: accessKey || localSettings?.accessKey || settings?.accessKey || '',
+        isPasswordSaved: Boolean(localSettings?.isPasswordSaved || settings?.isPasswordSaved || isPasswordSaved),
+        inviteOnly: {
+          ...(localSettings?.inviteOnly || settings?.inviteOnly || {}),
+          autoExpire: {
+            ...curAuto,
+            enabled: curAuto.enabled ?? true,
+            days: saveDays,
+            time: saveTime,
+            duration: saveDuration,
+            grantedAt: isInviteAccess ? new Date().toISOString() : null
+          }
+        }
+      };
+
+      const payload = {
+        emailId: emailId,
+        v_id: currentVid,
+        bookName: currentVid,
+        folderName: currentFolder,
+        newName: bookName,
+        share: updatedShare,
+        Customized_Settings: {
+          Visibility: updatedShare
+        }
+      };
+
+      const res = await axios.post(`${backendUrl}/api/flipbook/update-settings`, payload);
+
+      const mergedFinal = {
+        ...settings,
+        ...localSettings,
+        ...updatedShare,
+        type: localSettings?.type || settings?.type || 'Public',
+        access: localSettings?.type || settings?.type || 'Public',
+        Visibility: updatedShare,
+        share: updatedShare,
+        Customized_Settings: {
+          Visibility: updatedShare
+        }
+      };
+
+      if (onUpdate) {
+        onUpdate(mergedFinal);
+      }
+
+      // Clear unlocked sessionStorage state on saving visibility settings
+      if (currentVid) sessionStorage.removeItem(`unlocked_${currentVid}`);
+      const sId = localSettings?.shareId || settings?.shareId || settings?.share?.shareId;
+      if (sId) sessionStorage.removeItem(`unlocked_${sId}`);
+
+      setIsDirty(false);
+      triggerSuccessToast('Visibility updated successfully!');
+    } catch (err) {
+      console.error("Error saving visibility settings:", err);
+      const errMsg = err.response?.data?.message || "Failed to update visibility settings.";
+      triggerErrorToast(errMsg);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const getUserEmail = () => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return '';
+      if (typeof storedUser === 'string') {
+        if (storedUser.startsWith('{') || storedUser.startsWith('[')) {
+          const userObj = JSON.parse(storedUser);
+          return userObj?.emailId || userObj?.email || userObj?.userEmail || '';
+        }
+        return storedUser;
+      }
+      return '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const handleSendOtp = async () => {
+    setVerificationError('');
+    setResendTimer(23);
+    setOtpValues(['', '', '', '']);
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const emailId = getUserEmail();
+      const currentVid = v_id || localSettings?.v_id || settings?.v_id || settings?.bookName || bookName;
+      if (!emailId) {
+        setVerificationError('No logged in user email found.');
+        return;
+      }
+      await axios.post(`${backendUrl}/api/flipbook/send-visibility-otp`, { emailId, v_id: currentVid });
+      setVerificationModal(prev => ({ ...prev, step: 'otp' }));
+    } catch (err) {
+      setVerificationError(err.response?.data?.message || 'Failed to send OTP code.');
+    }
+  };
 
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
@@ -580,7 +743,7 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
 
   const csvInputRef = useRef(null);
 
-  const currentType = settings?.type || 'Public';
+  const currentType = localSettings?.type || settings?.type || 'Public';
 
   const handleCsvFile = (file) => {
     if (!file) return;
@@ -595,7 +758,7 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
       if (parsedEmails.length === 0) return;
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const existing = settings?.inviteOnly?.emails || [];
+      const existing = localSettings?.inviteOnly?.emails || settings?.inviteOnly?.emails || [];
       const existingSet = new Set(existing.map(item => item.email.toLowerCase()));
 
       const newItems = [];
@@ -626,72 +789,93 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
 
   const handleSavePassword = () => {
     const finalAccessKey = accessKey.trim() || 'Book123';
-    onUpdate({
-      ...settings,
+    setLocalSettings(prev => ({
+      ...prev,
       password: createPassword,
       accessKey: finalAccessKey,
       isPasswordSaved: true
-    });
+    }));
     setIsPasswordSaved(true);
+    setIsDirty(true);
   };
 
   const handleTypeChange = (typeId) => {
-    onUpdate({
-      ...settings,
+    setLocalSettings(prev => ({
+      ...prev,
       type: typeId
-    });
+    }));
+    setIsDirty(true);
   };
 
   const updateInvite = (field, value) => {
-    onUpdate({
-      ...settings,
+    setLocalSettings(prev => ({
+      ...prev,
       inviteOnly: {
-        ...(settings?.inviteOnly || {}),
+        ...(prev?.inviteOnly || settings?.inviteOnly || {}),
         [field]: value
       }
-    });
+    }));
+    setIsDirty(true);
   };
 
   const addEmail = () => {
     if (!emailInput.trim() || !emailInput.includes('@')) return;
-    const existingEmails = settings?.inviteOnly?.emails || [];
+    const existingEmails = localSettings?.inviteOnly?.emails || settings?.inviteOnly?.emails || [];
     const newEmails = [...existingEmails, { email: emailInput.trim(), status: 'valid' }];
     updateInvite('emails', newEmails);
     setEmailInput('');
   };
 
-  const removeEmail = (index) => {
-    const existingEmails = settings?.inviteOnly?.emails || [];
-    const newEmails = existingEmails.filter((_, i) => i !== index);
+  const removeEmail = (emailOrIndex) => {
+    const existingEmails = localSettings?.inviteOnly?.emails || settings?.inviteOnly?.emails || [];
+    let newEmails = [];
+    if (typeof emailOrIndex === 'string') {
+      newEmails = existingEmails.filter(e => (typeof e === 'string' ? e : e.email).toLowerCase() !== emailOrIndex.toLowerCase());
+    } else {
+      newEmails = existingEmails.filter((_, i) => i !== emailOrIndex);
+    }
     updateInvite('emails', newEmails);
   };
 
   const addDomain = () => {
     if (!domainInput.trim() || !domainInput.includes('.')) return;
-    const existingDomains = settings?.inviteOnly?.domains || [];
+    const existingDomains = localSettings?.inviteOnly?.domains || settings?.inviteOnly?.domains || [];
     const newDomains = [...existingDomains, { domain: domainInput.trim(), status: 'valid' }];
     updateInvite('domains', newDomains);
     setDomainInput('');
   };
 
   const removeDomain = (index) => {
-    const existingDomains = settings?.inviteOnly?.domains || [];
+    const existingDomains = localSettings?.inviteOnly?.domains || settings?.inviteOnly?.domains || [];
     const newDomains = existingDomains.filter((_, i) => i !== index);
     updateInvite('domains', newDomains);
   };
 
   const updateAutoExpire = (field, value) => {
-    const autoExpire = settings?.inviteOnly?.autoExpire || { enabled: true, duration: '5 Days' };
-    onUpdate({
-      ...settings,
+    const prevAuto = localSettings?.inviteOnly?.autoExpire || settings?.inviteOnly?.autoExpire || {};
+    const newDays = field === 'days' ? value : (prevAuto.days ?? '0 Days');
+    const newTime = field === 'time' ? value : (prevAuto.time ?? '5 Mins');
+    const newEnabled = field === 'enabled' ? value : (prevAuto.enabled ?? true);
+    
+    const dNum = parseInt((String(newDays).match(/\d+/) || [0])[0], 10);
+    const tNum = parseInt((String(newTime).match(/\d+/) || [0])[0], 10);
+    const newDuration = (dNum > 0 && tNum > 0) ? `${newDays} ${newTime}` : dNum > 0 ? newDays : newTime;
+
+    setLocalSettings(prev => ({
+      ...prev,
       inviteOnly: {
-        ...(settings?.inviteOnly || {}),
+        ...(prev?.inviteOnly || settings?.inviteOnly || {}),
         autoExpire: {
-          ...autoExpire,
-          [field]: value
+          ...prevAuto,
+          enabled: newEnabled,
+          days: newDays,
+          time: newTime,
+          duration: newDuration,
+          grantedAt: new Date().toISOString()
         }
       }
-    });
+    }));
+    setIsDirty(true);
   };
 
   const isTypeSelected = (optionId) => {
@@ -777,20 +961,13 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                 <div className="h-[1px] bg-gray-200 w-full mt-[0.1vw]"></div>
               </div>
 
-              {/* Access Key info line */}
-              <div className="text-[0.85vw]">
-                <span className="font-medium text-gray-600">Access Key : </span>
-                <span className="text-gray-400 font-normal">{settings?.accessKey || accessKey || 'Book123'}</span>
-              </div>
-
               {/* Center Lock Badge */}
               <div className="py-[1.25vw]">
                 <div className="w-[5.5vw] h-[5.5vw] rounded-full bg-white flex items-center justify-center border border-gray-100 shadow-sm mx-auto mb-[1vw]">
                   <Icon icon="lucide:lock" className="w-[2.2vw] h-[2.2vw] text-gray-800" />
                 </div>
                 <p className="text-center text-[0.82vw] text-gray-500 font-normal leading-snug">
-                  Your Book <strong className="font-semibold text-gray-800">{bookName || settings?.bookName || 'Book Name'}</strong> is Protected<br />
-                  by Password
+                  Your Book <strong className="font-semibold text-gray-800">{bookName || settings?.bookName || 'Book Name'}</strong> is Protected by Password
                 </p>
               </div>
 
@@ -932,92 +1109,116 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
 
         {/* Invite Only Access Config */}
         {isTypeSelected('Invite Only Access') && (
-          <div className="space-y-[1.5vw] pt-[0.5vw]">
+          <div className="space-y-[0.6vw] pt-[0.5vw]">
             {/* Access Settings Block */}
-            <div className="space-y-[0.75vw]">
-              <div className="flex items-center gap-[1vw]">
-                <h3 className="text-[0.9vw] font-semibold text-gray-800 whitespace-nowrap">Access Settings Block</h3>
-                <div className="h-[1px] bg-gray-200 w-full mt-[0.1vw]"></div>
+            <div className="flex items-center gap-[1vw] mb-[0.1vw]">
+              <h3 className="text-[0.9vw] font-semibold text-gray-800 whitespace-nowrap">Access Settings Block</h3>
+              <div className="h-[1px] bg-gray-200 w-full mt-[0.1vw]"></div>
+            </div>
+
+            {/* Auto-Expire Container Card */}
+            <div className="bg-white border border-gray-200 rounded-[0.75vw] p-[0.9vw] mt-[1vw] space-y-[0.75vw] shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-[0.85vw] font-semibold text-gray-800">Auto-expire in</span>
+                {(() => {
+                  const isAutoExpireEnabled = localSettings?.inviteOnly?.autoExpire?.enabled ?? settings?.inviteOnly?.autoExpire?.enabled ?? true;
+                  const currentDays = localSettings?.inviteOnly?.autoExpire?.days ?? settings?.inviteOnly?.autoExpire?.days ?? '0 Days';
+                  const currentTime = localSettings?.inviteOnly?.autoExpire?.time ?? settings?.inviteOnly?.autoExpire?.time ?? '5 Mins';
+
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => updateAutoExpire('enabled', !isAutoExpireEnabled)}
+                        className={`relative inline-flex items-center h-[1.2vw] w-[2.4vw] shrink-0 cursor-pointer rounded-full transition-all duration-300 ease-in-out border-[1.5px] ${
+                          isAutoExpireEnabled ? 'bg-[#5551FF] border-[#5551FF]' : 'bg-gray-200 border-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-[0.9vw] w-[0.9vw] rounded-full bg-white shadow-md transform transition duration-300 ease-in-out ${
+                            isAutoExpireEnabled ? 'translate-x-[1.2vw]' : 'translate-x-[0.15vw]'
+                          }`}
+                        />
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
 
-              {/* Auto-Expire Container Card */}
-              <div className="bg-white border border-gray-200 rounded-[0.75vw] p-[0.9vw] space-y-[0.75vw] shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-[0.85vw] font-semibold text-gray-800">Auto-expire in</span>
-                  <button
-                    type="button"
-                    onClick={() => updateAutoExpire('enabled', !settings?.inviteOnly?.autoExpire?.enabled)}
-                    className={`relative inline-flex items-center h-[1.2vw] w-[2.4vw] shrink-0 cursor-pointer rounded-full transition-all duration-300 ease-in-out border-[1.5px] ${
-                      settings?.inviteOnly?.autoExpire?.enabled ? 'bg-[#5551FF] border-[#5551FF]' : 'bg-gray-200 border-gray-200'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-[0.9vw] w-[0.9vw] rounded-full bg-white shadow-md transform transition duration-300 ease-in-out ${
-                        settings?.inviteOnly?.autoExpire?.enabled ? 'translate-x-[1.2vw]' : 'translate-x-[0.15vw]'
-                      }`}
-                    />
-                  </button>
+              {(localSettings?.inviteOnly?.autoExpire?.enabled ?? settings?.inviteOnly?.autoExpire?.enabled ?? true) && (
+                <div className="grid grid-cols-2 gap-[0.6vw] pt-[0.2vw] animate-in fade-in slide-in-from-top-1 duration-200">
+                  <DayPickerPopover
+                    value={localSettings?.inviteOnly?.autoExpire?.days ?? settings?.inviteOnly?.autoExpire?.days ?? '0 Days'}
+                    onChange={(newDays) => updateAutoExpire('days', newDays)}
+                  />
+                  <TimePickerPopover
+                    value={localSettings?.inviteOnly?.autoExpire?.time ?? settings?.inviteOnly?.autoExpire?.time ?? '5 Mins'}
+                    onChange={(newTime) => updateAutoExpire('time', newTime)}
+                  />
                 </div>
-
-                {settings?.inviteOnly?.autoExpire?.enabled && (
-                  <div className="grid grid-cols-2 gap-[0.6vw] pt-[0.2vw] animate-in fade-in slide-in-from-top-1 duration-200">
-                    <DayPickerPopover
-                      value={settings?.inviteOnly?.autoExpire?.days ?? '0 Days'}
-                      onChange={(newDays) => updateAutoExpire('days', newDays)}
-                    />
-                    <TimePickerPopover
-                      value={settings?.inviteOnly?.autoExpire?.time || '5 Mins'}
-                      onChange={(newTime) => updateAutoExpire('time', newTime)}
-                    />
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Invite by Specific Email */}
             <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden transition-all">
               <button
+                type="button"
                 onClick={() => setActiveAccordion(activeAccordion === 'email' ? null : 'email')}
-                className="w-full flex items-center justify-between p-[1vw] font-bold text-[0.9vw] text-gray-900 cursor-pointer"
+                className="w-full flex items-center justify-between p-[0.9vw] text-[0.85vw] font-semibold text-gray-800 cursor-pointer hover:bg-gray-50/50 transition-colors"
               >
                 <span>Invite by Specific Email</span>
                 <Icon
                   icon={activeAccordion === 'email' ? "lucide:chevron-up" : "lucide:chevron-down"}
-                  className="w-[1.1vw] h-[1.1vw] text-gray-600"
+                  className="w-[1.1vw] h-[1.1vw] text-gray-500"
                 />
               </button>
 
               {activeAccordion === 'email' && (
-                <div className="p-[1.1vw] pt-0 space-y-[0.6vw]">
+                <div className="p-[0.9vw] pt-0 space-y-[0.85vw]">
                   {/* Add Emails Section */}
-                  <div className="space-y-[0.4vw]">
-                    <div className="flex items-center gap-[1vw]">
-                      <h4 className="text-[0.85vw] font-semibold text-gray-800 whitespace-nowrap">Add Emails</h4>
-                      <div className="h-[1px] bg-gray-200 w-full mt-[0.1vw]"></div>
+                  <div className="space-y-[0.5vw]">
+                    <div className="flex items-center gap-[0.8vw]">
+                      <h4 className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Add Emails</h4>
+                      <div className="h-[1px] bg-gray-200/80 w-full mt-[0.1vw]"></div>
                     </div>
 
-                    <div className="space-y-[0.4vw]">
-                      <input
-                        type="email"
-                        value={emailInput}
-                        onChange={(e) => setEmailInput(e.target.value)}
-                        placeholder="naveen1234@gmail.com"
-                        className="w-full bg-white border border-gray-300 rounded-[0.6vw] px-[1vw] py-[0.6vw] text-[0.8vw] focus:outline-none focus:border-[#5551FF] shadow-sm"
-                      />
-                      <div className="flex justify-end">
-                        <button
-                          onClick={addEmail}
-                          className="bg-[#5551FF] text-white px-[1.1vw] py-[0.35vw] rounded-[0.5vw] font-semibold text-[0.72vw] hover:bg-[#4338ca] transition-all shadow-sm cursor-pointer"
-                        >
-                          Add Email
-                        </button>
-                      </div>
-                    </div>
+                    {/* Inline Email Input + Icon-only Plus Button */}
+                    {(() => {
+                      const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.trim());
+                      return (
+                        <div className="relative flex items-center">
+                          <input
+                            type="email"
+                            value={emailInput}
+                            onChange={(e) => setEmailInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && isValidEmail) { e.preventDefault(); addEmail(); } }}
+                            placeholder="naveen1234@gmail.com"
+                            className="w-full bg-white border border-gray-300 rounded-[0.6vw] pl-[0.9vw] pr-[3.2vw] py-[0.6vw] text-[0.78vw] font-medium text-gray-800 focus:outline-none focus:border-[#5551FF] focus:ring-2 focus:ring-[#5551FF]/10 transition-all shadow-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={addEmail}
+                            disabled={!isValidEmail}
+                            className={`absolute right-[0.35vw] w-[2.1vw] h-[2.1vw] min-w-[26px] min-h-[26px] rounded-[0.45vw] font-semibold transition-all flex items-center justify-center shrink-0 ${
+                              isValidEmail
+                                ? 'bg-[#5551FF] hover:bg-[#4338ca] text-white cursor-pointer active:scale-95 shadow-sm'
+                                : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-70'
+                            }`}
+                            title={isValidEmail ? "Add Email" : "Enter a valid email address"}
+                          >
+                            <Icon icon="lucide:plus" className="w-[1.1vw] h-[1.1vw] min-w-[16px] min-h-[16px]" />
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
 
-                  {/* "or" text */}
-                  <div className="text-center my-[0.05vw]">
-                    <span className="text-gray-400 text-[0.72vw] font-normal">or</span>
+                  {/* "or" text divider */}
+                  <div className="relative flex items-center justify-center my-[0.2vw]">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200/60"></div>
+                    </div>
+                    <span className="relative bg-white px-[0.6vw] text-[0.68vw] text-gray-400 font-medium uppercase tracking-wider">or</span>
                   </div>
 
                   {/* Drag & Drop Upload CSV Box */}
@@ -1037,23 +1238,25 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                         handleCsvFile(e.dataTransfer.files[0]);
                       }
                     }}
-                    className="border border-dashed border-gray-300 rounded-[0.65vw] py-[0.8vw] px-[0.8vw] flex flex-col items-center justify-center gap-[0.3vw] bg-white cursor-pointer hover:bg-gray-50/80 transition-all"
+                    className="border border-dashed border-gray-300/90 rounded-[0.7vw] py-[0.9vw] px-[1vw] flex flex-col items-center justify-center gap-[0.3vw] bg-gradient-to-b from-gray-50/40 to-white cursor-pointer hover:border-[#5551FF]/60 hover:bg-[#5551FF]/5 transition-all group shadow-2xs"
                   >
-                    <Icon icon="lucide:upload" className="w-[1.4vw] h-[1.4vw] text-gray-400" />
-                    <p className="text-[0.75vw] text-gray-400 font-normal">
-                      Drag & Drop or <span className="text-[#5551FF] font-semibold">Upload</span> CSV file
+                    <div className="w-[2vw] h-[2vw] rounded-full bg-indigo-50/80 group-hover:bg-indigo-100 flex items-center justify-center text-[#5551FF] transition-colors">
+                      <Icon icon="lucide:upload" className="w-[1vw] h-[1vw]" />
+                    </div>
+                    <p className="text-[0.75vw] text-gray-500 font-normal">
+                      Drag & Drop or <span className="text-[#5551FF] font-semibold underline decoration-[#5551FF]/40 underline-offset-2">Upload</span> CSV file
                     </p>
                   </div>
 
                   {/* Added Email List Section */}
-                  <div className="space-y-[0.75vw] pt-[0.4vw]">
-                    <div className="flex items-center gap-[1vw]">
-                      <h4 className="text-[0.85vw] font-semibold text-gray-800 whitespace-nowrap">Added Email List</h4>
-                      <div className="h-[1px] bg-gray-200 w-full mt-[0.1vw]"></div>
+                  <div className="space-y-[0.6vw] pt-[0.2vw]">
+                    <div className="flex items-center gap-[0.8vw]">
+                      <h4 className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Added Email List</h4>
+                      <div className="h-[1px] bg-gray-200/80 w-full mt-[0.1vw]"></div>
                     </div>
 
                     {/* Table Container Card */}
-                    <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden p-[0.8vw] space-y-[0.75vw]">
+                    <div className="bg-white border border-gray-200/80 rounded-[0.75vw] shadow-xs overflow-hidden p-[0.7vw] space-y-[0.6vw]">
                       {/* Search & Sort Header */}
                       <div className="flex items-center gap-[0.5vw]">
                         <div className="flex-1 relative">
@@ -1062,49 +1265,64 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                             type="text"
                             value={emailSearch}
                             onChange={(e) => setEmailSearch(e.target.value)}
-                            placeholder="Search"
-                            className="w-full bg-white border border-gray-300 rounded-full pl-[2.2vw] pr-[0.8vw] py-[0.4vw] text-[0.75vw] focus:outline-none focus:border-[#5551FF]"
+                            placeholder="Search email..."
+                            className="w-full bg-white border border-gray-300 rounded-full pl-[2.2vw] pr-[0.8vw] py-[0.38vw] text-[0.75vw] text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#5551FF] focus:ring-2 focus:ring-[#5551FF]/10 transition-all shadow-2xs"
                           />
                         </div>
-                        <button className="flex items-center gap-[0.4vw] bg-black text-white px-[1.2vw] py-[0.4vw] rounded-full text-[0.75vw] font-bold cursor-pointer shrink-0">
+                        <button
+                          type="button"
+                          className="flex items-center gap-[0.4vw] bg-gray-900 hover:bg-black text-white px-[1vw] py-[0.38vw] rounded-full text-[0.72vw] font-semibold cursor-pointer shrink-0 transition-all shadow-xs"
+                        >
                           <Icon icon="lucide:arrow-up-down" className="w-[0.75vw] h-[0.75vw]" />
                           <span>Sort</span>
                         </button>
                       </div>
 
-                      {/* Table */}
-                      <div className="border border-gray-200 rounded-[0.6vw] overflow-hidden max-h-[14vw] overflow-y-auto bg-white">
-                        <table className="w-full text-left text-[0.75vw] table-fixed">
-                          <thead className="sticky top-0 bg-[#f4f4fc] border-b border-gray-200">
-                            <tr>
-                              <th className="w-[50%] p-[0.6vw] px-[0.8vw] font-bold text-gray-900">Emails</th>
-                              <th className="w-[25%] p-[0.6vw] font-bold text-gray-900 text-center">Status</th>
-                              <th className="w-[25%] p-[0.6vw] px-[0.8vw] font-bold text-gray-900 text-right">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {(settings?.inviteOnly?.emails || [])
-                              .filter(item => item.email.toLowerCase().includes(emailSearch.toLowerCase()))
-                              .map((item, idx) => (
-                                <tr key={idx} className="hover:bg-gray-50/50">
-                                  <td title={item.email} className="p-[0.6vw] px-[0.8vw] text-gray-500 truncate font-normal cursor-pointer">{item.email}</td>
-                                  <td className="p-[0.6vw] text-center font-medium">
-                                    <span className={item.status === 'valid' ? 'text-green-500' : 'text-red-500'}>
-                                      {item.status === 'valid' ? 'Valid' : 'Invalid'}
-                                    </span>
-                                  </td>
-                                  <td className="p-[0.6vw] px-[0.8vw] text-right">
-                                    <button
-                                      onClick={() => removeEmail(idx)}
-                                      className="text-red-400 hover:text-red-600 transition-colors cursor-pointer"
-                                    >
-                                      <Icon icon="lucide:trash-2" className="w-[0.95vw] h-[0.95vw]" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
+                      {/* Added Email List Container */}
+                      <div className="border border-gray-200/80 rounded-[0.6vw] overflow-hidden bg-white">
+                        {/* Header Bar */}
+                        <div className="bg-slate-50 border-b border-gray-200 px-[0.8vw] py-[0.5vw] flex items-center justify-between text-[0.72vw] font-semibold text-gray-700 uppercase tracking-wider select-none pr-[1.4vw]">
+                          <span>Emails</span>
+                          <span>Action</span>
+                        </div>
+
+                        {/* Scrollable Email List Rows */}
+                        <div className="max-h-[12vw] overflow-y-auto divide-y divide-gray-100 pr-[0.2vw] [scrollbar-width:thin]">
+                          {(() => {
+                            const activeEmailList = localSettings?.inviteOnly?.emails ?? settings?.inviteOnly?.emails ?? [];
+                            const filteredEmails = activeEmailList.filter(item => {
+                              const emailStr = typeof item === 'string' ? item : item.email;
+                              return emailStr.toLowerCase().includes(emailSearch.toLowerCase());
+                            });
+
+                            if (filteredEmails.length === 0) {
+                              return (
+                                <div className="p-[1.2vw] text-center text-gray-400 font-normal text-[0.75vw]">
+                                  No emails added yet.
+                                </div>
+                              );
+                            }
+
+                            return filteredEmails.map((item, idx) => {
+                              const emailStr = typeof item === 'string' ? item : item.email;
+                              return (
+                                <div key={idx} className="flex items-center justify-between px-[0.8vw] py-[0.45vw] hover:bg-indigo-50/30 transition-colors">
+                                  <span title={emailStr} className="text-[0.75vw] text-gray-700 font-medium truncate max-w-[14vw]">
+                                    {emailStr}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeEmail(emailStr)}
+                                    className="w-[1.6vw] h-[1.6vw] min-w-[22px] min-h-[22px] rounded-[0.4vw] text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer flex items-center justify-center shrink-0 border border-transparent hover:border-red-200/60"
+                                    title="Remove email"
+                                  >
+                                    <Icon icon="lucide:trash-2" className="w-[0.85vw] h-[0.85vw] min-w-[14px] min-h-[14px]" />
+                                  </button>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1115,10 +1333,42 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
         )}
       </div>
 
+      {/* Save Settings Footer Bar */}
+      <div className="p-[1vw] bg-white border-t border-gray-200 flex flex-col gap-[0.5vw] shrink-0 sticky bottom-0 z-10 shadow-md mt-auto">
+        {saveErrorMsg && (
+          <div className="flex items-center gap-[0.4vw] text-red-600 bg-red-50 border border-red-200 px-[0.8vw] py-[0.4vw] rounded-[0.4vw] text-[0.75vw] font-medium animate-in fade-in">
+            <Icon icon="lucide:alert-circle" className="w-[0.9vw] h-[0.9vw] text-red-600 shrink-0" />
+            <span>{saveErrorMsg}</span>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={handleSaveVisibility}
+          disabled={!isDirty || isSaving}
+          className={`w-full font-bold py-[0.6vw] rounded-[0.5vw] text-[0.8vw] transition-all shadow-md flex items-center justify-center gap-[0.4vw] ${
+            isDirty && !isSaving
+              ? 'bg-black hover:bg-gray-900 text-white cursor-pointer active:scale-[0.99]'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300 shadow-none'
+          }`}
+        >
+          {isSaving ? (
+            <>
+              <div className="animate-spin rounded-full h-[0.9vw] w-[0.9vw] min-h-[14px] min-w-[14px] border-2 border-white border-t-transparent" />
+              <span>Saving...</span>
+            </>
+          ) : (
+            <>
+              <Icon icon="lucide:save" className="w-[0.9vw] h-[0.9vw] min-w-[14px] min-h-[14px]" />
+              <span>Save Visibility Settings</span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Verification Modal (Center of Full Screen Window via React Portal) */}
       {verificationModal.isOpen && createPortal(
-        <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-xs flex items-center justify-center p-[1vw]">
-          <div className="bg-white rounded-[1vw] p-[1.25vw] shadow-2xl w-[25vw] min-w-[300px] max-w-[420px] relative animate-in fade-in zoom-in-95 duration-200 border border-slate-100">
+        <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-xs flex items-center justify-center p-[1vw] select-none">
+          <div className="bg-white rounded-[1.2vw] p-[1.4vw] shadow-[0_20px_50px_rgba(0,0,0,0.12)] w-[25vw] min-w-[320px] max-w-[420px] relative animate-in fade-in zoom-in-95 duration-200 border border-slate-100/80">
             {/* Header Row */}
             <div className="flex items-center justify-between">
               <div className="flex items-center flex-1 pr-[0.5vw]">
@@ -1145,7 +1395,7 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                 <div className="mt-[1vw] text-center space-y-[0.6vw]">
                   <p className="text-[0.72vw] text-gray-500 leading-relaxed font-normal">
                     We have sent One Time Password (OTP) via email<br />
-                    to this Account <strong className="font-semibold text-gray-800">youremailid@gmail.com</strong>
+                    to this Account <strong className="font-semibold text-gray-800">{getUserEmail()}</strong>
                   </p>
 
                   <p className="text-[0.72vw] text-gray-600 font-normal pt-[0.2vw]">
@@ -1181,7 +1431,7 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                     ) : (
                       <button
                         type="button"
-                        onClick={handleResendOtp}
+                        onClick={handleSendOtp}
                         className="text-[#5551FF] underline font-semibold hover:text-[#4338ca] cursor-pointer"
                       >
                         Resend Code
@@ -1197,13 +1447,15 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                 <p className="text-[0.7vw] text-gray-400 font-normal mt-[0.2vw]">
                   {verificationModal.mode === 'password'
                     ? 'Verify your current password to continue.'
-                    : 'Verify your password before changing the book key.'}
+                    : 'Verify your current access key to continue.'}
                 </p>
 
                 {/* Form Inputs */}
                 <div className="mt-[1vw] space-y-[0.35vw]">
                   <label className="text-[0.78vw] font-semibold text-gray-900 block">
-                    Enter your current Password
+                    {verificationModal.mode === 'password'
+                      ? 'Enter your current Password'
+                      : 'Enter your current Access Key'}
                   </label>
                   <div className="relative">
                     <input
@@ -1213,7 +1465,7 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                         setVerificationPassword(e.target.value);
                         if (verificationError) setVerificationError('');
                       }}
-                      placeholder="@My current pass123"
+                      placeholder={verificationModal.mode === 'password' ? "@My current pass123" : "Key123"}
                       className="w-full bg-white border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.78vw] font-medium text-gray-800 focus:outline-none focus:border-[#5551FF] focus:ring-2 focus:ring-[#5551FF]/10 transition-all pr-[2.2vw] shadow-xs"
                     />
                     <button
@@ -1235,14 +1487,10 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                   <div className="flex justify-end pt-[0.1vw]">
                     <button
                       type="button"
-                      onClick={() => {
-                        setVerificationModal(prev => ({ ...prev, step: 'otp' }));
-                        setResendTimer(23);
-                        setOtpValues(['', '', '', '']);
-                      }}
+                      onClick={handleSendOtp}
                       className="text-[0.7vw] font-medium text-[#4f46e5] underline hover:text-[#4338ca] cursor-pointer"
                     >
-                      Forget Password ?
+                      {verificationModal.mode === 'password' ? 'Forgot Password ?' : 'Forgot Access Key ?'}
                     </button>
                   </div>
                 </div>
@@ -1392,26 +1640,64 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (verificationModal.step === 'verifyPassword') {
                     if (!verificationPassword.trim()) {
-                      setVerificationError('Please enter your current password.');
+                      setVerificationError(
+                        verificationModal.mode === 'password'
+                          ? 'Please enter your current password.'
+                          : 'Please enter your current access key.'
+                      );
                       return;
                     }
                     setVerificationError('');
-                    setVerificationModal(prev => ({
-                      ...prev,
-                      step: prev.mode === 'password' ? 'newPassword' : 'newAccessKey'
-                    }));
+                    setIsSaving(true);
+                    try {
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                      const currentVid = v_id || localSettings?.v_id || settings?.v_id || settings?.bookName || bookName;
+                      await axios.post(`${backendUrl}/api/flipbook/verify-credential`, {
+                        v_id: currentVid,
+                        input: verificationPassword.trim(),
+                        mode: verificationModal.mode // 'password' or 'accessKey'
+                      });
+                      setVerificationModal(prev => ({
+                        ...prev,
+                        step: prev.mode === 'password' ? 'newPassword' : 'newAccessKey'
+                      }));
+                    } catch (err) {
+                      setVerificationError(
+                        err.response?.data?.message || 
+                        (verificationModal.mode === 'password' ? 'Current password is incorrect.' : 'Current access key is incorrect.')
+                      );
+                    } finally {
+                      setIsSaving(false);
+                    }
                   } else if (verificationModal.step === 'otp') {
-                    if (otpValues.join('').length < 4) {
-                      alert('Please enter the 4-digit code.');
+                    const code = otpValues.join('').trim();
+                    if (!code || code.length < 4) {
+                      setVerificationError('Please enter the verification code.');
                       return;
                     }
-                    setVerificationModal(prev => ({
-                      ...prev,
-                      step: prev.mode === 'password' ? 'newPassword' : 'newAccessKey'
-                    }));
+                    setVerificationError('');
+                    setIsSaving(true);
+                    try {
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                      const emailId = getUserEmail();
+                      const currentVid = v_id || localSettings?.v_id || settings?.v_id || settings?.bookName || bookName;
+                      await axios.post(`${backendUrl}/api/flipbook/verify-visibility-otp`, {
+                        emailId,
+                        v_id: currentVid,
+                        otp: code
+                      });
+                      setVerificationModal(prev => ({
+                        ...prev,
+                        step: prev.mode === 'password' ? 'newPassword' : 'newAccessKey'
+                      }));
+                    } catch (err) {
+                      setVerificationError(err.response?.data?.message || 'Invalid OTP code.');
+                    } finally {
+                      setIsSaving(false);
+                    }
                   } else if (verificationModal.step === 'newPassword') {
                     if (!newPasswordInput.trim()) {
                       setNewFormError('Please enter your new password.');
@@ -1421,41 +1707,122 @@ const Visibility = ({ onBack, settings, onUpdate, bookName }) => {
                       setNewFormError('Passwords do not match.');
                       return;
                     }
-                    setCreatePassword(newPasswordInput);
-                    setConfirmPassword(newPasswordConfirm);
-                    setIsPasswordSaved(true);
-                    if (onUpdate) {
-                      onUpdate({
-                        ...settings,
-                        password: newPasswordInput,
-                        isPasswordSaved: true
-                      });
+                    setNewFormError('');
+                    setIsSaving(true);
+                    try {
+                      const storedUser = localStorage.getItem('user');
+                      const user = storedUser ? JSON.parse(storedUser) : null;
+                      const emailId = user?.emailId || user?.email;
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+                      const currentVid = v_id || localSettings?.v_id || settings?.v_id || settings?.bookName || bookName;
+                      const currentFolder = folder || localSettings?.folderName || settings?.folderName || 'Recent Book';
+
+                      const updatedShare = {
+                        access: localSettings?.type || settings?.type || 'Password Protect',
+                        password: newPasswordInput.trim(),
+                        accessKey: accessKey || localSettings?.accessKey || settings?.accessKey || 'Book123',
+                        isPasswordSaved: true,
+                        inviteOnly: localSettings?.inviteOnly || settings?.inviteOnly || {}
+                      };
+
+                      const payload = {
+                        emailId: emailId,
+                        v_id: currentVid,
+                        bookName: currentVid,
+                        folderName: currentFolder,
+                        newName: bookName,
+                        share: updatedShare,
+                        Customized_Settings: {
+                          Visibility: updatedShare
+                        }
+                      };
+
+                      await axios.post(`${backendUrl}/api/flipbook/update-settings`, payload);
+
+                      setCreatePassword(newPasswordInput.trim());
+                      setConfirmPassword(newPasswordInput.trim());
+                      setIsPasswordSaved(true);
+                      setLocalSettings(prev => ({ ...prev, ...updatedShare }));
+
+                      if (onUpdate) {
+                        onUpdate({ ...settings, ...updatedShare });
+                      }
+
+                      resetVerificationModal();
+                      triggerSuccessToast('Password updated successfully!');
+                    } catch (err) {
+                      setNewFormError(err.response?.data?.message || 'Failed to update password.');
+                    } finally {
+                      setIsSaving(false);
                     }
-                    resetVerificationModal();
                   } else if (verificationModal.step === 'newAccessKey') {
                     if (!newAccessKeyInput.trim()) {
                       setNewFormError('Please enter a new access key.');
                       return;
                     }
-                    setAccessKey(newAccessKeyInput);
-                    setIsPasswordSaved(true);
-                    if (onUpdate) {
-                      onUpdate({
-                        ...settings,
-                        accessKey: newAccessKeyInput,
-                        isPasswordSaved: true
-                      });
+                    setNewFormError('');
+                    setIsSaving(true);
+                    try {
+                      const storedUser = localStorage.getItem('user');
+                      const user = storedUser ? JSON.parse(storedUser) : null;
+                      const emailId = user?.emailId || user?.email;
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+                      const currentVid = v_id || localSettings?.v_id || settings?.v_id || settings?.bookName || bookName;
+                      const currentFolder = folder || localSettings?.folderName || settings?.folderName || 'Recent Book';
+
+                      const updatedShare = {
+                        access: localSettings?.type || settings?.type || 'Password Protect',
+                        password: createPassword || localSettings?.password || settings?.password || '',
+                        accessKey: newAccessKeyInput.trim(),
+                        isPasswordSaved: true,
+                        inviteOnly: localSettings?.inviteOnly || settings?.inviteOnly || {}
+                      };
+
+                      const payload = {
+                        emailId: emailId,
+                        v_id: currentVid,
+                        bookName: currentVid,
+                        folderName: currentFolder,
+                        newName: bookName,
+                        share: updatedShare,
+                        Customized_Settings: {
+                          Visibility: updatedShare
+                        }
+                      };
+
+                      await axios.post(`${backendUrl}/api/flipbook/update-settings`, payload);
+
+                      setAccessKey(newAccessKeyInput.trim());
+                      setIsPasswordSaved(true);
+                      setLocalSettings(prev => ({ ...prev, ...updatedShare }));
+
+                      if (onUpdate) {
+                        onUpdate({ ...settings, ...updatedShare });
+                      }
+
+                      resetVerificationModal();
+                      triggerSuccessToast('Access Key updated successfully!');
+                    } catch (err) {
+                      setNewFormError(err.response?.data?.message || 'Failed to update access key.');
+                    } finally {
+                      setIsSaving(false);
                     }
-                    resetVerificationModal();
                   }
                 }}
-                className="bg-black text-white rounded-[0.5vw] py-[0.5vw] text-[0.78vw] font-bold hover:bg-gray-900 transition-all cursor-pointer shadow-md"
+                disabled={isSaving}
+                className="bg-black text-white rounded-[0.5vw] py-[0.5vw] text-[0.78vw] font-bold hover:bg-gray-900 transition-all cursor-pointer shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {verificationModal.step === 'newPassword'
-                  ? 'Change Password'
-                  : verificationModal.step === 'newAccessKey'
-                  ? 'Change Access Key'
-                  : 'Verify'}
+                {isSaving ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                ) : verificationModal.step === 'newPassword' ? (
+                  'Change Password'
+                ) : verificationModal.step === 'newAccessKey' ? (
+                  'Change Access Key'
+                ) : (
+                  'Verify'
+                )}
               </button>
             </div>
           </div>

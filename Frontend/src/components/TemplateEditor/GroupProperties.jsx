@@ -566,24 +566,21 @@ export default function GroupProperties({
       </div>
 
       {/* ── Opacity Section ── */}
-      <div className="space-y-[0.5vw]">
-        <div className="flex items-center gap-[0.5vw]">
-          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
-          <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+      <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[0.5vw]">
+        <span className="text-[0.85vw] font-semibold text-black whitespace-nowrap">Opacity :</span>
+        <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={opacity}
+            onChange={(e) => handleOpacityChange(Number(e.target.value))}
+            className="w-full cursor-pointer custom-range-slider"
+            style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }}
+          />
         </div>
-        <div className="flex items-center gap-[1vw] pb-[0.2vw]">
-          <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={opacity}
-              onChange={(e) => handleOpacityChange(Number(e.target.value))}
-              className="w-full cursor-pointer custom-range-slider"
-              style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }}
-            />
-          </div>
-          <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{opacity} %</span>
+        <div className="min-w-[3.5vw] h-[2vw] border-[0.1vw] border-gray-200 rounded-[0.3vw] flex items-center justify-center text-[0.8vw] font-medium text-black bg-white shadow-sm px-[0.5vw]">
+          {opacity} %
         </div>
       </div>
 

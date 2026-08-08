@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PremiumDropdown from './PremiumDropdown';
 import { Plus, Trash2, Edit2, ChevronDown, ChevronRight } from 'lucide-react';
 import BookmarkStylesPopup, { getBookmarkClipPath, getBookmarkBorderRadius } from './BookmarkStylesPopup';
+import OtherSetup from './OtherSetup';
 import ColorPicker from './ColorPallet';
 
 
@@ -283,7 +284,7 @@ const TocItem = ({ item, index, isEditing, onUpdate, onDelete, activeTOCItem, se
 };
 
 
-const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSetup, onTocSettingsClick }) => {
+const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, folderName, bookName, activeLayout, onNavigateToOtherSetup, onTocSettingsClick }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   const [showStylesPopup, setShowStylesPopup] = useState(false);
   const [editingTOCIndex, setEditingTOCIndex] = useState((settings.tocSettings?.content?.length || 0) > 0 ? 0 : null);
@@ -366,6 +367,67 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
         {/* Navigation Section */}
         <SectionHeader title="Navigation" />
         <div className="space-y-[0.325vw]">
+          <MenuItem
+            label="Add Text to the Icons"
+            enabled={otherSettings?.toolbar?.addTextBelowIcons ?? false}
+            hasSettings={true}
+            isExpanded={expandedSection === 'addTextToIcons'}
+            onToggleSettings={() => toggleSection('addTextToIcons')}
+            onChange={(val) => {
+              updateSection('navigation', 'addTextToIcons', val);
+              if (onUpdateOther) {
+                onUpdateOther(prev => ({
+                  ...prev,
+                  toolbar: {
+                    ...(prev?.toolbar || {}),
+                    addTextBelowIcons: val
+                  }
+                }));
+              }
+            }}
+          >
+            <AnimatePresence>
+              {expandedSection === 'addTextToIcons' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  animate={{ 
+                    height: 'auto', 
+                    opacity: 1,
+                    transitionEnd: { overflow: 'visible' }
+                  }}
+                  exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-gray-50/50 rounded-b-[0.8vw] relative z-10 !overflow-visible"
+                >
+                  <div className="px-[1.25vw] pb-[1vw] pt-0 border-t border-gray-50">
+                    <div className="flex items-center justify-between gap-[0.5vw] mt-[1vw]">
+                      <span className="text-[0.75vw] font-medium text-gray-700 whitespace-nowrap">Text style :</span>
+                      <PremiumDropdown
+                        options={fontFamilies}
+                        value={otherSettings?.toolbar?.textProperties?.font || 'Arial'}
+                        onChange={(val) => {
+                          if (onUpdateOther) {
+                            onUpdateOther(prev => ({
+                              ...prev,
+                              toolbar: {
+                                ...(prev?.toolbar || {}),
+                                textProperties: { ...(prev?.toolbar?.textProperties || {}), font: val }
+                              }
+                            }));
+                          }
+                        }}
+                        width="10vw"
+                        className="shrink-0"
+                        isFont={true}
+                        buttonClassName="!border-gray-600 !rounded-[0.5vw]"
+                        align="right"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </MenuItem>
           <MenuItem
             label="Next / Previous Buttons"
             enabled={settings.navigation?.nextPrevButtons}
@@ -554,9 +616,35 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
           <MenuItem
             label="Bookmark"
             enabled={settings.navigation?.bookmark}
+            hasSettings={true}
+            isExpanded={expandedSection === 'bookmark'}
+            onToggleSettings={() => toggleSection('bookmark')}
             onChange={(val) => updateSection('navigation', 'bookmark', val)}
-            onRedirect={() => onNavigateToOtherSetup('bookmark')}
-          />
+          >
+            <AnimatePresence>
+              {expandedSection === 'bookmark' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  animate={{ 
+                    height: 'auto', 
+                    opacity: 1,
+                    transitionEnd: { overflow: 'visible' }
+                  }}
+                  exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-gray-50/50 rounded-b-[0.8vw] relative z-10 !overflow-visible"
+                >
+                  <div className="px-[1.25vw] pb-[1vw] pt-0 border-t border-gray-50">
+                    <BookmarkStylesPopup
+                      settings={otherSettings}
+                      onUpdate={onUpdateOther}
+                      onClose={() => toggleSection('bookmark')}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </MenuItem>
 
           <MenuItem
             label="Start / End Navigation"
@@ -631,9 +719,37 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
           <MenuItem
             label="Gallery"
             enabled={settings.interaction?.gallery}
+            hasSettings={true}
+            isExpanded={expandedSection === 'gallery'}
+            onToggleSettings={() => toggleSection('gallery')}
             onChange={(val) => updateSection('interaction', 'gallery', val)}
-            onRedirect={() => onNavigateToOtherSetup('gallery')}
-          />
+          >
+            <AnimatePresence>
+              {expandedSection === 'gallery' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  animate={{ 
+                    height: 'auto', 
+                    opacity: 1,
+                    transitionEnd: { overflow: 'visible' }
+                  }}
+                  exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-gray-50/50 rounded-b-[0.8vw] relative z-10 !overflow-visible"
+                >
+                  <div className="border-t border-gray-50">
+                    <OtherSetup 
+                      inlineMode="gallery" 
+                      settings={otherSettings} 
+                      onUpdate={onUpdateOther} 
+                      folderName={folderName} 
+                      bookName={bookName} 
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </MenuItem>
         </div>
 
         {/* Media Controls Section */}
@@ -681,11 +797,39 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
             </AnimatePresence>
           </MenuItem>
           <MenuItem
-            label="Background Audio"
+            label="Audio Features"
             enabled={settings.media?.backgroundAudio}
+            hasSettings={true}
+            isExpanded={expandedSection === 'sound'}
+            onToggleSettings={() => toggleSection('sound')}
             onChange={(val) => updateSection('media', 'backgroundAudio', val)}
-            onRedirect={() => onNavigateToOtherSetup('sound')}
-          />
+          >
+            <AnimatePresence>
+              {expandedSection === 'sound' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  animate={{ 
+                    height: 'auto', 
+                    opacity: 1,
+                    transitionEnd: { overflow: 'visible' }
+                  }}
+                  exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-gray-50/50 rounded-b-[0.8vw] relative z-10 !overflow-visible"
+                >
+                  <div className="border-t border-gray-50">
+                    <OtherSetup 
+                      inlineMode="sound" 
+                      settings={otherSettings} 
+                      onUpdate={onUpdateOther} 
+                      folderName={folderName} 
+                      bookName={bookName} 
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </MenuItem>
         </div>
 
         {/* Share & Export Section */}

@@ -15,6 +15,7 @@ import PdfProcessingLoader from '../PdfProcessingLoader';
 import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
 import Model3DPreviewModal from './Interaction3DPreview';
 import { getSupabaseBaseUrl, resolveUploadsPath } from '../../utils/supabaseUtils';
+import PasswordProtectModal from '../PasswordProtectModal';
 import { checkIsAnimatedWebp } from './editorUtils';
 
 
@@ -280,11 +281,11 @@ const TemplateEditor = () => {
 
   // Automatically switch to the Properties panel ('select' tool) when an element 
   // is selected while the Uploads panel is active.
-  useEffect(() => {
-    if (selectedLayerId) {
-      setActiveMainTool((prev) => prev === 'upload' ? 'select' : prev);
-    }
-  }, [selectedLayerId]);
+  // useEffect(() => {
+  //   if (selectedLayerId) {
+  //     setActiveMainTool((prev) => prev === 'upload' ? 'select' : prev);
+  //   }
+  // }, [selectedLayerId]);
 
   // 3D Customization States
   const [is3DModalOpen, setIs3DModalOpen] = useState(false);
@@ -1499,6 +1500,16 @@ const TemplateEditor = () => {
       }
     }
   }, [activePageIndex, isDoublePage, pages]);
+
+  // ── Always fallback to selecting active page root folder if selection becomes null ──
+  useEffect(() => {
+    if (!selectedLayerId && pages && pages[activePageIndex]?.layers?.[0]?.id) {
+      const rootId = pages[activePageIndex].layers[0].id;
+      setSelectedLayerId(rootId);
+      setMultiSelectedIds(new Set([rootId]));
+      setCurrentFrameId(rootId);
+    }
+  }, [selectedLayerId, activePageIndex, pages]);
 
   // ── NEW: Spread Alignment Snapping ───────────────────────────────────────────
   // UPDATED: Only snap if we are in double-page mode AND current logic requires it for initial navigation.
@@ -2969,14 +2980,16 @@ const TemplateEditor = () => {
 
   const deleteLayer = (pageIndex, ids) => {
     const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
+    const page = pages[pageIndex];
+    if (!page) return;
     saveToHistory();
     setPages(prev => {
       const updated = [...prev];
-      const page = updated[pageIndex];
-      if (!page || !page.html || !page.layers) return updated;
+      const targetPage = updated[pageIndex];
+      if (!targetPage || !targetPage.html || !targetPage.layers) return updated;
 
       const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const doc = parser.parseFromString(targetPage.html, 'image/svg+xml');
 
       const deleteFromLayers = (layersList) => {
         for (let i = layersList.length - 1; i >= 0; i--) {
@@ -2995,17 +3008,26 @@ const TemplateEditor = () => {
         }
       };
 
-      const newLayers = JSON.parse(JSON.stringify(page.layers));
+      const newLayers = JSON.parse(JSON.stringify(targetPage.layers));
       deleteFromLayers(newLayers);
 
       const serializer = new XMLSerializer();
       const newHtml = serializer.serializeToString(doc.documentElement);
 
-      updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
+      updated[pageIndex] = { ...targetPage, layers: newLayers, html: newHtml };
       return updated;
     });
 
-    if (idList.includes(selectedLayerId)) setSelectedLayerId(null);
+    if (idList.includes(selectedLayerId)) {
+      const rootId = page.layers?.[0]?.id;
+      if (rootId) {
+        setSelectedLayerId(rootId);
+        setMultiSelectedIds(new Set([rootId]));
+        if (setCurrentFrameId) setCurrentFrameId(rootId);
+      } else {
+        setSelectedLayerId(null);
+      }
+    }
     setMultiSelectedIds(prev => {
       const next = new Set(prev);
       idList.forEach(id => next.delete(id));
@@ -4140,13 +4162,27 @@ const TemplateEditor = () => {
     }
   }, [current3DItem, pages, activePageIndex]);
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white h-[92vh]">
-        <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return v_id ? sessionStorage.getItem(`unlocked_${v_id}`) === 'true' : false;
+  });
+
+  const accessMode = (
+    currentBook?.share?.access || 
+    currentBook?.share?.type || 
+    currentBook?.settings?.Visibility?.access || 
+    currentBook?.settings?.Visibility?.type || 
+    ''
+  ).toLowerCase().trim();
+
+  const isPasswordProtected = accessMode.includes('password');
+
+  useEffect(() => {
+    if (!isPasswordProtected && v_id) {
+      sessionStorage.removeItem(`unlocked_${v_id}`);
+      if (currentBook?.share?.shareId) sessionStorage.removeItem(`unlocked_${currentBook.share.shareId}`);
+      setIsUnlocked(false);
+    }
+  }, [isPasswordProtected, v_id, currentBook?.share?.shareId]);
 
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
 
@@ -4171,7 +4207,35 @@ const TemplateEditor = () => {
 
   return (
     <div className="flex h-[92vh] w-full bg-white overflow-hidden relative">
-      <div className={`flex flex-1 min-w-0 overflow-hidden transition-all duration-300 ${is3DModalOpen ? 'blur-md pointer-events-none' : ''}`}>
+      {!isLoading && isPasswordProtected && !isUnlocked && (
+        <PasswordProtectModal
+          v_id={v_id}
+          shareId={currentBook?.share?.shareId}
+          onUnlock={() => setIsUnlocked(true)}
+        />
+      )}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            key="editor-loader"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, ease: "easeInOut" }}
+            className="absolute inset-0 z-[9999] flex flex-col items-center justify-center bg-white h-full w-full gap-3"
+          >
+            <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+            <span className="text-[0.85vw] font-semibold text-gray-600 tracking-wide">Loading Editor...</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isLoading ? 0 : 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="flex h-full w-full overflow-hidden relative"
+      >
+        <div className={`flex flex-1 min-w-0 overflow-hidden transition-all duration-300 ${is3DModalOpen ? 'blur-md pointer-events-none' : ''}`}>
         <Layer
           pages={pages}
           activePageIndex={activePageIndex}
@@ -4407,6 +4471,7 @@ const TemplateEditor = () => {
         />
       )}
 
+      </motion.div>
     </div>
   );
 };
