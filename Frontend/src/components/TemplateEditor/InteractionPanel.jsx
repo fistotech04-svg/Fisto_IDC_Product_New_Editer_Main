@@ -15,6 +15,7 @@ import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { fontFamilies, fontWeights } from '../../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import ColorPicker from './ColorPicker';
+import HotspotCustomizationPopup from './HotspotCustomizationPopup';
 const GlbModel = ({ url }) => {
   const { scene } = useGLTF(url);
   return (
@@ -433,21 +434,26 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
     return () => window.removeEventListener('scroll', handleScroll, true);
   }, [isDropdownOpen, setOpenDropdownId]);
 
+  const isLocked = ['youtube', 'instagram', 'x', 'facebook', 'linkedin'].includes(item.presetId);
+
   return (
     <>
       <div
         ref={triggerRef}
         data-dropdown-trigger="true"
-        className="h-[3.5vh] bg-white border border-gray-200/80 shadow-sm hover:shadow-md hover:border-[#5145F6]/40 rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] cursor-pointer transition-all duration-300 relative select-none group"
+        className={`h-[3.5vh] bg-white border border-gray-200/80 shadow-sm rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] transition-all duration-300 relative select-none group ${isLocked ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-md hover:border-[#5145F6]/40 cursor-pointer'}`}
         onClick={(e) => {
           e.stopPropagation();
+          if (isLocked) return;
           setOpenDropdownId(isDropdownOpen ? null : item.id);
         }}
       >
         <span className="text-[0.85vw] text-gray-700 font-medium font-sans group-hover:text-[#5145F6] transition-colors">{currentAction.label}</span>
-        <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" className="stroke-gray-500 group-hover:stroke-[#5145F6] transition-colors" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 7h16M16 3l4 4-4 4M20 17H4M8 13l-4 4 4 4" />
-        </svg>
+        {!isLocked && (
+          <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" className="stroke-gray-500 group-hover:stroke-[#5145F6] transition-colors" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 7h16M16 3l4 4-4 4M20 17H4M8 13l-4 4 4 4" />
+          </svg>
+        )}
       </div>
 
       {isDropdownOpen && dropdownStyles.left && createPortal(
@@ -599,6 +605,7 @@ const InteractionPanel = ({
   // Immediate local override for action type so card header updates without waiting for pages re-sync
   const [cardActionOverrides, setCardActionOverrides] = useState({});
   const [active3DGalleryItem, setActive3DGalleryItem] = useState(null);
+  const [editingHotspotId, setEditingHotspotId] = useState(null);
 
   // Immediate local overrides for input values and triggers to eliminate dropdown lag and system hang
   const [itemValueOverrides, setItemValueOverrides] = useState({});
@@ -1070,7 +1077,10 @@ const InteractionPanel = ({
         const imageEl = foundEl.querySelector('image');
         const isHotspot = foundEl.getAttribute('data-is-hotspot') === 'true' || 
                           (foundEl.getAttribute('data-type') === 'icon' && imageEl && imageEl.getAttribute('width') === '52');
-        const hotspotIconSrc = isHotspot && imageEl ? imageEl.getAttribute('href') : null;
+        let hotspotIconSrc = foundEl.getAttribute('data-hotspot-icon-src');
+        if (!hotspotIconSrc && isHotspot && imageEl) {
+           hotspotIconSrc = imageEl.getAttribute('href');
+        }
 
         list.push({
           id: foundEl.id,
@@ -1086,7 +1096,8 @@ const InteractionPanel = ({
           zoomLevel: foundEl.getAttribute('data-zoom-level') || '2X',
           pageIndex: foundPageIndex,
           isHotspot: isHotspot,
-          hotspotIconSrc: hotspotIconSrc
+          hotspotIconSrc: hotspotIconSrc,
+          presetId: foundEl.getAttribute('data-preset-id') || null
         });
       }
     });
@@ -1440,7 +1451,13 @@ const InteractionPanel = ({
                           <div className="w-full px-[1.6vw] pt-[1.5vh]">
                             <div className="w-full h-[12vh] bg-white border border-gray-200/60 rounded-[0.5vw] flex items-center justify-center relative shadow-sm">
                               <img src={item.hotspotIconSrc} alt="Hotspot" className="w-[3.5vw] h-[3.5vw] object-contain pointer-events-none" />
-                              <div className="absolute top-[0.6vw] right-[0.6vw] cursor-pointer text-gray-500 hover:text-gray-700 transition-colors bg-white rounded-md">
+                              <div 
+                                className="absolute top-[0.6vw] right-[0.6vw] cursor-pointer text-gray-500 hover:text-gray-700 transition-colors bg-white rounded-md"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingHotspotId(item.id);
+                                }}
+                              >
                                 <Icon icon="lucide:edit" className="text-[1.1vw]" strokeWidth="2.5" />
                               </div>
                             </div>
@@ -3301,6 +3318,53 @@ const InteractionPanel = ({
         cancelText={alertState.cancelText || 'Cancel'}
         onConfirm={alertState.onConfirm}
       />
+
+      {/* Hotspot Customization Popup */}
+      {editingHotspotId && (
+        <HotspotCustomizationPopup
+          initialHotspotIconSrc={(() => {
+            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
+            return item ? item.hotspotIconSrc : null;
+          })()}
+          onClose={() => setEditingHotspotId(null)}
+          onSave={({ iconColor, bgColor, iconStyle, bgStyle, generatedSvgString }) => {
+            if (updateElementAttribute) {
+              const item = interactiveElementsList.find(i => i.id === editingHotspotId);
+              if (item) {
+                const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                
+                let iconSrcDataUrl = item.hotspotIconSrc;
+                if (generatedSvgString) {
+                  iconSrcDataUrl = `data:image/svg+xml;base64,${btoa(generatedSvgString)}`;
+                }
+
+                updateElementAttribute(targetIdx, editingHotspotId, {
+                  'data-hotspot-icon-color': iconColor,
+                  'data-hotspot-bg-color': bgColor,
+                  'data-hotspot-icon-style': iconStyle,
+                  'data-hotspot-bg-style': bgStyle,
+                  'data-hotspot-icon-src': iconSrcDataUrl
+                });
+                
+                // Directly update the canvas element innerHTML to immediately show the generated SVG!
+                if (generatedSvgString) {
+                  const canvasSvg = document.querySelector(`.page-svg-container[data-page-index="${targetIdx}"] svg`);
+                  if (canvasSvg) {
+                    const gEl = canvasSvg.querySelector(`#${editingHotspotId}`);
+                    if (gEl) {
+                      gEl.innerHTML = generatedSvgString;
+                    }
+                  }
+                }
+                
+                window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+                  detail: { elementId: editingHotspotId }
+                }));
+              }
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
