@@ -825,15 +825,31 @@ const ImageEditor = ({
     isUpdatingDOM.current = true;
     try {
       const getPathD = (x, y, w, h, tlv, trv, brv, blv) => {
-        return `M ${x + tlv},${y} ` +
-          `L ${x + w - trv},${y} ` +
-          (trv > 0 ? `A ${trv} ${trv} 0 0 1 ${x + w},${y + trv} ` : '') +
-          `L ${x + w},${y + h - brv} ` +
-          (brv > 0 ? `A ${brv} ${brv} 0 0 1 ${x + w - brv},${y + h} ` : '') +
-          `L ${x + blv},${y + h} ` +
-          (blv > 0 ? `A ${blv} ${blv} 0 0 1 ${x},${y + h - blv} ` : '') +
-          `L ${x},${y + tlv} ` +
-          (tlv > 0 ? `A ${tlv} ${tlv} 0 0 1 ${x + tlv},${y} ` : '') +
+        tlv = Math.max(0, tlv);
+        trv = Math.max(0, trv);
+        brv = Math.max(0, brv);
+        blv = Math.max(0, blv);
+        const scale = Math.min(
+          1,
+          w / (tlv + trv || 1),
+          h / (trv + brv || 1),
+          w / (brv + blv || 1),
+          h / (blv + tlv || 1)
+        );
+        const tl = tlv * scale;
+        const tr = trv * scale;
+        const br = brv * scale;
+        const bl = blv * scale;
+
+        return `M ${x + tl},${y} ` +
+          `L ${x + w - tr},${y} ` +
+          (tr > 0 ? `A ${tr} ${tr} 0 0 1 ${x + w},${y + tr} ` : '') +
+          `L ${x + w},${y + h - br} ` +
+          (br > 0 ? `A ${br} ${br} 0 0 1 ${x + w - br},${y + h} ` : '') +
+          `L ${x + bl},${y + h} ` +
+          (bl > 0 ? `A ${bl} ${bl} 0 0 1 ${x},${y + h - bl} ` : '') +
+          `L ${x},${y + tl} ` +
+          (tl > 0 ? `A ${tl} ${tl} 0 0 1 ${x + tl},${y} ` : '') +
           `Z`;
       };
       // Safe access to filters
@@ -962,22 +978,7 @@ const ImageEditor = ({
             }
 
             const trans = targetElForShadow.getAttribute('transform') || '';
-            const maxR = Math.min(cw, ch) / 2;
-            const tl = Math.max(0, Math.min(radius.tl || 0, maxR));
-            const tr = Math.max(0, Math.min(radius.tr || 0, maxR));
-            const br = Math.max(0, Math.min(radius.br || 0, maxR));
-            const bl = Math.max(0, Math.min(radius.bl || 0, maxR));
-
-            let d = `M ${cx + tl} ${cy}`;
-            d += ` L ${cx + cw - tr} ${cy}`;
-            if (tr > 0) d += ` A ${tr} ${tr} 0 0 1 ${cx + cw} ${cy + tr}`;
-            d += ` L ${cx + cw} ${cy + ch - br}`;
-            if (br > 0) d += ` A ${br} ${br} 0 0 1 ${cx + cw - br} ${cy + ch}`;
-            d += ` L ${cx + bl} ${cy + ch}`;
-            if (bl > 0) d += ` A ${bl} ${bl} 0 0 1 ${cx} ${cy + ch - bl}`;
-            d += ` L ${cx} ${cy + tl}`;
-            if (tl > 0) d += ` A ${tl} ${tl} 0 0 1 ${cx + tl} ${cy}`;
-            d += ` Z`;
+            let d = getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
 
             shadowCaster.setAttribute('d', d);
             if (liveElement.getAttribute('data-is-image-group') !== 'true') {
@@ -1121,19 +1122,17 @@ const ImageEditor = ({
               if (!clipNode) {
                 clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
                 clipNode.id = clipId;
-                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                clipNode.appendChild(clipPathEl);
                 defs.appendChild(clipNode);
               }
-              const rect = clipNode.firstChild;
-              rect.setAttribute('x', cx);
-              rect.setAttribute('y', cy);
-              rect.setAttribute('width', Math.max(0, cw));
-              rect.setAttribute('height', Math.max(0, ch));
+              let rect = clipNode.firstChild;
+              if (!rect || rect.tagName.toLowerCase() !== 'path') {
+                if (rect) rect.remove();
+                rect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                clipNode.appendChild(rect);
+              }
+              const d = getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              rect.setAttribute('d', d);
               rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
-              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-              else rect.removeAttribute('rx');
 
               if (applyToLeaf && svgImageEl) {
                 // Wrap the image in a <g> to apply the clip-path, otherwise the blur bleeds past the clip-path due to a browser bug with SVG elements
@@ -1229,19 +1228,17 @@ const ImageEditor = ({
               if (!clipNode) {
                 clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
                 clipNode.id = clipId;
-                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                clipNode.appendChild(clipPathEl);
                 defs.appendChild(clipNode);
               }
-              const rect = clipNode.firstChild;
-              rect.setAttribute('x', cx);
-              rect.setAttribute('y', cy);
-              rect.setAttribute('width', Math.max(0, cw));
-              rect.setAttribute('height', Math.max(0, ch));
+              let rect = clipNode.firstChild;
+              if (!rect || rect.tagName.toLowerCase() !== 'path') {
+                if (rect) rect.remove();
+                rect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                clipNode.appendChild(rect);
+              }
+              const d = getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              rect.setAttribute('d', d);
               rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
-              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-              else rect.removeAttribute('rx');
 
               liveElement.parentElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
               liveElement.parentElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
@@ -1518,21 +1515,16 @@ const ImageEditor = ({
                 clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
                 clipPath.id = clipId;
                 clipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                clipPath.appendChild(rect);
                 defs.appendChild(clipPath);
               }
-              const rect = clipPath.querySelector('rect');
-              rect.setAttribute('x', clipX);
-              rect.setAttribute('y', clipY);
-              rect.setAttribute('width', clipW);
-              rect.setAttribute('height', clipH);
-              if (anyR) {
-                rect.setAttribute('rx', radius.tl || radius.tr || radius.bl || radius.br || 0);
-              } else {
-                rect.removeAttribute('rx');
-                rect.removeAttribute('ry');
+              let rect = clipPath.firstChild;
+              if (!rect || rect.tagName.toLowerCase() !== 'path') {
+                if (rect) rect.remove();
+                rect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                clipPath.appendChild(rect);
               }
+              const d = getPathD(clipX, clipY, Math.max(0, clipW), Math.max(0, clipH), radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              rect.setAttribute('d', d);
 
               // DO NOT apply clip to the inner imgEl because its local space is transformed (panned/scaled).
               // The parent group clip is sufficient and operates in the correct stable local coordinate space.
@@ -1544,25 +1536,20 @@ const ImageEditor = ({
                 groupClipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
                 groupClipPath.id = groupClipId;
                 groupClipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
-                const groupRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                groupClipPath.appendChild(groupRect);
                 defs.appendChild(groupClipPath);
               }
-              const groupClipRect = groupClipPath.querySelector('rect');
+              let groupClipRect = groupClipPath.firstChild;
+              if (!groupClipRect || groupClipRect.tagName.toLowerCase() !== 'path') {
+                if (groupClipRect) groupClipRect.remove();
+                groupClipRect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                groupClipPath.appendChild(groupClipRect);
+              }
 
               // Apply crop bounds directly in liveElement's local coordinate space.
               // No parent CTM conversion is needed because the clip-path is evaluated 
               // in the local space of the element it's applied to.
-              groupClipRect.setAttribute('x', clipX);
-              groupClipRect.setAttribute('y', clipY);
-              groupClipRect.setAttribute('width', Math.max(0, clipW));
-              groupClipRect.setAttribute('height', Math.max(0, clipH));
-              if (anyR) {
-                groupClipRect.setAttribute('rx', radius.tl || radius.tr || radius.bl || radius.br || 0);
-              } else {
-                groupClipRect.removeAttribute('rx');
-                groupClipRect.removeAttribute('ry');
-              }
+              const groupD = getPathD(clipX, clipY, Math.max(0, clipW), Math.max(0, clipH), radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              groupClipRect.setAttribute('d', groupD);
               liveElement.setAttribute('clip-path', `url(#${groupClipId})`);
               liveElement.style.removeProperty('clip-path');
             }
@@ -3714,24 +3701,21 @@ const ImageEditor = ({
               </div>
 
               {/* Opacity */}
-              <div className="space-y-[0.5vw]">
-                <div className="flex items-center gap-[0.5vw]">
-                  <span className="text-[0.9vw]  font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
-                  <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[0.5vw]">
+                <span className="text-[0.85vw] font-semibold text-black whitespace-nowrap">Opacity :</span>
+                <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={opacity}
+                    onChange={(e) => setOpacity(Number(e.target.value))}
+                    className="w-full cursor-pointer custom-range-slider"
+                    style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }}
+                  />
                 </div>
-                <div className="flex items-center gap-[1vw] pb-[0.5vw]">
-                  <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={opacity}
-                      onChange={(e) => setOpacity(Number(e.target.value))}
-                      className="w-full cursor-pointer custom-range-slider"
-                      style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }}
-                    />
-                  </div>
-                  <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{opacity} %</span>
+                <div className="min-w-[3.5vw] h-[2vw] border-[0.1vw] border-gray-200 rounded-[0.3vw] flex items-center justify-center text-[0.8vw] font-medium text-black bg-white shadow-sm px-[0.5vw]">
+                  {opacity} %
                 </div>
               </div>
 

@@ -1122,7 +1122,6 @@ const CustomizedEditor = () => {
     const handleBack = () => setIsPanelCollapsed(true);
     switch (activeSubView) {
       case 'logo':
-      case 'profile':
         return (
           <Branding
             type={activeSubView}
@@ -1157,12 +1156,16 @@ const CustomizedEditor = () => {
             onBack={handleBack}
             settings={menuBarSettings}
             onUpdate={setMenuBarSettings}
+            otherSettings={otherSetupSettings}
+            onUpdateOther={setOtherSetupSettings}
+            folderName={folder}
+            bookName={bookName}
             activeLayout={layoutSettings}
             onNavigateToOtherSetup={(target) => {
-              setOtherSetupTarget(target);
               setActiveSubView('othersetup');
+              setOtherSetupTarget(target);
             }}
-            onTocSettingsClick={() => setTocOpenTrigger(t => t + 1)}
+            onTocSettingsClick={() => setTocOpenTrigger(prev => prev + 1)}
           />
         );
       case 'othersetup':

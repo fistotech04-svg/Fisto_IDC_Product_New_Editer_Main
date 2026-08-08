@@ -16,6 +16,7 @@ import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemp
 import Model3DPreviewModal from './Interaction3DPreview';
 import { getSupabaseBaseUrl, resolveUploadsPath } from '../../utils/supabaseUtils';
 import PasswordProtectModal from '../PasswordProtectModal';
+import { checkIsAnimatedWebp } from './editorUtils';
 
 
 /**
@@ -3404,7 +3405,10 @@ const TemplateEditor = () => {
           handledExternal = true;
 
           const isVideo = fileToProcess.type.startsWith('video/');
-          const isGif = fileToProcess.type === 'image/gif';
+          let isGif = fileToProcess.type === 'image/gif';
+          if (!isGif && fileToProcess.type.includes('webp')) {
+            isGif = await checkIsAnimatedWebp(fileToProcess);
+          }
           const isSvg = fileToProcess.type === 'image/svg+xml';
 
           const reader = new FileReader();
@@ -3500,7 +3504,10 @@ const TemplateEditor = () => {
               e.stopPropagation();
               const blob = await item.getType(mediaType);
               const isVideo = mediaType.startsWith('video/');
-              const isGif = mediaType === 'image/gif';
+              let isGif = mediaType === 'image/gif';
+              if (!isGif && mediaType.includes('webp')) {
+                isGif = await checkIsAnimatedWebp(blob);
+              }
               const isSvg = mediaType === 'image/svg+xml';
 
               const reader = new FileReader();

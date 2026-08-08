@@ -274,79 +274,49 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
       </div>
 
       {/* Sidebar Navigation */}
-      <div className="flex-1 overflow-y-auto pt-[0.2vw] custom-scrollbar">
+      <div className="flex-1 overflow-y-auto pt-[0.2vw] custom-scrollbar px-[0.75vw] flex flex-col gap-[0.2vw]">
         <SidebarItem
           id="section-branding"
-          icon="material-symbols:branding-watermark-outline"
+          icon="lucide:gem"
           label="Branding"
-          isOpen={openSection === 'branding'}
-          onClick={() => toggleSection('branding')}
-          isActive={openSection ? openSection === 'branding' : parentSection === 'branding'}
-        >
-          <div className=" mb-[0.5vw] p-[0.25vw] rounded-[1vw] border-[0.125vw] border-[#DBDBEA] bg-white space-y-[0.25vw] shadow-sm">
-            <SubNavItem
-              label="Logo"
-              icon="lucide:gem"
-              isActive={activeSubView === 'logo'}
-              onClick={() => setActiveSubView('logo')}
-            />
-            <SubNavItem
-              label="Profile"
-              icon="lucide:user"
-              isActive={activeSubView === 'profile'}
-              onClick={() => {
-                setActiveSubView('profile');
-                window.dispatchEvent(new Event('open-profile-preview'));
-              }}
-            />
-          </div>
-        </SidebarItem>
+          isActive={activeSubView === 'branding' || activeSubView === 'logo'}
+          onClick={() => setActiveSubView('logo')}
+          hasDropdown={false}
+        />
 
         <SidebarItem
-          id="section-appearance"
-          icon="tabler:background"
-          label="Appearance"
-          isOpen={openSection === 'appearance'}
-          onClick={() => toggleSection('appearance')}
-          isActive={openSection ? openSection === 'appearance' : parentSection === 'appearance'}
-        >
-          <div className="mb-[0.5vw] p-[0.25vw] rounded-[1vw] border-[0.125vw] border-[#DBDBEA] bg-white space-y-[0.25vw] shadow-sm">
-            <SubNavItem
-              label="Background"
-              icon="mdi:texture"
-              isActive={activeSubView === 'background'}
-              onClick={() => setActiveSubView('background')}
-            />
-            <SubNavItem
-              label="Layout"
-              icon="lucide:layout-panel-left"
-              isActive={activeSubView === 'layout'}
-              onClick={() => setActiveSubView('layout')}
-            />
-            <SubNavItem
-              label="Book Appearance"
-              icon="lucide:settings-2"
-              isActive={activeSubView === 'bookappearance'}
-              onClick={() => setActiveSubView('bookappearance')}
-            />
-          </div>
-        </SidebarItem>
+          id="section-background"
+          icon="mdi:texture"
+          label="Background"
+          isActive={activeSubView === 'background'}
+          onClick={() => setActiveSubView('background')}
+          hasDropdown={false}
+        />
 
         <SidebarItem
           id="section-menubar"
           icon="mingcute:menu-fill"
           label="Menu Bar"
-          isActive={openSection ? openSection === 'menubar' : activeSubView === 'menubar'}
-          onClick={() => setActiveSubView(activeSubView === 'menubar' ? null : 'menubar')}
+          isActive={activeSubView === 'menubar'}
+          onClick={() => setActiveSubView('menubar')}
           hasDropdown={false}
         />
 
         <SidebarItem
-          id="section-othersetup"
-          icon="qlementine-icons:page-setup-16"
-          label="Other Setup"
-          isActive={openSection ? openSection === 'othersetup' : activeSubView === 'othersetup'}
-          onClick={() => setActiveSubView(activeSubView === 'othersetup' ? null : 'othersetup')}
+          id="section-layout"
+          icon="lucide:layout-panel-left"
+          label="Layout"
+          isActive={activeSubView === 'layout'}
+          onClick={() => setActiveSubView('layout')}
+          hasDropdown={false}
+        />
+
+        <SidebarItem
+          id="section-bookappearance"
+          icon="lucide:book-open"
+          label="Book Appearance"
+          isActive={activeSubView === 'bookappearance'}
+          onClick={() => setActiveSubView('bookappearance')}
           hasDropdown={false}
         />
 
@@ -354,8 +324,8 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           id="section-leadform"
           icon="fluent:form-48-regular"
           label="Lead Form"
-          isActive={openSection ? openSection === 'leadform' : activeSubView === 'leadform'}
-          onClick={() => setActiveSubView(activeSubView === 'leadform' ? null : 'leadform')}
+          isActive={activeSubView === 'leadform'}
+          onClick={() => setActiveSubView('leadform')}
           hasDropdown={false}
         />
 
@@ -363,8 +333,8 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           id="section-visibility"
           icon="mdi:visibility-outline"
           label="Visibility"
-          isActive={openSection ? openSection === 'visibility' : activeSubView === 'visibility'}
-          onClick={() => setActiveSubView(activeSubView === 'visibility' ? null : 'visibility')}
+          isActive={activeSubView === 'visibility'}
+          onClick={() => setActiveSubView('visibility')}
           hasDropdown={false}
         />
 
@@ -372,12 +342,11 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           id="section-statistic"
           icon="material-symbols:leaderboard-rounded"
           label="Statistic"
-          isActive={openSection ? openSection === 'statistic' : activeSubView === 'statistic'}
-          onClick={() => setActiveSubView(activeSubView === 'statistic' ? null : 'statistic')}
+          isActive={activeSubView === 'statistic'}
+          onClick={() => setActiveSubView('statistic')}
           hasDropdown={false}
         />
       </div>
-
       {/* Go to Page Editor Button */}
       <div className="px-[1vw] py-[2vh] border-t border-gray-100 mt-auto bg-white">
         <button

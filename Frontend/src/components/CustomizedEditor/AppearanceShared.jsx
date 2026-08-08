@@ -173,15 +173,22 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
       )}
       <div className="flex items-center gap-[0.25vw] h-[1.5vw]">
         <div className="relative flex-1 flex items-center">
+          <style>{`
+            .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
+            .custom-range-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
+            .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
+            .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
+            .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
+          `}</style>
           <input 
             type="range" 
             min={min} 
             max={max} 
             value={value} 
             onChange={(e) => onChange(parseInt(e.target.value))}
-            className="w-full h-[0.25vw] bg-indigo-600  rounded-full appearance-none cursor-pointer slider-custom"
+            className="w-full cursor-pointer custom-range-slider"
             style={{ 
-              background: `linear-gradient(to right, ${color} 0%, ${color} ${percentage}%, #f1f5f9 ${percentage}%, #f1f5f9 100%)` 
+              backgroundImage: `linear-gradient(to right, ${color} 0%, ${color} ${percentage}%, #f1f5f9 ${percentage}%, #f1f5f9 100%)` 
             }}
           />
         </div>
