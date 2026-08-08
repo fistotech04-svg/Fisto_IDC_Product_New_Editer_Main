@@ -39,14 +39,23 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
   };
 
   const [activeDropdownId, setActiveDropdownId] = useState(null);
+  const [isAddFieldPopupOpen, setIsAddFieldPopupOpen] = useState(false);
 
   useEffect(() => {
-    if (!settings.fields || settings.fields.length === 0) {
+    if (!settings.fields || !settings.fields.some(f => f.type === 'dropdown')) {
       onUpdate({
         ...settings,
         fields: [
-          { id: Date.now().toString(), type: 'name', placeholder: 'Enter your Name' },
-          { id: (Date.now() + 1).toString(), type: 'empty' }
+          { id: Date.now().toString(), type: 'name', label: 'Full Name', placeholder: 'Enter your Name' },
+          { id: (Date.now() + 1).toString(), type: 'email', label: 'Email Address', placeholder: 'Enter your Email' },
+          { id: (Date.now() + 2).toString(), type: 'company', label: 'Company Name', placeholder: 'Enter your company name' },
+          { id: (Date.now() + 3).toString(), type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number' },
+          { 
+            id: (Date.now() + 4).toString(), 
+            type: 'dropdown', 
+            label: 'Interested Service', 
+            options: ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'] 
+          }
         ]
       });
     }
@@ -65,15 +74,25 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeDropdownId]);
 
-  const handleAddField = () => {
-    const newFields = [...(settings.fields || []), { id: Date.now().toString(), type: 'empty' }];
+  const handleAddField = (type = 'empty') => {
+    const newField = { id: Date.now().toString(), type };
+    if (type === 'dropdown') {
+      newField.label = 'Interested Service';
+      newField.options = ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'];
+    } else if (type === 'feedback') {
+      newField.label = 'feedback';
+      newField.placeholder = 'Enter your Feedback';
+    }
+    const newFields = [...(settings.fields || []), newField];
     onUpdate({ ...settings, fields: newFields });
+    setIsAddFieldPopupOpen(false);
   };
 
   const handleTypeChange = (id, type) => {
     const defaultPlaceholders = {
       name: 'Enter your Name',
       email: 'Enter your Email',
+      company: 'Enter your company name',
       phone: 'Enter your Phone Number',
       services: 'Select Service',
       enquiry: 'Enter your Enquiry'
@@ -90,16 +109,39 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     onUpdate({ ...settings, fields: newFields });
   };
 
-  const handleFieldChange = (id, placeholder) => {
+  const handleFieldChange = (id, placeholder, label) => {
     const newFields = (settings.fields || []).map(f =>
-      f.id === id ? { ...f, placeholder } : f
+      f.id === id ? { ...f, placeholder, ...(label !== undefined && { label }) } : f
     );
     onUpdate({ ...settings, fields: newFields });
   };
 
+  const handleOptionChange = (fieldId, optionIndex, value) => {
+    const newFields = (settings.fields || []).map(f => {
+      if (f.id === fieldId) {
+        const newOptions = [...(f.options || [])];
+        newOptions[optionIndex] = value;
+        return { ...f, options: newOptions };
+      }
+      return f;
+    });
+    onUpdate({ ...settings, fields: newFields });
+  };
+
+  const handleAddOption = (fieldId) => {
+    const newFields = (settings.fields || []).map(f => {
+      if (f.id === fieldId) {
+        return { ...f, options: [...(f.options || []), ''] };
+      }
+      return f;
+    });
+    onUpdate({ ...settings, fields: newFields });
+  };
+
   const fieldOptions = [
-    { type: 'name', label: 'Name', icon: 'lucide:user' },
-    { type: 'email', label: 'Email', icon: 'logos:google-gmail' },
+    { type: 'name', label: 'Full Name', icon: 'lucide:user' },
+    { type: 'email', label: 'Email Address', icon: 'logos:google-gmail' },
+    { type: 'company', label: 'Company Name', icon: 'lucide:building-2' },
     { type: 'phone', label: 'Phone Number', icon: 'lucide:phone' },
     { type: 'services', label: 'Services', icon: 'lucide:settings' },
     { type: 'enquiry', label: 'Enquiry', icon: 'lucide:message-square' }
@@ -166,135 +208,225 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
               <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
             </div>
 
-            <div className="space-y-[0.5vw]">
-              <div className="flex items-start gap-[1vw]">
-                <label className="text-[0.7vw] font-semibold text-gray-700">Lead Text :</label>
+            <div className="space-y-[1vw]">
+              <div className="flex flex-col gap-[0.4vw]">
+                <label className="text-[0.7vw] font-medium text-gray-900">Title :</label>
+                <input
+                  type="text"
+                  value={settings.formTitle !== undefined ? settings.formTitle : 'Request More Information'}
+                  onChange={(e) => onUpdate({ ...settings, formTitle: e.target.value })}
+                  className="w-full border border-gray-200 rounded-[0.4vw] p-[0.6vw] text-[0.7vw] text-gray-600 focus:outline-none focus:border-indigo-500 bg-white shadow-sm"
+                  placeholder="Request More Information"
+                />
+              </div>
+
+              <div className="flex flex-col gap-[0.4vw]">
+                <label className="text-[0.7vw] font-medium text-gray-900">Description :</label>
                 <textarea
-                  value={settings.leadText}
+                  value={settings.leadText !== undefined ? settings.leadText : 'Tell us about your requirements and our team will reach out.'}
                   onChange={(e) => onUpdate({ ...settings, leadText: e.target.value })}
-                  className="flex-1 h-[5vw] border border-gray-300 rounded-[0.75vw] p-[0.75vw] text-[0.7vw] text-gray-500 focus:outline-none focus:border-indigo-500 resize-none bg-white shadow-sm"
-                  placeholder='"Share your information to get personalized updates."'
+                  className="w-full h-[4.5vw] border border-gray-200 rounded-[0.4vw] p-[0.6vw] text-[0.7vw] text-gray-600 focus:outline-none focus:border-indigo-500 resize-none bg-white shadow-sm"
+                  placeholder="Tell us about your requirements and our team will reach out."
+                />
+              </div>
+
+              <div className="flex flex-col gap-[0.4vw]">
+                <label className="text-[0.7vw] font-medium text-gray-900">Button Text :</label>
+                <input
+                  type="text"
+                  value={settings.buttonText !== undefined ? settings.buttonText : 'Request Callback'}
+                  onChange={(e) => onUpdate({ ...settings, buttonText: e.target.value })}
+                  className="w-full border border-gray-200 rounded-[0.4vw] p-[0.6vw] text-[0.7vw] text-gray-600 focus:outline-none focus:border-indigo-500 bg-white shadow-sm"
+                  placeholder="Request Callback"
                 />
               </div>
             </div>
           </div>
 
-          {/* Add Leads */}
+          {/* Add Fields */}
           <div className="space-y-[1vw] font-sans">
             <div className="flex items-center gap-[0.5vw]">
-              <h3 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Add Leads</h3>
+              <h3 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Add Fields</h3>
               <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
             </div>
 
             <div className="space-y-[1vw]">
-              {settings.fields?.map((field) => (
-                <div
-                  key={field.id}
-                  id={`dropdown-container-${field.id}`}
-                  className="flex items-center gap-[0.75vw] group relative"
-                >
-                  {/* Icon Container */}
-                  <div
-                    className="w-[2.5vw] h-[2.5vw] bg-white border border-gray-400 rounded-[0.5vw] flex items-center justify-center shrink-0 shadow-sm cursor-pointer"
-                    onClick={() => setActiveDropdownId(activeDropdownId === field.id ? null : field.id)}
-                  >
-                    {field.type === 'email' ? (
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg" alt="Gmail" className="w-[1.25vw] h-auto" />
-                    ) : field.type === 'name' ? (
-                      <Icon icon="lucide:user" width="1vw" className="text-gray-900" />
-                    ) : field.type === 'phone' ? (
-                      <Icon icon="lucide:phone" width="1vw" className="text-gray-400" />
-                    ) : field.type === 'services' ? (
-                      <Icon icon="lucide:settings" width="1vw" className="text-gray-900" />
-                    ) : field.type === 'enquiry' || field.type === 'feedback' ? (
-                      <Icon icon="lucide:message-square" width="1vw" className="text-gray-900" />
-                    ) : (
-                      <Icon icon="lucide:ban" width="1vw" className="text-gray-900" />
-                    )}
-                    <Icon icon="fluent:chevron-down-12-regular" className="ml-[0.1vw] text-gray-400" width="0.75vw" />
-                  </div>
+              {settings.fields?.map((field) => {
+                if (field.type === 'dropdown') {
+                  return (
+                    <div
+                      key={field.id}
+                      className="bg-white border border-gray-200 rounded-[0.5vw] overflow-visible shadow-sm"
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between px-[0.75vw] py-[0.5vw] border-b border-gray-100">
+                        <span className="text-[0.75vw] text-gray-900 font-medium">Drop Down</span>
+                        <button
+                          onClick={() => handleRemoveField(field.id)}
+                          className="text-gray-600 hover:text-red-500 transition-colors"
+                          title="Delete Field"
+                        >
+                          <Icon icon="lucide:more-vertical" width="1vw" />
+                        </button>
+                      </div>
 
-                  {/* Dropdown for this field */}
-                  {activeDropdownId === field.id && (
-                    <div className="absolute top-[3vw] left-0 z-50 bg-white rounded-[1vw] shadow-2xl p-[1vw] w-[12vw] border border-gray-50 animate-in slide-in-from-top-2 duration-200">
-                      <div className="space-y-[0.75vw]">
-                        {fieldOptions
-                          .filter(opt => !settings.fields.some(f => f.type === opt.type && f.id !== field.id))
-                          .map((opt) => (
-                            <div
-                              key={opt.type}
-                              className="flex items-center gap-[1vw] group/opt cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTypeChange(field.id, opt.type);
-                              }}
-                            >
-                              {opt.type === 'email' ? (
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg" alt="Gmail" className="w-[1.25vw] h-auto" />
-                              ) : (
-                                <Icon icon={opt.icon} width="1.25vw" className="transition-transform group-hover/opt:scale-110" />
-                              )}
-                              <span className="text-[0.8125vw] font-medium text-gray-700 normal-case">{opt.label}</span>
+                      {/* Card Body */}
+                      <div className="p-[0.75vw] space-y-[0.75vw]">
+                        {/* Label Row */}
+                        <div className="flex items-center gap-[0.5vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-900 w-[3.5vw]">Label :</label>
+                          <input
+                            type="text"
+                            value={field.label || ''}
+                            onChange={(e) => handleFieldChange(field.id, field.placeholder, e.target.value)}
+                            className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
+                            placeholder="Interested Service"
+                          />
+                        </div>
+
+                        {/* Options */}
+                        <div className="flex items-start gap-[0.5vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-900 w-[3.5vw] pt-[0.4vw]">Options :</label>
+                          <div className="flex-1 space-y-[0.4vw]">
+                            {(field.options || []).map((opt, idx) => (
+                              <div key={idx} className="flex items-center gap-[0.5vw]">
+                                <div className="w-[1.2vw] h-[1.2vw] rounded-full bg-gray-500 text-white flex items-center justify-center text-[0.6vw] font-semibold shrink-0">
+                                  {idx + 1}
+                                </div>
+                                <input
+                                  type="text"
+                                  value={opt}
+                                  onChange={(e) => handleOptionChange(field.id, idx, e.target.value)}
+                                  className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
+                                />
+                              </div>
+                            ))}
+                            <div className="flex justify-end pt-[0.2vw]">
+                              <button
+                                onClick={() => handleAddOption(field.id)}
+                                className="flex items-center gap-[0.2vw] px-[0.6vw] py-[0.3vw] bg-gray-50 border border-gray-100 rounded-[0.4vw] text-gray-600 text-[0.65vw] font-medium hover:bg-gray-100 transition-colors"
+                              >
+                                <Plus size="0.7vw" /> Add
+                              </button>
                             </div>
-                          ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  )}
+                  );
+                }
 
-                  {/* Input Area */}
-                  <div className="flex-1 flex items-center justify-between bg-white border border-gray-400 rounded-[0.5vw] px-[0.5vw] py-[0.5vw] h-[2.5vw] shadow-sm overflow-hidden">
-                    <div className="flex items-center gap-[0.25vw] flex-1 min-w-0">
-                      <div className="grid min-w-0 max-w-full">
-                        <span className="col-start-1 row-start-1 invisible whitespace-pre font-medium text-[0.7vw] px-[0.1vw] overflow-hidden text-ellipsis">
-                          {field.placeholder || (field.type === 'empty' ? 'Select a type...' : `Enter your ${field.type === 'email' ? 'Email' : fieldOptions.find(o => o.type === field.type)?.label || field.type}`)}
-                        </span>
+                return (
+                  <div
+                    key={field.id}
+                  className="bg-white border border-gray-200 rounded-[0.5vw] overflow-visible shadow-sm"
+                >
+                  {/* Card Header */}
+                  <div className="flex items-center justify-between px-[0.75vw] py-[0.5vw] border-b border-gray-100">
+                    <span className="text-[0.75vw] text-gray-800 font-medium">{field.type === 'feedback' || field.type === 'enquiry' ? 'Text Area' : 'Input Box'}</span>
+                    <button
+                      onClick={() => handleRemoveField(field.id)}
+                      className="text-gray-600 hover:text-red-500 transition-colors"
+                      title="Delete Field"
+                    >
+                      <Icon icon="lucide:more-vertical" width="1vw" />
+                    </button>
+                  </div>
+                  
+                  {/* Card Body */}
+                  <div className="p-[0.75vw] space-y-[0.75vw]">
+                    {/* Label Row */}
+                    <div className="flex items-center gap-[0.5vw] relative">
+                      <label className="text-[0.7vw] font-medium text-gray-700 w-[2.5vw]">Label :</label>
+                      <div className="flex-1 flex items-center border border-gray-200 rounded-[0.4vw] focus-within:border-indigo-500 bg-white">
+                        {/* Dropdown Trigger */}
+                        <div
+                          className="h-[1.8vw] px-[0.4vw] border-r border-gray-200 flex items-center justify-center cursor-pointer bg-gray-50/50 rounded-l-[0.4vw] hover:bg-gray-100"
+                          onClick={() => setActiveDropdownId(activeDropdownId === field.id ? null : field.id)}
+                          id={`dropdown-container-${field.id}`}
+                        >
+                          {field.type === 'email' ? (
+                            <Icon icon="logos:google-gmail" width="0.8vw" />
+                          ) : field.type === 'name' ? (
+                            <Icon icon="lucide:user" width="0.8vw" className="text-gray-900" />
+                          ) : field.type === 'company' ? (
+                            <Icon icon="lucide:building-2" width="0.8vw" className="text-gray-900" />
+                          ) : field.type === 'phone' ? (
+                            <Icon icon="lucide:phone" width="0.8vw" className="text-gray-400" />
+                          ) : field.type === 'services' ? (
+                            <Icon icon="lucide:settings" width="0.8vw" className="text-gray-900" />
+                          ) : field.type === 'enquiry' || field.type === 'feedback' ? (
+                            <Icon icon="lucide:message-square" width="0.8vw" className="text-gray-900" />
+                          ) : (
+                            <Icon icon="lucide:user" width="0.8vw" className="text-gray-900" />
+                          )}
+                          <Icon icon="fluent:chevron-down-12-regular" width="0.6vw" className="ml-[0.2vw] text-gray-500" />
+                        </div>
+                        
+                        {/* Dropdown Content */}
+                        {activeDropdownId === field.id && (
+                          <div className="absolute top-[2vw] left-[3vw] z-50 bg-white rounded-[0.5vw] shadow-lg p-[0.5vw] w-[10vw] border border-gray-100 animate-in fade-in zoom-in-95 duration-100">
+                            <div className="space-y-[0.5vw]">
+                              {fieldOptions
+                                .filter(opt => !settings.fields.some(f => f.type === opt.type && f.id !== field.id))
+                                .map((opt) => (
+                                  <div
+                                    key={opt.type}
+                                    className="flex items-center gap-[0.75vw] p-[0.4vw] hover:bg-gray-50 rounded-[0.3vw] cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTypeChange(field.id, opt.type);
+                                    }}
+                                  >
+                                    {opt.type === 'email' ? (
+                                      <Icon icon="logos:google-gmail" width="0.9vw" />
+                                    ) : (
+                                      <Icon icon={opt.icon} width="0.9vw" className="text-gray-600" />
+                                    )}
+                                    <span className="text-[0.7vw] font-medium text-gray-700">{opt.label}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Label Input */}
                         <input
-                          id={`input-${field.id}`}
                           type="text"
-                          size={1}
-                          value={field.placeholder || ''}
-                          onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                          placeholder={field.type === 'empty' ? 'Select a type...' : `Enter your ${field.type === 'email' ? 'Email' : fieldOptions.find(o => o.type === field.type)?.label || field.type}`}
-                          className="col-start-1 row-start-1 w-full text-[0.7vw] focus:outline-none normal-case font-medium text-gray-900 bg-transparent min-w-0 px-[0.1vw]"
+                          value={field.label !== undefined ? field.label : (fieldOptions.find(o => o.type === field.type)?.label || field.type)}
+                          onChange={(e) => handleFieldChange(field.id, field.placeholder, e.target.value)}
+                          className="flex-1 px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none bg-transparent h-[1.8vw] w-full normal-case"
+                          placeholder="Label name"
                           disabled={field.type === 'empty'}
                         />
                       </div>
-
-                      <Icon
-                        icon="mdi:rename-outline"
-                        width="1vw"
-                        className="text-gray-500 hover:text-gray-900 cursor-pointer transition-colors opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pointer-events-none group-hover:pointer-events-auto"
-                        onClick={() => {
-                          const input = document.getElementById(`input-${field.id}`);
-                          if (input) {
-                            input.focus();
-                            input.select();
-                          }
-                        }}
-                      />
                     </div>
 
-                    <div className="flex items-center ml-[0.5vw] shrink-0">
-                      <Trash2
-                        size="1vw"
-                        className="text-red-400 cursor-pointer hover:text-red-500 transition-colors stroke-[1.5px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto"
-                        onClick={() => handleRemoveField(field.id)}
+                    {/* Input Placeholder Row */}
+                    <div className="flex items-center gap-[0.5vw]">
+                      <label className="text-[0.7vw] font-medium text-gray-700 w-[2.5vw]">Input :</label>
+                      <input
+                        type="text"
+                        value={field.placeholder || ''}
+                        onChange={(e) => handleFieldChange(field.id, e.target.value, field.label)}
+                        placeholder={field.type === 'empty' ? 'Select a type...' : `Enter your ${field.type === 'email' ? 'Email' : fieldOptions.find(o => o.type === field.type)?.label || field.type}`}
+                        className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
+                        disabled={field.type === 'empty'}
                       />
                     </div>
                   </div>
                 </div>
-              ))}
+              )})}
 
-              {/* Add Button */}
+              {/* Add Lead Field Button */}
               {!allOptionsAdded && (
-                <div className="flex items-center justify-end pt-[0.25vw] relative">
-                  <button
-                    onClick={handleAddField}
-                    className="flex items-center gap-[0.25vw] px-[0.7vw] py-[0.5vw] border border-gray-300 bg-white rounded-[0.5vw] text-gray-600 text-[0.75vw] font-semibold hover:bg-gray-50 transition-colors shadow-sm"
-                  >
-                    <Plus size="0.875vw" /> Add
-                  </button>
-                </div>
+                <button
+                  onClick={() => setIsAddFieldPopupOpen(true)}
+                  className="w-full flex items-center justify-center gap-[0.4vw] py-[0.6vw] bg-white border border-gray-200 rounded-[0.5vw] text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors shadow-[0_0.1vw_0.2vw_rgba(0,0,0,0.02)] mt-[0.5vw]"
+                >
+                  <Plus size="0.9vw" className="stroke-[2.5]" />
+                  <span className="text-[0.8vw] font-medium tracking-wide">Add Lead Field</span>
+                </button>
               )}
             </div>
           </div>
@@ -351,6 +483,72 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Lead Form Mode */}
+          <div className="space-y-[1vw]">
+            <div className="flex items-center gap-[0.5vw]">
+              <h3 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Lead Form Mode</h3>
+              <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+            </div>
+
+            <div className="space-y-[0.75vw]">
+              <label className="flex items-center gap-[0.75vw] cursor-pointer group w-fit">
+                <div className="relative flex items-center justify-center">
+                  <input
+                    type="radio"
+                    name="allowSkip"
+                    checked={!settings.appearance.allowSkip}
+                    onChange={() => updateAppearance('allowSkip', false)}
+                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                  />
+                  <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                </div>
+                <span className={`text-[0.75vw] font-medium ${!settings.appearance.allowSkip ? 'text-gray-900' : 'text-gray-500'}`}>Mandatory (Require Submission)</span>
+              </label>
+
+              <div className="space-y-[0.75vw]">
+                <label className="flex items-center gap-[0.75vw] cursor-pointer group w-fit">
+                  <div className="relative flex items-center justify-center">
+                    <input
+                      type="radio"
+                      name="allowSkip"
+                      checked={settings.appearance.allowSkip}
+                      onChange={() => updateAppearance('allowSkip', true)}
+                      className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                    />
+                    <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                  </div>
+                  <span className={`text-[0.75vw] font-medium ${settings.appearance.allowSkip ? 'text-gray-900' : 'text-gray-500'}`}>Optional (Allow Skip)</span>
+                </label>
+
+                {settings.appearance.allowSkip && (
+                  <div className="ml-[1.85vw] space-y-[0.8vw] pt-[0.25vw] border-t border-gray-200 mt-[0.5vw]">
+                    <span className="block text-[0.75vw] font-semibold text-gray-800 mt-[0.6vw] mb-[0.2vw]">If Skipped :</span>
+                    
+                    {[
+                      { id: 'never', label: 'Never show again' },
+                      { id: '1_day', label: 'Show again after 1 day' },
+                      { id: 'next_visit', label: 'Show again on next visit' }
+                    ].map(opt => (
+                      <label key={opt.id} className="flex items-center gap-[0.75vw] cursor-pointer group w-fit">
+                        <div className="relative flex items-center justify-center">
+                          <input
+                            type="radio"
+                            name="skipBehavior"
+                            checked={(settings.appearance.skipBehavior || 'never') === opt.id}
+                            onChange={() => updateAppearance('skipBehavior', opt.id)}
+                            className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                          />
+                          <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                        </div>
+                        <span className={`text-[0.7vw] font-medium ${(settings.appearance.skipBehavior || 'never') === opt.id ? 'text-gray-800' : 'text-gray-500'}`}>{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -418,21 +616,70 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                 </div>
               )}
             </div>
-
-            <div className="bg-white rounded-[0.8vw] shadow-[0_0.9vw_1.2vw_rgba(0,0,0,0.05)] transition-all duration-300 relative z-0">
-              <div className="flex items-center justify-between px-[0.5vw] py-[0.8vw] pl-[1vw] pr-[1vw] shadow-sm rounded-[0.7vw] transition-all duration-300">
-                <span className="text-[0.75vw] font-medium text-gray-800 whitespace-nowrap">Allow Skip</span>
-                <div className="flex items-center gap-[0.75vw]">
-                  <Switch
-                    enabled={settings.appearance.allowSkip}
-                    onChange={() => updateAppearance('allowSkip', !settings.appearance.allowSkip)}
-                  />
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
+
+      {/* Add Field Popup */}
+      {isAddFieldPopupOpen && (
+        <>
+          <div 
+            className="absolute top-0 left-full w-[100vw] h-[100vh] z-[100]"
+            onClick={() => setIsAddFieldPopupOpen(false)}
+          />
+          <div className="absolute top-[40%] right-0 translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-[1vw] w-[17vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+            
+            {/* Header Tabs */}
+            <div className="flex bg-[#E5E5E5] w-full">
+              <button className="flex-1 py-[0.9vw] text-[0.8vw] font-medium text-gray-500 hover:text-gray-700 transition-colors border-b border-[#D1D1D1]">
+                Quick Templates
+              </button>
+              <button className="flex-1 py-[0.9vw] text-[0.8vw] font-semibold text-black bg-white border-b-[0.15vw] border-black">
+                Custom Fields
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="p-[1.5vw] flex flex-col items-center bg-white w-full">
+              <p className="text-[0.75vw] text-gray-600 mb-[1.5vw] font-medium text-center">
+                Click a field below to add it to your lead form.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-[0.8vw] w-full">
+                <button onClick={() => handleAddField('empty')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:type" className="w-[1vw] h-[1vw] text-gray-600" />
+                  <span className="text-[0.7vw] font-medium text-gray-700">Input Box</span>
+                </button>
+                
+                <button onClick={() => handleAddField('feedback')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:text-cursor-input" className="w-[1vw] h-[1vw] text-gray-600" />
+                  <span className="text-[0.7vw] font-medium text-gray-700">Text Area</span>
+                </button>
+                
+                <button onClick={() => handleAddField('radio')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:circle-dot" className="w-[1vw] h-[1vw] text-gray-600" />
+                  <span className="text-[0.7vw] font-medium text-gray-700">Radio Button</span>
+                </button>
+                
+                <button onClick={() => handleAddField('dropdown')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:list-collapse" className="w-[1vw] h-[1vw] text-gray-600" />
+                  <span className="text-[0.7vw] font-medium text-gray-700">Dropdown</span>
+                </button>
+
+                <button onClick={() => handleAddField('rating')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:star" className="w-[1vw] h-[1vw] text-gray-600" />
+                  <span className="text-[0.7vw] font-medium text-gray-700">Rating</span>
+                </button>
+
+                <button onClick={() => handleAddField('checkbox')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:check-square" className="w-[1vw] h-[1vw] text-gray-600" />
+                  <span className="text-[0.7vw] font-medium text-gray-700">Checkbox</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -2665,6 +2665,37 @@ const MainEditor = ({
         g.setAttribute('stroke-width', '1');
       } else {
         g.setAttribute('data-is-hotspot', 'true');
+        
+        const currentPresetId = e.detail.presetId || (icon && icon.presetId);
+        if (currentPresetId) {
+          g.setAttribute('data-preset-id', currentPresetId);
+          
+          const actionMap = {
+            'youtube': 'open-link',
+            'instagram': 'open-link',
+            'x': 'open-link',
+            'facebook': 'open-link',
+            'linkedin': 'open-link',
+            'open-link': 'open-link',
+            'navigate': 'navigate-to',
+            'whatsapp': 'whatsapp',
+            'call': 'call',
+            'email': 'email',
+            'video': 'popup',
+            'popup': 'popup',
+            'slideshow': 'slideshow',
+            'zoom': 'zoom',
+            'download': 'download',
+            'info': 'info-box',
+            'location': 'open-link',
+            '3d-viewer': '3d-viewer'
+          };
+          
+          const actionType = actionMap[currentPresetId];
+          if (actionType) {
+            g.setAttribute('data-interaction', actionType);
+          }
+        }
       }
 
 
@@ -2693,6 +2724,10 @@ const MainEditor = ({
 
       updatePageHtml(targetPageIndex, svg.outerHTML);
       setSelectedLayerId(newId);
+      
+      if (e.detail.isHotspot && typeof setActiveTopTool === 'function') {
+        setActiveTopTool('interaction');
+      }
     };
 
     const handleUploadVideo = (e) => {
@@ -7056,8 +7091,10 @@ const MainEditor = ({
             }
 
             let allowDrag = true;
-            // Block dragging in Interaction/Animation mode UNLESS it's a Free Frame
-            if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && elementToDrag.getAttribute('data-name') !== 'Free Frame') {
+            // Block dragging in Interaction/Animation mode UNLESS it's a Free Frame OR a Hotspot
+            if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && 
+                elementToDrag.getAttribute('data-name') !== 'Free Frame' &&
+                elementToDrag.getAttribute('data-is-hotspot') !== 'true') {
               allowDrag = false;
               safeStopInteraction(event.interaction);
               // We STILL want to allow auto-select to run below, so we don't return here.
@@ -12237,9 +12274,28 @@ const MainEditor = ({
                 {showHotspotPopup && (
                   <HotspotPresetPopup
                     onClose={() => setShowHotspotPopup(false)}
-                    onSelectPreset={(presetId) => {
-                      console.log('Selected preset:', presetId);
-                      // Future logic for handling the selected preset
+                    onSelectPreset={(data) => {
+                      if (data.type === 'icon') {
+                        const container = document.querySelector(`.page-svg-container[data-page-index="${displayIndex}"]`);
+                        const svg = container?.querySelector('svg');
+                        let centerX = 396;
+                        let centerY = 560;
+                        if (svg) {
+                          const svgW = parseFloat(svg.getAttribute('width')) || 793;
+                          const svgH = parseFloat(svg.getAttribute('height')) || 1121;
+                          centerX = svgW / 2;
+                          centerY = svgH / 2;
+                        }
+                        
+                        window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                          detail: {
+                            pageIndex: displayIndex,
+                            icon: data.icon,
+                            dropPoint: { x: centerX, y: centerY },
+                            isHotspot: data.isHotspot
+                          }
+                        }));
+                      }
                     }}
                   />
                 )}
@@ -12772,7 +12828,8 @@ const MainEditor = ({
                                       detail: {
                                         pageIndex: displayIndex,
                                         icon: data.icon,
-                                        dropPoint
+                                        dropPoint,
+                                        isHotspot: data.isHotspot
                                       }
                                     }));
                                   } else if (data.type === 'image' || data.type === 'upload' || data.url) {
