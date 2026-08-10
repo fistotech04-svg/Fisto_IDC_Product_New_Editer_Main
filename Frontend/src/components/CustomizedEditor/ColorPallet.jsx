@@ -141,7 +141,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
     <div
       ref={pickerRef}
       onClick={(e) => e.stopPropagation()}
-      className={`${inline ? 'relative' : 'fixed'} z-[1000] ${inline ? 'w-full' : (smallMode ? 'w-[12vw]' : 'w-[15vw]')} bg-white rounded-[1vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] border border-gray-100 ${smallMode ? 'p-[0.6vw]' : 'p-[1vw]'} animate-in fade-in zoom-in-95 duration-200 select-none font-sans ${className || ""}`}
+      className={`${inline ? 'relative' : 'fixed'} z-[10005] ${inline ? 'w-full' : (smallMode ? 'w-[12vw]' : 'w-[15vw]')} bg-white rounded-[1vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] border border-gray-100 ${smallMode ? 'p-[0.6vw]' : 'p-[1vw]'} animate-in fade-in zoom-in-95 duration-200 select-none font-sans ${className || ""}`}
       style={inline ? { ...style } : {
         top: '50%',
         left: '50%',
@@ -242,9 +242,8 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
               }}
               className="flex items-center justify-center p-[0.1vw] hover:bg-gray-50 rounded-[0.2vw] transition-colors group/btn"
             >
-              <Icon
-                icon="heroicons:pencil"
-                className={`${smallMode ? 'w-[0.6vw] h-[0.6vw]' : 'w-[0.8vw] h-[0.8vw]'} text-gray-400 group-hover/btn:text-gray-600`}
+              <Icon icon="lucide:pipette"
+                className={`${smallMode ? 'w-[0.6vw] h-[0.6vw]' : 'w-[0.8vw] h-[0.8vw]'} text-gray-400 group-hover/btn:text-gray-700`}
               />
             </button>
           </div>

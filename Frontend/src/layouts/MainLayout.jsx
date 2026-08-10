@@ -9,7 +9,7 @@ export default function MainLayout() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <DashboardNavbar />
-      <div className={`flex-1 overflow-y-auto scroll-smooth ${isHomePage ? 'snap-y snap-mandatory' : ''}`}>
+      <div className={`flex-1 overflow-y-auto overflow-x-hidden scroll-smooth ${isHomePage ? 'snap-y snap-proximity' : ''}`}>
         <Outlet />
       </div>
     </div>
