@@ -21,10 +21,14 @@ export const processBookAppearanceSettings = (settings) => {
   const pos = positionMap[shadow.position] || { x: 15, y: 15 };
   const strength = shadow.strength ?? 35;
   const softness = shadow.softness ?? 35;
-  const shadowColor = `rgba(107, 104, 104, ${strength / 100})`;
+  const shadowColor = `rgba(0, 0, 0, ${strength / 100})`;
 
   const shadowStyle = shadow.active !== false
     ? `${pos.x}px ${pos.y}px ${softness}px 0px ${shadowColor}`
+    : 'none';
+
+  const shadowFilter = shadow.active !== false
+    ? `drop-shadow(${pos.x}px ${pos.y}px ${softness}px ${shadowColor})`
     : 'none';
 
   const cornerMap = { 'Sharp': '0px', 'Soft': '5px', 'Round': '10px' };
@@ -49,6 +53,7 @@ export const processBookAppearanceSettings = (settings) => {
 
   return {
     shadowStyle,
+    shadowFilter,
     cornerRadius,
     pageOpacity: typeof settings.opacity !== 'undefined' ? settings.opacity / 100 : 1, // Modified to carry layout visual opacity rather than strictly 1
     flipTime,

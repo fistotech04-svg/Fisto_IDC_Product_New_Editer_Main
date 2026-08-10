@@ -54,6 +54,7 @@ const ShareViewBook = () => {
     const [passwordError, setPasswordError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
+    const [tempSettings, setTempSettings] = useState(null);
 
     // Get current logged-in user email
     const userStr = localStorage.getItem('user');
@@ -210,6 +211,13 @@ const ShareViewBook = () => {
                         });
                     }
                 }
+
+                // Extract and set tempSettings immediately so the custom preloader works while image preloading happens
+                const extractedSettings = {
+                    ...(processedData?.meta || {}),
+                    ...(processedData?.settings || {})
+                };
+                setTempSettings(extractedSettings);
 
                 if (!processedData || !processedData.pages || processedData.pages.length === 0) {
                     throw new Error("Invalid or empty flipbook data received");
@@ -428,7 +436,7 @@ const ShareViewBook = () => {
             <FlipbookPreview
                 pages={[]}
                 pageName="Loading..."
-                settings={{}}
+                settings={tempSettings || {}}
                 isMobile={isMobileDevice}
                 onClose={null}
                 baseUrl={null}
