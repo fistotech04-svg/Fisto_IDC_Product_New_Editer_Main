@@ -459,7 +459,7 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
       {isDropdownOpen && dropdownStyles.left && createPortal(
         <div
           data-dropdown-menu="true"
-          className="bg-white border border-gray-200 rounded-[0.8vw] shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col gap-[0.5vh] p-[0.5vw] max-h-[45vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-left"
+          className="bg-white border border-gray-200 rounded-[0.8vw] shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col gap-[0.5vh] p-[0.5vw] max-h-[60vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-left"
           style={dropdownStyles}
         >
           {actionTypes.map(action => (
@@ -1081,6 +1081,11 @@ const InteractionPanel = ({
         if (!hotspotIconSrc && isHotspot && imageEl) {
            hotspotIconSrc = imageEl.getAttribute('href');
         }
+        
+        let hotspotHtml = null;
+        if (isHotspot && !hotspotIconSrc) {
+           hotspotHtml = foundEl.innerHTML;
+        }
 
         list.push({
           id: foundEl.id,
@@ -1097,6 +1102,7 @@ const InteractionPanel = ({
           pageIndex: foundPageIndex,
           isHotspot: isHotspot,
           hotspotIconSrc: hotspotIconSrc,
+          hotspotHtml: hotspotHtml,
           presetId: foundEl.getAttribute('data-preset-id') || null
         });
       }
@@ -1447,12 +1453,64 @@ const InteractionPanel = ({
                         <div className="w-full border-t border-gray-100/60"></div>
                         
                         {/* Hotspot Preset Preview Section */}
-                        {item.isHotspot && item.hotspotIconSrc && (
+                        {item.isHotspot && (item.hotspotIconSrc || item.hotspotHtml) && (
                           <div className="w-full px-[1.6vw] pt-[1.5vh]">
-                            <div className="w-full h-[12vh] bg-white border border-gray-200/60 rounded-[0.5vw] flex items-center justify-center relative shadow-sm">
-                              <img src={item.hotspotIconSrc} alt="Hotspot" className="w-[3.5vw] h-[3.5vw] object-contain pointer-events-none" />
+                            <div className="w-full h-[12vh] bg-white border border-gray-200/60 rounded-[0.5vw] flex items-center justify-center relative shadow-sm overflow-hidden p-[1vh]">
+                              {item.hotspotIconSrc ? (
+                                <img src={item.hotspotIconSrc} alt="Hotspot" className="w-[3.5vw] h-[3.5vw] object-contain pointer-events-none" />
+                              ) : (
+                                (() => {
+                                  let vb = "0 0 52 52";
+                                  let cls = "w-[3.5vw] h-[3.5vw] pointer-events-none";
+                                  let displayHtml = item.hotspotHtml;
+                                  
+                                  if (displayHtml) {
+                                    if (displayHtml.includes('<text')) {
+                                      // It's an Interactive Button preset.
+                                      // We force the original geometry so that moving/resizing on canvas doesn't break the preview.
+                                      const w = displayHtml.includes('#FFCC00') ? 220 : 180;
+                                        
+                                      try {
+                                        const temp = document.createElement('div');
+                                        temp.innerHTML = `<svg>${displayHtml}</svg>`;
+                                        const svg = temp.querySelector('svg');
+                                        if (svg) {
+                                          const r = svg.querySelector('rect');
+                                          if (r) {
+                                            r.setAttribute('x', '0');
+                                            r.setAttribute('y', '0');
+                                            r.setAttribute('width', w);
+                                            r.setAttribute('height', '60');
+                                            r.removeAttribute('transform');
+                                          }
+                                          const t = svg.querySelector('text');
+                                          if (t) {
+                                            t.setAttribute('x', w / 2);
+                                            t.setAttribute('y', 30);
+                                            t.setAttribute('dominant-baseline', 'central');
+                                            t.setAttribute('text-anchor', 'middle');
+                                            t.removeAttribute('transform');
+                                            svg.querySelectorAll('tspan').forEach(ts => {
+                                              ts.removeAttribute('x');
+                                              ts.removeAttribute('y');
+                                            });
+                                          }
+                                          displayHtml = svg.innerHTML;
+                                        }
+                                      } catch(e) {
+                                        console.error('Error parsing hotspot SVG preview', e);
+                                      }
+                                        
+                                      vb = `0 0 ${w} 60`;
+                                      cls = "w-[10vw] h-[3.33vw] pointer-events-none";
+                                    }
+                                  }
+                                  
+                                  return <svg className={cls} viewBox={vb} preserveAspectRatio="xMidYMid meet" dangerouslySetInnerHTML={{ __html: displayHtml }} />;
+                                })()
+                              )}
                               <div 
-                                className="absolute top-[0.6vw] right-[0.6vw] cursor-pointer text-gray-500 hover:text-gray-700 transition-colors bg-white rounded-md"
+                                className="absolute top-[0.6vw] right-[0.6vw] cursor-pointer text-gray-500 hover:text-gray-700 transition-colors bg-white/90 rounded-md z-10"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingHotspotId(item.id);
@@ -3160,8 +3218,9 @@ const InteractionPanel = ({
                               const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
                               const frameEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(item.id)}"]`) : editorDoc.getElementById(item.id);
                               const isFreeFrame = frameEl && (frameEl.getAttribute('data-type') === 'free-frame' || frameEl.getAttribute('data-name')?.toLowerCase() === 'free frame');
+                              const isHotspot = item.isHotspot || (frameEl && frameEl.getAttribute('data-is-hotspot') === 'true');
 
-                              if (isFreeFrame && deleteLayer) {
+                              if ((isFreeFrame || isHotspot) && deleteLayer) {
                                 deleteLayer(targetIdx, item.id);
                               } else {
                                 if (updateElementAttribute) {
@@ -3326,6 +3385,52 @@ const InteractionPanel = ({
             const item = interactiveElementsList.find(i => i.id === editingHotspotId);
             return item ? item.hotspotIconSrc : null;
           })()}
+          interactionType={(() => {
+            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
+            return item ? (item.presetId || item.actionId || item.interactionType) : null;
+          })()}
+          initialHotspotHtml={(() => {
+            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
+            return item ? item.hotspotHtml : null;
+          })()}
+          initialBgColor={(() => {
+            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-bg-color']) {
+              return selectedElementProps['data-hotspot-bg-color'];
+            }
+            const el = document.getElementById(editingHotspotId);
+            if (el && el.hasAttribute('data-hotspot-bg-color')) return el.getAttribute('data-hotspot-bg-color');
+            
+            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
+            if (item && item.hotspotHtml) {
+               const fillMatch = item.hotspotHtml.match(/<circle[^>]*?fill="(#[a-fA-F0-9]{3,8})/i) || item.hotspotHtml.match(/fill="(#[a-fA-F0-9]{3,8})/i);
+               if (fillMatch && fillMatch[1].toLowerCase() !== '#ffffff') return fillMatch[1];
+            }
+            return undefined;
+          })()}
+          initialIconColor={(() => {
+            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-icon-color']) {
+              return selectedElementProps['data-hotspot-icon-color'];
+            }
+            const el = document.getElementById(editingHotspotId);
+            if (el) return el.getAttribute('data-hotspot-icon-color') || undefined;
+            return undefined;
+          })()}
+          initialBgStyle={(() => {
+            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-bg-style'] !== undefined) {
+              return parseInt(selectedElementProps['data-hotspot-bg-style']);
+            }
+            const el = document.getElementById(editingHotspotId);
+            if (el && el.hasAttribute('data-hotspot-bg-style')) return parseInt(el.getAttribute('data-hotspot-bg-style'));
+            return 0;
+          })()}
+          initialIconStyle={(() => {
+            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-icon-style'] !== undefined) {
+              return parseInt(selectedElementProps['data-hotspot-icon-style']);
+            }
+            const el = document.getElementById(editingHotspotId);
+            if (el && el.hasAttribute('data-hotspot-icon-style')) return parseInt(el.getAttribute('data-hotspot-icon-style'));
+            return 0;
+          })()}
           onClose={() => setEditingHotspotId(null)}
           onSave={({ iconColor, bgColor, iconStyle, bgStyle, generatedSvgString }) => {
             if (updateElementAttribute) {
@@ -3334,8 +3439,8 @@ const InteractionPanel = ({
                 const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
                 
                 let iconSrcDataUrl = item.hotspotIconSrc;
-                if (generatedSvgString) {
-                  iconSrcDataUrl = `data:image/svg+xml;base64,${btoa(generatedSvgString)}`;
+                if (generatedSvgString && generatedSvgString.fullSvg) {
+                  iconSrcDataUrl = `data:image/svg+xml;base64,${btoa(generatedSvgString.fullSvg)}`;
                 }
 
                 updateElementAttribute(targetIdx, editingHotspotId, {
@@ -3343,16 +3448,17 @@ const InteractionPanel = ({
                   'data-hotspot-bg-color': bgColor,
                   'data-hotspot-icon-style': iconStyle,
                   'data-hotspot-bg-style': bgStyle,
-                  'data-hotspot-icon-src': iconSrcDataUrl
+                  'data-hotspot-icon-src': iconSrcDataUrl,
+                  'hotspotHtml': generatedSvgString ? generatedSvgString.innerSvg : null
                 });
                 
                 // Directly update the canvas element innerHTML to immediately show the generated SVG!
-                if (generatedSvgString) {
+                if (generatedSvgString && generatedSvgString.innerSvg) {
                   const canvasSvg = document.querySelector(`.page-svg-container[data-page-index="${targetIdx}"] svg`);
                   if (canvasSvg) {
-                    const gEl = canvasSvg.querySelector(`#${editingHotspotId}`);
+                    const gEl = canvasSvg.querySelector(`[id="${editingHotspotId}"]`);
                     if (gEl) {
-                      gEl.innerHTML = generatedSvgString;
+                      gEl.innerHTML = generatedSvgString.innerSvg;
                     }
                   }
                 }

@@ -1471,7 +1471,13 @@ const getIframeContent = (html, pageNumber) => {
                     [data-interaction="zoom"],
                     [data-interaction="tooltip"],
                     [data-interaction="info-box"],
-                    [data-interaction="popup"] {
+                    [data-interaction="popup"],
+                    [data-interaction="slideshow"],
+                    [data-interaction="whatsapp"],
+                    [data-interaction="call"],
+                    [data-interaction="email"],
+                    [data-interaction="audio"],
+                    [data-interaction="3d-viewer"] {
                         cursor: pointer !important;
                     }
 
@@ -1483,7 +1489,13 @@ const getIframeContent = (html, pageNumber) => {
                     [data-interaction="zoom"] *,
                     [data-interaction="tooltip"] *,
                     [data-interaction="info-box"] *,
-                    [data-interaction="popup"] * {
+                    [data-interaction="popup"] *,
+                    [data-interaction="slideshow"] *,
+                    [data-interaction="whatsapp"] *,
+                    [data-interaction="call"] *,
+                    [data-interaction="email"] *,
+                    [data-interaction="audio"] *,
+                    [data-interaction="3d-viewer"] * {
                         cursor: pointer !important;
                     }
 
@@ -3416,10 +3428,27 @@ const PreviewArea = React.memo(({
             setShowLeadForm(true);
         } else if (timing === 'end' && currentPage >= pages.length - 1) {
             setShowLeadForm(true);
-        } else {
+        } else if (timing !== 'after-seconds') {
             setShowLeadForm(false);
         }
     }, [currentPage, leadFormSettings, leadFormSubmitted, pages.length, activeSubView, onClose]);
+
+    // Separate useEffect for after-seconds to prevent resetting timer on page change
+    useEffect(() => {
+        let timeoutId;
+        
+        // Only run timer in full preview (onClose exists) or when we are not hiding it
+        if (leadFormSettings?.enabled && !leadFormSubmitted && leadFormSettings.appearance?.timing === 'after-seconds' && (onClose || activeSubView === 'leadform')) {
+            const afterSeconds = leadFormSettings.appearance.afterSeconds || 30;
+            timeoutId = setTimeout(() => {
+                setShowLeadForm(true);
+            }, afterSeconds * 1000);
+        }
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
+    }, [leadFormSettings?.enabled, leadFormSettings?.appearance?.timing, leadFormSettings?.appearance?.afterSeconds, leadFormSubmitted, activeSubView, onClose]);
 
 
 

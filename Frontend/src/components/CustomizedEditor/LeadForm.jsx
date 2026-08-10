@@ -441,12 +441,12 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             <div className="rounded-[0.75vw]">
               {[
                 { id: 'before', label: 'Before opening the flipbook' },
-                { id: 'after-pages', label: 'After few pages' },
+                { id: 'after-seconds', label: 'After X seconds' },
                 { id: 'end', label: 'At the end of the flipbook' }
               ].map((opt, idx, arr) => (
                 <div
                   key={opt.id}
-                  className={`transition-colors flex flex-col p-[0.75vw] ${settings.appearance.timing === opt.id ? 'bg-[#eeeffc]' : 'bg-transparent'
+                  className={`transition-colors flex flex-col p-[0.75vw] ${settings.appearance.timing === opt.id ? 'bg-transparent' : 'bg-transparent'
                     } ${idx === 0 ? 'rounded-t-[0.75vw]' : ''} ${idx === arr.length - 1 ? 'rounded-b-[0.75vw]' : ''}`}
                 >
                   <label className="text-[0.7vw] font-semibold text-gray-700 flex items-center gap-[0.75vw] cursor-pointer group">
@@ -456,29 +456,29 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                         name="timing"
                         checked={settings.appearance.timing === opt.id}
                         onChange={() => updateAppearance('timing', opt.id)}
-                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-600 transition-all bg-white"
+                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
                       />
-                      <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-600 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                      <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                     </div>
-                    <span className={`text-[0.75vw] font-medium ${settings.appearance.timing === opt.id ? 'text-indigo-900' : 'text-gray-600'}`}>{opt.label}</span>
+                    <span className={`text-[0.75vw] font-medium ${settings.appearance.timing === opt.id ? 'text-gray-900' : 'text-gray-600'}`}>{opt.label}</span>
                   </label>
 
-                  {opt.id === 'after-pages' && settings.appearance.timing === 'after-pages' && (
-                    <div className="ml-[1.85vw] mt-[1vw] flex items-center gap-[0.75vw]">
-                      <span className="text-[0.75vw] font-semibold text-gray-700">Select Page :</span>
-                      <PremiumDropdown
-                        options={Array.from({ length: pages.length || 10 }, (_, i) => ({
-                          value: i + 1,
-                          label: `Page ${i + 1}`,
-                          disabled: i === 0 || i === (pages.length || 10) - 1
-                        }))}
-                        value={settings.appearance.afterPages}
-                        placeholder={`${settings.appearance.afterPages || 1}`}
-                        onChange={(val) => updateAppearance('afterPages', parseInt(val))}
-                        width="6vw"
-                        buttonClassName="!border-gray-600 !rounded-[0.5vw]"
-                        align="right"
+                  {opt.id === 'after-seconds' && settings.appearance.timing === 'after-seconds' && (
+                    <div className="ml-[1.85vw] mt-[0.5vw] flex items-center gap-[0.5vw]">
+                      <Icon
+                        icon="material-symbols:play-arrow-rounded"
+                        className="text-gray-600 w-[1.2vw] h-[1.2vw] cursor-pointer hover:text-gray-900 rotate-180"
+                        onClick={() => updateAppearance('afterSeconds', Math.max(1, (settings.appearance.afterSeconds || 30) - 1))}
                       />
+                      <span className="text-[0.75vw] text-gray-700 font-medium w-[1vw] text-center">
+                        {settings.appearance.afterSeconds || 30}
+                      </span>
+                      <Icon
+                        icon="material-symbols:play-arrow-rounded"
+                        className="text-gray-600 w-[1.2vw] h-[1.2vw] cursor-pointer hover:text-gray-900"
+                        onClick={() => updateAppearance('afterSeconds', (settings.appearance.afterSeconds || 30) + 1)}
+                      />
+                      <span className="text-[0.75vw] font-medium text-gray-600 ml-[0.2vw]">Seconds</span>
                     </div>
                   )}
                 </div>
@@ -501,9 +501,9 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                     name="allowSkip"
                     checked={!settings.appearance.allowSkip}
                     onChange={() => updateAppearance('allowSkip', false)}
-                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
                   />
-                  <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                  <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                 </div>
                 <span className={`text-[0.75vw] font-medium ${!settings.appearance.allowSkip ? 'text-gray-900' : 'text-gray-500'}`}>Mandatory (Require Submission)</span>
               </label>
@@ -516,16 +516,16 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                       name="allowSkip"
                       checked={settings.appearance.allowSkip}
                       onChange={() => updateAppearance('allowSkip', true)}
-                      className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                      className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
                     />
-                    <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                    <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                   </div>
                   <span className={`text-[0.75vw] font-medium ${settings.appearance.allowSkip ? 'text-gray-900' : 'text-gray-500'}`}>Optional (Allow Skip)</span>
                 </label>
 
                 {settings.appearance.allowSkip && (
                   <div className="ml-[1.85vw] space-y-[0.8vw] pt-[0.25vw] border-t border-gray-200 mt-[0.5vw]">
-                    <span className="block text-[0.75vw] font-semibold text-gray-800 mt-[0.6vw] mb-[0.2vw]">If Skipped :</span>
+                    <span className="block text-[0.75vw] font-medium text-gray-900 mt-[0.6vw] mb-[0.2vw]">If Skipped :</span>
                     
                     {[
                       { id: 'never', label: 'Never show again' },
@@ -539,9 +539,9 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                             name="skipBehavior"
                             checked={(settings.appearance.skipBehavior || 'never') === opt.id}
                             onChange={() => updateAppearance('skipBehavior', opt.id)}
-                            className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                            className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
                           />
-                          <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                          <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                         </div>
                         <span className={`text-[0.7vw] font-medium ${(settings.appearance.skipBehavior || 'never') === opt.id ? 'text-gray-800' : 'text-gray-500'}`}>{opt.label}</span>
                       </label>

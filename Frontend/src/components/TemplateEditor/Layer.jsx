@@ -332,7 +332,7 @@ const handleContextMenu = (e) => {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="flex flex-col overflow-hidden"
           >
-            {[...layer.children].filter(c => c.name !== 'Free Frame').reverse().map((child, idx) => (
+            {[...layer.children].filter(c => c.name !== 'Free Frame' && !c.name?.toLowerCase().startsWith('icon-')).reverse().map((child, idx) => (
               <LayerItem
                 key={child.id || idx}
                 layer={child}
@@ -702,12 +702,12 @@ const Layer = ({
               const page = pages[activePageIndex];
               const clickedLayerName = page?.layers?.find(l => l.id === activeLayerMenu.layerId)?.name;
               
-              const realLayers = page?.layers ? page.layers.filter(l => l.name !== 'Free Frame') : [];
+              const realLayers = page?.layers ? page.layers.filter(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('icon-')) : [];
               const rootGroupLayer = (realLayers.length === 1 && (realLayers[0].name === page?.name || realLayers[0].name?.startsWith('Page '))) ? realLayers[0] : null;
               
               const isPageBackground = activeLayerMenu.isOverlay || 
                                        (page && activeLayerMenu.layerId === page.id) || 
-                                       clickedLayerName === 'Free Frame' ||
+                                       clickedLayerName === 'Free Frame' || clickedLayerName?.toLowerCase().startsWith('icon-') ||
                                        (rootGroupLayer && activeLayerMenu.layerId === rootGroupLayer.id);
 
               const isRootLayer = isPageBackground ||
@@ -716,7 +716,7 @@ const Layer = ({
               if (isRootLayer) {
                 let pageLayerIds = [];
                 if (rootGroupLayer) {
-                  pageLayerIds = (rootGroupLayer.children || []).filter(c => c.name !== 'Free Frame').map(l => l.id);
+                  pageLayerIds = (rootGroupLayer.children || []).filter(c => c.name !== 'Free Frame' && !c.name?.toLowerCase().startsWith('icon-')).map(l => l.id);
                 } else {
                   pageLayerIds = realLayers.map(l => l.id);
                 }
@@ -1172,9 +1172,9 @@ const Layer = ({
                               className="overflow-hidden bg-white rounded-b-[0.6vw] border-t border-[#EEF2FF]"
                             >
                               <div className="py-[1vh] px-[0.6vw] flex flex-col gap-[0.2vh] max-h-[45vh] overflow-y-auto custom-scrollbar">
-                                {page.layers && page.layers.some(l => l.name !== 'Free Frame') ? (
+                                {page.layers && page.layers.some(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('icon-')) ? (
                                   (() => {
-                                    const realLayers = page.layers.filter(l => l.name !== 'Free Frame');
+                                    const realLayers = page.layers.filter(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('icon-'));
                                     const isSingleRoot = realLayers.length === 1;
                                     return [...realLayers].reverse().map((layer, idx) => {
                                       const isBaseLayer = isSingleRoot && (layer.name === page.name || layer.name?.startsWith('Page '));
