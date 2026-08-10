@@ -274,7 +274,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
       </div>
 
       {/* Sidebar Navigation */}
-      <div className="flex-1 overflow-y-auto pt-[0.2vw] custom-scrollbar px-[0.75vw] flex flex-col gap-[0.2vw]">
+      <div className="flex-1 overflow-y-auto pt-[1vw] custom-scrollbar px-[0.75vw] flex flex-col gap-[0.2vw]">
         <SidebarItem
           id="section-branding"
           icon="lucide:gem"

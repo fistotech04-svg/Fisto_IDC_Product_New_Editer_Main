@@ -31,7 +31,7 @@ const themeStaticCache = {};
 
 const ThemePreview = React.memo(({ name, isLive }) => {
   const [isCached, setIsCached] = React.useState(isLive);
-  
+
   useEffect(() => {
     if (isLive) {
       setIsCached(true);
@@ -69,14 +69,14 @@ const ThemePreview = React.memo(({ name, isLive }) => {
 
   return (
     <>
-      <div 
+      <div
         className="absolute inset-0 flex items-center justify-center transition-opacity duration-300"
         style={{ opacity: isLive ? 0 : 1 }}
       >
         {themeStaticCache[name]}
       </div>
       {isCached && BackgroundComponent && (
-        <div 
+        <div
           className="scale-[0.2] origin-center w-[500%] h-[500%] absolute pointer-events-none transition-opacity duration-300"
           style={{ opacity: isLive ? 1 : 0 }}
         >
@@ -90,26 +90,26 @@ const ThemePreview = React.memo(({ name, isLive }) => {
 const AnimatedThemeItem = React.memo(({ name, isSelected, onSelect }) => {
   const [isHovered, setIsHovered] = React.useState(false);
   return (
-    <div 
-      onClick={() => onSelect(name)} 
+    <div
+      onClick={() => onSelect(name)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className="group cursor-pointer flex flex-col gap-2"
     >
       <div className={`aspect-[6/5] w-full rounded-lg bg-black border-2 relative overflow-hidden transition-all ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <ThemePreview name={name} isLive={isSelected || isHovered} />
-          </div>
-          <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/10 backdrop-blur-sm text-center'}`}>
-            <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>{name}</span>
-          </div>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <ThemePreview name={name} isLive={isSelected || isHovered} />
+        </div>
+        <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/10 backdrop-blur-sm text-center'}`}>
+          <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>{name}</span>
+        </div>
       </div>
     </div>
   );
 });
 
 const VideoThemeItem = React.memo(({ vdo, i, isSelected, onSelect }) => (
-  <div 
+  <div
     onClick={() => onSelect(vdo)}
     className={`aspect-[6/5] w-full rounded-lg bg-black border-2 relative overflow-hidden transition-all cursor-pointer ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
   >
@@ -121,7 +121,7 @@ const VideoThemeItem = React.memo(({ vdo, i, isSelected, onSelect }) => (
 ));
 
 const ImageThemeItem = React.memo(({ img, i, isSelected, onSelect }) => (
-  <div 
+  <div
     onClick={() => onSelect(img)}
     className={`aspect-[6/5] w-full rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all cursor-pointer group ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
   >
@@ -136,7 +136,7 @@ const animationStaticCache = {};
 
 const AnimationPreview = React.memo(({ name, isLive }) => {
   const [isCached, setIsCached] = React.useState(isLive);
-  
+
   useEffect(() => {
     if (isLive) {
       setIsCached(true);
@@ -188,14 +188,14 @@ const AnimationPreview = React.memo(({ name, isLive }) => {
 
   return (
     <>
-      <div 
+      <div
         className="absolute inset-0 flex items-center justify-center transition-opacity duration-300"
         style={{ opacity: isLive ? 0 : 1 }}
       >
         {animationStaticCache[name]}
       </div>
       {isCached && AnimationComponent && (
-        <div 
+        <div
           className="scale-[0.2] origin-center w-[500%] h-[500%] absolute pointer-events-none transition-opacity duration-300"
           style={{ opacity: isLive ? 1 : 0 }}
         >
@@ -209,8 +209,8 @@ const AnimationPreview = React.memo(({ name, isLive }) => {
 const AnimationThemeItem = React.memo(({ name, isSelected, onSelect }) => {
   const [isHovered, setIsHovered] = React.useState(false);
   return (
-    <div 
-      onClick={() => onSelect(name)} 
+    <div
+      onClick={() => onSelect(name)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className="group cursor-pointer flex flex-col gap-2"
@@ -227,9 +227,9 @@ const AnimationThemeItem = React.memo(({ name, isSelected, onSelect }) => {
   );
 });
 
-const BackgroundSection = ({ 
-  backgroundSettings, 
-  onUpdateBackground 
+const BackgroundSection = ({
+  backgroundSettings,
+  onUpdateBackground
 }) => {
   const [activeTab, setActiveTab] = useState('Background');
   const [deferredTab, setDeferredTab] = useState('Background');
@@ -243,7 +243,7 @@ const BackgroundSection = ({
       const timer = setTimeout(() => {
         setDeferredTab(activeTab);
         setIsTransitioning(false);
-      }, 40); 
+      }, 40);
       return () => clearTimeout(timer);
     }
   }, [activeTab, deferredTab]);
@@ -258,6 +258,26 @@ const BackgroundSection = ({
   const [localGallerySelected, setLocalGallerySelected] = useState(null);
   const [showBgCropOverlay, setShowBgCropOverlay] = useState(false);
   const galleryInputRef = useRef(null);
+
+  const handleEyeDropper = async () => {
+    if (!window.EyeDropper) return;
+    const eyeDropper = new window.EyeDropper();
+    try {
+      const result = await eyeDropper.open();
+      const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
+      let newOpacity = 100;
+      if (colorStr && colorStr.length === 9) {
+        newOpacity = Math.round((parseInt(colorStr.slice(7, 9), 16) / 255) * 100);
+      }
+      let alphaHex = '';
+      if (newOpacity < 100) {
+        alphaHex = Math.round((newOpacity / 100) * 255).toString(16).padStart(2, '0').toUpperCase();
+      }
+      onUpdateBackground({ ...backgroundSettings, style: 'Solid', color: result.sRGBHex.toUpperCase() + alphaHex });
+    } catch (e) {
+      console.log('EyeDropper cancelled or failed', e);
+    }
+  };
 
   // Load gallery images from localStorage on mount
   useEffect(() => {
@@ -277,7 +297,7 @@ const BackgroundSection = ({
       localStorage.setItem('customized_editor_gallery', JSON.stringify(uploadedImages));
     }
   }, [uploadedImages]);
-  
+
   // Preload background image and video themes for instant access
   useEffect(() => {
     const preloadAssets = () => {
@@ -287,7 +307,7 @@ const BackgroundSection = ({
         // Hard cache in memory
         const img = new Image();
         img.src = url;
-        
+
         // Browser preload hint
         const link = document.createElement('link');
         link.rel = 'preload';
@@ -305,7 +325,7 @@ const BackgroundSection = ({
         document.head.appendChild(link);
       });
     };
-    
+
     const timer = setTimeout(preloadAssets, 500);
     return () => clearTimeout(timer);
   }, []);
@@ -323,24 +343,24 @@ const BackgroundSection = ({
   };
 
   useEffect(() => {
-     if (backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType) {
-         setSelectedTheme(backgroundSettings.reactBitType);
-     } else {
-         setSelectedTheme(null);
-     }
+    if (backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType) {
+      setSelectedTheme(backgroundSettings.reactBitType);
+    } else {
+      setSelectedTheme(null);
+    }
   }, [backgroundSettings.style, backgroundSettings.reactBitType]);
 
   useEffect(() => {
     if (!selectedTheme) return;
-    
+
     // Guard: Only update if the style or theme type is actually different
     if (backgroundSettings?.style === 'ReactBits' && backgroundSettings?.reactBitType === selectedTheme) return;
 
-    const updates = { 
-         ...backgroundSettings, 
-         style: 'ReactBits', 
-         reactBitType: selectedTheme,
-         color: '#000000'
+    const updates = {
+      ...backgroundSettings,
+      style: 'ReactBits',
+      reactBitType: selectedTheme,
+      color: '#000000'
     };
     // Improved state saving: capture a snapshot of current settings if we're not already in a theme
     if (backgroundSettings.style !== 'ReactBits') {
@@ -358,7 +378,7 @@ const BackgroundSection = ({
         cropData: backgroundSettings.cropData,
         opacity: backgroundSettings.opacity
       };
-      
+
       // Maintain backward compatibility for UI elements that specifically rely on savedSolidColor
       if (backgroundSettings.style === 'Solid' || backgroundSettings.color) {
         updates.savedSolidColor = backgroundSettings.color;
@@ -387,7 +407,7 @@ const BackgroundSection = ({
   useEffect(() => {
     if (bgStyle === 'Gradient' && backgroundSettings.gradientStops && !backgroundSettings.gradient) {
       const gradient = generateGradientString(
-        backgroundSettings.gradientType || 'Linear', 
+        backgroundSettings.gradientType || 'Linear',
         backgroundSettings.gradientStops,
         backgroundSettings.gradientAngle || 0,
         backgroundSettings.gradientRadius || 100
@@ -427,7 +447,7 @@ const BackgroundSection = ({
     const newStops = [...(backgroundSettings.gradientStops || [])];
     newStops[index] = { ...newStops[index], ...updates };
     const gradient = generateGradientString(
-      backgroundSettings.gradientType || 'Linear', 
+      backgroundSettings.gradientType || 'Linear',
       newStops,
       backgroundSettings.gradientAngle || 0,
       backgroundSettings.gradientRadius || 100
@@ -439,7 +459,7 @@ const BackgroundSection = ({
     if (backgroundSettings.gradientStops.length <= 2) return;
     const newStops = backgroundSettings.gradientStops.filter((_, i) => i !== index);
     const gradient = generateGradientString(
-      backgroundSettings.gradientType || 'Linear', 
+      backgroundSettings.gradientType || 'Linear',
       newStops,
       backgroundSettings.gradientAngle || 0,
       backgroundSettings.gradientRadius || 100
@@ -455,22 +475,22 @@ const BackgroundSection = ({
     const newStop = { color: color, offset, opacity: 100 };
     const newStops = [...(backgroundSettings.gradientStops || []), newStop].sort((a, b) => a.offset - b.offset);
     const gradient = generateGradientString(
-      backgroundSettings.gradientType || 'Linear', 
+      backgroundSettings.gradientType || 'Linear',
       newStops,
       backgroundSettings.gradientAngle || 0,
       backgroundSettings.gradientRadius || 100
     );
-    
+
     setPickerPos({ x: e.clientX - 100, y: rect.top - 100 });
     setPendingNewStopOffset(offset);
-    
+
     onUpdateBackground({ ...backgroundSettings, gradientStops: newStops, gradient });
   };
 
   const reverseGradient = () => {
     const newStops = [...(backgroundSettings.gradientStops || [])].map(s => ({ ...s, offset: 100 - s.offset })).sort((a, b) => a.offset - b.offset);
     const gradient = generateGradientString(
-      backgroundSettings.gradientType || 'Linear', 
+      backgroundSettings.gradientType || 'Linear',
       newStops,
       backgroundSettings.gradientAngle || 0,
       backgroundSettings.gradientRadius || 100
@@ -502,7 +522,7 @@ const BackgroundSection = ({
     setSelectedTheme(null);
     if (style === 'Gradient' && backgroundSettings.gradientStops) {
       const gradient = generateGradientString(
-        backgroundSettings.gradientType || 'Linear', 
+        backgroundSettings.gradientType || 'Linear',
         backgroundSettings.gradientStops,
         backgroundSettings.gradientAngle || 0,
         backgroundSettings.gradientRadius || 100
@@ -571,7 +591,7 @@ const BackgroundSection = ({
   const animatedThemesList = React.useMemo(() => {
     if (deferredTab !== 'Themes') return null;
     return Object.keys(backgroundComponents).sort().map((name) => (
-      <AnimatedThemeItem 
+      <AnimatedThemeItem
         key={name}
         name={name}
         isSelected={selectedTheme === name}
@@ -583,7 +603,7 @@ const BackgroundSection = ({
   const videoThemesList = React.useMemo(() => {
     if (deferredTab !== 'Themes') return null;
     return VIDEO_THEMES.map((vdo, i) => (
-      <VideoThemeItem 
+      <VideoThemeItem
         key={vdo}
         vdo={vdo}
         i={i}
@@ -598,7 +618,7 @@ const BackgroundSection = ({
     return BACKGROUND_IMAGE_IDS.map((i) => {
       const img = `/src/assets/bgimg/i${i}.jpg`;
       return (
-        <ImageThemeItem 
+        <ImageThemeItem
           key={img}
           img={img}
           i={i}
@@ -612,8 +632,8 @@ const BackgroundSection = ({
   const animationsList = React.useMemo(() => {
     if (deferredTab !== 'Animations') return null;
     return Object.keys(animationComponents).sort().map((name) => (
-      <AnimationThemeItem 
-        key={name} 
+      <AnimationThemeItem
+        key={name}
         name={name}
         isSelected={backgroundSettings.animation === name}
         onSelect={handleAnimationSelect}
@@ -638,18 +658,16 @@ const BackgroundSection = ({
 
   return (
     <div className="px-[1vw] flex flex-col relative">
-      {/* Tabs */}
-      <div className="sticky top-0 z-[50] pt-[0.5vw] bg-white mb-[0.5vw] -mx-[1vw] px-[1vw] border-b-[0.15vw] border-gray-200">
-        <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-[50] bg-white mb-[0.5vw] -mx-[1vw] px-[1.5vw] border-b-[0.15vw] border-gray-200">
+        <div className="flex items-center justify-center">
           {['Background', 'Themes', 'Animations'].map((tab) => (
-            <button 
+            <button
               key={tab}
-              onClick={() => setActiveTab(tab)} 
-              className={`pb-[0.5vw] mb-[-0.15vw] mt-[0.5vw] text-[0.85vw] font-medium transition-all border-b-[0.15vw] flex-1 ${
-                activeTab === tab 
-                  ? 'text-gray-900 border-gray-900' 
+              onClick={() => setActiveTab(tab)}
+              className={`pb-[1vw] pt-[0.5vw] mb-[-0.15vw] mt-[0.5vw] text-[0.85vw] font-medium transition-all border-b-[0.15vw] flex-1 ${activeTab === tab
+                  ? 'text-gray-900 border-gray-900'
                   : 'text-gray-400 border-transparent hover:text-gray-600'
-              }`}
+                }`}
             >
               {tab}
             </button>
@@ -661,22 +679,21 @@ const BackgroundSection = ({
         <div className="flex flex-col gap-[0.5vw] mt-[0.5vw]">
           {/* Style Tabs (Solid Color, Gradient, Image) */}
           <div className="flex items-center justify-between gap-[0.5vw] w-full">
-             {['Solid', 'Gradient', 'Image'].map((styleLabel) => {
-               const styleValue = styleLabel === 'Solid Color' ? 'Solid' : styleLabel;
-               return (
-                 <button
-                   key={styleValue}
-                   onClick={() => setBgStyle(styleValue)}
-                   className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${
-                     bgStyle === styleValue
-                       ? 'bg-white text-gray-900 shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
-                       : 'bg-white text-gray-400 shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
-                   }`}
-                 >
-                   {styleLabel}
-                 </button>
-               )
-             })}
+            {['Solid', 'Gradient', 'Image'].map((styleLabel) => {
+              const styleValue = styleLabel === 'Solid Color' ? 'Solid' : styleLabel;
+              return (
+                <button
+                  key={styleValue}
+                  onClick={() => setBgStyle(styleValue)}
+                  className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${bgStyle === styleValue
+                      ? 'bg-white text-gray-900 shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
+                      : 'bg-white text-gray-400 shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
+                    }`}
+                >
+                  {styleLabel}
+                </button>
+              )
+            })}
           </div>
 
 
@@ -687,12 +704,12 @@ const BackgroundSection = ({
                   <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Pick Colors From Pallet</span>
                   <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between gap-[1vw]">
                   <span className="text-[0.75vw] font-semibold text-gray-700">Fill :</span>
                   <div className="flex-1 flex gap-[0.5vw] items-center color-picker-trigger">
-                    <div 
-                      className="w-[2vw] h-[2vw] border border-gray-600 rounded-[0.5vw] shadow-sm cursor-pointer hover:border-indigo-400 transition-colors" 
+                    <div
+                      className="w-[2vw] h-[2vw] border border-gray-200 rounded-[0.5vw] shadow-[0_2px_4px_rgba(0,0,0,0.06)] cursor-pointer hover:border-indigo-400 transition-colors"
                       style={{ backgroundColor: (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color }}
                       onClick={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -700,57 +717,66 @@ const BackgroundSection = ({
                         setShowColorPicker(true);
                       }}
                     />
-                    <div className="flex-1 h-[2vw] border border-gray-600 rounded-[0.5vw] flex items-center px-[0.75vw] justify-between bg-white hover:border-indigo-400 transition-colors">
-                      <input 
-                         type="text"
-                         value={(() => {
-                           const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
-                           if (!colorStr) return '#000000';
-                           if (colorStr.length === 9) return colorStr.slice(0, 7).toUpperCase();
-                           return colorStr.toUpperCase();
-                         })()}
-                         onChange={(e) => {
-                           let newHex = e.target.value;
-                           if (!newHex.startsWith('#')) newHex = '#' + newHex;
-                           const validHex = newHex.slice(0, 7);
-                           const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
-                           let newOpacity = 100;
-                           if (colorStr && colorStr.length === 9) {
-                             newOpacity = Math.round((parseInt(colorStr.slice(7, 9), 16) / 255) * 100);
-                           }
-                           let alphaHex = '';
-                           if (newOpacity < 100) {
-                             alphaHex = Math.round((newOpacity / 100) * 255).toString(16).padStart(2, '0').toUpperCase();
-                           }
-                           onUpdateBackground({ ...backgroundSettings, style: 'Solid', color: validHex + alphaHex });
-                         }}
-                         className="text-[0.85vw] font-medium text-gray-700 font-mono bg-transparent w-[4vw] outline-none"
+                    <div className="flex-1 h-[2vw] border border-gray-200 rounded-[0.5vw] flex items-center px-[0.75vw] justify-between bg-white hover:border-indigo-400 transition-colors shadow-[0_2px_4px_rgba(0,0,0,0.04)]">
+                      <input
+                        type="text"
+                        value={(() => {
+                          const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
+                          if (!colorStr) return '#000000';
+                          if (colorStr.length === 9) return colorStr.slice(0, 7).toUpperCase();
+                          return colorStr.toUpperCase();
+                        })()}
+                        onChange={(e) => {
+                          let newHex = e.target.value;
+                          if (!newHex.startsWith('#')) newHex = '#' + newHex;
+                          const validHex = newHex.slice(0, 7);
+                          const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
+                          let newOpacity = 100;
+                          if (colorStr && colorStr.length === 9) {
+                            newOpacity = Math.round((parseInt(colorStr.slice(7, 9), 16) / 255) * 100);
+                          }
+                          let alphaHex = '';
+                          if (newOpacity < 100) {
+                            alphaHex = Math.round((newOpacity / 100) * 255).toString(16).padStart(2, '0').toUpperCase();
+                          }
+                          onUpdateBackground({ ...backgroundSettings, style: 'Solid', color: validHex + alphaHex });
+                        }}
+                        className="text-[0.85vw] font-medium text-gray-700 font-mono bg-transparent w-[5vw] outline-none"
                       />
-                      <DraggableSpan 
-                         label={`${(() => {
-                           const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
-                           if (!colorStr || colorStr.length !== 9) return 100;
-                           return Math.round((parseInt(colorStr.slice(7, 9), 16) / 255) * 100);
-                         })()}%`}
-                         value={(() => {
-                           const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
-                           if (!colorStr || colorStr.length !== 9) return 100;
-                           return Math.round((parseInt(colorStr.slice(7, 9), 16) / 255) * 100);
-                         })()}
-                         onChange={(newOpacity) => {
-                           const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
-                           const hex = (colorStr && colorStr.length === 9) ? colorStr.slice(0, 7) : (colorStr || '#000000');
-                           let alphaHex = '';
-                           if (newOpacity < 100) {
-                             alphaHex = Math.round((newOpacity / 100) * 255).toString(16).padStart(2, '0').toUpperCase();
-                           }
-                           onUpdateBackground({ ...backgroundSettings, style: 'Solid', color: hex + alphaHex });
-                         }}
-                         min={0}
-                         max={100}
-                         className="text-[0.85vw] font-medium text-gray-500"
+                      <DraggableSpan
+                        label={`${(() => {
+                          const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
+                          if (!colorStr || colorStr.length !== 9) return 100;
+                          return Math.round((parseInt(colorStr.slice(7, 9), 16) / 255) * 100);
+                        })()}%`}
+                        value={(() => {
+                          const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
+                          if (!colorStr || colorStr.length !== 9) return 100;
+                          return Math.round((parseInt(colorStr.slice(7, 9), 16) / 255) * 100);
+                        })()}
+                        onChange={(newOpacity) => {
+                          const colorStr = (backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor) ? backgroundSettings.savedSolidColor : backgroundSettings.color;
+                          const hex = (colorStr && colorStr.length === 9) ? colorStr.slice(0, 7) : (colorStr || '#000000');
+                          let alphaHex = '';
+                          if (newOpacity < 100) {
+                            alphaHex = Math.round((newOpacity / 100) * 255).toString(16).padStart(2, '0').toUpperCase();
+                          }
+                          onUpdateBackground({ ...backgroundSettings, style: 'Solid', color: hex + alphaHex });
+                        }}
+                        min={0}
+                        max={100}
+                        className="text-[0.85vw] font-medium text-gray-400 font-mono"
                       />
                     </div>
+                    {window.EyeDropper && (
+                      <button
+                        onClick={handleEyeDropper}
+                        className="w-[2vw] h-[2vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-center bg-white shadow-sm hover:border-indigo-400 hover:bg-gray-50 transition-all cursor-pointer"
+                        title="Eye Dropper"
+                      >
+                        <Icon icon="lucide:pipette" className="w-[1vw] h-[1vw] text-gray-500 hover:text-gray-800" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -760,10 +786,10 @@ const BackgroundSection = ({
                   <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Solid Colors</span>
                   <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
                 </div>
-                
+
                 <div className="grid grid-cols-6 gap-[0.725vw] px-[0.25vw]">
                   {solidPalette.map((color, i) => (
-                    <button 
+                    <button
                       key={i}
                       onClick={() => handleColorSelect(color)}
                       className={`aspect-square rounded-[0.5vw] border shadow-sm transition-all hover:scale-110 ${backgroundSettings.color.toLowerCase() === color.toLowerCase() ? 'border-[#3E4491] border-[0.125vw] ring-[0.125vw] ring-indigo-100 scale-105' : 'border-gray-200 hover:border-gray-300'}`}
@@ -793,22 +819,22 @@ const BackgroundSection = ({
                 </div>
 
                 <div className="flex items-center justify-start w-full mb-[1vw] mt-[-0.5vw]">
-                  <PremiumDropdown 
+                  <PremiumDropdown
                     options={['Linear', 'Radial', 'Angular', 'Diamond']}
                     value={backgroundSettings.gradientType || 'Linear'}
                     onChange={(type) => {
                       const newAngle = type === 'Radial' ? 0 : (backgroundSettings.gradientAngle || 0);
                       const gradient = generateGradientString(
-                        type, 
+                        type,
                         backgroundSettings.gradientStops || [],
                         newAngle,
                         backgroundSettings.gradientRadius || 100
                       );
-                      onUpdateBackground({ 
-                        ...backgroundSettings, 
-                        gradientType: type, 
+                      onUpdateBackground({
+                        ...backgroundSettings,
+                        gradientType: type,
                         gradientAngle: newAngle,
-                        gradient 
+                        gradient
                       });
                     }}
                     width="6vw"
@@ -821,7 +847,7 @@ const BackgroundSection = ({
                     const gType = backgroundSettings.gradientType || 'Linear';
                     const gStops = backgroundSettings.gradientStops || [];
                     const gAngle = backgroundSettings.gradientAngle || 0;
-                    const stopsStr = [...gStops].sort((a,b)=>a.offset-b.offset).map(s => {
+                    const stopsStr = [...gStops].sort((a, b) => a.offset - b.offset).map(s => {
                       const rgb = hexToRgb(s.color);
                       const op = (s.opacity || 100) / 100;
                       return `rgba(${rgb.r},${rgb.g},${rgb.b},${op}) ${s.offset}%`;
@@ -906,7 +932,7 @@ const BackgroundSection = ({
                             let hasDragged = false;
                             const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
                             const currentTargetElement = e.currentTarget;
-                            
+
                             const handleMouseMove = (moveEvent) => {
                               const deltaX = moveEvent.clientX - startX;
                               if (Math.abs(deltaX) > 3) {
@@ -937,7 +963,7 @@ const BackgroundSection = ({
                               borderRadius: (backgroundSettings.gradientType === 'Diamond') ? '0.15vw' : '0.4vw'
                             }}
                           >
-                             <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[0.3vw] border-l-transparent border-r-[0.3vw] border-r-transparent border-t-[0.4vw] border-t-white"></div>
+                            <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[0.3vw] border-l-transparent border-r-[0.3vw] border-r-transparent border-t-[0.4vw] border-t-white"></div>
                           </div>
                         </div>
                       ))}
@@ -959,8 +985,8 @@ const BackgroundSection = ({
                 <div className="space-y-[0.75vw]">
                   {(backgroundSettings.gradientStops || []).map((stop, idx) => (
                     <div key={idx} className="flex items-center gap-[0.75vw] color-picker-trigger">
-                      <div 
-                        className="w-[2.25vw] h-[2.25vw] rounded-[0.5vw] border border-gray-200 shadow-sm cursor-pointer hover:border-indigo-400 transition-colors" 
+                      <div
+                        className="w-[2.25vw] h-[2.25vw] rounded-[0.5vw] border border-gray-200 shadow-sm cursor-pointer hover:border-indigo-400 transition-colors"
                         style={{ backgroundColor: stop.color }}
                         onClick={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
@@ -968,7 +994,7 @@ const BackgroundSection = ({
                           openGradientStopPicker(idx);
                         }}
                       />
-                      <div 
+                      <div
                         className="flex-1 h-[2.25vw] border border-gray-600 rounded-[0.5vw] flex items-center px-[0.75vw] justify-start bg-white cursor-pointer hover:border-indigo-400 transition-colors"
                         onClick={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
@@ -1000,7 +1026,7 @@ const BackgroundSection = ({
                     ['#6FF067', '#8131FF'], ['#FEA8BF', '#76F9FE'], ['#3873A7', '#208D6B'],
                     ['#FEF0A5', '#97006F'], ['#57047D', '#EEBEBE'], ['#7CC38F', '#FF76D9'],
                   ].map((colors, i) => (
-                    <button 
+                    <button
                       key={i}
                       onClick={() => {
                         const newStops = colors.map((c, idx) => ({
@@ -1009,7 +1035,7 @@ const BackgroundSection = ({
                           opacity: 100
                         }));
                         const gradient = generateGradientString(
-                          backgroundSettings.gradientType || 'Linear', 
+                          backgroundSettings.gradientType || 'Linear',
                           newStops,
                           backgroundSettings.gradientAngle || 0,
                           backgroundSettings.gradientRadius || 100
@@ -1028,11 +1054,11 @@ const BackgroundSection = ({
           {bgStyle === 'Image' && (
             <div className="flex flex-col gap-[1vw]">
               <div className="mb-[0.5vw]">
-                <div className="flex items-center gap-[1vw] mb-[1vw] mt-[1vw]">
+                <div className="flex items-center gap-[0.5vw] mt-[1vw]">
                   <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Upload Image</span>
                   <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
                   {backgroundSettings.image && (
-                    <PremiumDropdown 
+                    <PremiumDropdown
                       options={['Fit', 'Fill', 'Stretch', 'Crop']}
                       value={backgroundSettings.fit}
                       onChange={(fill) => {
@@ -1047,11 +1073,11 @@ const BackgroundSection = ({
                     />
                   )}
                 </div>
-                
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
                   accept="image/*"
                   onChange={(e) => {
                     const file = e.target.files[0];
@@ -1064,8 +1090,8 @@ const BackgroundSection = ({
                 />
 
                 {backgroundSettings.image ? (
-                  <div 
-                    className="flex items-center gap-[1vw] pt-[0.5vw]"
+                  <div
+                    className="flex items-center gap-[1vw] "
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -1085,17 +1111,17 @@ const BackgroundSection = ({
                   >
                     {/* Thumbnail */}
                     <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
-                      <img 
-                        src={backgroundSettings.image} 
-                        alt="Thumbnail" 
-                        className={`w-full h-full ${backgroundSettings?.cropData ? 'object-cover' : 'object-fill'}`} 
+                      <img
+                        src={backgroundSettings.image}
+                        alt="Thumbnail"
+                        className={`w-full h-full ${backgroundSettings?.cropData ? 'object-cover' : 'object-fill'}`}
                         style={(() => {
                           const cd = backgroundSettings?.cropData;
-                          return cd && cd.inset ? { 
-                            clipPath: cd.inset, 
-                            WebkitClipPath: cd.inset, 
-                            transform: `translate(${cd.offX}%, ${cd.offY}%) scale(${cd.scale})`, 
-                            transformOrigin: 'center center' 
+                          return cd && cd.inset ? {
+                            clipPath: cd.inset,
+                            WebkitClipPath: cd.inset,
+                            transform: `translate(${cd.offX}%, ${cd.offY}%) scale(${cd.scale})`,
+                            transformOrigin: 'center center'
                           } : {};
                         })()}
                       />
@@ -1135,7 +1161,7 @@ const BackgroundSection = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-[0.75vw] mb-[1vw]">
+                  <div className="flex flex-col gap-[0.75vw] mb-[1vw] ">
                     {/* Drag & Drop Box */}
                     <div
                       onClick={() => fileInputRef.current?.click()}
@@ -1153,54 +1179,11 @@ const BackgroundSection = ({
                           reader.readAsDataURL(file);
                         }
                       }}
-                      className="w-full border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-[#4c5add] hover:bg-gray-50/50 group shadow-sm"
+                      className="w-full h-[7vw] mt-[1vw] border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all group shadow-sm"
                     >
-                      <div className="text-[0.75vw] font-medium text-gray-700 mb-[0.5vw]">
-                        Drag & Drop or <span className="text-[#4c5add] font-bold">Upload</span>
+                      <div className="flex items-center">
+                        <span className="text-gray-500 text-[0.8vw] font-semibold">+ Add Image</span>
                       </div>
-                      <div className="mb-[0.5vw] text-gray-400 group-hover:text-[#4c5add] transition-colors">
-                        <Upload size="1.3vw" strokeWidth={1.5} />
-                      </div>
-                      <div className="text-center">
-                        <div className="text-[0.65vw] font-semibold text-gray-600 mb-[0.05vw]">Supported File</div>
-                        <div className="text-[0.58vw] text-gray-400 font-normal">Image</div>
-                      </div>
-                    </div>
-
-                    {/* OR Divider */}
-                    <div className="text-[0.6vw] font-medium text-gray-400 text-center uppercase tracking-wider my-[0.15vw]">
-                      OR
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-col gap-[0.5vw]">
-                      {/* Browse by Gallery */}
-                      <button
-                        onClick={() => setShowGallery(true)}
-                        className="w-full rounded-[0.65vw] p-[0.6vw] px-[0.75vw] bg-[#0c0f17] hover:bg-black text-white flex items-center justify-between shadow-md cursor-pointer transition-all border border-gray-800 group relative overflow-hidden"
-                      >
-                        <div className="flex items-center gap-[0.6vw]">
-                          <div className="w-[1.8vw] h-[1.8vw] rounded-[0.45vw] bg-white text-gray-900 flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <ImageIcon size="0.95vw" />
-                          </div>
-                          <span className="text-[0.75vw] font-semibold text-white tracking-wide">Browse by Gallery</span>
-                        </div>
-                        <ChevronRight size="0.8vw" className="text-gray-400 group-hover:text-white transition-colors" />
-                      </button>
-
-                      {/* Import via URL */}
-                      <button
-                        onClick={() => alert("Import via URL coming soon!")}
-                        className="w-full rounded-[0.65vw] p-[0.6vw] px-[0.75vw] bg-[#3195ff] hover:bg-[#2087f5] text-white flex items-center justify-between shadow-md cursor-pointer transition-all group"
-                      >
-                        <div className="flex items-center gap-[0.6vw]">
-                          <div className="w-[1.8vw] h-[1.8vw] rounded-[0.45vw] bg-white text-[#3195ff] flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <Link size="0.95vw" />
-                          </div>
-                          <span className="text-[0.75vw] font-semibold text-white tracking-wide">Import via URL</span>
-                        </div>
-                        <ChevronRight size="0.8vw" className="text-white/80 group-hover:text-white transition-colors" />
-                      </button>
                     </div>
                   </div>
                 )}
@@ -1219,74 +1202,85 @@ const BackgroundSection = ({
                 .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
                 .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
               `}</style>
-              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[0.5vw]">
-                <span className="text-[0.85vw] font-semibold text-black whitespace-nowrap">Opacity :</span>
+              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[-0.5vw]">
+                <span className="text-[0.75vw] font-semibold text-gray-700 whitespace-nowrap">Opacity :</span>
                 <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
-                  <input 
-                    type="range" 
-                    min={0} 
-                    max={100} 
-                    value={backgroundSettings.opacity} 
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={backgroundSettings.opacity}
                     onChange={(e) => onUpdateBackground({ ...backgroundSettings, opacity: parseInt(e.target.value) })}
                     className="w-full cursor-pointer custom-range-slider"
-                    style={{ 
-                      backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${backgroundSettings.opacity}%, #E2E8F0 ${backgroundSettings.opacity}%, #E2E8F0 100%)` 
+                    style={{
+                      backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${backgroundSettings.opacity}%, #E2E8F0 ${backgroundSettings.opacity}%, #E2E8F0 100%)`
                     }}
                   />
                 </div>
-                <div className="min-w-[3.5
-                vw] h-[2vw] border-[0.1vw] border-gray-200 rounded-[0.3vw] flex items-center justify-center text-[0.8vw] font-medium text-black bg-white shadow-sm px-[0.5vw]">
-                  {backgroundSettings.opacity} %
+                <div className="px-[0.6vw] py-[0.3vw] bg-white border border-gray-200 rounded-[0.4vw] text-[0.75vw] font-semibold text-gray-700 min-w-[3vw] text-center shadow-sm">
+                  {backgroundSettings.opacity}%
                 </div>
               </div>
 
-              {/* Adjustment Section */}
-              <div className=" space-y-[0.3vw] ">
-                <SectionLabel label="Adjustments" />
-                <div className="space-y-[0.1vw] mt-[0.5vw]">
-                  <AdjustmentSlider 
-                    label="Exposure" 
-                    value={backgroundSettings?.adjustments?.exposure || 0} 
-                    onChange={(val) => handleAdjustmentChange('exposure', val)} 
-                    onReset={() => handleAdjustmentChange('exposure', 0)}
-                  />
-                  <AdjustmentSlider 
-                    label="Contrast" 
-                    value={backgroundSettings?.adjustments?.contrast || 0} 
-                    onChange={(val) => handleAdjustmentChange('contrast', val)} 
-                    onReset={() => handleAdjustmentChange('contrast', 0)}
-                  />
-                  <AdjustmentSlider 
-                    label="Saturation" 
-                    value={backgroundSettings?.adjustments?.saturation || 0} 
-                    onChange={(val) => handleAdjustmentChange('saturation', val)} 
-                    onReset={() => handleAdjustmentChange('saturation', 0)}
-                  />
-                  <AdjustmentSlider 
-                    label="Temperature" 
-                    value={backgroundSettings?.adjustments?.temperature || 0} 
-                    onChange={(val) => handleAdjustmentChange('temperature', val)} 
-                    onReset={() => handleAdjustmentChange('temperature', 0)}
-                  />
-                  <AdjustmentSlider 
-                    label="Tint" 
-                    value={backgroundSettings?.adjustments?.tint || 0} 
-                    onChange={(val) => handleAdjustmentChange('tint', val)} 
-                    onReset={() => handleAdjustmentChange('tint', 0)}
-                  />
-                  <AdjustmentSlider 
-                    label="Highlights" 
-                    value={backgroundSettings?.adjustments?.highlights || 0} 
-                    onChange={(val) => handleAdjustmentChange('highlights', val)} 
-                    onReset={() => handleAdjustmentChange('highlights', 0)}
-                  />
-                  <AdjustmentSlider 
-                    label="Shadows" 
-                    value={backgroundSettings?.adjustments?.shadows || 0} 
-                    onChange={(val) => handleAdjustmentChange('shadows', val)} 
-                    onReset={() => handleAdjustmentChange('shadows', 0)}
+              {/* Collapsible Adjustment Section */}
+              <div className="flex flex-col mt-[0.5vw]">
+                <div
+                  onClick={() => setShowAdjustments(!showAdjustments)}
+                  className={`w-full flex items-center justify-between px-[1vw] py-[1vw] bg-white border border-gray-200 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors ${showAdjustments ? 'rounded-t-[0.75vw] border-b-0' : 'rounded-[0.75vw]'}`}
+                >
+                  <span className="text-[0.75vw] font-semibold text-gray-700">Adjustments</span>
+                  <ChevronDown
+                    size="0.95vw"
+                    className={`text-gray-500 transition-transform duration-200 ${showAdjustments ? 'rotate-180' : ''}`}
                   />
                 </div>
+
+                {showAdjustments && (
+                  <div className="space-y-[0.1vw] border border-gray-200 rounded-b-[0.75vw] bg-white p-[0.5vw]">
+                    <AdjustmentSlider
+                      label="Exposure"
+                      value={backgroundSettings?.adjustments?.exposure || 0}
+                      onChange={(val) => handleAdjustmentChange('exposure', val)}
+                      onReset={() => handleAdjustmentChange('exposure', 0)}
+                    />
+                    <AdjustmentSlider
+                      label="Contrast"
+                      value={backgroundSettings?.adjustments?.contrast || 0}
+                      onChange={(val) => handleAdjustmentChange('contrast', val)}
+                      onReset={() => handleAdjustmentChange('contrast', 0)}
+                    />
+                    <AdjustmentSlider
+                      label="Saturation"
+                      value={backgroundSettings?.adjustments?.saturation || 0}
+                      onChange={(val) => handleAdjustmentChange('saturation', val)}
+                      onReset={() => handleAdjustmentChange('saturation', 0)}
+                    />
+                    <AdjustmentSlider
+                      label="Temperature"
+                      value={backgroundSettings?.adjustments?.temperature || 0}
+                      onChange={(val) => handleAdjustmentChange('temperature', val)}
+                      onReset={() => handleAdjustmentChange('temperature', 0)}
+                    />
+                    <AdjustmentSlider
+                      label="Tint"
+                      value={backgroundSettings?.adjustments?.tint || 0}
+                      onChange={(val) => handleAdjustmentChange('tint', val)}
+                      onReset={() => handleAdjustmentChange('tint', 0)}
+                    />
+                    <AdjustmentSlider
+                      label="Highlights"
+                      value={backgroundSettings?.adjustments?.highlights || 0}
+                      onChange={(val) => handleAdjustmentChange('highlights', val)}
+                      onReset={() => handleAdjustmentChange('highlights', 0)}
+                    />
+                    <AdjustmentSlider
+                      label="Shadows"
+                      value={backgroundSettings?.adjustments?.shadows || 0}
+                      onChange={(val) => handleAdjustmentChange('shadows', val)}
+                      onReset={() => handleAdjustmentChange('shadows', 0)}
+                    />
+                  </div>
+                )}
               </div>
             </>
           ) : null}
@@ -1297,65 +1291,64 @@ const BackgroundSection = ({
         <div className={`flex flex-col relative ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}>
           {isTransitioning && (
             <div className="absolute inset-0 z-[100] flex items-center justify-center bg-white/10 backdrop-blur-[1px]">
-               <div className="flex flex-col items-center gap-[2vw]">
-                 <Icon icon="svg-spinners:ring-resize" className="w-8 h-8 text-[#3B3C8A]" />
-                 <span className="text-[0.7vw] font-semibold text-gray-500">Optimizing...</span>
-               </div>
+              <div className="flex flex-col items-center gap-[2vw]">
+                <Icon icon="svg-spinners:ring-resize" className="w-8 h-8 text-[#3B3C8A]" />
+                <span className="text-[0.7vw] font-semibold text-gray-500">Optimizing...</span>
+              </div>
             </div>
           )}
-        <div className="flex flex-col gap-[0.5vw] ">
-          <div className="sticky top-0 z-[50] flex items-center justify-between gap-[0.5vw] w-full mb-[0.5vw] bg-white py-[0.5vw]">
-             {['Static', 'Dynamic'].map((tabLabel) => {
-               const tabValue = tabLabel === 'Static' ? 'Background Themes' : 'Animated Themes';
-               return (
-                 <button
-                   key={tabValue}
-                   onClick={() => setThemeType(tabValue)}
-                   className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${
-                     themeType === tabValue
-                       ? 'bg-white text-gray-900 shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
-                       : 'bg-white text-gray-400 shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
-                   }`}
-                 >
-                   {tabLabel}
-                 </button>
-               )
-             })}
-          </div>
+          <div className="flex flex-col gap-[0.5vw] ">
+            <div className="sticky top-0 z-[50] flex items-center justify-between gap-[0.5vw] w-full mb-[0.5vw] bg-white py-[0.5vw]">
+              {['Static', 'Dynamic'].map((tabLabel) => {
+                const tabValue = tabLabel === 'Static' ? 'Background Themes' : 'Animated Themes';
+                return (
+                  <button
+                    key={tabValue}
+                    onClick={() => setThemeType(tabValue)}
+                    className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${themeType === tabValue
+                        ? 'bg-white text-gray-900 shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
+                        : 'bg-white text-gray-400 shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
+                      }`}
+                  >
+                    {tabLabel}
+                  </button>
+                )
+              })}
+            </div>
 
-          <div className={`flex flex-col gap-[1vw] px-1 pb-2 ${themeType !== 'Animated Themes' ? 'hidden' : ''}`}>
+            <div className={`flex flex-col gap-[1vw] px-1 pb-2 ${themeType !== 'Animated Themes' ? 'hidden' : ''}`}>
               <div className="grid grid-cols-3 gap-2">
-              <div 
-                onClick={() => {
-                  setSelectedTheme(null);
-                  if (!backgroundSettings.savedNonThemeSettings) {
-                    onUpdateBackground({ 
-                      ...backgroundSettings, 
-                      style: 'Solid', 
-                      reactBitType: null, 
-                      color: backgroundSettings.savedSolidColor || backgroundSettings.color || '#ffffff'
-                    });
-                  } else {
-                    const updates = { ...backgroundSettings, reactBitType: null };
-                    // Always restore the previous background settings if they were saved, 
-                    // allowing it to show through behind the animation overlay.
-                    if (backgroundSettings.savedNonThemeSettings) {
-                      Object.assign(updates, backgroundSettings.savedNonThemeSettings);
+                <div
+                  onClick={() => {
+                    setSelectedTheme(null);
+                    if (!backgroundSettings.savedNonThemeSettings) {
+                      onUpdateBackground({
+                        ...backgroundSettings,
+                        style: 'Solid',
+                        reactBitType: null,
+                        color: backgroundSettings.savedSolidColor || backgroundSettings.color || '#ffffff'
+                      });
+                    } else {
+                      const updates = { ...backgroundSettings, reactBitType: null };
+                      // Always restore the previous background settings if they were saved, 
+                      // allowing it to show through behind the animation overlay.
+                      if (backgroundSettings.savedNonThemeSettings) {
+                        Object.assign(updates, backgroundSettings.savedNonThemeSettings);
+                      }
+                      onUpdateBackground(updates);
                     }
-                    onUpdateBackground(updates);
-                  }
-                }} 
-                className="group cursor-pointer flex flex-col gap-[1vw]"
-              >
-                <div className={`aspect-[6/5] w-full rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all flex items-center justify-center ${!selectedTheme ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.02]' : 'border-gray-100 hover:border-gray-200'}`}>
-                  <Icon icon="lucide:ban" className="w-6 h-6 text-gray-300" />
-                  <div className={`absolute inset-x-0 transition-all duration-300 ${!selectedTheme ? 'top-1/2 -translate-y-1/2 py-2 bg-black/40 flex items-center justify-center scale-[1.02]' : 'bottom-0 py-1 bg-gray/40 backdrop-blur-md text-center'}`}>
-                    <span className={`text-[0.75vw] font-semibold transition-colors duration-300 ${!selectedTheme ? 'text-white' : 'text-gray-800'}`}>None</span>
+                  }}
+                  className="group cursor-pointer flex flex-col gap-[1vw]"
+                >
+                  <div className={`aspect-[6/5] w-full rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all flex items-center justify-center ${!selectedTheme ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.02]' : 'border-gray-100 hover:border-gray-200'}`}>
+                    <Icon icon="lucide:ban" className="w-6 h-6 text-gray-300" />
+                    <div className={`absolute inset-x-0 transition-all duration-300 ${!selectedTheme ? 'top-1/2 -translate-y-1/2 py-2 bg-black/40 flex items-center justify-center scale-[1.02]' : 'bottom-0 py-1 bg-gray/40 backdrop-blur-md text-center'}`}>
+                      <span className={`text-[0.75vw] font-semibold transition-colors duration-300 ${!selectedTheme ? 'text-white' : 'text-gray-800'}`}>None</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {animatedThemesList}
+                {animatedThemesList}
               </div>
 
               <div className="flex flex-col gap-[0.5vw]">
@@ -1369,21 +1362,21 @@ const BackgroundSection = ({
               </div>
             </div>
 
-          <div className={`flex flex-col gap-[1vw] px-1 pb-2 ${themeType !== 'Background Themes' ? 'hidden' : ''}`}>
-              
-                
-                <div className="grid grid-cols-3 gap-2">
-                  {backgroundThemesList}
-                </div>
+            <div className={`flex flex-col gap-[1vw] px-1 pb-2 ${themeType !== 'Background Themes' ? 'hidden' : ''}`}>
+
+
+              <div className="grid grid-cols-3 gap-2">
+                {backgroundThemesList}
+              </div>
             </div>
-        </div>
+          </div>
         </div>
       )}
 
       {activeTab === 'Animations' && (
         <div className="grid grid-cols-3 gap-[0.5vw] px-[0.5vw] pb-[1vw] pt-[1vw]">
           {/* None Option */}
-          <div 
+          <div
             onClick={() => {
               const updates = { ...backgroundSettings, animation: 'None' };
               // Only restore background if we're not currently in a ReactBits theme
@@ -1391,19 +1384,17 @@ const BackgroundSection = ({
                 Object.assign(updates, backgroundSettings.savedNonThemeSettings);
               }
               onUpdateBackground(updates);
-            }} 
+            }}
             className="group cursor-pointer flex flex-col gap-2"
           >
             <div className={`aspect-[6/5] w-full rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all flex items-center justify-center ${backgroundSettings.animation === 'None' || !backgroundSettings.animation ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.02]' : 'border-gray-100 hover:border-gray-200'}`}>
               <Icon icon="lucide:ban" className="w-6 h-6 text-gray-300" />
-              <div className={`absolute inset-x-0 transition-all duration-300 ${
-                (backgroundSettings.animation === 'None' || !backgroundSettings.animation) 
-                  ? 'top-1/2 -translate-y-1/2 py-2 bg-black/40 flex items-center justify-center' 
+              <div className={`absolute inset-x-0 transition-all duration-300 ${(backgroundSettings.animation === 'None' || !backgroundSettings.animation)
+                  ? 'top-1/2 -translate-y-1/2 py-2 bg-black/40 flex items-center justify-center'
                   : 'bottom-0 py-1 bg-gray/40 backdrop-blur-md text-center'
-              }`}>
-                <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${
-                  (backgroundSettings.animation === 'None' || !backgroundSettings.animation) ? 'text-white' : 'text-gray-800'
-                }`}>None</span>
+                }`}>
+                <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${(backgroundSettings.animation === 'None' || !backgroundSettings.animation) ? 'text-white' : 'text-gray-800'
+                  }`}>None</span>
               </div>
             </div>
           </div>
@@ -1417,7 +1408,7 @@ const BackgroundSection = ({
         <CustomColorPicker
           color={backgroundSettings.style === 'ReactBits' && backgroundSettings.savedSolidColor ? backgroundSettings.savedSolidColor : backgroundSettings.color}
           onChange={(color) => {
-             handleColorSelect(color);
+            handleColorSelect(color);
           }}
           onClose={() => setShowColorPicker(false)}
           position={pickerPos}
@@ -1430,10 +1421,10 @@ const BackgroundSection = ({
           color={backgroundSettings.gradientStops[editingGradientStopIndex].color}
           opacity={backgroundSettings.gradientStops[editingGradientStopIndex].opacity || 100}
           onChange={(color) => {
-             updateGradientStop(editingGradientStopIndex, { color });
+            updateGradientStop(editingGradientStopIndex, { color });
           }}
           onOpacityChange={(opacity) => {
-             updateGradientStop(editingGradientStopIndex, { opacity });
+            updateGradientStop(editingGradientStopIndex, { opacity });
           }}
           onClose={() => setEditingGradientStopIndex(null)}
           position={pickerPos}
@@ -1442,8 +1433,8 @@ const BackgroundSection = ({
 
       {/* Image Gallery Pop-up */}
       {showGallery && (
-        <div className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" 
-             style={{ width: '320px', height: '540px', top: '50%', left: '24vw', transform: 'translate(-50%, -50%)' }}>
+        <div className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          style={{ width: '320px', height: '540px', top: '50%', left: '24vw', transform: 'translate(-50%, -50%)' }}>
           <div className="flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
             <h2 className="text-[1vw] font-semibold text-gray-900">Image Gallery</h2>
             <button onClick={() => setShowGallery(false)} className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
@@ -1467,16 +1458,16 @@ const BackgroundSection = ({
                   handleModalFileUpload({ target: { files: [file] } });
                 }
               }}
-             className="w-full h-[12vh] rounded-2xl flex flex-col items-center justify-center bg-white hover:bg-indigo-50  transition-all cursor-pointer group "
+              className="w-full h-[12vh] rounded-2xl flex flex-col items-center justify-center bg-white hover:bg-indigo-50  transition-all cursor-pointer group "
               style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
-                         >
-                           <p className="text-[0.9vw] text-gray-600 font-semibold mb-[0.5vw]">Drag & Drop or <span className="text-[#4F46E5] font-semibold">Upload</span></p>
-                                         <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw] text-gray-400 mb-2" />
-                                         <div className="flex flex-col items-center">
-                                           <span className="text-[0.7vw] font-semibold text-gray-500">Supported File</span>
-                                           <span className="text-[0.7vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
-                                         </div>
-                         </div>
+            >
+              <p className="text-[0.9vw] text-gray-600 font-semibold mb-[0.5vw]">Drag & Drop or <span className="text-[#4F46E5] font-semibold">Upload</span></p>
+              <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw] text-gray-400 mb-2" />
+              <div className="flex flex-col items-center">
+                <span className="text-[0.7vw] font-semibold text-gray-500">Supported File</span>
+                <span className="text-[0.7vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
+              </div>
+            </div>
             <input type="file" ref={galleryInputRef} onChange={handleModalFileUpload} accept="image/*" className="hidden" />
           </div>
 
@@ -1500,8 +1491,8 @@ const BackgroundSection = ({
           </div>
 
           <div className="p-[0.75vw] border-t flex justify-end gap-[0.5vw] bg-white mt-auto">
-            <button 
-              onClick={() => { setShowGallery(false); setLocalGallerySelected(null); }} 
+            <button
+              onClick={() => { setShowGallery(false); setLocalGallerySelected(null); }}
               className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] hover:bg-gray-50"
             >
               <X size="0.9vw" /> Close
