@@ -9,7 +9,24 @@ import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supab
 const PreviewPage = () => {
 
   const [data, setData] = useState(null);
+  const [tempVId, setTempVId] = useState(null);
+  const [tempPreloader, setTempPreloader] = useState(null);
   const location = useLocation();
+
+  useEffect(() => {
+    const fetchPreloader = async () => {
+      try {
+        const saved = await getFromDB('editor_autosave');
+        if (saved) {
+          if (saved.v_id) setTempVId(saved.v_id);
+          if (saved.settings?.preloader) {
+            setTempPreloader(saved.settings.preloader);
+          }
+        }
+      } catch (e) {}
+    };
+    fetchPreloader();
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -126,8 +143,19 @@ const PreviewPage = () => {
 
   if (!data) {
     return (
-      <div className="flex items-center justify-center h-screen w-full bg-white">
-        <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+      <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}>
+        <FlipbookPreview
+          pages={[]}
+          pageName="Preview"
+          onClose={() => window.close()}
+          isMobile={false}
+          isDoublePage={false}
+          targetPage={0}
+          settings={tempPreloader ? { preloader: tempPreloader } : {}}
+          baseUrl=""
+          v_id={tempVId}
+          isLoadingParent={true}
+        />
       </div>
     );
   }
@@ -221,6 +249,7 @@ const PreviewPage = () => {
         settings={{ ...(data.meta || {}), ...(data.settings || {}) }}
         baseUrl={data.projectBaseUrl || ''}
         v_id={data.v_id}
+        isLoadingParent={false}
       />
     </div>
   );

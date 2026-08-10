@@ -1074,7 +1074,7 @@ const MainEditor = ({
       const slideshows = document.querySelectorAll('[data-is-slideshow="true"]');
       slideshows.forEach(el => {
         // Skip if selected (SlideshowProperties handles it)
-        if (el.getAttribute('data-slideshow-manual') === 'true') {
+        if (el._slideshowManual) {
           const existing = el._globalSsOverlay;
           if (existing) {
             existing.remove();
@@ -1119,7 +1119,7 @@ const MainEditor = ({
               btn.style.opacity = '1';
               btn.style.pointerEvents = 'auto';
             });
-            el.setAttribute('data-is-hovering', 'true');
+            el._isHovering = true;
           };
           const handleLeave = () => {
             leaveTimeout = setTimeout(() => {
@@ -1127,7 +1127,7 @@ const MainEditor = ({
                 btn.style.opacity = '0';
                 btn.style.pointerEvents = 'none';
               });
-              el.removeAttribute('data-is-hovering');
+              el._isHovering = false;
             }, 50);
           };
 
@@ -1257,7 +1257,7 @@ const MainEditor = ({
                 if (next < 0) next = images.length - 1;
                 if (next >= images.length) next = 0;
                 el.setAttribute('data-active-index', next.toString());
-                el.setAttribute('data-last-slide-time', Date.now().toString());
+                el._lastSlideTime = Date.now();
 
                 const evt = new CustomEvent('force-slideshow-advance', { detail: { el, nextIndex: next } });
                 window.dispatchEvent(evt);
@@ -1295,7 +1295,7 @@ const MainEditor = ({
                 const current = parseInt(el.getAttribute('data-active-index') || '0');
                 if (i === current) return;
                 el.setAttribute('data-active-index', i.toString());
-                el.setAttribute('data-last-slide-time', Date.now().toString());
+                el._lastSlideTime = Date.now();
 
                 const evt = new CustomEvent('force-slideshow-advance', { detail: { el, nextIndex: i } });
                 window.dispatchEvent(evt);
@@ -1307,7 +1307,7 @@ const MainEditor = ({
         }
 
         // Sync state continuously
-        const isHovering = el.getAttribute('data-is-hovering') === 'true';
+        const isHovering = el._isHovering === true;
         overlay.querySelectorAll('.editor-ss-nav').forEach(btn => {
           btn.style.opacity = isHovering ? '1' : '0';
           btn.style.pointerEvents = isHovering ? 'auto' : 'none';
@@ -1410,8 +1410,8 @@ const MainEditor = ({
       const slideshows = document.querySelectorAll('[data-is-slideshow="true"]');
       slideshows.forEach(el => {
         // Skip if manual control/overlay is active or if user is hovering (prevents conflicts)
-        if (el.getAttribute('data-slideshow-manual') === 'true' ||
-          el.getAttribute('data-is-hovering') === 'true' ||
+        if (el._slideshowManual ||
+          el._isHovering === true ||
           el.matches(':hover') ||
           (el._globalSsOverlay && el._globalSsOverlay.querySelector(':hover'))) return;
 
@@ -1429,7 +1429,7 @@ const MainEditor = ({
 
           const speed = (settings.speed || 3) * 1000;
           const now = Date.now();
-          const lastTime = parseInt(el.getAttribute('data-last-slide-time') || '0');
+          const lastTime = el._lastSlideTime || 0;
 
           if (now - lastTime >= speed) {
             let currentIndex = parseInt(el.getAttribute('data-active-index') || '0');
@@ -1440,7 +1440,7 @@ const MainEditor = ({
 
             // Update DOM attributes
             el.setAttribute('data-active-index', nextIndex.toString());
-            el.setAttribute('data-last-slide-time', now.toString());
+            el._lastSlideTime = now;
 
             // ── Resolve the actual <image>/<img>, including SVG pattern fills ──
             const _findImgInPattern = (node) => {
@@ -1507,8 +1507,8 @@ const MainEditor = ({
       // If an overlay element is marked manual but no active editor overlay div exists,
       // the flag was left behind when the properties panel closed unexpectedly. Clear it.
       if (!document.querySelector('.editor-ss-overlay')) {
-        document.querySelectorAll('[data-slideshow-manual="true"]').forEach(el => {
-          el.removeAttribute('data-slideshow-manual');
+        document.querySelectorAll('[data-is-slideshow="true"]').forEach(el => {
+          el._slideshowManual = false;
         });
       }
     }, 50); // Check every 50ms for accurate timing
@@ -1592,7 +1592,7 @@ const MainEditor = ({
         }
 
         slideshowEl.setAttribute('data-active-index', nextIndex.toString());
-        slideshowEl.setAttribute('data-last-slide-time', Date.now().toString());
+        slideshowEl._lastSlideTime = Date.now();
       } catch (err) {
         // Silent catch
       }
@@ -1620,7 +1620,7 @@ const MainEditor = ({
       if (!slideshowEl) return;
 
       // Defer to the live-runner overlay when the element is selected
-      if (slideshowEl.getAttribute('data-slideshow-manual') === 'true') return;
+      if (slideshowEl._slideshowManual) return;
 
       advanceSlideshow(slideshowEl);
     };
@@ -2665,6 +2665,37 @@ const MainEditor = ({
         g.setAttribute('stroke-width', '1');
       } else {
         g.setAttribute('data-is-hotspot', 'true');
+        
+        const currentPresetId = e.detail.presetId || (icon && icon.presetId);
+        if (currentPresetId) {
+          g.setAttribute('data-preset-id', currentPresetId);
+          
+          const actionMap = {
+            'youtube': 'open-link',
+            'instagram': 'open-link',
+            'x': 'open-link',
+            'facebook': 'open-link',
+            'linkedin': 'open-link',
+            'open-link': 'open-link',
+            'navigate': 'navigate-to',
+            'whatsapp': 'whatsapp',
+            'call': 'call',
+            'email': 'email',
+            'video': 'popup',
+            'popup': 'popup',
+            'slideshow': 'slideshow',
+            'zoom': 'zoom',
+            'download': 'download',
+            'info': 'info-box',
+            'location': 'open-link',
+            '3d-viewer': '3d-viewer'
+          };
+          
+          const actionType = actionMap[currentPresetId];
+          if (actionType) {
+            g.setAttribute('data-interaction', actionType);
+          }
+        }
       }
 
 
@@ -2693,6 +2724,10 @@ const MainEditor = ({
 
       updatePageHtml(targetPageIndex, svg.outerHTML);
       setSelectedLayerId(newId);
+      
+      if (e.detail.isHotspot && typeof setActiveTopTool === 'function') {
+        setActiveTopTool('interaction');
+      }
     };
 
     const handleUploadVideo = (e) => {
@@ -7056,8 +7091,10 @@ const MainEditor = ({
             }
 
             let allowDrag = true;
-            // Block dragging in Interaction/Animation mode UNLESS it's a Free Frame
-            if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && elementToDrag.getAttribute('data-name') !== 'Free Frame') {
+            // Block dragging in Interaction/Animation mode UNLESS it's a Free Frame OR a Hotspot
+            if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && 
+                elementToDrag.getAttribute('data-name') !== 'Free Frame' &&
+                elementToDrag.getAttribute('data-is-hotspot') !== 'true') {
               allowDrag = false;
               safeStopInteraction(event.interaction);
               // We STILL want to allow auto-select to run below, so we don't return here.
@@ -11519,14 +11556,17 @@ const MainEditor = ({
       return;
     }
 
-    // Double-click on an image ONLY opens in-place Crop Overlay mode if element is ALREADY in Crop mode
-    const isCropModeImage = target && (
+    // Double-click on an image or video ONLY opens in-place Crop Overlay mode if element is ALREADY in Crop mode (or it is a video/video group)
+    const isCropModeMedia = target && (
       target.getAttribute('data-object-fit') === 'Crop' ||
-      target.closest?.('[data-object-fit="Crop"]')
+      target.closest?.('[data-object-fit="Crop"]') ||
+      target.tagName?.toLowerCase() === 'video' ||
+      target.closest?.('video') ||
+      target.closest?.('[data-is-video-group="true"]')
     );
 
-    if (isCropModeImage) {
-      const cropLayer = target.closest?.('[data-object-fit="Crop"]') || target;
+    if (isCropModeMedia) {
+      const cropLayer = target.closest?.('[data-object-fit="Crop"]') || target.closest?.('[data-is-video-group="true"]') || target;
       if (cropLayer && cropLayer.id) {
         if (setSelectedLayerId) {
           setSelectedLayerId(cropLayer.id);
@@ -12237,9 +12277,28 @@ const MainEditor = ({
                 {showHotspotPopup && (
                   <HotspotPresetPopup
                     onClose={() => setShowHotspotPopup(false)}
-                    onSelectPreset={(presetId) => {
-                      console.log('Selected preset:', presetId);
-                      // Future logic for handling the selected preset
+                    onSelectPreset={(data) => {
+                      if (data.type === 'icon') {
+                        const container = document.querySelector(`.page-svg-container[data-page-index="${displayIndex}"]`);
+                        const svg = container?.querySelector('svg');
+                        let centerX = 396;
+                        let centerY = 560;
+                        if (svg) {
+                          const svgW = parseFloat(svg.getAttribute('width')) || 793;
+                          const svgH = parseFloat(svg.getAttribute('height')) || 1121;
+                          centerX = svgW / 2;
+                          centerY = svgH / 2;
+                        }
+                        
+                        window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                          detail: {
+                            pageIndex: displayIndex,
+                            icon: data.icon,
+                            dropPoint: { x: centerX, y: centerY },
+                            isHotspot: data.isHotspot
+                          }
+                        }));
+                      }
                     }}
                   />
                 )}
@@ -12772,7 +12831,8 @@ const MainEditor = ({
                                       detail: {
                                         pageIndex: displayIndex,
                                         icon: data.icon,
-                                        dropPoint
+                                        dropPoint,
+                                        isHotspot: data.isHotspot
                                       }
                                     }));
                                   } else if (data.type === 'image' || data.type === 'upload' || data.url) {

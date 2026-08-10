@@ -448,7 +448,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           targetElement.setAttribute('data-is-slideshow', 'true');
           targetElement.dataset.slideshow = newDataStr;
           targetElement.dataset.isSlideshow = 'true';
-          targetElement.setAttribute('data-slideshow-manual', 'true');
+          targetElement._slideshowManual = true;
 
           // Trigger a silent background save to the parent appData
           // We debounce this specifically to avoid massive lag when dragging sliders.
@@ -869,7 +869,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     const cleanup = () => {
       // Clear manual flag when overlay is removed
       const freshTarget = getFreshTarget();
-      if (freshTarget) freshTarget.removeAttribute('data-slideshow-manual');
+      if (freshTarget) freshTarget._slideshowManual = false;
 
       roots.forEach(r => {
         setTimeout(() => {
@@ -888,7 +888,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
     // Set manual flag so global runner skips this element while it has an active interactive overlay
     const initialTarget = getFreshTarget();
-    if (initialTarget) initialTarget.setAttribute('data-slideshow-manual', 'true');
+    if (initialTarget) initialTarget._slideshowManual = true;
 
     // Position overlay to match target element bounds.
     // The page container may have CSS scale transforms (zoom), so we must
@@ -900,8 +900,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
       // Re-enforce manual flag in case the element was replaced/cloned during a stroke update
       // This prevents the global runner from spawning a duplicate overlay.
-      if (!freshTarget.hasAttribute('data-slideshow-manual')) {
-        freshTarget.setAttribute('data-slideshow-manual', 'true');
+      if (!freshTarget._slideshowManual) {
+        freshTarget._slideshowManual = true;
 
         // If the global runner already spawned an overlay in the split-second before we caught it, remove it
         if (freshTarget._globalSsOverlay) {

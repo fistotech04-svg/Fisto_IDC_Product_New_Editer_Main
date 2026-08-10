@@ -57,7 +57,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
       if (trigger) {
         const rect = trigger.getBoundingClientRect();
         setPosition({
-          top: rect.top - window.innerHeight * 0.30,
+          top: rect.top - window.innerHeight * 0.40,
           left: rect.right - window.innerWidth * 0.10,
         });
       }
@@ -130,11 +130,26 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
                 e.dataTransfer.setData('application/json', JSON.stringify({
                   type: 'icon',
                   isHotspot: true,
-                  icon: { html: `<image href="${preset.icon}" width="52" height="52"/>` }
+                  icon: { 
+                    html: `<image href="${preset.icon}" width="52" height="52"/>`,
+                    presetId: preset.id 
+                  }
                 }));
               }}
+              onDragEnd={() => {
+                if (onClose) onClose();
+              }}
               onClick={() => {
-                if (onSelectPreset) onSelectPreset(preset.id);
+                if (onSelectPreset) {
+                  onSelectPreset({
+                    type: 'icon',
+                    isHotspot: true,
+                    icon: { 
+                      html: `<image href="${preset.icon}" width="52" height="52"/>`,
+                      presetId: preset.id 
+                    }
+                  });
+                }
                 if (onClose) onClose();
               }}
               className="flex flex-col items-center justify-start gap-[0.6vh] group transition-transform hover:scale-105 cursor-grab active:cursor-grabbing"
@@ -152,6 +167,70 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
               No presets found.
             </div>
           )}
+        </div>
+
+        {/* Interactive Buttons Section */}
+        <div className="flex items-center mt-[2.5vh] mb-[1.2vh] w-full">
+          <h3 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Interactive Buttons</h3>
+          <div className="h-px bg-gray-200 flex-grow ml-[0.6vw]"></div>
+        </div>
+        
+        <div className="flex flex-wrap gap-x-[0.6vw] gap-y-[1.2vh]">
+          {/* Blue Rect Button */}
+          <button
+            draggable="true"
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/json', JSON.stringify({ type: 'button', style: 'blue-rect', isHotspot: true }));
+            }}
+            className="bg-[#2B85FF] text-white text-[0.75vw] font-medium px-[1vw] py-[0.6vh] rounded-[0.3vw] shadow-sm hover:opacity-90 cursor-grab active:cursor-grabbing"
+          >
+            Button
+          </button>
+          
+          {/* Orange Rect Button */}
+          <button
+            draggable="true"
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/json', JSON.stringify({ type: 'button', style: 'orange-rect', isHotspot: true }));
+            }}
+            className="bg-[#F87A18] text-white text-[0.75vw] font-medium px-[1vw] py-[0.6vh] rounded-[0.3vw] shadow-sm hover:opacity-90 cursor-grab active:cursor-grabbing"
+          >
+            Button
+          </button>
+
+          {/* Purple Pill with Icon */}
+          <button
+            draggable="true"
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/json', JSON.stringify({ type: 'button', style: 'purple-pill-icon', isHotspot: true }));
+            }}
+            className="bg-[#7859FF] text-white text-[0.75vw] font-medium px-[1vw] py-[0.6vh] rounded-full shadow-sm hover:opacity-90 flex items-center gap-[0.4vw] cursor-grab active:cursor-grabbing"
+          >
+            <Icon icon="lucide:check" className="w-[0.8vw] h-[0.8vw]" strokeWidth={3} />
+            Icon
+          </button>
+
+          {/* Yellow Pill Button */}
+          <button
+            draggable="true"
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/json', JSON.stringify({ type: 'button', style: 'yellow-pill', isHotspot: true }));
+            }}
+            className="bg-[#FFCC00] text-white text-[0.75vw] font-medium px-[1vw] py-[0.6vh] rounded-full shadow-sm hover:opacity-90 cursor-grab active:cursor-grabbing"
+          >
+            Round Button
+          </button>
+
+          {/* Purple Pill Button */}
+          <button
+            draggable="true"
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/json', JSON.stringify({ type: 'button', style: 'purple-pill', isHotspot: true }));
+            }}
+            className="bg-[#7859FF] text-white text-[0.75vw] font-medium px-[1vw] py-[0.6vh] rounded-full shadow-sm hover:opacity-90 cursor-grab active:cursor-grabbing"
+          >
+            Button
+          </button>
         </div>
       </div>
     </div>

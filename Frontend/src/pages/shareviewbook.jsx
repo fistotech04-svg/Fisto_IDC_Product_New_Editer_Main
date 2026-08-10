@@ -54,6 +54,7 @@ const ShareViewBook = () => {
     const [passwordError, setPasswordError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
+    const [tempSettings, setTempSettings] = useState(null);
 
     // Get current logged-in user email
     const userStr = localStorage.getItem('user');
@@ -210,6 +211,13 @@ const ShareViewBook = () => {
                         });
                     }
                 }
+
+                // Extract and set tempSettings immediately so the custom preloader works while image preloading happens
+                const extractedSettings = {
+                    ...(processedData?.meta || {}),
+                    ...(processedData?.settings || {})
+                };
+                setTempSettings(extractedSettings);
 
                 if (!processedData || !processedData.pages || processedData.pages.length === 0) {
                     throw new Error("Invalid or empty flipbook data received");
@@ -424,13 +432,17 @@ const ShareViewBook = () => {
     const isMobileDevice = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     if (loading) return (
-        <div className="flex h-screen flex-col gap-4 items-center justify-center bg-white">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#4A3AFF]"></div>
-            {retryAttempt > 0 && (
-                <p className="text-sm text-slate-400 animate-pulse">
-                    Connecting… (attempt {retryAttempt + 1} of 4)
-                </p>
-            )}
+        <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}>
+            <FlipbookPreview
+                pages={[]}
+                pageName="Loading..."
+                settings={tempSettings || {}}
+                isMobile={isMobileDevice}
+                onClose={null}
+                baseUrl={null}
+                isPublishedPreview={true}
+                isLoadingParent={true}
+            />
         </div>
     );
 
@@ -720,6 +732,7 @@ const ShareViewBook = () => {
                 onClose={null}
                 baseUrl={bookData.meta?.baseUrl ? `${getBackendUrl()}${bookData.meta.baseUrl}` : null}
                 isPublishedPreview={true}
+                isLoadingParent={false}
             />
         </div>
     );

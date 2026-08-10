@@ -3164,8 +3164,8 @@ const ImageEditor = ({
                     el.removeAttribute('data-is-slideshow');
                     el.removeAttribute('data-slideshow');
                     el.removeAttribute('data-active-index');
-                    el.removeAttribute('data-slideshow-manual');
-                    el.removeAttribute('data-last-slide-time');
+                    el._slideshowManual = false;
+                    delete el._lastSlideTime;
                     if (el.dataset) {
                       delete el.dataset.slideshowInitialized;
                     }
@@ -3284,8 +3284,8 @@ const ImageEditor = ({
                           el.removeAttribute('data-is-slideshow');
                           el.removeAttribute('data-slideshow');
                           el.removeAttribute('data-active-index');
-                          el.removeAttribute('data-slideshow-manual');
-                          el.removeAttribute('data-last-slide-time');
+                          el._slideshowManual = false;
+                          delete el._lastSlideTime;
                           if (el.dataset) {
                             delete el.dataset.slideshowInitialized;
                           }
@@ -3656,7 +3656,7 @@ const ImageEditor = ({
                 }}
               >
                 {/* Thumbnail */}
-                <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
+                <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] mt-[-1vw] overflow-hidden bg-gray-100 flex-shrink-0">
                   {previewSrc ? (
                     <img
                       src={previewSrc}
@@ -3701,7 +3701,7 @@ const ImageEditor = ({
               </div>
 
               {/* Opacity */}
-              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[0.5vw]">
+              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[-1vw]">
                 <span className="text-[0.85vw] font-semibold text-black whitespace-nowrap">Opacity :</span>
                 <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
                   <input

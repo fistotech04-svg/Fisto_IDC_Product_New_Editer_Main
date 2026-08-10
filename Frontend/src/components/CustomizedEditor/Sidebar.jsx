@@ -151,7 +151,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
   const tabConfigs = {
     'logo': { icon: 'lucide:gem', top: 154 },
     'profile': { icon: 'lucide:user', top: 206 },
-    'background': { icon: 'iconify codex--add-background', top: 326 },
+    'background': { icon: 'mdi:texture', top: 326 },
     'layout': { icon: 'lucide:layout-panel-left', top: 378 },
     'bookappearance': { icon: 'lucide:settings-2', top: 430 },
     'menubar': { icon: 'mingcute:menu-fill', top: 482 },
@@ -274,7 +274,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
       </div>
 
       {/* Sidebar Navigation */}
-      <div className="flex-1 overflow-y-auto pt-[0.2vw] custom-scrollbar px-[0.75vw] flex flex-col gap-[0.2vw]">
+      <div className="flex-1 overflow-y-auto pt-[1vw] custom-scrollbar px-[0.75vw] flex flex-col gap-[0.2vw]">
         <SidebarItem
           id="section-branding"
           icon="lucide:gem"
@@ -372,12 +372,22 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
               about: data?.about,
               category: data?.category,
               language: data?.language,
+              thumbnail: data?.coverPicture?.url || prev?.thumbnail,
+              coverPicture: data?.coverPicture || prev?.coverPicture,
               meta: {
                 ...(prev?.meta || {}),
                 quotes: data?.quotes,
                 about: data?.about,
                 category: data?.category,
-                language: data?.language
+                language: data?.language,
+                coverPicture: data?.coverPicture || prev?.meta?.coverPicture
+              },
+              settings: {
+                ...(prev?.settings || {}),
+                othersetup: {
+                  ...(prev?.settings?.othersetup || {}),
+                  coverPicture: data?.coverPicture || prev?.settings?.othersetup?.coverPicture
+                }
               }
             }));
           }
