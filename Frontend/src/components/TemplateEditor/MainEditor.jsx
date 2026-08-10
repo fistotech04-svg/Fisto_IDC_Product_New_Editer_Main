@@ -11556,14 +11556,17 @@ const MainEditor = ({
       return;
     }
 
-    // Double-click on an image ONLY opens in-place Crop Overlay mode if element is ALREADY in Crop mode
-    const isCropModeImage = target && (
+    // Double-click on an image or video ONLY opens in-place Crop Overlay mode if element is ALREADY in Crop mode (or it is a video/video group)
+    const isCropModeMedia = target && (
       target.getAttribute('data-object-fit') === 'Crop' ||
-      target.closest?.('[data-object-fit="Crop"]')
+      target.closest?.('[data-object-fit="Crop"]') ||
+      target.tagName?.toLowerCase() === 'video' ||
+      target.closest?.('video') ||
+      target.closest?.('[data-is-video-group="true"]')
     );
 
-    if (isCropModeImage) {
-      const cropLayer = target.closest?.('[data-object-fit="Crop"]') || target;
+    if (isCropModeMedia) {
+      const cropLayer = target.closest?.('[data-object-fit="Crop"]') || target.closest?.('[data-is-video-group="true"]') || target;
       if (cropLayer && cropLayer.id) {
         if (setSelectedLayerId) {
           setSelectedLayerId(cropLayer.id);
