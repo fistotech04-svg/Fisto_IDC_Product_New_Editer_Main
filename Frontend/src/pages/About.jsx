@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { motion, useAnimation, useScroll, useTransform, useSpring, AnimatePresence } from 'framer-motion';
+import { motion, useAnimation, useScroll, useMotionValueEvent, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 import heroBg from '../assets/About/Hero.png';
+import systemImg from '../assets/About/system.png';
+import systemTwoImg from '../assets/About/system_2.png';
+import bookImg from '../assets/About/Book.png';
 import heroOne from '../assets/About/Hero_1.png';
 import secondOne from '../assets/About/second_1.png';
 import secondTwo from '../assets/About/second_2.png';
@@ -11,15 +14,15 @@ import fourthTwo from '../assets/About/fourth_2.png';
 import fourthThree from '../assets/About/fourth_3.png';
 import fourthFour from '../assets/About/fourth_4.png';
 
+import Footer from './Footer';
+
 const About = () => {
     const controls = useAnimation();
     const [hasAnimated, setHasAnimated] = useState(false);
 
     useEffect(() => {
         const sequence = async () => {
-            // Wait for 0.8 seconds
             await new Promise(resolve => setTimeout(resolve, 800));
-            // Animate to top
             await controls.start("scrolled");
             setHasAnimated(true);
         };
@@ -27,60 +30,65 @@ const About = () => {
     }, [controls]);
 
     const variants = {
-        initial: { 
-            y: "0%", 
-            scale: 1
-        },
-        scrolled: { 
-            y: "-30%", 
-            transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.8 } 
-        }
+        initial: { opacity: 1, scale: 1 },
+        scrolled: { opacity: 0.2, scale: 0.95, transition: { duration: 0.8 } }
     };
 
     const textVariants = {
-        initial: { 
-            y: "0%", 
-            fontSize: "8vw",
-            opacity: 1 
-        },
-        scrolled: { 
-            y: "-115%", 
-            fontSize: "8vw",
-            opacity: 1,
-            transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.8 } 
-        }
+        initial: { opacity: 1, y: 0 },
+        scrolled: { opacity: 0, y: -50, transition: { duration: 0.6 } }
     };
 
     const cardVariants = {
         initial: { y: "100%" },
-        scrolled: { 
-            y: "10%", 
-            transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.85 } 
-        }
+        scrolled: { y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] } }
     };
 
-    // Scroll container ref for the whole page
-    const containerRef = useRef(null);
+    const description = [
+        "Welcome to IDC! We transform static documents into interactive digital experiences.",
+        "Custom design options tailored to your brand identity.",
+        "Interactive flipbooks that engage your audience.",
+        "Secure, reliable, and built to protect your data every step of the way."
+    ];
 
     // Scroll animation for "Our Values" section
     const valuesRef = useRef(null);
-    const { scrollYProgress } = useScroll({
-        target: valuesRef,
-        container: containerRef,
-        offset: ["start end", "end start"]
-    });
-
     const [activeIndex, setActiveIndex] = useState(0);
 
-    // Update active index based on scroll progress
     useEffect(() => {
-        return scrollYProgress.onChange(latest => {
-            if (latest < 0.25) setActiveIndex(0);
-            else if (latest < 0.5) setActiveIndex(1);
-            else if (latest < 0.75) setActiveIndex(2);
-            else setActiveIndex(3);
-        });
-    }, [scrollYProgress]);
+        const targetEl = valuesRef.current;
+        if (!targetEl) return;
+
+        const scrollParent = targetEl.closest('.overflow-y-auto') || window;
+
+        const handleScroll = () => {
+            const rect = targetEl.getBoundingClientRect();
+            const parentHeight = scrollParent === window ? window.innerHeight : scrollParent.clientHeight;
+            
+            // Total scrollable height of the section
+            const totalScroll = rect.height - parentHeight;
+            if (totalScroll <= 0) return;
+
+            // Scrolled distance from top of section
+            const currentScroll = -rect.top;
+            const progress = Math.max(0, Math.min(1, currentScroll / totalScroll));
+
+            if (progress < 0.25) {
+                setActiveIndex(0);
+            } else if (progress < 0.5) {
+                setActiveIndex(1);
+            } else if (progress < 0.75) {
+                setActiveIndex(2);
+            } else {
+                setActiveIndex(3);
+            }
+        };
+
+        scrollParent.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll();
+
+        return () => scrollParent.removeEventListener('scroll', handleScroll);
+    }, []);
 
     // Dynamic Text Content based on scroll
     const messages = [
@@ -91,262 +99,271 @@ const About = () => {
     ];
 
     return (
-        <div 
-            ref={containerRef}
-            className="w-full h-[92vh] overflow-y-auto snap-y snap-mandatory scroll-smooth bg-[#e5e5e5] font-sans"
-        >
-            {/* Hero Section */}
+        <div className="w-full bg-white font-sans pb-0">
+            {/* Top Hero Section Banner */}
             <motion.div 
-                initial="initial"
-                whileInView="scrolled"
-                viewport={{ once: false, amount: 0.3 }}
-                className="snap-start relative w-full h-[92vh] bg-black overflow-hidden flex items-center justify-center"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="w-full bg-[#f0efef] border-b border-gray-100 px-[5vw]"
             >
-                {/* Background Image with Black Overlay */}
-                <motion.div 
-                    variants={variants}
-                    className="absolute inset-0 z-0"
-                >
-                    <img 
-                        src={heroBg} 
-                        alt="Hero Background" 
-                        className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
-                </motion.div>
+                <div className="max-w-[85vw] mx-auto flex flex-col md:flex-row items-center justify-between gap-[3vw]">
+                    {/* Left Text Block */}
+                    <div className="max-w-[44vw] space-y-[1.8vh]">
+                        <h1 className="text-[3.2vw] text-gray-900 font-normal tracking-tight leading-tight">
+                            About Us
+                        </h1>
+                        
+                        <p className="text-[0.9vw] text-gray-600 font-normal leading-relaxed">
+                            We create Interactive Digital Catalogues, Websites, Web Applications, and 3D Product Experiences that help businesses showcase products in a modern, engaging, and interactive way.
+                        </p>
 
-                {/* Animated About Us Text */}
-                <div className="relative z-30 text-center w-full pointer-events-none">
-                    <motion.h1
-                        variants={textVariants}
-                        className="text-[8vw] font-bold text-white tracking-tight"
-                    >
-                        About Us
-                    </motion.h1>
+                        <div className="w-[7vw] h-[0.3vh] min-h-[2px] bg-gray-800 rounded-full mt-[1.8vh]"></div>
+                    </div>
+
+                    {/* Right Hero Graphic */}
+                    <div className="relative flex justify-center md:justify-end">
+                        <img 
+                            src={systemImg} 
+                            alt="About Us Hero Graphic" 
+                            className="h-[42vh] max-h-[460px] w-auto object-contain shrink-0" 
+                        />
+                    </div>
                 </div>
+            </motion.div>
+            {/* Crafting Interactive Digital Experiences Section */}
+            <motion.div 
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.6 }}
+                className="w-full bg-black text-white pt-[8vh] pb-[16vh] md:pt-[10vh] md:pb-[20vh] px-[5vw]"
+            >
+                <div className="max-w-[85vw] mx-auto space-y-[10vh]">
+                    
+                    {/* Top Main Heading */}
+                    <div className="text-center max-w-[70vw] mx-auto space-y-[1vh]">
+                        <h2 className="text-[3.2vw] font-normal tracking-tight leading-tight">
+                            <span className="text-gray-400">Crafting </span>
+                            <span className="text-white font-bold">Interactive Digital Experiences </span>
+                            <span className="text-gray-400">for Modern <span className="text-gray-400">Businesses</span></span>
+                            
+                        </h2>
+                    </div>
 
-                {/* Interactive Card Section - Slides In */}
-                <motion.div 
-                    variants={cardVariants}
-                    className="absolute bottom-0 left-0 w-full z-20"
-                >
-                    <div className="w-full mx-auto bg-white rounded-t-[1.5vw] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] p-[5vw] px-[8vw] pb-[10vh]">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-[5vw] items-center">
-                            <div className="space-y-[2.5vw]">
-                                <div className="">
-                                    <h3 className="text-[2vw] font-bold text-black leading-tight">
-                                        We Transform Your Content Into
-                                    </h3>
-                                    <h2 className="text-[5vw] font-bold leading-tight tracking-tight">
-                                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Interactive</span> <br />
-                                        <span className="text-indigo-600">Experiences</span>
+                    {/* Sub-header Row: What We Do ? */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-[2vw] pt-[2vh]">
+                        <div className="flex items-center gap-[0.8vw]">
+                            <span className="w-[4px] h-[1.8vw] min-h-[22px] bg-white rounded-full inline-block"></span>
+                            <h3 className="text-[1.3vw] font-bold text-white tracking-wide">What We Do ?</h3>
+                        </div>
+
+                        <p className="text-[0.9vw] text-gray-300 font-normal leading-relaxed max-w-[42vw] text-left md:text-right">
+                            At FIST-O, we design and develop immersive digital solutions that help businesses showcase products, improve customer engagement, and create memorable digital experiences.
+                        </p>
+                    </div>
+
+                    {/* 4 Feature Columns Showcase Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-[1.4vw] h-[580px] max-w-[85vw] mx-auto pt-[2vh]">
+                        
+                        {/* Col 1 */}
+                        <div className="flex flex-col justify-between h-full gap-[1.4vw]">
+                            {/* Top Image Card */}
+                            <div className="w-full h-[38%] rounded-[1vw] overflow-hidden border border-white/20 bg-neutral-900 shadow-md">
+                                <img src={heroOne} alt="Desktop Preview" className="w-full h-full object-cover rounded-[1vw]" />
+                            </div>
+                            {/* Bottom White Card */}
+                            <div className="w-full h-[60%] bg-white text-black rounded-[1vw] p-[1.8vw] flex flex-col items-center justify-center text-center space-y-[2vh] shadow-md">
+                                <img src={secondOne} alt="Custom Interactive Digital Catalogues" className="w-[4.5vw] h-[4.5vw] min-w-[50px] min-h-[50px] object-contain" />
+                                <h4 className="text-[1.2vw] font-bold text-gray-900 leading-snug max-w-[14vw]">
+                                    Custom Interactive Digital Catalogues
+                                </h4>
+                            </div>
+                        </div>
+
+                        {/* Col 2 */}
+                        <div className="flex flex-col justify-between h-full gap-[1.4vw]">
+                            {/* Top White Card */}
+                            <div className="w-full h-[54%] bg-white text-black rounded-[1vw] p-[1.8vw] flex flex-col items-center justify-center text-center space-y-[2vh] shadow-md">
+                                <img src={secondTwo} alt="3D & Interactive Experiences" className="w-[4.5vw] h-[4.5vw] min-w-[50px] min-h-[50px] object-contain" />
+                                <h4 className="text-[1.2vw] font-bold text-gray-900 leading-snug max-w-[14vw]">
+                                    3D & Interactive Experiences
+                                </h4>
+                            </div>
+                            {/* Bottom Image Card */}
+                            <div className="w-full h-[44%] rounded-[1vw] overflow-hidden border border-white/20 bg-neutral-900 shadow-md">
+                                <img src={thirdOne} alt="3D Render" className="w-full h-full object-cover rounded-[1vw]" />
+                            </div>
+                        </div>
+
+                        {/* Col 3 */}
+                        <div className="flex flex-col justify-between h-full gap-[1.4vw]">
+                            {/* Top Image Card */}
+                            <div className="w-full h-[57%] rounded-[1vw] overflow-hidden border border-white/20 bg-neutral-900 shadow-md">
+                                <img src={fourthOne} alt="DMU Render Top" className="w-full h-full object-cover rounded-[1vw]" />
+                            </div>
+                            {/* Bottom Image Card */}
+                            <div className="w-full h-[41%] rounded-[1vw] overflow-hidden border border-white/20 bg-neutral-900 shadow-md">
+                                <img src={fourthTwo} alt="DMU Render Bottom" className="w-full h-full object-cover rounded-[1vw]" />
+                            </div>
+                        </div>
+
+                        {/* Col 4 */}
+                        <div className="flex flex-col justify-between h-full gap-[1.4vw]">
+                            {/* Top White Card */}
+                            <div className="w-full h-[67%] bg-white text-black rounded-[1vw] p-[1.8vw] flex flex-col items-center justify-center text-center space-y-[2vh] shadow-md">
+                                <img src={secondThree} alt="Web, App & Creative Solutions" className="w-[4.5vw] h-[4.5vw] min-w-[50px] min-h-[50px] object-contain" />
+                                <h4 className="text-[1.2vw] font-bold text-gray-900 leading-snug max-w-[14vw]">
+                                    Web, App & Creative Solutions
+                                </h4>
+                            </div>
+                            {/* Bottom Image Card */}
+                            <div className="w-full h-[31%] rounded-[1vw] overflow-hidden border border-white/20 bg-neutral-900 shadow-md">
+                                <img src={fourthFour} alt="App Tablet Solution" className="w-full h-full object-cover rounded-[1vw]" />
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </motion.div>
+            {/* Who We Are Section */}
+            <motion.div 
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.7 }}
+                className="w-full bg-black"
+            >
+                <div className="w-full bg-white text-gray-900 rounded-t-[3vw] px-[6vw] pt-[8vh] md:pt-[10vh] pb-0 shadow-2xl space-y-[6vh] overflow-hidden">
+                    {/* Top Tag */}
+                    <div className="flex items-center gap-[0.6vw]">
+                        <span className="w-[3px] h-[1.3vw] min-h-[16px] bg-[#3b4998] rounded-full inline-block"></span>
+                        <h3 className="text-[1vw] font-bold text-[#3b4998] uppercase">Who We Are</h3>
+                    </div>
+
+                    {/* Rich Typography Statement */}
+                    <div className="max-w-[78vw] mx-auto text-center font-sans tracking-tight py-[2vh] mb-[4vh]">
+                        <p className="text-[2.4vw] md:text-[2.6vw] font-normal leading-[1.65] text-gray-400">
+                            <span className="font-bold text-gray-900">FIST-O </span>
+                            <span>is a digital experience company specializing </span>
+                            <br />
+                            <span>in </span>
+                            
+                            {/* PDF -> Flipbook Badge */}
+                            <span className="inline-flex items-center align-middle mx-[0.5vw] -translate-y-[0.2vw]">
+                                <span className="bg-gradient-to-r from-red-700 via-red-800 to-[#720e17] text-white rounded-[0.8vw] px-[0.7vw] py-[0.4vh] flex items-center gap-[0.5vw] shadow-md border border-red-500/20">
+                                    <span className="flex items-center gap-[0.2vw] bg-red-600/80 px-[0.4vw] py-[0.1vh] rounded-[0.3vw] text-[0.8vw] font-bold">
+                                        <svg className="w-[0.9vw] h-[0.9vw]" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                                        </svg>
+                                        PDF
+                                    </span>
+                                    <span className="text-[1vw] font-bold text-red-200">→</span>
+                                    <span className="w-[1.6vw] h-[1.6vw] bg-white/20 rounded-[0.3vw] flex items-center justify-center text-[0.9vw]">
+                                        📖
+                                    </span>
+                                </span>
+                            </span>
+
+                            <span className="font-bold text-gray-900"> Interactive Digital Catalogues (IDC),</span>
+                            <br />
+                            <span className="font-bold text-gray-900">Custom websites, </span>
+
+                            {/* Multi-device Badge */}
+                            <span className="inline-flex items-center align-middle mx-[0.5vw] -translate-y-[0.2vw]">
+                                <span className="bg-gray-100 border border-gray-300 rounded-[0.8vw] px-[0.8vw] py-[0.4vh] flex items-center gap-[0.4vw] shadow-sm text-gray-700">
+                                    <span className="flex items-center gap-[0.3vw] text-[1.1vw]">
+                                        💻 📱 🖥️
+                                    </span>
+                                </span>
+                            </span>
+
+                            <span className="font-bold text-gray-900"> Web Applications, and</span>
+                            <br />
+                            <span className="font-bold text-gray-900">Immersive 3D experiences.</span>
+                        </p>
+                    </div>
+
+                    {/* We Empower Businesses Showcase Block - Edge-to-Edge Image with Bottom Black Bar */}
+                    <div className="relative w-[calc(100%+12vw)] -mx-[6vw] mt-[15vh] overflow-hidden">
+                        {/* Image + Bottom Black Extension */}
+                        <div className="relative w-full">
+                            {/* Background Image - 100% Fit */}
+                            <img 
+                                src={systemTwoImg} 
+                                alt="We Empower Businesses - Desktop & 3D Showcase" 
+                                className="w-full h-auto object-contain block" 
+                            />
+
+                            {/* Black Extension Bar ONLY at bottom of image */}
+                            <div className="w-full h-[12vh] bg-black -mt-[1px]"></div>
+
+                            {/* Overlaid Right Text Block */}
+                            <div className="absolute right-[6vw] top-[40%] -translate-y-1/2 flex flex-col items-end text-right space-y-[2vh] max-w-[34vw] z-10">
+                                {/* Headline */}
+                                <div className="space-y-[0.1vw] text-right font-sans">
+                                    <h2 className="text-[4.8vw] font-extrabold text-gray-900 leading-[0.95]">
+                                        We
+                                    </h2>
+                                    <h2 
+                                        className="text-[4.8vw] font-normal leading-[0.95] tracking-tight"
+                                        style={{ WebkitTextStroke: '0.1vw #000000', color: '#e2e2e2ff' }}
+                                    >
+                                        Empower
+                                    </h2>
+                                    <h2 className="text-[4.8vw] font-extrabold text-gray-900 leading-[0.95]">
+                                        Businesses
                                     </h2>
                                 </div>
 
-                                <p className="text-[1.1vw] text-black leading-relaxed font-medium max-w-[40vw]">
-                                    IDC makes digital publishing simpler, smarter, and more visually engaging. 
-                                    Whether it's a catalogue, brochure, or portfolio, we help brands present their 
-                                    content beautifully and interactively.
-                                </p>
-                            </div>
+                                {/* Underline Accent */}
+                                <div className="w-[12vw] h-[1px] bg-gray-300 my-[1vh]"></div>
 
-                            {/* Visual Asset Area */}
-                            <div className="relative flex justify-center lg:justify-end">
-                                <motion.div 
-                                    variants={{
-                                        initial: { opacity: 0, x: 20 },
-                                        scrolled: { opacity: 1, x: 0, transition: { duration: 0.4, delay: 1.2 } }
-                                    }}
-                                    className="w-full"
-                                >
-                                    <img 
-                                        src={heroOne} 
-                                        alt="Interactive Experience" 
-                                        className="w-full h-auto"
-                                    />
-                                </motion.div>
+                                {/* Subtitle Paragraph */}
+                                <p className="text-[0.95vw] text-gray-600 font-normal leading-relaxed text-right">
+                                    to present products more effectively through interactive digital catalogues, modern websites, custom web applications, and immersive 3D experiences that drive engagement and improve customer communication.
+                                </p>
                             </div>
                         </div>
                     </div>
-                </motion.div>
-            </motion.div>
-            {/* What We Do Section */}
-            <motion.div 
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: false, amount: 0.3 }}
-                className="snap-start w-full h-[92vh] bg-[#e5e5e5] flex flex-col justify-center px-[8vw] py-[5vh]"
-            >
-                <motion.div 
-                    variants={{
-                        hidden: { opacity: 0, y: 30 },
-                        visible: { opacity: 1, y: 0, transition: { duration: 0.8 } }
-                    }}
-                    className="flex justify-between items-center mb-[5vh]"
-                >
-                    <h2 className="text-[4vw] font-bold text-black tracking-tight">What We Do</h2>
-                    <p className="text-[1.1vw] text-gray-600 max-w-[30vw] text-right font-medium leading-relaxed">
-                        We create powerful digital experiences that go beyond standard tools, fully customized For your business needs
-                    </p>
-                </motion.div>
-
-                <motion.div 
-                    variants={{
-                        hidden: { opacity: 0 },
-                        visible: { 
-                            opacity: 1, 
-                            transition: { staggerChildren: 0.2 } 
-                        }
-                    }}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-[2vw]"
-                >
-                    {/* Card 1 */}
-                    <motion.div 
-                        variants={{
-                            hidden: { opacity: 0, y: 40 },
-                            visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
-                        }}
-                        className="bg-white p-[3vw] rounded-[0.5vw] shadow-sm flex flex-col items-start space-y-[1.5vw] h-full"
-                    >
-                        <div className="w-full flex justify-center">
-                            <div className="w-[8vw] h-[8vw] flex items-center justify-center">
-                                <img src={secondOne} alt="Catalogue" className="w-full h-full object-contain" />
-                            </div>
-                        </div>
-                        <div className="space-y-[1vw]">
-                            <h3 className="text-[1.8vw] font-bold text-black leading-tight">
-                                Custom Interactive <br /> Digital Catalogues
-                            </h3>
-                            <p className="text-[0.9vw] text-gray-500 leading-relaxed font-normal text-left">
-                                We design and develop fully customized IDC solutions tailored to your business. <br /><br />
-                                Beyond basic tools, we build advanced catalogues with rich features, smooth performance, and a premium user experience.
-                            </p>
-                        </div>
-                    </motion.div>
-
-                    {/* Card 2 */}
-                    <motion.div 
-                        variants={{
-                            hidden: { opacity: 0, y: 40 },
-                            visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
-                        }}
-                        className="bg-white p-[3vw] rounded-[0.5vw] shadow-sm flex flex-col items-start space-y-[1.5vw] h-full"
-                    >
-                        <div className="w-full flex justify-center">
-                            <div className="w-[8vw] h-[8vw] flex items-center justify-center">
-                                <img src={secondTwo} alt="3D Experience" className="w-full h-full object-contain" />
-                            </div>
-                        </div>
-                        <div className="space-y-[1vw]">
-                            <h3 className="text-[1.8vw] font-bold text-black leading-tight">
-                                3D & Interactive <br /> Experiences
-                            </h3>
-                            <p className="text-[0.9vw] text-gray-500 leading-relaxed font-normal text-left">
-                                We create immersive 3D models, animations, and interactive visuals that bring your content to life. <br /><br />
-                                From product showcases to real-time interactions, everything is crafted for a modern digital experience.
-                            </p>
-                        </div>
-                    </motion.div>
-
-                    {/* Card 3 */}
-                    <motion.div 
-                        variants={{
-                            hidden: { opacity: 0, y: 40 },
-                            visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
-                        }}
-                        className="bg-white p-[3vw] rounded-[0.5vw] shadow-sm flex flex-col items-start space-y-[1.5vw] h-full"
-                    >
-                        <div className="w-full flex justify-center">
-                            <div className="w-[8vw] h-[8vw] flex items-center justify-center">
-                                <img src={secondThree} alt="Web Solutions" className="w-full h-full object-contain" />
-                            </div>
-                        </div>
-                        <div className="space-y-[1vw]">
-                            <h3 className="text-[1.8vw] font-bold text-black leading-tight">
-                                Web, App & Creative <br /> Solutions
-                            </h3>
-                            <p className="text-[0.9vw] text-gray-500 leading-relaxed font-normal text-left">
-                                We build high-quality websites, mobile apps, and animated experiences. <br /><br />
-                                From 3D-based websites to explainer videos, we deliver complete digital solutions that elevate your brand.
-                            </p>
-                        </div>
-                    </motion.div>
-                </motion.div>
-            </motion.div>
-            {/* Why We Built IDC Section */}
-            <motion.div 
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: false, amount: 0.3 }}
-                className="snap-start w-full h-[92vh] bg-white flex flex-col justify-center px-[4vw] py-[5vh] relative"
-            >
-                <div className="grid grid-cols-[4fr_6fr] gap-[5vw] items-start">
-                    {/* Left Column - 40% */}
-                    <motion.div 
-                        variants={{
-                            hidden: { opacity: 0, x: -50 },
-                            visible: { opacity: 1, x: 0, transition: { duration: 0.8 } }
-                        }}
-                        className="space-y-[3vw] text-justify"
-                    >
-                        <div className="space-y-[1vw]">
-                            <h2 className="text-[5vw] font-[600] text-black leading-[1.2]">Why We <br /> Built IDC</h2>
-                        </div>
-                        
-                        <div className="space-y-[1.5vw]">
-                            <p className="text-[1.3vw] text-gray-500 leading-relaxed font-normal max-w-[30vw]">
-                                Our goal is to blend <span className="font-bold text-gray-500">Simplicity</span> and <span className="font-bold text-gray-500">Innovation</span>. 
-                                So anyone can create beautiful digital catalogues without technical skills.
-                            </p>
-                        </div>
-                    </motion.div>
-
-                    {/* Right Column - 60% - Visual & Context */}
-                    <motion.div 
-                        variants={{
-                            hidden: { opacity: 0, x: 50 },
-                            visible: { opacity: 1, x: 0, transition: { duration: 0.8, delay: 0.2 } }
-                        }}
-                        className="relative"
-                    >
-                        {/* Top Context Text */}
-                        <div className="absolute top-[4.5vw] -left-[0.5vw] z-10">
-                            <p className="text-[1.3vw] text-gray-800 leading-relaxed font-medium max-w-[20vw]">
-                                Traditional <span className="text-red-500 font-bold">PDF</span>'s feel outdated and hard to engage with.
-                            </p>
-                        </div>
-
-                        {/* Large Visual Image */}
-                        <div className="relative z-0">
-                            <img 
-                                src={thirdOne} 
-                                alt="Why IDC" 
-                                className="w-full h-auto"
-                            />
-                        </div>
-
-                        {/* Bottom Context Text */}
-                        <div className="absolute bottom-[2vw] right-0 z-10 text-right">
-                            <p className="text-[1.3vw] text-gray-800 leading-relaxed font-medium max-w-[25vw]">
-                                We created <span className="text-blue-600 font-bold">IDC</span> to give businesses a better way to present products, services, and ideas.
-                            </p>
-                        </div>
-                    </motion.div>
                 </div>
+            </motion.div>
 
-                {/* Signature Quote - Out of Left/Right Grid */}
-                <motion.div 
-                    variants={{
-                        hidden: { opacity: 0, y: 20 },
-                        visible: { opacity: 1, y: 0, transition: { duration: 0.8, delay: 0.4 } }
-                    }}
-                    className="mt-[5vw]"
-                >
-                    <p className="text-[1.1vw] font-semibold text-blue-900 leading-relaxed">
-                        "Better Way to Present. Smarter Way to Engage."
-                    </p>
-                </motion.div>
+            {/* Transform Static Content into Interactive Experience Section */}
+            <motion.div 
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.7 }}
+                className="w-full bg-black px-[4vw] py-[10vh]"
+            >
+                <div className="relative w-full max-w-[85vw] mx-auto rounded-[2vw] border border-white/20 overflow-hidden shadow-2xl bg-black min-h-[500px]">
+                    {/* Background Image - Fills Full Outer Container */}
+                    <img 
+                        src={bookImg} 
+                        alt="Transform Static Content into Interactive Experience" 
+                        className="w-full h-full object-cover absolute inset-0 rounded-[2vw]" 
+                    />
+
+                    {/* Right Side Overlaid Frosted Glass Blur Card */}
+                    <div className="absolute right-0 top-0 bottom-0 w-full md:w-[34%] p-[3.5vw] flex flex-col justify-between items-end text-right backdrop-blur-xl bg-gradient-to-b from-white/10 via-black/40 to-black/80 border-l border-white/20 text-white z-10 rounded-r-[2vw]">
+                        {/* Headline */}
+                        <div className="space-y-[1vh] pt-[2vh] text-right">
+                            <h2 className="text-[2.5vw] md:text-[2.7vw] font-semibold text-white leading-[1.2] tracking-tight text-right">
+                                Transform <br />
+                                Static Content <br />
+                                into Interactive <br />
+                                Experience
+                            </h2>
+                        </div>
+
+                        {/* Description Paragraph */}
+                        <p className="text-[0.9vw] md:text-[0.95vw] text-gray-300 font-normal leading-relaxed pb-[1vh] text-right">
+                            Whether it&apos;s a product catalogue, website, web application, or 3D presentation, we build digital experiences that help businesses communicate better, engage customers, and showcase products professionally.
+                        </p>
+                    </div>
+                </div>
             </motion.div>
             {/* Our Values Section - Balanced for Scrollytelling Sequence */}
             <div 
@@ -543,6 +560,9 @@ const About = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Footer */}
+            <Footer />
         </div>
     );
 };

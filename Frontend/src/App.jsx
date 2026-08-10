@@ -8,6 +8,7 @@ import Home from './pages/Home';
 import MyFlipbooks from './pages/MyFlipbooks';
 import Settings from './pages/Settings';
 import About from './pages/About';
+import ContactUs from './pages/ContactUs';
 import Unauthorized from './pages/Unauthorized';
 import NotFound from './pages/NotFound';
 import Editor from './Modules/Editer';
@@ -68,6 +69,7 @@ function App() {
               <Route path="/my-flipbooks" element={<MyFlipbooks />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<ContactUs />} />
             </Route>
 
             {/* Catch-all route for wrong URLs */}

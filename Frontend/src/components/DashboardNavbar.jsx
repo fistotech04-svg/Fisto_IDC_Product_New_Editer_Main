@@ -15,6 +15,7 @@ export default function DashboardNavbar() {
     { name: 'Explore', path: '#' },
     { name: 'Features', path: '#' },
     { name: 'About Us', path: '/about' },
+    { name: 'Contact Us', path: '/contact' },
     { name: 'Help', path: '#' },
     // { name: 'Settings', path: '/settings' },
   ];
@@ -34,7 +35,9 @@ export default function DashboardNavbar() {
         <div className="hidden lg:flex items-center gap-[2.5vw]">
           {navLinks.map((link) => {
             const currentPath = location.pathname;
-            const isActive = currentPath === link.path || (link.name === 'Home' && currentPath === '/');
+            const isActive = currentPath === link.path || 
+                             (link.name === 'Home' && currentPath === '/') ||
+                             (link.path === '/contact' && currentPath === '/contact-us');
             
             const baseLinkStyle = "text-gray-500 hover:text-gray-900 font-medium text-[0.85vw] transition-colors relative pb-[0.25vw] after:absolute after:left-0 after:bottom-0 after:h-[0.15vw] after:w-0 hover:after:w-full after:bg-black after:transition-all after:duration-300 after:rounded-full";
             const activeLinkStyle = "text-[#373d8a] font-semibold text-[0.85vw] transition-colors relative pb-[0.25vw] after:absolute after:left-0 after:bottom-0 after:h-[0.15vw] after:w-full after:bg-[#373d8a] after:transition-all after:duration-300 after:rounded-full";
