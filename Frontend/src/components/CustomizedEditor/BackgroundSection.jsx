@@ -1202,7 +1202,7 @@ const BackgroundSection = ({
                 .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
                 .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
               `}</style>
-              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[-0.5vw]">
+              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[-1vw]">
                 <span className="text-[0.75vw] font-semibold text-gray-700 whitespace-nowrap">Opacity :</span>
                 <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
                   <input

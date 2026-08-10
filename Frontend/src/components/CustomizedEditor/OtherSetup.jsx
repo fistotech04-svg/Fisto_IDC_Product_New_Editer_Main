@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import NavIconStylesPopup, { NavIconRenderer } from './popups/NavIconStylesPopup';
 import { EffectControlRow, ImageCropOverlay } from './AppearanceShared';
-import CoverPicturePopup from './CoverPicturePopup';
+import { CoverPicturePopup } from '../FlipbookInfoModal';
 import BookmarkStylesPopup from './BookmarkStylesPopup';
 import AlertModal from '../AlertModal';
 import cover1 from '../../assets/cover/cover1.svg';

@@ -2246,6 +2246,7 @@ const TurnJsBookRenderer = React.memo(({
     textureStyle,
     shadowActive,
     shadowStyle,
+    shadowFilter,
     currentPage,
     pagesCount,
     bookmarks,
@@ -2294,26 +2295,18 @@ const TurnJsBookRenderer = React.memo(({
     const isZoomedIn = interactionZoom && interactionZoom.scale > 1;
 
     return (
-        <div className="relative" style={{ width: singlePage ? WIDTH : WIDTH * 2, height: HEIGHT, opacity: pageOpacity ?? 1, ...zoomStyle, zIndex: isZoomedIn ? 50 : 1 }}>
-            {shadowActive && (
-                <div
-                    className="absolute transition-all duration-700 pointer-events-none"
-                    style={{
-                        width: singlePage ? WIDTH : BookAppearanceHelpers.getShadowWidth(currentPage, pagesCount, WIDTH),
-                        height: HEIGHT,
-                        left: singlePage ? '0%' : (BookAppearanceHelpers.getShadowOffset(currentPage, pagesCount) === '75%' ? '50%' :
-                            BookAppearanceHelpers.getShadowOffset(currentPage, pagesCount) === '25%' ? '0%' : '0%'),
-                        transform: 'translateX(0)',
-                        boxShadow: shadowStyle,
-                        zIndex: 0,
-                        borderRadius: singlePage ? cornerRadius : (BookAppearanceHelpers.getShadowWidth(currentPage, pagesCount, WIDTH) === WIDTH
-                            ? (BookAppearanceHelpers.getShadowOffset(currentPage, pagesCount) === '75%'
-                                ? `0 ${cornerRadius} ${cornerRadius} 0`
-                                : `${cornerRadius} 0 0 ${cornerRadius}`)
-                            : cornerRadius)
-                    }}
-                />
-            )}
+        <div
+            className="relative"
+            style={{
+                width: singlePage ? WIDTH : WIDTH * 2,
+                height: HEIGHT,
+                opacity: pageOpacity ?? 1,
+                ...zoomStyle,
+                zIndex: isZoomedIn ? 50 : 1,
+                filter: shadowActive && shadowFilter ? shadowFilter : 'none',
+                transition: 'filter 0.5s ease, transform 0.3s ease'
+            }}
+        >
             <FlipBookEngine
                 ref={bookRef}
                 pages={augmentedPages}
@@ -3374,6 +3367,7 @@ const PreviewArea = React.memo(({
 
     const {
         shadowStyle,
+        shadowFilter,
         cornerRadius,
         pageOpacity,
         textureStyle,
@@ -3555,6 +3549,7 @@ const PreviewArea = React.memo(({
         textureStyle,
         shadowActive,
         shadowStyle,
+        shadowFilter,
         currentPage,
         singlePage: isSinglePage,
         pagesCount: pages.length,

@@ -670,7 +670,7 @@ const Branding = ({
 
           {/* Watermark Opacity & Position */}
           {watermarkSettings?.src && (
-            <div className="flex flex-col gap-[0.5vw]">
+            <div className="flex flex-col gap-[0.5vw] pt-[0.5vw]">
               <style>{`
               .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
               .custom-range-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
