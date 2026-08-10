@@ -163,6 +163,43 @@ const CustomizedEditor = () => {
     };
   });
 
+  const [watermarkSettings, setWatermarkSettings] = useState(() => {
+    const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.watermark) return parsed.watermark;
+      } catch (e) {
+        console.error("Failed to parse watermark settings", e);
+      }
+    }
+    return {
+      src: '',
+      opacity: 64,
+      position: 'Bottom Right'
+    };
+  });
+
+  const [preloaderSettings, setPreloaderSettings] = useState(() => {
+    const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.preloader) return parsed.preloader;
+      } catch (e) {
+        console.error("Failed to parse preloader settings", e);
+      }
+    }
+    return {
+      text: 'Loading Modal Please Wait....',
+      bgColor: '#2D2F33',
+      textColor: '#ffffff',
+      spinnerColor: '#3B3C8A',
+      showPercentage: true,
+      layout: 'spinner'
+    };
+  });
+
   const [profileSettings, setProfileSettings] = useState(() => {
     const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
     if (saved) {
@@ -612,12 +649,14 @@ const CustomizedEditor = () => {
   useEffect(() => {
     const settings = {
       logo: logoSettings,
+      watermark: watermarkSettings,
+      preloader: preloaderSettings,
       profile: profileSettings
     };
     const key = `customized_editor_branding_${v_id || 'default'}`;
     localStorage.setItem(key, JSON.stringify(settings));
     saveToDB(key, settings);
-  }, [logoSettings, profileSettings]);
+  }, [logoSettings, watermarkSettings, preloaderSettings, profileSettings]);
 
   // Save Bookmarks and Notes Logic
   useEffect(() => {
@@ -654,6 +693,8 @@ const CustomizedEditor = () => {
         },
         settings: {
           logo: logoSettings,
+          watermark: watermarkSettings,
+          preloader: preloaderSettings,
           profile: profileSettings,
           background: backgroundSettings,
           appearance: bookAppearanceSettings,
@@ -680,7 +721,7 @@ const CustomizedEditor = () => {
     } catch (error) {
       console.error("Save failed", error);
     }
-  }, [folder, v_id, bookName, logoSettings, profileSettings, backgroundSettings, bookAppearanceSettings, layoutSettings, menuBarSettings, otherSetupSettings, leadFormSettings, visibilitySettings, setHasUnsavedChanges, triggerSaveSuccess]);
+  }, [folder, v_id, bookName, logoSettings, watermarkSettings, preloaderSettings, profileSettings, backgroundSettings, bookAppearanceSettings, layoutSettings, menuBarSettings, otherSetupSettings, leadFormSettings, visibilitySettings, setHasUnsavedChanges, triggerSaveSuccess]);
 
   // Use refs to keep context handlers up-to-date without triggering useEffect re-registrations
   const handleSaveRef = useRef(handleSave);
@@ -708,6 +749,8 @@ const CustomizedEditor = () => {
       projectBaseUrl: projectBaseUrl,
       settings: {
         logo: logoSettings,
+        watermark: watermarkSettings,
+        preloader: preloaderSettings,
         profile: profileSettings,
         background: backgroundSettings,
         appearance: bookAppearanceSettings,
@@ -818,6 +861,37 @@ const CustomizedEditor = () => {
   }, [setCurrentBook, folder, v_id, bookName, shareSettings, pages, visibilitySettings]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoadingComplete, setIsDataLoadingComplete] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
+  useEffect(() => {
+    let interval;
+    if (isLoading) {
+      setLoadingProgress(0);
+      interval = setInterval(() => {
+        setLoadingProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            return 100;
+          }
+          // Smooth progressive animation increment
+          const increment = prev < 40 ? 5 : prev < 75 ? 3 : 1;
+          return Math.min(prev + increment, 100);
+        });
+      }, 40);
+    }
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (isDataLoadingComplete && loadingProgress === 100 && isLoading) {
+      const timeout = setTimeout(() => {
+        setIsLoading(false);
+      }, 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [isDataLoadingComplete, loadingProgress, isLoading]);
+
   const initialLoadRef = useRef(true);
   const notifiedUnsavedRef = useRef(false);
 
@@ -925,6 +999,8 @@ const CustomizedEditor = () => {
       const branding = await getFromDB(`customized_editor_branding_${v_id || 'default'}`);
       if (branding) {
         if (branding.logo) setLogoSettings(branding.logo);
+        if (branding.watermark) setWatermarkSettings(branding.watermark);
+        if (branding.preloader) setPreloaderSettings(branding.preloader);
         if (branding.profile) setProfileSettings(branding.profile);
       }
 
@@ -1010,6 +1086,8 @@ const CustomizedEditor = () => {
             // ALWAYS load settings from backend
             if (res.data.settings) {
               if (res.data.settings.logo) setLogoSettings(res.data.settings.logo);
+              if (res.data.settings.watermark) setWatermarkSettings(res.data.settings.watermark);
+              if (res.data.settings.preloader) setPreloaderSettings(res.data.settings.preloader);
               if (res.data.settings.profile) setProfileSettings(res.data.settings.profile);
               if (res.data.settings.background) setBackgroundSettings(res.data.settings.background);
               if (res.data.settings.appearance) setBookAppearanceSettings(res.data.settings.appearance);
@@ -1083,7 +1161,7 @@ const CustomizedEditor = () => {
             setBookName(location.state?.flipbookName || decodeURIComponent(v_id) || 'Name of the Book');
           }
         } finally {
-          setIsLoading(false);
+          setIsDataLoadingComplete(true);
           setIsDataLoaded(true);
           // Fallback: If we still have 0 pages, initialize empty ones to prevent UI from breaking
           setPages(prevPages => {
@@ -1107,7 +1185,7 @@ const CustomizedEditor = () => {
           });
         }
       } else {
-        setIsLoading(false);
+        setIsDataLoadingComplete(true);
         setIsDataLoaded(true);
       }
     };
@@ -1128,8 +1206,16 @@ const CustomizedEditor = () => {
             onBack={handleBack}
             logoSettings={logoSettings}
             onUpdateLogo={setLogoSettings}
-            profileSettings={profileSettings}
-            onUpdateProfile={setProfileSettings}
+            watermarkSettings={watermarkSettings}
+            onUpdateWatermark={setWatermarkSettings}
+            preloaderSettings={preloaderSettings}
+            onUpdatePreloader={setPreloaderSettings}
+            onPreviewPreloader={() => {
+              setIsLoading(true);
+              setTimeout(() => {
+                setIsLoading(false);
+              }, 3000);
+            }}
           />
         );
       case 'background':
@@ -1323,10 +1409,60 @@ const CustomizedEditor = () => {
         <div className="flex-1 min-w-0 flex flex-col relative z-0 overflow-hidden">
           {/* Loading Overlay Covers the Preview Area Fully */}
           {isLoading && (
-            <div className="absolute inset-0 bg-white z-50 flex items-center justify-center">
+            <div 
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center transition-all duration-300"
+              style={{
+                backgroundColor: preloaderSettings?.bgColor || '#ffffff',
+                color: preloaderSettings?.textColor || '#374151'
+              }}
+            >
               <div className="flex flex-col items-center gap-4">
-                <div className="w-[2vw] h-[2vw] border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-gray-700 font-medium">Loading Flipbook...</p>
+                {preloaderSettings?.layout === 'bar' ? (
+                  <div className="flex flex-col items-center gap-2 w-[15vw]">
+                    <div className="w-full bg-gray-200/20 h-[0.5vw] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full animate-pulse rounded-full" 
+                        style={{ 
+                          width: `${loadingProgress}%`, 
+                          backgroundColor: preloaderSettings?.spinnerColor || '#3B3C8A' 
+                        }}
+                      ></div>
+                    </div>
+                    {preloaderSettings?.showPercentage && (
+                      <span className="text-[0.85vw] font-semibold">{loadingProgress}%</span>
+                    )}
+                  </div>
+                ) : preloaderSettings?.layout === 'dots' ? (
+                  <div className="flex flex-col items-center gap-[0.4vw] py-[0.5vw]">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-[0.6vw] h-[0.6vw] rounded-full animate-bounce [animation-delay:-0.3s]" style={{ backgroundColor: preloaderSettings?.spinnerColor || '#3B3C8A' }}></div>
+                      <div className="w-[0.6vw] h-[0.6vw] rounded-full animate-bounce [animation-delay:-0.15s]" style={{ backgroundColor: preloaderSettings?.spinnerColor || '#3B3C8A' }}></div>
+                      <div className="w-[0.6vw] h-[0.6vw] rounded-full animate-bounce" style={{ backgroundColor: preloaderSettings?.spinnerColor || '#3B3C8A' }}></div>
+                    </div>
+                    {preloaderSettings?.showPercentage && (
+                      <span className="text-[0.85vw] font-semibold">{loadingProgress}%</span>
+                    )}
+                  </div>
+                ) : (
+                  // circular spinner
+                  <div className="relative flex items-center justify-center">
+                    <div 
+                      className="w-[3vw] h-[3vw] border-[3px] border-t-transparent rounded-full animate-spin"
+                      style={{ 
+                        borderColor: `${preloaderSettings?.spinnerColor || '#3B3C8A'} ${preloaderSettings?.spinnerColor || '#3B3C8A'} ${preloaderSettings?.spinnerColor || '#3B3C8A'} transparent` 
+                      }}
+                    ></div>
+                    {preloaderSettings?.showPercentage && (
+                      <span className="absolute text-[0.75vw] font-bold">{loadingProgress}%</span>
+                    )}
+                  </div>
+                )}
+                <p 
+                  className="font-semibold text-[0.9vw]"
+                  style={{ fontFamily: preloaderSettings?.font || 'Poppins' }}
+                >
+                  {preloaderSettings?.text || 'Loading Flipbook...'}
+                </p>
               </div>
             </div>
           )}
@@ -1335,6 +1471,7 @@ const CustomizedEditor = () => {
             pages={pages}
             targetPage={targetPage}
             logoSettings={logoSettings}
+            watermarkSettings={watermarkSettings}
             backgroundSettings={backgroundSettings}
             bookAppearanceSettings={bookAppearanceSettings}
             menuBarSettings={menuBarSettings}

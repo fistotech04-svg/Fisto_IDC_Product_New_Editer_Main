@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import axios from 'axios';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
@@ -113,8 +114,8 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
 
   if (!show) return null;
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[2vw]" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[2vw]" onClick={onClose}>
       <div className="bg-white rounded-[0.8vw] w-[400px] shadow-xl flex flex-col font-sans relative" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-[1.5vw] pb-[0.5vw]">
@@ -487,7 +488,8 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

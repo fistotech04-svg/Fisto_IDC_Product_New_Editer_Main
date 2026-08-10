@@ -281,11 +281,11 @@ const TemplateEditor = () => {
 
   // Automatically switch to the Properties panel ('select' tool) when an element 
   // is selected while the Uploads panel is active.
-  useEffect(() => {
-    if (selectedLayerId) {
-      setActiveMainTool((prev) => prev === 'upload' ? 'select' : prev);
-    }
-  }, [selectedLayerId]);
+  // useEffect(() => {
+  //   if (selectedLayerId) {
+  //     setActiveMainTool((prev) => prev === 'upload' ? 'select' : prev);
+  //   }
+  // }, [selectedLayerId]);
 
   // 3D Customization States
   const [is3DModalOpen, setIs3DModalOpen] = useState(false);

@@ -2406,7 +2406,8 @@ const PreviewArea = React.memo(({
     targetPage = 0,
     backgroundSettings,
     bookAppearanceSettings,
-    logoSettings,
+    logoSettings: incomingLogoSettings,
+    watermarkSettings,
     leadFormSettings,
     profileSettings,
     zoom = 1.0,
@@ -2432,6 +2433,55 @@ const PreviewArea = React.memo(({
     externalShowTOC = false,
     currentBook,
 }) => {
+    const [processedLogoSrc, setProcessedLogoSrc] = useState(incomingLogoSettings?.src || '');
+
+    useEffect(() => {
+        if (!incomingLogoSettings?.src) {
+            setProcessedLogoSrc('');
+            return;
+        }
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                
+                const adj = incomingLogoSettings.adjustments || {};
+                const exposure = adj.exposure || 0;
+                const contrast = adj.contrast || 0;
+                const saturation = adj.saturation || 0;
+                const temperature = adj.temperature || 0;
+                const tint = adj.tint || 0;
+                const highlights = (adj.highlights || 0) / 5;
+                const shadows = (adj.shadows || 0) / 5;
+                
+                const filterStr = `brightness(${100 + exposure + highlights}%) contrast(${100 + contrast + shadows}%) saturate(${100 + saturation}%) hue-rotate(${tint}deg) sepia(${temperature > 0 ? temperature : 0}%)`;
+                
+                ctx.filter = filterStr;
+                ctx.drawImage(img, 0, 0);
+                setProcessedLogoSrc(canvas.toDataURL());
+            } catch (e) {
+                console.error("Canvas logo filter processing failed", e);
+                setProcessedLogoSrc(incomingLogoSettings.src);
+            }
+        };
+        img.onerror = () => {
+            setProcessedLogoSrc(incomingLogoSettings.src);
+        };
+        img.src = incomingLogoSettings.src;
+    }, [incomingLogoSettings?.src, incomingLogoSettings?.adjustments]);
+
+    const logoSettings = React.useMemo(() => {
+        if (!incomingLogoSettings) return null;
+        return {
+            ...incomingLogoSettings,
+            src: processedLogoSrc || incomingLogoSettings.src
+        };
+    }, [incomingLogoSettings, processedLogoSrc]);
+
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
         const r = parseInt(hex.slice(1, 3), 16);
@@ -4357,6 +4407,64 @@ const PreviewArea = React.memo(({
         </>
     );
 
+    const renderWatermark = () => {
+        if (!watermarkSettings?.src) return null;
+
+        const f = watermarkSettings.adjustments || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
+        const exposure = f.exposure || 0;
+        const contrast = f.contrast || 0;
+        const saturation = f.saturation || 0;
+        const temperature = f.temperature || 0;
+        const tint = f.tint || 0;
+        const hl = f.highlights || 0;
+        const sd = f.shadows || 0;
+
+        let filterStr = "";
+        filterStr += `brightness(${100 + exposure + (hl / 5)}%) `;
+        filterStr += `contrast(${100 + contrast + (sd / 5)}%) `;
+        filterStr += `saturate(${100 + saturation}%) `;
+        if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
+        if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
+        else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
+
+        return (
+            <div 
+                className="absolute z-[20] pointer-events-none select-none"
+                style={{
+                    opacity: (watermarkSettings.opacity ?? 64) / 100,
+                    width: '6vw',
+                    height: 'auto',
+                    ...(() => {
+                        switch (watermarkSettings.position) {
+                            case 'Top Left':
+                                return { top: '4vw', left: '2vw' };
+                            case 'Top Right':
+                                return { top: '4vw', right: '2vw' };
+                            case 'Bottom Left':
+                                return { bottom: '4vw', left: '2vw' };
+                            case 'Bottom Right':
+                            default:
+                                return { bottom: '4vw', right: '2vw' };
+                        }
+                    })()
+                }}
+            >
+                <img 
+                    src={watermarkSettings.src} 
+                    alt="Watermark" 
+                    className={`w-full h-auto ${
+                        watermarkSettings.type === 'Fill' 
+                            ? 'object-cover' 
+                            : watermarkSettings.type === 'Stretch' 
+                                ? 'object-fill' 
+                                : 'object-contain'
+                    }`} 
+                    style={{ filter: filterStr }}
+                />
+            </div>
+        );
+    };
+
     return (
         <div
             ref={containerRef}
@@ -4380,6 +4488,7 @@ const PreviewArea = React.memo(({
                     const mobileContent = (
                         <div ref={screenRef} className="w-full h-full relative overflow-hidden">
                             {backgroundLayers}
+                            {renderWatermark()}
 
                             <style>{`
                                 #preview-area-root .flipbook-magazine-wrapper {
@@ -4458,6 +4567,7 @@ const PreviewArea = React.memo(({
                         <div ref={screenRef} style={getScreenWrapperStyle()} className="relative">
 
                             {backgroundLayers}
+                            {renderWatermark()}
 
                             <style>{`
                                 #preview-area-root .flipbook-magazine-wrapper {
