@@ -39,8 +39,7 @@ import {
   Check,
   MousePointerClick,
   Pencil
-} from "lucide-react";
-import GalleryGif from "./GalleryGif";
+  } from "lucide-react";
 import ColorPicker, { parseGradient } from './ColorPicker';
 import { Icon } from '@iconify/react';
 import Color from './Color';
@@ -1891,53 +1890,7 @@ const GifEditor = ({
         />
       </div>
 
-      {showGallery && (
-        <GalleryGif
-          selectedElement={selectedElement}
-          onUpdate={onUpdate}
-          onClose={() => setShowGallery(false)}
-          currentPageVId={currentPageVId}
-          flipbookVId={activeVId}
-          folderName={folderName}
-          flipbookName={flipbookName}
-          onSelect={async (gif) => {
-            const optimisticUrl = gif.url;
-            const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-            const liveElement = (selectedLayerId && pageContainer) ? pageContainer.querySelector(`[id="${selectedLayerId}"]`) : selectedElement;
-            const targetImg = getSvgImageEl(liveElement) || liveElement;
 
-            const imgObj = new window.Image();
-            imgObj.onload = () => {
-              if (imageType === 'Fit') {
-                let currentX = parseFloat(targetImg.getAttribute('x')) || 0;
-                let currentY = parseFloat(targetImg.getAttribute('y')) || 0;
-                let currentW = parseFloat(targetImg.getAttribute('width')) || 100;
-                let currentH = parseFloat(targetImg.getAttribute('height')) || 100;
-                if (targetImg.getAttribute('width')?.includes('%')) {
-                  try {
-                    const bBox = targetImg.getBBox();
-                    currentX = bBox.x; currentY = bBox.y; currentW = bBox.width; currentH = bBox.height;
-                  } catch (e) { }
-                }
-                const scale = Math.min(currentW / imgObj.naturalWidth, currentH / imgObj.naturalHeight);
-                const actualW = imgObj.naturalWidth * scale;
-                const actualH = imgObj.naturalHeight * scale;
-                const newX = currentX + (currentW - actualW) / 2;
-                const newY = currentY + (currentH - actualH) / 2;
-                targetImg.setAttribute('x', newX);
-                targetImg.setAttribute('y', newY);
-                targetImg.setAttribute('width', actualW);
-                targetImg.setAttribute('height', actualH);
-              }
-              setSrc(targetImg, optimisticUrl);
-              liveElement.dataset.mediaType = "gif";
-              onUpdateRef.current?.({ shouldRefresh: true });
-              setShowGallery(false);
-            };
-            imgObj.src = optimisticUrl;
-          }}
-        />
-      )}
 
       {/* Replace Media Modal Popup */}
       <ReplaceMediaModal

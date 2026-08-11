@@ -19,8 +19,8 @@ import {
   Replace,
   Upload,
   X
-} from 'lucide-react';
-import GalleryImage from './GalleryImage';
+  } from 'lucide-react';
+import ReplaceMediaModal from './ReplaceMediaModal';
 import { Icon } from '@iconify/react';
 import { getVisualBBox } from './MainEditor';
 
@@ -2004,16 +2004,14 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
 
       {/* Internal Gallery Modal */}
-      {showGallery && (
-        <GalleryImage
-          onClose={() => setShowGallery(false)}
-          onSelect={handleGallerySelect}
-          currentPageVId={currentPageVId}
-          flipbookVId={flipbookVId}
-          folderName={folderName}
-          flipbookName={flipbookName}
-        />
-      )}
+      <ReplaceMediaModal
+        show={showGallery}
+        mediaType="image"
+        onClose={() => setShowGallery(false)}
+        onReplace={(file) => {
+          handleGallerySelect({ url: URL.createObjectURL(file), file });
+        }}
+      />
 
       {/* Replace Image Modal*/}
       {showReplaceModal && replaceTargetIndex !== null && slideshowImages[replaceTargetIndex] && (

@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
+import axios from 'axios';
 import { checkIsAnimatedWebp } from './editorUtils';
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
 
 const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
   const [galleryType, setGalleryType] = useState('All');
@@ -10,14 +12,58 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [activeGalleryDropdown, setActiveGalleryDropdown] = useState(null);
   const [itemToReplaceId, setItemToReplaceId] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
   const fileInputRefReplaceItem = useRef(null);
   const dropdownRef = useRef(null);
   const popupRef = useRef(null);
 
+  // Fetch gallery assets from backend whenever modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchGalleryAssets = async () => {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+      const user = JSON.parse(storedUser);
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+      setIsLoading(true);
+      try {
+        const res = await axios.get(`${backendUrl}/api/flipbook/get-gallery-assets`, {
+          params: { emailId: user.emailId }
+        });
+
+        if (res.data.assets) {
+          const formatted = res.data.assets.map((asset) => {
+            const fullUrl = resolveUploadsPath(asset.url);
+            const isVideo = asset.type === 'video';
+            const isAnimated = asset.type === 'gif' || (asset.url && asset.url.toLowerCase().endsWith('.gif'));
+            return {
+              id: asset.id || asset.name,
+              name: (asset.name || 'Asset').replace(/\.[^/.]+$/, ''),
+              url: fullUrl,
+              rawUrl: asset.url,
+              type: isVideo ? 'video' : 'image',
+              isAnimated,
+              uploadedAt: asset.uploadedAt
+            };
+          });
+          setGalleryAssets(formatted);
+        }
+      } catch (err) {
+        console.error('Failed to fetch gallery assets:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchGalleryAssets();
+  }, [isOpen]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
     };
@@ -60,6 +106,10 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
 
   const handleFileChange = async (e) => {
     if (e.target.files?.length) {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
       const newAssetsPromises = Array.from(e.target.files).map(async newFile => {
         const objectUrl = URL.createObjectURL(newFile);
         const isVideo = newFile.type.startsWith('video/');
@@ -69,7 +119,8 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
         } else if (newFile.type.includes('webp')) {
           isAnimated = await checkIsAnimatedWebp(newFile);
         }
-        return {
+
+        const tempAsset = {
           id: objectUrl,
           name: newFile.name.replace(/\.[^/.]+$/, ''),
           url: objectUrl,
@@ -77,7 +128,34 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
           isAnimated,
           file: newFile
         };
+
+        if (user) {
+          try {
+            const formData = new FormData();
+            formData.append('emailId', user.emailId);
+            formData.append('isGallery', 'true');
+            formData.append('type', isVideo ? 'video' : isAnimated ? 'gif' : 'image');
+            formData.append('file', newFile);
+            formData.append('page_v_id', 'global');
+
+            const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+            if (res.data.url) {
+              const serverUrl = resolveUploadsPath(res.data.url);
+              return {
+                ...tempAsset,
+                id: res.data.file_v_id || objectUrl,
+                url: serverUrl,
+                rawUrl: res.data.url,
+                file_v_id: res.data.file_v_id
+              };
+            }
+          } catch (err) {
+            console.error('Failed to upload global asset:', err);
+          }
+        }
+        return tempAsset;
       });
+
       const newAssets = await Promise.all(newAssetsPromises);
       setGalleryAssets(prev => [...newAssets, ...prev]);
     }
@@ -94,7 +172,10 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
       } else if (newFile.type.includes('webp')) {
         isAnimated = await checkIsAnimatedWebp(newFile);
       }
-      const updatedAsset = {
+
+      const existingAsset = galleryAssets.find(g => g.id === itemToReplaceId);
+
+      let updatedAsset = {
         id: newUrl,
         name: newFile.name.replace(/\.[^/.]+$/, ''),
         url: newUrl,
@@ -102,6 +183,37 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
         isAnimated,
         file: newFile
       };
+
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const formData = new FormData();
+        formData.append('emailId', user.emailId);
+        formData.append('isGallery', 'true');
+        formData.append('type', isVideo ? 'video' : isAnimated ? 'gif' : 'image');
+        formData.append('file', newFile);
+        formData.append('page_v_id', 'global');
+        if (existingAsset?.rawUrl || existingAsset?.url) {
+          formData.append('replacing_file_url', existingAsset.rawUrl || existingAsset.url);
+        }
+
+        try {
+          const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+          if (res.data.url) {
+            const serverUrl = resolveUploadsPath(res.data.url);
+            updatedAsset = {
+              ...updatedAsset,
+              id: res.data.file_v_id || newUrl,
+              url: serverUrl,
+              rawUrl: res.data.url,
+              file_v_id: res.data.file_v_id
+            };
+          }
+        } catch (err) {
+          console.error('Failed to replace global gallery asset:', err);
+        }
+      }
       
       setGalleryAssets(prev => prev.map(g => g.id === itemToReplaceId ? updatedAsset : g));
 
@@ -112,10 +224,32 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
     }
   };
 
+  const handleAddAssetToPage = async () => {
+    if (!selectedAsset || !onFileSelect) return;
+
+    if (selectedAsset.file) {
+      onFileSelect(selectedAsset.file);
+      onClose();
+    } else {
+      try {
+        const response = await fetch(selectedAsset.url);
+        const blob = await response.blob();
+        const mimeType = blob.type || (selectedAsset.type === 'video' ? 'video/mp4' : 'image/png');
+        const ext = mimeType.split('/')[1] || 'png';
+        const file = new File([blob], `${selectedAsset.name}.${ext}`, { type: mimeType });
+        onFileSelect(file);
+        onClose();
+      } catch (err) {
+        console.error('Error fetching file for page insert:', err);
+        onClose();
+      }
+    }
+  };
+
   let popupStyle = {
     position: 'fixed',
     top: '50%',
-    right: '25vw', // Default position, left of the 24vw sidebar
+    right: '25vw',
     transform: 'translateY(-50%)',
     zIndex: 5000,
   };
@@ -203,70 +337,91 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
 
           {/* Grid */}
           <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pr-[0.5vw] will-change-scroll" onClick={() => { setSelectedAsset(null); setActiveGalleryDropdown(null); }}>
-            <div className="grid grid-cols-4 gap-[1vw]">
-            {filteredAssets.length > 0 ? filteredAssets.map((item, idx) => (
-              <div key={item.id || idx} className="flex flex-col gap-[0.4vw] relative">
-                <div 
-                  className={`group cursor-pointer w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${selectedAsset?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}
-                  onClick={(e) => { e.stopPropagation(); selectedAsset?.id === item.id ? setSelectedAsset(null) : setSelectedAsset(item); setActiveGalleryDropdown(null); }}
-                >
-                  {item.type === 'video' ? (
-                    <video src={item.url} preload="metadata" muted playsInline className="w-full h-full object-cover pointer-events-none" />
-                  ) : (
-                    <img src={item.url} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-cover pointer-events-none" />
-                  )}
-                  <div className={`absolute inset-0 bg-black/0 ${selectedAsset?.id === item.id ? '' : 'group-hover:bg-black/5'}`} />
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full text-gray-400 text-[0.8vw]">
+                Loading media...
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-[1vw]">
+                {filteredAssets.length > 0 ? filteredAssets.map((item, idx) => (
+                  <div key={item.id || idx} className="flex flex-col gap-[0.4vw] relative">
+                    <div 
+                      className={`group cursor-pointer w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${selectedAsset?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}
+                      onClick={(e) => { e.stopPropagation(); selectedAsset?.id === item.id ? setSelectedAsset(null) : setSelectedAsset(item); setActiveGalleryDropdown(null); }}
+                    >
+                      {item.type === 'video' ? (
+                        <video src={item.url} preload="metadata" muted playsInline className="w-full h-full object-cover pointer-events-none" />
+                      ) : (
+                        <img src={item.url} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-cover pointer-events-none" />
+                      )}
+                      <div className={`absolute inset-0 bg-black/0 ${selectedAsset?.id === item.id ? '' : 'group-hover:bg-black/5'}`} />
 
-                  {/* Hover Three Dots */}
-                  <div 
-                    className={`absolute top-[0.3vw] right-[0.3vw] bg-white/90 rounded-[0.2vw] p-[0.2vw] shadow-sm hover:bg-white z-10 ${activeGalleryDropdown === item.id ? 'block' : 'hidden group-hover:block'}`}
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      setActiveGalleryDropdown(activeGalleryDropdown === item.id ? null : item.id); 
-                    }}
-                  >
-                    <Icon icon="lucide:more-vertical" className="w-[0.9vw] h-[0.9vw] text-gray-700" />
+                      {/* Hover Three Dots */}
+                      <div 
+                        className={`absolute top-[0.3vw] right-[0.3vw] bg-white/90 rounded-[0.2vw] p-[0.2vw] shadow-sm hover:bg-white z-10 ${activeGalleryDropdown === item.id ? 'block' : 'hidden group-hover:block'}`}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setActiveGalleryDropdown(activeGalleryDropdown === item.id ? null : item.id); 
+                        }}
+                      >
+                        <Icon icon="lucide:more-vertical" className="w-[0.9vw] h-[0.9vw] text-gray-700" />
+                      </div>
+                    </div>
+
+                    {/* Dropdown Menu */}
+                    {activeGalleryDropdown === item.id && (
+                      <div className={`absolute top-[1.5vw] ${idx % 4 < 2 ? 'left-0' : 'right-0'} bg-white rounded-[0.3vw] shadow-lg border border-gray-200 py-[0.2vw] w-[6.5vw] z-20 flex flex-col overflow-hidden`}>
+                        <button 
+                          className="text-[0.7vw] font-medium text-gray-700 hover:bg-gray-50 text-left px-[0.5vw] py-[0.3vw]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setItemToReplaceId(item.id);
+                            fileInputRefReplaceItem.current?.click();
+                            setActiveGalleryDropdown(null);
+                          }}
+                        >
+                          Replace {item.type === 'video' ? 'Video' : item.isAnimated ? 'Gif' : 'Image'}
+                        </button>
+                        <button 
+                          className="text-[0.7vw] font-medium text-red-600 hover:bg-red-50 text-left px-[0.5vw] py-[0.3vw]"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const storedUser = localStorage.getItem('user');
+                            if (storedUser) {
+                              const user = JSON.parse(storedUser);
+                              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                              try {
+                                await axios.post(`${backendUrl}/api/flipbook/delete-gallery-asset`, {
+                                  emailId: user.emailId,
+                                  url: item.rawUrl || item.url,
+                                  fileName: item.id || item.name,
+                                  file_v_id: item.file_v_id
+                                });
+                              } catch (err) {
+                                console.error('Failed to delete global asset:', err);
+                              }
+                            }
+                            setGalleryAssets(prev => prev.filter(g => g.id !== item.id));
+                            if (selectedAsset?.id === item.id) {
+                              setSelectedAsset(null);
+                            }
+                            setActiveGalleryDropdown(null);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                    
+                    <span className="text-center text-[0.7vw] font-medium text-gray-500 truncate w-full px-[0.2vw]">{item.name}</span>
                   </div>
-                </div>
-
-                {/* Dropdown Menu */}
-                {activeGalleryDropdown === item.id && (
-                  <div className={`absolute top-[1.5vw] ${idx % 4 < 2 ? 'left-0' : 'right-0'} bg-white rounded-[0.3vw] shadow-lg border border-gray-200 py-[0.2vw] w-[6.5vw] z-20 flex flex-col overflow-hidden`}>
-                    <button 
-                      className="text-[0.7vw] font-medium text-gray-700 hover:bg-gray-50 text-left px-[0.5vw] py-[0.3vw]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setItemToReplaceId(item.id);
-                        fileInputRefReplaceItem.current?.click();
-                        setActiveGalleryDropdown(null);
-                      }}
-                    >
-                      Replace {item.type === 'video' ? 'Video' : item.isAnimated ? 'Gif' : 'Image'}
-                    </button>
-                    <button 
-                      className="text-[0.7vw] font-medium text-red-600 hover:bg-red-50 text-left px-[0.5vw] py-[0.3vw]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setGalleryAssets(prev => prev.filter(g => g.id !== item.id));
-                        if (selectedAsset?.id === item.id) {
-                          setSelectedAsset(null);
-                        }
-                        setActiveGalleryDropdown(null);
-                      }}
-                    >
-                      Delete
-                    </button>
+                )) : (
+                  <div className="col-span-4 flex items-center justify-center text-center text-gray-400 py-[2vw] text-[0.8vw]">
+                    No media found. Click "Browse Files" to add.
                   </div>
                 )}
-                
-                <span className="text-center text-[0.7vw] font-medium text-gray-500 truncate w-full px-[0.2vw]">{item.name}</span>
-              </div>
-            )) : (
-              <div className="col-span-4 flex items-center justify-center text-center text-gray-400 py-[2vw] text-[0.8vw]">
-                No media found. Click "Browse Files" to add.
               </div>
             )}
-            </div>
           </div>
         </div>
       </div>
@@ -281,12 +436,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
         </button>
         <button 
           className={`flex-1 py-[0.5vw] rounded-[0.3vw] text-white text-[0.8vw] font-medium transition-colors ${selectedAsset ? 'bg-black hover:bg-gray-800' : 'bg-[#B1B1B1] cursor-not-allowed'}`}
-          onClick={() => {
-            if (selectedAsset && onFileSelect) {
-              onFileSelect(selectedAsset.file);
-              onClose();
-            }
-          }}
+          onClick={handleAddAssetToPage}
           disabled={!selectedAsset}
         >
           Add To Page

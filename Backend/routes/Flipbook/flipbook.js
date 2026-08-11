@@ -25,7 +25,7 @@ import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder } from "../../config/supabase.js";
+import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase } from "../../config/supabase.js";
 
 // Helper to get Gmail Transporter
 const getTransporter = () => {
@@ -660,9 +660,9 @@ router.post("/save", async (req, res) => {
             folderName: physicalFolderName,
           };
 
-    const incomingMeta = req.body.meta || {};
-    let templateIdVal = req.body.templateId || incomingMeta.templateId || req.body.settings?.templateId;
-    let orientationVal = req.body.orientation || incomingMeta.orientation || req.body.settings?.orientation;
+    const incomingFlipbookInfo = req.body.FlipbookInfo || req.body.Customized_Settings?.FlipbookInfo || req.body.meta || {};
+    let templateIdVal = req.body.templateId || incomingFlipbookInfo.templateId || req.body.settings?.templateId;
+    let orientationVal = req.body.orientation || incomingFlipbookInfo.orientation || req.body.settings?.orientation;
     const isSquare = (templateIdVal && templateIdVal.toLowerCase() === 'square') || (orientationVal && orientationVal.toLowerCase() === 'square');
 
     if (isSquare) {
@@ -670,22 +670,30 @@ router.post("/save", async (req, res) => {
       orientationVal = 'square';
     }
 
-    const widthVal = isSquare ? 210 : (req.body.width || incomingMeta.width || req.body.settings?.width);
-    const heightVal = isSquare ? 210 : (req.body.height || incomingMeta.height || req.body.settings?.height);
+    const widthVal = isSquare ? 210 : (req.body.width || incomingFlipbookInfo.width || req.body.settings?.width);
+    const heightVal = isSquare ? 210 : (req.body.height || incomingFlipbookInfo.height || req.body.settings?.height);
 
     const existingShare = existingDoc?.share || existingDoc?.Customized_Settings?.Visibility || {};
     const effectiveShareId = existingShare.shareId || req.body.share?.shareId || req.body.Customized_Settings?.Visibility?.shareId || nanoid(12);
+
+    const existingFlipbookInfo = existingDoc?.Customized_Settings?.FlipbookInfo || existingDoc?.meta || {};
+
+    const mergedFlipbookInfo = {
+      ...existingFlipbookInfo,
+      ...incomingFlipbookInfo,
+      flipbookName,
+      folderName: uniqueFolders,
+      ...(widthVal ? { width: Number(widthVal) } : {}),
+      ...(heightVal ? { height: Number(heightVal) } : {}),
+      ...(templateIdVal ? { templateId: templateIdVal } : {}),
+      ...(orientationVal ? { orientation: orientationVal } : {})
+    };
 
     const updateSet = {
       flipbookName: flipbookName, // Ensure name is updated if it changed
       pages: dbPages,
       lastUpdated: new Date(),
       folderName: uniqueFolders, // Update tags
-      share: {
-        ...existingShare,
-        ...(req.body.share || {}),
-        shareId: effectiveShareId
-      },
       Customized_Settings: {
         ...(existingDoc?.Customized_Settings || {}),
         ...(req.body.Customized_Settings || {}),
@@ -693,29 +701,17 @@ router.post("/save", async (req, res) => {
           ...existingShare,
           ...(req.body.Customized_Settings?.Visibility || {}),
           shareId: effectiveShareId
-        }
-      },
-      meta: {
-        ...(existingDoc?.meta || {}),
-        ...incomingMeta,
-        flipbookName,
-        folderName: uniqueFolders,
-        ...(widthVal ? { width: Number(widthVal) } : {}),
-        ...(heightVal ? { height: Number(heightVal) } : {}),
-        ...(templateIdVal ? { templateId: templateIdVal } : {}),
-        ...(orientationVal ? { orientation: orientationVal } : {})
+        },
+        FlipbookInfo: mergedFlipbookInfo
       }
     };
-    if (widthVal) updateSet.width = Number(widthVal);
-    if (heightVal) updateSet.height = Number(heightVal);
-    if (templateIdVal) updateSet.templateId = templateIdVal;
-    if (orientationVal) updateSet.orientation = orientationVal;
 
     const savedDoc = await Flipbook.findOneAndUpdate(
       updateQuery,
       {
         $set: updateSet,
         $setOnInsert: { v_id: v_id },
+        $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
@@ -1392,12 +1388,12 @@ router.post("/folder/duplicate", async (req, res) => {
           Visibility: {
             shareId: nanoid(12),
             access: doc.Customized_Settings?.Visibility?.access || doc.share?.access || 'public'
+          },
+          FlipbookInfo: {
+            ...(doc.Customized_Settings?.FlipbookInfo || doc.meta || {}),
+            flipbookName: newBookName,
+            folderName: [copyName]
           }
-        },
-        settings: doc.Customized_Settings || doc.settings || {},
-        share: {
-          shareId: nanoid(12),
-          access: doc.Customized_Settings?.Visibility?.access || doc.share?.access || 'public'
         },
         lastUpdated: new Date(),
       });
@@ -1517,12 +1513,12 @@ router.post("/duplicate", async (req, res) => {
           Visibility: {
             shareId: nanoid(12),
             access: sourceDoc.Customized_Settings?.Visibility?.access || sourceDoc.share?.access || 'public'
+          },
+          FlipbookInfo: {
+            ...(sourceDoc.Customized_Settings?.FlipbookInfo || sourceDoc.meta || {}),
+            flipbookName: copyName,
+            folderName: Array.isArray(sourceDoc.folderName) ? sourceDoc.folderName : [folderName]
           }
-        },
-        settings: sourceDoc.Customized_Settings || sourceDoc.settings || {},
-        share: {
-          shareId: nanoid(12),
-          access: sourceDoc.Customized_Settings?.Visibility?.access || sourceDoc.share?.access || 'public'
         },
         lastUpdated: new Date(),
       });
@@ -1759,7 +1755,6 @@ router.get("/get", async (req, res) => {
           access: finalVisibility?.access || 'public'
         };
         dbBook.set('Customized_Settings.Visibility', finalVisibility);
-        dbBook.set('share', finalVisibility);
         try {
           await dbBook.save();
         } catch (saveErr) {
@@ -1768,14 +1763,33 @@ router.get("/get", async (req, res) => {
       }
     }
 
-    const docMeta = dbBook?.meta || {};
+    const docFlipbookInfo = dbBook?.Customized_Settings?.FlipbookInfo || dbBook?.meta || {};
     const rawSettings = dbBook ? (dbBook.Customized_Settings || dbBook.settings || {}) : {};
     const docSettings = { ...rawSettings };
     delete docSettings.visibility;
-    const docWidth = dbBook?.width || docMeta.width || docSettings?.width;
-    const docHeight = dbBook?.height || docMeta.height || docSettings?.height;
-    const docTemplateId = dbBook?.templateId || docMeta.templateId || docSettings?.templateId;
-    const docOrientation = dbBook?.orientation || docMeta.orientation || docSettings?.orientation;
+    delete docSettings.FlipbookInfo;
+    const docWidth = docFlipbookInfo?.width || dbBook?.width || docSettings?.width;
+    const docHeight = docFlipbookInfo?.height || dbBook?.height || docSettings?.height;
+    const docTemplateId = docFlipbookInfo?.templateId || dbBook?.templateId || docSettings?.templateId;
+    const docOrientation = docFlipbookInfo?.orientation || dbBook?.orientation || docSettings?.orientation;
+
+    const flipbookInfoObj = {
+      ...docFlipbookInfo,
+      flipbookName: effectiveBookName,
+      folderName: effectiveFolderName,
+      v_id: dbBook ? dbBook.v_id : null,
+      width: docWidth,
+      height: docHeight,
+      templateId: docTemplateId,
+      orientation: docOrientation,
+      isPublished: dbBook ? Boolean(dbBook.isPublished) : false,
+      quotes: docFlipbookInfo.quotes || dbBook?.quotes || "",
+      about: docFlipbookInfo.about || dbBook?.about || "",
+      category: docFlipbookInfo.category || dbBook?.category || "Product Based",
+      language: docFlipbookInfo.language || dbBook?.language || "English",
+      tags: docFlipbookInfo.tags || dbBook?.tags || [],
+      baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
+    };
 
     res.json({
       pages,
@@ -1784,28 +1798,13 @@ router.get("/get", async (req, res) => {
       Visibility: finalVisibility,
       share: finalVisibility,
       isPublished: dbBook ? Boolean(dbBook.isPublished) : false,
-      quotes: dbBook?.quotes || docMeta.quotes || "",
-      about: dbBook?.about || docMeta.about || "",
-      category: dbBook?.category || docMeta.category || "Product Based",
-      language: dbBook?.language || docMeta.language || "English",
-      tags: dbBook?.tags || docMeta.tags || [],
-      meta: {
-        ...docMeta,
-        flipbookName: effectiveBookName,
-        folderName: effectiveFolderName,
-        v_id: dbBook ? dbBook.v_id : null,
-        width: docWidth,
-        height: docHeight,
-        templateId: docTemplateId,
-        orientation: docOrientation,
-        isPublished: dbBook ? Boolean(dbBook.isPublished) : false,
-        quotes: dbBook?.quotes || docMeta.quotes || "",
-        about: dbBook?.about || docMeta.about || "",
-        category: dbBook?.category || docMeta.category || "Product Based",
-        language: dbBook?.language || docMeta.language || "English",
-        tags: dbBook?.tags || docMeta.tags || [],
-        baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
-      },
+      quotes: flipbookInfoObj.quotes,
+      about: flipbookInfoObj.about,
+      category: flipbookInfoObj.category,
+      language: flipbookInfoObj.language,
+      tags: flipbookInfoObj.tags,
+      FlipbookInfo: flipbookInfoObj,
+      meta: flipbookInfoObj,
     });
   } catch (err) {
     console.error(err);
@@ -1817,7 +1816,7 @@ router.get("/get", async (req, res) => {
 // @desc    Update flipbook settings (branding, appearance, etc.)
 router.post("/update-settings", async (req, res) => {
   try {
-    const { emailId, v_id, settings, Customized_Settings, newName, share, Visibility, meta, width, height, templateId, orientation, category, language, tags, quotes, about } = req.body;
+    const { emailId, v_id, settings, Customized_Settings, newName, share, Visibility, meta, FlipbookInfo, width, height, templateId, orientation, category, language, tags, quotes, about } = req.body;
     if (!emailId || !v_id) {
       return res.status(400).json({ message: "Missing emailId or v_id" });
     }
@@ -1827,10 +1826,12 @@ router.post("/update-settings", async (req, res) => {
 
     const incomingSettings = Customized_Settings || settings;
     const incomingVis = Visibility || share;
+    const incomingFlipbookInfo = FlipbookInfo || req.body.Customized_Settings?.FlipbookInfo || meta;
 
-    if (incomingSettings || incomingVis) {
+    if (incomingSettings || incomingVis || incomingFlipbookInfo || category || language || tags || quotes !== undefined || about !== undefined || width || height || templateId || orientation || newName) {
       const currentSettings = existingDoc?.Customized_Settings || existingDoc?.settings || {};
       const currentVis = currentSettings.Visibility || existingDoc?.share || {};
+      const currentFlipbookInfo = currentSettings.FlipbookInfo || existingDoc?.meta || {};
 
       let finalVis = currentVis;
       if (incomingVis) {
@@ -1860,53 +1861,51 @@ router.post("/update-settings", async (req, res) => {
       const cleanIncoming = { ...(incomingSettings || {}) };
       delete cleanIncoming.visibility;
       delete cleanIncoming.Visibility;
+      delete cleanIncoming.FlipbookInfo;
 
       const cleanCurrent = { ...(currentSettings || {}) };
       delete cleanCurrent.visibility;
       delete cleanCurrent.Visibility;
+      delete cleanCurrent.FlipbookInfo;
 
-      const mergedCustomizedSettings = {
-        ...cleanCurrent,
-        ...cleanIncoming,
-        Visibility: finalVis
-      };
-
-      updateData.Customized_Settings = mergedCustomizedSettings;
-      updateData.settings = mergedCustomizedSettings;
-      updateData.share = finalVis;
-    }
-
-    if (newName) updateData.flipbookName = newName;
-    if (width) updateData.width = Number(width);
-    if (height) updateData.height = Number(height);
-    if (templateId) updateData.templateId = templateId;
-    if (orientation) updateData.orientation = orientation;
-
-    if (category) updateData.category = category;
-    if (language) updateData.language = language;
-    if (tags) updateData.tags = tags;
-    if (quotes !== undefined) updateData.quotes = quotes;
-    if (about !== undefined) updateData.about = about;
-
-    // Merge meta safely
-    if (meta || category || language || tags || quotes !== undefined || about !== undefined) {
-      const currentMeta = existingDoc?.meta || {};
-      updateData.meta = {
-        ...currentMeta,
-        ...(meta || {}),
+      const mergedFlipbookInfo = {
+        ...currentFlipbookInfo,
+        ...(cleanIncoming.FlipbookInfo || {}),
+        ...(incomingFlipbookInfo || {}),
         ...(category ? { category } : {}),
         ...(language ? { language } : {}),
         ...(tags ? { tags } : {}),
         ...(quotes !== undefined ? { quotes } : {}),
-        ...(about !== undefined ? { about } : {})
+        ...(about !== undefined ? { about } : {}),
+        ...(width ? { width: Number(width) } : {}),
+        ...(height ? { height: Number(height) } : {}),
+        ...(templateId ? { templateId } : {}),
+        ...(orientation ? { orientation } : {})
       };
+
+      if (newName) {
+        updateData.flipbookName = newName;
+        mergedFlipbookInfo.flipbookName = newName;
+      }
+
+      const mergedCustomizedSettings = {
+        ...cleanCurrent,
+        ...cleanIncoming,
+        Visibility: finalVis,
+        FlipbookInfo: mergedFlipbookInfo
+      };
+
+      updateData.Customized_Settings = mergedCustomizedSettings;
     }
 
     updateData.lastUpdated = new Date();
 
     const updatedDoc = await Flipbook.findOneAndUpdate(
       { userEmail: emailId, v_id: v_id },
-      { $set: updateData },
+      {
+        $set: updateData,
+        $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
+      },
       { new: true }
     );
 
@@ -1915,12 +1914,18 @@ router.post("/update-settings", async (req, res) => {
     }
 
     const activeVis = updatedDoc.Customized_Settings?.Visibility || updatedDoc.share;
+    const responseSettings = { ...(updatedDoc.Customized_Settings || updatedDoc.settings || {}) };
+    delete responseSettings.FlipbookInfo;
+    delete responseSettings.visibility;
+
     res.json({
       message: "Settings updated",
       v_id: updatedDoc.v_id,
       Visibility: activeVis,
       share: activeVis,
-      Customized_Settings: updatedDoc.Customized_Settings || updatedDoc.settings
+      Customized_Settings: responseSettings,
+      settings: responseSettings,
+      FlipbookInfo: updatedDoc.Customized_Settings?.FlipbookInfo
     });
   } catch (err) {
     console.error("Error updating settings:", err);
@@ -1940,37 +1945,35 @@ router.post('/publish', async (req, res) => {
     const updateData = {
       isPublished: true,
       lastUpdated: new Date(),
-      'meta.publishedAt': new Date()
+      'Customized_Settings.FlipbookInfo.publishedAt': new Date()
     };
 
     if (bookName) {
       updateData.flipbookName = bookName;
-      updateData['meta.flipbookName'] = bookName;
+      updateData['Customized_Settings.FlipbookInfo.flipbookName'] = bookName;
     }
     if (category) {
-      updateData.category = category;
-      updateData['meta.category'] = category;
+      updateData['Customized_Settings.FlipbookInfo.category'] = category;
     }
     if (language) {
-      updateData.language = language;
-      updateData['meta.language'] = language;
+      updateData['Customized_Settings.FlipbookInfo.language'] = language;
     }
     if (tags) {
-      updateData.tags = tags;
-      updateData['meta.tags'] = tags;
+      updateData['Customized_Settings.FlipbookInfo.tags'] = tags;
     }
     if (quotes !== undefined) {
-      updateData.quotes = quotes;
-      updateData['meta.quotes'] = quotes;
+      updateData['Customized_Settings.FlipbookInfo.quotes'] = quotes;
     }
     if (about !== undefined) {
-      updateData.about = about;
-      updateData['meta.about'] = about;
+      updateData['Customized_Settings.FlipbookInfo.about'] = about;
     }
 
     const updatedDoc = await Flipbook.findOneAndUpdate(
       { userEmail: emailId, v_id: v_id },
-      { $set: updateData },
+      {
+        $set: updateData,
+        $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
+      },
       { new: true }
     );
 
@@ -1996,7 +1999,10 @@ router.post('/unpublish', async (req, res) => {
 
     const updatedDoc = await Flipbook.findOneAndUpdate(
       { userEmail: emailId, v_id: v_id },
-      { $set: { isPublished: false, tags: [], 'meta.tags': [], lastUpdated: new Date() } },
+      {
+        $set: { isPublished: false, 'Customized_Settings.FlipbookInfo.tags': [], lastUpdated: new Date() },
+        $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
+      },
       { new: true }
     );
 
@@ -2108,7 +2114,8 @@ router.get("/public/get/:shareId", async (req, res) => {
             bookName: dbDoc.flipbookName,
             accessMode: 'password',
             pages: previewPages,
-            meta: dbDoc.meta || {},
+            FlipbookInfo: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
+            meta: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
             Customized_Settings: dbDoc.Customized_Settings || dbDoc.settings || {}
           });
         }
@@ -2134,7 +2141,8 @@ router.get("/public/get/:shareId", async (req, res) => {
             isInviteOnly: true,
             accessMode: 'invite',
             pages: previewPages,
-            meta: dbDoc.meta || {},
+            FlipbookInfo: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
+            meta: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
             Customized_Settings: dbDoc.Customized_Settings || dbDoc.settings || {}
           });
         }
@@ -2150,7 +2158,8 @@ router.get("/public/get/:shareId", async (req, res) => {
               isInviteOnly: true,
               accessMode: 'invite',
               pages: previewPages,
-              meta: dbDoc.meta || {},
+              FlipbookInfo: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
+              meta: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
               Customized_Settings: dbDoc.Customized_Settings || dbDoc.settings || {}
             });
           }
@@ -2252,8 +2261,18 @@ router.get("/public/get/:shareId", async (req, res) => {
       }));
     }
 
-    const docMeta = dbDoc.meta || {};
-    const docSettings = dbDoc.Customized_Settings || dbDoc.settings || {};
+    const docFlipbookInfo = dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {};
+    const docSettings = { ...(dbDoc.Customized_Settings || dbDoc.settings || {}) };
+    delete docSettings.FlipbookInfo;
+    delete docSettings.visibility;
+
+    const flipbookInfoObj = {
+      ...docFlipbookInfo,
+      flipbookName: effectiveBookName,
+      folderName: effectiveFolderName,
+      v_id: dbDoc.v_id,
+      baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
+    };
 
     res.json({
       v_id: dbDoc.v_id,
@@ -2266,13 +2285,8 @@ router.get("/public/get/:shareId", async (req, res) => {
       Visibility: vis,
       share: vis,
       isPublished: Boolean(dbDoc.isPublished),
-      meta: {
-        ...docMeta,
-        flipbookName: effectiveBookName,
-        folderName: effectiveFolderName,
-        v_id: dbDoc.v_id,
-        baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
-      },
+      FlipbookInfo: flipbookInfoObj,
+      meta: flipbookInfoObj,
     });
   } catch (err) {
     console.error("Error in /public/get:", err);
@@ -3181,6 +3195,7 @@ router.get("/get-gallery-assets", async (req, res) => {
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
     const requestedType = type ? type.toLowerCase() : null;
     const assetsMap = new Map();
+    const validMediaExtensions = /\.(jpg|jpeg|png|gif|webp|svg|mp4|webm|mov|mkv|glb|gltf|fbx|obj)$/i;
 
     // 1. Query MongoDB FlipbookAsset collection ONLY for global gallery assets (excluding page assets under My_Flipbooks)
     const escapedEmail = escapeRegex(sanitizedEmail);
@@ -3198,7 +3213,7 @@ router.get("/get-gallery-assets", async (req, res) => {
     }).sort({ createdAt: -1 });
 
     for (const asset of dbAssets) {
-      if (asset.url && asset.fileName) {
+      if (asset.url && asset.fileName && validMediaExtensions.test(asset.fileName)) {
         // Exclude currently selected asset if specified
         if (currentFileName && (asset.fileName === currentFileName || asset.file_v_id === currentFileName)) continue;
         if (currentUrl && asset.url && asset.url.toLowerCase().includes(currentUrl.toLowerCase())) continue;
@@ -3241,7 +3256,7 @@ router.get("/get-gallery-assets", async (req, res) => {
       for (const folder of folders) {
         const supabaseFiles = await listFilesInSupabaseFolder(folder);
         for (const fileObj of supabaseFiles) {
-          if (fileObj.name && !assetsMap.has(fileObj.name)) {
+          if (fileObj.name && validMediaExtensions.test(fileObj.name) && !assetsMap.has(fileObj.name)) {
             // Exclude currently selected asset if specified
             if (currentFileName && fileObj.name === currentFileName) continue;
             const folderBaseName = path.basename(folder);
@@ -3274,6 +3289,42 @@ router.get("/get-gallery-assets", async (req, res) => {
       message: "Server error",
       details: err.toString(),
     });
+  }
+});
+
+// @route POST /api/flipbook/delete-gallery-asset
+// @desc Delete global gallery asset from Supabase Storage & MongoDB
+router.post("/delete-gallery-asset", async (req, res) => {
+  try {
+    const { emailId, url, fileName, file_v_id } = req.body;
+    if (!emailId) {
+      return res.status(400).json({ message: "Missing emailId" });
+    }
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+
+    // 1. Delete from MongoDB FlipbookAsset collection
+    if (file_v_id) {
+      await FlipbookAsset.deleteMany({ file_v_id });
+    }
+    if (fileName) {
+      await FlipbookAsset.deleteMany({ fileName, userEmail: emailId });
+    }
+
+    // 2. Delete file from Supabase Storage
+    let targetUrl = url;
+    if (!targetUrl && fileName) {
+      targetUrl = `/uploads/${sanitizedEmail}/${fileName}`;
+    }
+
+    if (targetUrl) {
+      deleteFileFromSupabase(targetUrl).catch(err => console.warn("[Supabase] Delete asset warning:", err));
+    }
+
+    return res.json({ success: true, message: "Asset deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting gallery asset:", err);
+    return res.status(500).json({ message: err.message });
   }
 });
 

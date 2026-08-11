@@ -1390,6 +1390,7 @@ const CustomizedEditor = () => {
             onPreview={stablePreviewHandler}
             currentBook={currentBook}
             setCurrentBook={setCurrentBook}
+            isLoading={isLoading}
           />
         </div>
 
@@ -1401,7 +1402,22 @@ const CustomizedEditor = () => {
             }`}
         >
           <div className="w-[21vw] h-full flex flex-col overflow-visible">
-            {activeSubView && renderDetailContent()}
+            {isLoading ? (
+              <div className="p-[1.2vw] flex flex-col gap-[1vw] animate-pulse">
+                <div className="flex items-center gap-[0.8vw]">
+                  <div className="w-[1.5vw] h-[1.5vw] bg-gray-200/80 rounded-[0.4vw]"></div>
+                  <div className="h-[1vw] bg-gray-200/80 rounded-[0.3vw] w-1/2"></div>
+                </div>
+                <div className="h-[1px] bg-gray-100 my-[0.4vw]"></div>
+                <div className="flex flex-col gap-[0.8vw]">
+                  <div className="h-[2vw] bg-gray-100/80 rounded-[0.5vw] w-full"></div>
+                  <div className="h-[2vw] bg-gray-100/80 rounded-[0.5vw] w-full"></div>
+                  <div className="h-[4vw] bg-gray-100/80 rounded-[0.5vw] w-full"></div>
+                </div>
+              </div>
+            ) : (
+              activeSubView && renderDetailContent()
+            )}
           </div>
         </div>
 

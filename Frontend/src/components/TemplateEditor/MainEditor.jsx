@@ -5950,7 +5950,13 @@ const MainEditor = ({
 
   // ── Clear selection on tool switch ──────────────────────────────────────────
   const prevActiveMainToolRef = useRef(activeMainTool);
+  const isInitialMountRef = useRef(true);
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
     const prevTool = prevActiveMainToolRef.current;
     prevActiveMainToolRef.current = activeMainTool;
 
@@ -5959,8 +5965,8 @@ const MainEditor = ({
       return;
     }
 
-    // Do not clear selection if auto-switching from 'upload' or 'grid' back to 'select'
-    if ((prevTool === 'upload' || prevTool === 'grid' || prevTool === 'pen') && activeMainTool === 'select') {
+    // Do not clear selection if main tool has not changed (e.g. sub-tool toggle or re-render within 'select')
+    if (prevTool === activeMainTool) {
       return;
     }
 
@@ -12195,32 +12201,48 @@ const MainEditor = ({
         )}
 
         {/* Top Group: Selection & Primary Tools - Independent Position */}
+        {/* Top Group: Selection & Primary Tools - Independent Position */}
         {!isPdfProject && !isPopupEditor && (
           <div className="absolute right-[1.05vw] top-[6vh] z-50">
             <div className="bg-[#F1F3F4] rounded-[0.5vw] border border-gray-300 p-[0.3vw] flex flex-col items-center w-[2.7vw] gap-[0.7vh] shadow-sm">
               {/* Black Edit Icon Button */}
-              <button
-                onClick={() => setActiveTopTool('editor')}
-                className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all my-[0.1vh] ${activeTopTool === 'editor' ? 'bg-[#000000]' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
-              >
-                <Icon icon="tabler:edit" width="1.1vw" height="1.1vw" className={activeTopTool === 'editor' ? 'text-white' : ''} />
-              </button>
+              <div className="relative group/tool flex items-center">
+                <button
+                  onClick={() => setActiveTopTool('editor')}
+                  className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all my-[0.1vh] ${activeTopTool === 'editor' ? 'bg-[#000000]' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+                >
+                  <Icon icon="tabler:edit" width="1.1vw" height="1.1vw" className={activeTopTool === 'editor' ? 'text-white' : ''} />
+                </button>
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Edit Mode
+                </div>
+              </div>
 
-              {/* Hand / Pan Tool */}
-              <button
-                onClick={() => setActiveTopTool('interaction')}
-                className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'interaction' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
-              >
-                <Icon icon="hugeicons:touch-interaction-01" width="1.2vw" height="1.2vw" />
-              </button>
+              {/* Hand / Touch Interaction Tool */}
+              <div className="relative group/tool flex items-center">
+                <button
+                  onClick={() => setActiveTopTool('interaction')}
+                  className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'interaction' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+                >
+                  <Icon icon="hugeicons:touch-interaction-01" width="1.2vw" height="1.2vw" />
+                </button>
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Touch Interaction
+                </div>
+              </div>
 
-              {/* Star / Special Tool */}
-              <button
-                onClick={() => setActiveTopTool('animation')}
-                className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'animation' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
-              >
-                <Icon icon="tdesign:animation-1" width="1.2vw" height="1.2vw" />
-              </button>
+              {/* Star / Animation Tool */}
+              <div className="relative group/tool flex items-center">
+                <button
+                  onClick={() => setActiveTopTool('animation')}
+                  className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'animation' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+                >
+                  <Icon icon="tdesign:animation-1" width="1.2vw" height="1.2vw" />
+                </button>
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Animation & Effects
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -12294,7 +12316,7 @@ const MainEditor = ({
           </div>
         )}
 
-  {/* Interaction Group: Sub Tools */}
+        {/* Interaction Group: Sub Tools */}
         {activeTopTool === 'interaction' && (
           <div className="absolute right-0 top-[25vh] z-[100]">
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
@@ -12320,7 +12342,7 @@ const MainEditor = ({
               </div>
 
               {/* Select Tool */}
-              <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw]">
+              <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw] relative group/tool">
                 <button
                   onClick={() => {
                     if (setActiveMainTool) setActiveMainTool('select');
@@ -12330,10 +12352,13 @@ const MainEditor = ({
                   <Icon icon="clarity:cursor-arrow-line" width="1.2vw" height="1.2vw" className={activeMainTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} />
                 </button>
                 <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Select Tool
+                </div>
               </div>
 
               {/* Frame Tool */}
-              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh]">
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] relative group/tool">
                 <button
                   onClick={() => {
                     if (setActiveMainTool) setActiveMainTool('shapes');
@@ -12344,10 +12369,13 @@ const MainEditor = ({
                   <Icon icon="iconoir:frame-alt" width="1.2vw" height="1.2vw" className={activeMainTool === 'shapes' && selectedShapeTool === 'free-frame' ? 'text-[#111827]' : 'text-[#4B5563]'} />
                 </button>
                 <div className="w-[0.7vw]"></div>
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Frame Tool
+                </div>
               </div>
 
               {/* Hotspot Tool */}
-              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] relative" id="hotspot-trigger-container">
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] relative group/tool" id="hotspot-trigger-container">
                 <button
                   onClick={() => setShowHotspotPopup(!showHotspotPopup)}
                   className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${showHotspotPopup ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
@@ -12355,6 +12383,11 @@ const MainEditor = ({
                   <Icon icon="material-symbols:ads-click-rounded" width="1.2vw" height="1.2vw" className={showHotspotPopup ? 'text-[#111827]' : 'text-[#4B5563]'} />
                 </button>
                 <div className="w-[0.7vw]"></div>
+                {!showHotspotPopup && (
+                  <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                    Hotspot Tool
+                  </div>
+                )}
                 {showHotspotPopup && (
                   <HotspotPresetPopup
                     onClose={() => setShowHotspotPopup(false)}
@@ -12410,7 +12443,7 @@ const MainEditor = ({
               </div>
 
               {/* White Upload Button - matching top group size */}
-              <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw]">
+              <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start gap-[0.3vw] relative group/tool">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -12422,38 +12455,49 @@ const MainEditor = ({
                   <Icon icon="prime:upload" width="1.2vw" height="1.2vw" className="text-[#111827]" />
                 </button>
                 <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Upload File
+                </div>
               </div>
 
               {/* Select Tool Row */}
-              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
+              <div className="flex items-center justify-start gap-[0.3vw] mb-[0.8vh] cursor-pointer relative group/tool">
                 {/* Select Tool Options Dropdown */}
                 {showSelectOptions && (
-                  <div className="absolute right-[4.2vw] top-[-1.5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[1vh] shadow-lg z-50 w-[2.7vw]">
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'select' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedSelectTool('select');
-                        setActiveMainTool('select');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="clarity:cursor-arrow-line" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Select</span>
-                    </button>
+                  <div className="absolute right-[4.2vw] top-[-1.5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[0.5vh] shadow-lg z-50 w-[2.7vw]">
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'select' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSelectTool('select');
+                          setActiveMainTool('select');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="clarity:cursor-arrow-line" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Select
+                      </div>
+                    </div>
 
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'direct' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedSelectTool('direct');
-                        setActiveMainTool('select');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="clarity:cursor-arrow-solid" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'direct' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedSelectTool === 'direct' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Direct</span>
-                    </button>
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'direct' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSelectTool('direct');
+                          setActiveMainTool('select');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="clarity:cursor-arrow-solid" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'direct' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Direct Select
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -12491,38 +12535,51 @@ const MainEditor = ({
                 >
                   <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showSelectOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
                 </div>
+                {!showSelectOptions && (
+                  <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                    {selectedSelectTool === 'direct' ? 'Direct Select Tool' : 'Select Tool'}
+                  </div>
+                )}
               </div>
 
               {/* Pen Tool Row */}
-              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
+              <div className="flex items-center justify-start gap-[0.3vw] mb-[0.8vh] cursor-pointer relative group/tool">
                 {/* Pen Tool Options Dropdown */}
                 {showPenOptions && (
-                  <div className="absolute right-[4.2vw] top-[-5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[1vh] shadow-lg z-50 w-[2.7vw]">
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pen' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedPenTool('pen');
-                        setActiveMainTool('pen');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="streamline-cyber:pen-tool" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Pen</span>
-                    </button>
+                  <div className="absolute right-[4.2vw] top-[-5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[0.5vh] shadow-lg z-50 w-[2.7vw]">
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pen' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPenTool('pen');
+                          setActiveMainTool('pen');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="streamline-cyber:pen-tool" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Pen
+                      </div>
+                    </div>
 
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pencil' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedPenTool('pencil');
-                        setActiveMainTool('pen');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="mingcute:pencil-fill" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pencil' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'pencil' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Pencil</span>
-                    </button>
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pencil' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPenTool('pencil');
+                          setActiveMainTool('pen');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="mingcute:pencil-fill" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pencil' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Pencil
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -12560,10 +12617,15 @@ const MainEditor = ({
                 >
                   <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showPenOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
                 </div>
+                {!showPenOptions && (
+                  <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                    {selectedPenTool === 'pencil' ? 'Pencil Tool' : 'Pen Tool'}
+                  </div>
+                )}
               </div>
 
               {/* Type Tool Row */}
-              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer">
+              <div className="flex items-center justify-start gap-[0.3vw] mb-[0.8vh] cursor-pointer relative group/tool">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -12575,77 +12637,100 @@ const MainEditor = ({
                   <Icon icon="mi:text" width="1.2vw" height="1.2vw" className="text-[#111827]" />
                 </button>
                 <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Text Tool
+                </div>
               </div>
 
               {/* Shapes Tool Row */}
-              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
+              <div className="flex items-center justify-start gap-[0.3vw] mb-[0.8vh] cursor-pointer relative group/tool">
                 {/* Shapes Tool Options Dropdown */}
                 {showShapesOptions && (
-                  <div className="absolute right-[4.2vw] top-[-12vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[0.8vh] shadow-lg z-50 w-[2.7vw]">
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'rectangle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedShapeTool('rectangle');
-                        setActiveMainTool('shapes');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="lucide:square" width="1vw" height="1vw" className={`${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Rectangle</span>
-                    </button>
+                  <div className="absolute right-[4.2vw] top-[-12vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[0.5vh] shadow-lg z-50 w-[2.7vw]">
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'rectangle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedShapeTool('rectangle');
+                          setActiveMainTool('shapes');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="lucide:square" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Rectangle
+                      </div>
+                    </div>
 
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'circle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedShapeTool('circle');
-                        setActiveMainTool('shapes');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="lucide:circle" width="1vw" height="1vw" className={`${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Circle</span>
-                    </button>
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'circle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedShapeTool('circle');
+                          setActiveMainTool('shapes');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="lucide:circle" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Circle
+                      </div>
+                    </div>
 
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'polygon' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedShapeTool('polygon');
-                        setActiveMainTool('shapes');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="lucide:triangle" width="1vw" height="1vw" className={`${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Polygon</span>
-                    </button>
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'polygon' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedShapeTool('polygon');
+                          setActiveMainTool('shapes');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="lucide:triangle" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Polygon
+                      </div>
+                    </div>
 
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'line' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedShapeTool('line');
-                        setActiveMainTool('shapes');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="tabler:line" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827] rotate-[-45deg]`} />
-                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Line</span>
-                    </button>
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'line' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedShapeTool('line');
+                          setActiveMainTool('shapes');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="tabler:line" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827] rotate-[-45deg]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Line
+                      </div>
+                    </div>
 
-                    <button
-                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'star' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedShapeTool('star');
-                        setActiveMainTool('shapes');
-                        closeAllDropdowns();
-                      }}
-                    >
-                      <Icon icon="lucide:star" width="1vw" height="1vw" className={`${selectedShapeTool === 'star' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'star' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Star</span>
-                    </button>
+                    <div className="relative group/subtool flex items-center">
+                      <button
+                        className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'star' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedShapeTool('star');
+                          setActiveMainTool('shapes');
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Icon icon="lucide:star" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'star' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      </button>
+                      <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/subtool:opacity-100 transition-opacity duration-150 pointer-events-none z-[9999]">
+                        Star
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -12689,10 +12774,15 @@ const MainEditor = ({
                 >
                   <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showShapesOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
                 </div>
+                {!showShapesOptions && (
+                  <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                    Shapes Tool
+                  </div>
+                )}
               </div>
 
               {/* Grid Tool Row */}
-              <div className="flex items-center justify-start group gap-[0.3vw] cursor-pointer">
+              <div className="flex items-center justify-start gap-[0.3vw] cursor-pointer relative group/tool">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -12704,6 +12794,9 @@ const MainEditor = ({
                   <Icon icon="tabler:icons" width="1.2vw" height="1.2vw" className="text-[#111827]" />
                 </button>
                 <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Elements & Icons
+                </div>
               </div>
             </div>
           </div>
