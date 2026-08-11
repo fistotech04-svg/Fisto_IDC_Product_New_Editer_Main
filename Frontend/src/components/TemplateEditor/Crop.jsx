@@ -329,7 +329,7 @@ export const CropController = ({
       }
     };
 
-    pageContainer.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerdown', onPointerDown, { capture: true });
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     pageContainer.addEventListener('wheel', onWheel, { passive: false });
@@ -339,7 +339,7 @@ export const CropController = ({
     cropEl.setAttribute('data-cropping', 'true');
 
     return () => {
-      pageContainer.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerdown', onPointerDown, { capture: true });
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       pageContainer.removeEventListener('wheel', onWheel);

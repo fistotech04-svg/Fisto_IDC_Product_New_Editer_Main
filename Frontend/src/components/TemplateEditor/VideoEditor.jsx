@@ -1665,120 +1665,22 @@ const VideoEditor = ({
       styleEl.id = styleId;
       document.head.appendChild(styleEl);
     }
-    const s = controlsSize / 100;
-    // Scale from bottom-center; remove the dark gradient shadow behind controls
+    // Only hide native controls completely, no custom styling
     styleEl.textContent = `
-      /* ── Hide ALL native controls — we use injected custom controls ── */
       [id="${selectedLayerId}"] video::-webkit-media-controls,
       video[id="${selectedLayerId}"]::-webkit-media-controls {
         display: none !important;
       }
-
-      /* ── Enclosure: pin to bottom, flex column so panel sits at the bottom ── */
       [id="${selectedLayerId}"] video::-webkit-media-controls-enclosure,
       video[id="${selectedLayerId}"]::-webkit-media-controls-enclosure {
-        transform: scale(${s});
-        transform-origin: bottom center;
-        overflow: hidden;
-        background: transparent !important;
-        box-shadow: none !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: flex-end !important;
-        align-items: stretch !important;
-        padding: 0 !important;
-      }
-
-      /* ── Panel: single horizontal row — play | timeline | time | mute | fullscreen | 3-dots ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-panel,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-panel {
-        background: transparent !important;
-        background-image: none !important;
-        box-shadow: none !important;
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        width: 100% !important;
-        padding: 0 4px !important;
-        gap: 2px !important;
-        flex-wrap: nowrap !important;
-      }
-
-      /* ── Hide floating overlay — only bottom bar is shown ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-overlay-enclosure,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-overlay-enclosure {
         display: none !important;
       }
-
-      /* ── Progress / seek bar expands to fill remaining width ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-timeline,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-timeline {
-        flex: 1 1 auto !important;
-        min-width: 0 !important;
-        margin: 0 2px !important;
-      }
-
-      /* ── Play/pause button — inline, no background ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-play-button,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-play-button {
-        flex-shrink: 0 !important;
-        background: none !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-        padding: 0 1px !important;
-      }
-
-      /* ── Mute button — inline, no background ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-mute-button,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-mute-button {
-        flex-shrink: 0 !important;
-        background: none !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        padding: 0 1px !important;
-      }
-
-      /* ── Time displays — compact, no wrap ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-current-time-display,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-current-time-display,
-      [id="${selectedLayerId}"] video::-webkit-media-controls-time-remaining-display,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-time-remaining-display {
-        flex-shrink: 0 !important;
-        white-space: nowrap !important;
-        padding: 0 1px !important;
-      }
-
-      /* ── Fullscreen button — inline, no background ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-fullscreen-button,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-fullscreen-button {
-        flex-shrink: 0 !important;
-        background: none !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        padding: 0 2px !important;
-      }
-
-      /* ── 3-dots overflow button — inline, no background ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-overflow-button,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-overflow-button {
-        flex-shrink: 0 !important;
-        background: none !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-        padding: 0 3px !important;
-      }
-
-      /* ── Loading spinner ── */
-      [id="${selectedLayerId}"] video::-webkit-media-controls-loading-spinner,
-      video[id="${selectedLayerId}"]::-webkit-media-controls-loading-spinner {
-        transform: scale(${s});
-        transform-origin: center center;
+      [id="${selectedLayerId}"] video::-webkit-media-controls-panel,
+      video[id="${selectedLayerId}"]::-webkit-media-controls-panel {
+        display: none !important;
       }
     `;
-  }, [selectedLayerId, controlsSize]);
+  }, [selectedLayerId]);
 
   // Removed custom inline controls bar injection (moved to MainEditor.jsx)
 

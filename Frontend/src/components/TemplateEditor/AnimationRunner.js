@@ -418,9 +418,13 @@ export const initGifRunner = function(doc) {
       }
     };
 
+    const currentLoopSetting = `${loopCount}-${customLoop}-${playWhile}`;
+    const isNewSetting = el.__lastLoopSetting !== currentLoopSetting;
+    
     if (playWhile === 'Manual (Click to play)') {
       if (!el.__gifBound) {
         freezeGif();
+        el.__isPlaying = false;
         el.style.cursor = 'pointer';
         el.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -433,14 +437,22 @@ export const initGifRunner = function(doc) {
           }
         });
         el.__gifBound = true;
+      } else if (isNewSetting) {
+        // If switched to manual from autoplay, freeze it
+        freezeGif();
+        el.__isPlaying = false;
+        if (el.__gifTimeout) clearTimeout(el.__gifTimeout);
       }
     } else {
       // Autoplay while on page
-      if (!el.__gifBound) {
+      if (!el.__gifBound || isNewSetting) {
         playGif();
+        el.__isPlaying = true;
         el.__gifBound = true;
       }
     }
+
+    el.__lastLoopSetting = currentLoopSetting;
 
     // Handle precise loop counts with gifuct-js
     let maxLoops = Infinity;
@@ -450,32 +462,43 @@ export const initGifRunner = function(doc) {
     else if (loopCount === 'Custom') maxLoops = customLoop;
 
     if (maxLoops !== Infinity && maxLoops > 0) {
-      import('gifuct-js').then(({ parseGIF, decompressFrames }) => {
-        fetch(originalSrc)
-          .then(resp => resp.arrayBuffer())
-          .then(buff => {
-            const gif = parseGIF(buff);
-            const frames = decompressFrames(gif, true);
-            const totalDuration = frames.reduce((sum, frame) => sum + (frame.delay || 100), 0);
-            
-            // Sync start time by re-triggering the GIF exactly now
-            if (playWhile !== 'Manual (Click to play)') {
-               playGif();
-               el.__isPlaying = true;
-               
-               if (el.__gifTimeout) clearTimeout(el.__gifTimeout);
-               el.__gifTimeout = setTimeout(() => {
-                 if (el.__isPlaying !== false) {
-                    freezeGif();
-                    el.__isPlaying = false;
-                 }
-               }, totalDuration * maxLoops);
-            }
-          })
-          .catch(err => console.error("Error parsing GIF for loop count", err));
-      }).catch(err => {
-        console.warn("gifuct-js not installed. Run 'npm install gifuct-js' for exact loop counts.", err);
-      });
+      if (isNewSetting || !el.__hasGifTimeoutSetup) {
+        import('gifuct-js').then(({ parseGIF, decompressFrames }) => {
+          fetch(originalSrc)
+            .then(resp => resp.arrayBuffer())
+            .then(buff => {
+              const gif = parseGIF(buff);
+              const frames = decompressFrames(gif, true);
+              const totalDuration = frames.reduce((sum, frame) => sum + (frame.delay || 100), 0);
+              
+              // Sync start time by re-triggering the GIF exactly now
+              if (playWhile !== 'Manual (Click to play)') {
+                 playGif();
+                 el.__isPlaying = true;
+                 
+                 if (el.__gifTimeout) clearTimeout(el.__gifTimeout);
+                 el.__gifTimeout = setTimeout(() => {
+                   if (el.__isPlaying !== false) {
+                      freezeGif();
+                      el.__isPlaying = false;
+                   }
+                 }, totalDuration * maxLoops);
+                 el.__hasGifTimeoutSetup = true;
+              }
+            })
+            .catch(err => console.error("Error parsing GIF for loop count", err));
+        }).catch(err => {
+          console.warn("gifuct-js not installed. Run 'npm install gifuct-js' for exact loop counts.", err);
+        });
+      }
+    } else {
+       if (playWhile !== 'Manual (Click to play)') {
+          if (el.__gifTimeout) {
+            clearTimeout(el.__gifTimeout);
+            el.__gifTimeout = null;
+          }
+          el.__hasGifTimeoutSetup = false;
+       }
     }
   });
 };

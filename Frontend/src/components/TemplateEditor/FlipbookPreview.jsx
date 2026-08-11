@@ -131,8 +131,8 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
               params: { emailId: user.emailId, v_id, metadataOnly: true }
             });
 
-            if (res.data && res.data.settings) {
-              finalSettings = { ...finalSettings, ...res.data.settings };
+            if (res.data) {
+              finalSettings = { ...finalSettings, ...(res.data.meta || {}), ...(res.data.settings || {}) };
             }
           }
         }
