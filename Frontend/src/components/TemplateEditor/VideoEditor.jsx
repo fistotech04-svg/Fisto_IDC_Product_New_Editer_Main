@@ -23,8 +23,7 @@ import {
   Edit3,
   Video,
   X,
-} from "lucide-react";
-import VideoGalleryModal from "./VideoGalleryModal";
+  } from "lucide-react";
 import ReplaceMediaModal from "./ReplaceMediaModal";
 import Color from './Color';
 
@@ -2700,16 +2699,7 @@ const VideoEditor = ({
       <input ref={fileInputRef} type="file" accept="video/mp4" className="hidden" onChange={handleVideoUpload} />
       <input ref={coverInputRef} type="file" accept="image/jpeg, image/png" className="hidden" onChange={handleCoverUpload} />
 
-      {/* Gallery Modal */}
-      {openGallery && (
-        <VideoGalleryModal
-          tab={tab}
-          setTab={setTab}
-          selectedElement={selectedElement}
-          selectedLayerId={selectedLayerId}
-          onClose={() => setOpenGallery(false)}
-        />
-      )}
+
 
       {/* Replace Media Modal Popup */}
       <ReplaceMediaModal

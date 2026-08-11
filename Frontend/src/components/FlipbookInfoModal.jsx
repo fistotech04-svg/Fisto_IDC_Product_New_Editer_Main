@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TypographyPanel from './TypographyPanel';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown, Info, Check, Plus, Upload, Edit2, Sliders, SlidersHorizontal, Image as ImageIcon, MoreVertical, Trash2 } from 'lucide-react';
+import { X, ChevronDown, Info, Check, Plus, Upload, Edit2, Sliders, MoreVertical, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import { useToast } from './CustomToast';
 import { Icon } from '@iconify/react';
@@ -980,8 +980,6 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
   const [about, setAbout] = useState('');
   const [category, setCategory] = useState('Product Based');
   const [language, setLanguage] = useState('English');
-  const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [showCoverPopup, setShowCoverPopup] = useState(false);
@@ -991,21 +989,13 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
   useEffect(() => {
     if (isOpen && currentBook) {
       setBookName(currentBook.flipbookName || currentBook.realName || currentBook.title || '');
-      setQuotes(currentBook.quotes || currentBook.quote || currentBook.tagline || currentBook.meta?.quotes || currentBook.meta?.quote || currentBook.meta?.tagline || '');
-      setAbout(currentBook.about || currentBook.meta?.about || '');
-      setCategory(currentBook.category || currentBook.meta?.category || 'Product Based');
-      setLanguage(currentBook.language || currentBook.meta?.language || 'English');
+      setQuotes(currentBook.quotes || currentBook.quote || currentBook.tagline || '');
+      setAbout(currentBook.about || '');
+      setCategory(currentBook.category || 'Product Based');
+      setLanguage(currentBook.language || 'English');
       setErrors({});
-      
-      if (currentBook.tags && Array.isArray(currentBook.tags)) {
-        setTags(currentBook.tags);
-      } else if (currentBook.meta?.tags && Array.isArray(currentBook.meta.tags)) {
-        setTags(currentBook.meta.tags);
-      } else {
-        setTags([]);
-      }
 
-      const cp = currentBook.settings?.othersetup?.coverPicture || currentBook.coverPicture || currentBook.meta?.coverPicture || {
+      const cp = currentBook.settings?.othersetup?.coverPicture || currentBook.coverPicture || {
         type: 'template',
         url: '',
         selectedTemplate: COVER_TEMPLATES[0],
@@ -1020,25 +1010,6 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
   const visibilityMode = currentBook?.share?.access || currentBook?.settings?.visibility?.type || 'Public';
   const pageCount = currentBook?.pages?.length || currentBook?.pageCount || 12;
   const thumbnailUrl = currentBook?.thumbnail || currentBook?.coverImage || null;
-
-  const handleAddTag = () => {
-    if (tags.length >= 5) {
-      toast?.error?.("Maximum 5 search tags allowed.");
-      return;
-    }
-    const trimmed = tagInput.trim();
-    if (!trimmed) return;
-    if (tags.includes(trimmed)) {
-      setTagInput('');
-      return;
-    }
-    setTags([...tags, trimmed]);
-    setTagInput('');
-  };
-
-  const handleRemoveTag = (indexToRemove) => {
-    setTags(tags.filter((_, idx) => idx !== indexToRemove));
-  };
 
   const uploadFile = async (file) => {
     const storedUser = localStorage.getItem('user');
@@ -1103,18 +1074,8 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
           newName: bookName.trim(),
           category: category.trim(),
           language: language.trim(),
-          tags: tags,
           quotes: quotes.trim(),
           about: about.trim(),
-          meta: {
-            ...(currentBook?.meta || {}),
-            quotes: quotes.trim(),
-            about: about.trim(),
-            category: category.trim(),
-            language: language.trim(),
-            tags: tags,
-            coverPicture: coverPicture
-          },
           settings: {
             ...(currentBook?.settings || {}),
             othersetup: {
@@ -1133,7 +1094,6 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
           about: about.trim(), 
           category: category.trim(), 
           language: language.trim(), 
-          tags,
           coverPicture 
         });
       }

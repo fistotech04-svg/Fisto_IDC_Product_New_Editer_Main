@@ -128,9 +128,9 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
         </div>
 
         {/* Center Section - Saved Status & Device Switcher */}
-        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-[1.5vw]">
+        <div className="absolute left-[45%] top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-[0.75vw]">
           {isAutoSaveEnabled && (
-            <div className="flex items-center gap-[0.4vw] whitespace-nowrap bg-gray-50/50 px-[1vw] py-[0.4vw] rounded-full border border-gray-100">
+            <div className="flex items-center gap-[0.4vw] whitespace-nowrap bg-gray-50/50 px-[0.8vw] py-[0.4vw] rounded-full border border-gray-100">
                 <span className="text-gray-900 font-medium text-[0.85vw]">
                 Saved :
                 </span>
@@ -202,11 +202,10 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
         {/* Right Section - Actions */}
         <div className="flex items-center gap-[0.8vw] min-w-[15vw] justify-end relative">
 
-
           {/* Action Button (Add 3D Model / Go To Editor) */}
           <button 
             onClick={() => navigate(isThreedEditor ? (localStorage.getItem('lastEditorPath') || '/editor') : '/editor/threed_editor')}
-            className={`flex items-center gap-[0.4vw] px-[1.2vw] cursor-pointer py-[0.6vw] text-white rounded-[0.5vw] transition-all duration-300 active:scale-95 ml-[0.5vw]
+            className={`flex items-center gap-[0.4vw] px-[1.2vw] cursor-pointer py-[0.6vw] text-white rounded-[0.5vw] transition-all duration-300 active:scale-95 ml-[0.2vw]
               ${isThreedEditor 
                 ? 'bg-[#4A3AFF] shadow-[0_0_1.2vw_rgba(74,58,255,0.5)] hover:bg-[#3b2eff]' 
                 : 'bg-[#f3b105] shadow-[0_0_1.2vw_rgba(243,177,5,0.5)] hover:bg-[#e5a600]'

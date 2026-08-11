@@ -39,8 +39,7 @@ import {
   Check,
   MousePointerClick,
   Pencil
-} from "lucide-react";
-import GalleryGif from "./GalleryGif";
+  } from "lucide-react";
 import ColorPicker, { parseGradient } from './ColorPicker';
 import { Icon } from '@iconify/react';
 import Color from './Color';
@@ -2267,33 +2266,6 @@ const GifEditor = ({
           setShowDetailedPicker={setShowDetailedPicker}
         />
       </div>
-
-      {showGallery && (
-        <GalleryGif
-          selectedElement={selectedElement}
-          onUpdate={onUpdate}
-          onClose={() => setShowGallery(false)}
-          currentPageVId={currentPageVId}
-          flipbookVId={activeVId}
-          folderName={folderName}
-          flipbookName={flipbookName}
-          onSelect={async (gif) => {
-            const optimisticUrl = gif.url;
-            const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-            const liveElement = (selectedLayerId && pageContainer) ? pageContainer.querySelector(`[id="${selectedLayerId}"]`) : selectedElement;
-            const targetImg = getSvgImageEl(liveElement) || liveElement;
-
-            const imgObj = new window.Image();
-            imgObj.onload = () => {
-              setSrc(targetImg, optimisticUrl);
-              liveElement.dataset.mediaType = "gif";
-              onUpdateRef.current?.({ shouldRefresh: true });
-              setShowGallery(false);
-            };
-            imgObj.src = optimisticUrl;
-          }}
-        />
-      )}
 
       {/* Replace Media Modal Popup */}
       <ReplaceMediaModal

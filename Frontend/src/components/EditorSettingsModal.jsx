@@ -106,25 +106,6 @@ export default function EditorSettingsModal({
 
         {/* Settings List */}
         <div className="flex flex-col gap-[1vw]">
-          {/* Double page mode */}
-          <div className="flex items-center justify-between">
-            <span className="text-[0.82vw] font-normal text-gray-600">Double page mode</span>
-            <div className="flex-1 border-b border-dashed border-gray-200 mx-[0.6vw]"></div>
-            <button
-              type="button"
-              onClick={handleDoublePageToggle}
-              className={`w-[2.5vw] h-[1.3vw] flex items-center rounded-full p-[0.15vw] cursor-pointer transition-colors duration-200 ease-in-out border shadow-sm ${
-                isDoublePage ? 'bg-[#4A3AFF] border-indigo-300' : 'bg-gray-200 border-gray-300'
-              }`}
-            >
-              <div
-                className={`bg-white w-[1vw] h-[1vw] rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${
-                  isDoublePage ? 'translate-x-[1.2vw]' : 'translate-x-0'
-                }`}
-              ></div>
-            </button>
-          </div>
-
           {/* Trim View */}
           <div className="flex items-center justify-between">
             <span className="text-[0.82vw] font-normal text-gray-600">Trim View</span>
