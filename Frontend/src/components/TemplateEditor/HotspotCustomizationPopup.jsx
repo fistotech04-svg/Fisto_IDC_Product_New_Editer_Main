@@ -81,6 +81,19 @@ import slide3 from '../../assets/hotspot preset icon/slideshow_frames.svg';
 import slide4 from '../../assets/hotspot preset icon/slideshow_indicator.svg';
 import slide5 from '../../assets/hotspot preset icon/slideshowmajor-svgrepo-com.svg';
 
+const BgStyleThumb = ({ styleIdx, color, iconSrc }) => {
+  const [thumb, setThumb] = useState(null);
+  useEffect(() => {
+    let isMounted = true;
+    generateCompositeHotspotSvg(null, iconSrc, color, '#fff', styleIdx).then(res => {
+      if (isMounted && res) setThumb(res.innerSvg);
+    });
+    return () => { isMounted = false; };
+  }, [styleIdx, color, iconSrc]);
+  return thumb ? (
+    <svg key={thumb} className="w-[1.8vw] h-[1.8vw] pointer-events-none" viewBox="0 0 52 52" preserveAspectRatio="xMidYMid meet" dangerouslySetInnerHTML={{ __html: thumb }} />
+  ) : null;
+};
 const HotspotCustomizationPopup = ({ 
   onClose, 
   onSave, 
@@ -127,7 +140,14 @@ const HotspotCustomizationPopup = ({
   const [pickerPosition, setPickerPosition] = useState({ top: 0, right: 0 });
   const popupRef = useRef(null);
 
-  const defaultLinkStyles = [link2, link3, link4, link5, link6, link1];
+  const defaultLinkStyles = [
+    link5, 
+    link3, 
+    link4, 
+    link6, 
+    link2, 
+    link1
+  ];
   
   const pureIcons = {
     'whatsapp': [whatsapp1, whatsapp2, whatsapp3, whatsapp4, whatsapp5],
@@ -209,21 +229,7 @@ const HotspotCustomizationPopup = ({
     };
     updatePreview();
     return () => { isMounted = false; };
-  }, [bgColor, iconColor, iconStyle, bgStyle, iconStyles]);
-
-  const BgStyleThumb = ({ styleIdx, color }) => {
-    const [thumb, setThumb] = useState(null);
-    useEffect(() => {
-      let isMounted = true;
-      generateCompositeHotspotSvg(null, iconStyles[iconStyle], color, '#fff', styleIdx).then(res => {
-        if (isMounted && res) setThumb(res.innerSvg);
-      });
-      return () => { isMounted = false; };
-    }, [styleIdx, color, iconStyle]);
-    return thumb ? (
-      <svg className="w-[1.8vw] h-[1.8vw] pointer-events-none" viewBox="0 0 52 52" preserveAspectRatio="xMidYMid meet" dangerouslySetInnerHTML={{ __html: thumb }} />
-    ) : null;
-  };
+  }, [bgColor, iconColor, iconStyle, bgStyle, interactionType, initialHotspotIconSrc]);
 
   // Click outside to close color picker
   useEffect(() => {
@@ -261,11 +267,52 @@ const HotspotCustomizationPopup = ({
     onClose();
   };
 
+  const getOpacityPercent = (colorStr) => {
+    if (!colorStr || typeof colorStr !== 'string') return '100%';
+    if (colorStr.startsWith('#') && colorStr.length === 9) {
+      const alphaHex = colorStr.substring(7, 9);
+      return Math.round((parseInt(alphaHex, 16) / 255) * 100) + '%';
+    }
+    return '100%';
+  };
+
+  const handleOpacityScrub = (color, setColor) => (e) => {
+    if (!color || !color.startsWith('#')) return; // Only scrub hex colors for now
+    
+    e.preventDefault();
+    const startX = e.clientX;
+    const initialPercent = parseInt(getOpacityPercent(color));
+    
+    const baseColor = color.substring(0, 7); // #RRGGBB
+    
+    const onMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      let newPercent = Math.round(initialPercent + deltaX / 1.5);
+      newPercent = Math.max(0, Math.min(100, newPercent));
+      
+      let newColor = baseColor;
+      if (newPercent < 100) {
+        const alphaHex = Math.round((newPercent / 100) * 255).toString(16).padStart(2, '0').toUpperCase();
+        newColor = `${baseColor}${alphaHex}`;
+      }
+      setColor(newColor);
+      setIsModified(true);
+    };
+    
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
   const popupContent = (
-    <div className="fixed inset-0 bg-black/40 z-[99999] flex items-center justify-center font-sans">
+    <div className="fixed inset-0 bg-black/40 z-[99999] flex items-center justify-center font-sans" onClick={onClose}>
       <div 
         ref={popupRef}
-        className="bg-white rounded-[0.6vw] w-[36vw] h-auto max-h-[85vh] flex flex-col overflow-hidden shadow-2xl relative"
+        className="bg-white rounded-[0.6vw] w-[40vw] h-auto pb-[1vh] max-h-[85vh] flex flex-col overflow-hidden shadow-2xl relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -275,25 +322,21 @@ const HotspotCustomizationPopup = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex px-[1.5vw] py-[2vh] gap-[1.5vw]">
+        <div className="flex-1 flex px-[1.5vw] pt-[1vh] pb-[2vh] gap-[1.5vw]">
           {/* Left Preview */}
-          <div className="flex flex-col w-[40%] h-full">
-            <span className="text-[0.7vw] text-gray-800 font-medium mb-[0.8vh]">Preview</span>
-            <div className="flex-1 bg-white rounded-[0.4vw] border border-gray-200 flex flex-col relative overflow-hidden">
-              {/* Preview Circle */}
-              <div className="flex-1 flex items-center justify-center p-[1.5vw]">
+          <div className="flex flex-col w-[48%] h-full">
+            <span className="text-[0.6vw] text-gray-400 font-medium uppercase tracking-wider mb-[1vh]">Preview</span>
+            
+            <div className="flex-1 border border-gray-100 rounded-[0.5vw] flex flex-col">
+              {/* Preview Area */}
+              <div className="flex-1 flex items-center justify-center bg-white p-[2vw]">
                 {(!isModified && initialHotspotHtml) ? (
                   <div className="relative w-[10vw] h-[10vw] flex items-center justify-center">
-                    <svg 
-                      className="w-[10vw] h-[10vw] pointer-events-none" 
-                      viewBox="0 0 52 52" 
-                      preserveAspectRatio="xMidYMid meet" 
-                      dangerouslySetInnerHTML={{ __html: initialHotspotHtml }}
-                    />
+                    <svg key={livePreviewSvg} className="w-[10vw] h-[10vw] pointer-events-none" viewBox="0 0 52 52" preserveAspectRatio="xMidYMid meet" dangerouslySetInnerHTML={{ __html: initialHotspotHtml }} />
                   </div>
                 ) : livePreviewSvg ? (
                   <div className="relative w-[10vw] h-[10vw] flex items-center justify-center">
-                    <svg className="w-[10vw] h-[10vw] pointer-events-none" viewBox="0 0 52 52" preserveAspectRatio="xMidYMid meet" dangerouslySetInnerHTML={{ __html: livePreviewSvg }} />
+                    <svg key={livePreviewSvg} className="w-[10vw] h-[10vw] pointer-events-none" viewBox="0 0 52 52" preserveAspectRatio="xMidYMid meet" dangerouslySetInnerHTML={{ __html: livePreviewSvg }} />
                   </div>
                 ) : (
                   <div className="relative w-[10vw] h-[10vw] flex items-center justify-center">
@@ -312,7 +355,7 @@ const HotspotCustomizationPopup = ({
                       onClick={() => { setBgStyle(styleIdx); setIsModified(true); }}
                       className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.4vw] border transition-all ${bgStyle === styleIdx ? 'border-gray-800 shadow-sm' : 'border-transparent hover:bg-gray-50'}`}
                     >
-                      <BgStyleThumb styleIdx={styleIdx} color={bgColor} />
+                      <BgStyleThumb styleIdx={styleIdx} color={bgColor ? (bgColor.startsWith('#') ? bgColor.substring(0, 7) : bgColor) : bgColor} iconSrc={iconStyles[iconStyle]} />
                     </button>
                   ))}
                 </div>
@@ -321,83 +364,97 @@ const HotspotCustomizationPopup = ({
           </div>
 
           {/* Right Controls */}
-          <div className="flex-1 flex flex-col justify-center gap-[2vh]">
+          <div className="flex-1 flex flex-col justify-between">
             
-            {/* Icon Style */}
-            <div className="flex items-center">
-              <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Icon Style :</span>
-              <div className="flex items-center gap-[0.4vw] ml-[0.5vw]">
-                {iconStyles.map((style, idx) => (
-                  <button
-                    key={idx}
-                    className={`w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-[0.3vw] border transition-colors ${(!isModified && initialHotspotHtml) ? 'border-transparent hover:bg-gray-50' : (iconStyle === idx ? 'border-gray-800 shadow-sm' : 'border-transparent hover:bg-gray-50')}`}
-                    onClick={() => { setIconStyle(idx); setIsModified(true); setIconColor('#000000'); }}
-                  >
-                    <img src={style} alt={`Icon Style ${idx + 1}`} className="w-[100%] h-[100%] object-contain" />
-                  </button>
-                ))}
+            <div className="flex flex-col gap-[3.5vh] mt-[4vh]">
+              {/* Icon Style */}
+              <div className="flex items-center">
+                <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Icon Style :</span>
+                <div className="flex items-center gap-[0.4vw] ml-[0.5vw]">
+                  {iconStyles.map((style, idx) => (
+                    <button
+                      key={idx}
+                      className={`w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-[0.3vw] border transition-colors ${(!isModified && initialHotspotHtml) ? 'border-transparent hover:bg-gray-50' : (iconStyle === idx ? 'border-gray-800 shadow-sm' : 'border-transparent hover:bg-gray-50')}`}
+                      onClick={() => { setIconStyle(idx); setIsModified(true); }}
+                    >
+                      <img src={style} alt={`Icon Style ${idx + 1}`} className="w-[100%] h-[100%] object-contain" />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Icon Color */}
-            <div className="flex items-center relative">
-              <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Icon Color :</span>
-              <div className="flex items-center gap-[0.8vw] ml-[0.5vw] flex-1">
-                <div 
-                  className="w-[1.8vw] h-[1.8vw] rounded-[0.3vw] border border-gray-200 cursor-pointer shadow-sm"
-                  style={{ background: iconColor }}
-                  onClick={(e) => toggleColorPicker(e, 'iconColor')}
-                ></div>
-                <div className="flex-1 bg-white border border-gray-200 rounded-[0.3vw] h-[1.8vw] flex items-center justify-between px-[0.5vw] min-w-0">
-                  <span className="text-[0.65vw] text-gray-600 uppercase font-mono truncate max-w-[80%]">{iconColor}</span>
-                  <span className="text-[0.6vw] text-gray-400 flex-shrink-0">100%</span>
+              {/* Icon Color */}
+              <div className="flex items-center relative">
+                <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Icon Color :</span>
+                <div className="flex items-center gap-[0.8vw] ml-[0.5vw] flex-1">
+                  <div 
+                    className="w-[1.8vw] h-[1.8vw] rounded-[0.3vw] border border-gray-200 cursor-pointer shadow-sm flex-shrink-0"
+                    style={{ background: iconColor }}
+                    onClick={(e) => toggleColorPicker(e, 'iconColor')}
+                  ></div>
+                  <div className="flex-1 bg-white border border-gray-200 rounded-[0.3vw] h-[1.8vw] flex items-center justify-between px-[0.5vw] min-w-0">
+                    <input type="text" readOnly value={iconColor} className="text-[0.65vw] text-gray-600 uppercase font-mono bg-transparent outline-none flex-1 min-w-0" />
+                    <span 
+                      className={`text-[0.6vw] flex-shrink-0 ml-[0.5vw] transition-colors ${(iconColor && iconColor.startsWith('#')) ? 'text-gray-800 font-medium cursor-ew-resize hover:text-blue-500' : 'text-gray-400'}`}
+                      onMouseDown={handleOpacityScrub(iconColor, setIconColor)}
+                      title={(iconColor && iconColor.startsWith('#')) ? "Drag to adjust opacity" : ""}
+                    >
+                      {getOpacityPercent(iconColor)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bg Color */}
+              <div className="flex items-center relative">
+                <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Bg Color :</span>
+                <div className="flex items-center gap-[0.8vw] ml-[0.5vw] flex-1">
+                  <div 
+                    className="w-[1.8vw] h-[1.8vw] rounded-[0.3vw] border border-gray-200 cursor-pointer shadow-sm flex-shrink-0"
+                    style={{ background: bgColor }}
+                    onClick={(e) => toggleColorPicker(e, 'bgColor')}
+                  ></div>
+                  <div className="flex-1 bg-white border border-gray-200 rounded-[0.3vw] h-[1.8vw] flex items-center justify-between px-[0.5vw] min-w-0">
+                    <input type="text" readOnly value={bgColor} className="text-[0.65vw] text-gray-600 uppercase font-mono bg-transparent outline-none flex-1 min-w-0" />
+                    <span 
+                      className={`text-[0.6vw] flex-shrink-0 ml-[0.5vw] transition-colors ${(bgColor && bgColor.startsWith('#')) ? 'text-gray-800 font-medium cursor-ew-resize hover:text-blue-500' : 'text-gray-400'}`}
+                      onMouseDown={handleOpacityScrub(bgColor, setBgColor)}
+                      title={(bgColor && bgColor.startsWith('#')) ? "Drag to adjust opacity" : ""}
+                    >
+                      {getOpacityPercent(bgColor)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Bg Color */}
-            <div className="flex items-center relative">
-              <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Bg Color :</span>
-              <div className="flex items-center gap-[0.8vw] ml-[0.5vw] flex-1">
-                <div 
-                  className="w-[1.8vw] h-[1.8vw] rounded-[0.3vw] border border-gray-200 cursor-pointer shadow-sm"
-                  style={{ background: bgColor }}
-                  onClick={(e) => toggleColorPicker(e, 'bgColor')}
-                ></div>
-                <div className="flex-1 bg-white border border-gray-200 rounded-[0.3vw] h-[1.8vw] flex items-center justify-between px-[0.5vw] min-w-0">
-                  <span className="text-[0.65vw] text-gray-600 uppercase font-mono truncate max-w-[80%]">{bgColor}</span>
-                  <span className="text-[0.6vw] text-gray-400 flex-shrink-0">100%</span>
-                </div>
-              </div>
+            {/* Buttons inside Right Controls aligned with Presets */}
+            <div className="flex justify-end gap-[0.6vw] mt-auto mb-[2.5vh]">
+              <button 
+                className="px-[1vw] py-[0.5vh] text-[0.7vw] font-medium text-gray-700 bg-white border border-gray-200 rounded-[0.3vw] hover:bg-gray-50 flex items-center gap-[0.3vw] transition-colors"
+                onClick={onClose}
+              >
+                <Icon icon="lucide:x" className="text-[0.8vw]" /> Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const svgStr = await generateCompositeHotspotSvg(null, iconStyles[iconStyle], bgColor, iconColor, bgStyle);
+                  if (onSave) onSave({ 
+                    iconColor, 
+                    bgColor, 
+                    iconStyle, 
+                    bgStyle,
+                    generatedSvgString: svgStr
+                  });
+                  onClose();
+                }}
+                className="px-[1.5vw] py-[0.8vh] bg-black text-white text-[0.8vw] font-medium rounded-[0.3vw] hover:bg-gray-800 transition-colors flex items-center gap-[0.4vw]"
+              >
+                <Icon icon="lucide:check" className="text-[0.8vw]" /> Save Changes
+              </button>
             </div>
 
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-[1.5vw] py-[1.5vh] flex justify-end gap-[0.6vw] mt-auto border-t border-gray-50 bg-gray-50/50">
-          <button 
-            className="px-[1vw] py-[0.5vh] text-[0.7vw] font-medium text-gray-700 bg-white border border-gray-200 rounded-[0.3vw] hover:bg-gray-50 flex items-center gap-[0.3vw] transition-colors"
-            onClick={onClose}
-          >
-            <Icon icon="lucide:x" className="text-[0.8vw]" /> Cancel
-          </button>
-          <button
-            onClick={async () => {
-              const svgStr = await generateCompositeHotspotSvg(null, iconStyles[iconStyle], bgColor, iconColor, bgStyle);
-              if (onSave) onSave({ 
-                iconColor, 
-                bgColor, 
-                iconStyle, 
-                bgStyle,
-                generatedSvgString: svgStr
-              });
-              onClose();
-            }}
-            className="px-[1.5vw] py-[0.8vh] bg-black text-white text-[0.8vw] font-medium rounded-[0.3vw] hover:bg-gray-800 transition-colors flex items-center gap-[0.4vw]"
-          >
-            <Icon icon="lucide:check" className="text-[0.8vw]" /> Save Changes
-          </button>
         </div>
       </div>
       
@@ -416,7 +473,18 @@ const HotspotCustomizationPopup = ({
               else setBgColor(hex);
               setIsModified(true);
             }}
-            disableAlpha={true}
+            opacity={parseInt(getOpacityPercent(activeColorPicker === 'iconColor' ? iconColor : bgColor))}
+            onOpacityChange={(newOpacity) => {
+              const currentColor = activeColorPicker === 'iconColor' ? iconColor : bgColor;
+              const baseHex = currentColor.substring(0, 7);
+              const alphaHex = Math.round((newOpacity / 100) * 255).toString(16).padStart(2, '0').toUpperCase();
+              const newColor = newOpacity === 100 ? baseHex : `${baseHex}${alphaHex}`;
+              
+              if (activeColorPicker === 'iconColor') setIconColor(newColor);
+              else setBgColor(newColor);
+              setIsModified(true);
+            }}
+            disableAlpha={false}
           />
         </div>
       )}

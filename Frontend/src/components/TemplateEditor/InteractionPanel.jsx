@@ -1503,6 +1503,23 @@ const InteractionPanel = ({
                                         
                                       vb = `0 0 ${w} 60`;
                                       cls = "w-[10vw] h-[3.33vw] pointer-events-none";
+                                    } else {
+                                      try {
+                                        const temp = document.createElement('div');
+                                        temp.innerHTML = `<svg>${displayHtml}</svg>`;
+                                        const svg = temp.querySelector('svg');
+                                        if (svg) {
+                                          const child = svg.firstElementChild;
+                                          if (child) {
+                                            child.removeAttribute('transform');
+                                            child.removeAttribute('width');
+                                            child.removeAttribute('height');
+                                          }
+                                          displayHtml = svg.innerHTML;
+                                        }
+                                      } catch(e) {
+                                        console.error('Error parsing standard hotspot SVG preview', e);
+                                      }
                                     }
                                   }
                                   

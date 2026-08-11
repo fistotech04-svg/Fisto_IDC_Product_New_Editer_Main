@@ -153,11 +153,37 @@ export const generateCompositeHotspotSvg = async (bgSrc, iconSrc, bgColor, iconC
     // Apply svgIconFill to all elements in iconDoc
     const iconElements = iconDoc.querySelectorAll('*');
     iconElements.forEach(el => {
+      const tagName = el.tagName.toLowerCase();
       const fill = el.getAttribute('fill');
-      if (fill && fill.toLowerCase() !== 'none') el.setAttribute('fill', svgIconFill);
-      
       const stroke = el.getAttribute('stroke');
-      if (stroke && stroke.toLowerCase() !== 'none') el.setAttribute('stroke', svgIconFill);
+      
+      if (fill && fill.toLowerCase() !== 'none') {
+        el.setAttribute('fill', svgIconFill);
+      }
+      
+      if (stroke && stroke.toLowerCase() !== 'none') {
+        el.setAttribute('stroke', svgIconFill);
+      }
+      
+      if (!fill && !stroke && ['path', 'circle', 'rect', 'polygon', 'ellipse', 'polyline'].includes(tagName)) {
+        // Check if any ancestor provides a fill or stroke
+        let hasInheritedStyle = false;
+        let parent = el.parentElement;
+        while (parent) {
+          const pFill = parent.getAttribute('fill');
+          const pStroke = parent.getAttribute('stroke');
+          if ((pFill && pFill.toLowerCase() !== 'none') || (pStroke && pStroke.toLowerCase() !== 'none')) {
+            hasInheritedStyle = true;
+            break;
+          }
+          parent = parent.parentElement;
+        }
+        
+        if (!hasInheritedStyle) {
+          // Defaults to black in standard SVG if no fill or stroke is anywhere. Force our color.
+          el.setAttribute('fill', svgIconFill);
+        }
+      }
     });
 
     // --- 3. Composite Them ---
@@ -199,7 +225,7 @@ export const generateCompositeHotspotSvg = async (bgSrc, iconSrc, bgColor, iconC
 
     return {
       fullSvg: new XMLSerializer().serializeToString(bgDoc),
-      innerSvg: bgSvgEl.innerHTML
+      innerSvg: `<svg viewBox="0 0 52 52" width="52" height="52" preserveAspectRatio="xMidYMid meet" style="display: block;">${bgSvgEl.innerHTML}</svg>`
     };
   } catch (error) {
     console.error('Failed to generate composite hotspot SVG', error);

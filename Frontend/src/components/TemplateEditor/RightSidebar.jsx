@@ -40,7 +40,12 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
        const el = editorDoc.getElementById(targetId);
        if (el && typeof el.getBBox === 'function') {
           try {
-             const bbox = getVisualBBox(el);
+             let bbox;
+             if (el.getAttribute('data-is-hotspot') === 'true') {
+                 bbox = { x: 0, y: 0, width: 52, height: 52 };
+             } else {
+                 bbox = getVisualBBox(el);
+             }
              let rawVal = 0;
              let m = [1, 0, 0, 1, 0, 0];
              const transform = el.getAttribute('transform');
