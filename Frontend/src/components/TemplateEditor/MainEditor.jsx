@@ -1707,78 +1707,78 @@ const MainEditor = ({
         if (!layerId) return;
 
         const showControls = video.getAttribute('data-show-controls') !== 'false';
-        
+
         // APPLY CUSTOM VIDEO PROPERTIES
         const pbSpeedStr = video.getAttribute('data-playback-speed');
         if (pbSpeedStr) {
-           const pbSpeed = parseFloat(pbSpeedStr.replace('x', ''));
-           if (!isNaN(pbSpeed)) video.playbackRate = pbSpeed;
+          const pbSpeed = parseFloat(pbSpeedStr.replace('x', ''));
+          if (!isNaN(pbSpeed)) video.playbackRate = pbSpeed;
         }
 
         if (!video.hasAttribute('data-video-props-applied')) {
-            video.setAttribute('data-video-props-applied', 'true');
-            
-            const defVolStr = video.getAttribute('data-default-volume');
-            if (defVolStr) {
-                video.volume = parseInt(defVolStr) / 100;
-            }
+          video.setAttribute('data-video-props-applied', 'true');
 
-            const startTimeAttr = video.getAttribute('data-start-time');
-            let sTime = 0;
-            if (startTimeAttr) {
-              const parts = startTimeAttr.split(':').map(Number);
-              if (parts.length === 3) sTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
-              else if (parts.length === 2) sTime = parts[0] * 60 + parts[1];
-            }
-            const endTimeAttr = video.getAttribute('data-end-time');
-            let eTime = Infinity;
-            if (endTimeAttr) {
-              const parts = endTimeAttr.split(':').map(Number);
-              if (parts.length === 3) eTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
-              else if (parts.length === 2) eTime = parts[0] * 60 + parts[1];
-            }
-            video._startTime = sTime;
-            video._endTime = eTime;
-            
-            if (sTime > 0) {
-               video.currentTime = sTime;
-            }
+          const defVolStr = video.getAttribute('data-default-volume');
+          if (defVolStr) {
+            video.volume = parseInt(defVolStr) / 100;
+          }
 
-            video.addEventListener('timeupdate', () => {
-               if (video._startTime > 0 && video.currentTime < video._startTime - 0.5) {
-                   video.currentTime = video._startTime;
-               }
-               if (video._endTime < Infinity && video.currentTime >= video._endTime) {
-                   if (video.loop) {
-                       video.currentTime = video._startTime;
-                   } else {
-                       video.pause();
-                   }
-               }
+          const startTimeAttr = video.getAttribute('data-start-time');
+          let sTime = 0;
+          if (startTimeAttr) {
+            const parts = startTimeAttr.split(':').map(Number);
+            if (parts.length === 3) sTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else if (parts.length === 2) sTime = parts[0] * 60 + parts[1];
+          }
+          const endTimeAttr = video.getAttribute('data-end-time');
+          let eTime = Infinity;
+          if (endTimeAttr) {
+            const parts = endTimeAttr.split(':').map(Number);
+            if (parts.length === 3) eTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else if (parts.length === 2) eTime = parts[0] * 60 + parts[1];
+          }
+          video._startTime = sTime;
+          video._endTime = eTime;
+
+          if (sTime > 0) {
+            video.currentTime = sTime;
+          }
+
+          video.addEventListener('timeupdate', () => {
+            if (video._startTime > 0 && video.currentTime < video._startTime - 0.5) {
+              video.currentTime = video._startTime;
+            }
+            if (video._endTime < Infinity && video.currentTime >= video._endTime) {
+              if (video.loop) {
+                video.currentTime = video._startTime;
+              } else {
+                video.pause();
+              }
+            }
+          });
+
+          const resumeBehavior = video.getAttribute('data-resume-behavior');
+          if (resumeBehavior === "Start from Beginning") {
+            video.addEventListener('play', () => {
+              if (video._wasPaused) {
+                video.currentTime = video._startTime || 0;
+              }
+              video._wasPaused = false;
             });
-            
-            const resumeBehavior = video.getAttribute('data-resume-behavior');
-            if (resumeBehavior === "Start from Beginning") {
-                video.addEventListener('play', () => {
-                    if (video._wasPaused) {
-                        video.currentTime = video._startTime || 0;
-                    }
-                    video._wasPaused = false;
-                });
-                video.addEventListener('pause', () => {
-                    video._wasPaused = true;
-                });
-            }
+            video.addEventListener('pause', () => {
+              video._wasPaused = true;
+            });
+          }
 
-            const playVideoWhile = video.getAttribute('data-play-video-while');
-            if (video._prevPlayVideoWhile !== playVideoWhile) {
-                video._prevPlayVideoWhile = playVideoWhile;
-                if (playVideoWhile === "Auto Play While on Page" || playVideoWhile === "Auto Play on Page Open") {
-                    video.play().catch(()=>{});
-                } else if (playVideoWhile === "Click to Play" || playVideoWhile === "Manual (Click to Play)") {
-                    video.pause();
-                }
+          const playVideoWhile = video.getAttribute('data-play-video-while');
+          if (video._prevPlayVideoWhile !== playVideoWhile) {
+            video._prevPlayVideoWhile = playVideoWhile;
+            if (playVideoWhile === "Auto Play While on Page" || playVideoWhile === "Auto Play on Page Open") {
+              video.play().catch(() => { });
+            } else if (playVideoWhile === "Click to Play" || playVideoWhile === "Manual (Click to Play)") {
+              video.pause();
             }
+          }
         }
 
         const ctrlId = `custom-ctrl-${layerId}`;
@@ -1801,12 +1801,12 @@ const MainEditor = ({
           if (repBtn) {
             repBtn.style.opacity = video.loop ? '1' : '0.5';
           }
-          
+
           const topC = bar.querySelector('.custom-top-container');
           const centerC = bar.querySelector('.custom-center-container');
           const progC = bar.querySelector('.custom-prog-container');
           const timeW = bar.querySelector('.custom-time-wrapper');
-          
+
           const volBtn = bar.querySelector('.custom-vol-btn');
           const rewindBtn = bar.querySelector('.custom-rewind-btn');
           const forwardBtn = bar.querySelector('.custom-forward-btn');
@@ -1830,7 +1830,7 @@ const MainEditor = ({
           if (fsBtn) fsBtn.style.display = showFullscreenButton ? '' : 'none';
           if (dlBtn) dlBtn.style.display = showDownloadButton ? '' : 'none';
           if (progC) progC.style.display = showProgressBar ? '' : 'none';
-          
+
           bar.style.display = showControls ? 'flex' : 'none';
         }
 
@@ -1881,7 +1881,7 @@ const MainEditor = ({
             boxSizing: 'border-box',
             zIndex: '9999',
             pointerEvents: 'none',
-            background: 'linear-gradient(180deg, rgba(0,0,0,0.9) 100%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.9) 100%)',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 75%, rgba(0,0,0,0.8) 100%)',
           });
 
           // Establish a base font-size linked to width for proportional scaling
@@ -2314,7 +2314,7 @@ const MainEditor = ({
           bottomContainer.appendChild(repeatBtn);
           bottomContainer.appendChild(dlBtn);
           if (!disableFullScreen) {
-             bottomContainer.appendChild(fsBtn);
+            bottomContainer.appendChild(fsBtn);
           }
 
           bar.appendChild(topContainer);
@@ -2339,6 +2339,36 @@ const MainEditor = ({
             }
           };
         }
+
+        const groupEl = video.closest('g') || video.closest('foreignObject');
+        const cropStr = groupEl ? groupEl.getAttribute('data-crop-data') : null;
+        const isCropped = video.getAttribute('data-object-fit') === 'Crop' || (groupEl && groupEl.getAttribute('data-object-fit') === 'Crop');
+        if (isCropped && cropStr && cropStr !== 'null') {
+          try {
+            const crop = JSON.parse(cropStr);
+            const t = parseFloat(crop.top) || 0;
+            const l = parseFloat(crop.left) || 0;
+            const w = parseFloat(crop.width) || 100;
+            const h = parseFloat(crop.height) || 100;
+            bar.style.top = t + '%';
+            bar.style.bottom = Math.max(0, 100 - (t + h)) + '%';
+            bar.style.left = l + '%';
+            bar.style.right = Math.max(0, 100 - (l + w)) + '%';
+            bar.style.width = 'auto';
+            bar.style.height = 'auto';
+          } catch (e) { }
+        } else {
+          bar.style.top = '0';
+          bar.style.bottom = '0';
+          bar.style.left = '0';
+          bar.style.right = '0';
+          bar.style.width = 'auto';
+          bar.style.height = 'auto';
+        }
+
+        // Re-evaluate display visibility at the very end
+        const shouldShowControls = video.getAttribute('data-show-controls') !== 'false';
+        bar.style.display = shouldShowControls ? 'flex' : 'none';
       });
 
       // Cleanup orphan controls
@@ -2406,15 +2436,15 @@ const MainEditor = ({
         }, 10);
       }
     };
-    
+
     const observer = new MutationObserver(() => {
       cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(updateScrollbarStyles);
     });
-    
+
     updateScrollbarStyles();
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
-    
+
     return () => {
       observer.disconnect();
       cancelAnimationFrame(animationFrameId);
@@ -2559,7 +2589,7 @@ const MainEditor = ({
         if (fo) {
           let foW = parseFloat(fo.getAttribute('width') || '0');
           let foH = parseFloat(fo.getAttribute('height') || '0');
-          
+
           const parentG = fo.closest('g');
           if (parentG && parentG.hasAttribute('data-width')) {
             foW = parseFloat(parentG.getAttribute('data-width'));
@@ -2574,22 +2604,22 @@ const MainEditor = ({
               foH = bbox.height / scale;
             }
           }
-          
+
           let origW = parseFloat(iframe.getAttribute('data-original-width'));
           let origH = parseFloat(iframe.getAttribute('data-original-height'));
-          
+
           if (!origW || !origH || iframe.getAttribute('width') === '100%') {
-             origW = 640;
-             origH = 360;
-             iframe.setAttribute('data-original-width', '640');
-             iframe.setAttribute('data-original-height', '360');
-             iframe.setAttribute('width', '640');
-             iframe.setAttribute('height', '360');
-             iframe.style.width = '640px';
-             iframe.style.height = '360px';
-             iframe.style.transformOrigin = '0 0';
+            origW = 640;
+            origH = 360;
+            iframe.setAttribute('data-original-width', '640');
+            iframe.setAttribute('data-original-height', '360');
+            iframe.setAttribute('width', '640');
+            iframe.setAttribute('height', '360');
+            iframe.style.width = '640px';
+            iframe.style.height = '360px';
+            iframe.style.transformOrigin = '0 0';
           }
-          
+
           if (foW > 0 && foH > 0 && origW > 0 && origH > 0) {
             iframe.style.setProperty('width', origW + 'px', 'important');
             iframe.style.setProperty('height', origH + 'px', 'important');
@@ -2665,11 +2695,11 @@ const MainEditor = ({
         g.setAttribute('stroke-width', '1');
       } else {
         g.setAttribute('data-is-hotspot', 'true');
-        
+
         const currentPresetId = e.detail.presetId || (icon && icon.presetId);
         if (currentPresetId) {
           g.setAttribute('data-preset-id', currentPresetId);
-          
+
           const actionMap = {
             'youtube': 'open-link',
             'instagram': 'open-link',
@@ -2690,7 +2720,7 @@ const MainEditor = ({
             'location': 'open-link',
             '3d-viewer': '3d-viewer'
           };
-          
+
           const actionType = actionMap[currentPresetId];
           if (actionType) {
             g.setAttribute('data-interaction', actionType);
@@ -2724,7 +2754,7 @@ const MainEditor = ({
 
       updatePageHtml(targetPageIndex, svg.outerHTML);
       setSelectedLayerId(newId);
-      
+
       if (e.detail.isHotspot && typeof setActiveTopTool === 'function') {
         setActiveTopTool('interaction');
       }
@@ -2813,29 +2843,29 @@ const MainEditor = ({
         const iframe = document.createElement('iframe');
         iframe.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
         iframe.src = finalEmbedUrl;
-        
+
         const intrinsicW = 640;
         const intrinsicH = 360;
-        
+
         iframe.setAttribute('width', intrinsicW.toString());
         iframe.setAttribute('height', intrinsicH.toString());
         iframe.setAttribute('data-original-width', intrinsicW.toString());
         iframe.setAttribute('data-original-height', intrinsicH.toString());
-        
+
         iframe.setAttribute('frameborder', '0');
         iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
         iframe.setAttribute('allowfullscreen', 'true');
-        
+
         iframe.style.width = intrinsicW + 'px';
         iframe.style.height = intrinsicH + 'px';
         iframe.style.border = 'none';
         iframe.style.display = 'block';
         iframe.style.transformOrigin = '0 0';
-        
+
         const scaleX = displayWidth / intrinsicW;
         const scaleY = displayHeight / intrinsicH;
         iframe.style.transform = `scale(${scaleX}, ${scaleY})`;
-        
+
         if (originalUrl) iframe.setAttribute('data-original-url', originalUrl);
         fo.appendChild(iframe);
       } else {
@@ -3347,7 +3377,7 @@ const MainEditor = ({
     if (!svg) return;
     const cropEl = svg.querySelector(`[id="${activeCropId}"]`);
     if (!cropEl) return;
-    const imgEl = cropEl.querySelector('image, video') || (cropEl.tagName?.toLowerCase() === 'image' ? cropEl : null);
+    const imgEl = cropEl.querySelector('image, video, img, foreignObject') || (cropEl.tagName?.toLowerCase() === 'image' ? cropEl : null);
     if (!imgEl) return;
 
     // Temporarily unclip group AND all inner child elements so full uncropped image shows
@@ -4860,7 +4890,7 @@ const MainEditor = ({
       const matrix = getElementMatrix(el);
       let bbox = getVisualBBox(el);
       if (!bbox || (bbox.width === 0 && bbox.height === 0)) {
-        try { bbox = el.getBBox(); } catch(e) {}
+        try { bbox = el.getBBox(); } catch (e) { }
       }
 
       // Calculate local center
@@ -4907,7 +4937,7 @@ const MainEditor = ({
       const matrix = getElementMatrix(el);
       let bbox = getVisualBBox(el);
       if (!bbox || (bbox.width === 0 && bbox.height === 0)) {
-        try { bbox = el.getBBox(); } catch(e) {}
+        try { bbox = el.getBBox(); } catch (e) { }
       }
 
       // Calculate local center
@@ -7092,9 +7122,9 @@ const MainEditor = ({
 
             let allowDrag = true;
             // Block dragging in Interaction/Animation mode UNLESS it's a Free Frame OR a Hotspot
-            if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && 
-                elementToDrag.getAttribute('data-name') !== 'Free Frame' &&
-                elementToDrag.getAttribute('data-is-hotspot') !== 'true') {
+            if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') &&
+              elementToDrag.getAttribute('data-name') !== 'Free Frame' &&
+              elementToDrag.getAttribute('data-is-hotspot') !== 'true') {
               allowDrag = false;
               safeStopInteraction(event.interaction);
               // We STILL want to allow auto-select to run below, so we don't return here.
@@ -7596,7 +7626,7 @@ const MainEditor = ({
               el.getAttribute('data-type') === 'image' ||
               el.getAttribute('data-is-image-group') === 'true' ||
               (el.getAttribute('data-name') || '').toLowerCase().includes('image') ||
-              (el.tagName?.toLowerCase() === 'g' && el.querySelector('image, video'))
+              (el.tagName?.toLowerCase() === 'g' && el.querySelector('image, video, img, foreignObject'))
             );
 
 
@@ -7666,7 +7696,7 @@ const MainEditor = ({
 
             let initialImgState = null;
             if (isImageGroupResize) {
-              const imgEl = el.querySelector('image, video') || (['image', 'video', 'svg'].includes(el.tagName?.toLowerCase()) ? el : null);
+              const imgEl = el.querySelector('image, video, img, foreignObject') || (['image', 'video', 'svg'].includes(el.tagName?.toLowerCase()) ? el : null);
               let natW = 0, natH = 0;
               if (imgEl) {
                 const href = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || imgEl.src;
@@ -7817,13 +7847,13 @@ const MainEditor = ({
             if (dir === 'e' || dir === 'w') scaleY = 1;
 
             // Maintain Aspect Ratio for images, text, or if Shift key is held (only for corners, but force for text on all handles to prevent distortion)
-            const isUserGroupResize = (el.getAttribute('data-type') === 'group' || (el.getAttribute('data-name') || '').toLowerCase() === 'group' || (el.id || '').startsWith('group-')) && el.getAttribute('data-is-image-group') !== 'true';
+            const isUserGroupResize = (el.getAttribute('data-type') === 'group' || (el.getAttribute('data-name') || '').toLowerCase() === 'group' || (el.id || '').startsWith('group-')) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-gif-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true';
             const childImage = (!isUserGroupResize && el.tagName?.toLowerCase() === 'g') ? el.querySelector('image, img') : null;
-            const isImage = !isUserGroupResize && (el.getAttribute('data-type') === 'image' || el.tagName?.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-image-group') === 'true' || (el.getAttribute('data-name') || '').toLowerCase().includes('image') || !!childImage);
+            const src = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || (childImage ? (childImage.getAttribute('href') || childImage.getAttribute('xlink:href') || childImage.getAttribute('src')) : '') || '';
+            const isGif = el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif' || src.split('?')[0].toLowerCase().endsWith('.gif') || src.toLowerCase().startsWith('data:image/gif') || (el.getAttribute('data-name') || '').toLowerCase().includes('gif') || (el.id || '').toLowerCase().includes('gif');
+            const isImage = !isUserGroupResize && (el.getAttribute('data-type') === 'image' || el.tagName?.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-image-group') === 'true' || el.getAttribute('data-is-gif-group') === 'true' || isGif || (el.getAttribute('data-name') || '').toLowerCase().includes('image') || !!childImage);
             const isElementInCropMode = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
             const isScaledImage = isImage && !isElementInCropMode;
-            const src = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || (childImage ? (childImage.getAttribute('href') || childImage.getAttribute('xlink:href') || childImage.getAttribute('src')) : '') || '';
-            const isGif = el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif' || src.split('?')[0].toLowerCase().endsWith('.gif') || src.toLowerCase().startsWith('data:image/gif') || (el.getAttribute('data-name') || '').toLowerCase().includes('gif') || el.id.toLowerCase().includes('gif');
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
             const isForeignObject = el.tagName?.toLowerCase() === 'foreignobject';
             const isGroup = el.tagName?.toLowerCase() === 'g' || el.tagName === 'multi';
@@ -8007,7 +8037,7 @@ const MainEditor = ({
                 el.setAttribute('y', adjustedY);
                 el.setAttribute('width', adjustedWidth);
                 el.setAttribute('height', adjustedHeight);
-                
+
                 if (el.tagName.toLowerCase() === 'foreignobject') {
                   const iframe = el.querySelector('iframe');
                   if (iframe) {
@@ -8344,10 +8374,9 @@ const MainEditor = ({
                       }
                     } else {
                       // g, path, polygon, etc — scale via matrix in <g> local space
-                      // SPECIAL CASE: image-inner-content wrapper — update inner <image> directly
-                      const isImageInnerContent = child.classList && child.classList.contains('image-inner-content');
+                      const isImageInnerContent = child.classList && (child.classList.contains('image-inner-content') || child.classList.contains('gif-inner-content'));
                       if (isImageInnerContent) {
-                        const innerImg = child.querySelector('image, video');
+                        const innerImg = child.querySelector('image, video, img, foreignObject');
                         if (innerImg) {
                           // Clear any transform on the wrapper — use direct attributes on <image>
                           child.removeAttribute('transform');
@@ -8473,7 +8502,7 @@ const MainEditor = ({
             );
             if (isCropModeSync && state.childrenData) {
               try {
-                const imgElLive = el.querySelector('image, video') || (el.tagName?.toLowerCase() === 'image' ? el : null);
+                const imgElLive = el.querySelector('image, video, img, foreignObject') || (el.tagName?.toLowerCase() === 'image' ? el : null);
                 if (imgElLive) {
                   const targetCData = state.childrenData.find(c => c.child === imgElLive || c.child.contains?.(imgElLive)) || state.childrenData[0];
                   if (targetCData) {
@@ -11558,8 +11587,8 @@ const MainEditor = ({
 
     // Double-click on an image or video ONLY opens in-place Crop Overlay mode if element is ALREADY in Crop mode (or it is a video/video group)
     const isCropModeMedia = target && (
-      target.getAttribute('data-object-fit') === 'Crop' ||
-      target.closest?.('[data-object-fit="Crop"]') ||
+      (target.getAttribute('data-object-fit') === 'Crop' && !target.closest?.('[data-is-gif-group="true"]')) ||
+      (target.closest?.('[data-object-fit="Crop"]') && !target.closest?.('[data-is-gif-group="true"]')) ||
       target.tagName?.toLowerCase() === 'video' ||
       target.closest?.('video') ||
       target.closest?.('[data-is-video-group="true"]')
@@ -12216,7 +12245,7 @@ const MainEditor = ({
           </div>
         )}
 
-  {/* Interaction Group: Sub Tools - HIDDEN for PDF projects */}
+        {/* Interaction Group: Sub Tools - HIDDEN for PDF projects */}
         {!isPdfProject && activeTopTool === 'interaction' && (
           <div className="absolute right-0 top-[25vh] z-[100]">
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
@@ -12289,7 +12318,7 @@ const MainEditor = ({
                           centerX = svgW / 2;
                           centerY = svgH / 2;
                         }
-                        
+
                         window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
                           detail: {
                             pageIndex: displayIndex,
@@ -12653,486 +12682,486 @@ const MainEditor = ({
           >
             {/* Pages Container Centered */}
             <div className="flex items-center justify-center gap-[0] relative z-10 shadow-[0_0_15px_rgba(0,0,0,0.20)] rounded-sm">
-            {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
-            {pages.length > 0 && (isDoublePage ? (spreadStartIndex > 0 && pages[spreadStartIndex]) : pages[activePageIndex]) && (
+              {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
+              {pages.length > 0 && (isDoublePage ? (spreadStartIndex > 0 && pages[spreadStartIndex]) : pages[activePageIndex]) && (
 
-              <div className="relative group/page">
-                {/* Page Control Button (Floating Above Top) Removed as per user request */}
+                <div className="relative group/page">
+                  {/* Page Control Button (Floating Above Top) Removed as per user request */}
 
-                {/* A4 Canvas Page 1 Inner */}
-                <div
-                  className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
-                  style={isPopupEditor ? {
-                    width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
-                    height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
-                    borderRadius: '1.2vw',
-                    backgroundColor: '#ffffff'
-                  } : {
-                    height: '78vh',
-                    aspectRatio: canvasAspectRatio,
-                    minHeight: '400px',
-                  }}
-                >
-                  {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
-                    <style>{svgGlobalStyles}</style>
-                    {(() => {
-                      const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
-                      const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
-                      const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
-                      const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
-                      const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
+                  {/* A4 Canvas Page 1 Inner */}
+                  <div
+                    className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
+                    style={isPopupEditor ? {
+                      width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
+                      height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
+                      borderRadius: '1.2vw',
+                      backgroundColor: '#ffffff'
+                    } : {
+                      height: '78vh',
+                      aspectRatio: canvasAspectRatio,
+                      minHeight: '400px',
+                    }}
+                  >
+                    {/* Page Content */}
+                    <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
+                      <style>{svgGlobalStyles}</style>
+                      {(() => {
+                        const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
+                        const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
+                        const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
+                        const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
+                        const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
 
-                      const pageHtml = pages[displayIndex]?.html;
-                      const isPageEmpty = !pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0));
+                        const pageHtml = pages[displayIndex]?.html;
+                        const isPageEmpty = !pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0));
 
-                      return (
-                        <div
-                          className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
-                          style={{ cursor: (isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
-                        >
-                          {pageHtml && (
-                            <div
-                              id={`canvas-content-${displayIndex}`}
-                              className="w-full h-full flex items-center justify-center"
-                              ref={(el) => {
-                                if (el) {
-                                  const newHtml = getHtmlToRender(displayIndex, pages[displayIndex]?.html);
-                                  if (window.__skipCanvasUpdateForPage === displayIndex) {
-                                    window.__skipCanvasUpdateForPage = -1;
-                                    el.__lastHtml = newHtml;
-                                  } else if (el.__lastHtml !== newHtml) {
-                                    const parser = new DOMParser();
-                                    const doc = parser.parseFromString(newHtml, 'text/html');
-                                    const newChildren = Array.from(doc.body.childNodes);
+                        return (
+                          <div
+                            className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
+                            style={{ cursor: (isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
+                          >
+                            {pageHtml && (
+                              <div
+                                id={`canvas-content-${displayIndex}`}
+                                className="w-full h-full flex items-center justify-center"
+                                ref={(el) => {
+                                  if (el) {
+                                    const newHtml = getHtmlToRender(displayIndex, pages[displayIndex]?.html);
+                                    if (window.__skipCanvasUpdateForPage === displayIndex) {
+                                      window.__skipCanvasUpdateForPage = -1;
+                                      el.__lastHtml = newHtml;
+                                    } else if (el.__lastHtml !== newHtml) {
+                                      const parser = new DOMParser();
+                                      const doc = parser.parseFromString(newHtml, 'text/html');
+                                      const newChildren = Array.from(doc.body.childNodes);
 
-                                    const oldChildren = Array.from(el.childNodes);
-                                    const maxLength = Math.max(oldChildren.length, newChildren.length);
+                                      const oldChildren = Array.from(el.childNodes);
+                                      const maxLength = Math.max(oldChildren.length, newChildren.length);
 
-                                    for (let i = 0; i < maxLength; i++) {
-                                      if (!oldChildren[i]) {
-                                        el.appendChild(newChildren[i].cloneNode(true));
-                                      } else if (!newChildren[i]) {
-                                        el.removeChild(oldChildren[i]);
-                                      } else {
-                                        syncDOM(oldChildren[i], newChildren[i]);
-                                      }
-                                    }
-
-                                    el.__lastHtml = newHtml;
-                                  }
-                                }
-                              }}
-                              onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                              onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
-                              onMouseLeave={handleSvgMouseLeave}
-                              onClick={handleSvgClick}
-                              onDragOver={(e) => {
-                                e.preventDefault(); // Necessary to allow dropping external assets
-                                e.dataTransfer.dropEffect = 'copy';
-                              }}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                try {
-                                  const svg = e.currentTarget.querySelector('svg');
-                                  if (!svg) return;
-
-                                  // Convert screen coordinates to SVG coordinates
-                                  const pt = svg.createSVGPoint();
-                                  pt.x = e.clientX;
-                                  pt.y = e.clientY;
-                                  const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-                                  const dropPoint = { x: svgP.x, y: svgP.y };
-
-                                  let data = null;
-
-                                  // 1. Try reading JSON data
-                                  const rawJson = e.dataTransfer.getData('application/json');
-                                  if (rawJson) {
-                                    try { data = JSON.parse(rawJson); } catch (_) {}
-                                  }
-
-                                  // 2. Try reading URL or text from external window/tab (e.g. Canva assets, web pages)
-                                  if (!data) {
-                                    const rawHtml = e.dataTransfer.getData('text/html');
-                                    const rawUri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-                                    let extractedUrl = null;
-
-                                    if (rawHtml) {
-                                      const match = rawHtml.match(/(?:src|href)=["']([^"']+)["']/i);
-                                      if (match && match[1]) {
-                                        extractedUrl = match[1];
-                                      }
-                                    }
-
-                                    if (!extractedUrl && rawUri && rawUri.trim()) {
-                                      const lines = rawUri.trim().split(/[\r\n]+/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
-                                      if (lines.length > 0) {
-                                        extractedUrl = lines[0];
-                                      }
-                                    }
-
-                                    if (extractedUrl) {
-                                      const trimmed = extractedUrl.trim();
-                                      if (trimmed.startsWith('http') || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('/')) {
-                                        const lower = trimmed.toLowerCase();
-                                        if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.includes('youtube.com') || lower.includes('youtu.be') || lower.includes('vimeo')) {
-                                          data = { type: 'video', url: trimmed };
-                                        } else if (lower.endsWith('.gif')) {
-                                          data = { type: 'gif', url: trimmed };
+                                      for (let i = 0; i < maxLength; i++) {
+                                        if (!oldChildren[i]) {
+                                          el.appendChild(newChildren[i].cloneNode(true));
+                                        } else if (!newChildren[i]) {
+                                          el.removeChild(oldChildren[i]);
                                         } else {
-                                          data = { type: 'image', url: trimmed };
+                                          syncDOM(oldChildren[i], newChildren[i]);
                                         }
                                       }
+
+                                      el.__lastHtml = newHtml;
                                     }
                                   }
-
-                                  // 3. Try reading external files dropped directly from Desktop / File Explorer
-                                  if (!data && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                                    const files = Array.from(e.dataTransfer.files);
-                                    files.forEach(async (file, idx) => {
-                                      const fileUrl = URL.createObjectURL(file);
-                                      const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
-
-                                      if (file.type.startsWith('image/')) {
-                                        let isGif = file.type === 'image/gif';
-                                        if (!isGif && file.type.includes('webp')) {
-                                          isGif = await checkIsAnimatedWebp(file);
-                                        }
-                                        window.dispatchEvent(new CustomEvent('add-image-to-editor', {
-                                          detail: {
-                                            pageIndex: displayIndex,
-                                            url: fileUrl,
-                                            gifUrl: isGif ? fileUrl : undefined,
-                                            name: file.name,
-                                            type: isGif ? 'gif' : 'image',
-                                            dropPoint: offsetPoint
-                                          }
-                                        }));
-                                      } else if (file.type.startsWith('video/')) {
-                                        window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
-                                          detail: {
-                                            pageIndex: displayIndex,
-                                            videoUrl: fileUrl,
-                                            file,
-                                            originalUrl: fileUrl,
-                                            dropPoint: offsetPoint
-                                          }
-                                        }));
-                                      }
-                                    });
-                                    return;
-                                  }
-
-                                  if (!data) return;
-
-                                  if (data.type === 'icon') {
-                                    window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        icon: data.icon,
-                                        dropPoint,
-                                        isHotspot: data.isHotspot
-                                      }
-                                    }));
-                                  } else if (data.type === 'image' || data.type === 'upload' || data.url) {
-                                    window.dispatchEvent(new CustomEvent('add-image-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        url: data.url || data.src,
-                                        name: data.name || 'Image',
-                                        type: 'image',
-                                        dropPoint
-                                      }
-                                    }));
-                                  } else if (data.type === 'gif') {
-                                    window.dispatchEvent(new CustomEvent('add-image-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        url: data.url || data.src,
-                                        gifUrl: data.url || data.src,
-                                        name: data.name || 'GIF',
-                                        type: 'gif',
-                                        dropPoint
-                                      }
-                                    }));
-                                  } else if (data.type === 'video') {
-                                    window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        videoUrl: data.url || data.src,
-                                        file: data.file,
-                                        originalUrl: data.url || data.src,
-                                        dropPoint
-                                      }
-                                    }));
-                                  }
-                                } catch (err) {
-                                  console.error('[MainEditor] Drop error:', err);
-                                }
-                              }}
-                              // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
-                              onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
-                            />
-                          )}
-                          {/* Selection Overlay (Overlay rotated element perfectly) */}
-                          <svg
-                            id={`highlight-overlay-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-
-                          {/* HTML Overlay for Resize Handles (Clickable) */}
-                          <div
-                            id={`highlight-overlay-html-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-                          <AnimatePresence>
-                            {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
-                              <SelectionTooltip
-                                selectedId={selectedLayerId}
-                                multiSelectedIds={multiSelectedIds}
-                                zoom={zoom}
-                                setActiveTopTool={setActiveTopTool}
-                                pageIndex={displayIndex}
-                                activePageIndex={activePageIndex}
-                                updateElementAttribute={updateElementAttribute}
-                                activeTopTool={activeTopTool}
-                              />
-                            )}
-                          </AnimatePresence>
-
-
-
-                          {/* Marquee Selection Box */}
-                          <div
-                            ref={marqueeOverlayRef1}
-                            style={{
-                              position: 'absolute',
-                              border: '1px solid #6366F1',
-                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                              pointerEvents: 'none',
-                              zIndex: 1000,
-                              display: 'none'
-                            }}
-                          />
-
-                          {isPageEmpty && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
-                              <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
-                                Ready-made templates<br />are available for a quicker start
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenTemplateModal(displayIndex);
                                 }}
-                                className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
-                              >
-                                Add Templates
-                              </button>
-                              <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
-                                (or)
-                              </div>
-                              <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
-                                Create your own Design
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+                                onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                                onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
+                                onMouseLeave={handleSvgMouseLeave}
+                                onClick={handleSvgClick}
+                                onDragOver={(e) => {
+                                  e.preventDefault(); // Necessary to allow dropping external assets
+                                  e.dataTransfer.dropEffect = 'copy';
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  try {
+                                    const svg = e.currentTarget.querySelector('svg');
+                                    if (!svg) return;
 
-                  </div>
+                                    // Convert screen coordinates to SVG coordinates
+                                    const pt = svg.createSVGPoint();
+                                    pt.x = e.clientX;
+                                    pt.y = e.clientY;
+                                    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+                                    const dropPoint = { x: svgP.x, y: svgP.y };
 
-                </div>
-              </div>
-            )}
+                                    let data = null;
 
-            {/* Subtle Center Divider for Double Page - Only show if it's a spread */}
-            {isCurrentlySpread && (
-              <div className="w-[1px] h-[78vh] bg-gray-100/50 relative z-10 shrink-0"></div>
-            )}
+                                    // 1. Try reading JSON data
+                                    const rawJson = e.dataTransfer.getData('application/json');
+                                    if (rawJson) {
+                                      try { data = JSON.parse(rawJson); } catch (_) { }
+                                    }
 
-            {/* A4 Canvas Page 2 (Visible if Double Page is enabled OR Right-Side Cover) */}
-            {(activePageIndex === 0 ? (isDoublePage && pages[0]) : isCurrentlySpread) && (
+                                    // 2. Try reading URL or text from external window/tab (e.g. Canva assets, web pages)
+                                    if (!data) {
+                                      const rawHtml = e.dataTransfer.getData('text/html');
+                                      const rawUri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+                                      let extractedUrl = null;
 
-              <div className="relative group/page">
-                {/* Page Control Button (Floating Above Top - Right Side) Removed as per user request */}
+                                      if (rawHtml) {
+                                        const match = rawHtml.match(/(?:src|href)=["']([^"']+)["']/i);
+                                        if (match && match[1]) {
+                                          extractedUrl = match[1];
+                                        }
+                                      }
 
-                {/* A4 Canvas Page 2 Inner */}
-                <div
-                  className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
-                  style={isPopupEditor ? {
-                    width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
-                    height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
-                    borderRadius: '1.2vw',
-                    backgroundColor: '#ffffff'
-                  } : {
-                    height: '78vh',
-                    aspectRatio: canvasAspectRatio,
-                    minHeight: '400px',
-                  }}
-                >
-                  {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+                                      if (!extractedUrl && rawUri && rawUri.trim()) {
+                                        const lines = rawUri.trim().split(/[\r\n]+/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+                                        if (lines.length > 0) {
+                                          extractedUrl = lines[0];
+                                        }
+                                      }
 
-                    <style>{svgGlobalStyles}</style>
-                    {(() => {
-                      const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
-                      const page = pages[displayIndex];
-                      const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
-                      const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
-                      const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
-
-
-                      const pageHtml = page?.html;
-                      const isPageEmpty = !pageHtml || (page?.layers?.length === 1 && (!page.layers[0].children || page.layers[0].children.length === 0));
-
-                      return (
-                        <div
-                          className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
-                          style={{ cursor: ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
-                        >
-                          {pageHtml && (
-                            <div
-                              id={`canvas-content-${displayIndex}`}
-                              className="w-full h-full flex items-center justify-center"
-                              ref={(el) => {
-                                if (el) {
-                                  const newHtml = getHtmlToRender(displayIndex, page.html);
-                                  if (window.__skipCanvasUpdateForPage === displayIndex) {
-                                    window.__skipCanvasUpdateForPage = -1;
-                                    el.__lastHtml = newHtml;
-                                  } else if (el.__lastHtml !== newHtml) {
-                                    const parser = new DOMParser();
-                                    const doc = parser.parseFromString(newHtml, 'text/html');
-                                    const newChildren = Array.from(doc.body.childNodes);
-
-                                    const oldChildren = Array.from(el.childNodes);
-                                    const maxLength = Math.max(oldChildren.length, newChildren.length);
-
-                                    for (let i = 0; i < maxLength; i++) {
-                                      if (!oldChildren[i]) {
-                                        el.appendChild(newChildren[i].cloneNode(true));
-                                      } else if (!newChildren[i]) {
-                                        el.removeChild(oldChildren[i]);
-                                      } else {
-                                        syncDOM(oldChildren[i], newChildren[i]);
+                                      if (extractedUrl) {
+                                        const trimmed = extractedUrl.trim();
+                                        if (trimmed.startsWith('http') || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('/')) {
+                                          const lower = trimmed.toLowerCase();
+                                          if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.includes('youtube.com') || lower.includes('youtu.be') || lower.includes('vimeo')) {
+                                            data = { type: 'video', url: trimmed };
+                                          } else if (lower.endsWith('.gif')) {
+                                            data = { type: 'gif', url: trimmed };
+                                          } else {
+                                            data = { type: 'image', url: trimmed };
+                                          }
+                                        }
                                       }
                                     }
 
-                                    el.__lastHtml = newHtml;
-                                  }
-                                }
-                              }}
-                              onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                              onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
-                              onMouseLeave={handleSvgMouseLeave}
-                              onClick={handleSvgClick}
-                              // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
-                              onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
-                            />
-                          )}
-                          {/* Selection Overlay (Overlay rotated element perfectly) */}
-                          <svg
-                            id={`highlight-overlay-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
+                                    // 3. Try reading external files dropped directly from Desktop / File Explorer
+                                    if (!data && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                                      const files = Array.from(e.dataTransfer.files);
+                                      files.forEach(async (file, idx) => {
+                                        const fileUrl = URL.createObjectURL(file);
+                                        const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
 
-                          {/* HTML Overlay for Resize Handles (Clickable) */}
-                          <div
-                            id={`highlight-overlay-html-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-                          <AnimatePresence>
-                            {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
-                              <SelectionTooltip
-                                selectedId={selectedLayerId}
-                                multiSelectedIds={multiSelectedIds}
-                                zoom={zoom}
-                                setActiveTopTool={setActiveTopTool}
-                                pageIndex={displayIndex}
-                                activePageIndex={activePageIndex}
-                                updateElementAttribute={updateElementAttribute}
-                                activeTopTool={activeTopTool}
+                                        if (file.type.startsWith('image/')) {
+                                          let isGif = file.type === 'image/gif';
+                                          if (!isGif && file.type.includes('webp')) {
+                                            isGif = await checkIsAnimatedWebp(file);
+                                          }
+                                          window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                            detail: {
+                                              pageIndex: displayIndex,
+                                              url: fileUrl,
+                                              gifUrl: isGif ? fileUrl : undefined,
+                                              name: file.name,
+                                              type: isGif ? 'gif' : 'image',
+                                              dropPoint: offsetPoint
+                                            }
+                                          }));
+                                        } else if (file.type.startsWith('video/')) {
+                                          window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                                            detail: {
+                                              pageIndex: displayIndex,
+                                              videoUrl: fileUrl,
+                                              file,
+                                              originalUrl: fileUrl,
+                                              dropPoint: offsetPoint
+                                            }
+                                          }));
+                                        }
+                                      });
+                                      return;
+                                    }
+
+                                    if (!data) return;
+
+                                    if (data.type === 'icon') {
+                                      window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          icon: data.icon,
+                                          dropPoint,
+                                          isHotspot: data.isHotspot
+                                        }
+                                      }));
+                                    } else if (data.type === 'image' || data.type === 'upload' || data.url) {
+                                      window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          url: data.url || data.src,
+                                          name: data.name || 'Image',
+                                          type: 'image',
+                                          dropPoint
+                                        }
+                                      }));
+                                    } else if (data.type === 'gif') {
+                                      window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          url: data.url || data.src,
+                                          gifUrl: data.url || data.src,
+                                          name: data.name || 'GIF',
+                                          type: 'gif',
+                                          dropPoint
+                                        }
+                                      }));
+                                    } else if (data.type === 'video') {
+                                      window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          videoUrl: data.url || data.src,
+                                          file: data.file,
+                                          originalUrl: data.url || data.src,
+                                          dropPoint
+                                        }
+                                      }));
+                                    }
+                                  } catch (err) {
+                                    console.error('[MainEditor] Drop error:', err);
+                                  }
+                                }}
+                                // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
+                                onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
                               />
                             )}
-                          </AnimatePresence>
+                            {/* Selection Overlay (Overlay rotated element perfectly) */}
+                            <svg
+                              id={`highlight-overlay-${displayIndex}`}
+                              className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            />
+
+                            {/* HTML Overlay for Resize Handles (Clickable) */}
+                            <div
+                              id={`highlight-overlay-html-${displayIndex}`}
+                              className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            />
+                            <AnimatePresence>
+                              {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                                <SelectionTooltip
+                                  selectedId={selectedLayerId}
+                                  multiSelectedIds={multiSelectedIds}
+                                  zoom={zoom}
+                                  setActiveTopTool={setActiveTopTool}
+                                  pageIndex={displayIndex}
+                                  activePageIndex={activePageIndex}
+                                  updateElementAttribute={updateElementAttribute}
+                                  activeTopTool={activeTopTool}
+                                />
+                              )}
+                            </AnimatePresence>
 
 
-                          {/* Marquee Selection Box */}
-                          <div
-                            ref={marqueeOverlayRef2}
-                            style={{
-                              position: 'absolute',
-                              border: '1px solid #6366F1',
-                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                              pointerEvents: 'none',
-                              zIndex: 1000,
-                              display: 'none'
-                            }}
-                          />
 
-                          {/* In-Place Crop Mode Banner & Floating Overlay */}
-                          {activeCropId && activePageIndex === displayIndex && (
-                            <div className="absolute inset-0 pointer-events-none z-[2500]">
-                              {/* Semi-transparent white backdrop */}
-                              <div className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] pointer-events-none" />
-                              {/* Floating action banner */}
-                              <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto bg-[#181825] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-4 border border-white/20 animate-in fade-in slide-in-from-top-4 duration-200">
-                                <div className="flex items-center gap-2.5 text-xs font-medium">
-                                  <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-indigo-400/30">
-                                    Crop Mode
-                                  </span>
-                                  <span className="text-gray-200 text-xs">Drag image to move • Scroll mouse wheel to zoom</span>
+                            {/* Marquee Selection Box */}
+                            <div
+                              ref={marqueeOverlayRef1}
+                              style={{
+                                position: 'absolute',
+                                border: '1px solid #6366F1',
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                pointerEvents: 'none',
+                                zIndex: 1000,
+                                display: 'none'
+                              }}
+                            />
+
+                            {isPageEmpty && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
+                                <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
+                                  Ready-made templates<br />are available for a quicker start
                                 </div>
                                 <button
-                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setActiveCropId(null);
-                                    activeCropIdRef.current = null;
+                                    onOpenTemplateModal(displayIndex);
                                   }}
-                                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3.5 py-1 rounded-full font-semibold transition-all active:scale-95 shadow-md flex items-center gap-1.5 cursor-pointer"
+                                  className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
                                 >
-                                  <span>Done</span>
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                  </svg>
+                                  Add Templates
                                 </button>
+                                <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
+                                  (or)
+                                </div>
+                                <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
+                                  Create your own Design
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
+                        );
+                      })()}
 
-                          {isPageEmpty && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
-                              <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
-                                Ready-made templates<br />are available for a
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenTemplateModal(displayIndex);
-                                }}
-                                className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
-                              >
-                                Add Templates
-                              </button>
-                              <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
-                                (or)
-                              </div>
-                              <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
-                                Create your own Design
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    </div>
+
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Subtle Center Divider for Double Page - Only show if it's a spread */}
+              {isCurrentlySpread && (
+                <div className="w-[1px] h-[78vh] bg-gray-100/50 relative z-10 shrink-0"></div>
+              )}
+
+              {/* A4 Canvas Page 2 (Visible if Double Page is enabled OR Right-Side Cover) */}
+              {(activePageIndex === 0 ? (isDoublePage && pages[0]) : isCurrentlySpread) && (
+
+                <div className="relative group/page">
+                  {/* Page Control Button (Floating Above Top - Right Side) Removed as per user request */}
+
+                  {/* A4 Canvas Page 2 Inner */}
+                  <div
+                    className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
+                    style={isPopupEditor ? {
+                      width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
+                      height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
+                      borderRadius: '1.2vw',
+                      backgroundColor: '#ffffff'
+                    } : {
+                      height: '78vh',
+                      aspectRatio: canvasAspectRatio,
+                      minHeight: '400px',
+                    }}
+                  >
+                    {/* Page Content */}
+                    <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+
+                      <style>{svgGlobalStyles}</style>
+                      {(() => {
+                        const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
+                        const page = pages[displayIndex];
+                        const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
+                        const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
+                        const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
+
+
+                        const pageHtml = page?.html;
+                        const isPageEmpty = !pageHtml || (page?.layers?.length === 1 && (!page.layers[0].children || page.layers[0].children.length === 0));
+
+                        return (
+                          <div
+                            className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
+                            style={{ cursor: ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
+                          >
+                            {pageHtml && (
+                              <div
+                                id={`canvas-content-${displayIndex}`}
+                                className="w-full h-full flex items-center justify-center"
+                                ref={(el) => {
+                                  if (el) {
+                                    const newHtml = getHtmlToRender(displayIndex, page.html);
+                                    if (window.__skipCanvasUpdateForPage === displayIndex) {
+                                      window.__skipCanvasUpdateForPage = -1;
+                                      el.__lastHtml = newHtml;
+                                    } else if (el.__lastHtml !== newHtml) {
+                                      const parser = new DOMParser();
+                                      const doc = parser.parseFromString(newHtml, 'text/html');
+                                      const newChildren = Array.from(doc.body.childNodes);
+
+                                      const oldChildren = Array.from(el.childNodes);
+                                      const maxLength = Math.max(oldChildren.length, newChildren.length);
+
+                                      for (let i = 0; i < maxLength; i++) {
+                                        if (!oldChildren[i]) {
+                                          el.appendChild(newChildren[i].cloneNode(true));
+                                        } else if (!newChildren[i]) {
+                                          el.removeChild(oldChildren[i]);
+                                        } else {
+                                          syncDOM(oldChildren[i], newChildren[i]);
+                                        }
+                                      }
+
+                                      el.__lastHtml = newHtml;
+                                    }
+                                  }
+                                }}
+                                onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                                onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
+                                onMouseLeave={handleSvgMouseLeave}
+                                onClick={handleSvgClick}
+                                // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
+                                onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
+                              />
+                            )}
+                            {/* Selection Overlay (Overlay rotated element perfectly) */}
+                            <svg
+                              id={`highlight-overlay-${displayIndex}`}
+                              className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            />
+
+                            {/* HTML Overlay for Resize Handles (Clickable) */}
+                            <div
+                              id={`highlight-overlay-html-${displayIndex}`}
+                              className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            />
+                            <AnimatePresence>
+                              {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                                <SelectionTooltip
+                                  selectedId={selectedLayerId}
+                                  multiSelectedIds={multiSelectedIds}
+                                  zoom={zoom}
+                                  setActiveTopTool={setActiveTopTool}
+                                  pageIndex={displayIndex}
+                                  activePageIndex={activePageIndex}
+                                  updateElementAttribute={updateElementAttribute}
+                                  activeTopTool={activeTopTool}
+                                />
+                              )}
+                            </AnimatePresence>
+
+
+                            {/* Marquee Selection Box */}
+                            <div
+                              ref={marqueeOverlayRef2}
+                              style={{
+                                position: 'absolute',
+                                border: '1px solid #6366F1',
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                pointerEvents: 'none',
+                                zIndex: 1000,
+                                display: 'none'
+                              }}
+                            />
+
+                            {/* In-Place Crop Mode Banner & Floating Overlay */}
+                            {activeCropId && activePageIndex === displayIndex && (
+                              <div className="absolute inset-0 pointer-events-none z-[2500]">
+                                {/* Semi-transparent white backdrop */}
+                                <div className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] pointer-events-none" />
+                                {/* Floating action banner */}
+                                <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto bg-[#181825] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-4 border border-white/20 animate-in fade-in slide-in-from-top-4 duration-200">
+                                  <div className="flex items-center gap-2.5 text-xs font-medium">
+                                    <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-indigo-400/30">
+                                      Crop Mode
+                                    </span>
+                                    <span className="text-gray-200 text-xs">Drag image to move • Scroll mouse wheel to zoom</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveCropId(null);
+                                      activeCropIdRef.current = null;
+                                    }}
+                                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3.5 py-1 rounded-full font-semibold transition-all active:scale-95 shadow-md flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    <span>Done</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {isPageEmpty && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
+                                <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
+                                  Ready-made templates<br />are available for a
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenTemplateModal(displayIndex);
+                                  }}
+                                  className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
+                                >
+                                  Add Templates
+                                </button>
+                                <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
+                                  (or)
+                                </div>
+                                <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
+                                  Create your own Design
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -13145,11 +13174,10 @@ const MainEditor = ({
                 <button
                   disabled={activePageIndex === 0}
                   onClick={handlePrevPage}
-                  className={`flex items-center justify-center transition-all duration-200 group ${
-                    activePageIndex === 0
+                  className={`flex items-center justify-center transition-all duration-200 group ${activePageIndex === 0
                       ? 'opacity-25 cursor-not-allowed'
                       : 'cursor-pointer hover:scale-110 active:scale-95'
-                  }`}
+                    }`}
                   title="Previous Page"
                 >
                   <Icon icon="ion:caret-up" width="1.4vw" height="1.4vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[-90deg]" />
@@ -13169,8 +13197,8 @@ const MainEditor = ({
                       ? activePageIndex === 0
                         ? pages.length <= 1
                         : isCurrentlySpread
-                        ? spreadStartIndex + 2 >= pages.length
-                        : spreadStartIndex + 1 >= pages.length
+                          ? spreadStartIndex + 2 >= pages.length
+                          : spreadStartIndex + 1 >= pages.length
                       : activePageIndex + 1 >= pages.length
                   }
                   onClick={handleNextPage}
@@ -13179,8 +13207,8 @@ const MainEditor = ({
                       ? activePageIndex === 0
                         ? pages.length <= 1
                         : isCurrentlySpread
-                        ? spreadStartIndex + 2 >= pages.length
-                        : spreadStartIndex + 1 >= pages.length
+                          ? spreadStartIndex + 2 >= pages.length
+                          : spreadStartIndex + 1 >= pages.length
                       : activePageIndex + 1 >= pages.length
                   ) ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
                   title="Next Page"
