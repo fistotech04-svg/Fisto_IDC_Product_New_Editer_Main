@@ -4405,21 +4405,22 @@ const MainEditor = ({
           if (selectionCount === 1 && (type === 'selected' || type === 'child-selected') && !isBeingEditedCheck) {
             const htmlOverlay = getHtmlOverlayForElement(el);
             const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
-            const hideHandles = (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isFreeFrame;
+            const isInteractiveResizable = isFreeFrame || el.getAttribute('data-is-hotspot') === 'true';
+            const hideHandles = (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isInteractiveResizable;
             if (hideHandles && htmlOverlay) {
               const existingHandles = htmlOverlay.querySelectorAll(`[id^="resize-handle-${el.id}-"]`);
               existingHandles.forEach(h => h.remove());
             }
 
             if (!hideHandles && htmlOverlay) {
-              const useLBrackets = !isLine && (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation' || isFreeFrame);
+              const useLBrackets = !isLine && (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation' || isInteractiveResizable);
               const handleSize = useLBrackets ? 14 : 7.5;
-              const handleNames = (useLBrackets && !isFreeFrame) ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+              const handleNames = (useLBrackets && !isInteractiveResizable) ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
               const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
               const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
               const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
               const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
-              const allPts = (useLBrackets && !isFreeFrame) ? [...mapped] : [...mapped, midN, midE, midS, midW];
+              const allPts = (useLBrackets && !isInteractiveResizable) ? [...mapped] : [...mapped, midN, midE, midS, midW];
               const matrix = getElementMatrix(el);
               const rotation = Math.round(Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
 
@@ -4435,13 +4436,13 @@ const MainEditor = ({
                 }
 
                 handle.className = `resize-handle overlay-type-${type} absolute`;
-                const barThickness = isFreeFrame ? 3.5 : 3;
+                const barThickness = isInteractiveResizable ? 3.5 : 3;
 
                 if (useLBrackets && !isSide) {
                   handle.style.backgroundColor = 'transparent';
                   handle.style.border = 'none';
                   handle.style.boxShadow = 'none';
-                  if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isFreeFrame) {
+                  if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isInteractiveResizable) {
                     handle.style.pointerEvents = 'none';
                   } else {
                     handle.style.pointerEvents = 'auto';
@@ -8158,6 +8159,7 @@ const MainEditor = ({
                   // No CTM conversion needed — just compute new position in <g> local space.
 
                   const la = state.localAnchor; // anchor in <g> local space
+                  const isHotspot = el.getAttribute('data-is-hotspot') === 'true';
 
                   state.childrenData.forEach(cData => {
                     const { child, initialMatrix, bound } = cData;
@@ -8177,11 +8179,34 @@ const MainEditor = ({
                     const tag = child.tagName?.toLowerCase();
                     const isChildText = tag === 'text' || child.getAttribute('data-type') === 'text';
 
+                    let myScaleX = scaleX;
+                    let myScaleY = scaleY;
+                    let myAnchorX = la.x;
+                    let myAnchorY = la.y;
+
+                    if (isHotspot && (dir === 'e' || dir === 'w')) {
+                      myAnchorX = bound.x + bound.width / 2; // Anchor at the center
+                      let newMyScaleX = 1 + 2 * (scaleX - 1);
+                      if (newMyScaleX < 1) newMyScaleX = 1;
+                      if (bound.width * newMyScaleX < 180) newMyScaleX = 180 / bound.width;
+                      myScaleX = newMyScaleX;
+                    }
+
+                    if (isHotspot && (dir === 'n' || dir === 's')) {
+                      myAnchorX = bound.x + bound.width / 2; // Anchor center X
+                      myAnchorY = bound.y + bound.height / 2; // Anchor center Y
+                      let newMyScale = 1 + 2 * (scaleY - 1);
+                      if (newMyScale < 1) newMyScale = 1;
+                      if (bound.height * newMyScale < 60) newMyScale = 60 / bound.height;
+                      myScaleX = newMyScale;
+                      myScaleY = newMyScale;
+                    }
+
                     // Scale bound in <g> local space from localAnchor
-                    const newMinX = la.x + (bound.x - la.x) * scaleX;
-                    const newMinY = la.y + (bound.y - la.y) * scaleY;
-                    const newMaxX = la.x + (bound.x + bound.width - la.x) * scaleX;
-                    const newMaxY = la.y + (bound.y + bound.height - la.y) * scaleY;
+                    const newMinX = myAnchorX + (bound.x - myAnchorX) * myScaleX;
+                    const newMinY = myAnchorY + (bound.y - myAnchorY) * myScaleY;
+                    const newMaxX = myAnchorX + (bound.x + bound.width - myAnchorX) * myScaleX;
+                    const newMaxY = myAnchorY + (bound.y + bound.height - myAnchorY) * myScaleY;
                     const newLocX = Math.min(newMinX, newMaxX);
                     const newLocY = Math.min(newMinY, newMaxY);
                     const newLocW = Math.abs(newMaxX - newMinX);
@@ -8451,6 +8476,59 @@ const MainEditor = ({
                       }
                     }
                   });
+
+                  if (isHotspot) {
+                    const rectData = state.childrenData.find(c => c.child.tagName.toLowerCase() === 'rect');
+                    const textData = state.childrenData.find(c => c.child.tagName.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
+                    
+                    if (rectData && textData) {
+                      const rectBound = rectData.bound; 
+                      
+                      let myAnchorX = la.x;
+                      let myAnchorY = la.y;
+                      let myScaleX = scaleX;
+                      let myScaleY = scaleY;
+
+                      if (dir === 'e' || dir === 'w') {
+                        myAnchorX = rectBound.x + rectBound.width / 2;
+                        let newMyScaleX = 1 + 2 * (scaleX - 1);
+                        if (newMyScaleX < 1) newMyScaleX = 1;
+                        if (rectBound.width * newMyScaleX < 180) newMyScaleX = 180 / rectBound.width;
+                        myScaleX = newMyScaleX;
+                      }
+
+                      if (dir === 'n' || dir === 's') {
+                        myAnchorX = rectBound.x + rectBound.width / 2;
+                        myAnchorY = rectBound.y + rectBound.height / 2;
+                        let newMyScale = 1 + 2 * (scaleY - 1);
+                        if (newMyScale < 1) newMyScale = 1;
+                        if (rectBound.height * newMyScale < 60) newMyScale = 60 / rectBound.height;
+                        myScaleX = newMyScale;
+                        myScaleY = newMyScale;
+                      }
+                      
+                      const newMinX = myAnchorX + (rectBound.x - myAnchorX) * myScaleX;
+                      const newMaxX = myAnchorX + (rectBound.x + rectBound.width - myAnchorX) * myScaleX;
+                      const newMinY = myAnchorY + (rectBound.y - myAnchorY) * myScaleY;
+                      const newMaxY = myAnchorY + (rectBound.y + rectBound.height - myAnchorY) * myScaleY;
+                      
+                      const newRectX = Math.min(newMinX, newMaxX);
+                      const newRectW = Math.abs(newMaxX - newMinX);
+                      const newRectY = Math.min(newMinY, newMaxY);
+                      const newRectH = Math.abs(newMaxY - newMinY);
+                      
+                      const textEl = textData.child;
+                      textEl.setAttribute('x', newRectX + newRectW / 2);
+                      textEl.setAttribute('y', newRectY + newRectH / 2);
+                      textEl.setAttribute('dominant-baseline', 'central');
+                      textEl.setAttribute('text-anchor', 'middle');
+                      textEl.removeAttribute('transform');
+                      textEl.querySelectorAll('tspan').forEach(ts => {
+                        ts.removeAttribute('x');
+                        ts.removeAttribute('y');
+                      });
+                    }
+                  }
                 }
               }
             } else {
@@ -12216,8 +12294,8 @@ const MainEditor = ({
           </div>
         )}
 
-  {/* Interaction Group: Sub Tools - HIDDEN for PDF projects */}
-        {!isPdfProject && activeTopTool === 'interaction' && (
+  {/* Interaction Group: Sub Tools */}
+        {activeTopTool === 'interaction' && (
           <div className="absolute right-0 top-[25vh] z-[100]">
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
 
@@ -12244,9 +12322,12 @@ const MainEditor = ({
               {/* Select Tool */}
               <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw]">
                 <button
-                  className="w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer bg-white shadow-sm hover:bg-gray-50"
+                  onClick={() => {
+                    if (setActiveMainTool) setActiveMainTool('select');
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${activeMainTool === 'select' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                 >
-                  <Icon icon="clarity:cursor-arrow-line" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                  <Icon icon="clarity:cursor-arrow-line" width="1.2vw" height="1.2vw" className={activeMainTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} />
                 </button>
                 <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
               </div>
@@ -12258,9 +12339,9 @@ const MainEditor = ({
                     if (setActiveMainTool) setActiveMainTool('shapes');
                     setSelectedShapeTool('free-frame');
                   }}
-                  className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${selectedShapeTool === 'free-frame' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                  className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${activeMainTool === 'shapes' && selectedShapeTool === 'free-frame' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                 >
-                  <Icon icon="iconoir:frame-alt" width="1.2vw" height="1.2vw" className={selectedShapeTool === 'free-frame' ? 'text-[#111827]' : 'text-[#4B5563]'} />
+                  <Icon icon="iconoir:frame-alt" width="1.2vw" height="1.2vw" className={activeMainTool === 'shapes' && selectedShapeTool === 'free-frame' ? 'text-[#111827]' : 'text-[#4B5563]'} />
                 </button>
                 <div className="w-[0.7vw]"></div>
               </div>
@@ -12835,6 +12916,9 @@ const MainEditor = ({
                                         isHotspot: data.isHotspot
                                       }
                                     }));
+                                    if (data.isHotspot) {
+                                      setShowHotspotPopup(false);
+                                    }
                                   } else if (data.type === 'image' || data.type === 'upload' || data.url) {
                                     window.dispatchEvent(new CustomEvent('add-image-to-editor', {
                                       detail: {

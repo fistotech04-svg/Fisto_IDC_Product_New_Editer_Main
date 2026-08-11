@@ -2793,7 +2793,11 @@ const TemplateEditor = () => {
             }
             if (attr === 'stroke-width') element.setAttribute('stroke', 'none');
           } else {
-            element.setAttribute(attr, val);
+            if (attr === 'innerHTML' || attr === 'hotspotHtml') {
+              element.innerHTML = val;
+            } else {
+              element.setAttribute(attr, val);
+            }
             if (attr === 'stroke-width' && val !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
               element.setAttribute('stroke', '#000000');
             }
