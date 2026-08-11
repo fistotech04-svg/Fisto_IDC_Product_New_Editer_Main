@@ -16,16 +16,17 @@ import {
   ImageCropOverlay
 } from './AppearanceShared';
 const VIDEO_THEMES = [
-  '/src/assets/Videos/vdo1.mp4', '/src/assets/Videos/vdo2.mp4', '/src/assets/Videos/vdo3.mp4',
-  '/src/assets/Videos/vdo4.mp4', '/src/assets/Videos/vdo5.mp4', '/src/assets/Videos/vdo6.mp4',
-  '/src/assets/Videos/vdo7.mp4', '/src/assets/Videos/vdo8.mp4', '/src/assets/Videos/vdo9.mp4',
-  '/src/assets/Videos/vdo10.mp4', '/src/assets/Videos/vdo11.mp4', '/src/assets/Videos/vdo12.mp4',
-  '/src/assets/Videos/vdo13.mp4', '/src/assets/Videos/vdo14.mp4', '/src/assets/Videos/vdo15.mp4',
-  '/src/assets/Videos/vdo16.mp4', '/src/assets/Videos/vdo17.mp4', '/src/assets/Videos/vdo18.mp4',
-  '/src/assets/Videos/vdo19.mp4', '/src/assets/Videos/vdo20.mp4', '/src/assets/Videos/vdo21.mp4'
+  '/src/assets/Videos/vdo1.webm', '/src/assets/Videos/vdo2.webm', '/src/assets/Videos/vdo3.webm',
+  '/src/assets/Videos/vdo4.webm', '/src/assets/Videos/vdo5.webm', '/src/assets/Videos/vdo6.webm',
+  '/src/assets/Videos/vdo7.webm', '/src/assets/Videos/vdo8.webm', '/src/assets/Videos/vdo9.webm',
+  '/src/assets/Videos/vdo10.webm', '/src/assets/Videos/vdo11.webm', '/src/assets/Videos/vdo12.webm',
+  '/src/assets/Videos/vdo13.webm', '/src/assets/Videos/vdo14.webm', '/src/assets/Videos/vdo15.webm',
+  '/src/assets/Videos/vdo16.webm', '/src/assets/Videos/vdo17.webm', '/src/assets/Videos/vdo18.webm',
+  '/src/assets/Videos/vdo19.webm', '/src/assets/Videos/vdo20.webm', '/src/assets/Videos/vdo21.webm'
 ];
 
-const BACKGROUND_IMAGE_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 25, 26];
+const bgImagesModules = import.meta.glob('/src/assets/bgimg/*.(webp|jpg|png|jpeg)', { eager: true });
+const BACKGROUND_IMAGE_URLS = Object.values(bgImagesModules).map(mod => mod.default);
 
 const themeStaticCache = {};
 
@@ -113,24 +114,55 @@ const VideoThemeItem = React.memo(({ vdo, i, isSelected, onSelect }) => (
     onClick={() => onSelect(vdo)}
     className={`aspect-[6/5] w-full rounded-lg bg-black border-2 relative overflow-hidden transition-all cursor-pointer ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
   >
-    <video src={vdo} className="w-full h-full object-cover" muted loop preload="metadata" onMouseEnter={(e) => e.target.play()} onMouseLeave={(e) => e.target.pause()} />
+    <video src={vdo} className="w-full h-full object-cover" muted loop preload="none" onMouseEnter={(e) => e.target.play()} onMouseLeave={(e) => e.target.pause()} />
     <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center'}`}>
       <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>Video {i + 1}</span>
     </div>
   </div>
 ));
 
-const ImageThemeItem = React.memo(({ img, i, isSelected, onSelect }) => (
-  <div
-    onClick={() => onSelect(img)}
-    className={`aspect-[6/5] w-full rounded-lg bg-gray-50 border-2 relative overflow-hidden transition-all cursor-pointer group ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
-  >
-    <img src={img} alt={`Background Theme ${i}`} className="w-full h-full object-cover" loading="eager" decoding="async" />
-    <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center opacity-0 group-hover:opacity-100'}`}>
-      <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>Theme {i}</span>
+const ImageThemeItem = React.memo(({ img, i, isSelected, onSelect }) => {
+  const [isVisible, setIsVisible] = React.useState(false);
+  const [isLoaded, setIsLoaded] = React.useState(false);
+  const divRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    
+    if (divRef.current) observer.observe(divRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={divRef}
+      onClick={() => onSelect(img)}
+      className={`aspect-[6/5] w-full rounded-lg bg-gray-100 border-2 relative overflow-hidden transition-all cursor-pointer group ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
+    >
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+           <Icon icon="lucide:loader-2" className="w-[1.5vw] h-[1.5vw] text-gray-400 animate-spin" />
+        </div>
+      )}
+      {isVisible && (
+        <img 
+          src={img} 
+          alt={`Theme ${i}`} 
+          className={`w-full h-full object-cover transition-opacity duration-700 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setIsLoaded(true)}
+        />
+      )}
+      <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center opacity-0 group-hover:opacity-100 z-20'}`}>
+        <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>Theme {i}</span>
+      </div>
     </div>
-  </div>
-));
+  );
+});
 
 const animationStaticCache = {};
 
@@ -298,36 +330,9 @@ const BackgroundSection = ({
     }
   }, [uploadedImages]);
 
-  // Preload background image and video themes for instant access
+  // Removed aggressive preloading to fix slow network loading times
   useEffect(() => {
-    const preloadAssets = () => {
-      // Preload images using link tags and memory objects
-      BACKGROUND_IMAGE_IDS.forEach((id) => {
-        const url = `/src/assets/bgimg/i${id}.jpg`;
-        // Hard cache in memory
-        const img = new Image();
-        img.src = url;
-
-        // Browser preload hint
-        const link = document.createElement('link');
-        link.rel = 'preload';
-        link.as = 'image';
-        link.href = url;
-        document.head.appendChild(link);
-      });
-
-      // Preload video metadata for fast hover playback
-      VIDEO_THEMES.forEach((vdo) => {
-        const link = document.createElement('link');
-        link.rel = 'preload';
-        link.as = 'video';
-        link.href = vdo;
-        document.head.appendChild(link);
-      });
-    };
-
-    const timer = setTimeout(preloadAssets, 500);
-    return () => clearTimeout(timer);
+    // Media will load naturally with lazy loading
   }, []);
 
   const handleModalFileUpload = (e) => {
@@ -615,14 +620,13 @@ const BackgroundSection = ({
 
   const backgroundThemesList = React.useMemo(() => {
     if (deferredTab !== 'Themes') return null;
-    return BACKGROUND_IMAGE_IDS.map((i) => {
-      const img = `/src/assets/bgimg/i${i}.jpg`;
+    return BACKGROUND_IMAGE_URLS.map((imgUrl, index) => {
       return (
         <ImageThemeItem
-          key={img}
-          img={img}
-          i={i}
-          isSelected={backgroundSettings.image === img}
+          key={imgUrl}
+          img={imgUrl}
+          i={index + 1}
+          isSelected={backgroundSettings.image === imgUrl}
           onSelect={handleImageThemeSelect}
         />
       );
