@@ -39,6 +39,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
   };
 
   const [activeDropdownId, setActiveDropdownId] = useState(null);
+  const [activeDeleteMenuId, setActiveDeleteMenuId] = useState(null);
   const [isAddFieldPopupOpen, setIsAddFieldPopupOpen] = useState(false);
 
   useEffect(() => {
@@ -74,11 +75,23 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeDropdownId]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!activeDeleteMenuId) return;
+      const activeContainer = document.getElementById(`delete-menu-${activeDeleteMenuId}`);
+      if (activeContainer && !activeContainer.contains(event.target)) {
+        setActiveDeleteMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeDeleteMenuId]);
+
   const handleAddField = (type = 'empty') => {
     const newField = { id: Date.now().toString(), type };
-    if (type === 'dropdown') {
-      newField.label = 'Interested Service';
-      newField.options = ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'];
+    if (type === 'dropdown' || type === 'radio') {
+      newField.label = type === 'radio' ? 'Select Option' : 'Interested Service';
+      newField.options = type === 'radio' ? ['Option 1', 'Option 2'] : ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'];
     } else if (type === 'feedback') {
       newField.label = 'feedback';
       newField.placeholder = 'Enter your Feedback';
@@ -252,7 +265,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
 
             <div className="space-y-[1vw]">
               {settings.fields?.map((field) => {
-                if (field.type === 'dropdown') {
+                if (field.type === 'dropdown' || field.type === 'radio') {
                   return (
                     <div
                       key={field.id}
@@ -260,37 +273,52 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                     >
                       {/* Card Header */}
                       <div className="flex items-center justify-between px-[0.75vw] py-[0.5vw] border-b border-gray-100">
-                        <span className="text-[0.75vw] text-gray-900 font-medium">Drop Down</span>
-                        <button
-                          onClick={() => handleRemoveField(field.id)}
-                          className="text-gray-600 hover:text-red-500 transition-colors"
-                          title="Delete Field"
-                        >
-                          <Icon icon="lucide:more-vertical" width="1vw" />
-                        </button>
+                        <span className="text-[0.75vw] text-gray-800 font-medium">
+                          {field.type === 'radio' ? 'Radio Button' : 'Drop Down'}
+                        </span>
+                        <div className="relative" id={`delete-menu-${field.id}`}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setActiveDeleteMenuId(activeDeleteMenuId === field.id ? null : field.id); }}
+                            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.2vw] rounded-full hover:bg-gray-100"
+                            title="More Options"
+                          >
+                            <Icon icon="lucide:more-vertical" width="1vw" />
+                          </button>
+                          {activeDeleteMenuId === field.id && (
+                            <div className="absolute right-0 top-[100%] mt-[0.2vw] bg-white border border-gray-200 shadow-md rounded-[0.4vw] p-[0.2vw] z-[50] min-w-[7vw]">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRemoveField(field.id); setActiveDeleteMenuId(null); }}
+                                className="flex items-center gap-[0.4vw] w-full px-[0.5vw] py-[0.4vw] text-red-500 hover:bg-red-50 rounded-[0.3vw] text-[0.7vw] font-medium transition-colors"
+                              >
+                                <Icon icon="lucide:trash-2" width="0.8vw" />
+                                Delete Field
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Card Body */}
                       <div className="p-[0.75vw] space-y-[0.75vw]">
                         {/* Label Row */}
                         <div className="flex items-center gap-[0.5vw]">
-                          <label className="text-[0.7vw] font-medium text-gray-900 w-[3.5vw]">Label :</label>
+                          <label className="text-[0.7vw] font-medium text-gray-700 w-[3.5vw]">Label :</label>
                           <input
                             type="text"
                             value={field.label || ''}
                             onChange={(e) => handleFieldChange(field.id, field.placeholder, e.target.value)}
                             className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
-                            placeholder="Interested Service"
+                            placeholder="Enter label"
                           />
                         </div>
 
                         {/* Options */}
                         <div className="flex items-start gap-[0.5vw]">
-                          <label className="text-[0.7vw] font-medium text-gray-900 w-[3.5vw] pt-[0.4vw]">Options :</label>
+                          <label className="text-[0.7vw] font-medium text-gray-700 w-[3.5vw] pt-[0.4vw]">Options :</label>
                           <div className="flex-1 space-y-[0.4vw]">
                             {(field.options || []).map((opt, idx) => (
                               <div key={idx} className="flex items-center gap-[0.5vw]">
-                                <div className="w-[1.2vw] h-[1.2vw] rounded-full bg-gray-500 text-white flex items-center justify-center text-[0.6vw] font-semibold shrink-0">
+                                <div className="w-[1.2vw] h-[1.2vw] rounded-full bg-gray-600 text-white flex items-center justify-center text-[0.6vw] font-semibold shrink-0">
                                   {idx + 1}
                                 </div>
                                 <input
@@ -298,18 +326,78 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                                   value={opt}
                                   onChange={(e) => handleOptionChange(field.id, idx, e.target.value)}
                                   className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
+                                  placeholder={`Option ${idx + 1}`}
                                 />
                               </div>
                             ))}
                             <div className="flex justify-end pt-[0.2vw]">
                               <button
                                 onClick={() => handleAddOption(field.id)}
-                                className="flex items-center gap-[0.2vw] px-[0.6vw] py-[0.3vw] bg-gray-50 border border-gray-100 rounded-[0.4vw] text-gray-600 text-[0.65vw] font-medium hover:bg-gray-100 transition-colors"
+                                className="flex items-center gap-[0.2vw] px-[0.6vw] py-[0.3vw] bg-gray-100 rounded-[0.4vw] text-gray-600 text-[0.65vw] font-medium hover:bg-gray-200 transition-colors"
                               >
                                 <Plus size="0.7vw" /> Add
                               </button>
                             </div>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                } else if (field.type === 'feedback' || field.type === 'enquiry') {
+                  return (
+                    <div
+                      key={field.id}
+                      className="bg-white border border-gray-200 rounded-[0.5vw] overflow-visible shadow-sm"
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between px-[0.75vw] py-[0.5vw] border-b border-gray-100">
+                        <span className="text-[0.75vw] text-gray-800 font-medium">Text Area</span>
+                        <div className="relative" id={`delete-menu-${field.id}`}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setActiveDeleteMenuId(activeDeleteMenuId === field.id ? null : field.id); }}
+                            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.2vw] rounded-full hover:bg-gray-100"
+                            title="More Options"
+                          >
+                            <Icon icon="lucide:more-vertical" width="1vw" />
+                          </button>
+                          {activeDeleteMenuId === field.id && (
+                            <div className="absolute right-0 top-[100%] mt-[0.2vw] bg-white border border-gray-200 shadow-md rounded-[0.4vw] p-[0.2vw] z-[50] min-w-[7vw]">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRemoveField(field.id); setActiveDeleteMenuId(null); }}
+                                className="flex items-center gap-[0.4vw] w-full px-[0.5vw] py-[0.4vw] text-red-500 hover:bg-red-50 rounded-[0.3vw] text-[0.7vw] font-medium transition-colors"
+                              >
+                                <Icon icon="lucide:trash-2" width="0.8vw" />
+                                Delete Field
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Body */}
+                      <div className="p-[0.75vw] space-y-[0.75vw]">
+                        {/* Label Row */}
+                        <div className="flex items-center gap-[0.5vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-700 w-[2.5vw]">Label :</label>
+                          <input
+                            type="text"
+                            value={field.label || ''}
+                            onChange={(e) => handleFieldChange(field.id, field.placeholder, e.target.value)}
+                            className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
+                            placeholder="Enter label"
+                          />
+                        </div>
+
+                        {/* Input Row */}
+                        <div className="flex items-center gap-[0.5vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-700 w-[2.5vw]">Input :</label>
+                          <input
+                            type="text"
+                            value={field.placeholder || ''}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value, field.label)}
+                            className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
+                            placeholder="Enter your Name"
+                          />
                         </div>
                       </div>
                     </div>
@@ -323,14 +411,27 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                 >
                   {/* Card Header */}
                   <div className="flex items-center justify-between px-[0.75vw] py-[0.5vw] border-b border-gray-100">
-                    <span className="text-[0.75vw] text-gray-800 font-medium">{field.type === 'feedback' || field.type === 'enquiry' ? 'Text Area' : 'Input Box'}</span>
-                    <button
-                      onClick={() => handleRemoveField(field.id)}
-                      className="text-gray-600 hover:text-red-500 transition-colors"
-                      title="Delete Field"
-                    >
-                      <Icon icon="lucide:more-vertical" width="1vw" />
-                    </button>
+                    <span className="text-[0.75vw] text-gray-800 font-medium">Input Box</span>
+                    <div className="relative" id={`delete-menu-${field.id}`}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setActiveDeleteMenuId(activeDeleteMenuId === field.id ? null : field.id); }}
+                        className="text-gray-600 hover:text-gray-900 transition-colors p-[0.2vw] rounded-full hover:bg-gray-100"
+                        title="More Options"
+                      >
+                        <Icon icon="lucide:more-vertical" width="1vw" />
+                      </button>
+                      {activeDeleteMenuId === field.id && (
+                        <div className="absolute right-0 top-[100%] mt-[0.2vw] bg-white border border-gray-200 shadow-md rounded-[0.4vw] p-[0.2vw] z-[50] min-w-[7vw]">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRemoveField(field.id); setActiveDeleteMenuId(null); }}
+                            className="flex items-center gap-[0.4vw] w-full px-[0.5vw] py-[0.4vw] text-red-500 hover:bg-red-50 rounded-[0.3vw] text-[0.7vw] font-medium transition-colors"
+                          >
+                            <Icon icon="lucide:trash-2" width="0.8vw" />
+                            Delete Field
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   {/* Card Body */}
@@ -441,12 +542,12 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             <div className="rounded-[0.75vw]">
               {[
                 { id: 'before', label: 'Before opening the flipbook' },
-                { id: 'after-pages', label: 'After few pages' },
+                { id: 'after-seconds', label: 'After X seconds' },
                 { id: 'end', label: 'At the end of the flipbook' }
               ].map((opt, idx, arr) => (
                 <div
                   key={opt.id}
-                  className={`transition-colors flex flex-col p-[0.75vw] ${settings.appearance.timing === opt.id ? 'bg-[#eeeffc]' : 'bg-transparent'
+                  className={`transition-colors flex flex-col p-[0.75vw] ${settings.appearance.timing === opt.id ? 'bg-transparent' : 'bg-transparent'
                     } ${idx === 0 ? 'rounded-t-[0.75vw]' : ''} ${idx === arr.length - 1 ? 'rounded-b-[0.75vw]' : ''}`}
                 >
                   <label className="text-[0.7vw] font-semibold text-gray-700 flex items-center gap-[0.75vw] cursor-pointer group">
@@ -456,29 +557,29 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                         name="timing"
                         checked={settings.appearance.timing === opt.id}
                         onChange={() => updateAppearance('timing', opt.id)}
-                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-600 transition-all bg-white"
+                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
                       />
-                      <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-600 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                      <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                     </div>
-                    <span className={`text-[0.75vw] font-medium ${settings.appearance.timing === opt.id ? 'text-indigo-900' : 'text-gray-600'}`}>{opt.label}</span>
+                    <span className={`text-[0.75vw] font-medium ${settings.appearance.timing === opt.id ? 'text-gray-900' : 'text-gray-600'}`}>{opt.label}</span>
                   </label>
 
-                  {opt.id === 'after-pages' && settings.appearance.timing === 'after-pages' && (
-                    <div className="ml-[1.85vw] mt-[1vw] flex items-center gap-[0.75vw]">
-                      <span className="text-[0.75vw] font-semibold text-gray-700">Select Page :</span>
-                      <PremiumDropdown
-                        options={Array.from({ length: pages.length || 10 }, (_, i) => ({
-                          value: i + 1,
-                          label: `Page ${i + 1}`,
-                          disabled: i === 0 || i === (pages.length || 10) - 1
-                        }))}
-                        value={settings.appearance.afterPages}
-                        placeholder={`${settings.appearance.afterPages || 1}`}
-                        onChange={(val) => updateAppearance('afterPages', parseInt(val))}
-                        width="6vw"
-                        buttonClassName="!border-gray-600 !rounded-[0.5vw]"
-                        align="right"
+                  {opt.id === 'after-seconds' && settings.appearance.timing === 'after-seconds' && (
+                    <div className="ml-[1.85vw] mt-[0.5vw] flex items-center gap-[0.5vw]">
+                      <Icon
+                        icon="material-symbols:play-arrow-rounded"
+                        className="text-gray-600 w-[1.2vw] h-[1.2vw] cursor-pointer hover:text-gray-900 rotate-180"
+                        onClick={() => updateAppearance('afterSeconds', Math.max(1, (settings.appearance.afterSeconds || 30) - 1))}
                       />
+                      <span className="text-[0.75vw] text-gray-700 font-medium w-[1vw] text-center">
+                        {settings.appearance.afterSeconds || 30}
+                      </span>
+                      <Icon
+                        icon="material-symbols:play-arrow-rounded"
+                        className="text-gray-600 w-[1.2vw] h-[1.2vw] cursor-pointer hover:text-gray-900"
+                        onClick={() => updateAppearance('afterSeconds', (settings.appearance.afterSeconds || 30) + 1)}
+                      />
+                      <span className="text-[0.75vw] font-medium text-gray-600 ml-[0.2vw]">Seconds</span>
                     </div>
                   )}
                 </div>
@@ -501,9 +602,9 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                     name="allowSkip"
                     checked={!settings.appearance.allowSkip}
                     onChange={() => updateAppearance('allowSkip', false)}
-                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
                   />
-                  <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                  <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                 </div>
                 <span className={`text-[0.75vw] font-medium ${!settings.appearance.allowSkip ? 'text-gray-900' : 'text-gray-500'}`}>Mandatory (Require Submission)</span>
               </label>
@@ -516,16 +617,16 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                       name="allowSkip"
                       checked={settings.appearance.allowSkip}
                       onChange={() => updateAppearance('allowSkip', true)}
-                      className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                      className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
                     />
-                    <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                    <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                   </div>
                   <span className={`text-[0.75vw] font-medium ${settings.appearance.allowSkip ? 'text-gray-900' : 'text-gray-500'}`}>Optional (Allow Skip)</span>
                 </label>
 
                 {settings.appearance.allowSkip && (
                   <div className="ml-[1.85vw] space-y-[0.8vw] pt-[0.25vw] border-t border-gray-200 mt-[0.5vw]">
-                    <span className="block text-[0.75vw] font-semibold text-gray-800 mt-[0.6vw] mb-[0.2vw]">If Skipped :</span>
+                    <span className="block text-[0.75vw] font-medium text-gray-900 mt-[0.6vw] mb-[0.2vw]">If Skipped :</span>
                     
                     {[
                       { id: 'never', label: 'Never show again' },
@@ -539,9 +640,9 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                             name="skipBehavior"
                             checked={(settings.appearance.skipBehavior || 'never') === opt.id}
                             onChange={() => updateAppearance('skipBehavior', opt.id)}
-                            className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-500 transition-all bg-transparent"
+                            className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
                           />
-                          <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-500 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                          <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                         </div>
                         <span className={`text-[0.7vw] font-medium ${(settings.appearance.skipBehavior || 'never') === opt.id ? 'text-gray-800' : 'text-gray-500'}`}>{opt.label}</span>
                       </label>
