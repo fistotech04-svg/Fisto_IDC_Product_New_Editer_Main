@@ -536,10 +536,10 @@ const GifEditor = ({
       if (isSvgEl) {
         let bBox = { x: 0, y: 0, width: 100, height: 100 };
         try { bBox = targetElForPath.getBBox(); } catch (e) { }
-        let bxStr = targetElForPath.getAttribute('x') || '0';
-        let byStr = targetElForPath.getAttribute('y') || '0';
-        let bwStr = targetElForPath.getAttribute('width') || '100%';
-        let bhStr = targetElForPath.getAttribute('height') || '100%';
+        let bxStr = liveElement.getAttribute('data-crop-orig-x') || targetElForPath.getAttribute('x') || '0';
+        let byStr = liveElement.getAttribute('data-crop-orig-y') || targetElForPath.getAttribute('y') || '0';
+        let bwStr = liveElement.getAttribute('data-crop-orig-w') || targetElForPath.getAttribute('width') || '100%';
+        let bhStr = liveElement.getAttribute('data-crop-orig-h') || targetElForPath.getAttribute('height') || '100%';
         let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
         let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
         let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
@@ -668,6 +668,11 @@ const GifEditor = ({
           } else {
             // Restore default fitting if not crop but has forceClip or radius
             if (svgImageEl) {
+              const origW = liveElement.getAttribute('data-crop-orig-w') || (svgImageEl ? svgImageEl.getAttribute('data-crop-orig-w') : null) || liveElement.getAttribute('width') || (svgImageEl ? svgImageEl.getAttribute('width') : null) || '100';
+              const origH = liveElement.getAttribute('data-crop-orig-h') || (svgImageEl ? svgImageEl.getAttribute('data-crop-orig-h') : null) || liveElement.getAttribute('height') || (svgImageEl ? svgImageEl.getAttribute('height') : null) || '100';
+              const wNum = parseFloat(origW) || 100;
+              const hNum = parseFloat(origH) || 100;
+              
               svgImageEl.setAttribute('width', wNum);
               svgImageEl.setAttribute('height', hNum);
               svgImageEl.style.removeProperty('transform');
@@ -928,75 +933,16 @@ const GifEditor = ({
             // Insert it as the first child so it acts as a background
             liveElement.insertBefore(fillLayer, liveElement.firstChild);
 
-            const syncFillOverlay = () => {
-              if (!fillLayer.isConnected) return;
-              let targetEl = svgImageEl || liveElement;
-              if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
-                targetEl = svgImageEl.parentNode;
-              }
-
-              let bBoxFill = { x: 0, y: 0, width: 100, height: 100 };
-              try { bBoxFill = targetEl.getBBox(); } catch (e) { }
-
-              let bxStrFill = targetEl.getAttribute('x') || '0';
-              let byStrFill = targetEl.getAttribute('y') || '0';
-              let bwStrFill = targetEl.getAttribute('width') || '100%';
-              let bhStrFill = targetEl.getAttribute('height') || '100%';
-
-              let bx = bxStrFill.includes('%') ? bBoxFill.x : parseFloat(bxStrFill) || 0;
-              let by = byStrFill.includes('%') ? bBoxFill.y : parseFloat(byStrFill) || 0;
-              let bw = bwStrFill.includes('%') ? bBoxFill.width : parseFloat(bwStrFill) || 100;
-              let bh = bhStrFill.includes('%') ? bBoxFill.height : parseFloat(bhStrFill) || 100;
-
-              const cropStrFill = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data') || targetEl.getAttribute('data-saved-crop-data') || liveElement.getAttribute('data-saved-crop-data');
-              if (cropStrFill && cropStrFill !== 'null') {
-                try {
-                  const crop = JSON.parse(cropStrFill);
-                  bx = bx + (parseFloat(crop.left) / 100) * bw;
-                  by = by + (parseFloat(crop.top) / 100) * bh;
-                  bw = bw * (parseFloat(crop.width) / 100);
-                  bh = bh * (parseFloat(crop.height) / 100);
-                } catch (e) { }
-              }
-
-              if (fillLayer) {
-                const tl = Math.max(0, Math.min(radius.tl || 0, Math.min(bw, bh) / 2));
-                const tr = Math.max(0, Math.min(radius.tr || 0, Math.min(bw, bh) / 2));
-                const br = Math.max(0, Math.min(radius.br || 0, Math.min(bw, bh) / 2));
-                const bl = Math.max(0, Math.min(radius.bl || 0, Math.min(bw, bh) / 2));
-                fillLayer.setAttribute('d', getPathD(bx, by, bw, bh, tl, tr, br, bl));
-                fillLayer.removeAttribute('x');
-                fillLayer.removeAttribute('y');
-                fillLayer.removeAttribute('width');
-                fillLayer.removeAttribute('height');
-                fillLayer.removeAttribute('rx');
-                fillLayer.removeAttribute('transform');
-                fillLayer.style.removeProperty('transform');
-                fillLayer.style.removeProperty('translate');
-                fillLayer.style.removeProperty('scale');
-                fillLayer.style.removeProperty('rotate');
-                fillLayer.style.transformOrigin = targetEl.style.transformOrigin;
-              }
-            };
-            const obsFill = new MutationObserver(syncFillOverlay);
-            obsFill.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data'] });
-            let targetForObs = svgImageEl || liveElement;
-            if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
-              targetForObs = svgImageEl.parentNode;
-            }
-            if (targetForObs && targetForObs !== liveElement) {
-              obsFill.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data'] });
-            }
           }
 
           let targetEl = svgImageEl || liveElement;
           if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
             targetEl = svgImageEl.parentNode;
           }
-          let bxStrFill = targetEl.getAttribute('x') || '0';
-          let byStrFill = targetEl.getAttribute('y') || '0';
-          let bwStrFill = targetEl.getAttribute('width') || '100%';
-          let bhStrFill = targetEl.getAttribute('height') || '100%';
+          let bxStrFill = liveElement.getAttribute('data-crop-orig-x') || targetEl.getAttribute('x') || '0';
+          let byStrFill = liveElement.getAttribute('data-crop-orig-y') || targetEl.getAttribute('y') || '0';
+          let bwStrFill = liveElement.getAttribute('data-crop-orig-w') || targetEl.getAttribute('width') || '100%';
+          let bhStrFill = liveElement.getAttribute('data-crop-orig-h') || targetEl.getAttribute('height') || '100%';
 
           let bBoxFill = { x: 0, y: 0, width: 100, height: 100 };
           try { bBoxFill = targetEl.getBBox(); } catch (e) { }
@@ -1006,8 +952,9 @@ const GifEditor = ({
           let bwFill = bwStrFill.includes('%') ? bBoxFill.width : parseFloat(bwStrFill) || 100;
           let bhFill = bhStrFill.includes('%') ? bBoxFill.height : parseFloat(bhStrFill) || 100;
 
+          const effImgTypeFill = liveElement.getAttribute('data-object-fit') || imageType;
           const cropStrFill = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data');
-          if (cropStrFill && cropStrFill !== 'null') {
+          if (effImgTypeFill === 'Crop' && cropStrFill && cropStrFill !== 'null') {
             try {
               const crop = JSON.parse(cropStrFill);
               bxFill = bxFill + (parseFloat(crop.left) / 100) * bwFill;
@@ -1077,6 +1024,10 @@ const GifEditor = ({
           fillLayer.removeAttribute('rx'); // We use 'd' instead of 'rx' now
 
           liveElement.setAttribute('data-fill-color', backgroundColor.fill);
+          if (liveElement.style) {
+            liveElement.style.removeProperty('background-color');
+            liveElement.style.removeProperty('background');
+          }
         } else {
           if (fillLayer) fillLayer.remove();
           liveElement.removeAttribute('data-fill-color');
@@ -1086,7 +1037,12 @@ const GifEditor = ({
 
         // To support stroke on <image> elements (which ignore stroke attributes natively), we create a <rect> overlay
         if (backgroundColor.stroke !== 'transparent' && backgroundColor.stroke !== 'none') {
-          liveElement.setAttribute('stroke', backgroundColor.stroke);
+          if (liveElement.getAttribute('data-is-gif-group') === 'true') {
+            liveElement.removeAttribute('stroke');
+            if (liveElement.style) liveElement.style.removeProperty('stroke');
+          } else {
+            liveElement.setAttribute('stroke', backgroundColor.stroke);
+          }
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
 
           if (backgroundColor.strokeDashStyle === 'Dashed' || backgroundColor.strokeType === 'Dashed') {
@@ -1123,18 +1079,19 @@ const GifEditor = ({
                 }
                 let bBox = { x: 0, y: 0, width: 100, height: 100 };
                 try { bBox = targetEl.getBBox(); } catch (e) { }
-                let bxStr = targetEl.getAttribute('x') || '0';
-                let byStr = targetEl.getAttribute('y') || '0';
-                let bwStr = targetEl.getAttribute('width') || '100%';
-                let bhStr = targetEl.getAttribute('height') || '100%';
+                let bxStr = liveElement.getAttribute('data-crop-orig-x') || targetEl.getAttribute('x') || '0';
+                let byStr = liveElement.getAttribute('data-crop-orig-y') || targetEl.getAttribute('y') || '0';
+                let bwStr = liveElement.getAttribute('data-crop-orig-w') || targetEl.getAttribute('width') || '100%';
+                let bhStr = liveElement.getAttribute('data-crop-orig-h') || targetEl.getAttribute('height') || '100%';
 
                 let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
                 let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
                 let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
                 let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
+                const effImgTypeStroke = liveElement.getAttribute('data-object-fit') || imageType;
                 const cropStrStroke = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data') || targetEl.getAttribute('data-saved-crop-data') || liveElement.getAttribute('data-saved-crop-data');
-                if (cropStrStroke && cropStrStroke !== 'null') {
+                if (effImgTypeStroke === 'Crop' && cropStrStroke && cropStrStroke !== 'null') {
                   try {
                     const crop = JSON.parse(cropStrStroke);
                     bx = bx + (parseFloat(crop.left) / 100) * bw;
@@ -1181,13 +1138,13 @@ const GifEditor = ({
                 }
               };
               const obs = new MutationObserver(syncOverlay);
-              obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data'] });
+              obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data', 'data-crop-orig-w', 'data-crop-orig-h', 'data-crop-orig-x', 'data-crop-orig-y'] });
               let targetForObs = svgImageEl || liveElement;
               if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
                 targetForObs = svgImageEl.parentNode;
               }
               if (targetForObs && targetForObs !== liveElement) {
-                obs.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data'] });
+                obs.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data', 'data-crop-orig-w', 'data-crop-orig-h', 'data-crop-orig-x', 'data-crop-orig-y'] });
               }
             }
 
@@ -1199,18 +1156,19 @@ const GifEditor = ({
             let bBox = { x: 0, y: 0, width: 100, height: 100 };
             try { bBox = targetEl.getBBox(); } catch (e) { }
 
-            let bxStr = targetEl.getAttribute('x') || '0';
-            let byStr = targetEl.getAttribute('y') || '0';
-            let bwStr = targetEl.getAttribute('width') || '100%';
-            let bhStr = targetEl.getAttribute('height') || '100%';
+            let bxStr = liveElement.getAttribute('data-crop-orig-x') || targetEl.getAttribute('x') || '0';
+            let byStr = liveElement.getAttribute('data-crop-orig-y') || targetEl.getAttribute('y') || '0';
+            let bwStr = liveElement.getAttribute('data-crop-orig-w') || targetEl.getAttribute('width') || '100%';
+            let bhStr = liveElement.getAttribute('data-crop-orig-h') || targetEl.getAttribute('height') || '100%';
 
             let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
             let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
             let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
             let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
-            const cropStrStroke = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-            if (cropStrStroke && cropStrStroke !== 'null') {
+            const effImgTypeStrokeInit = liveElement.getAttribute('data-object-fit') || imageType;
+            const cropStrStroke = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data') || targetEl.getAttribute('data-saved-crop-data') || liveElement.getAttribute('data-saved-crop-data');
+            if (effImgTypeStrokeInit === 'Crop' && cropStrStroke && cropStrStroke !== 'null') {
               try {
                 const crop = JSON.parse(cropStrStroke);
                 bx = bx + (parseFloat(crop.left) / 100) * bw;

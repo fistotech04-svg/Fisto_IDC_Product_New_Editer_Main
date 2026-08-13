@@ -8,6 +8,7 @@ import Home from './pages/Home';
 import MyFlipbooks from './pages/MyFlipbooks';
 import Settings from './pages/Settings';
 import About from './pages/About';
+import Explore from './pages/Explore';
 import ContactUs from './pages/ContactUs';
 import Unauthorized from './pages/Unauthorized';
 import NotFound from './pages/NotFound';
@@ -67,6 +68,7 @@ function App() {
             }>
               <Route path="/home" element={<Home />} />
               <Route path="/my-flipbooks" element={<MyFlipbooks />} />
+              <Route path="/explore" element={<Explore />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<ContactUs />} />
