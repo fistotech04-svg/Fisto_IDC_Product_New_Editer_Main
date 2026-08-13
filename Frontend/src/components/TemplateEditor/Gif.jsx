@@ -492,6 +492,32 @@ const GifEditor = ({
           else svgImageEl.setAttribute('preserveAspectRatio', `${parAlign} ${meetOrSlice}`);
           svgImageEl.style.setProperty('object-fit', fitCss, 'important');
           svgImageEl.setAttribute('data-object-fit', imageType);
+
+          // Fix for GIFs inside SVG Patterns (e.g., dropped on shapes)
+          let patternEl = null;
+          if (liveElement.hasAttribute('fill')) {
+            const fillUrl = liveElement.getAttribute('fill');
+            const match = fillUrl?.match(/url\s*\(\s*['"]?#([^'"()]+)['"]?\s*\)/i);
+            if (match) {
+              const patternId = match[1].trim();
+              const rootSvg = liveElement.closest('svg') || document;
+              try {
+                patternEl = rootSvg.querySelector(`pattern[id="${patternId}"]`);
+              } catch (e) {
+                patternEl = null;
+              }
+              if (!patternEl) {
+                patternEl = document.getElementById(patternId);
+              }
+            }
+          }
+          if (patternEl) {
+            svgImageEl.setAttribute('width', '100%');
+            svgImageEl.setAttribute('height', '100%');
+            patternEl.removeAttribute('viewBox');
+            patternEl.setAttribute('width', '100%');
+            patternEl.setAttribute('height', '100%');
+          }
         }
         liveElement.style.setProperty('object-fit', fitCss, 'important');
         liveElement.setAttribute('data-object-fit', imageType);
@@ -536,7 +562,7 @@ const GifEditor = ({
 
         if (hasClip) {
           if (imageType === 'Crop') {
-            const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data') || '{"left":0,"top":0,"width":100,"height":100,"offX":0,"offY":0,"scale":1}';
+            let cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data') || '{"left":0,"top":0,"width":100,"height":100,"offX":0,"offY":0,"scale":1}';
             try {
               const crop = JSON.parse(cropStr);
               const origW = liveElement.getAttribute('data-crop-orig-w') || (svgImageEl ? svgImageEl.getAttribute('data-crop-orig-w') : null) || liveElement.getAttribute('width') || (svgImageEl ? svgImageEl.getAttribute('width') : null) || '100';
@@ -642,12 +668,16 @@ const GifEditor = ({
           } else {
             // Restore default fitting if not crop but has forceClip or radius
             if (svgImageEl) {
+              svgImageEl.setAttribute('width', wNum);
+              svgImageEl.setAttribute('height', hNum);
               svgImageEl.style.removeProperty('transform');
               svgImageEl.style.removeProperty('transform-origin');
               svgImageEl.removeAttribute('transform');
             }
             liveElement.removeAttribute('data-crop-orig-w');
             liveElement.removeAttribute('data-crop-orig-h');
+            liveElement.removeAttribute('data-crop-data');
+            liveElement.removeAttribute('data-saved-crop-data');
             liveElement.removeAttribute('data-crop-orig-x');
             liveElement.removeAttribute('data-crop-orig-y');
 
@@ -907,10 +937,27 @@ const GifEditor = ({
 
               let bBoxFill = { x: 0, y: 0, width: 100, height: 100 };
               try { bBoxFill = targetEl.getBBox(); } catch (e) { }
-              let bx = parseFloat(targetEl.getAttribute('x')) || bBoxFill.x || 0;
-              let by = parseFloat(targetEl.getAttribute('y')) || bBoxFill.y || 0;
-              let bw = parseFloat(targetEl.getAttribute('width')) || bBoxFill.width || 100;
-              let bh = parseFloat(targetEl.getAttribute('height')) || bBoxFill.height || 100;
+
+              let bxStrFill = targetEl.getAttribute('x') || '0';
+              let byStrFill = targetEl.getAttribute('y') || '0';
+              let bwStrFill = targetEl.getAttribute('width') || '100%';
+              let bhStrFill = targetEl.getAttribute('height') || '100%';
+
+              let bx = bxStrFill.includes('%') ? bBoxFill.x : parseFloat(bxStrFill) || 0;
+              let by = byStrFill.includes('%') ? bBoxFill.y : parseFloat(byStrFill) || 0;
+              let bw = bwStrFill.includes('%') ? bBoxFill.width : parseFloat(bwStrFill) || 100;
+              let bh = bhStrFill.includes('%') ? bBoxFill.height : parseFloat(bhStrFill) || 100;
+
+              const cropStrFill = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data') || targetEl.getAttribute('data-saved-crop-data') || liveElement.getAttribute('data-saved-crop-data');
+              if (cropStrFill && cropStrFill !== 'null') {
+                try {
+                  const crop = JSON.parse(cropStrFill);
+                  bx = bx + (parseFloat(crop.left) / 100) * bw;
+                  by = by + (parseFloat(crop.top) / 100) * bh;
+                  bw = bw * (parseFloat(crop.width) / 100);
+                  bh = bh * (parseFloat(crop.height) / 100);
+                } catch (e) { }
+              }
 
               if (fillLayer) {
                 const tl = Math.max(0, Math.min(radius.tl || 0, Math.min(bw, bh) / 2));
@@ -932,13 +979,13 @@ const GifEditor = ({
               }
             };
             const obsFill = new MutationObserver(syncFillOverlay);
-            obsFill.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            obsFill.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data'] });
             let targetForObs = svgImageEl || liveElement;
             if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
               targetForObs = svgImageEl.parentNode;
             }
             if (targetForObs && targetForObs !== liveElement) {
-              obsFill.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+              obsFill.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data'] });
             }
           }
 
@@ -959,7 +1006,7 @@ const GifEditor = ({
           let bwFill = bwStrFill.includes('%') ? bBoxFill.width : parseFloat(bwStrFill) || 100;
           let bhFill = bhStrFill.includes('%') ? bBoxFill.height : parseFloat(bhStrFill) || 100;
 
-          const cropStrFill = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+          const cropStrFill = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data');
           if (cropStrFill && cropStrFill !== 'null') {
             try {
               const crop = JSON.parse(cropStrFill);
@@ -1053,9 +1100,10 @@ const GifEditor = ({
           liveElement.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
           liveElement.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
 
-          // Dynamic Stroke Overlay for SVG images
-          if (svgImageEl && svgImageEl.tagName?.toLowerCase() === 'image') {
-            let strokeOverlay = liveElement.querySelector('.svg-gif-stroke-overlay');
+          // Dynamic Stroke Overlay for SVG images and GIFs
+          const isTargetRenderable = svgImageEl && (svgImageEl.tagName?.toLowerCase() === 'image' || svgImageEl.tagName?.toLowerCase() === 'foreignobject' || svgImageEl.tagName?.toLowerCase() === 'g' || svgImageEl.tagName?.toLowerCase() === 'svg');
+          if (isTargetRenderable) {
+            let strokeOverlay = liveElement.querySelector('.svg-gif-stroke-overlay') || liveElement.querySelector('.svg-image-stroke-overlay');
             if (!strokeOverlay || strokeOverlay.tagName.toLowerCase() !== 'path') {
               if (strokeOverlay) strokeOverlay.remove();
               strokeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -1065,10 +1113,10 @@ const GifEditor = ({
 
               // Attach a mutation observer to keep the overlay perfectly synced with the image's layout
               const targetForStroke = svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper') ? svgImageEl.parentNode : svgImageEl;
-              const weight = backgroundColor.strokeWeight;
-              const pos = backgroundColor.strokePosition || 'Center';
               const syncOverlay = () => {
                 if (!strokeOverlay.isConnected) return;
+                const weight = parseFloat(strokeOverlay.getAttribute('stroke-width')) || 0;
+                const pos = strokeOverlay.getAttribute('data-img-stroke-position') || 'Center';
                 let targetEl = svgImageEl || liveElement;
                 if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
                   targetEl = svgImageEl.parentNode;
@@ -1085,7 +1133,7 @@ const GifEditor = ({
                 let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
                 let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
-                const cropStrStroke = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+                const cropStrStroke = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data') || targetEl.getAttribute('data-saved-crop-data') || liveElement.getAttribute('data-saved-crop-data');
                 if (cropStrStroke && cropStrStroke !== 'null') {
                   try {
                     const crop = JSON.parse(cropStrStroke);
@@ -1133,13 +1181,13 @@ const GifEditor = ({
                 }
               };
               const obs = new MutationObserver(syncOverlay);
-              obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+              obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data'] });
               let targetForObs = svgImageEl || liveElement;
               if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
                 targetForObs = svgImageEl.parentNode;
               }
               if (targetForObs && targetForObs !== liveElement) {
-                obs.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+                obs.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-crop-data'] });
               }
             }
 
@@ -1267,9 +1315,16 @@ const GifEditor = ({
               strokeOverlay.removeAttribute('stroke-dasharray');
             }
 
-            strokeOverlay.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
+            strokeOverlay.setAttribute('data-img-stroke-position', backgroundColor.strokePosition || 'Center');
+            strokeOverlay.removeAttribute('data-stroke-position');
             strokeOverlay.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
             strokeOverlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
+
+            // Forcefully cleanup any orphaned MainEditor overlays that might have been applied previously
+            if (liveElement.parentElement) {
+              const orphans = liveElement.parentElement.querySelectorAll(`.svg-shape-stroke-overlay[data-target="${liveElement.id}"], .svg-shape-stroke-overlay[data-target=""]`);
+              orphans.forEach(o => o.remove());
+            }
 
             // Add clipPath to clip the image to prevent sharp corners from bleeding
             const isImageElement = liveElement.tagName?.toLowerCase() === 'image';
@@ -1646,19 +1701,21 @@ const GifEditor = ({
 
         liveElement.appendChild(innerGroup);
 
-        if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); innerGroup.appendChild(fillLayer); }
+        if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); liveElement.insertBefore(fillLayer, innerGroup); }
 
         if (svgImageEl) {
           const imageNode = svgImageEl.closest('svg.svg-crop-wrapper') ||
             svgImageEl.closest('rect') ||
             svgImageEl;
           if (imageNode && (imageNode.parentNode === liveElement || imageNode.parentNode === innerGroup)) {
-            innerGroup.appendChild(imageNode);
+            if (imageNode !== innerGroup && !imageNode.contains(innerGroup)) {
+              innerGroup.appendChild(imageNode);
+            }
           }
         }
 
-        if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); innerGroup.appendChild(innerShadow); }
-        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); innerGroup.appendChild(stroke); }
+        if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); liveElement.appendChild(innerShadow); }
+        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); liveElement.appendChild(stroke); }
       }
 
       if (onUpdateRef.current) {

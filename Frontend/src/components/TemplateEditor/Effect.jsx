@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronUp, Trash2, Plus, X, Pipette, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Icon } from '@iconify/react';
 import { handleScrubHelper } from './Color';
 import ColorPicker from './ColorPicker';
 
@@ -208,7 +209,23 @@ const Effect = ({
           <div className="flex items-center gap-[0.5vw]">
             <span className={`font-semibold text-[0.85vw] ${openSubSection === 'effect' ? 'text-gray-900' : 'text-gray-500'}`}>Effect</span>
           </div>
-          <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'effect' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          <div className="flex items-center gap-[0.5vw]">
+            {openSubSection === 'effect' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateAttr('data-effect-drop-shadow', 'false');
+                  updateAttr('data-effect-inner-shadow', 'false');
+                  updateAttr('data-effect-blur', 'false');
+                }}
+                className="text-gray-600 hover:text-gray-900 transition-colors p-[0.1vw] cursor-pointer flex items-center justify-center"
+                title="Reset Effects"
+              >
+                <Icon icon="ix:reset" width="1.1vw" height="1.1vw" style={{ strokeWidth: 2.5 }} />
+              </button>
+            )}
+            <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'effect' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          </div>
         </div>
 
         <div className={`grid transition-all duration-150 ease-in-out ${openSubSection === 'effect' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
@@ -261,7 +278,7 @@ const Effect = ({
 
       {activeEffectPopupId && createPortal(
         <div
-          className="effect-popup-container fixed z-[4000] w-[18vw] bg-white rounded-[1vw] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.2)] border border-gray-100 p-[1.2vw] animate-in fade-in zoom-in-95 duration-200"
+          className="effect-popup-container fixed z-[4000] w-[19vw] bg-white rounded-[1vw] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.2)] border border-gray-100 p-[1.2vw] animate-in fade-in zoom-in-95 duration-200"
           style={{
             top: effectPopupPos.top,
             right: effectPopupPos.right
@@ -364,57 +381,121 @@ const Effect = ({
                   </div>
                 </div>
 
-                <div className="space-y-[0.8vw] pt-[0.2vw]">
+                <div className="space-y-[0.5vw] pt-[0.5vw]">
+                  <div className="grid grid-cols-2 gap-x-[0.3vw] gap-y-[1vw]">
+                    {[
+                      { id: 'top', label: 'Top', baseId: 'y', factor: -1, default: 0 },
+                      { id: 'right', label: 'Right', baseId: 'x', factor: 1, default: 2 },
+                      { id: 'left', label: 'Left', baseId: 'x', factor: -1, default: 0 },
+                      { id: 'bottom', label: 'Bottom', baseId: 'y', factor: 1, default: 2 }
+                    ].map((row) => {
+                      let currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.baseId}`] ?? row.default;
+                      let displayVal = currentVal;
+
+                      if (row.id === 'top' || row.id === 'left') {
+                        displayVal = Math.max(0, -currentVal);
+                      } else if (row.id === 'bottom' || row.id === 'right') {
+                        displayVal = Math.max(0, currentVal);
+                      }
+
+                      const updateVal = (val) => {
+                        let numVal = parseInt(val);
+                        if (isNaN(numVal)) numVal = 0;
+                        numVal = Math.max(0, numVal);
+                        updateAttr(`data-effect-${activeEffectPopupId}-${row.baseId}`, (numVal * row.factor).toString());
+                      };
+
+                      return (
+                        <div key={row.id} className="flex items-center">
+                          <span
+                            className={`text-[0.8vw] font-medium text-gray-800 ${row.id === 'top' || row.id === 'left' ? 'w-[1.8vw]' : 'w-[2.8vw]'} flex-shrink-0 cursor-ew-resize select-none hover:text-indigo-600 transition-colors`}
+                            onPointerDown={(e) => {
+                              handleScrub(e, displayVal, updateVal);
+                            }}
+                          >{row.label}</span>
+                          <div className="flex items-center justify-center gap-[0.3vw]">
+                            <ChevronLeft
+                              size="1vw"
+                              className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors flex-shrink-0"
+                              onClick={() => updateVal(displayVal - 1)}
+                            />
+                            <div
+                              className="w-[3.5vw] h-[2vw] min-w-[3vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
+                              onPointerDown={(e) => {
+                                if (e.target.tagName === 'INPUT') return;
+                                handleScrubHelper(e, displayVal, updateVal);
+                              }}
+                            >
+                              <input
+                                type="number"
+                                value={displayVal}
+                                onChange={(e) => updateVal(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full text-center text-[0.8vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
+                              />
+                            </div>
+                            <ChevronRight
+                              size="1vw"
+                              className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors flex-shrink-0"
+                              onClick={() => updateVal(displayVal + 1)}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   {[
-                    { id: 'x', label: 'X Axis :', default: 2 },
-                    { id: 'y', label: 'Y Axis :', default: 2 },
-                    { id: 'blur', label: 'Blur % :', default: 1 }
-                  ].map((row) => (
-                    <div key={row.id} className="flex items-center">
-                      <span
-                        className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
-                        onPointerDown={(e) => {
-                          const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
-                          handleScrub(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
-                        }}
-                      >{row.label}</span>
-                      <div className="flex items-center justify-center gap-[0.8vw] flex-grow">
-                        <ChevronLeft
-                          size="1vw"
-                          className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
-                          onClick={() => {
-                            const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
-                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
-                          }}
-                        />
-                        <div
-                          className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
+                    { id: 'blur', label: 'Blur % :', baseId: 'blur', factor: 1, default: 1 }
+                  ].map((row) => {
+                    let currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.baseId}`] ?? row.default;
+                    let displayVal = currentVal;
+
+                    const updateVal = (val) => {
+                      let numVal = parseInt(val);
+                      if (isNaN(numVal)) numVal = 0;
+                      updateAttr(`data-effect-${activeEffectPopupId}-${row.baseId}`, (numVal * row.factor).toString());
+                    };
+
+                    return (
+                      <div key={row.id} className="flex items-center pt-[0.4vw]">
+                        <span
+                          className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
                           onPointerDown={(e) => {
-                            if (e.target.tagName === 'INPUT') return;
-                            const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
-                            handleScrubHelper(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
+                            handleScrub(e, displayVal, updateVal);
                           }}
-                        >
-                          <input
-                            type="number"
-                            value={pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default}
-                            onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
+                        >{row.label}</span>
+                        <div className="flex items-center justify-center gap-[0.8vw] flex-grow">
+                          <ChevronLeft
+                            size="1vw"
+                            className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                            onClick={() => updateVal(displayVal - 1)}
+                          />
+                          <div
+                            className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
+                            onPointerDown={(e) => {
+                              if (e.target.tagName === 'INPUT') return;
+                              handleScrubHelper(e, displayVal, updateVal);
+                            }}
+                          >
+                            <input
+                              type="number"
+                              value={displayVal}
+                              onChange={(e) => updateVal(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
+                            />
+                          </div>
+                          <ChevronRight
+                            size="1vw"
+                            className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                            onClick={() => updateVal(displayVal + 1)}
                           />
                         </div>
-                        <ChevronRight
-                          size="1vw"
-                          className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
-                          onClick={() => {
-                            const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
-                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val + 1).toString());
-                          }}
-                        />
+                        <div className="w-[0.5vw]"></div>
                       </div>
-                      <div className="w-[0.5vw]"></div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}

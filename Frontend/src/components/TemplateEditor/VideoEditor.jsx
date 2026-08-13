@@ -509,6 +509,11 @@ const VideoEditor = ({
       if (isUpdatingDOM.current) return;
       const relevantMutation = mutations.some(m => m.type === 'attributes');
       if (relevantMutation) syncStateFromDOM();
+      
+      const needsVisuals = mutations.some(m => m.attributeName === 'data-crop-data' || m.attributeName === 'data-object-fit' || m.attributeName === 'data-width' || m.attributeName === 'data-height');
+      if (needsVisuals) {
+        setUpdateTrigger(prev => prev + 1);
+      }
     });
     observer.observe(selectedElement, { attributes: true, subtree: true });
     isHydrating.current = true;
@@ -1551,94 +1556,35 @@ const VideoEditor = ({
         }
       }
 
-      // --- Video Crop and Clipping ---
-      const cropStr = liveElement.getAttribute('data-crop-data');
-      if (cropStr && cropStr !== 'null') {
-        try {
-          const crop = JSON.parse(cropStr);
-          const wNum = parseFloat(visualTarget.getAttribute('width')) || 100;
-          const hNum = parseFloat(visualTarget.getAttribute('height')) || 100;
-          const xNum = parseFloat(visualTarget.getAttribute('x')) || 0;
-          const yNum = parseFloat(visualTarget.getAttribute('y')) || 0;
-
-          // Ensure orig dims are stored on the group so CropController can find bounds
-          if (!liveElement.hasAttribute('data-crop-orig-w')) {
-            liveElement.setAttribute('data-crop-orig-w', wNum.toString());
-            liveElement.setAttribute('data-crop-orig-h', hNum.toString());
-            liveElement.setAttribute('data-crop-orig-x', xNum.toString());
-            liveElement.setAttribute('data-crop-orig-y', yNum.toString());
-          }
-
-          const panX = (wNum * (crop.offX || 0)) / 100;
-          const panY = (hNum * (crop.offY || 0)) / 100;
-          const finalScale = parseFloat(crop.scale) || 1;
-
-          target.style.transform = `translate(${panX}px, ${panY}px) scale(${finalScale})`;
-          target.style.transformOrigin = 'center';
-          const underlyingFit = liveElement.getAttribute('data-crop-underlying-fit') || videoType || 'Fit';
-          const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
-          target.style.objectFit = fitCssMap[underlyingFit] || 'contain';
-          target.setAttribute('transform', `translate(${xNum + wNum/2 + panX} ${yNum + hNum/2 + panY}) scale(${finalScale}) translate(${-xNum - wNum/2} ${-yNum - hNum/2})`);
-
-          // Calculate clip bounds
-          const cLeft = parseFloat(crop.left) || 0;
-          const cTop = parseFloat(crop.top) || 0;
-          const cWidth = parseFloat(crop.width) || 100;
-          const cHeight = parseFloat(crop.height) || 100;
-
-          const clipX = xNum + (wNum * cLeft) / 100;
-          const clipY = yNum + (hNum * cTop) / 100;
-          const clipW = (wNum * cWidth) / 100;
-          const clipH = (hNum * cHeight) / 100;
-
-          const svgRoot = liveElement.ownerSVGElement || target.ownerSVGElement;
-          if (svgRoot) {
-            let defs = svgRoot.querySelector('defs');
-            if (!defs) {
-              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-              svgRoot.insertBefore(defs, svgRoot.firstChild);
-            }
-            const groupClipId = `crop-group-clip-${liveElement.id || Math.random().toString(36).substr(2, 9)}`;
-            let groupClipPath = defs.querySelector(`[id="${groupClipId}"]`);
-            if (!groupClipPath) {
-              groupClipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-              groupClipPath.id = groupClipId;
-              groupClipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
-              defs.appendChild(groupClipPath);
-            }
-            let groupClipRect = groupClipPath.firstChild;
-            if (!groupClipRect || groupClipRect.tagName.toLowerCase() !== 'path') {
-              if (groupClipRect) groupClipRect.remove();
-              groupClipRect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-              groupClipPath.appendChild(groupClipRect);
-            }
-
-            const groupD = getPathD(clipX, clipY, Math.max(0, clipW), Math.max(0, clipH), radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-            groupClipRect.setAttribute('d', groupD);
-            liveElement.setAttribute('clip-path', `url(#${groupClipId})`);
-            liveElement.style.removeProperty('clip-path');
-          }
-          
-          target.setAttribute('data-object-fit', 'Crop');
-        } catch (e) {
-          console.warn("Failed to parse crop data on video element:", e);
-        }
-      } else {
-        // Fallback/No crop
-        target.style.removeProperty('transform');
-        target.style.removeProperty('transform-origin');
-        target.removeAttribute('transform');
-        liveElement.removeAttribute('clip-path');
-        liveElement.removeAttribute('data-crop-orig-w');
-        liveElement.removeAttribute('data-crop-orig-h');
-        liveElement.removeAttribute('data-crop-orig-x');
-        liveElement.removeAttribute('data-crop-orig-y');
-        
-        // Restore default fitting
-        const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
-        target.style.objectFit = fitCssMap[videoType] || 'contain';
-        target.setAttribute('data-object-fit', videoType);
+      // --- Video Formatting ---
+      const innerGroup = liveElement.querySelector('.video-inner-content');
+      if (innerGroup) {
+         innerGroup.style.removeProperty('width');
+         innerGroup.style.removeProperty('height');
+         innerGroup.style.removeProperty('left');
+         innerGroup.style.removeProperty('top');
+         innerGroup.style.removeProperty('position');
+         innerGroup.style.removeProperty('overflow');
       }
+      
+      target.style.removeProperty('width');
+      target.style.removeProperty('height');
+      target.style.removeProperty('max-width');
+      target.style.removeProperty('max-height');
+      
+      target.style.removeProperty('transform');
+      target.style.removeProperty('transform-origin');
+      target.removeAttribute('transform');
+      liveElement.removeAttribute('clip-path');
+      liveElement.removeAttribute('data-crop-orig-w');
+      liveElement.removeAttribute('data-crop-orig-h');
+      liveElement.removeAttribute('data-crop-orig-x');
+      liveElement.removeAttribute('data-crop-orig-y');
+      
+      // Restore default fitting
+      const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
+      target.style.objectFit = fitCssMap[videoType] || 'contain';
+      target.setAttribute('data-object-fit', videoType);
 
       // Trigger parent update
       window.__skipCanvasUpdateForPage = activePageIndex;
@@ -2235,7 +2181,7 @@ const VideoEditor = ({
               <>
                 <div className="fixed inset-0 z-[90]" onClick={() => setShowVideoTypeDropdown(false)} />
                 <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl overflow-hidden z-[100] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150">
-                  {['Fit', 'Fill', 'Stretch', 'Crop'].map((type) => (
+                  {['Fit', 'Fill', 'Stretch'].map((type) => (
                     <button
                       key={type}
                       onClick={(e) => {
@@ -2244,63 +2190,6 @@ const VideoEditor = ({
                         setShowVideoTypeDropdown(false);
 
                         isHydrating.current = false;
-
-                        if (type === 'Crop') {
-                          const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                          const liveEl = (selectedLayerId && pageContainer)
-                            ? pageContainer.querySelector(`[id="${selectedLayerId}"]`)
-                            : selectedElement;
-                          if (liveEl) {
-                            const previousFit = (liveEl.getAttribute('data-object-fit') && liveEl.getAttribute('data-object-fit') !== 'Crop')
-                              ? liveEl.getAttribute('data-object-fit')
-                              : (videoType !== 'Crop' ? videoType : (liveEl.getAttribute('data-crop-underlying-fit') || 'Fit'));
-
-                            liveEl.setAttribute('data-object-fit', 'Crop');
-                            liveEl.setAttribute('data-crop-underlying-fit', previousFit);
-
-                            const videoEl = liveEl.querySelector('video, iframe');
-                            if (videoEl) {
-                              const foEl = liveEl.querySelector('foreignObject');
-                              const origW = liveEl.getAttribute('data-crop-orig-w') || foEl?.getAttribute('width') || '100';
-                              const origH = liveEl.getAttribute('data-crop-orig-h') || foEl?.getAttribute('height') || '100';
-                              const origX = liveEl.getAttribute('data-crop-orig-x') || foEl?.getAttribute('x') || '0';
-                              const origY = liveEl.getAttribute('data-crop-orig-y') || foEl?.getAttribute('y') || '0';
-                              liveEl.setAttribute('data-crop-orig-w', origW);
-                              liveEl.setAttribute('data-crop-orig-h', origH);
-                              liveEl.setAttribute('data-crop-orig-x', origX);
-                              liveEl.setAttribute('data-crop-orig-y', origY);
-
-                              if (!liveEl.hasAttribute('data-crop-data') || liveEl.getAttribute('data-crop-data') === 'null') {
-                                liveEl.setAttribute('data-crop-data', JSON.stringify({ left: 0, top: 0, width: 100, height: 100, offX: 0, offY: 0, scale: 1 }));
-                              }
-                            }
-                          }
-                          setVideoType('Crop');
-                          applyVisuals();
-                          return;
-                        }
-
-                        if (videoType === 'Crop') {
-                          const pageContainerTmp = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                          const liveElTmp = (selectedLayerId && pageContainerTmp)
-                            ? pageContainerTmp.querySelector(`[id="${selectedLayerId}"]`)
-                            : selectedElement;
-                          if (liveElTmp) {
-                            liveElTmp.style.removeProperty('clip-path');
-                            liveElTmp.style.removeProperty('-webkit-clip-path');
-                            liveElTmp.removeAttribute('clip-path');
-                            liveElTmp.removeAttribute('data-crop-data');
-                            liveElTmp.removeAttribute('data-crop-orig-w');
-                            liveElTmp.removeAttribute('data-crop-orig-h');
-                            liveElTmp.removeAttribute('data-crop-orig-x');
-                            liveElTmp.removeAttribute('data-crop-orig-y');
-                            const svgRoot = liveElTmp.ownerSVGElement;
-                            if (svgRoot) {
-                              const clip = svgRoot.querySelector(`[id^="crop-group-clip-${liveElTmp.id}"]`);
-                              if (clip) clip.remove();
-                            }
-                          }
-                        }
 
                         const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
                         const cssVal = fitCssMap[type] || 'contain';
