@@ -8253,9 +8253,9 @@ const MainEditor = ({
                       const dx = newLocX - bound.x;
                       const dy = newLocY - bound.y;
                       child.setAttribute('transform', matrixToTransform(new DOMMatrix().translate(dx, dy).multiply(initialMatrix)));
-                    } else if (tag === 'rect' || tag === 'foreignobject' || tag === 'image' || tag === 'video' || tag === 'svg') {
+                    } else if (tag === 'rect' || tag === 'foreignobject' || tag === 'image' || tag === 'video' || tag === 'svg' || child.classList?.contains('gif-inner-content')) {
                       const hasTransform = child.getAttribute('transform');
-                      const forceNative = (tag === 'image' || tag === 'video' || tag === 'svg');
+                      const forceNative = (tag === 'image' || tag === 'video' || tag === 'svg' || child.classList?.contains('gif-inner-content'));
 
                       if (forceNative || !hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
                         if (forceNative && hasTransform && hasTransform !== 'matrix(1 0 0 1 0 0)') {
@@ -8271,7 +8271,7 @@ const MainEditor = ({
                         const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
                         let cOffX = 0, cOffY = 0, cScale = 1;
-                        if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
+                        if (isCropModeThisEl && (tag === 'image' || tag === 'video' || child.classList?.contains('gif-inner-content'))) {
                           let origX = parseFloat(el.getAttribute('data-crop-orig-x') || child.getAttribute('data-crop-orig-x') || child.getAttribute('x') || '0');
                           let origY = parseFloat(el.getAttribute('data-crop-orig-y') || child.getAttribute('data-crop-orig-y') || child.getAttribute('y') || '0');
                           let origW = parseFloat(el.getAttribute('data-crop-orig-w') || child.getAttribute('data-crop-orig-w') || child.getAttribute('width') || '100');
@@ -8284,7 +8284,7 @@ const MainEditor = ({
                             el.setAttribute('data-crop-orig-h', origH);
                           }
 
-                          const cropDataStr = el.getAttribute('data-crop-data');
+                          const cropDataStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
                           let cLeft = 0, cTop = 0, cWidth = 100, cHeight = 100;
                           if (cropDataStr && cropDataStr !== 'null') {
                             try {
@@ -8339,6 +8339,16 @@ const MainEditor = ({
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
+                        
+                        if (child.classList?.contains('gif-inner-content')) {
+                          const innerImg = child.querySelector('image, foreignObject');
+                          if (innerImg) {
+                            innerImg.setAttribute('x', imgX);
+                            innerImg.setAttribute('y', imgY);
+                            innerImg.setAttribute('width', imgW);
+                            innerImg.setAttribute('height', imgH);
+                          }
+                        }
 
                         if (tag === 'foreignobject') {
                           const iframe = child.querySelector('iframe');
@@ -8354,7 +8364,7 @@ const MainEditor = ({
                           }
                         }
 
-                        if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
+                        if (isCropModeThisEl && (tag === 'image' || tag === 'video' || child.classList?.contains('gif-inner-content'))) {
                           const centerX = imgX + (imgW / 2);
                           const centerY = imgY + (imgH / 2);
                           const panX = (imgW * cOffX) / 100;
@@ -8362,7 +8372,7 @@ const MainEditor = ({
                           child.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${cScale}) translate(${-centerX} ${-centerY})`);
                         }
 
-                        if (tag === 'image' || tag === 'video') {
+                        if (tag === 'image' || tag === 'video' || child.classList?.contains('gif-inner-content')) {
                           const svg = child.ownerSVGElement;
                           const clip = svg?.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
                           const refShape = clip ? clip.firstChild : null;
@@ -8371,6 +8381,14 @@ const MainEditor = ({
                             refShape.setAttribute('y', newLocY);
                             refShape.setAttribute('width', newLocW);
                             refShape.setAttribute('height', newLocH);
+                          }
+                          const gifClip = svg?.querySelector(`clipPath[id="clip-content-${el.id}"]`);
+                          const gifRef = gifClip ? gifClip.firstChild : null;
+                          if (gifRef) {
+                            gifRef.setAttribute('x', newLocX);
+                            gifRef.setAttribute('y', newLocY);
+                            gifRef.setAttribute('width', newLocW);
+                            gifRef.setAttribute('height', newLocH);
                           }
                           const mask = svg?.querySelector(`mask[id="mask-shape-${el.id}"]`);
                           const maskShape = mask ? mask.lastChild : null;
@@ -8493,6 +8511,16 @@ const MainEditor = ({
                           innerImg.setAttribute('y', imgY);
                           innerImg.setAttribute('width', imgW);
                           innerImg.setAttribute('height', imgH);
+
+                          const svg = child.ownerSVGElement;
+                          const gifClip = svg?.querySelector(`clipPath[id="clip-content-${el.id}"]`);
+                          const gifRef = gifClip ? gifClip.firstChild : null;
+                          if (gifRef) {
+                            gifRef.setAttribute('x', newLocX);
+                            gifRef.setAttribute('y', newLocY);
+                            gifRef.setAttribute('width', newLocW);
+                            gifRef.setAttribute('height', newLocH);
+                          }
 
                           if (isCropModeThisEl) {
                             const centerX = imgX + (imgW / 2);
@@ -11669,17 +11697,14 @@ const MainEditor = ({
       return;
     }
 
-    // Double-click on an image or video ONLY opens in-place Crop Overlay mode if element is ALREADY in Crop mode (or it is a video/video group)
     const isCropModeMedia = target && (
-      (target.getAttribute('data-object-fit') === 'Crop' && !target.closest?.('[data-is-gif-group="true"]')) ||
-      (target.closest?.('[data-object-fit="Crop"]') && !target.closest?.('[data-is-gif-group="true"]')) ||
-      target.tagName?.toLowerCase() === 'video' ||
-      target.closest?.('video') ||
-      target.closest?.('[data-is-video-group="true"]')
+      (target.getAttribute('data-object-fit') === 'Crop') ||
+      (target.closest?.('[data-object-fit="Crop"]')) ||
+      target.closest?.('[data-is-gif-group="true"]')
     );
 
     if (isCropModeMedia) {
-      const cropLayer = target.closest?.('[data-object-fit="Crop"]') || target.closest?.('[data-is-video-group="true"]') || target;
+      const cropLayer = target.closest?.('[data-object-fit="Crop"]') || target;
       if (cropLayer && cropLayer.id) {
         if (setSelectedLayerId) {
           setSelectedLayerId(cropLayer.id);
