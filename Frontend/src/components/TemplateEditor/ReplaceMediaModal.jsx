@@ -56,14 +56,50 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
       alert(`Some files were ignored because they are not valid ${mediaType}s.`);
     }
     if (validFiles.length > 0) {
-      const newAssets = validFiles.map(newFile => ({
-        id: URL.createObjectURL(newFile),
-        name: newFile.name.replace(/\.[^/.]+$/, ''),
-        url: URL.createObjectURL(newFile),
-        isLocal: true,
-        file: newFile
-      }));
-      setGalleryAssets(prev => [...newAssets, ...prev]);
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+      const uploadPromises = validFiles.map(async (newFile) => {
+        const tempUrl = URL.createObjectURL(newFile);
+        const tempAsset = {
+          id: tempUrl,
+          name: newFile.name.replace(/\.[^/.]+$/, ''),
+          url: tempUrl,
+          isLocal: true,
+          file: newFile
+        };
+
+        if (user) {
+          try {
+            const formData = new FormData();
+            formData.append('emailId', user.emailId);
+            formData.append('isGallery', 'true');
+            formData.append('type', mediaType);
+            formData.append('file', newFile);
+            formData.append('page_v_id', 'global');
+
+            const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+            if (res.data.url) {
+              const serverUrl = resolveUploadsPath(res.data.url);
+              return {
+                ...tempAsset,
+                id: res.data.file_v_id || tempUrl,
+                url: serverUrl,
+                rawUrl: res.data.url,
+                file_v_id: res.data.file_v_id,
+                isLocal: false
+              };
+            }
+          } catch (err) {
+            console.error('Failed to upload asset to global gallery:', err);
+          }
+        }
+        return tempAsset;
+      });
+
+      const uploadedNewAssets = await Promise.all(uploadPromises);
+      setGalleryAssets(prev => [...uploadedNewAssets, ...prev]);
     }
   };
 
@@ -87,7 +123,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
 
   useEffect(() => {
     const galleryTabName = mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery';
-    if (show && replaceModalTab === galleryTabName && galleryAssets.length === 0) {
+    if (show && (replaceModalTab === galleryTabName || replaceModalTab === 'Upload' || galleryAssets.length === 0)) {
       const fetchAssets = async () => {
         const storedUser = localStorage.getItem('user');
         if (!storedUser) return;
@@ -101,7 +137,8 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
             setGalleryAssets(res.data.assets.map(asset => ({
               id: asset.name,
               name: asset.name.replace(/\.[^/.]+$/, ''),
-              url: resolveUploadsPath(asset.url)
+              url: resolveUploadsPath(asset.url),
+              rawUrl: asset.url
             })));
           }
         } catch (err) {
@@ -110,9 +147,44 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
       };
       fetchAssets();
     }
-  }, [show, replaceModalTab, galleryAssets.length]);
+  }, [show, replaceModalTab, mediaType]);
 
   if (!show) return null;
+
+  const executeConfirmReplace = async (itemToConfirm) => {
+    const targetFile = itemToConfirm || replaceModalFile;
+    if (!targetFile) return;
+
+    if (targetFile.isGalleryItem || targetFile.isUrl) {
+      try {
+        if (mediaType === 'video' && targetFile.isUrl) {
+          const mockFile = new File([""], targetFile.name + '.mp4', { type: 'video/mp4' });
+          mockFile.url = targetFile.url;
+          mockFile.isUrl = true;
+          mockFile.isYouTube = targetFile.isYouTube;
+          onReplace(mockFile);
+        } else {
+          const response = await fetch(targetFile.url);
+          const blob = await response.blob();
+          const ext = mediaType === 'video' ? '.mp4' : mediaType === 'gif' ? (blob.type === 'image/webp' || targetFile.url?.toLowerCase().includes('.webp') ? '.webp' : '.gif') : '.png';
+          const mimeType = blob.type || (mediaType === 'video' ? 'video/mp4' : mediaType === 'gif' ? (ext === '.webp' ? 'image/webp' : 'image/gif') : 'image/png');
+          const file = new File([blob], targetFile.name + ext, { type: mimeType });
+          onReplace(file);
+        }
+      } catch (e) {
+        console.error("Failed to fetch media", e);
+        if (targetFile.isUrl) {
+          alert(`Could not load ${mediaType} from this URL. Make sure it's a direct link and allows cross-origin access.`);
+        }
+      }
+    } else {
+      onReplace(targetFile);
+    }
+    onClose();
+    setReplaceModalFile(null);
+    setImportUrl('');
+    setImportUrlError('');
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[2vw]" onClick={onClose}>
@@ -247,14 +319,47 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     return;
                   }
                   const newUrl = URL.createObjectURL(newFile);
-                  const updatedAsset = {
+                  const existingAsset = galleryAssets.find(g => g.id === itemToReplaceId);
+                  let updatedAsset = {
                     id: newUrl,
                     name: newFile.name.replace(/\.[^/.]+$/, ''),
                     url: newUrl,
                     isLocal: true,
                     file: newFile
                   };
-                  
+
+                  const storedUser = localStorage.getItem('user');
+                  if (storedUser) {
+                    const user = JSON.parse(storedUser);
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                    const formData = new FormData();
+                    formData.append('emailId', user.emailId);
+                    formData.append('isGallery', 'true');
+                    formData.append('type', mediaType);
+                    formData.append('file', newFile);
+                    formData.append('page_v_id', 'global');
+                    if (existingAsset?.rawUrl || existingAsset?.url) {
+                      formData.append('replacing_file_url', existingAsset.rawUrl || existingAsset.url);
+                    }
+
+                    try {
+                      const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+                      if (res.data.url) {
+                        const serverUrl = resolveUploadsPath(res.data.url);
+                        updatedAsset = {
+                          ...updatedAsset,
+                          id: res.data.file_v_id || newUrl,
+                          url: serverUrl,
+                          rawUrl: res.data.url,
+                          file_v_id: res.data.file_v_id,
+                          isLocal: false
+                        };
+                      }
+                    } catch (err) {
+                      console.error('Failed to replace gallery asset:', err);
+                    }
+                  }
+
                   setGalleryAssets(prev => prev.map(g => g.id === itemToReplaceId ? updatedAsset : g));
 
                   if (replaceModalFile?.id === itemToReplaceId) {
@@ -272,6 +377,12 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     <div 
                       className={`group cursor-pointer w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${replaceModalFile?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}
                       onClick={(e) => { e.stopPropagation(); replaceModalFile?.id === item.id ? setReplaceModalFile(null) : setReplaceModalFile({ ...item, isGalleryItem: true }); setActiveGalleryDropdown(null); }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        const selectedItem = { ...item, isGalleryItem: true };
+                        setReplaceModalFile(selectedItem);
+                        setTimeout(() => executeConfirmReplace(selectedItem), 50);
+                      }}
                     >
                       {mediaType === 'video' ? (
                         <video src={item.url} className="w-full h-full object-cover" />
@@ -308,8 +419,23 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                         </button>
                         <button 
                           className="text-[0.7vw] font-medium text-red-600 hover:bg-red-50 text-left px-[0.5vw] py-[0.3vw]"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
+                            const storedUser = localStorage.getItem('user');
+                            if (storedUser) {
+                              const user = JSON.parse(storedUser);
+                              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                              try {
+                                await axios.post(`${backendUrl}/api/flipbook/delete-gallery-asset`, {
+                                  emailId: user.emailId,
+                                  url: item.rawUrl || item.url,
+                                  fileName: item.id || item.name,
+                                  file_v_id: item.file_v_id
+                                });
+                              } catch (err) {
+                                console.error('Failed to delete gallery asset:', err);
+                              }
+                            }
                             setGalleryAssets(prev => prev.filter(g => g.id !== item.id));
                             if (replaceModalFile?.id === item.id) {
                               setReplaceModalFile(null);
@@ -449,39 +575,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
           </button>
           <button 
             disabled={!replaceModalFile}
-            onClick={async () => {
-              if (replaceModalFile) {
-                if (replaceModalFile.isGalleryItem || replaceModalFile.isUrl) {
-                  try {
-                    if (mediaType === 'video' && replaceModalFile.isUrl) {
-                      const mockFile = new File([""], replaceModalFile.name + '.mp4', { type: 'video/mp4' });
-                      mockFile.url = replaceModalFile.url;
-                      mockFile.isUrl = true;
-                      mockFile.isYouTube = replaceModalFile.isYouTube;
-                      onReplace(mockFile);
-                    } else {
-                      const response = await fetch(replaceModalFile.url);
-                      const blob = await response.blob();
-                      const ext = mediaType === 'video' ? '.mp4' : mediaType === 'gif' ? (blob.type === 'image/webp' || replaceModalFile.url?.toLowerCase().includes('.webp') ? '.webp' : '.gif') : '.png';
-                      const mimeType = blob.type || (mediaType === 'video' ? 'video/mp4' : mediaType === 'gif' ? (ext === '.webp' ? 'image/webp' : 'image/gif') : 'image/png');
-                      const file = new File([blob], replaceModalFile.name + ext, { type: mimeType });
-                      onReplace(file);
-                    }
-                  } catch (e) {
-                    console.error("Failed to fetch media", e);
-                    if (replaceModalFile.isUrl) {
-                      alert(`Could not load ${mediaType} from this URL. Make sure it's a direct link and allows cross-origin access.`);
-                    }
-                  }
-                } else {
-                  onReplace(replaceModalFile);
-                }
-                onClose();
-                setReplaceModalFile(null);
-                setImportUrl('');
-                setImportUrlError('');
-              }
-            }}
+            onClick={() => executeConfirmReplace()}
             className={`flex-1 py-[0.5vw] rounded-[0.3vw] text-white text-[0.8vw] font-medium transition-colors ${replaceModalFile ? 'bg-black hover:bg-gray-800' : 'bg-[#B1B1B1] cursor-not-allowed'}`}
           >
             Replace {mediaType === 'video' ? 'Video' : mediaType === 'gif' ? 'Gif' : 'Image'}

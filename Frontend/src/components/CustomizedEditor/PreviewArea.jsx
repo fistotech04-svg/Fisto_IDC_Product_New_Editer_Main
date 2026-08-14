@@ -2636,7 +2636,7 @@ const PreviewArea = React.memo(({
             return { width: parseFloat(w), height: parseFloat(h) };
         }
 
-        const templateId = (currentBook?.templateId || settings?.templateId || state?.templateId || '').toLowerCase();
+        const templateId = (currentBook?.templateId || settings?.templateId || settings?.format || state?.templateId || '').toLowerCase();
         const orientation = (currentBook?.orientation || settings?.orientation || state?.orientation || '').toLowerCase();
         if (templateId) {
             let baseW = 210, baseH = 297;
@@ -2656,6 +2656,9 @@ const PreviewArea = React.memo(({
 
         if (orientation === 'square') {
             return { width: 210, height: 210 };
+        }
+        if (orientation === 'landscape') {
+            return { width: 297, height: 210 };
         }
 
         return { width: 210, height: 297 }; // Fallback A4
@@ -4521,7 +4524,7 @@ const PreviewArea = React.memo(({
 
                             <style>{`
                                 #preview-area-root .flipbook-magazine-wrapper {
-                                    transition: transform ${flipTime}ms ease-in-out !important;
+                                    transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1) !important;
                                 }
                             `}</style>
 
@@ -4592,7 +4595,7 @@ const PreviewArea = React.memo(({
 
                             <style>{`
                                 #preview-area-root .flipbook-magazine-wrapper {
-                                    transition: transform ${flipTime}ms ease-in-out !important;
+                                    transition: transform 0.8 s cubic-bezier(0.22, 1, 0.36, 1) !important;
                                 }
                             `}</style>
 

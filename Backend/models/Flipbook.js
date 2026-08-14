@@ -37,22 +37,18 @@ const flipbookSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    category: { type: String, default: 'Product Based' },
-    language: { type: String, default: 'English' },
-    tags: [{ type: String }],
-    quotes: { type: String, default: '' },
-    about: { type: String, default: '' },
-    meta: {
-        type: Object,
-        default: {}
-    },
-    width: { type: Number },
-    height: { type: Number },
-    templateId: { type: String },
-    orientation: { type: String },
     Customized_Settings: {
-        type: Object,
-        default: {},
+        FlipbookInfo: {
+            category: { type: String, default: '' },
+            language: { type: String, default: '' },
+            tags: [{ type: String }],
+            quotes: { type: String, default: '' },
+            about: { type: String, default: '' },
+            width: { type: Number },
+            height: { type: Number },
+            templateId: { type: String },
+            orientation: { type: String }
+        },
         Visibility: {
             shareId: {
                 type: String,
@@ -87,7 +83,7 @@ const flipbookSchema = new mongoose.Schema({
             }
         }
     }
-});
+}, { strict: true });
 
 // Ensure a user cannot have two books with the same name in the same folder
 flipbookSchema.index({ userEmail: 1, folderName: 1, flipbookName: 1 }, { unique: true });

@@ -241,7 +241,7 @@ const TemplateEditor = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
-  const [selectedLayerId, setSelectedLayerId] = useState(null);
+  const [selectedLayerId, setSelectedLayerIdRaw] = useState(null);
   const [multiSelectedIds, setMultiSelectedIds] = useState(new Set());
   const [clipboard, setClipboard] = useState(null);
   const [currentFrameId, setCurrentFrameId] = useState(null);
@@ -249,6 +249,22 @@ const TemplateEditor = () => {
   const [activeTopTool, setActiveTopTool] = useState('editor');
   const [popupEditContext, setPopupEditContext] = useState(null);
   const [showPopupTemplateChange, setShowPopupTemplateChange] = useState(false);
+
+  // ── Guard: Never allow selectedLayerId to become null — always fall back to active page root folder ──
+  const pagesRef = useRef(pages);
+  const activePageIndexRef = useRef(activePageIndex);
+  useEffect(() => { pagesRef.current = pages; }, [pages]);
+  useEffect(() => { activePageIndexRef.current = activePageIndex; }, [activePageIndex]);
+  const setSelectedLayerId = useCallback((idOrFn) => {
+    setSelectedLayerIdRaw(prev => {
+      const next = typeof idOrFn === 'function' ? idOrFn(prev) : idOrFn;
+      if (next === null || next === undefined) {
+        const rootId = pagesRef.current[activePageIndexRef.current]?.layers?.[0]?.id;
+        return rootId || prev;
+      }
+      return next;
+    });
+  }, []);
 
   // Global Settings Sync
   useEffect(() => {
@@ -1481,7 +1497,7 @@ const TemplateEditor = () => {
         // On any page switch: always clear old selection and reset to roots.
         // Set currentFrameId to the active page root so the first single click
         // can immediately select child elements without needing to enter the frame first.
-        if (hasSwitchedPage || hasSwitchedSpread) {
+        if (hasSwitchedPage || hasSwitchedSpread || !selectedLayerId) {
           setMultiSelectedIds(new Set([activeRoot]));
           setSelectedLayerId(activeRoot);
           setCurrentFrameId(activeRoot);
@@ -1492,20 +1508,20 @@ const TemplateEditor = () => {
       const page = pages[activePageIndex];
       if (page?.layers?.[0]) {
         const rootId = page.layers[0].id;
-        if (hasSwitchedPage) {
+        if (hasSwitchedPage || !selectedLayerId) {
           setMultiSelectedIds(new Set([rootId]));
           setSelectedLayerId(rootId);
           setCurrentFrameId(rootId);
         }
       }
     }
-  }, [activePageIndex, isDoublePage, pages]);
+  }, [activePageIndex, isDoublePage, pages, selectedLayerId]);
 
   // ── Always fallback to selecting active page root folder if selection becomes null ──
   useEffect(() => {
-    if (!selectedLayerId && pages && pages[activePageIndex]?.layers?.[0]?.id) {
+    if (!selectedLayerId && pages.length > 0 && pages[activePageIndex]?.layers?.[0]?.id) {
       const rootId = pages[activePageIndex].layers[0].id;
-      setSelectedLayerId(rootId);
+      setSelectedLayerIdRaw(rootId);
       setMultiSelectedIds(new Set([rootId]));
       setCurrentFrameId(rootId);
     }
@@ -4066,6 +4082,14 @@ const TemplateEditor = () => {
 
             setPages(mappedPages);
 
+            // ── Auto-select root page folder immediately on load ──
+            const firstRootId = mappedPages[0]?.layers?.[0]?.id;
+            if (firstRootId) {
+              setSelectedLayerIdRaw(firstRootId);
+              setMultiSelectedIds(new Set([firstRootId]));
+              setCurrentFrameId(firstRootId);
+            }
+
             // Initialize tracking reference to avoid massive resyncs of untouched pages
             mappedPages.forEach((p, i) => {
               const pid = p.v_id || p.id;
@@ -4111,6 +4135,13 @@ const TemplateEditor = () => {
           };
         });
         setPages(newPages);
+        // Auto-select root page folder
+        const newFirstRootId = newPages[0]?.layers?.[0]?.id;
+        if (newFirstRootId) {
+          setSelectedLayerIdRaw(newFirstRootId);
+          setMultiSelectedIds(new Set([newFirstRootId]));
+          setCurrentFrameId(newFirstRootId);
+        }
         setCurrentBook(prev => ({
           ...(prev || {}),
           flipbookName: prev?.flipbookName || location.state.flipbookName || 'Untitled Flipbook',
@@ -4122,7 +4153,7 @@ const TemplateEditor = () => {
         }));
       }
       else {
-        setPages(Array.from({ length: 12 }, (_, i) => {
+        const fallbackPages = Array.from({ length: 12 }, (_, i) => {
           const name = `Page ${i + 1}`;
           const { html, layers } = createDefaultPageData(name);
           return {
@@ -4131,7 +4162,15 @@ const TemplateEditor = () => {
             html,
             layers
           };
-        }));
+        });
+        setPages(fallbackPages);
+        // Auto-select root page folder
+        const fallbackFirstRootId = fallbackPages[0]?.layers?.[0]?.id;
+        if (fallbackFirstRootId) {
+          setSelectedLayerIdRaw(fallbackFirstRootId);
+          setMultiSelectedIds(new Set([fallbackFirstRootId]));
+          setCurrentFrameId(fallbackFirstRootId);
+        }
         setCurrentBook(prev => ({
           ...(prev || {}),
           flipbookName: prev?.flipbookName || 'Untitled Flipbook',

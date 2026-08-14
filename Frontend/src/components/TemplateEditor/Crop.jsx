@@ -6,7 +6,7 @@ export const isElementCropped = (el) => {
   const name = el.getAttribute('data-name');
   if (type === 'frame' || type === 'background' || name === 'Overlay') return false;
 
-  const isUserGroup = (type === 'group' || (name || '').toLowerCase() === 'group' || (el.id || '').startsWith('group-')) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true';
+  const isUserGroup = (type === 'group' || (name || '').toLowerCase() === 'group' || (el.id || '').startsWith('group-')) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true' && el.getAttribute('data-is-gif-group') !== 'true';
   if (isUserGroup) return false;
 
   const hasCropData = el.getAttribute('data-crop-data') && el.getAttribute('data-crop-data') !== 'null';
@@ -129,12 +129,11 @@ export const CropController = ({
       const maskId = `crop-edit-mask-${activePageIndex}`;
 
       const cd = getCropData();
-      const isVideo = imgEl?.tagName?.toLowerCase() === 'video' || imgEl?.tagName?.toLowerCase() === 'iframe';
-      const foEl = isVideo ? cropEl.querySelector('foreignObject') : null;
-      const fallbackW = foEl ? foEl.getAttribute('width') : (imgEl?.getAttribute('width') || '100');
-      const fallbackH = foEl ? foEl.getAttribute('height') : (imgEl?.getAttribute('height') || '100');
-      const fallbackX = foEl ? foEl.getAttribute('x') : (imgEl?.getAttribute('x') || '0');
-      const fallbackY = foEl ? foEl.getAttribute('y') : (imgEl?.getAttribute('y') || '0');
+      const foEl = null;
+      const fallbackW = imgEl?.getAttribute('width') || '100';
+      const fallbackH = imgEl?.getAttribute('height') || '100';
+      const fallbackX = imgEl?.getAttribute('x') || '0';
+      const fallbackY = imgEl?.getAttribute('y') || '0';
 
       const origW = parseFloat(cropEl.getAttribute('data-crop-orig-w') || fallbackW);
       const origH = parseFloat(cropEl.getAttribute('data-crop-orig-h') || fallbackH);
@@ -172,6 +171,12 @@ export const CropController = ({
       const gWidth = Math.max(0, gMaxX - gMinX);
       const gHeight = Math.max(0, gMaxY - gMinY);
 
+      const isGif = cropEl.getAttribute('data-is-gif-group') === 'true' || (cropEl.closest && cropEl.closest('[data-is-gif-group="true"]'));
+      if (isGif) {
+        maskGroup.innerHTML = '';
+        return;
+      }
+
       const imgSrc = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || imgEl.getAttribute('src') || '';
       const imgPreserve = imgEl.getAttribute('preserveAspectRatio') || 'xMidYMid slice';
 
@@ -186,7 +191,7 @@ export const CropController = ({
         </defs>
 
         <!-- Full Uncropped Ghost Image rendered under black transparent shade -->
-        ${imgSrc && !isVideo ? `<image href="${imgSrc}" x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" preserveAspectRatio="${imgPreserve}" style="pointer-events: none;" />` : ''}
+        ${imgSrc ? `<image href="${imgSrc}" x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" preserveAspectRatio="${imgPreserve}" style="pointer-events: none;" />` : ''}
 
         <!-- Black Transparent Shade ON OUTER UNCROPPED IMAGE ONLY -->
         <rect x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" fill="rgba(0, 0, 0, 0.65)" mask="url(#${maskId})" pointer-events="none" />
@@ -206,12 +211,11 @@ export const CropController = ({
     let startOffX = 0, startOffY = 0;
 
     const updateTransform = (cd) => {
-      const isVideo = imgEl?.tagName?.toLowerCase() === 'video' || imgEl?.tagName?.toLowerCase() === 'iframe';
-      const foEl = isVideo ? cropEl.querySelector('foreignObject') : null;
-      const fallbackW = foEl ? foEl.getAttribute('width') : (imgEl?.getAttribute('width') || '100');
-      const fallbackH = foEl ? foEl.getAttribute('height') : (imgEl?.getAttribute('height') || '100');
-      const fallbackX = foEl ? foEl.getAttribute('x') : (imgEl?.getAttribute('x') || '0');
-      const fallbackY = foEl ? foEl.getAttribute('y') : (imgEl?.getAttribute('y') || '0');
+      const foEl = null;
+      const fallbackW = imgEl?.getAttribute('width') || '100';
+      const fallbackH = imgEl?.getAttribute('height') || '100';
+      const fallbackX = imgEl?.getAttribute('x') || '0';
+      const fallbackY = imgEl?.getAttribute('y') || '0';
 
       const origW = parseFloat(cropEl.getAttribute('data-crop-orig-w') || fallbackW);
       const origH = parseFloat(cropEl.getAttribute('data-crop-orig-h') || fallbackH);
@@ -224,13 +228,8 @@ export const CropController = ({
       const panY = (origH * (cd.offY || 0)) / 100;
       const sc = parseFloat(cd.scale) || 1;
 
-      if (isVideo) {
-        imgEl.style.transform = `translate(${panX}px, ${panY}px) scale(${sc})`;
-        imgEl.style.transformOrigin = 'center';
-        imgEl.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${sc}) translate(${-centerX} ${-centerY})`);
-      } else {
-        imgEl.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${sc}) translate(${-centerX} ${-centerY})`);
-      }
+      imgEl.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${sc}) translate(${-centerX} ${-centerY})`);
+      
       cropEl.setAttribute('data-crop-data', JSON.stringify(cd));
       callbacks.current.drawOverlayHighlight(cropEl, 'selected');
       renderMaskCutout();
@@ -281,10 +280,9 @@ export const CropController = ({
       const dxScreen = (e.clientX - startX) / zoomScale;
       const dyScreen = (e.clientY - startY) / zoomScale;
 
-      const isVideo = imgEl?.tagName?.toLowerCase() === 'video' || imgEl?.tagName?.toLowerCase() === 'iframe';
-      const foEl = isVideo ? cropEl.querySelector('foreignObject') : null;
-      const fallbackW = foEl ? foEl.getAttribute('width') : (imgEl?.getAttribute('width') || '100');
-      const fallbackH = foEl ? foEl.getAttribute('height') : (imgEl?.getAttribute('height') || '100');
+      const foEl = null;
+      const fallbackW = imgEl?.getAttribute('width') || '100';
+      const fallbackH = imgEl?.getAttribute('height') || '100';
 
       const origW = parseFloat(cropEl.getAttribute('data-crop-orig-w') || fallbackW);
       const origH = parseFloat(cropEl.getAttribute('data-crop-orig-h') || fallbackH);
@@ -329,7 +327,7 @@ export const CropController = ({
       }
     };
 
-    pageContainer.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerdown', onPointerDown, { capture: true });
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     pageContainer.addEventListener('wheel', onWheel, { passive: false });
@@ -339,7 +337,7 @@ export const CropController = ({
     cropEl.setAttribute('data-cropping', 'true');
 
     return () => {
-      pageContainer.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerdown', onPointerDown, { capture: true });
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       pageContainer.removeEventListener('wheel', onWheel);

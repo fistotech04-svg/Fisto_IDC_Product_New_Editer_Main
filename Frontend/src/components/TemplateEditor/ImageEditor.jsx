@@ -36,7 +36,6 @@ import {
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ColorPicker, { parseGradient } from './ColorPicker';
-import GalleryImage from './GalleryImage';
 import SlideshowProperties from './SlideshowProperties';
 import Color from './Color';
 import CornerRadius from './CornerRadius';
@@ -3777,139 +3776,7 @@ const ImageEditor = ({
           />
 
 
-          {showGallery && (
-            <GalleryImage
-              selectedElement={selectedElement}
-              selectedLayerId={selectedLayerId}
-              activePageIndex={activePageIndex}
-              onUpdate={onUpdateRef.current}
-              onClose={() => setShowGallery(false)}
-              currentPageVId={currentPageVId}
-              flipbookVId={flipbookVId}
-              folderName={folderName}
-              flipbookName={flipbookName}
-              onSelect={async (img) => {
-                // 1. Optimistic Update
-                const optimisticUrl = img.url;
 
-                // Resolve the live element
-                const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
-
-                if (!liveElement) return;
-
-                const targetImg = getSvgImageEl(liveElement) || liveElement;
-                if (targetImg.tagName?.toLowerCase() === 'image') {
-                  targetImg.setAttribute('href', optimisticUrl);
-                  targetImg.setAttribute('xlink:href', optimisticUrl);
-
-                  const patImg = liveElement.querySelector('.internal-crop-image');
-                  if (patImg) {
-                    patImg.setAttribute('href', optimisticUrl);
-                    patImg.setAttribute('xlink:href', optimisticUrl);
-                  }
-
-                  const origFill = liveElement.getAttribute('data-original-fill');
-                  if (origFill) {
-                    const match = origFill.match(/url\s*\(\s*['"]?#([^'"()]+)['"]?\s*\)/i);
-                    if (match) {
-                      const origPat = document.getElementById(match[1].trim()) || liveElement.closest('svg')?.querySelector(`pattern[id="${match[1].trim()}"]`);
-                      if (origPat) {
-                        const origImg = origPat.querySelector('image');
-                        if (origImg) {
-                          origImg.setAttribute('href', optimisticUrl);
-                          origImg.setAttribute('xlink:href', optimisticUrl);
-                        }
-                      }
-                    }
-                  }
-                } else {
-                  targetImg.src = optimisticUrl;
-                  targetImg.setAttribute('src', optimisticUrl);
-                }
-
-                setPreviewSrc(optimisticUrl);
-                // Preserve current dimensions and crop type state
-                liveElement.removeAttribute('data-original-src');
-                liveElement.removeAttribute('data-cropped-src');
-
-                liveElement.removeAttribute('data-effect-crop-inset');
-                liveElement.removeAttribute('data-crop-data');
-                setImageType('Fit');
-                stateRef.current.imageType = 'Fit';
-
-                if (onUpdate) onUpdate({ shouldRefresh: true });
-
-                // 2. Backend Upload/Associate logic
-                const storedUser = localStorage.getItem('user');
-                if (!storedUser) {
-                  setShowGallery(false);
-                  return;
-                }
-
-                try {
-                  const user = JSON.parse(storedUser);
-                  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-
-                  // Prepare File Object
-                  let fileToUpload = null;
-                  if (img.file) {
-                    fileToUpload = img.file;
-                  } else {
-                    try {
-                      const response = await axios.get(img.url, { responseType: 'blob' });
-                      const contentType = response.headers['content-type'] || 'image/png';
-                      const ext = contentType.split('/')[1] || 'png';
-                      const filename = img.name ? (img.name.endsWith('.' + ext) ? img.name : `${img.name}.${ext}`) : `gallery_image.${ext}`;
-                      fileToUpload = new File([response.data], filename, { type: contentType });
-                    } catch (fetchErr) {
-                      console.error("Failed to fetch gallery image for re-upload:", fetchErr);
-                    }
-                  }
-
-                  if (fileToUpload) {
-                    const formData = new FormData();
-                    formData.append('emailId', user.emailId);
-                    if (flipbookVId) formData.append('v_id', flipbookVId);
-                    formData.append('folderName', folderName || 'My_Flipbooks');
-                    formData.append('flipbookName', flipbookName || 'Untitled Document');
-                    formData.append('type', 'image');
-                    formData.append('assetType', 'Image');
-                    formData.append('page_v_id', currentPageVId || 'global');
-
-                    const existingFileVid = liveElement.dataset.fileVid;
-                    if (existingFileVid) {
-                      formData.append('replacing_file_v_id', existingFileVid);
-                    }
-
-                    formData.append('file', fileToUpload);
-                    const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-
-                    if (res.data.url) {
-                      const serverUrl = resolveUploadsPath(res.data.url);
-
-                      const finalTarget = getSvgImageEl(liveElement) || liveElement;
-                      if (finalTarget.tagName?.toLowerCase() === 'image') {
-                        finalTarget.setAttribute('href', serverUrl);
-                        finalTarget.setAttribute('xlink:href', serverUrl);
-                      } else {
-                        finalTarget.src = serverUrl;
-                        finalTarget.setAttribute('src', serverUrl);
-                      }
-                      liveElement.dataset.fileVid = res.data.file_v_id;
-                      setPreviewSrc(serverUrl);
-
-                      if (onUpdate) onUpdate({ shouldRefresh: true });
-                    }
-                  }
-                } catch (err) {
-                  console.error("Gallery Select Backend Sync Failed:", err);
-                }
-
-                setShowGallery(false);
-              }}
-            />
-          )}
 
         </div>
       )}

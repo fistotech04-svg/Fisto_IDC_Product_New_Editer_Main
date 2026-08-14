@@ -59,7 +59,7 @@ const SubNavItem = ({ label, icon, isActive, onClick }) => (
   </button>
 );
 
-const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPanelCollapsed, setIsPanelCollapsed, pageCount, visibilitySettings, onUpdateVisibility, canUndo, canRedo, onUndo, onRedo, onPreview, currentBook, setCurrentBook }) => {
+const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPanelCollapsed, setIsPanelCollapsed, pageCount, visibilitySettings, onUpdateVisibility, canUndo, canRedo, onUndo, onRedo, onPreview, currentBook, setCurrentBook, isLoading = false }) => {
   const navigate = useNavigate();
   const { folder, v_id } = useParams();
   const [openSection, setOpenSection] = useState(null);
@@ -142,8 +142,6 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
     };
   }, [activeSubView, openSection, isDragging, parentSection]);
 
-
-
   const toggleSection = (section) => {
     setOpenSection(openSection === section ? null : section);
   };
@@ -162,13 +160,6 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
   };
 
   const activeTab = tabConfigs[activeSubView];
-
-  // Removed this useEffect as dynamic positioning is now handled by the other useEffect
-  // useEffect(() => {
-  //   if (activeTab && !isDragging) {
-  //     setTabTop(activeTab.top);
-  //   }
-  // }, [activeSubView]);
 
   const handleMouseDown = (e) => {
     setIsDragging(true);
@@ -203,7 +194,6 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging]);
-
 
   return (
     <div
@@ -247,42 +237,65 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
 
       {/* Book Title Section Card */}
       <div className="px-[0.75vw] py-[0.4vw] shrink-0 border-b border-gray-100">
-        <div className="bg-white rounded-[0.6vw] border border-gray-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[0.75vw] py-[0.45vw] flex flex-col justify-between transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]">
-          <input
-            ref={bookNameInputRef}
-            type="text"
-            value={bookName}
-            onChange={(e) => setBookName(e.target.value)}
-            className="text-[0.92vw] font-medium text-gray-900 bg-transparent border-none focus:ring-0 focus:outline-none w-full p-0 leading-snug placeholder-gray-400 font-sans tracking-tight"
-            placeholder="Name of the Book"
-          />
-
-          <div className="flex items-center justify-between mt-[0.25vw]">
-            <span className="text-[0.72vw] text-gray-500 font-medium tracking-wide">
-              Pages : {pageCount || 10}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsInfoModalOpen(true)}
-              className="text-[#373d8a] hover:text-[#2a2e6b] transition-colors cursor-pointer"
-              title="Edit Flipbook Information"
-            >
-              <Icon icon="ph:pencil-simple-fill" className="w-[0.95vw] h-[0.95vw]" />
-            </button>
+        {isLoading ? (
+          <div className="bg-white rounded-[0.6vw] border border-gray-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[0.75vw] py-[0.55vw] flex flex-col justify-between gap-[0.4vw] animate-pulse">
+            <div className="h-[1vw] bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded-[0.3vw] w-4/5 animate-pulse"></div>
+            <div className="flex items-center justify-between mt-[0.25vw]">
+              <div className="h-[0.75vw] bg-gray-200/80 rounded-[0.25vw] w-1/3"></div>
+              <div className="w-[0.95vw] h-[0.95vw] bg-gray-200/80 rounded-full"></div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-white rounded-[0.6vw] border border-gray-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[0.75vw] py-[0.45vw] flex flex-col justify-between transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]">
+            <input
+              ref={bookNameInputRef}
+              type="text"
+              value={bookName}
+              onChange={(e) => setBookName(e.target.value)}
+              className="text-[0.92vw] font-medium text-gray-900 bg-transparent border-none focus:ring-0 focus:outline-none w-full p-0 leading-snug placeholder-gray-400 font-sans tracking-tight"
+              placeholder="Name of the Book"
+            />
+
+            <div className="flex items-center justify-between mt-[0.25vw]">
+              <span className="text-[0.72vw] text-gray-500 font-medium tracking-wide">
+                Pages : {pageCount || 10}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsInfoModalOpen(true)}
+                className="text-[#373d8a] hover:text-[#2a2e6b] transition-colors cursor-pointer"
+                title="Edit Flipbook Information"
+              >
+                <Icon icon="ph:pencil-simple-fill" className="w-[0.95vw] h-[0.95vw]" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sidebar Navigation */}
-      <div className="flex-1 overflow-y-auto pt-[1vw] custom-scrollbar px-[0.75vw] flex flex-col gap-[0.2vw]">
-        <SidebarItem
-          id="section-branding"
-          icon="lucide:gem"
-          label="Branding"
-          isActive={activeSubView === 'branding' || activeSubView === 'logo'}
-          onClick={() => setActiveSubView('logo')}
-          hasDropdown={false}
-        />
+      <div className="flex-1 overflow-y-auto pt-[0.5vw] custom-scrollbar px-[0.2vw] flex flex-col">
+        {isLoading ? (
+          <div className="flex flex-col">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+              <div key={n} className="flex flex-col px-[0.75vw] py-[0.25vw]">
+                <div className="w-full flex items-center gap-[1vw] p-[0.75vw] rounded-[0.75vw] bg-gray-50 border border-gray-100/80 animate-pulse">
+                  <div className="w-[1.25vw] h-[1.25vw] bg-gray-200/80 rounded-[0.35vw] shrink-0" />
+                  <div className="h-[0.85vw] bg-gray-200/80 rounded-[0.35vw] flex-1" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            <SidebarItem
+              id="section-branding"
+              icon="lucide:gem"
+              label="Branding"
+              isActive={activeSubView === 'branding' || activeSubView === 'logo'}
+              onClick={() => setActiveSubView('logo')}
+              hasDropdown={false}
+            />
 
         <SidebarItem
           id="section-background"
@@ -346,16 +359,22 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           onClick={() => setActiveSubView('statistic')}
           hasDropdown={false}
         />
+          </>
+        )}
       </div>
       {/* Go to Page Editor Button */}
       <div className="px-[1vw] py-[2vh] border-t border-gray-100 mt-auto bg-white">
-        <button
-          onClick={handleGoToPageEditor}
-          className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.4)] cursor-pointer"
-        >
-          <ArrowUpRight size="1.2vw" className="rotate-0" />
-          <span>Go to Page Editor</span>
-        </button>
+        {isLoading ? (
+          <div className="w-full h-[2.5vw] bg-gray-200/80 rounded-[0.6vw] animate-pulse"></div>
+        ) : (
+          <button
+            onClick={handleGoToPageEditor}
+            className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.4)] cursor-pointer"
+          >
+            <ArrowUpRight size="1.2vw" className="rotate-0" />
+            <span>Go to Page Editor</span>
+          </button>
+        )}
       </div>
       {/* Flipbook Information Modal */}
       <FlipbookInfoModal 

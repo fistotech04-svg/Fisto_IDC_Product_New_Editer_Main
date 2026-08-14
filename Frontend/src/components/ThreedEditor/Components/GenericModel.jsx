@@ -1183,10 +1183,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     if (isMatch) {
                         [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.aoMap, m.displacementMap, m.bumpMap, m.alphaMap, m.emissiveMap].forEach(tex => {
                             if (tex) {
-                                if (tex.repeat) tex.repeat.set(texScaleX, texScaleY);
-                                if (tex.offset) tex.offset.set(texOffsetX, texOffsetY);
+                                if (tex.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(texScaleX, texScaleY);
+                                if (tex.offset && typeof tex.offset.set === 'function') tex.offset.set(texOffsetX, texOffsetY);
                                 if (tex.rotation !== undefined) tex.rotation = texRotation;
-                                tex.center.set(0.5, 0.5); 
+                                if (tex.center && typeof tex.center.set === 'function') tex.center.set(0.5, 0.5); 
                             }
                         });
                     }
@@ -1251,7 +1251,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                                 if (globalTextureCache.has(cacheKey)) {
                                     const cachedTex = globalTextureCache.get(cacheKey);
                                     m[mapProp] = cachedTex;
-                                    if (m[mapProp].repeat) m[mapProp].repeat.set(texScaleX, texScaleY);
+                                    if (m[mapProp]?.repeat && typeof m[mapProp].repeat.set === 'function') m[mapProp].repeat.set(texScaleX, texScaleY);
                                     m.userData[`is_${mapProp}_removed`] = false;
                                     m.needsUpdate = true;
                                     return;
@@ -1262,7 +1262,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                                     tex.flipY = false;
                                     tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
                                     tex.userData.url = stateUrl;
-                                    tex.repeat.set(texScaleX, texScaleY);
+                                    if (tex?.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(texScaleX, texScaleY);
                                     globalTextureCache.set(cacheKey, tex);
                                     m[mapProp] = tex;
                                     m.userData[`is_${mapProp}_removed`] = false;
