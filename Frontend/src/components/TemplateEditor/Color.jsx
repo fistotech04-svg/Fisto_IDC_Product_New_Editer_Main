@@ -487,7 +487,7 @@ const Color = ({
                 const val = el.getAttribute(attr);
                 if (val !== null) {
                   overlay.setAttribute(attr, val);
-                  if (refShape) refShape.setAttribute(attr, val);
+                  if (refShape && attr !== 'transform') refShape.setAttribute(attr, val);
                 } else {
                   overlay.removeAttribute(attr);
                   if (refShape) refShape.removeAttribute(attr);
@@ -497,12 +497,6 @@ const Color = ({
               overlay.style.translate = el.style.translate;
               overlay.style.scale = el.style.scale;
               overlay.style.rotate = el.style.rotate;
-              if (refShape) {
-                refShape.style.transform = el.style.transform;
-                refShape.style.translate = el.style.translate;
-                refShape.style.scale = el.style.scale;
-                refShape.style.rotate = el.style.rotate;
-              }
             };
 
             syncGeometry();
@@ -1099,7 +1093,22 @@ const Color = ({
           <div className="flex items-center gap-[0.5vw]">
             <span className={`font-semibold text-[0.85vw] ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'text-gray-900' : 'text-gray-500'}`}>Stroke Color</span>
           </div>
-          <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          <div className="flex items-center gap-[0.5vw]">
+            {(openSubSection === 'color' || openSubSection === 'strokeColor') && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateAttr('stroke', 'none');
+                  updateAttr('stroke-width', '0');
+                }}
+                className="text-gray-600 hover:text-gray-900 transition-colors p-[0.1vw] cursor-pointer flex items-center justify-center"
+                title="Reset Stroke"
+              >
+                <Icon icon="ix:reset" width="1.1vw" height="1.1vw" style={{ strokeWidth: 2.5 }} />
+              </button>
+            )}
+            <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          </div>
         </div>
 
         <div className={`grid transition-all duration-300 ease-in-out ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>

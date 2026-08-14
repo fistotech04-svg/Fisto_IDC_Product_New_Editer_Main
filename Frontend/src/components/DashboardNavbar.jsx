@@ -12,7 +12,7 @@ export default function DashboardNavbar() {
   const navLinks = [
     { name: 'Home', path: '/home' },
     { name: 'My Flipbooks', path: '/my-flipbooks' },
-    { name: 'Explore', path: '#' },
+    { name: 'Explore', path: '/explore' },
     { name: 'Features', path: '#' },
     { name: 'About Us', path: '/about' },
     { name: 'Contact Us', path: '/contact' },
