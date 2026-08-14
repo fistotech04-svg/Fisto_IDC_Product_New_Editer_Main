@@ -4,6 +4,7 @@ import { Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
+import { parsePhoneNumberFromString, isValidPhoneNumber } from 'libphonenumber-js';
 import PopupTemplateSelection, { TEMPLATES } from './PopupTemplateSelection';
 import ModelGalleryModal from '../ThreedEditor/Components/ModelGalleryModal';
 import AlertModal from '../AlertModal';
@@ -16,6 +17,7 @@ import { fontFamilies, fontWeights } from '../../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import ColorPicker from './ColorPicker';
 import HotspotCustomizationPopup from './HotspotCustomizationPopup';
+import { presets, generateSvgPayload } from './HotspotPresetPopup';
 const GlbModel = ({ url }) => {
   const { scene } = useGLTF(url);
   return (
@@ -208,36 +210,28 @@ const ZoomTargetThumbnail = ({ targetId }) => {
   );
 };
 
-// Helper for international phone validation
-const validatePhoneNumber = (value) => {
-  if (!value) return true; // Empty is treated as valid (not yet filled)
-  // Strip non-digits
-  const clean = value.replace(/\D/g, '');
-  if (clean.length === 0) return true;
-
-  // Custom validation rules based on dial code
-  if (clean.startsWith('91')) {
-    // India: +91 followed by exactly 10 digits starting with 6, 7, 8, or 9
-    return clean.length === 12 && /^[6-9]/.test(clean.substring(2));
-  }
-  if (clean.startsWith('1')) {
-    // US/Canada: +1 followed by exactly 10 digits
-    return clean.length === 11;
-  }
-  if (clean.startsWith('44')) {
-    // UK: +44 followed by exactly 10 digits
-    return clean.length === 12;
-  }
-
-  // Generic validation rule: international numbers must be between 10 and 15 digits total
-  return clean.length >= 10 && clean.length <= 15;
-};
-
-
 const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
-  const [localValue, setLocalValue] = useState(initialValue || '');
-  const [dialCode, setDialCode] = useState('91');
+  const parsedInitial = React.useMemo(() => {
+    if (!initialValue) return { country: 'af', nationalNumber: '', dialCode: '93' };
+    const str = initialValue.startsWith('+') ? initialValue : '+' + initialValue;
+    try {
+      const phoneNumber = parsePhoneNumberFromString(str);
+      if (phoneNumber && phoneNumber.country) {
+        return {
+          country: phoneNumber.country.toLowerCase(),
+          nationalNumber: phoneNumber.nationalNumber,
+          dialCode: phoneNumber.countryCallingCode
+        };
+      }
+    } catch (e) {}
+    return { country: 'af', nationalNumber: '', dialCode: '93' };
+  }, [initialValue]);
+
+  const [localValue, setLocalValue] = useState(parsedInitial.nationalNumber);
+  const [selectedCountry, setSelectedCountry] = useState(parsedInitial.country);
+  const [dialCode, setDialCode] = useState(parsedInitial.dialCode);
   const [isSaved, setIsSaved] = useState(true);
+  const containerRef = useRef(null);
 
   const cleanLocal = localValue.replace(/\D/g, '');
   let isInvalid = false;
@@ -252,8 +246,14 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
       isInvalid = !validStart || localNumber.length !== 10;
     }
   } else {
-    hasDigits = cleanLocal.length > 0;
-    isInvalid = hasDigits && !validatePhoneNumber(localValue);
+    hasDigits = localValue.trim().length > 0;
+    if (hasDigits) {
+      try {
+        isInvalid = !isValidPhoneNumber(localValue, selectedCountry.toUpperCase());
+      } catch (e) {
+        isInvalid = true;
+      }
+    }
   }
 
   const isValidAndFilled = hasDigits && !isInvalid;
@@ -264,12 +264,83 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
   const bgColor = isUnsavedValid ? '#F0FDF4' : (isInvalid ? '#FEF2F2' : '#F3F4F6');
 
   useEffect(() => {
-    setLocalValue(initialValue || '');
+    if (initialValue) {
+      const str = initialValue.startsWith('+') ? initialValue : '+' + initialValue;
+      try {
+        const phoneNumber = parsePhoneNumberFromString(str);
+        if (phoneNumber && phoneNumber.country) {
+          setSelectedCountry(phoneNumber.country.toLowerCase());
+          setLocalValue(phoneNumber.nationalNumber);
+          setDialCode(phoneNumber.countryCallingCode);
+        }
+      } catch (e) {}
+    } else {
+      setLocalValue('');
+      setSelectedCountry('af');
+      setDialCode('93');
+    }
     setIsSaved(true);
   }, [initialValue]);
 
+  useEffect(() => {
+    if (!containerRef.current || isWhatsApp) return;
+
+    const removeTitle = () => {
+      if (!containerRef.current) return;
+      const flags = containerRef.current.querySelectorAll('.selected-flag');
+      flags.forEach(el => {
+        if (el.hasAttribute('title')) {
+          el.removeAttribute('title');
+        }
+      });
+    };
+
+    removeTitle();
+
+    const observer = new MutationObserver(() => {
+      removeTitle();
+    });
+
+    observer.observe(containerRef.current, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['title']
+    });
+
+    return () => observer.disconnect();
+  }, [isWhatsApp]);
+
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full h-full relative" ref={containerRef}>
+      {!isWhatsApp && (
+        <style>{`
+          .react-tel-input .flag-dropdown .selected-flag,
+          .react-tel-input .flag-dropdown:hover .selected-flag,
+          .react-tel-input .flag-dropdown.open-dropdown .selected-flag,
+          .react-tel-input .flag-dropdown:focus .selected-flag {
+            background-color: transparent !important;
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          .react-tel-input .country-list .country {
+            padding: 0.6vw 0.6vw 0.6vw 2.6vw !important;
+          }
+          .react-tel-input .country-list .flag {
+            left: 0.8vw !important;
+            margin-top: 0.2vw !important;
+          }
+          .react-tel-input .country-list {
+            margin: 0 !important;
+            left: 0 !important;
+            transform: none !important;
+            top: 100% !important;
+            bottom: auto !important;
+            margin-top: 0.2vw !important;
+            z-index: 99999 !important;
+          }
+        `}</style>
+      )}
       {isWhatsApp ? (
         <div className="relative w-full h-full bg-white rounded-[0.6vw]">
           <div className="absolute left-[0.6vw] top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center z-10">
@@ -290,8 +361,9 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
               }
             }}
             onBlur={() => {
-              if (localValue !== initialValue) {
-                onSave(localValue);
+              const saveVal = '+91' + localValue.replace(/\D/g, '');
+              if (saveVal !== initialValue) {
+                onSave(saveVal);
                 setIsSaved(true);
               }
             }}
@@ -307,21 +379,27 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
         </div>
       ) : (
         <PhoneInput
-          country={'in'}
+          country={selectedCountry}
           preferredCountries={['in', 'us', 'gb']}
-          disableCountryCode={true}
-          value={localValue}
+          disableCountryGuess={true}
+          value={'+' + dialCode + localValue}
           onChange={(phone, data) => {
-            const formatted = phone.startsWith('+') ? phone : '+' + phone;
-            setLocalValue(formatted);
-            if (data && data.dialCode) {
+            let nationalNum = phone;
+            if (data && data.dialCode && phone.startsWith(data.dialCode)) {
+              nationalNum = phone.substring(data.dialCode.length);
+            }
+            setLocalValue(nationalNum);
+            
+            if (data && data.countryCode && data.countryCode !== selectedCountry) {
+              setSelectedCountry(data.countryCode);
               setDialCode(data.dialCode);
             }
             setIsSaved(false);
           }}
           onBlur={() => {
-            if (localValue !== initialValue) {
-              onSave(localValue);
+            const saveVal = '+' + dialCode + localValue;
+            if (saveVal !== initialValue) {
+              onSave(saveVal);
               setIsSaved(true);
             }
           }}
@@ -338,7 +416,7 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
             fontSize: '0.85vw',
             color: textColor,
             fontWeight: '500',
-            paddingLeft: '5.8vw',
+            paddingLeft: '3.8vw',
             backgroundColor: '#FFFFFF',
             outline: 'none',
             boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
@@ -347,16 +425,15 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
           buttonStyle={{
             backgroundColor: bgColor,
             border: `1px solid ${borderColor}`,
-            borderRight: 'none',
+            borderRight: '1px solid #D1D5DB',
             borderRadius: '0.6vw 0 0 0.6vw',
-            width: '5.2vw',
+            width: '3.2vw',
             height: '100%',
             top: '0',
             left: '0',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-start',
-            paddingLeft: '0.6vw',
+            justifyContent: 'center',
             transition: 'all 0.3s ease'
           }}
           dropdownStyle={{
@@ -370,15 +447,6 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
             zIndex: 50
           }}
         />
-      )}
-      {!isWhatsApp && (
-        <div
-          className="absolute left-[1.8vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-700 text-[0.85vw] font-medium z-10 flex items-center px-[0.2vw] h-[80%]"
-          style={{ backgroundColor: bgColor }}
-        >
-          <span>+{dialCode}</span>
-          <Icon icon="lucide:chevron-down" className="text-gray-500 text-[0.8vw] ml-[0.3vw]" />
-        </div>
       )}
       {/* Green Checkmark inside input when valid */}
       {isValidAndFilled && (
@@ -959,7 +1027,7 @@ const InteractionPanel = ({
         detectedType = 'GIF';
       } else if (dataType === 'video' || tagName === 'video' || idLower.includes('video')) {
         detectedType = 'Video';
-      } else if (dataType === 'icon' || idLower.includes('icon') || el.classList?.contains('iconify')) {
+      } else if (dataType === 'icon' || dataType === 'hotspot' || idLower.includes('icon') || idLower.includes('hotspot') || el.classList?.contains('iconify')) {
         detectedType = 'Icon';
       } else if (tagName === 'image' || tagName === 'img' || dataType === 'image' || idLower.includes('image')) {
         detectedType = 'Image';
@@ -1000,7 +1068,7 @@ const InteractionPanel = ({
         detectedType = 'GIF';
       } else if (dataType === 'video' || tagName === 'video' || idLower.includes('video')) {
         detectedType = 'Video';
-      } else if (dataType === 'icon' || idLower.includes('icon') || el.classList?.contains('iconify')) {
+      } else if (dataType === 'icon' || dataType === 'hotspot' || idLower.includes('icon') || idLower.includes('hotspot') || el.classList?.contains('iconify')) {
         detectedType = 'Icon';
       } else if (tagName === 'image' || tagName === 'img' || dataType === 'image' || idLower.includes('image')) {
         detectedType = 'Image';
@@ -1076,7 +1144,7 @@ const InteractionPanel = ({
 
         const imageEl = foundEl.querySelector('image');
         const isHotspot = foundEl.getAttribute('data-is-hotspot') === 'true' || 
-                          (foundEl.getAttribute('data-type') === 'icon' && imageEl && imageEl.getAttribute('width') === '52');
+                          (foundEl.getAttribute('data-type') === 'icon' || foundEl.getAttribute('data-type') === 'hotspot') && imageEl && imageEl.getAttribute('width') === '52';
         let hotspotIconSrc = foundEl.getAttribute('data-hotspot-icon-src');
         if (!hotspotIconSrc && isHotspot && imageEl) {
            hotspotIconSrc = imageEl.getAttribute('href');
@@ -1145,7 +1213,7 @@ const InteractionPanel = ({
     // Direct type checks on this element
     if (dt === 'gif' || dn.includes('gif') || id.includes('gif') || href.toLowerCase().endsWith('.gif')) return 'GIF';
     if (dt === 'video' || tag === 'video' || tag === 'iframe' || dn.includes('video')) return 'Video';
-    if (dt === 'icon' || dn.includes('icon') || el.classList?.contains('iconify')) return 'Icon';
+    if (dt === 'icon' || dt === 'hotspot' || dn.includes('icon') || dn.includes('hotspot') || el.classList?.contains('iconify')) return 'Icon';
     if (tag === 'image' || tag === 'img' || dt === 'image' || dn.includes('image') || id.includes('image') || (href && !href.toLowerCase().endsWith('.gif'))) return 'Image';
     if (tag === 'text' || tag === 'tspan' || dt === 'text' || dn.includes('text') || id.includes('text')) return 'Text';
     if (tag === 'rect') return 'Rectangle';
@@ -1214,7 +1282,7 @@ const InteractionPanel = ({
     if (dataType === 'text' || dataName.includes('text')) return 'Text';
     if (dataType === 'gif' || dataName.includes('gif')) return 'GIF';
     if (dataType === 'video' || dataName.includes('video')) return 'Video';
-    if (dataType === 'icon' || dataName.includes('icon')) return 'Icon';
+    if (dataType === 'icon' || dataType === 'hotspot' || dataName.includes('icon') || dataName.includes('hotspot')) return 'Icon';
     if (dataType === 'image' || dataName.includes('image')) return 'Image';
 
     // For groups: deep-scan all descendants
@@ -1305,8 +1373,8 @@ const InteractionPanel = ({
                     }));
                   }}
                   className={`w-full mx-auto bg-white/70 backdrop-blur-md border rounded-[0.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col relative transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] ${isSelected
-                    ? 'border-[#5145F6]/50 ring-2 ring-[#5145F6]/15 bg-white/95'
-                    : 'border-white/40 hover:border-[#5145F6]/30'
+                    ? 'border-[#5145F6]/50 ring-2 ring-[#5145F6]/15 bg-white/95 z-[50]'
+                    : 'border-white/40 hover:border-[#5145F6]/30 z-[10]'
                     }`}
                 >
 
@@ -1465,6 +1533,14 @@ const InteractionPanel = ({
                                   let displayHtml = item.hotspotHtml;
                                   
                                   if (displayHtml) {
+                                    // If we have a presetId, we can perfectly regenerate the original pristine unscaled preset!
+                                    if (item.presetId) {
+                                      const matchedPreset = presets.find(p => p.id === item.presetId);
+                                      if (matchedPreset) {
+                                        displayHtml = generateSvgPayload(matchedPreset);
+                                      }
+                                    }
+
                                     if (displayHtml.includes('<text')) {
                                       // It's an Interactive Button preset.
                                       // We force the original geometry so that moving/resizing on canvas doesn't break the preview.
@@ -1504,21 +1580,30 @@ const InteractionPanel = ({
                                       vb = `0 0 ${w} 60`;
                                       cls = "w-[10vw] h-[3.33vw] pointer-events-none";
                                     } else {
-                                      try {
-                                        const temp = document.createElement('div');
-                                        temp.innerHTML = `<svg>${displayHtml}</svg>`;
-                                        const svg = temp.querySelector('svg');
-                                        if (svg) {
-                                          const child = svg.firstElementChild;
-                                          if (child) {
-                                            child.removeAttribute('transform');
-                                            child.removeAttribute('width');
-                                            child.removeAttribute('height');
+                                      // Only run this fallback scaling reset if it was NOT a generated preset
+                                      if (!item.presetId || !presets.find(p => p.id === item.presetId)) {
+                                        try {
+                                          const temp = document.createElement('div');
+                                          temp.innerHTML = `<svg>${displayHtml}</svg>`;
+                                          const svg = temp.querySelector('svg');
+                                          if (svg) {
+                                            Array.from(svg.children).forEach(child => {
+                                              const tag = child.tagName.toLowerCase();
+                                              if (tag === 'circle' || tag === 'rect' || tag === 'path') {
+                                                child.removeAttribute('transform');
+                                              } else if (tag === 'g') {
+                                                child.setAttribute('transform', 'translate(14, 14)');
+                                              } else if (tag === 'svg') {
+                                                child.removeAttribute('transform');
+                                              }
+                                              child.removeAttribute('width');
+                                              child.removeAttribute('height');
+                                            });
+                                            displayHtml = svg.innerHTML;
                                           }
-                                          displayHtml = svg.innerHTML;
+                                        } catch(e) {
+                                          console.error('Error parsing standard hotspot SVG preview', e);
                                         }
-                                      } catch(e) {
-                                        console.error('Error parsing standard hotspot SVG preview', e);
                                       }
                                     }
                                   }
@@ -3408,7 +3493,39 @@ const InteractionPanel = ({
           })()}
           initialHotspotHtml={(() => {
             const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            return item ? item.hotspotHtml : null;
+            if (!item || !item.hotspotHtml) return null;
+            
+            let displayHtml = item.hotspotHtml;
+            if (item.presetId) {
+              const matchedPreset = presets.find(p => p.id === item.presetId);
+              if (matchedPreset) {
+                return generateSvgPayload(matchedPreset);
+              }
+            }
+            
+            if (!displayHtml.includes('<text')) {
+              try {
+                const temp = document.createElement('div');
+                temp.innerHTML = `<svg>${displayHtml}</svg>`;
+                const svg = temp.querySelector('svg');
+                if (svg) {
+                  Array.from(svg.children).forEach(child => {
+                    const tag = child.tagName.toLowerCase();
+                    if (tag === 'circle' || tag === 'rect' || tag === 'path') {
+                      child.removeAttribute('transform');
+                    } else if (tag === 'g') {
+                      child.setAttribute('transform', 'translate(14, 14)');
+                    } else if (tag === 'svg') {
+                      child.removeAttribute('transform');
+                    }
+                    child.removeAttribute('width');
+                    child.removeAttribute('height');
+                  });
+                  displayHtml = svg.innerHTML;
+                }
+              } catch(e) { }
+            }
+            return displayHtml;
           })()}
           initialBgColor={(() => {
             if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-bg-color']) {

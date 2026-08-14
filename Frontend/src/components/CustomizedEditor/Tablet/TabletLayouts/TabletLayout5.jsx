@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
 import TabletProfilePopup from './TabletProfilePopup';
+import ShareModal from '../../../ShareModal';
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     const cleanHtml = (html || '')
@@ -104,7 +105,6 @@ const TabletLayout5 = ({
     currentZoom,
     setCurrentZoom,
     onPageClick,
-    handleShare,
     handleDownload,
     handleFullScreen,
     isFullscreen,
@@ -121,9 +121,12 @@ const TabletLayout5 = ({
     setShowExportPopupMemo,
     setIsPlaying,
     isAutoFlipping,
-    offset = 0
+    offset = 0,
+    currentBook,
+    activeLayout
 }) => {
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
+    const [isShareOpen, setIsShareOpen] = useState(false);
     const [recommendations, setRecommendations] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [inputPage, setInputPage] = useState(currentPage + 1);
@@ -484,7 +487,15 @@ const TabletLayout5 = ({
                             <ToolbarBtn icon="fluent:person-24-filled" onClick={() => setShowProfilePopup(!showProfilePopup)} />
                         )}
                         {(settings?.shareExport?.share ?? true) && (
-                            <ToolbarBtn icon="mage:share-fill" onClick={handleShare} />
+                            <ToolbarBtn icon="mage:share-fill" onClick={() => {
+                                setShowTOCMemo?.(false);
+                                setShowThumbnailBarMemo?.(false);
+                                setShowGalleryPopupMemo?.(false);
+                                setShowSoundPopupMemo?.(false);
+                                setShowProfilePopup?.(false);
+                                setShowExportPopupMemo?.(false);
+                                setIsShareOpen(true);
+                            }} />
                         )}
                         {(settings?.shareExport?.download ?? true) && (
                             <ToolbarBtn icon="meteor-icons:download" onClick={() => setShowExportPopupMemo?.(true)} />
@@ -636,6 +647,14 @@ const TabletLayout5 = ({
 
             <div id="tablet-sound-portal" className="absolute inset-0 z-50 pointer-events-none"></div>
             <div id="tablet-download-portal" className="absolute inset-0 z-50 pointer-events-none"></div>
+
+            <ShareModal
+                isOpen={isShareOpen}
+                onClose={() => setIsShareOpen(false)}
+                isTabletLayout={true}
+                currentBook={currentBook || settings}
+                activeLayout={activeLayout || '5'}
+            />
         </div>
     );
 };

@@ -2659,46 +2659,9 @@ const MainEditor = ({
       g.setAttribute('data-type', 'icon');
       // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
       g.setAttribute('transform', `translate(${centerX - 6}, ${centerY - 6}) scale(0.5)`);
-      if (!e.detail.isHotspot) {
-        g.setAttribute('fill', 'none');
-        g.setAttribute('stroke', '#000000');
-        g.setAttribute('stroke-width', '1');
-      } else {
-        g.setAttribute('data-is-hotspot', 'true');
-        
-        const currentPresetId = e.detail.presetId || (icon && icon.presetId);
-        if (currentPresetId) {
-          g.setAttribute('data-preset-id', currentPresetId);
-          
-          const actionMap = {
-            'youtube': 'open-link',
-            'instagram': 'open-link',
-            'x': 'open-link',
-            'facebook': 'open-link',
-            'linkedin': 'open-link',
-            'open-link': 'open-link',
-            'navigate': 'navigate-to',
-            'whatsapp': 'whatsapp',
-            'call': 'call',
-            'email': 'email',
-            'video': 'popup',
-            'popup': 'popup',
-            'slideshow': 'slideshow',
-            'zoom': 'zoom',
-            'download': 'download',
-            'info': 'info-box',
-            'location': 'open-link',
-            '3d-viewer': '3d-viewer'
-          };
-          
-          const actionType = actionMap[currentPresetId];
-          if (actionType) {
-            g.setAttribute('data-interaction', actionType);
-          }
-        }
-      }
-
-
+      g.setAttribute('fill', 'none');
+      g.setAttribute('stroke', '#000000');
+      g.setAttribute('stroke-width', '1');
       if (icon.Component) {
         // If it's a lucide icon component, we can't easily render it to a string here 
         // without react-dom/server or similar. 
@@ -2724,8 +2687,93 @@ const MainEditor = ({
 
       updatePageHtml(targetPageIndex, svg.outerHTML);
       setSelectedLayerId(newId);
+    };
+
+    const handleAddHotspot = (e) => {
+      const { icon, pageIndex } = e.detail;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      let svgW = 793;
+      let svgH = 1121;
+      const viewBox = svg.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.split(/[ ,]+/).map(parseFloat);
+        if (parts.length === 4) {
+          svgW = parts[2];
+          svgH = parts[3];
+        }
+      } else {
+        const wAttr = parseFloat(svg.getAttribute('width'));
+        const hAttr = parseFloat(svg.getAttribute('height'));
+        if (!isNaN(wAttr) && wAttr > 0) svgW = wAttr;
+        if (!isNaN(hAttr) && hAttr > 0) svgH = hAttr;
+      }
+      const centerX = e.detail.dropPoint ? e.detail.dropPoint.x : (svgW / 2);
+      const centerY = e.detail.dropPoint ? e.detail.dropPoint.y : (svgH / 2);
+
+      // Unique ID
+      const newId = `hotspot-${Date.now()}`;
+
+      // Create element
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.id = newId;
+      g.setAttribute('data-type', 'hotspot');
+      // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
+      g.setAttribute('transform', `translate(${centerX - 6}, ${centerY - 6}) scale(0.5)`);
+      g.setAttribute('data-is-hotspot', 'true');
       
-      if (e.detail.isHotspot && typeof setActiveTopTool === 'function') {
+      const currentPresetId = e.detail.presetId || (icon && icon.presetId);
+      if (currentPresetId) {
+        g.setAttribute('data-preset-id', currentPresetId);
+        
+        const actionMap = {
+          'youtube': 'open-link',
+          'instagram': 'open-link',
+          'x': 'open-link',
+          'facebook': 'open-link',
+          'linkedin': 'open-link',
+          'open-link': 'open-link',
+          'navigate': 'navigate-to',
+          'whatsapp': 'whatsapp',
+          'call': 'call',
+          'email': 'email',
+          'video': 'popup',
+          'popup': 'popup',
+          'slideshow': 'slideshow',
+          'zoom': 'zoom',
+          'download': 'download',
+          'info': 'info-box',
+          'location': 'open-link',
+          '3d-viewer': '3d-viewer'
+        };
+        
+        const actionType = actionMap[currentPresetId];
+        if (actionType) {
+          g.setAttribute('data-interaction', actionType);
+        }
+      }
+
+      if (icon.html) g.innerHTML = icon.html;
+      else if (icon.d) {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', icon.d);
+        g.appendChild(path);
+      }
+
+      const targetContainer = svg.querySelector('[data-type="frame"]') || svg.querySelector('[data-name="Overlay"]') || svg;
+      targetContainer.appendChild(g);
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+      setSelectedLayerId(newId);
+      
+      if (typeof setActiveTopTool === 'function') {
         setActiveTopTool('interaction');
       }
     };
@@ -2943,10 +2991,12 @@ const MainEditor = ({
     };
 
     window.addEventListener('add-icon-to-editor', handleAddIcon);
+    window.addEventListener('add-hotspot-to-editor', handleAddHotspot);
     window.addEventListener('add-image-to-editor', handleAddImage);
     window.addEventListener('upload-video-to-editor', handleUploadVideo);
     return () => {
       window.removeEventListener('add-icon-to-editor', handleAddIcon);
+      window.removeEventListener('add-hotspot-to-editor', handleAddHotspot);
       window.removeEventListener('add-image-to-editor', handleAddImage);
       window.removeEventListener('upload-video-to-editor', handleUploadVideo);
     };
@@ -7615,7 +7665,15 @@ const MainEditor = ({
               const childrenList = isMulti ? multiIds.map(id => document.getElementById(id)).filter(Boolean) : (el.tagName.toLowerCase() === 'g' && el.children.length > 0 ? Array.from(el.children) : [el]);
               const childLocalToSvgRoot = el._childLocalToSvgRoot;
               childrenData = childrenList.map(child => {
-                const cb = getVisualBBox(child);
+                let cb = getVisualBBox(child);
+                if (child.tagName?.toLowerCase() === 'svg' && el.getAttribute('data-is-hotspot') === 'true') {
+                  cb = {
+                    x: parseFloat(child.getAttribute('x') || '0'),
+                    y: parseFloat(child.getAttribute('y') || '0'),
+                    width: parseFloat(child.getAttribute('width') || child.viewBox?.baseVal?.width || '0'),
+                    height: parseFloat(child.getAttribute('height') || child.viewBox?.baseVal?.height || '0')
+                  };
+                }
                 const cMatrix = getElementMatrix(child);
 
                 let minX, maxX, minY, maxY;
@@ -8160,6 +8218,7 @@ const MainEditor = ({
 
                   const la = state.localAnchor; // anchor in <g> local space
                   const isHotspot = el.getAttribute('data-is-hotspot') === 'true';
+                  const isInteractiveButton = isHotspot && state.childrenData.some(c => c.child.tagName.toLowerCase() === 'rect') && state.childrenData.some(c => c.child.tagName.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
 
                   state.childrenData.forEach(cData => {
                     const { child, initialMatrix, bound } = cData;
@@ -8187,8 +8246,12 @@ const MainEditor = ({
                     if (isHotspot && (dir === 'e' || dir === 'w')) {
                       myAnchorX = bound.x + bound.width / 2; // Anchor at the center
                       let newMyScaleX = 1 + 2 * (scaleX - 1);
-                      if (newMyScaleX < 1) newMyScaleX = 1;
-                      if (bound.width * newMyScaleX < 180) newMyScaleX = 180 / bound.width;
+                      if (isInteractiveButton) {
+                        if (newMyScaleX < 1) newMyScaleX = 1;
+                        if (bound.width * newMyScaleX < 180) newMyScaleX = 180 / bound.width;
+                      } else {
+                        if (newMyScaleX < 0.2) newMyScaleX = 0.2;
+                      }
                       myScaleX = newMyScaleX;
                     }
 
@@ -8196,9 +8259,12 @@ const MainEditor = ({
                       myAnchorX = bound.x + bound.width / 2; // Anchor center X
                       myAnchorY = bound.y + bound.height / 2; // Anchor center Y
                       let newMyScale = 1 + 2 * (scaleY - 1);
-                      if (newMyScale < 1) newMyScale = 1;
-                      if (bound.height * newMyScale < 60) newMyScale = 60 / bound.height;
-                      myScaleX = newMyScale;
+                      if (isInteractiveButton) {
+                        if (newMyScale < 1) newMyScale = 1;
+                        if (bound.height * newMyScale < 60) newMyScale = 60 / bound.height;
+                      } else {
+                        if (newMyScale < 0.2) newMyScale = 0.2;
+                      }
                       myScaleY = newMyScale;
                     }
 
@@ -8352,7 +8418,8 @@ const MainEditor = ({
                       }
                     } else if (tag === 'circle' || tag === 'ellipse') {
                       const hasTransform = child.getAttribute('transform');
-                      if (!hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
+                      const forceMatrix = isHotspot && !isInteractiveButton && (myScaleX !== myScaleY);
+                      if (!forceMatrix && (!hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)')) {
                         if (tag === 'circle') {
                           child.setAttribute('cx', newLocX + newLocW / 2);
                           child.setAttribute('cy', newLocY + newLocH / 2);
@@ -8364,7 +8431,7 @@ const MainEditor = ({
                           child.setAttribute('ry', newLocH / 2);
                         }
                       } else {
-                        const sm = new DOMMatrix().translate(la.x, la.y).scale(scaleX, scaleY).translate(-la.x, -la.y);
+                        const sm = new DOMMatrix().translate(la.x, la.y).scale(myScaleX, myScaleY).translate(-la.x, -la.y);
                         child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
                       }
                     } else {
@@ -8431,6 +8498,7 @@ const MainEditor = ({
                                 let cd = {};
                                 try { if (cropDataStr && cropDataStr !== 'null') cd = JSON.parse(cropDataStr); } catch (e) { }
                                 cd.left = cLeft;
+
                                 cd.top = cTop;
                                 cd.width = cWidth;
                                 cd.height = cHeight;
@@ -8467,11 +8535,11 @@ const MainEditor = ({
                             innerImg.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${cScale}) translate(${-centerX} ${-centerY})`);
                           }
                         } else {
-                          const sm = new DOMMatrix().translate(la.x, la.y).scale(scaleX, scaleY).translate(-la.x, -la.y);
+                          const sm = new DOMMatrix().translate(la.x, la.y).scale(myScaleX, myScaleY).translate(-la.x, -la.y);
                           child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
                         }
                       } else {
-                        const sm = new DOMMatrix().translate(la.x, la.y).scale(scaleX, scaleY).translate(-la.x, -la.y);
+                        const sm = new DOMMatrix().translate(la.x, la.y).scale(myScaleX, myScaleY).translate(-la.x, -la.y);
                         child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
                       }
                     }
@@ -12359,7 +12427,7 @@ const MainEditor = ({
                   <HotspotPresetPopup
                     onClose={() => setShowHotspotPopup(false)}
                     onSelectPreset={(data) => {
-                      if (data.type === 'icon') {
+                      if (data.type === 'hotspot') {
                         const container = document.querySelector(`.page-svg-container[data-page-index="${displayIndex}"]`);
                         const svg = container?.querySelector('svg');
                         let centerX = 396;
@@ -12371,12 +12439,12 @@ const MainEditor = ({
                           centerY = svgH / 2;
                         }
                         
-                        window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                        window.dispatchEvent(new CustomEvent('add-hotspot-to-editor', {
                           detail: {
                             pageIndex: displayIndex,
                             icon: data.icon,
                             dropPoint: { x: centerX, y: centerY },
-                            isHotspot: data.isHotspot
+                            presetId: data.icon?.presetId
                           }
                         }));
                       }
@@ -12907,18 +12975,24 @@ const MainEditor = ({
 
                                   if (!data) return;
 
-                                  if (data.type === 'icon') {
-                                    window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                                  if (data.type === 'hotspot') {
+                                    window.dispatchEvent(new CustomEvent('add-hotspot-to-editor', {
                                       detail: {
                                         pageIndex: displayIndex,
                                         icon: data.icon,
                                         dropPoint,
-                                        isHotspot: data.isHotspot
+                                        presetId: data.icon?.presetId
                                       }
                                     }));
-                                    if (data.isHotspot) {
-                                      setShowHotspotPopup(false);
-                                    }
+                                    setShowHotspotPopup(false);
+                                  } else if (data.type === 'icon') {
+                                    window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                                      detail: {
+                                        pageIndex: displayIndex,
+                                        icon: data.icon,
+                                        dropPoint
+                                      }
+                                    }));
                                   } else if (data.type === 'image' || data.type === 'upload' || data.url) {
                                     window.dispatchEvent(new CustomEvent('add-image-to-editor', {
                                       detail: {

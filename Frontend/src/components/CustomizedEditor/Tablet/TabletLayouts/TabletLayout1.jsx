@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Icon } from '@iconify/react';
 import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
-
+import ShareModal from '../../../ShareModal';
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     const cleanHtml = (html || '')
@@ -57,12 +57,13 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
-const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, settings, showTOC, setShowTOCMemo, showThumbnailBar, setShowThumbnailBarMemo, onPageClick, showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, showGalleryPopup, setShowGalleryPopupMemo }) => {
+const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, settings, showTOC, setShowTOCMemo, showThumbnailBar, setShowThumbnailBarMemo, onPageClick, showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, showGalleryPopup, setShowGalleryPopupMemo, currentBook, activeLayout, handleFullScreen }) => {
     const scrollRef = useRef(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
     const [visibleIndices, setVisibleIndices] = useState([]);
     const [isOverflowing, setIsOverflowing] = useState(false);
+    const [isShareOpen, setIsShareOpen] = useState(false);
 
     const progressRef = useRef(null);
     const handleProgressClick = (e) => {
@@ -566,7 +567,18 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         </button>
                     </div>
 
-                    <button className="text-white hover:text-gray-200 transition-colors ml-[1cqw]">
+                    <button
+                        className="text-white hover:text-gray-200 transition-colors ml-[1cqw]"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowTOCMemo?.(false);
+                            setShowThumbnailBarMemo?.(false);
+                            setShowSoundPopupMemo?.(false);
+                            setShowProfilePopupMemo?.(false);
+                            setShowGalleryPopupMemo?.(false);
+                            setIsShareOpen(true);
+                        }}
+                    >
                         <Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" />
                     </button>
                     <button className="text-white hover:text-gray-200 transition-colors">
@@ -578,6 +590,14 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                 </div>
 
             </div>
+            
+            <ShareModal
+                isOpen={isShareOpen}
+                onClose={() => setIsShareOpen(false)}
+                isTabletLayout={true}
+                currentBook={currentBook || settings}
+                activeLayout={activeLayout || '1'}
+            />
         </div>
     );
 };

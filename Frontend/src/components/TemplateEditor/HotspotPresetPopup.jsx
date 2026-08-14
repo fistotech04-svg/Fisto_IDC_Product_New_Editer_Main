@@ -4,7 +4,7 @@ import { Icon } from '@iconify/react';
 
 // SVG imports removed as per user instruction
 
-const presets = [
+export const presets = [
   { id: 'open-link', name: 'Open Link', cssStyle: { background: 'rgba(53, 156, 253, 0.4)' }, innerCssStyle: { background: 'linear-gradient(90deg, #359CFD 0%, #257EFC 100%)' }, iconifyIcon: 'stash:link-solid' },
   { id: 'whatsapp', name: 'WhatsApp', cssStyle: { background: 'rgba(52, 168, 83, 0.24)' }, innerCssStyle: { background: '#34A853' }, iconifyIcon: 'ic:outline-whatsapp' },
   { id: 'navigate', name: 'Navigate Page', cssStyle: { background: 'rgba(97, 73, 247, 0.24)' }, innerCssStyle: { background: 'linear-gradient(90deg, #7A63FC 0%, #5A45FA 100%)' }, iconifyIcon: 'iconoir:page-search' },
@@ -25,7 +25,7 @@ const presets = [
   { id: 'info', name: 'Info Popup', cssStyle: { background: 'rgba(0, 0, 0, 0.24)' }, innerCssStyle: { background: '#000000' }, iconifyIcon: 'fontisto:info' }
 ];
 
-const generateSvgPayload = (preset) => {
+export const generateSvgPayload = (preset) => {
   let outerFill = preset.cssStyle?.background || 'rgba(0,0,0,0.5)';
   let defsInner = '';
   let innerFill = '';
@@ -197,7 +197,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
               draggable="true"
               onDragStart={(e) => {
                 e.dataTransfer.setData('application/json', JSON.stringify({
-                  type: 'icon',
+                  type: 'hotspot',
                   isHotspot: true,
                   icon: { 
                     html: generateSvgPayload(preset),
@@ -211,7 +211,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
               onClick={() => {
                 if (onSelectPreset) {
                   onSelectPreset({
-                    type: 'icon',
+                    type: 'hotspot',
                     isHotspot: true,
                     icon: { 
                       html: generateSvgPayload(preset),
@@ -261,7 +261,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
             draggable="true"
             onDragStart={(e) => {
               e.dataTransfer.setData('application/json', JSON.stringify({ 
-                type: 'icon', 
+                type: 'hotspot', 
                 isHotspot: true,
                 icon: { presetId: 'open-link', html: '<rect width="180" height="60" rx="8" fill="#2B85FF" /><text x="90" y="38" fill="white" font-family="Inter, sans-serif" font-size="24" font-weight="500" text-anchor="middle">Button</text>' }
               }));
@@ -276,7 +276,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
             draggable="true"
             onDragStart={(e) => {
               e.dataTransfer.setData('application/json', JSON.stringify({ 
-                type: 'icon', 
+                type: 'hotspot', 
                 isHotspot: true,
                 icon: { presetId: 'open-link', html: '<rect width="180" height="60" rx="8" fill="#F87A18" /><text x="90" y="38" fill="white" font-family="Inter, sans-serif" font-size="24" font-weight="500" text-anchor="middle">Button</text>' }
               }));
@@ -291,7 +291,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
             draggable="true"
             onDragStart={(e) => {
               e.dataTransfer.setData('application/json', JSON.stringify({ 
-                type: 'icon', 
+                type: 'hotspot', 
                 isHotspot: true,
                 icon: { presetId: 'open-link', html: '<rect width="200" height="60" rx="30" fill="#7859FF" /><path d="M55,30 l8,8 l16,-16" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" /><text x="120" y="38" fill="white" font-family="Inter, sans-serif" font-size="24" font-weight="500" text-anchor="middle">Icon</text>' }
               }));
@@ -307,7 +307,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
             draggable="true"
             onDragStart={(e) => {
               e.dataTransfer.setData('application/json', JSON.stringify({ 
-                type: 'icon', 
+                type: 'hotspot', 
                 isHotspot: true,
                 icon: { presetId: 'open-link', html: '<rect width="220" height="60" rx="30" fill="#FFCC00" /><text x="110" y="38" fill="white" font-family="Inter, sans-serif" font-size="24" font-weight="500" text-anchor="middle">Round Button</text>' }
               }));
@@ -322,7 +322,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
             draggable="true"
             onDragStart={(e) => {
               e.dataTransfer.setData('application/json', JSON.stringify({ 
-                type: 'icon', 
+                type: 'hotspot', 
                 isHotspot: true,
                 icon: { presetId: 'open-link', html: '<rect width="180" height="60" rx="30" fill="#7859FF" /><text x="90" y="38" fill="white" font-family="Inter, sans-serif" font-size="24" font-weight="500" text-anchor="middle">Button</text>' }
               }));

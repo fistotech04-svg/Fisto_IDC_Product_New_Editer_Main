@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
+import ShareModal from '../../../ShareModal';
 
 const TabletLayout7 = ({ 
     children, 
@@ -10,8 +11,11 @@ const TabletLayout7 = ({
     bookName,
     onPageClick,
     zoom = 1,
-    ...props 
+    currentBook,
+    activeLayout,
+    settings
 }) => {
+    const [isShareOpen, setIsShareOpen] = useState(false);
     const progressRef = useRef(null);
     
     const pagesCount = pages ? (Array.isArray(pages) ? pages.length : pages) : 12;
@@ -82,7 +86,7 @@ const TabletLayout7 = ({
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="clarity:image-gallery-solid" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" /></button>
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform" onClick={() => setIsShareOpen(true)}><Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="lucide:fullscreen" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                 </div>
@@ -117,6 +121,14 @@ const TabletLayout7 = ({
                     <button className="bg-white text-[#5C5898] font-bold text-[0.9cqw] px-[0.8cqw] py-[0.3cqw] rounded-[0.2cqw] ml-[0.3cqw] hover:bg-gray-100 transition-colors">Reset</button>
                 </div>
             </div>
+
+            <ShareModal
+                isOpen={isShareOpen}
+                onClose={() => setIsShareOpen(false)}
+                isTabletLayout={true}
+                currentBook={currentBook || settings}
+                activeLayout={activeLayout || '7'}
+            />
         </div>
     );
 };

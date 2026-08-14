@@ -371,7 +371,7 @@ const HotspotCustomizationPopup = ({
               <div className="flex items-center">
                 <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Icon Style :</span>
                 <div className="flex items-center gap-[0.4vw] ml-[0.5vw]">
-                  {iconStyles.map((style, idx) => (
+                {iconStyles.map((style, idx) => (
                     <button
                       key={idx}
                       className={`w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-[0.3vw] border transition-colors ${(!isModified && initialHotspotHtml) ? 'border-transparent hover:bg-gray-50' : (iconStyle === idx ? 'border-gray-800 shadow-sm' : 'border-transparent hover:bg-gray-50')}`}

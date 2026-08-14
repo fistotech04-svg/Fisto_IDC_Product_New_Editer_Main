@@ -12,7 +12,7 @@ const LeadFormPopup = ({
     /* ─── MOBILE PORTRAIT ─────────────────────────────────────────────────── */
     if (isMobile) {
         return (
-            <div className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
+            <div className="absolute inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
                 <div className="relative w-full" style={{ fontFamily: leadFormSettings.appearance.fontStyle || 'Inter' }}>
                     {/* Card */}
                     <div
@@ -88,7 +88,8 @@ const LeadFormPopup = ({
                             </div>
 
                             {/* Form Fields */}
-                            <div className="space-y-3 w-full">
+                            <div className="w-full max-h-[55vh] overflow-y-auto pr-1 pb-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
+                                <div className="space-y-3 w-full pb-2">
                                 {(leadFormSettings.fields || []).map(field => {
                                     if (field.type === 'feedback') {
                                         return (
@@ -104,6 +105,50 @@ const LeadFormPopup = ({
                                                     onFocus={(e) => e.target.style.borderColor = leadFormSettings.appearance.btnFill || '#3E4491'}
                                                     onBlur={(e) => e.target.style.borderColor = leadFormSettings.appearance.bgStroke || '#D1D5DB'}
                                                 />
+                                            </div>
+                                        );
+                                    }
+
+                                    if (field.type === 'rating') {
+                                        return (
+                                            <div key={field.id} className="space-y-1.5 flex flex-col pt-1 pb-2">
+                                                <label 
+                                                    className="text-[12px] font-medium"
+                                                    style={{ color: leadFormSettings.appearance.textFill || '#111827' }}
+                                                >
+                                                    {field.label || 'Provide Ratings'}
+                                                </label>
+                                                <div className="flex items-center gap-3 px-3 py-1">
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <Icon key={star} icon="lucide:star" className="w-8 h-8 text-yellow-400 stroke-[1.5] cursor-pointer hover:scale-110 transition-transform" />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    if (field.type === 'checkbox') {
+                                        return (
+                                            <div key={field.id} className="space-y-2 flex flex-col pt-1 pb-2">
+                                                <label 
+                                                    className="text-[12px] font-medium"
+                                                    style={{ color: leadFormSettings.appearance.textFill || '#111827' }}
+                                                >
+                                                    {field.label || 'Interested Products'}
+                                                </label>
+                                                <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+                                                    {(field.options || []).map((opt, idx) => (
+                                                        <label key={idx} className="flex items-center gap-2 cursor-pointer relative">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                className="peer shrink-0 w-4 h-4 border border-gray-400 rounded-sm checked:bg-[#3E4491] checked:border-[#3E4491] focus:ring-0 appearance-none transition-all"
+                                                                defaultChecked={idx === 0} 
+                                                            />
+                                                            <Icon icon="lucide:check" className="absolute w-3 h-3 left-[2px] text-white pointer-events-none opacity-0 peer-checked:opacity-100" />
+                                                            <span className="text-[12px] text-gray-700 leading-tight truncate">{opt}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
                                             </div>
                                         );
                                     }
@@ -156,6 +201,7 @@ const LeadFormPopup = ({
                                         </div>
                                     );
                                 })}
+                                </div>
                             </div>
                             {/* Submit Button */}
                             <div className="mt-4 w-full">
@@ -182,7 +228,7 @@ const LeadFormPopup = ({
 
     /* ─── DESKTOP / TABLET ────────────────────────────────────────────────── */
     return (
-        <div className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-[0.25vw]">
+        <div className="absolute inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-[0.25vw]">
             <div className="relative" style={{ fontFamily: leadFormSettings.appearance.fontStyle || 'Inter' }}>
                 <div
                     className={`${isTablet ? 'w-[24vw] rounded-[1vw]' : 'w-[30vw] rounded-[1.3vw]'} shadow-[0_1vw_4vw_rgba(0,0,0,0.1)] overflow-hidden relative border animate-in zoom-in-95 duration-300`}
@@ -233,7 +279,8 @@ const LeadFormPopup = ({
                         </div>
 
                         {/* Form Fields */}
-                        <div className={`${isTablet ? 'space-y-[0.8vw] w-full max-w-[14vw]' : 'space-y-[0.7vw] w-full max-w-[18vw]'} mx-auto`}>
+                        <div className="w-full max-h-[55vh] overflow-y-auto pr-[0.4vw] pb-[0.4vw] [&::-webkit-scrollbar]:w-[0.4vw] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            <div className={`${isTablet ? 'space-y-[0.8vw] w-full max-w-[14vw]' : 'space-y-[0.7vw] w-full max-w-[18vw]'} mx-auto`}>
                             {(leadFormSettings.fields || []).map(field => {
                                 return (
                                     <div key={field.id} className="flex flex-col space-y-[0.2vw]">
@@ -259,6 +306,12 @@ const LeadFormPopup = ({
                                                     onFocus={(e) => e.target.style.borderColor = leadFormSettings.appearance.btnFill || '#3E4491'}
                                                     onBlur={(e) => e.target.style.borderColor = leadFormSettings.appearance.bgStroke || '#D1D5DB'}
                                                 />
+                                            ) : field.type === 'rating' ? (
+                                                <div className={`flex items-center ${isTablet ? 'gap-[1vw] py-[0.5vw] px-[1vw]' : 'gap-[1.2vw] py-[0.5vw] px-[1.5vw]'}`}>
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <Icon key={star} icon="lucide:star" className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.2vw] h-[2.2vw]'} text-yellow-400 stroke-[1.5] cursor-pointer hover:scale-110 transition-transform`} />
+                                                    ))}
+                                                </div>
                                             ) : field.type === 'dropdown' ? (
                                                 <>
                                                     <select
@@ -280,6 +333,20 @@ const LeadFormPopup = ({
                                                         <Icon icon="fluent:chevron-down-12-regular" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'} text-gray-500`} />
                                                     </div>
                                                 </>
+                                            ) : field.type === 'checkbox' ? (
+                                                <div className={`grid grid-cols-2 ${isTablet ? 'gap-y-[0.6vw] gap-x-[1vw] pt-[0.2vw]' : 'gap-y-[0.8vw] gap-x-[1.2vw] pt-[0.3vw]'}`}>
+                                                    {(field.options || []).map((opt, idx) => (
+                                                        <label key={idx} className="flex items-center gap-[0.4vw] cursor-pointer relative">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                className={`peer shrink-0 ${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]'} border border-gray-500 rounded-sm checked:bg-[#3E4491] checked:border-[#3E4491] focus:ring-0 appearance-none transition-all`}
+                                                                defaultChecked={idx === 0} 
+                                                            />
+                                                            <Icon icon="lucide:check" className={`absolute ${isTablet ? 'w-[0.6vw] h-[0.6vw] left-[0.1vw]' : 'w-[0.8vw] h-[0.8vw] left-[0.1vw]'} text-white pointer-events-none opacity-0 peer-checked:opacity-100`} />
+                                                            <span className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} text-gray-700 leading-tight truncate`}>{opt}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
                                             ) : (
                                                 <>
                                                     <div className={`${isTablet ? 'left-[0.6vw] pr-[0.5vw]' : 'left-[0.8vw] pr-[0.7vw]'} absolute top-1/2 -translate-y-1/2 flex items-center justify-center text-gray-900`}>
@@ -321,6 +388,7 @@ const LeadFormPopup = ({
                                     {leadFormSettings.buttonText || 'SUBMIT'}
                                 </button>
                             </div>
+                        </div>
                         </div>
                     </div>
                 </div>

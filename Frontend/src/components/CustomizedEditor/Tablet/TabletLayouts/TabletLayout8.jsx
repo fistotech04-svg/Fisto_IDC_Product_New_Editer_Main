@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
+import ShareModal from '../../../ShareModal';
 
 const TabletLayout8 = ({ 
     children, 
@@ -10,8 +11,11 @@ const TabletLayout8 = ({
     bookName,
     onPageClick,
     zoom = 1,
-    ...props 
+    currentBook,
+    activeLayout,
+    settings
 }) => {
+    const [isShareOpen, setIsShareOpen] = useState(false);
     const progressRef = useRef(null);
     
     const pagesCount = pages ? (Array.isArray(pages) ? pages.length : pages) : 12;
@@ -116,7 +120,7 @@ const TabletLayout8 = ({
                     <div className="flex items-center gap-[2.5cqw]">
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" /></button>
-                        <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                        <button className="text-white hover:text-gray-200 active:scale-95 transition-transform" onClick={() => setIsShareOpen(true)}><Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="lucide:fullscreen" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     </div>
@@ -130,6 +134,14 @@ const TabletLayout8 = ({
                 </div>
 
             </div>
+            
+            <ShareModal
+                isOpen={isShareOpen}
+                onClose={() => setIsShareOpen(false)}
+                isTabletLayout={true}
+                currentBook={currentBook || settings}
+                activeLayout={activeLayout || '8'}
+            />
         </div>
     );
 };

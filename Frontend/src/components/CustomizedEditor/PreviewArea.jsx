@@ -3602,6 +3602,8 @@ const PreviewArea = React.memo(({
     }, [activeSubView, onClose]);
 
     useEffect(() => {
+        console.log("LEAD FORM DEBUG INITIAL: leadFormSettings=", leadFormSettings, "leadFormSubmitted=", leadFormSubmitted, "currentPage=", currentPage);
+
         // 1. If lead form was submitted or closed, hide it
         if (leadFormSubmitted) {
             setShowLeadForm(false);
@@ -3632,13 +3634,16 @@ const PreviewArea = React.memo(({
 
         if (timing === 'before' && currentPage >= 0) {
             setShowLeadForm(true);
-        } else if (timing === 'after-pages' && currentPage >= afterPages) {
+        } else if (timing === 'after-pages' && currentPage >= (afterPages - 1)) {
             setShowLeadForm(true);
         } else if (timing === 'end' && currentPage >= pages.length - 1) {
             setShowLeadForm(true);
         } else if (timing !== 'after-seconds') {
             setShowLeadForm(false);
         }
+
+        console.log("LEAD FORM DEBUG: timing=", timing, "currentPage=", currentPage, "afterPages=", afterPages, "showLeadForm will be set to:", (timing === 'before' && currentPage >= 0) || (timing === 'after-pages' && currentPage >= (afterPages - 1)) || (timing === 'end' && currentPage >= pages.length - 1));
+
     }, [currentPage, leadFormSettings, leadFormSubmitted, pages.length, activeSubView, onClose]);
 
     // Separate useEffect for after-seconds to prevent resetting timer on page change
@@ -4535,15 +4540,7 @@ const PreviewArea = React.memo(({
 
                             {renderSharedOverlays()}
 
-                            {/* Lead Form Overlay */}
-                            {showLeadForm && (
-                                <LeadFormPopup
-                                    leadFormSettings={leadFormSettings}
-                                    isTablet={isTablet}
-                                    isMobile={true}
-                                    onClose={() => setLeadFormSubmitted(true)}
-                                />
-                            )}
+                            {/* Lead form popup moved to root to act as centered screen modal */}
                         </div>
                     );
 
@@ -4649,9 +4646,8 @@ const PreviewArea = React.memo(({
                                     currentZoom={currentZoom}
                                     handleZoomIn={handleZoomIn}
                                     handleZoomOut={handleZoomOut}
-                                    handleFullScreen={handleFullScreen}
-                                    handleShare={handleShare}
                                     handleDownload={handleDownload}
+                                    currentBook={currentBook}
                                     offset={isSinglePage ? 0 : offset}
                                     backgroundSettings={layoutBackgroundSettings}
                                     backgroundStyle={layoutBackgroundStyle}
@@ -4683,6 +4679,8 @@ const PreviewArea = React.memo(({
                                     showProfilePopup={showProfilePopup}
                                     setShowProfilePopupMemo={setShowProfilePopup}
                                     handleDownload={handleDownload}
+                                    currentBook={currentBook}
+                                    activeLayout={activeLayout}
                                 >
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
@@ -4711,6 +4709,8 @@ const PreviewArea = React.memo(({
                                     setShowProfilePopupMemo={setShowProfilePopup}
                                     showExportPopup={showExportPopup}
                                     setShowExportPopupMemo={setShowExportPopup}
+                                    currentBook={currentBook}
+                                    activeLayout={activeLayout}
                                 >
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
@@ -4737,7 +4737,7 @@ const PreviewArea = React.memo(({
                                     pages={pages}
                                     setIsPlaying={setIsPlaying}
                                     isAutoFlipping={isAutoFlipping}
-                                    handleShare={handleShare}
+                                    currentBook={currentBook}
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
@@ -4916,7 +4916,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5036,7 +5036,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5155,7 +5155,7 @@ const PreviewArea = React.memo(({
                                     pages={pages}
                                     setIsPlaying={setIsPlaying}
                                     isAutoFlipping={isAutoFlipping}
-                                    handleShare={handleShare}
+                                    currentBook={currentBook}
                                     handleDownload={handleDownload}
                                     showSharePopup={showSharePopup}
                                     setShowSharePopup={setShowSharePopup}
@@ -5283,7 +5283,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5312,6 +5312,7 @@ const PreviewArea = React.memo(({
                                         setShowSoundPopupMemo={setShowSoundPopupMemo}
                                         showTOC={showTOC}
                                         showThumbnailBar={showThumbnailBar}
+                                        activeLayout={activeLayout}
                                     >
                                         <TurnJsBookRenderer
                                             {...bookRendererProps}
@@ -5396,7 +5397,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5430,6 +5431,7 @@ const PreviewArea = React.memo(({
                                             primary: '#575C9C',
                                             secondary: '#E3E4EF'
                                         }}
+                                        activeLayout={activeLayout}
                                     >
                                         <TurnJsBookRenderer
                                             {...bookRendererProps}
@@ -5521,7 +5523,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5706,14 +5708,7 @@ const PreviewArea = React.memo(({
 
                             {renderSharedOverlays()}
 
-                            {/* Lead Form Overlay */}
-                            {showLeadForm && (
-                                <LeadFormPopup
-                                    leadFormSettings={leadFormSettings}
-                                    isTablet={isTablet}
-                                    onClose={() => setLeadFormSubmitted(true)}
-                                />
-                            )}
+                            {/* Lead form popup moved to root to act as centered screen modal */}
                         </div>
                     </div>
 
@@ -5927,6 +5922,17 @@ const PreviewArea = React.memo(({
                     className="absolute inset-0 z-[9999]"
                     style={{ cursor: 'zoom-out' }}
                     onClick={() => setInteractionZoom(null)}
+                />
+            )}
+
+            {/* Centered Screen Lead Form Modal Overlay */}
+            {console.log("LEAD FORM DEBUG: rendering LeadFormPopup? showLeadForm=", showLeadForm)}
+            {showLeadForm && (
+                <LeadFormPopup
+                    leadFormSettings={leadFormSettings}
+                    isTablet={isTablet}
+                    isMobile={activeDevice === 'Mobile'}
+                    onClose={() => setLeadFormSubmitted(true)}
                 />
             )}
         </div>
