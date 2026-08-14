@@ -3,165 +3,123 @@ import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Icon } from '@iconify/react';
 import FlipbookPreview from '../components/TemplateEditor/FlipbookPreview';
-import { getFromDB } from '../utils/dbUtils';
 import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
 
 const PreviewPage = () => {
-
   const [data, setData] = useState(null);
-  const [tempVId, setTempVId] = useState(null);
-  const [tempPreloader, setTempPreloader] = useState(null);
   const location = useLocation();
-
-  useEffect(() => {
-    const fetchPreloader = async () => {
-      try {
-        const saved = await getFromDB('editor_autosave');
-        if (saved) {
-          if (saved.v_id) setTempVId(saved.v_id);
-          if (saved.settings?.preloader) {
-            setTempPreloader(saved.settings.preloader);
-          }
-        }
-      } catch (e) {}
-    };
-    fetchPreloader();
-  }, []);
 
   useEffect(() => {
     const loadData = async () => {
       const searchParams = new URLSearchParams(location.search);
-      const shareId = searchParams.get('shareId');
+      const shareId = searchParams.get('shareId') || searchParams.get('v_id');
 
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : null;
       const currentUserEmail = user?.emailId || user?.email;
 
-      if (shareId) {
-        try {
-          const getBackendUrl = () => {
-              if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
-              const origin = window.location.origin;
-              if (origin.includes('devtunnels.ms')) return origin.replace('-5173', '-5000');
-              if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-                  const portMatch = origin.match(/:(\d+)/);
-                  if (portMatch) return origin.replace(portMatch[0], ':5000');
-              }
-              return 'http://localhost:5000';
-          };
-          const backendUrl = getBackendUrl();
-          const params = currentUserEmail ? { emailId: currentUserEmail } : {};
-          const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, { params });
-          
-          if (res.data) {
-            let processedData = res.data;
-            
-            if (!currentUserEmail) {
-                setData({ error: true, errorMessage: "Please login with the owner account to preview this flipbook." });
-                return;
-            }
+      if (!shareId) {
+        setData({ error: true, errorMessage: "No flipbook ID specified for preview." });
+        return;
+      }
 
-            try {
-                const checkRes = await axios.get(`${backendUrl}/api/flipbook/check-owner/${shareId}?emailId=${encodeURIComponent(currentUserEmail)}`);
-                if (!checkRes.data || !checkRes.data.isOwner) {
-                    setData({ error: true, errorMessage: "You do not have permission to preview another user's flipbook." });
-                    return;
-                }
-            } catch (ownerErr) {
-                setData({ error: true, errorMessage: "You do not have permission to preview another user's flipbook." });
-                return;
-            }
+      try {
+        const getBackendUrl = () => {
+          if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+          const origin = window.location.origin;
+          if (origin.includes('devtunnels.ms')) return origin.replace('-5173', '-5000');
+          if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+            const portMatch = origin.match(/:(\d+)/);
+            if (portMatch) return origin.replace(portMatch[0], ':5000');
+          }
+          return 'http://localhost:5000';
+        };
+        const backendUrl = getBackendUrl();
+        const params = currentUserEmail ? { emailId: currentUserEmail } : {};
+        const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, { params });
 
-            const bUrl = processedData.meta?.baseUrl ? resolveUploadsPath(processedData.meta.baseUrl) : '';
-            
-            processedData.pages = (processedData.pages || []).map(p => {
-                let html = p.html || p.content || '';
-                if (html.includes('nullassets/') && bUrl) html = html.split('nullassets/').join(`${bUrl}assets/`);
-                if (html.includes('./assets/') && bUrl) html = html.split('./assets/').join(`${bUrl}assets/`);
-                html = rewriteHtmlUploadsToSupabase(html);
-                return { ...p, html };
-            });
+        if (res.data) {
+          let processedData = res.data;
 
-            setData({
-                ...processedData,
-                projectBaseUrl: bUrl,
-                settings: processedData.settings || {},
-                pageName: processedData.meta?.flipbookName || 'Preview'
-            });
+          if (!currentUserEmail) {
+            setData({ error: true, errorMessage: "Please login with the owner account to preview this flipbook." });
             return;
           }
-        } catch (err) {
-          console.error("Failed to fetch preview from backend:", err);
-          setData({ error: true, errorMessage: err.response?.data?.message || "You do not have permission to preview another user's flipbook." });
-          return;
-        }
-      }
 
-      const saved = await getFromDB('editor_autosave');
-      if (saved && saved.pages && saved.pages.length > 0) {
-        // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
-        const imageUrls = [];
-        const pBaseUrl = saved.projectBaseUrl || '';
-        saved.pages.forEach(p => {
-          const htmlStr = p.html || p.content || '';
-          if (!htmlStr) return;
-          const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
-          let match;
-          while ((match = imgRegex.exec(htmlStr)) !== null) {
-            let url = match[1];
-            if (url && !url.startsWith('data:')) {
-              if (url.includes('nullassets/') && pBaseUrl) {
-                url = url.split('nullassets/').join(`${pBaseUrl}assets/`);
-              } else if (url.includes('./assets/') && pBaseUrl) {
-                url = url.split('./assets/').join(`${pBaseUrl}assets/`);
-              }
-              imageUrls.push(url);
+          try {
+            const checkRes = await axios.get(`${backendUrl}/api/flipbook/check-owner/${shareId}?emailId=${encodeURIComponent(currentUserEmail)}`);
+            if (!checkRes.data || !checkRes.data.isOwner) {
+              setData({ error: true, errorMessage: "You do not have permission to preview another user's flipbook." });
+              return;
             }
+          } catch (ownerErr) {
+            setData({ error: true, errorMessage: "You do not have permission to preview another user's flipbook." });
+            return;
           }
-        });
 
-        const uniqueUrls = Array.from(new Set(imageUrls));
-        if (uniqueUrls.length > 0) {
-          console.log(`[Preview] Loading ${uniqueUrls.length} unique assets before initialization...`);
-          await Promise.all(uniqueUrls.map(url => {
-            return new Promise((resolve) => {
-              const img = new Image();
-              img.onload = resolve;
-              img.onerror = resolve;
-              img.src = url;
-            });
-          }));
+          const bUrl = processedData.meta?.baseUrl ? resolveUploadsPath(processedData.meta.baseUrl) : '';
+
+          processedData.pages = (processedData.pages || []).map(p => {
+            let html = p.html || p.content || '';
+            if (html.includes('nullassets/') && bUrl) html = html.split('nullassets/').join(`${bUrl}assets/`);
+            if (html.includes('./assets/') && bUrl) html = html.split('./assets/').join(`${bUrl}assets/`);
+            html = rewriteHtmlUploadsToSupabase(html);
+            return { ...p, html };
+          });
+
+          const brandingObj = processedData.Customized_Settings?.Branding || {};
+          const backgroundObj = processedData.Customized_Settings?.Background || {};
+          const menuBarObj = processedData.Customized_Settings?.MenuBar || {};
+          const layoutsObj = processedData.Customized_Settings?.Layouts || {};
+          const rawApp = processedData.Customized_Settings?.Appearance || {};
+          const appearanceObj = {
+            dropShadow: { active: true, position: 'Bottom Right', strength: 35, softness: 35, ...(rawApp.dropShadow || {}) },
+            ...rawApp
+          };
+          const mergedSettings = {
+            ...(processedData.meta || {}),
+            logo: brandingObj.logoSettings,
+            watermark: brandingObj.watermarkSettings,
+            preloader: brandingObj.preloaderSettings,
+            background: backgroundObj,
+            backgroundSettings: backgroundObj,
+            appearance: appearanceObj,
+            bookAppearanceSettings: appearanceObj,
+            menuBar: menuBarObj,
+            menuBarSettings: menuBarObj,
+            MenuBar: menuBarObj,
+            Layouts: layoutsObj,
+            layout: layoutsObj.layoutStyle !== undefined ? layoutsObj.layoutStyle : 1,
+            layoutColors: layoutsObj.layoutColors,
+            Branding: brandingObj,
+            Background: backgroundObj
+          };
+
+          setData({
+            ...processedData,
+            projectBaseUrl: bUrl,
+            settings: mergedSettings,
+            pageName: processedData.meta?.flipbookName || 'Preview'
+          });
         }
-
-        setData(saved);
-      } else {
-        setData({ error: true, errorMessage: "No preview data found. Please return to the editor." });
+      } catch (err) {
+        console.error("Failed to fetch preview from backend DB:", err);
+        setData({ error: true, errorMessage: err.response?.data?.message || "Failed to load flipbook data from database." });
       }
     };
+
     loadData();
   }, [location.search]);
 
   if (!data) {
     return (
-      <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}>
-        <FlipbookPreview
-          pages={[]}
-          pageName="Preview"
-          onClose={() => window.close()}
-          isMobile={false}
-          isDoublePage={false}
-          targetPage={0}
-          settings={tempPreloader ? { preloader: tempPreloader } : {}}
-          baseUrl=""
-          v_id={tempVId}
-          isLoadingParent={true}
-        />
-      </div>
+      <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0, backgroundColor: '#ffffff' }} />
     );
   }
+
   if (data.error) {
-    const rawError = data.errorMessage || "No preview data found. Please return to the editor.";
-    const isNoData = rawError === "No preview data found. Please return to the editor.";
+    const rawError = data.errorMessage || "No preview data found in database.";
+    const isNoData = rawError === "No preview data found in database." || rawError === "No flipbook ID specified for preview.";
 
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-white text-slate-950 font-sans selection:bg-slate-900 selection:text-white relative">
@@ -191,7 +149,7 @@ const PreviewPage = () => {
                 ? (rawError.toLowerCase().includes('permission') || rawError.toLowerCase().includes('owner') || rawError.toLowerCase().includes('user') || rawError.toLowerCase().includes('login')
                   ? "You do not have permission to preview another user's flipbook. Draft previews are strictly reserved for the owner account."
                   : rawError)
-                : "No preview data found. Please return to the editor to generate a preview."}
+                : "No preview data found in database. Please return to the editor."}
             </p>
           </div>
 
@@ -246,7 +204,7 @@ const PreviewPage = () => {
         isMobile={false}
         isDoublePage={data.isDoublePage || false}
         targetPage={0}
-        settings={{ ...(data.meta || {}), ...(data.settings || {}) }}
+        settings={data.settings || {}}
         baseUrl={data.projectBaseUrl || ''}
         v_id={data.v_id}
         isLoadingParent={false}

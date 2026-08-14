@@ -84,13 +84,24 @@ const BookmarkStylesPopup = ({ onClose, settings = {}, onUpdate, pages = [] }) =
         }));
     };
 
-    const bookmarkSettings = settings?.navigation?.bookmarkSettings || {};
-    const items = bookmarkSettings.items || [
-        { title: 'Home', page: 'Pg 1' },
-        { title: 'Features', page: 'Pg 3' },
-        { title: '3D View', page: 'Pg 5' },
-        { title: 'Contact', page: 'Pg 6' }
+    const bookmarkSettings = settings?.navigation?.bookmarkSettings || settings?.bookmarkSettings || {};
+    const rawItems = bookmarkSettings.items || [
+        { title: 'Home', page: 'Page-1' },
+        { title: 'Features', page: 'Page-2' },
+        { title: '3D View', page: 'Page-3' }
     ];
+
+    const formatPageVal = (val) => {
+        if (!val) return 'Page-1';
+        if (String(val).startsWith('Page-')) return String(val);
+        const num = String(val).replace(/\D/g, '');
+        return num ? `Page-${num}` : 'Page-1';
+    };
+
+    const items = rawItems.map(item => ({
+        ...item,
+        page: formatPageVal(item.page)
+    }));
 
     const fontFamilies = [
         'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
@@ -244,8 +255,8 @@ const BookmarkStylesPopup = ({ onClose, settings = {}, onUpdate, pages = [] }) =
                                             className="text-[0.75vw] h-[2.2vw] px-[0.5vw] border border-gray-300 rounded-[0.4vw] outline-none focus:border-gray-500 transition-colors bg-white text-gray-700" style={{width: '8vw'}}
                                         />
                                         <PremiumDropdown 
-                                            options={pages && pages.length > 0 ? Array.from({length: pages.length}, (_, i) => `Pg ${i+1}`) : Array.from({length: 24}, (_, i) => `Pg ${i+1}`)}
-                                            value={item.page}
+                                            options={Array.from({length: Math.max(1, pages?.length || 1)}, (_, i) => `Page-${i+1}`)}
+                                            value={formatPageVal(item.page)}
                                             onChange={(val) => {
                                                 const newItems = [...items];
                                                 newItems[index].page = val;
@@ -269,7 +280,7 @@ const BookmarkStylesPopup = ({ onClose, settings = {}, onUpdate, pages = [] }) =
                             <div className="pr-[0.5vw] mt-[1vw]">
                                 <button 
                                     onClick={() => {
-                                        updateSectionField('navigation', 'bookmarkSettings', 'items', [...items, { title: '', page: 'Pg 1' }]);
+                                        updateSectionField('navigation', 'bookmarkSettings', 'items', [...items, { title: '', page: 'Page-1' }]);
                                     }}
                                     className="w-full flex items-center justify-center gap-[0.4vw] h-[2.5vw] border border-gray-200 bg-white rounded-[0.4vw] text-[0.75vw] text-gray-600 font-medium hover:bg-gray-50 transition-colors shadow-sm"
                                 >

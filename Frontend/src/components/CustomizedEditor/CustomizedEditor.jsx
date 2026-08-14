@@ -141,7 +141,8 @@ const CustomizedEditor = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.logo) return parsed.logo;
+        const l = parsed.logo || parsed.logoSettings || parsed.Branding?.logoSettings;
+        if (l) return l;
       } catch (e) {
         console.error("Failed to parse logo settings from local storage", e);
       }
@@ -168,7 +169,8 @@ const CustomizedEditor = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.watermark) return parsed.watermark;
+        const w = parsed.watermark || parsed.watermarkSettings || parsed.Branding?.watermarkSettings;
+        if (w) return w;
       } catch (e) {
         console.error("Failed to parse watermark settings", e);
       }
@@ -185,7 +187,8 @@ const CustomizedEditor = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.preloader) return parsed.preloader;
+        const p = parsed.preloader || parsed.preloaderSettings || parsed.Branding?.preloaderSettings;
+        if (p) return p;
       } catch (e) {
         console.error("Failed to parse preloader settings", e);
       }
@@ -303,27 +306,30 @@ const CustomizedEditor = () => {
   const prevBackgroundRef = useRef({
     style: backgroundSettings.style,
     image: backgroundSettings.image,
+    video: backgroundSettings.video,
     reactBitType: backgroundSettings.reactBitType
   });
 
   useEffect(() => {
-    const { style, image, reactBitType } = backgroundSettings;
+    const { style, image, video, media, reactBitType } = backgroundSettings;
+    const activeImage = image || media;
+    const activeVideo = video || media || image;
     const prev = prevBackgroundRef.current;
 
     // Only trigger if the background source actually changed
-    const sourceChanged = (style !== prev.style) || (image !== prev.image) || (reactBitType !== prev.reactBitType);
+    const sourceChanged = (style !== prev.style) || (image !== prev.image) || (video !== prev.video) || (reactBitType !== prev.reactBitType);
 
     if (sourceChanged) {
-      prevBackgroundRef.current = { style, image, reactBitType };
+      prevBackgroundRef.current = { style, image, video, reactBitType };
 
       const applyExtractedColors = async () => {
         let extracted = null;
         if (style === 'ReactBits' && reactBitType) {
           extracted = REACT_BITS_THEMES_COLORS[reactBitType];
-        } else if (style === 'Image' && image) {
-          extracted = await getDominantColors(image, false);
-        } else if (style === 'Video' && image) {
-          extracted = await getDominantColors(image, true);
+        } else if (activeImage) {
+          extracted = await getDominantColors(activeImage, false);
+        } else if (activeVideo) {
+          extracted = await getDominantColors(activeVideo, true);
         }
 
         if (extracted) {
@@ -352,13 +358,10 @@ const CustomizedEditor = () => {
                 if (secondaryIds.includes(c.id)) {
                   let targetHex = light;
                   let targetOpacity = c.opacity;
-                  // Handle specific icons/text based on background brightness if needed
-                  // For now keep it simple: Color 2 is light
                   return { ...c, hex: targetHex, opacity: targetOpacity };
                 }
                 if (shadeIds.includes(c.id)) return { ...c, hex: getTint(dark, 0.75) };
 
-                // For search text, we might need contrast
                 if (c.id === 'search-text-v1') {
                   const isLightBar = isLightColor(dark);
                   return { ...c, hex: ensureDarkText(isLightBar ? light : dark), opacity: 100 };
@@ -369,6 +372,42 @@ const CustomizedEditor = () => {
 
               updated[i] = layoutColorsList;
             }
+
+            updated.toolbarColor = {
+              primary: dark,
+              secondary: light
+            };
+            updated.popupColor = {
+              primary: dark,
+              secondary: light
+            };
+
+            if (v_id) {
+              const storedUser = localStorage.getItem('user');
+              if (storedUser) {
+                try {
+                  const user = JSON.parse(storedUser);
+                  const userEmail = user?.emailId || user?.email;
+                  if (userEmail) {
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                    axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+                      emailId: userEmail,
+                      v_id: v_id,
+                      folderName: folder || 'Recent Book',
+                      bookName: bookNameRef.current || bookName,
+                      Background: backgroundSettings,
+                      Layouts: {
+                        layoutStyle: layoutSettings,
+                        layoutColors: updated
+                      }
+                    }).catch(err => console.warn("Extracted layout colors DB save warning:", err));
+                  }
+                } catch (e) {
+                  console.error("Error saving extracted layout colors to DB", e);
+                }
+              }
+            }
+
             return updated;
           });
         }
@@ -376,18 +415,46 @@ const CustomizedEditor = () => {
 
       applyExtractedColors();
     }
-  }, [backgroundSettings.style, backgroundSettings.image, backgroundSettings.reactBitType]);
+  }, [backgroundSettings.style, backgroundSettings.image, backgroundSettings.video, backgroundSettings.reactBitType]);
 
   const [menuBarSettings, setMenuBarSettings] = useState(() => {
     const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.menuBar) return parsed.menuBar;
+        if (parsed.menuBar) {
+          const mb = parsed.menuBar;
+          const navToc = mb.navigation?.tocSettings || mb.tocSettings;
+          const navBookmark = mb.navigation?.bookmarkSettings || mb.bookmarkSettings;
+          return {
+            ...mb,
+            tocSettings: navToc,
+            navigation: {
+              ...(mb.navigation || {}),
+              tocSettings: navToc,
+              bookmarkSettings: navBookmark
+            }
+          };
+        }
       } catch (e) {
         console.error("Failed to parse menu bar settings from local storage", e);
       }
     }
+    const defaultToc = {
+      addSearch: true,
+      addPageNumber: true,
+      addSerialNumberHeading: true,
+      addSerialNumberSubheading: true,
+      content: []
+    };
+    const defaultBookmark = {
+      icon: 'default',
+      font: 'Poppins',
+      color: '#C45A5A',
+      shape: 1,
+      style: 1,
+      items: []
+    };
     return {
       navigation: {
         nextPrevButtons: true,
@@ -395,48 +462,62 @@ const CustomizedEditor = () => {
         dragToTurn: true,
         pageQuickAccess: true,
         tableOfContents: true,
+        tocSettings: defaultToc,
         pageThumbnails: true,
         bookmark: true,
-        bookmarkSettings: {
-          icon: 'default',
-          font: 'Arial'
-        },
+        bookmarkSettings: defaultBookmark,
         startEndNav: true,
       },
       viewing: {
         zoom: true,
+        zoomSettings: {
+          maximumZoom: 4,
+          twoClickToZoom: true
+        },
         fullScreen: true,
       },
       interaction: {
         search: true,
         notes: true,
         gallery: true,
+        gallerySettings: {
+          imageFitType: 'Fill All',
+          images: [],
+          transitionEffect: 'Linear',
+          primaryColor: '#4F46E5',
+          secondaryColor: '#9CA3AF',
+          bgColor: '#FFFFFF',
+          navigationIconType: 'Chevron',
+          autoPlay: true,
+          speed: 2,
+          infiniteLoop: true,
+          showDots: true
+        }
       },
       media: {
         autoFlip: true,
         autoFlipSettings: {
           duration: 4,
-          forwardBackwardButtons: true,
           countdown: true
         },
-        backgroundAudio: true,
+        audio: true,
+        audioSettings: {
+          flipSound: 'Soft Paper Flip',
+          pageSpecificSound: false,
+          bgSound: 'BG Sound 1',
+          bgSoundFile: '',
+          customBgSounds: []
+        }
       },
       shareExport: {
         share: true,
-        download: true,
-        contact: true,
+        download: true
       },
       brandingProfile: {
         logo: true,
         profile: true,
       },
-      tocSettings: {
-        addSearch: true,
-        addPageNumber: true,
-        addSerialNumberHeading: true,
-        addSerialNumberSubheading: true,
-        content: []
-      }
+      tocSettings: defaultToc
     };
   });
 
@@ -596,9 +677,57 @@ const CustomizedEditor = () => {
       layoutColors: layoutColors
     };
     const key = `customized_editor_appearance_${v_id || 'default'}`;
-    localStorage.setItem(key, JSON.stringify(settings));
+    try {
+      localStorage.setItem(key, JSON.stringify(settings));
+    } catch (e) {
+      console.warn("localStorage quota exceeded for appearance settings, using IndexedDB", e);
+    }
     saveToDB(key, settings);
-  }, [backgroundSettings, bookAppearanceSettings, layoutSettings, layoutColors]);
+
+    if (v_id && isDataLoaded) {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          const userEmail = user?.emailId || user?.email;
+          if (!userEmail) return;
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          
+          axios.post(`${backendUrl}/api/flipbook/background`, {
+            action: 'save',
+            emailId: userEmail,
+            v_id: v_id,
+            folderName: folder || 'Recent Book',
+            bookName: bookName,
+            backgroundSettings
+          }).catch(err => console.warn("Background API auto-save warning:", err));
+
+          axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+            emailId: userEmail,
+            v_id: v_id,
+            folderName: folder || 'Recent Book',
+            bookName: bookName,
+            Background: backgroundSettings,
+            Layouts: {
+              layoutStyle: layoutSettings,
+              layoutColors: layoutColors
+            },
+            settings: {
+              background: backgroundSettings,
+              appearance: bookAppearanceSettings,
+              layout: layoutSettings,
+              layoutColors: layoutColors
+            }
+          }).catch(err => console.warn("Appearance/Background auto-save warning:", err));
+        } catch (e) {
+          console.error("User parse error in background auto-save", e);
+        }
+      }
+    }
+  }, [backgroundSettings, bookAppearanceSettings, layoutSettings, layoutColors, v_id, isDataLoaded, folder]);
+
+  const bookNameRef = useRef(bookName);
+  bookNameRef.current = bookName;
 
   // Save Setup Logic
   useEffect(() => {
@@ -609,13 +738,19 @@ const CustomizedEditor = () => {
       leadForm: leadFormSettings
     };
     const key = `customized_editor_setup_${v_id || 'default'}`;
-    localStorage.setItem(key, JSON.stringify(settings));
+    try {
+      localStorage.setItem(key, JSON.stringify(settings));
+    } catch (e) {
+      console.warn("localStorage quota exceeded for setup settings, using IndexedDB", e);
+    }
 
     if (v_id && isDataLoaded) {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         try {
           const user = JSON.parse(storedUser);
+          const userEmail = user?.emailId || user?.email;
+          if (!userEmail) return;
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
           const updatedShare = {
             ...(shareSettings || {}),
@@ -626,12 +761,13 @@ const CustomizedEditor = () => {
             inviteOnly: visibilitySettings?.inviteOnly || {}
           };
           axios.post(`${backendUrl}/api/flipbook/update-settings`, {
-            emailId: user.emailId,
+            emailId: userEmail,
             v_id: v_id,
             folderName: folder || 'Recent Book',
             bookName: v_id,
-            newName: bookName,
+            newName: bookNameRef.current || currentBook?.flipbookName,
             share: updatedShare,
+            MenuBar: menuBarSettings,
             settings: settings
           }).then((res) => {
             if (res.data?.share) {
@@ -643,7 +779,7 @@ const CustomizedEditor = () => {
         }
       }
     }
-  }, [menuBarSettings, otherSetupSettings, leadFormSettings, isDataLoaded, v_id, folder, bookName]);
+  }, [menuBarSettings, otherSetupSettings, leadFormSettings, isDataLoaded, v_id, folder, shareSettings, visibilitySettings, currentBook]);
 
   // Save Branding Logic
   useEffect(() => {
@@ -654,9 +790,51 @@ const CustomizedEditor = () => {
       profile: profileSettings
     };
     const key = `customized_editor_branding_${v_id || 'default'}`;
-    localStorage.setItem(key, JSON.stringify(settings));
+    try {
+      localStorage.setItem(key, JSON.stringify(settings));
+    } catch (e) {
+      console.warn("localStorage quota exceeded for branding settings, using IndexedDB", e);
+    }
     saveToDB(key, settings);
-  }, [logoSettings, watermarkSettings, preloaderSettings, profileSettings]);
+
+    if (v_id && isDataLoaded) {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          const userEmail = user?.emailId || user?.email;
+          if (!userEmail) return;
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          axios.post(`${backendUrl}/api/flipbook/branding`, {
+            action: 'save',
+            emailId: userEmail,
+            v_id: v_id,
+            folderName: folder || 'Recent Book',
+            bookName: bookNameRef.current || bookName,
+            logoSettings,
+            watermarkSettings,
+            preloaderSettings,
+            profileSettings
+          }).catch(err => console.warn("Branding API auto-save warning:", err));
+
+          axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+            emailId: userEmail,
+            v_id: v_id,
+            folderName: folder || 'Recent Book',
+            bookName: bookNameRef.current || bookName,
+            newName: bookNameRef.current || bookName,
+            Branding: {
+              logoSettings,
+              watermarkSettings,
+              preloaderSettings
+            }
+          }).catch(err => console.warn("Branding auto-save warning:", err));
+        } catch (e) {
+          console.error("User parse error in branding auto-save", e);
+        }
+      }
+    }
+  }, [logoSettings, watermarkSettings, preloaderSettings, profileSettings, v_id, isDataLoaded, folder]);
 
   // Save Bookmarks and Notes Logic
   useEffect(() => {
@@ -671,18 +849,52 @@ const CustomizedEditor = () => {
     console.log("Exporting...");
   }, []);
 
+  const lastLoadedBookNameRef = useRef(null);
+
   const handleSave = useCallback(async () => {
     try {
       const storedUser = localStorage.getItem('user');
       if (!storedUser) return;
       const user = JSON.parse(storedUser);
+      const userEmail = user?.emailId || user?.email;
+      if (!userEmail) return;
+
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
+      const prevBookName = lastLoadedBookNameRef.current || currentBook?.flipbookName;
+      const validBookName = bookName || currentBook?.flipbookName || currentBook?.title || (v_id ? decodeURIComponent(v_id) : 'Untitled Document');
+      const isRenamed = prevBookName && prevBookName !== validBookName && prevBookName !== 'Name of the Book';
+
+      // 1. Save flipbook pages and structure to /api/flipbook/save (same as main editor)
+      if (pages && pages.length > 0 && validBookName) {
+        const payloadPages = pages.map((p, index) => ({
+          pageName: p.name || `Page ${index + 1}`,
+          content: p.html || p.content || '',
+          v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
+        }));
+
+        const savePayload = {
+          emailId: userEmail,
+          v_id: v_id,
+          flipbookName: validBookName,
+          folderName: folder || 'Recent Book',
+          overwrite: true,
+          pages: payloadPages
+        };
+
+        await axios.post(`${backendUrl}/api/flipbook/save`, savePayload).catch(err => {
+          console.warn("Main save endpoint call in CustomizedEditor warning:", err);
+        });
+      }
+
+      // 2. Save customization settings
       const payload = {
-        emailId: user.emailId,
-        folderName: folder,
+        emailId: userEmail,
+        folderName: folder || 'Recent Book',
+        v_id: v_id,
         bookName: v_id,
-        newName: bookName,
+        oldName: prevBookName,
+        newName: validBookName,
         share: {
           ...(shareSettings || {}),
           access: visibilitySettings?.type || 'Public',
@@ -690,6 +902,19 @@ const CustomizedEditor = () => {
           accessKey: visibilitySettings?.accessKey || '',
           isPasswordSaved: Boolean(visibilitySettings?.isPasswordSaved),
           inviteOnly: visibilitySettings?.inviteOnly || {}
+        },
+        Customized_Settings: {
+          Branding: {
+            logoSettings,
+            watermarkSettings,
+            preloaderSettings
+          },
+          Background: backgroundSettings,
+          MenuBar: menuBarSettings,
+          Layouts: {
+            layoutStyle: layoutSettings,
+            layoutColors: layoutColors
+          }
         },
         settings: {
           logo: logoSettings,
@@ -711,17 +936,71 @@ const CustomizedEditor = () => {
       await axios.post(`${backendUrl}/api/flipbook/update-settings`, payload);
       setShareSettings(payload.share);
 
+      let updatedPagesList = pages;
+      if (isRenamed) {
+        const sanitizedEmail = user.emailId.replace(/[@.]/g, "_");
+        const realFolder = (currentBook?.folderName && Array.isArray(currentBook.folderName))
+          ? (currentBook.folderName.find(f => f !== 'Recent Book' && f !== 'Recent book') || 'My_Flipbooks')
+          : (folder && folder !== 'Recent Book' ? folder : 'My_Flipbooks');
+
+        const newPBaseUrl = getSupabaseBaseUrl(sanitizedEmail, realFolder, newBookName);
+        setProjectBaseUrl(newPBaseUrl);
+
+        const escapedOld = prevBookName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "(?: |%20)");
+        const oldPathRegex = new RegExp(`/${escapedOld}/`, 'g');
+        const newPathSegment = `/${newBookName}/`;
+
+        setPages(prevPages => {
+          if (!prevPages) return [];
+          updatedPagesList = prevPages.map(p => {
+            const h = p.html || p.content || '';
+            const newH = h.replace(oldPathRegex, newPathSegment);
+            return {
+              ...p,
+              html: newH,
+              content: newH
+            };
+          });
+          return updatedPagesList;
+        });
+
+        lastLoadedBookNameRef.current = newBookName;
+      }
+
+      saveToDB('editor_autosave', {
+        v_id: v_id,
+        pages: updatedPagesList,
+        activePageIndex: targetPage || 0,
+        pageName: newBookName,
+        timestamp: Date.now(),
+        isDoublePage: false,
+        settings: payload.settings
+      });
+
+      if (setCurrentBook) {
+        setCurrentBook(prev => ({
+          ...(prev || {}),
+          flipbookName: newBookName,
+          realName: newBookName,
+          title: newBookName,
+          meta: {
+            ...(prev?.meta || {}),
+            flipbookName: newBookName
+          }
+        }));
+      }
+
       if (setHasUnsavedChanges) {
         setHasUnsavedChanges(false);
         notifiedUnsavedRef.current = false; // Reset the notification flag after save
       }
-      if (triggerSaveSuccess) triggerSaveSuccess({ name: bookName, folder: 'Customized' });
-      setSaveSuccessInfo({ name: bookName, folder: 'Customized' });
+      if (triggerSaveSuccess) triggerSaveSuccess({ name: newBookName, folder: 'Customized' });
+      setSaveSuccessInfo({ name: newBookName, folder: 'Customized' });
       setTimeout(() => setSaveSuccessInfo(null), 3000);
     } catch (error) {
       console.error("Save failed", error);
     }
-  }, [folder, v_id, bookName, logoSettings, watermarkSettings, preloaderSettings, profileSettings, backgroundSettings, bookAppearanceSettings, layoutSettings, menuBarSettings, otherSetupSettings, leadFormSettings, visibilitySettings, setHasUnsavedChanges, triggerSaveSuccess]);
+  }, [folder, v_id, bookName, pages, logoSettings, watermarkSettings, preloaderSettings, profileSettings, backgroundSettings, bookAppearanceSettings, layoutSettings, menuBarSettings, otherSetupSettings, leadFormSettings, visibilitySettings, setHasUnsavedChanges, triggerSaveSuccess, currentBook, targetPage, setCurrentBook]);
 
   // Use refs to keep context handlers up-to-date without triggering useEffect re-registrations
   const handleSaveRef = useRef(handleSave);
@@ -1046,11 +1325,11 @@ const CustomizedEditor = () => {
 
 
             // ONLY overwrite pages if we DON'T have an autosave
-            if (!isAutosaveLoaded) {
-              // Only set book name from backend if session doesn't have an unsaved change
-              if (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book') {
-                setBookName(res.data.meta?.flipbookName || res.data.name || location.state?.flipbookName || decodeURIComponent(v_id) || 'Name of the Book');
-              }
+            const fetchedName = res.data.meta?.flipbookName || res.data.name || location.state?.flipbookName || decodeURIComponent(v_id);
+            if (fetchedName && fetchedName !== 'Name of the Book') {
+              setBookName(fetchedName);
+              lastLoadedBookNameRef.current = fetchedName;
+            }
               if (res.data.pages) {
                 const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
                   let rawHTML = p.html || p.content || '';
@@ -1081,18 +1360,73 @@ const CustomizedEditor = () => {
                 }));
                 setPages(mappedPages);
               }
-            }
 
             // ALWAYS load settings from backend
+            const customizedBranding = res.data.Customized_Settings?.Branding || res.data.settings?.Branding;
+            if (customizedBranding) {
+              if (customizedBranding.logoSettings) setLogoSettings(customizedBranding.logoSettings);
+              if (customizedBranding.watermarkSettings) setWatermarkSettings(customizedBranding.watermarkSettings);
+              if (customizedBranding.preloaderSettings) {
+                setPreloaderSettings(customizedBranding.preloaderSettings);
+                if (v_id) try { localStorage.setItem(`flipbook_preloader_${v_id}`, JSON.stringify(customizedBranding.preloaderSettings)); } catch (e) {}
+              }
+            }
+            const customizedBackground = res.data.Customized_Settings?.Background || res.data.settings?.Background;
+            if (customizedBackground) {
+              setBackgroundSettings(customizedBackground);
+            }
+            const loadedLayouts = res.data.Customized_Settings?.Layouts || res.data.settings?.Layouts || res.data.settings?.layouts;
+            if (loadedLayouts) {
+              const styleVal = loadedLayouts.layoutStyle !== undefined ? loadedLayouts.layoutStyle : loadedLayouts.style;
+              if (styleVal !== undefined) setLayoutSettings(styleVal);
+              if (loadedLayouts.layoutColors) setLayoutColors(loadedLayouts.layoutColors);
+            }
             if (res.data.settings) {
-              if (res.data.settings.logo) setLogoSettings(res.data.settings.logo);
-              if (res.data.settings.watermark) setWatermarkSettings(res.data.settings.watermark);
-              if (res.data.settings.preloader) setPreloaderSettings(res.data.settings.preloader);
+              if (res.data.settings.logo && (!customizedBranding || !customizedBranding.logoSettings)) setLogoSettings(res.data.settings.logo);
+              if (res.data.settings.watermark && (!customizedBranding || !customizedBranding.watermarkSettings)) setWatermarkSettings(res.data.settings.watermark);
+              if (res.data.settings.preloader && (!customizedBranding || !customizedBranding.preloaderSettings)) {
+                setPreloaderSettings(res.data.settings.preloader);
+                if (v_id) try { localStorage.setItem(`flipbook_preloader_${v_id}`, JSON.stringify(res.data.settings.preloader)); } catch (e) {}
+              }
               if (res.data.settings.profile) setProfileSettings(res.data.settings.profile);
-              if (res.data.settings.background) setBackgroundSettings(res.data.settings.background);
+              if (res.data.settings.background && !customizedBackground) setBackgroundSettings(res.data.settings.background);
               if (res.data.settings.appearance) setBookAppearanceSettings(res.data.settings.appearance);
-              if (res.data.settings.layout) setLayoutSettings(res.data.settings.layout);
-              if (res.data.settings.menubar) setMenuBarSettings(res.data.settings.menubar);
+              if (res.data.settings.layout && (!loadedLayouts || (loadedLayouts.layoutStyle === undefined && loadedLayouts.style === undefined))) {
+                setLayoutSettings(res.data.settings.layout);
+              }
+            }
+              const loadedMenuBar = res.data.Customized_Settings?.MenuBar || res.data.settings?.MenuBar || res.data.settings?.menubar;
+              if (loadedMenuBar) {
+                const navAddTextToIcons = loadedMenuBar.navigation?.addTextToIconsSettings || loadedMenuBar.addTextToIconsSettings || {
+                  font: 'Arial'
+                };
+                const navToc = loadedMenuBar.navigation?.tocSettings || loadedMenuBar.tocSettings || {
+                  addSearch: true,
+                  addPageNumber: true,
+                  addSerialNumberHeading: true,
+                  addSerialNumberSubheading: true,
+                  content: []
+                };
+                const navBookmark = loadedMenuBar.navigation?.bookmarkSettings || loadedMenuBar.bookmarkSettings || {
+                  icon: 'default',
+                  font: 'Poppins',
+                  color: '#C45A5A',
+                  shape: 1,
+                  style: 1,
+                  items: []
+                };
+                setMenuBarSettings({
+                  ...loadedMenuBar,
+                  addTextToIconsSettings: navAddTextToIcons,
+                  tocSettings: navToc,
+                  navigation: {
+                    ...(loadedMenuBar.navigation || {}),
+                    addTextToIconsSettings: navAddTextToIcons,
+                    tocSettings: navToc,
+                    bookmarkSettings: navBookmark
+                  }
+                });
+              }
               if (res.data.settings.othersetup) {
                 const setup = res.data.settings.othersetup;
                 if (setup.sound && !setup.sound.customBgSounds) setup.sound.customBgSounds = [];
@@ -1113,7 +1447,6 @@ const CustomizedEditor = () => {
               if (res.data.settings.visibility) setVisibilitySettings(res.data.settings.visibility);
               if (res.data.settings.bookmarks) setBookmarks(res.data.settings.bookmarks);
               if (res.data.settings.notes) setNotes(res.data.settings.notes);
-            }
             let shareData = res.data.share;
             if (!shareData || !shareData.shareId) {
               const newShareId = Math.random().toString(36).substring(2, 14);
@@ -1210,6 +1543,9 @@ const CustomizedEditor = () => {
             onUpdateWatermark={setWatermarkSettings}
             preloaderSettings={preloaderSettings}
             onUpdatePreloader={setPreloaderSettings}
+            folder={folder}
+            flipbookName={bookName}
+            v_id={v_id}
             onPreviewPreloader={() => {
               setIsLoading(true);
               setTimeout(() => {
@@ -1234,6 +1570,9 @@ const CustomizedEditor = () => {
             layoutColors={layoutColors}
             onUpdateLayoutColors={setLayoutColors}
             pages={pages}
+            folder={folder}
+            flipbookName={bookName}
+            v_id={v_id}
           />
         );
       case 'menubar':
@@ -1244,6 +1583,7 @@ const CustomizedEditor = () => {
             onUpdate={setMenuBarSettings}
             otherSettings={otherSetupSettings}
             onUpdateOther={setOtherSetupSettings}
+            pages={pages}
             folderName={folder}
             bookName={bookName}
             activeLayout={layoutSettings}
@@ -1388,6 +1728,7 @@ const CustomizedEditor = () => {
             visibilitySettings={visibilitySettings}
             onUpdateVisibility={setVisibilitySettings}
             onPreview={stablePreviewHandler}
+            onSave={stableSaveHandler}
             currentBook={currentBook}
             setCurrentBook={setCurrentBook}
             isLoading={isLoading}

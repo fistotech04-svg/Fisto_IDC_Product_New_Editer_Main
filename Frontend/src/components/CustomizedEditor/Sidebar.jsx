@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
+import axios from 'axios';
 import SidebarItem from './SidebarItem';
 import Appearance from './Appearance';
 import MenuBar from './MenuBar';
@@ -59,15 +60,26 @@ const SubNavItem = ({ label, icon, isActive, onClick }) => (
   </button>
 );
 
-const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPanelCollapsed, setIsPanelCollapsed, pageCount, visibilitySettings, onUpdateVisibility, canUndo, canRedo, onUndo, onRedo, onPreview, currentBook, setCurrentBook, isLoading = false }) => {
+const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPanelCollapsed, setIsPanelCollapsed, pageCount, visibilitySettings, onUpdateVisibility, canUndo, canRedo, onUndo, onRedo, onPreview, onSave, currentBook, setCurrentBook, isLoading = false }) => {
   const navigate = useNavigate();
   const { folder, v_id } = useParams();
   const [openSection, setOpenSection] = useState(null);
+  const [isNavigatingToEditor, setIsNavigatingToEditor] = useState(false);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
-  const handleGoToPageEditor = () => {
-    const path = folder ? `/editor/${folder}/${v_id}` : `/editor/${v_id}`;
-    navigate(path);
+  const handleGoToPageEditor = async () => {
+    if (isNavigatingToEditor) return;
+    setIsNavigatingToEditor(true);
+    try {
+      if (onSave) {
+        await onSave();
+      }
+      const path = folder ? `/editor/${folder}/${v_id}` : `/editor/${v_id}`;
+      navigate(path);
+    } catch (err) {
+      console.error("Navigation save error:", err);
+      setIsNavigatingToEditor(false);
+    }
   };
 
   const getParentSection = (subView) => {
@@ -86,6 +98,40 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
   const bookNameInputRef = useRef(null);
   const hasMovedRef = useRef(false);
   const isManuallyPositioned = useRef(false); // true after user drags to a custom position
+
+  const [allBooks, setAllBooks] = useState([]);
+  const [isNameDuplicate, setIsNameDuplicate] = useState(false);
+
+  // Fetch all user books for title uniqueness validation (matching main editor behavior)
+  useEffect(() => {
+    const fetchBooks = async () => {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      if (user?.emailId) {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        try {
+          const res = await axios.get(`${backendUrl}/api/flipbook/list`, { params: { emailId: user.emailId } });
+          if (res.data && res.data.books) {
+            setAllBooks(res.data.books);
+          }
+        } catch (err) {
+          console.error("Error fetching books for validation:", err);
+        }
+      }
+    };
+    fetchBooks();
+  }, []);
+
+  const checkDuplicate = (name) => {
+    if (!name || !name.trim()) return false;
+    const isDup = allBooks.some(b => {
+      const bTitle = b.title || b.flipbookName || b.realName || '';
+      return bTitle.toLowerCase() === name.trim().toLowerCase() &&
+        (v_id ? (b.v_id !== v_id && b.id !== v_id) : b.realName !== currentBook?.flipbookName);
+    });
+    setIsNameDuplicate(isDup);
+    return isDup;
+  };
 
   // Synchronize openSection with activeSubView
   useEffect(() => {
@@ -246,13 +292,37 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-[0.6vw] border border-gray-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[0.75vw] py-[0.45vw] flex flex-col justify-between transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]">
+          <div className={`bg-white rounded-[0.6vw] border ${isNameDuplicate ? 'border-red-500 bg-red-50' : 'border-gray-200/80'} shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[0.75vw] py-[0.45vw] flex flex-col justify-between transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]`}>
             <input
               ref={bookNameInputRef}
               type="text"
               value={bookName}
-              onChange={(e) => setBookName(e.target.value)}
-              className="text-[0.92vw] font-medium text-gray-900 bg-transparent border-none focus:ring-0 focus:outline-none w-full p-0 leading-snug placeholder-gray-400 font-sans tracking-tight"
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = e.target.value;
+                setBookName(val);
+                checkDuplicate(val);
+              }}
+              onBlur={() => {
+                if (isNameDuplicate) {
+                  alert('Book name already exists. Please choose a different name.');
+                  if (bookNameInputRef.current) bookNameInputRef.current.select();
+                } else if (onSave) {
+                  onSave();
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (isNameDuplicate) {
+                    alert('Book name already exists. Please choose a different name.');
+                    if (bookNameInputRef.current) bookNameInputRef.current.select();
+                  } else {
+                    e.target.blur();
+                    if (onSave) onSave();
+                  }
+                }
+              }}
+              className={`text-[0.92vw] font-medium bg-transparent border-none focus:ring-0 focus:outline-none w-full p-0 leading-snug tracking-tight ${isNameDuplicate ? 'text-red-600 placeholder-red-300 font-sans' : 'text-gray-900 placeholder-gray-400 font-sans'}`}
               placeholder="Name of the Book"
             />
 
@@ -369,10 +439,20 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
         ) : (
           <button
             onClick={handleGoToPageEditor}
-            className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.4)] cursor-pointer"
+            disabled={isNavigatingToEditor}
+            className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-900 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.4)] cursor-pointer disabled:opacity-80"
           >
-            <ArrowUpRight size="1.2vw" className="rotate-0" />
-            <span>Go to Page Editor</span>
+            {isNavigatingToEditor ? (
+              <>
+                <div className="w-[1vw] h-[1vw] border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                <span>Saving & Opening Editor...</span>
+              </>
+            ) : (
+              <>
+                <ArrowUpRight size="1.2vw" className="rotate-0" />
+                <span>Go to Page Editor</span>
+              </>
+            )}
           </button>
         )}
       </div>

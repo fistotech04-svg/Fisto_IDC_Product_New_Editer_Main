@@ -461,7 +461,9 @@ const MobileLayout1 = (props) => {
                                 {profileSettings?.enabled !== false && (
                                     <MenuBtn icon="solar:user-bold" label="Profile" onClick={() => { closeAllPopups(); setShowProfilePopup(true); }} />
                                 )}
-                                <MenuBtn icon="solar:music-notes-bold" label="BG Music" onClick={() => { closeAllPopups(); setShowSoundPopup(true); }} />
+                                {(settings?.media?.backgroundAudio ?? true) && (
+                                    <MenuBtn icon="solar:music-notes-bold" label="BG Music" onClick={() => { closeAllPopups(); setShowSoundPopup(true); }} />
+                                )}
                                 <MenuBtn icon="mage:share-fill" label="Share" onClick={() => { closeAllPopups(); handleShare(); }} />
                                 <MenuBtn icon="meteor-icons:download" label="Download" onClick={() => { closeAllPopups(); handleDownload(); }} />
                                 <MenuBtn icon="lucide:fullscreen" label="Fullscreen View" onClick={() => { closeAllPopups(); handleFullScreen(); }} />

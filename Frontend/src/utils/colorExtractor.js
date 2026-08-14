@@ -44,22 +44,61 @@ export const getDominantColors = async (url, isVideo = false) => {
 
     if (isVideo) {
       const video = document.createElement('video');
-      video.src = url;
-      video.muted = true;
       video.crossOrigin = 'anonymous';
-      video.currentTime = 1; // Seek to 1s to avoid black frame
+      video.muted = true;
+      video.currentTime = 1;
+
       video.onseeked = () => {
-        resolve(processCanvas(video));
+        try {
+          resolve(processCanvas(video));
+        } catch (e) {
+          resolve({ dark: '#3E4491', light: '#FFFFFF' });
+        }
       };
       video.onerror = () => resolve({ dark: '#3E4491', light: '#FFFFFF' });
+      video.src = url;
     } else {
       const img = new Image();
-      img.src = url;
       img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        resolve(processCanvas(img));
+
+      const tryLoad = (src) => {
+        img.onload = () => {
+          try {
+            resolve(processCanvas(img));
+          } catch (e) {
+            fetchBlobFallback();
+          }
+        };
+        img.onerror = () => fetchBlobFallback();
+        img.src = src;
       };
-      img.onerror = () => resolve({ dark: '#3E4491', light: '#FFFFFF' });
+
+      const fetchBlobFallback = () => {
+        fetch(url)
+          .then(res => res.blob())
+          .then(blob => {
+            const blobUrl = URL.createObjectURL(blob);
+            const blobImg = new Image();
+            blobImg.onload = () => {
+              try {
+                const res = processCanvas(blobImg);
+                URL.revokeObjectURL(blobUrl);
+                resolve(res);
+              } catch (e) {
+                URL.revokeObjectURL(blobUrl);
+                resolve({ dark: '#3E4491', light: '#FFFFFF' });
+              }
+            };
+            blobImg.onerror = () => {
+              URL.revokeObjectURL(blobUrl);
+              resolve({ dark: '#3E4491', light: '#FFFFFF' });
+            };
+            blobImg.src = blobUrl;
+          })
+          .catch(() => resolve({ dark: '#3E4491', light: '#FFFFFF' }));
+      };
+
+      tryLoad(url);
     }
   });
 };
