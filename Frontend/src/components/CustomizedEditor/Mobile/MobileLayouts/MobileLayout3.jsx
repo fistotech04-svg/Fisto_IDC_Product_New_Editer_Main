@@ -614,12 +614,14 @@ const MobileLayout3 = (props) => {
                         className="text-white p-1"
                         onClick={(e) => { e.stopPropagation(); toggleThumbnailBar(true); }}
                     />
-                    <TooltipBtn
-                        title="Music"
-                        icon="solar:music-notes-bold"
-                        className="text-white p-1"
-                        onClick={(e) => { e.stopPropagation(); toggleSoundPopup(true); }}
-                    />
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <TooltipBtn
+                            title="Music"
+                            icon="solar:music-notes-bold"
+                            className="text-white p-1"
+                            onClick={(e) => { e.stopPropagation(); toggleSoundPopup(true); }}
+                        />
+                    )}
                     <TooltipBtn
                         title="Profile"
                         icon="fluent:person-24-filled"

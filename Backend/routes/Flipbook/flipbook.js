@@ -25,7 +25,7 @@ import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase } from "../../config/supabase.js";
+import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase, getSupabasePublicUrl } from "../../config/supabase.js";
 
 // Helper to get Gmail Transporter
 const getTransporter = () => {
@@ -50,8 +50,13 @@ const getTransporter = () => {
 
 const execAsync = promisify(exec);
 
+import customizedSettingsRouter, {
+  ensureBackgroundAssetInSupabase,
+  ensureBrandingAssetInSupabase
+} from "./customized_settings.js";
+
 const router = express.Router();
-// ... (rest of top) ...
+router.use(customizedSettingsRouter);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,6 +66,9 @@ const FLIPBOOK_ROOT = "My_Flipbooks";
 
 // Helper to escape regex special characters
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+
+
 
 const processAndSaveBase64Assets = ({
   htmlContent,
@@ -167,9 +175,9 @@ const assetUpload = multer({
   fileFilter: (req, file, cb) => {
     const { assetType } = req.body;
     const allowedTypes = {
-      Image: /jpeg|jpg|png|gif|webp|svg/,
-      video: /mp4|webm|ogg|mov/,
-      gif: /gif/,
+      Image: /jpeg|jpg|png|gif|webp|svg|bmp|avif|heic|heif|tiff|ico/i,
+      video: /mp4|webm|ogg|mov/i,
+      gif: /gif/i,
     };
 
     const ext = path.extname(file.originalname).toLowerCase().slice(1);
@@ -215,6 +223,38 @@ const model3DUpload = multer({
       cb(null, true);
     } else {
       cb(new Error(`Invalid file type for 3D model. Allowed: ${allowed.join(", ")}`));
+    }
+  },
+});
+
+// Configure multer for branding asset uploads (Logo, Watermark, Preloader images)
+const brandingStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const tempDir = path.join(__dirname, "../../temp_uploads/branding_assets");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    cb(null, tempDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const uniqueName = `${nanoid()}${ext}`;
+    cb(null, uniqueName);
+  },
+});
+
+const brandingUpload = multer({
+  storage: brandingStorage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit for branding assets
+  },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowed = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif", ".heic", ".heif", ".tiff", ".ico"];
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid image file type for branding asset. Allowed: ${allowed.join(", ")}`));
     }
   },
 });
@@ -309,7 +349,7 @@ router.post("/upload-3d-model", (req, res) => {
         try { fs.unlinkSync(req.file.path); } catch(e) {}
       }
       console.error("Error processing 3D model upload:", error);
-      res.status(500).json({ message: "Server error during processing" });
+      res.status(500).json({ success: false, message: "Internal server error", error: error.message });
     }
   });
 });
@@ -409,7 +449,7 @@ router.post("/save", async (req, res) => {
       oldFlipbookName = existingDoc.flipbookName;
       const oldPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${oldFlipbookName}`;
       const newPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}`;
-      renamePathInSupabase(oldPath, newPath).catch(err =>
+      await renamePathInSupabase(oldPath, newPath).catch(err =>
         console.warn("[Supabase] Rename flipbook folder warning:", err)
       );
 
@@ -1276,7 +1316,7 @@ router.post("/folder/rename", async (req, res) => {
     // 2. Rename folder in Supabase Storage
     const oldSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${oldName}`;
     const newSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeNewName}`;
-    renamePathInSupabase(oldSupabasePrefix, newSupabasePrefix).catch((err) =>
+    await renamePathInSupabase(oldSupabasePrefix, newSupabasePrefix).catch((err) =>
       console.warn("[Supabase] Folder rename warning:", err)
     );
 
@@ -1694,6 +1734,38 @@ router.get("/get", async (req, res) => {
       // Sort by pageNumber to ensure correct order
       dbBook.pages.sort((a, b) => a.pageNumber - b.pageNumber);
 
+      // Auto-heal check: test if first page exists under effectiveBookName in Supabase
+      if (metadataOnly !== 'true') {
+        const firstPageFileName = dbBook.pages[0].fileName;
+        const testPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/${firstPageFileName}`;
+        let testBuf = await downloadFileFromSupabase(testPath);
+        if (!testBuf || testBuf.length === 0) {
+          const testLocalPath = path.join(bookPath, firstPageFileName);
+          if (!fs.existsSync(testLocalPath)) {
+            console.log(`[Auto-Heal] Page not found at ${testPath}. Checking legacy folders...`);
+            try {
+              const allFolders = await listFoldersFromSupabase(sanitizedEmail);
+              for (const folderCandidate of allFolders) {
+                if (folderCandidate === effectiveBookName) continue;
+                const candidatePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${folderCandidate}/${firstPageFileName}`;
+                const candidateBuf = await downloadFileFromSupabase(candidatePath);
+                if (candidateBuf && candidateBuf.length > 0) {
+                  console.log(`[Auto-Heal] Found page in legacy folder "${folderCandidate}". Renaming to "${effectiveBookName}" in Supabase...`);
+                  const oldSupabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${folderCandidate}`;
+                  const newSupabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}`;
+                  await renamePathInSupabase(oldSupabasePath, newSupabasePath).catch(err =>
+                    console.warn("[Auto-Heal] Supabase rename error:", err)
+                  );
+                  break;
+                }
+              }
+            } catch (healErr) {
+              console.warn("[Auto-Heal] Legacy check error:", healErr);
+            }
+          }
+        }
+      }
+
       const pagePromises = dbBook.pages.map(async (p) => {
         try {
           if (metadataOnly === 'true') {
@@ -1792,12 +1864,19 @@ router.get("/get", async (req, res) => {
     };
 
     res.json({
+      _id: dbBook ? dbBook._id : null,
+      v_id: dbBook ? dbBook.v_id : (v_id || null),
+      flipbookName: effectiveBookName,
+      folderName: dbBook ? dbBook.folderName : effectiveFolderName,
+      userEmail: emailId,
+      createdAt: dbBook ? dbBook.createdAt : null,
+      lastUpdated: dbBook ? dbBook.lastUpdated : null,
+      isPublished: dbBook ? Boolean(dbBook.isPublished) : false,
       pages,
       Customized_Settings: docSettings,
       settings: docSettings,
       Visibility: finalVisibility,
       share: finalVisibility,
-      isPublished: dbBook ? Boolean(dbBook.isPublished) : false,
       quotes: flipbookInfoObj.quotes,
       about: flipbookInfoObj.about,
       category: flipbookInfoObj.category,
@@ -1812,126 +1891,7 @@ router.get("/get", async (req, res) => {
   }
 });
 
-// @route   POST /api/flipbook/update-settings
-// @desc    Update flipbook settings (branding, appearance, etc.)
-router.post("/update-settings", async (req, res) => {
-  try {
-    const { emailId, v_id, settings, Customized_Settings, newName, share, Visibility, meta, FlipbookInfo, width, height, templateId, orientation, category, language, tags, quotes, about } = req.body;
-    if (!emailId || !v_id) {
-      return res.status(400).json({ message: "Missing emailId or v_id" });
-    }
 
-    const existingDoc = await Flipbook.findOne({ userEmail: emailId, v_id: v_id });
-    const updateData = {};
-
-    const incomingSettings = Customized_Settings || settings;
-    const incomingVis = Visibility || share;
-    const incomingFlipbookInfo = FlipbookInfo || req.body.Customized_Settings?.FlipbookInfo || meta;
-
-    if (incomingSettings || incomingVis || incomingFlipbookInfo || category || language || tags || quotes !== undefined || about !== undefined || width || height || templateId || orientation || newName) {
-      const currentSettings = existingDoc?.Customized_Settings || existingDoc?.settings || {};
-      const currentVis = currentSettings.Visibility || existingDoc?.share || {};
-      const currentFlipbookInfo = currentSettings.FlipbookInfo || existingDoc?.meta || {};
-
-      let finalVis = currentVis;
-      if (incomingVis) {
-        finalVis = {
-          ...currentVis,
-          ...incomingVis,
-          shareId: incomingVis.shareId || currentVis.shareId || nanoid(12)
-        };
-
-        // Encrypt / hash password if provided and not already bcrypt hashed
-        if (finalVis.password && typeof finalVis.password === 'string' && finalVis.password.trim() !== '') {
-          const passStr = finalVis.password.trim();
-          if (!passStr.startsWith('$2a$') && !passStr.startsWith('$2b$')) {
-            finalVis.password = await bcrypt.hash(passStr, 10);
-          }
-        }
-
-        // Encrypt / hash accessKey if provided and not already bcrypt hashed
-        if (finalVis.accessKey && typeof finalVis.accessKey === 'string' && finalVis.accessKey.trim() !== '') {
-          const keyStr = finalVis.accessKey.trim();
-          if (!keyStr.startsWith('$2a$') && !keyStr.startsWith('$2b$')) {
-            finalVis.accessKey = await bcrypt.hash(keyStr, 10);
-          }
-        }
-      }
-
-      const cleanIncoming = { ...(incomingSettings || {}) };
-      delete cleanIncoming.visibility;
-      delete cleanIncoming.Visibility;
-      delete cleanIncoming.FlipbookInfo;
-
-      const cleanCurrent = { ...(currentSettings || {}) };
-      delete cleanCurrent.visibility;
-      delete cleanCurrent.Visibility;
-      delete cleanCurrent.FlipbookInfo;
-
-      const mergedFlipbookInfo = {
-        ...currentFlipbookInfo,
-        ...(cleanIncoming.FlipbookInfo || {}),
-        ...(incomingFlipbookInfo || {}),
-        ...(category ? { category } : {}),
-        ...(language ? { language } : {}),
-        ...(tags ? { tags } : {}),
-        ...(quotes !== undefined ? { quotes } : {}),
-        ...(about !== undefined ? { about } : {}),
-        ...(width ? { width: Number(width) } : {}),
-        ...(height ? { height: Number(height) } : {}),
-        ...(templateId ? { templateId } : {}),
-        ...(orientation ? { orientation } : {})
-      };
-
-      if (newName) {
-        updateData.flipbookName = newName;
-        mergedFlipbookInfo.flipbookName = newName;
-      }
-
-      const mergedCustomizedSettings = {
-        ...cleanCurrent,
-        ...cleanIncoming,
-        Visibility: finalVis,
-        FlipbookInfo: mergedFlipbookInfo
-      };
-
-      updateData.Customized_Settings = mergedCustomizedSettings;
-    }
-
-    updateData.lastUpdated = new Date();
-
-    const updatedDoc = await Flipbook.findOneAndUpdate(
-      { userEmail: emailId, v_id: v_id },
-      {
-        $set: updateData,
-        $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
-      },
-      { new: true }
-    );
-
-    if (!updatedDoc) {
-      return res.status(404).json({ message: "Flipbook not found" });
-    }
-
-    const activeVis = updatedDoc.Customized_Settings?.Visibility || updatedDoc.share;
-    const responseSettings = { ...(updatedDoc.Customized_Settings || updatedDoc.settings || {}) };
-    delete responseSettings.FlipbookInfo;
-    delete responseSettings.visibility;
-
-    res.json({
-      message: "Settings updated",
-      v_id: updatedDoc.v_id,
-      Visibility: activeVis,
-      share: activeVis,
-      Customized_Settings: responseSettings,
-      settings: responseSettings,
-      FlipbookInfo: updatedDoc.Customized_Settings?.FlipbookInfo
-    });
-  } catch (err) {
-    console.error("Error updating settings:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
 
 // @route   POST /api/flipbook/publish
 // @desc    Publish a flipbook with category, language, tags & quotes
@@ -1948,7 +1908,43 @@ router.post('/publish', async (req, res) => {
       'Customized_Settings.FlipbookInfo.publishedAt': new Date()
     };
 
-    if (bookName) {
+    const existingDoc = await Flipbook.findOne({ userEmail: emailId, v_id: v_id });
+
+    if (bookName && existingDoc && existingDoc.flipbookName !== bookName.trim()) {
+      const oldName = existingDoc.flipbookName;
+      const safeNewName = bookName.trim();
+
+      if (safeNewName && safeNewName !== oldName) {
+        const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+        const uploadsDir = path.join(__dirname, "../../uploads");
+
+        let physicalFolderName = req.body.folderName || "My_Flipbooks";
+        if (existingDoc.folderName) {
+          const folders = Array.isArray(existingDoc.folderName) ? existingDoc.folderName : [existingDoc.folderName];
+          const realFolder = folders.find(f => f !== "Recent Book" && f !== "Recent book");
+          if (realFolder) physicalFolderName = realFolder;
+        }
+
+        const oldSupabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${oldName}`;
+        const newSupabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${safeNewName}`;
+        await renamePathInSupabase(oldSupabasePath, newSupabasePath).catch(err =>
+          console.warn("[Supabase] Rename flipbook folder warning in publish:", err)
+        );
+
+        const oldLocalPath = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, physicalFolderName, oldName);
+        const newLocalPath = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, physicalFolderName, safeNewName);
+        if (fs.existsSync(oldLocalPath) && !fs.existsSync(newLocalPath)) {
+          try {
+            fs.renameSync(oldLocalPath, newLocalPath);
+          } catch (e) {
+            console.warn("[Local Disk] Rename flipbook folder warning in publish:", e);
+          }
+        }
+
+        updateData.flipbookName = safeNewName;
+        updateData['Customized_Settings.FlipbookInfo.flipbookName'] = safeNewName;
+      }
+    } else if (bookName) {
       updateData.flipbookName = bookName;
       updateData['Customized_Settings.FlipbookInfo.flipbookName'] = bookName;
     }
@@ -2691,7 +2687,7 @@ router.post("/rename", async (req, res) => {
     // Sync book folder rename to Supabase Storage
     const oldSupabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${oldName}`;
     const newSupabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${safeNewName}`;
-    renamePathInSupabase(oldSupabaseBookPrefix, newSupabaseBookPrefix).catch((err) =>
+    await renamePathInSupabase(oldSupabaseBookPrefix, newSupabaseBookPrefix).catch((err) =>
       console.warn("[Supabase] Book rename warning:", err)
     );
 
@@ -2765,7 +2761,7 @@ router.post("/move", async (req, res) => {
     // Move flipbook directory in Supabase Storage
     const oldSupabaseMovePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveCurrentFolder}/${bookName}`;
     const newSupabaseMovePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${bookName}`;
-    renamePathInSupabase(oldSupabaseMovePrefix, newSupabaseMovePrefix).catch((err) =>
+    await renamePathInSupabase(oldSupabaseMovePrefix, newSupabaseMovePrefix).catch((err) =>
       console.warn("[Supabase] Book move warning:", err)
     );
 
@@ -3386,6 +3382,9 @@ const deleteAssetHandler = async (req, res) => {
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/video/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/audio/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/download/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/customized_assets/Logo/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/customized_assets/Watermark/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/customized_assets/Image/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/3D_Modals/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/3D_Model/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/Images/${fileName}`);

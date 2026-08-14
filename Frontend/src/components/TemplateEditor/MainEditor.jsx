@@ -781,9 +781,9 @@ const MainEditor = ({
       const normIn = seg.handleIn.normalize();
       const normOut = seg.handleOut.normalize();
       const dot = normIn.dot(normOut);
-      if (dot < -0.95) {
+      if (dot < -0.90) {
         const diff = Math.abs(seg.handleIn.length - seg.handleOut.length);
-        node.type = diff < 1.5 ? 'symmetric' : 'smooth';
+        node.type = diff < 4.0 ? 'symmetric' : 'smooth';
       } else {
         node.type = 'cusp';
       }
@@ -5231,73 +5231,7 @@ const MainEditor = ({
     }
   }, [activeTopTool, selectedShapeTool]);
 
-  // Helper to handle dragging handles while respecting node curve types (smooth, balanced, custom, sharp)
-  const applyHandleDrag = (seg, handleSide, mousePoint, isAltKey) => {
-    if (!seg) return;
-    if (isAltKey) {
-      seg.nodeType = 'custom';
-    }
 
-    // If one of the handles is zero (retracted/deleted), lock nodeType as 'custom' so dragging the remaining handle never recreates the deleted handle!
-    if ((handleSide === 'in' && seg.handleOut.isZero()) || (handleSide === 'out' && seg.handleIn.isZero())) {
-      seg.nodeType = 'custom';
-    }
-
-    const isClosed = seg.path ? seg.path.closed : false;
-    const prev = seg.previous || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[seg.path.segments.length - 1] : null);
-    const next = seg.next || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[0] : null);
-
-    let nodeType = seg.nodeType;
-    if (!nodeType) {
-      if (seg.handleIn.isZero() && seg.handleOut.isZero()) {
-        nodeType = 'sharp';
-      } else if (!seg.handleIn.isZero() && !seg.handleOut.isZero()) {
-        const dot = seg.handleIn.normalize().dot(seg.handleOut.normalize());
-        if (dot < -0.95) {
-          const lenDiff = Math.abs(seg.handleIn.length - seg.handleOut.length);
-          nodeType = lenDiff < 1.5 ? 'balanced' : 'smooth';
-        } else {
-          nodeType = 'custom';
-        }
-      } else {
-        nodeType = 'custom';
-      }
-      seg.nodeType = nodeType;
-    }
-
-    const mouseVec = mousePoint.subtract(seg.point);
-    const Point = mousePoint.constructor;
-
-    if (handleSide === 'in') {
-      seg.handleIn = mouseVec;
-      if (next && next !== seg) {
-        if (nodeType === 'balanced' && !seg.handleOut.isZero()) {
-          seg.handleOut = mouseVec.multiply(-1);
-        } else if (nodeType === 'smooth' && !seg.handleOut.isZero()) {
-          const outLen = seg.handleOut.length;
-          if (!mouseVec.isZero()) {
-            seg.handleOut = mouseVec.normalize(-outLen);
-          }
-        }
-      } else {
-        seg.handleOut = new Point(0, 0);
-      }
-    } else if (handleSide === 'out') {
-      seg.handleOut = mouseVec;
-      if (prev && prev !== seg) {
-        if (nodeType === 'balanced' && !seg.handleIn.isZero()) {
-          seg.handleIn = mouseVec.multiply(-1);
-        } else if (nodeType === 'smooth' && !seg.handleIn.isZero()) {
-          const inLen = seg.handleIn.length;
-          if (!mouseVec.isZero()) {
-            seg.handleIn = mouseVec.normalize(-inLen);
-          }
-        }
-      } else {
-        seg.handleIn = new Point(0, 0);
-      }
-    }
-  };
 
   // ── Listen for vector path actions from ShapeProperties (Sharp, Smooth, Join, etc.) ──
   useEffect(() => {
@@ -5542,14 +5476,19 @@ const MainEditor = ({
     const vSession = vectraPenSessionRef.current;
     if (!vSession) return;
 
-    if (vSession.isDrawing || (vSession.paths && vSession.paths.length > 0) || drawingPathRef.current) {
+    const hasPaths = vSession.paths && (vSession.paths.size > 0 || vSession.paths.length > 0);
+    if (vSession.isDrawing || hasPaths || drawingPathRef.current) {
       vSession.finishPath();
       const pathEl = drawingPathRef.current;
       const pageIdx = drawingPageIndexRef.current !== null ? drawingPageIndexRef.current : activePageIndex;
 
       if (pathEl) {
         const comboD = pathToDCombo(vSession.paths);
-        if (comboD) pathEl.setAttribute('d', comboD);
+        if (comboD) {
+          pathEl.setAttribute('d', comboD);
+        } else if (!vSession.paths || vSession.paths.size === 0) {
+          if (pathEl.parentNode) pathEl.parentNode.removeChild(pathEl);
+        }
       }
 
       vSession.reset();
@@ -5565,8 +5504,10 @@ const MainEditor = ({
 
       if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
         updatePageHtml(pageIdx, pathEl.ownerSVGElement.outerHTML);
-        if (pathEl.id) {
+        if (pathEl.id && pathEl.parentNode) {
           const targetId = pathEl.id;
+          skipClearSelectionRef.current = true;
+          window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: targetId } }));
           if (setSelectedLayerId) {
             setSelectedLayerId(targetId);
             selectedLayerIdRef.current = targetId;
@@ -5626,7 +5567,7 @@ const MainEditor = ({
       }
 
       if (e.key === 'Escape' || e.key === 'Enter') {
-        if (activeMainTool === 'pen' && selectedPenTool === 'pen') {
+        if (activeMainTool === 'pen') {
           const vSession = vectraPenSessionRef.current;
           if (vSession) vSession.onKey(e);
           commitAndExitPenDrawing();
@@ -5644,15 +5585,6 @@ const MainEditor = ({
           if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
             saveModifiedPageHtml(pIdx, pathEl.ownerSVGElement);
           }
-          return;
-        }
-
-        const isPenDrawing = activeMainTool === 'pen' && drawingPathRef.current;
-        if (isPenDrawing) {
-          const path = drawingPathRef.current;
-          if (path && path.parentNode) path.parentNode.removeChild(path);
-          drawingPathRef.current = null;
-          clearVectraOverlay(activePageIndex);
           return;
         }
       } else if (e.key === 'Backspace') {
@@ -6584,6 +6516,31 @@ const MainEditor = ({
       }
 
       window.dispatchEvent(new CustomEvent('node-edit-mode-changed', { detail: { active: true, pathId: pathEl.id } }));
+
+      // Dispatch initial node-selected event so curve tool buttons reflect the correct type for segment 0
+      try {
+        const initSegs = getPaperSegments(paperPath);
+        const initSeg = initSegs[0];
+        if (initSeg) {
+          let initNodeType = initSeg.nodeType;
+          if (!initNodeType) {
+            if (initSeg.handleIn.isZero() && initSeg.handleOut.isZero()) {
+              initNodeType = 'sharp';
+            } else if (!initSeg.handleIn.isZero() && !initSeg.handleOut.isZero()) {
+              const dot = initSeg.handleIn.normalize().dot(initSeg.handleOut.normalize());
+              if (dot < -0.90) {
+                initNodeType = Math.abs(initSeg.handleIn.length - initSeg.handleOut.length) < 4.0 ? 'balanced' : 'smooth';
+              } else {
+                initNodeType = 'custom';
+              }
+            } else {
+              initNodeType = 'custom';
+            }
+            initSeg.nodeType = initNodeType;
+          }
+          window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: initNodeType, segIdx: 0, selectedCount: 1, canJoin: false, isLineSelected: false } }));
+        }
+      } catch (_) {}
     } catch (err) {
       console.warn('[NodeEditMode] Failed to enter node edit mode:', err);
     }
@@ -8965,8 +8922,8 @@ const MainEditor = ({
                 currentNodeType = 'sharp';
               } else if (!primarySeg.handleIn.isZero() && !primarySeg.handleOut.isZero()) {
                 const dot = primarySeg.handleIn.normalize().dot(primarySeg.handleOut.normalize());
-                if (dot < -0.95) {
-                  currentNodeType = Math.abs(primarySeg.handleIn.length - primarySeg.handleOut.length) < 1.5 ? 'balanced' : 'smooth';
+                if (dot < -0.90) {
+                  currentNodeType = Math.abs(primarySeg.handleIn.length - primarySeg.handleOut.length) < 4.0 ? 'balanced' : 'smooth';
                 } else {
                   currentNodeType = 'custom';
                 }
@@ -9029,7 +8986,24 @@ const MainEditor = ({
           nodeEditSelectedSegIndicesRef.current = new Set([hitSegIdx]);
           nodeEditSelectedSegIdxRef.current = hitSegIdx;
           drawNodeEditOverlay(pathEl, paperPath, pageIndex);
-          window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: 'custom', selectedCount: 1, canJoin: false, isLineSelected: false } }));
+          // Dispatch the actual nodeType of the segment (not always 'custom') to keep the correct button highlighted
+          // NOTE: 'segments' is only declared in the 'point' branch above, so we re-fetch here
+          const handleSegs = getPaperSegments(paperPath);
+          const hitSeg = handleSegs[hitSegIdx];
+          let hitNodeType = 'custom';
+          if (hitSeg) {
+            if (hitSeg.nodeType) {
+              hitNodeType = hitSeg.nodeType;
+            } else if (!hitSeg.handleIn.isZero() && !hitSeg.handleOut.isZero()) {
+              const dot = hitSeg.handleIn.normalize().dot(hitSeg.handleOut.normalize());
+              hitNodeType = (dot < -0.90)
+                ? (Math.abs(hitSeg.handleIn.length - hitSeg.handleOut.length) < 4.0 ? 'balanced' : 'smooth')
+                : 'custom';
+            } else if (hitSeg.handleIn.isZero() && hitSeg.handleOut.isZero()) {
+              hitNodeType = 'sharp';
+            }
+          }
+          window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: hitNodeType, selectedCount: 1, canJoin: false, isLineSelected: false } }));
 
           nodeEditDragRef.current = {
             mode: 'handle',
@@ -9125,7 +9099,22 @@ const MainEditor = ({
             drawNodeEditOverlay(pathEl, paperPath, pageIndex);
             const distinctCount = getDistinctNodes(paperPath, selSet).length;
             const canJoin = checkCanJoinNodes(paperPath, selSet);
-            window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: 'custom', selectedCount: distinctCount, canJoin, isLineSelected: true } }));
+            // Detect actual curve type from segment handles instead of always dispatching 'custom'
+            const curveSeg1 = segments[hitSeg1Idx];
+            let curveNodeType = 'custom';
+            if (curveSeg1) {
+              if (curveSeg1.nodeType) {
+                curveNodeType = curveSeg1.nodeType;
+              } else if (!curveSeg1.handleIn.isZero() && !curveSeg1.handleOut.isZero()) {
+                const dot = curveSeg1.handleIn.normalize().dot(curveSeg1.handleOut.normalize());
+                curveNodeType = (dot < -0.90)
+                  ? (Math.abs(curveSeg1.handleIn.length - curveSeg1.handleOut.length) < 4.0 ? 'balanced' : 'smooth')
+                  : 'custom';
+              } else if (curveSeg1.handleIn.isZero() && curveSeg1.handleOut.isZero()) {
+                curveNodeType = 'sharp';
+              }
+            }
+            window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: curveNodeType, selectedCount: distinctCount, canJoin, isLineSelected: true } }));
 
             // Store initial positions of all segment endpoint nodes (and co-located nodes)
             const startPoints = {};
@@ -11044,38 +11033,10 @@ const MainEditor = ({
     lastClickRef.current = { time: now, target: e.target, x: e.clientX, y: e.clientY };
 
     if (isDoubleClick) {
-      if (activeMainTool === 'pen' && selectedPenTool === 'pen' && drawingPathRef.current) {
+      if (activeMainTool === 'pen' && (drawingPathRef.current || vectraPenSessionRef.current?.paths?.size > 0)) {
         const vSession = vectraPenSessionRef.current;
-        vSession.finishPath();
-        const pathEl = drawingPathRef.current;
-        const pageIdx = drawingPageIndexRef.current !== null ? drawingPageIndexRef.current : activePageIndex;
-
-        if (pathEl) {
-          const comboD = pathToDCombo(vSession.paths);
-          if (comboD) pathEl.setAttribute('d', comboD);
-        }
-
-        vSession.reset();
-        drawingPathRef.current = null;
-        drawingVectraPathIdRef.current = null;
-
-        clearVectraOverlay(pageIdx);
-        document.querySelectorAll('[id^="highlight-overlay-"]').forEach(overlay => {
-          const g = overlay.querySelector('#vectra-overlay-group');
-          if (g) g.innerHTML = '';
-        });
-
-        if (pathEl && pathEl.ownerSVGElement && updatePageHtml) {
-          updatePageHtml(pageIdx, pathEl.ownerSVGElement.outerHTML);
-          if (pathEl.id) {
-            window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: pathEl.id } }));
-            if (setSelectedLayerId) {
-              setSelectedLayerId(pathEl.id);
-              selectedLayerIdRef.current = pathEl.id;
-              drawOverlayHighlight(pathEl, 'selected');
-            }
-          }
-        }
+        if (vSession) vSession.finishPath();
+        commitAndExitPenDrawing();
         if (typeof setActiveMainTool === 'function') {
           setActiveMainTool('select');
         }

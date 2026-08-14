@@ -33,6 +33,7 @@ import TabletLayout4 from './Tablet/TabletLayouts/TabletLayout4';
 import TabletLayout5 from './Tablet/TabletLayouts/TabletLayout5';
 import TabletLayout6 from './Tablet/TabletLayouts/TabletLayout6';
 import TabletLayout7 from './Tablet/TabletLayouts/TabletLayout7';
+import { LAYOUT_DEFAULT_COLORS } from './Layout';
 import TabletLayout8 from './Tablet/TabletLayouts/TabletLayout8';
 import TabletLayout9 from './Tablet/TabletLayouts/TabletLayout9';
 import GalleryPopup from './popups/GalleryPopup';
@@ -2496,12 +2497,41 @@ const PreviewArea = React.memo(({
     };
 
     const layoutColorVars = React.useMemo(() => {
-        if (!layoutColors || !activeLayout || !layoutColors[activeLayout]) return '';
-        return layoutColors[activeLayout]
+        const activeIdx = activeLayout || 1;
+        const defaults = LAYOUT_DEFAULT_COLORS[activeIdx] || LAYOUT_DEFAULT_COLORS[1] || [];
+        const saved = Array.isArray(layoutColors?.[activeIdx]) ? layoutColors[activeIdx] : [];
+        const toolbarP = layoutColors?.toolbarColor?.primary;
+        const toolbarS = layoutColors?.toolbarColor?.secondary;
+        const popupP = layoutColors?.popupColor?.primary;
+        const popupS = layoutColors?.popupColor?.secondary;
+
+        const mergedColors = defaults.map((c) => {
+            const savedItem = saved.find(s => s && s.id === c.id);
+            let hexVal = c.hex;
+            if (savedItem && savedItem.hex) {
+                hexVal = savedItem.hex;
+            } else if (toolbarP && ['toolbar-bg', 'bottom-toolbar-bg', 'page-number-bg'].includes(c.id)) {
+                hexVal = toolbarP;
+            } else if (toolbarS && ['toolbar-text-main', 'toolbar-icon', 'reset-text', 'page-number-text'].includes(c.id)) {
+                hexVal = toolbarS;
+            } else if (popupP && ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'].includes(c.id)) {
+                hexVal = popupP;
+            } else if (popupS && ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'].includes(c.id)) {
+                hexVal = popupS;
+            }
+
+            return {
+                ...c,
+                ...(savedItem ? savedItem : {}),
+                hex: hexVal
+            };
+        });
+
+        return mergedColors
             .map(c => `
                 --${c.id}: ${c.hex};
                 --${c.id}-rgb: ${hexToRgb(c.hex)};
-                --${c.id}-opacity: ${c.opacity / 100};
+                --${c.id}-opacity: ${(c.opacity ?? 100) / 100};
             `)
             .join(' ');
     }, [layoutColors, activeLayout]);
@@ -2521,17 +2551,52 @@ const PreviewArea = React.memo(({
             brandingProfile: { logo: true, profile: true },
             tocSettings: { hasSettings: true, isExpanded: false }
         };
-        const menuBar = menuBarSettings || defaultMenuBarSettings;
+        const menuBar = menuBarSettings || otherSetupSettings?.menuBar || otherSetupSettings?.menuBarSettings || defaultMenuBarSettings;
+        const nav = menuBar?.navigation || {};
         return {
             ...otherSetupSettings,
             ...menuBar,
             navigation: {
+                ...defaultMenuBarSettings.navigation,
                 ...(otherSetupSettings?.navigation || {}),
-                ...(menuBar?.navigation || {}),
+                ...nav,
+                addTextToIconsSettings: {
+                    ...(nav?.addTextToIconsSettings || {}),
+                    ...(menuBar?.addTextToIconsSettings || {})
+                },
+                tocSettings: {
+                    ...(nav?.tocSettings || {}),
+                    ...(menuBar?.tocSettings || {})
+                },
                 bookmarkSettings: {
-                    ...(menuBar?.navigation?.bookmarkSettings || {}),
+                    ...(nav?.bookmarkSettings || {}),
                     ...(otherSetupSettings?.navigation?.bookmarkSettings || {})
                 }
+            },
+            viewing: {
+                ...defaultMenuBarSettings.viewing,
+                ...(otherSetupSettings?.viewing || {}),
+                ...(menuBar?.viewing || {})
+            },
+            interaction: {
+                ...defaultMenuBarSettings.interaction,
+                ...(otherSetupSettings?.interaction || {}),
+                ...(menuBar?.interaction || {})
+            },
+            media: {
+                ...defaultMenuBarSettings.media,
+                ...(otherSetupSettings?.media || {}),
+                ...(menuBar?.media || {})
+            },
+            shareExport: {
+                ...defaultMenuBarSettings.shareExport,
+                ...(otherSetupSettings?.shareExport || {}),
+                ...(menuBar?.shareExport || {})
+            },
+            brandingProfile: {
+                ...defaultMenuBarSettings.brandingProfile,
+                ...(otherSetupSettings?.brandingProfile || {}),
+                ...(menuBar?.brandingProfile || {})
             }
         };
     }, [menuBarSettings, otherSetupSettings]);
@@ -4409,15 +4474,18 @@ const PreviewArea = React.memo(({
     const backgroundLayers = (
         <>
             <div className="absolute inset-0 z-0 pointer-events-none" style={backgroundStyle} />
-            {backgroundSettings?.style === 'Video' && backgroundSettings.image && (
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+            {backgroundSettings?.style === 'Video' && (backgroundSettings.video || backgroundSettings.media || backgroundSettings.image) && (
+                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" style={{ opacity: (backgroundSettings?.opacity ?? 100) / 100 }}>
                     <video
-                        src={backgroundSettings.image}
+                        src={backgroundSettings.video || backgroundSettings.media || backgroundSettings.image}
                         autoPlay
                         loop
                         muted
                         playsInline
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full"
+                        style={{
+                            objectFit: backgroundSettings.fit === 'Fit' ? 'contain' : backgroundSettings.fit === 'Stretch' ? 'fill' : 'cover'
+                        }}
                     />
                 </div>
             )}

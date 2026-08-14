@@ -49,6 +49,217 @@ const flipbookSchema = new mongoose.Schema({
             templateId: { type: String },
             orientation: { type: String }
         },
+        Branding: {
+            logoSettings: {
+                src: { type: String, default: '' },
+                url: { type: String, default: '' },
+                type: { type: String, default: 'Fit' },
+                opacity: { type: Number, default: 100 },
+                cropData: { type: Object, default: null },
+                adjustments: {
+                    exposure: { type: Number, default: 0 },
+                    contrast: { type: Number, default: 0 },
+                    saturation: { type: Number, default: 0 },
+                    temperature: { type: Number, default: 0 },
+                    tint: { type: Number, default: 0 },
+                    highlights: { type: Number, default: 0 },
+                    shadows: { type: Number, default: 0 }
+                }
+            },
+            watermarkSettings: {
+                src: { type: String, default: '' },
+                type: { type: String, default: 'Fit' },
+                opacity: { type: Number, default: 64 },
+                position: { type: String, default: 'Bottom Right' },
+                cropData: { type: Object, default: null },
+                adjustments: {
+                    exposure: { type: Number, default: 0 },
+                    contrast: { type: Number, default: 0 },
+                    saturation: { type: Number, default: 0 },
+                    temperature: { type: Number, default: 0 },
+                    tint: { type: Number, default: 0 },
+                    highlights: { type: Number, default: 0 },
+                    shadows: { type: Number, default: 0 }
+                }
+            },
+            preloaderSettings: {
+                layout: { type: String, default: 'spinner' },
+                text: { type: String, default: 'Loading Modal Please Wait....' },
+                font: { type: String, default: 'Poppins' },
+                bgColor: { type: String, default: '#2D2F33' },
+                textColor: { type: String, default: '#ffffff' },
+                spinnerColor: { type: String, default: '#3B3C8A' },
+                showPercentage: { type: Boolean, default: false }
+            }
+        },
+        Background: {
+            // Primary background type (Solid, Gradient, Image, Video, Media, Themes, ReactBits, Animations, Gallery, etc.)
+            style: { 
+                type: String, 
+                default: 'Solid' 
+            },
+            color: { type: String, default: '#FFFFFF' },
+            opacity: { type: Number, default: 100, min: 0, max: 100 },
+            gradient: { type: String, default: '' },
+            gradientType: { type: String, default: 'linear' },
+            gradientAngle: { type: Number, default: 90 },
+            gradientRadius: { type: Number, default: 50 },
+            gradientStops: [
+                {
+                    offset: { type: Number, min: 0, max: 100 },
+                    color: { type: String }
+                }
+            ],
+            image: { type: String, default: '' },
+            video: { type: String, default: '' },
+            fit: { 
+                type: String, 
+                default: 'Cover' 
+            },
+            cropData: { type: Object, default: null },
+            adjustments: {
+                exposure: { type: Number, default: 0 },
+                contrast: { type: Number, default: 0 },
+                saturation: { type: Number, default: 0 },
+                temperature: { type: Number, default: 0 },
+                tint: { type: Number, default: 0 },
+                highlights: { type: Number, default: 0 },
+                shadows: { type: Number, default: 0 }
+            },
+            // Dynamic WebGL/Canvas ReactBits Theme
+            reactBitType: { type: String, default: '' },
+            // Independent Overlay Animation (e.g., Snow, Rain, FallingLeaves) that overlays on top of background
+            animation: { type: String, default: '' },
+            savedSolidColor: { type: String, default: '' },
+            savedNonThemeSettings: { type: Object, default: null }
+        },
+        MenuBar: {
+            navigation: {
+                addTextToIcons: { type: Boolean, default: false },
+                addTextToIconsSettings: {
+                    font: { type: String, default: 'Arial' }
+                },
+                nextPrevButtons: { type: Boolean, default: true },
+                mouseWheel: { type: Boolean, default: true },
+                dragToTurn: { type: Boolean, default: true },
+                pageQuickAccess: { type: Boolean, default: true },
+                tableOfContents: { type: Boolean, default: true },
+                tocSettings: {
+                    addSearch: { type: Boolean, default: true },
+                    addPageNumber: { type: Boolean, default: true },
+                    addSerialNumberHeading: { type: Boolean, default: true },
+                    addSerialNumberSubheading: { type: Boolean, default: true },
+                    content: [
+                        {
+                            id: { type: mongoose.Schema.Types.Mixed },
+                            title: { type: String, default: '' },
+                            page: { type: String, default: '' },
+                            subheadings: [
+                                {
+                                    id: { type: mongoose.Schema.Types.Mixed },
+                                    title: { type: String, default: '' },
+                                    page: { type: String, default: '' }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                pageThumbnails: { type: Boolean, default: true },
+                bookmark: { type: Boolean, default: true },
+                bookmarkSettings: {
+                    icon: { type: String, default: 'default' },
+                    font: { type: String, default: 'Poppins' },
+                    color: { type: String, default: '#C45A5A' },
+                    shape: { type: Number, default: 1 },
+                    style: { type: Number, default: 1 },
+                    items: [
+                        {
+                            id: { type: mongoose.Schema.Types.Mixed },
+                            title: { type: String, default: '' },
+                            page: { type: String, default: '' }
+                        }
+                    ]
+                },
+                startEndNav: { type: Boolean, default: true },
+                
+            },
+            viewing: {
+                zoom: { type: Boolean, default: true },
+                zoomSettings: {
+                    maximumZoom: { type: Number, default: 4 },
+                    twoClickToZoom: { type: Boolean, default: true }
+                },
+                fullScreen: { type: Boolean, default: true }
+            },
+            interaction: {
+                search: { type: Boolean, default: true },
+                gallery: { type: Boolean, default: true },
+                gallerySettings: {
+                    imageFitType: { type: String, default: 'Fill All' },
+                    images: [
+                        {
+                            id: { type: mongoose.Schema.Types.Mixed },
+                            url: { type: String, default: '' },
+                            src: { type: String, default: '' },
+                            name: { type: String, default: '' },
+                            fileName: { type: String, default: '' }
+                        }
+                    ],
+                    transitionEffect: { type: String, default: 'Linear' },
+                    primaryColor: { type: String, default: '#4F46E5' },
+                    secondaryColor: { type: String, default: '#9CA3AF' },
+                    bgColor: { type: String, default: '#FFFFFF' },
+                    navigationIconType: { type: String, default: 'Chevron' },
+                    autoPlay: { type: Boolean, default: true },
+                    speed: { type: Number, default: 2 },
+                    infiniteLoop: { type: Boolean, default: true },
+                    showDots: { type: Boolean, default: true },
+                }
+            },
+            media: {
+                autoFlip: { type: Boolean, default: true },
+                autoFlipSettings: {
+                    duration: { type: Number, default: 4 },
+                    countdown: { type: Boolean, default: true }
+                },
+                audio: { type: Boolean, default: true },
+                audioSettings: {
+                    flipSound: { type: String, default: 'Soft Paper Flip' },
+                    pageSpecificSound: { type: Boolean, default: false },
+                    bgSound: { type: String, default: 'BG Sound 1' },
+                    bgSoundFile: { type: String, default: '' },
+                    customBgSounds: [
+                        {
+                            id: { type: mongoose.Schema.Types.Mixed },
+                            name: { type: String, default: '' },
+                            url: { type: String, default: '' },
+                            fileName: { type: String, default: '' }
+                        }
+                    ]
+                }
+            },
+            shareExport: {
+                share: { type: Boolean, default: true },
+                download: { type: Boolean, default: true }
+            },
+            brandingProfile: {
+                logo: { type: Boolean, default: true },
+                profile: { type: Boolean, default: true }
+            }
+        },
+        Layouts: {
+            layoutStyle: { type: mongoose.Schema.Types.Mixed, default: 1 },
+            layoutColors: {
+                toolbarColor: {
+                    primary: { type: String, default: '' },
+                    secondary: { type: String, default: '' }
+                },
+                popupColor: {
+                    primary: { type: String, default: '' },
+                    secondary: { type: String, default: '' }
+                }
+            }
+        },
         Visibility: {
             shareId: {
                 type: String,

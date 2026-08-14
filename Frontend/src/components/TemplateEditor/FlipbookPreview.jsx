@@ -43,13 +43,59 @@ const AttachedCurve = ({ position }) => {
 
 import Interaction3DPreview from './Interaction3DPreview';
 
+const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
+  let cachedPreloader = null;
+  let cachedLogo = null;
+  let cachedWatermark = null;
+  let cachedProfile = null;
+  let cachedAppearance = null;
+
+  // Only check local cache for non-published editor preview
+  if (v_id && !isPublishedPreview) {
+    try {
+      const aSaved = localStorage.getItem(`customized_editor_appearance_${v_id}`);
+      if (aSaved) {
+        const parsed = JSON.parse(aSaved);
+        cachedAppearance = parsed.appearance || parsed.bookAppearanceSettings || parsed;
+      }
+      const bSaved = localStorage.getItem(`customized_editor_branding_${v_id}`);
+      if (bSaved) {
+        const parsed = JSON.parse(bSaved);
+        cachedPreloader = parsed.preloader || parsed.preloaderSettings || parsed.Branding?.preloaderSettings;
+        cachedLogo = parsed.logo || parsed.logoSettings || parsed.Branding?.logoSettings;
+        cachedWatermark = parsed.watermark || parsed.watermarkSettings || parsed.Branding?.watermarkSettings;
+        cachedProfile = parsed.profile || parsed.profileSettings || parsed.Branding?.profileSettings;
+      }
+    } catch (e) {}
+  }
+
+  const bObj = inputSettings?.Branding || inputSettings?.Customized_Settings?.Branding || {};
+  const appObj = inputSettings?.appearance || inputSettings?.bookAppearanceSettings || inputSettings?.Customized_Settings?.Appearance || cachedAppearance || {};
+
+  return {
+    ...(inputSettings || {}),
+    logo: inputSettings?.logo || inputSettings?.logoSettings || bObj.logoSettings || cachedLogo,
+    watermark: inputSettings?.watermark || inputSettings?.watermarkSettings || bObj.watermarkSettings || cachedWatermark,
+    preloader: inputSettings?.preloader || inputSettings?.preloaderSettings || bObj.preloaderSettings || cachedPreloader,
+    profile: inputSettings?.profile || inputSettings?.profileSettings || bObj.profileSettings || cachedProfile,
+    appearance: appObj,
+    bookAppearanceSettings: appObj
+  };
+};
+
 const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage, v_id: propVId, isPublishedPreview, isLoadingParent = false }) => {
   const params = useParams();
   const v_id = propVId || params.v_id;
-  const [localSettings, setLocalSettings] = useState(settings || {});
+  const [localSettings, setLocalSettings] = useState(() => parseInitialSettings(settings, v_id, isPublishedPreview));
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (settings && Object.keys(settings).length > 0) {
+      setLocalSettings(parseInitialSettings(settings, v_id, isPublishedPreview));
+    }
+  }, [settings, v_id, isPublishedPreview]);
 
   useEffect(() => {
     let progressInterval;
@@ -94,34 +140,58 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
       try {
         let finalSettings = { ...(settings || {}) };
 
-        // Try getting local unsaved state from DB just like CustomizedEditor does
-        try {
-          const appearance = await getFromDB(`customized_editor_appearance_${v_id || 'default'}`);
-          if (appearance) {
-            finalSettings.background = appearance.background;
-            finalSettings.appearance = appearance.appearance;
-            finalSettings.layout = appearance.layout;
-            finalSettings.layoutColors = appearance.layoutColors;
+        // Ensure logo/watermark/preloader/menuBar are extracted if passed via Branding/MenuBar objects
+        const bObj = finalSettings.Customized_Settings?.Branding || finalSettings.Branding || {};
+        if (bObj.logoSettings) finalSettings.logo = bObj.logoSettings;
+        if (bObj.watermarkSettings) finalSettings.watermark = bObj.watermarkSettings;
+        if (bObj.preloaderSettings) finalSettings.preloader = bObj.preloaderSettings;
+
+        const mObj = finalSettings.Customized_Settings?.MenuBar || finalSettings.MenuBar || {};
+        if (mObj && Object.keys(mObj).length > 0) {
+          finalSettings.menubar = mObj;
+          finalSettings.menuBar = mObj;
+          finalSettings.menuBarSettings = mObj;
+        }
+
+        const lObj = finalSettings.Customized_Settings?.Layouts || finalSettings.Layouts || {};
+        if (lObj.layoutStyle !== undefined) finalSettings.layout = lObj.layoutStyle;
+        if (lObj.layoutColors) finalSettings.layoutColors = lObj.layoutColors;
+
+        // Try getting local unsaved state ONLY if NOT in published preview mode
+        if (!isPublishedPreview) {
+          try {
+            const appearance = await getFromDB(`customized_editor_appearance_${v_id || 'default'}`);
+            if (appearance) {
+              if (appearance.background) finalSettings.background = appearance.background;
+              if (appearance.appearance) finalSettings.appearance = appearance.appearance;
+              if (appearance.layout) finalSettings.layout = appearance.layout;
+              if (appearance.layoutColors) finalSettings.layoutColors = appearance.layoutColors;
+            }
+            const branding = await getFromDB(`customized_editor_branding_${v_id || 'default'}`);
+            if (branding) {
+              if (branding.logoSettings) finalSettings.logo = branding.logoSettings;
+              if (branding.watermarkSettings) finalSettings.watermark = branding.watermarkSettings;
+              if (branding.preloaderSettings) finalSettings.preloader = branding.preloaderSettings;
+            }
+            const setup = await getFromDB(`customized_editor_setup_${v_id || 'default'}`);
+            if (setup) {
+              const localMB = setup.MenuBar || setup.menuBar;
+              if (localMB) {
+                finalSettings.menubar = localMB;
+                finalSettings.menuBar = localMB;
+                finalSettings.menuBarSettings = localMB;
+              }
+              if (setup.otherSetup) finalSettings.othersetup = setup.otherSetup;
+              if (setup.leadForm) finalSettings.leadform = setup.leadForm;
+              if (setup.visibility) finalSettings.visibility = setup.visibility;
+            }
+          } catch (e) {
+            console.error("Failed to load local DB settings", e);
           }
-          const branding = await getFromDB(`customized_editor_branding_${v_id || 'default'}`);
-          if (branding) {
-            finalSettings.logo = branding.logo;
-            finalSettings.profile = branding.profile;
-            finalSettings.preloader = branding.preloader;
-          }
-          const setup = await getFromDB(`customized_editor_setup_${v_id || 'default'}`);
-          if (setup) {
-            finalSettings.menubar = setup.menuBar;
-            finalSettings.othersetup = setup.otherSetup;
-            finalSettings.leadform = setup.leadForm;
-            finalSettings.visibility = setup.visibility;
-          }
-        } catch (e) {
-          console.error("Failed to load local DB settings", e);
         }
 
         // If we didn't get them from local DB, fallback to backend if v_id exists
-        if (!finalSettings.appearance && v_id) {
+        if ((!finalSettings.appearance || !finalSettings.logo) && v_id) {
           const storedUser = localStorage.getItem('user');
           if (storedUser) {
             const user = JSON.parse(storedUser);
@@ -132,9 +202,24 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             });
 
             if (res.data) {
-              finalSettings = { ...finalSettings, ...(res.data.meta || {}), ...(res.data.settings || {}) };
+              const backendBranding = res.data.Customized_Settings?.Branding || res.data.settings?.Branding || {};
+              finalSettings = {
+                ...finalSettings,
+                ...(res.data.meta || {}),
+                ...(res.data.settings || {}),
+                logo: finalSettings.logo || backendBranding.logoSettings || res.data.settings?.logo || res.data.settings?.logoSettings,
+                watermark: finalSettings.watermark || backendBranding.watermarkSettings || res.data.settings?.watermark || res.data.settings?.watermarkSettings,
+                preloader: finalSettings.preloader || backendBranding.preloaderSettings || res.data.settings?.preloader || res.data.settings?.preloaderSettings,
+                profile: finalSettings.profile || backendBranding.profileSettings || res.data.settings?.profile || res.data.settings?.profileSettings
+              };
             }
           }
+        }
+
+        if (finalSettings.preloader && v_id) {
+          try {
+            localStorage.setItem(`flipbook_preloader_${v_id}`, JSON.stringify(finalSettings.preloader));
+          } catch (e) {}
         }
 
         if (Object.keys(finalSettings).length > 0) {
@@ -426,12 +511,13 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         bookName={pageName || bookName} 
         pages={pages}
         targetPage={targetPage}
-        logoSettings={localSettings?.logo}
+        logoSettings={localSettings?.logo || localSettings?.logoSettings || localSettings?.Branding?.logoSettings}
+        watermarkSettings={localSettings?.watermark || localSettings?.watermarkSettings || localSettings?.Branding?.watermarkSettings}
         backgroundSettings={localSettings?.background}
-        bookAppearanceSettings={localSettings?.appearance}
-        menuBarSettings={localSettings?.menubar}
+        bookAppearanceSettings={localSettings?.appearance || localSettings?.bookAppearanceSettings || settings?.appearance || settings?.bookAppearanceSettings}
+        menuBarSettings={localSettings?.menuBarSettings || localSettings?.menuBar || localSettings?.menubar || localSettings?.MenuBar || localSettings?.Customized_Settings?.MenuBar || settings?.menuBarSettings || settings?.menuBar || settings?.menubar || settings?.MenuBar}
         leadFormSettings={localSettings?.leadform}
-        profileSettings={localSettings?.profile}
+        profileSettings={localSettings?.profile || localSettings?.profileSettings || localSettings?.Branding?.profileSettings}
         otherSetupSettings={localSettings?.othersetup}
         activeLayout={localSettings?.layout || 1}
         layoutColors={localSettings?.layoutColors}
@@ -545,7 +631,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
       {/* 3D viewer rendering is handled natively by PreviewArea */}
 
       {(() => {
-        const preloader = localSettings?.preloader || {
+        const preloader = localSettings?.preloader || localSettings?.preloaderSettings || settings?.preloader || settings?.preloaderSettings || settings?.Branding?.preloaderSettings || {
           text: 'Loading Modal Please Wait....',
           bgColor: '#2D2F33',
           textColor: '#ffffff',

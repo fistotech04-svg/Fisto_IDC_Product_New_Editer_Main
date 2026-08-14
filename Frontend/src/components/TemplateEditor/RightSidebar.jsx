@@ -59,8 +59,8 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
 
              if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
              else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
-             else if (targetAttr === 'x') rawVal = bbox.x * m[0] + m[4];
-             else if (targetAttr === 'y') rawVal = bbox.y * m[3] + m[5];
+             else if (targetAttr === 'x') rawVal = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
+             else if (targetAttr === 'y') rawVal = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
 
              if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
                  const r = parseFloat(el.getAttribute('r')) || 0;
@@ -269,14 +269,16 @@ const RightSidebar = ({
 
                  if (targetAttr === 'x') {
                      newVal = Math.max(bounds.minX, Math.min(bounds.maxX - visW, newVal));
-                     m[4] = newVal - bbox.x * m[0];
+                     const offsetX = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0);
+                     m[4] = newVal - offsetX;
                      updateElementAttribute(activePageIndex, selectedLayerId, {
                         'transform': `matrix(${m.join(', ')})`,
                         'data-x': m[4].toString()
                      });
                  } else {
                      newVal = Math.max(bounds.minY, Math.min(bounds.maxY - visH, newVal));
-                     m[5] = newVal - bbox.y * m[3];
+                     const offsetY = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0);
+                     m[5] = newVal - offsetY;
                      updateElementAttribute(activePageIndex, selectedLayerId, {
                         'transform': `matrix(${m.join(', ')})`,
                         'data-y': m[5].toString()
@@ -379,21 +381,21 @@ const RightSidebar = ({
        if (targetVal <= 0 || bbox.width === 0 || bbox.height === 0) return;
 
        if (targetAttr === 'width') {
-         // Current world X of top-left
-         const oldWorldX = bbox.x * m[0] + m[4];
+         // Current world X of top-left (account for negative scale when flipped)
+         const oldWorldX = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
          // New m[0] scale (preserve sign for flip)
          const newM0 = (m[0] >= 0 ? 1 : -1) * (targetVal / bbox.width);
          // New m[4] translation to keep top-left fixed
-         const newM4 = oldWorldX - bbox.x * newM0;
+         const newM4 = oldWorldX - (bbox.x * newM0 + (newM0 < 0 ? bbox.width * newM0 : 0));
          m[0] = newM0;
          m[4] = newM4;
        } else if (targetAttr === 'height') {
-         // Current world Y of top-left
-         const oldWorldY = bbox.y * m[3] + m[5];
+         // Current world Y of top-left (account for negative scale when flipped)
+         const oldWorldY = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
          // New m[3] scale (preserve sign for flip)
          const newM3 = (m[3] >= 0 ? 1 : -1) * (targetVal / bbox.height);
          // New m[5] translation to keep top-left fixed
-         const newM5 = oldWorldY - bbox.y * newM3;
+         const newM5 = oldWorldY - (bbox.y * newM3 + (newM3 < 0 ? bbox.height * newM3 : 0));
          m[3] = newM3;
          m[5] = newM5;
        }
@@ -627,8 +629,8 @@ const RightSidebar = ({
               }
               w = (bbox.width * Math.abs(m[0])).toString();
               h = (bbox.height * Math.abs(m[3])).toString();
-              x = (bbox.x * m[0] + m[4]).toString();
-              y = (bbox.y * m[3] + m[5]).toString();
+              x = (bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4]).toString();
+              y = (bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5]).toString();
               measuredFromDom = true;
            } catch (e) {
               console.warn("Failed to get BBox for element", e);

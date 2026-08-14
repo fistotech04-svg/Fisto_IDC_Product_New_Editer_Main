@@ -59,7 +59,7 @@ export const processBookAppearanceSettings = (settings) => {
     flipTime,
     flipStyle: settings.flipStyle || 'Classic Flip',
     hardCover: !!settings.hardCover,
-    shadowActive: !!shadow.active
+    shadowActive: shadow.active !== false
   };
 };
 

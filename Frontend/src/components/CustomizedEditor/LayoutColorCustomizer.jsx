@@ -20,6 +20,28 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Helper to format layout colors payload matching backend schema
+    const formatLayoutColorsPayload = (updated) => {
+        if (!updated) return updated;
+        const layout1 = updated[1] || updated['1'] || [];
+        const primaryToolbarHex = (Array.isArray(layout1) ? layout1.find(c => c && c.id === 'toolbar-bg')?.hex : null) || updated.toolbarColor?.primary || '';
+        const secondaryToolbarHex = (Array.isArray(layout1) ? layout1.find(c => c && c.id === 'toolbar-text-main')?.hex : null) || updated.toolbarColor?.secondary || '';
+        const primaryPopupHex = (Array.isArray(layout1) ? layout1.find(c => c && ['toc-bg', 'dropdown-bg'].includes(c.id))?.hex : null) || updated.popupColor?.primary || '';
+        const secondaryPopupHex = (Array.isArray(layout1) ? layout1.find(c => c && ['toc-text', 'dropdown-text'].includes(c.id))?.hex : null) || updated.popupColor?.secondary || '';
+
+        return {
+            ...updated,
+            toolbarColor: {
+                primary: primaryToolbarHex,
+                secondary: secondaryToolbarHex
+            },
+            popupColor: {
+                primary: primaryPopupHex,
+                secondary: secondaryPopupHex
+            }
+        };
+    };
+
     // Helper to create a light shade of a color for backgrounds
     const getTint = (hex, weight = 0.8) => {
         let r = parseInt(hex.slice(1, 3), 16);
@@ -151,7 +173,8 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                 updated[layoutIdx] = updated[layoutIdx].map((c, i) => i === colorIdx ? { ...c, hex: newHex } : c);
             }
 
-            if (onUpdateLayoutColors) onUpdateLayoutColors(updated);
+            const formatted = formatLayoutColorsPayload(updated);
+            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
             return updated;
         });
     };
@@ -200,7 +223,8 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                 updated[layoutIdx] = updated[layoutIdx].map((c, i) => i === colorIdx ? { ...c, opacity: clampedOpacity } : c);
             }
 
-            if (onUpdateLayoutColors) onUpdateLayoutColors(updated);
+            const formatted = formatLayoutColorsPayload(updated);
+            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
             return updated;
         });
     };
@@ -212,7 +236,8 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
             for (let i = 1; i <= 9; i++) {
                 updated[i] = LAYOUT_DEFAULT_COLORS[i].map(c => ({ ...c }));
             }
-            if (onUpdateLayoutColors) onUpdateLayoutColors(updated);
+            const formatted = formatLayoutColorsPayload(updated);
+            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
             return updated;
         });
         setPickerColorIdx(null);
@@ -285,7 +310,8 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                 }
             }
 
-            if (onUpdateLayoutColors) onUpdateLayoutColors(updated);
+            const formatted = formatLayoutColorsPayload(updated);
+            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
             return updated;
         });
     };
@@ -352,7 +378,8 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                 });
             }
 
-            if (onUpdateLayoutColors) onUpdateLayoutColors(updated);
+            const formatted = formatLayoutColorsPayload(updated);
+            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
             return updated;
         });
     };

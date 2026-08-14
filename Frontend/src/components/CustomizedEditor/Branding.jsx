@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { Trash2, Plus, ChevronDown, RefreshCw, Upload, Image as ImageIcon, ChevronRight, ArrowLeftRight, Link } from 'lucide-react';
+import axios from 'axios';
 import PremiumDropdown from './PremiumDropdown';
 import AlertModal from '../AlertModal';
 import { AdjustmentSlider, SectionLabel, ImageCropOverlay, CustomColorPicker } from './AppearanceShared';
@@ -22,7 +23,10 @@ const Branding = ({
   preloaderSettings,
   onUpdatePreloader,
   onBack,
-  onPreviewPreloader
+  onPreviewPreloader,
+  folder,
+  flipbookName,
+  v_id
 }) => {
   const fileInputRef = useRef(null);
   const watermarkFileInputRef = useRef(null);
@@ -66,7 +70,11 @@ const Branding = ({
   // Save gallery images to localStorage when updated
   useEffect(() => {
     if (uploadedImages.length > 0) {
-      localStorage.setItem('customized_editor_gallery', JSON.stringify(uploadedImages));
+      try {
+        localStorage.setItem('customized_editor_gallery', JSON.stringify(uploadedImages));
+      } catch (e) {
+        console.warn("localStorage quota exceeded for branding gallery images", e);
+      }
     }
   }, [uploadedImages]);
 
@@ -162,12 +170,60 @@ const Branding = ({
     }
   }, [watermarkSettings?.src]);
 
-  const handleLogoReplace = (file) => {
+  const uploadCustomizedAsset = async (file, assetType) => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && file) {
+        const user = JSON.parse(storedUser);
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const formData = new FormData();
+        formData.append('action', 'upload');
+        formData.append('file', file);
+        formData.append('emailId', user.emailId);
+        formData.append('assetType', assetType);
+        formData.append('folderName', folder || 'My_Flipbooks');
+        formData.append('flipbookName', flipbookName || v_id || 'Untitled Document');
+        if (v_id) formData.append('v_id', v_id);
+        if (assetType === 'logo' && logoSettings?.src) {
+          formData.append('oldSrc', logoSettings.src);
+        } else if (assetType === 'watermark' && watermarkSettings?.src) {
+          formData.append('oldSrc', watermarkSettings.src);
+        }
+
+        const res = await axios.post(`${backendUrl}/api/flipbook/branding`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (res.data?.url) {
+          return res.data.url;
+        }
+      }
+    } catch (err) {
+      console.warn(`[Branding] ${assetType} upload warning:`, err);
+    }
+    return null;
+  };
+
+  const handleLogoReplace = async (file) => {
+    if (!file) return;
+    const uploadedUrl = await uploadCustomizedAsset(file, 'logo');
+    if (uploadedUrl) {
+      onUpdateLogo({
+        ...logoSettings,
+        src: uploadedUrl,
+        url: uploadedUrl,
+        opacity: logoSettings?.opacity ?? 100,
+        adjustments: logoSettings?.adjustments ?? {
+          exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0
+        }
+      });
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
       onUpdateLogo({
         ...logoSettings,
         src: event.target.result,
+        url: event.target.result,
         opacity: logoSettings?.opacity ?? 100,
         adjustments: logoSettings?.adjustments ?? {
           exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0
@@ -177,7 +233,21 @@ const Branding = ({
     reader.readAsDataURL(file);
   };
 
-  const handleWatermarkReplace = (file) => {
+  const handleWatermarkReplace = async (file) => {
+    if (!file) return;
+    const uploadedUrl = await uploadCustomizedAsset(file, 'watermark');
+    if (uploadedUrl) {
+      onUpdateWatermark({
+        ...watermarkSettings,
+        src: uploadedUrl,
+        opacity: watermarkSettings?.opacity ?? 64,
+        position: watermarkSettings?.position || 'Bottom Right',
+        adjustments: watermarkSettings?.adjustments ?? {
+          exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0
+        }
+      });
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
       onUpdateWatermark({
@@ -204,14 +274,34 @@ const Branding = ({
   };
 
   // Logo Handlers
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
+      const uploadedUrl = await uploadCustomizedAsset(file, 'logo');
+      if (uploadedUrl) {
+        onUpdateLogo({
+          ...logoSettings,
+          src: uploadedUrl,
+          url: uploadedUrl,
+          opacity: logoSettings?.opacity ?? 100,
+          adjustments: logoSettings?.adjustments ?? {
+            exposure: 0,
+            contrast: 0,
+            saturation: 0,
+            temperature: 0,
+            tint: 0,
+            highlights: 0,
+            shadows: 0
+          }
+        });
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         onUpdateLogo({
           ...logoSettings,
           src: reader.result,
+          url: reader.result,
           opacity: logoSettings?.opacity ?? 100,
           adjustments: logoSettings?.adjustments ?? {
             exposure: 0,
@@ -229,7 +319,7 @@ const Branding = ({
   };
 
   const handleUrlChange = (e) => {
-    onUpdateLogo({ ...logoSettings, url: e.target.value });
+    onUpdateLogo({ ...logoSettings, src: e.target.value, url: e.target.value });
   };
 
   const handleLogoTypeChange = (e) => {
@@ -240,10 +330,66 @@ const Branding = ({
     setDeleteAlert(true);
   };
 
+  const deleteBrandingAsset = async (assetType) => {
+    const isLogo = assetType === 'logo';
+    const targetSettings = isLogo ? logoSettings : watermarkSettings;
+    const targetSrc = targetSettings?.src;
+
+    if (targetSrc) {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          await axios.post(`${backendUrl}/api/flipbook/branding`, {
+            action: 'delete',
+            emailId: user.emailId,
+            v_id: v_id,
+            assetType: assetType,
+            src: targetSrc,
+            folderName: folder || 'My_Flipbooks',
+            flipbookName: flipbookName || v_id || 'Untitled Document'
+          });
+        }
+      } catch (err) {
+        console.warn(`[Branding] ${assetType} delete asset warning:`, err);
+      }
+    }
+
+    if (isLogo) {
+      onUpdateLogo({
+        src: '',
+        url: '',
+        type: 'Fit',
+        opacity: 100,
+        cropData: null,
+        adjustments: {
+          exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0
+        }
+      });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setDeleteAlert(false);
+    } else {
+      onUpdateWatermark({
+        src: '',
+        type: 'Fit',
+        opacity: 64,
+        position: 'Bottom Right',
+        cropData: null,
+        adjustments: {
+          exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0
+        }
+      });
+      if (watermarkFileInputRef.current) watermarkFileInputRef.current.value = '';
+    }
+  };
+
   const removeLogo = () => {
-    onUpdateLogo({ ...logoSettings, src: null });
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setDeleteAlert(false);
+    deleteBrandingAsset('logo');
+  };
+
+  const removeWatermark = () => {
+    deleteBrandingAsset('watermark');
   };
 
   const handleAdjustmentChange = (key, value) => {
@@ -529,16 +675,7 @@ const Branding = ({
                   e.stopPropagation();
                   const file = e.dataTransfer.files[0];
                   if (file && file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => onUpdateLogo({
-                      ...logoSettings,
-                      src: event.target.result,
-                      opacity: logoSettings?.opacity ?? 100,
-                      adjustments: logoSettings?.adjustments ?? {
-                        exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0
-                      }
-                    });
-                    reader.readAsDataURL(file);
+                    handleFileChange({ target: { files: [file] } });
                   }
                 }}
                 className="w-full h-[7vw] border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-[#4c5add] hover:bg-gray-50/50 group shadow-sm"
@@ -609,7 +746,7 @@ const Branding = ({
                       Replace image
                     </button>
                     <button
-                      onClick={() => onUpdateWatermark({ ...watermarkSettings, src: '' })}
+                      onClick={removeWatermark}
                       className="p-[0.45vw] bg-[#f3f4f6] hover:bg-[#fee2e2] text-gray-500 hover:text-red-500 rounded-[0.4vw] border border-gray-200 cursor-pointer transition-colors"
                     >
                       <Trash2 size="0.95vw" />
@@ -632,16 +769,7 @@ const Branding = ({
                   e.stopPropagation();
                   const file = e.dataTransfer.files[0];
                   if (file && file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => onUpdateWatermark({
-                      ...watermarkSettings,
-                      src: event.target.result,
-                      opacity: watermarkSettings?.opacity ?? 64,
-                      adjustments: watermarkSettings?.adjustments ?? {
-                        exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0
-                      }
-                    });
-                    reader.readAsDataURL(file);
+                    handleWatermarkReplace(file);
                   }
                 }}
                 className="w-full h-[7vw] border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-[#4c5add] hover:bg-gray-50/50 group shadow-sm"
@@ -659,9 +787,7 @@ const Branding = ({
             onChange={(e) => {
               const file = e.target.files[0];
               if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => onUpdateWatermark({ ...watermarkSettings, src: event.target.result });
-                reader.readAsDataURL(file);
+                handleWatermarkReplace(file);
               }
             }}
             className="hidden"
@@ -780,80 +906,89 @@ const Branding = ({
           </div>
 
           {/* Interactive Preloader Preview Box */}
-          <div
-            className="relative w-full h-[8vw] rounded-[1vw] flex flex-col items-center justify-center shadow-lg border border-white/10 group overflow-hidden flex-shrink-0"
-            style={{
-              backgroundColor: preloaderSettings?.bgColor || '#2D2F33',
-              color: preloaderSettings?.textColor || '#ffffff'
-            }}
-          >
-            {/* Swap Layout Button / Popup trigger */}
-            <button
-              onClick={handleOpenPreloaderModal}
-              className="absolute top-[0.75vw] right-[0.75vw] p-[0.4vw] rounded-full bg-black/40 hover:bg-black/60 text-white cursor-pointer transition-colors flex items-center justify-center z-[20]"
-              title="Change preloader settings"
-            >
-              <ArrowLeftRight size="0.95vw" />
-            </button>
-
-            <div className="flex flex-col items-center gap-[0.8vw]">
-              {preloaderSettings?.layout === 'bar' ? (
-                <div className="flex flex-col items-center gap-2 w-[12vw]">
-                  <div className="w-full bg-gray-600/40 h-[0.4vw] rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full animate-pulse"
-                      style={{
-                        width: '60%',
-                        backgroundColor: preloaderSettings?.spinnerColor || '#3B3C8A'
-                      }}
-                    ></div>
-                  </div>
-                  {preloaderSettings?.showPercentage && (
-                    <span className="text-[0.7vw] font-semibold">60%</span>
-                  )}
-                </div>
-              ) : preloaderSettings?.layout === 'dots' ? (
-                <div className="flex flex-col items-center gap-[0.3vw] py-[0.3vw]">
-                  <div className="flex items-center gap-[0.4vw]">
-                    <div className="w-[0.5vw] h-[0.5vw] rounded-full animate-bounce [animation-delay:-0.3s]" style={{ backgroundColor: preloaderSettings?.spinnerColor || '#3B3C8A' }}></div>
-                    <div className="w-[0.5vw] h-[0.5vw] rounded-full animate-bounce [animation-delay:-0.15s]" style={{ backgroundColor: preloaderSettings?.spinnerColor || '#3B3C8A' }}></div>
-                    <div className="w-[0.5vw] h-[0.5vw] rounded-full animate-bounce" style={{ backgroundColor: preloaderSettings?.spinnerColor || '#3B3C8A' }}></div>
-                  </div>
-                  {preloaderSettings?.showPercentage && (
-                    <span className="text-[0.7vw] font-semibold">20%</span>
-                  )}
-                </div>
-              ) : (
-                // default circular spinner
-                <div className="relative flex items-center justify-center">
-                  <div
-                    className="w-[2.2vw] h-[2.2vw] border-[3px] border-t-transparent rounded-full animate-spin"
-                    style={{
-                      borderColor: `${preloaderSettings?.spinnerColor || '#3B3C8A'} ${preloaderSettings?.spinnerColor || '#3B3C8A'} ${preloaderSettings?.spinnerColor || '#3B3C8A'} transparent`
-                    }}
-                  ></div>
-                  {preloaderSettings?.showPercentage && (
-                    <span className="absolute text-[0.6vw] font-bold">20%</span>
-                  )}
-                </div>
-              )}
-              <p
-                className="text-[0.75vw] font-semibold text-center truncate max-w-[15vw]"
-                style={{ fontFamily: preloaderSettings?.font || 'Poppins' }}
+          {(() => {
+            const displayPreloader = showPreloaderModal
+              ? { ...preloaderSettings, ...tempPreloaderSettings }
+              : (preloaderSettings || {});
+            return (
+              <div
+                className="relative w-full h-[8vw] rounded-[1vw] flex flex-col items-center justify-center shadow-lg border border-white/10 group overflow-hidden flex-shrink-0"
+                style={{
+                  backgroundColor: displayPreloader?.bgColor || '#2D2F33',
+                  color: displayPreloader?.textColor || '#ffffff'
+                }}
               >
-                {preloaderSettings?.text || 'Loading Modal Please Wait....'}
-              </p>
-            </div>
-          </div>
+                {/* Swap Layout Button / Popup trigger */}
+                <button
+                  onClick={handleOpenPreloaderModal}
+                  className="absolute top-[0.75vw] right-[0.75vw] p-[0.4vw] rounded-full bg-black/40 hover:bg-black/60 text-white cursor-pointer transition-colors flex items-center justify-center z-[20]"
+                  title="Change preloader settings"
+                >
+                  <ArrowLeftRight size="0.95vw" />
+                </button>
+
+                <div className="flex flex-col items-center gap-[0.8vw]">
+                  {displayPreloader?.layout === 'bar' ? (
+                    <div className="flex flex-col items-center gap-2 w-[12vw]">
+                      <div className="w-full bg-gray-600/40 h-[0.4vw] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full animate-pulse"
+                          style={{
+                            width: '60%',
+                            backgroundColor: displayPreloader?.spinnerColor || '#3B3C8A'
+                          }}
+                        ></div>
+                      </div>
+                      {displayPreloader?.showPercentage && (
+                        <span className="text-[0.7vw] font-semibold">60%</span>
+                      )}
+                    </div>
+                  ) : displayPreloader?.layout === 'dots' ? (
+                    <div className="flex flex-col items-center gap-[0.3vw] py-[0.3vw]">
+                      <div className="flex items-center gap-[0.4vw]">
+                        <div className="w-[0.5vw] h-[0.5vw] rounded-full animate-bounce [animation-delay:-0.3s]" style={{ backgroundColor: displayPreloader?.spinnerColor || '#3B3C8A' }}></div>
+                        <div className="w-[0.5vw] h-[0.5vw] rounded-full animate-bounce [animation-delay:-0.15s]" style={{ backgroundColor: displayPreloader?.spinnerColor || '#3B3C8A' }}></div>
+                        <div className="w-[0.5vw] h-[0.5vw] rounded-full animate-bounce" style={{ backgroundColor: displayPreloader?.spinnerColor || '#3B3C8A' }}></div>
+                      </div>
+                      {displayPreloader?.showPercentage && (
+                        <span className="text-[0.7vw] font-semibold">20%</span>
+                      )}
+                    </div>
+                  ) : (
+                    // default circular spinner
+                    <div className="relative flex items-center justify-center">
+                      <div
+                        className="w-[2.2vw] h-[2.2vw] border-[3px] border-t-transparent rounded-full animate-spin"
+                        style={{
+                          borderColor: `${displayPreloader?.spinnerColor || '#3B3C8A'} ${displayPreloader?.spinnerColor || '#3B3C8A'} ${displayPreloader?.spinnerColor || '#3B3C8A'} transparent`
+                        }}
+                      ></div>
+                      {displayPreloader?.showPercentage && (
+                        <span className="absolute text-[0.6vw] font-bold">20%</span>
+                      )}
+                    </div>
+                  )}
+                  <p
+                    className="text-[0.75vw] font-semibold text-center truncate max-w-[15vw]"
+                    style={{ fontFamily: displayPreloader?.font || 'Poppins' }}
+                  >
+                    {displayPreloader?.text || 'Loading Modal Please Wait....'}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Preloader Styles Modal */}
           {showPreloaderModal && typeof document !== 'undefined' && createPortal(
             <div
               className="fixed w-[21vw] z-[9999] bg-white rounded-[0.8vw] shadow-[0_4px_30px_rgba(0,0,0,0.2)] border border-gray-200 overflow-hidden"
               style={{
-                top: '70%',
-                left: '40.5vw',
+                top: '50%',
+                left: '48vw',
                 transform: 'translate(-50%, -50%)',
+                maxHeight: '90vh',
+                overflowY: 'auto'
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -912,7 +1047,7 @@ const Branding = ({
                         style={{ backgroundColor: tempPreloaderSettings?.bgColor || '#2D2F33' }}
                         onClick={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
-                          setPickerPos({ x: rect.left, y: rect.top });
+                          setPickerPos({ x: Math.min(window.innerWidth - 260, rect.left + 260), y: rect.top });
                           setShowPreloaderBgColorPicker(true);
                         }}
                       />
@@ -958,7 +1093,7 @@ const Branding = ({
                         style={{ backgroundColor: tempPreloaderSettings?.textColor || '#ffffff' }}
                         onClick={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
-                          setPickerPos({ x: rect.left, y: rect.top });
+                          setPickerPos({ x: Math.min(window.innerWidth - 260, rect.left + 260), y: rect.top });
                           setShowPreloaderTextColorPicker(true);
                         }}
                       />
@@ -1004,7 +1139,7 @@ const Branding = ({
                         style={{ backgroundColor: tempPreloaderSettings?.spinnerColor || '#3B3C8A' }}
                         onClick={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
-                          setPickerPos({ x: rect.left, y: rect.top });
+                          setPickerPos({ x: Math.min(window.innerWidth - 260, rect.left + 260), y: rect.top });
                           setShowPreloaderSpinnerColorPicker(true);
                         }}
                       />
@@ -1151,7 +1286,7 @@ const Branding = ({
                 onClick={() => {
                   if (localGallerySelected && galleryTarget) {
                     if (galleryTarget === 'logo') {
-                      onUpdateLogo({ ...logoSettings, src: localGallerySelected.url });
+                      onUpdateLogo({ ...logoSettings, src: localGallerySelected.url, url: localGallerySelected.url });
                     } else if (galleryTarget === 'watermark') {
                       onUpdateWatermark({ ...watermarkSettings, src: localGallerySelected.url });
                     }

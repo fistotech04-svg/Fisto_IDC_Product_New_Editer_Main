@@ -985,17 +985,19 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
   const [showCoverPopup, setShowCoverPopup] = useState(false);
   const [coverPicture, setCoverPicture] = useState(null);
 
-  // Sync state when currentBook changes or modal opens
+  const bookId = currentBook?.v_id || currentBook?.id || currentBook?.realName || currentBook?.flipbookName || currentBook?.title || '';
+
+  // Sync state when book ID changes or modal opens
   useEffect(() => {
-    if (isOpen && currentBook) {
-      setBookName(currentBook.flipbookName || currentBook.realName || currentBook.title || '');
-      setQuotes(currentBook.quotes || currentBook.quote || currentBook.tagline || '');
-      setAbout(currentBook.about || '');
-      setCategory(currentBook.category || 'Product Based');
-      setLanguage(currentBook.language || 'English');
+    if (isOpen) {
+      setBookName(currentBook?.flipbookName || currentBook?.realName || currentBook?.title || '');
+      setQuotes(currentBook?.quotes || currentBook?.quote || currentBook?.tagline || currentBook?.meta?.quotes || currentBook?.meta?.quote || currentBook?.meta?.tagline || '');
+      setAbout(currentBook?.about || currentBook?.meta?.about || '');
+      setCategory(currentBook?.category || currentBook?.meta?.category || 'Product Based');
+      setLanguage(currentBook?.language || currentBook?.meta?.language || 'English');
       setErrors({});
 
-      const cp = currentBook.settings?.othersetup?.coverPicture || currentBook.coverPicture || {
+      const cp = currentBook?.settings?.othersetup?.coverPicture || currentBook?.coverPicture || {
         type: 'template',
         url: '',
         selectedTemplate: COVER_TEMPLATES[0],
@@ -1003,7 +1005,7 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
       };
       setCoverPicture(cp);
     }
-  }, [isOpen, currentBook]);
+  }, [isOpen, bookId]);
 
   if (!isOpen) return null;
 
@@ -1243,6 +1245,7 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
                     <div className="relative">
                       <input
                         type="text"
+                        disabled
                         maxLength={20}
                         value={bookName}
                         onChange={(e) => {
@@ -1250,7 +1253,7 @@ const FlipbookInfoModal = ({ isOpen, onClose, currentBook, onSaveSuccess }) => {
                           if (errors.bookName) setErrors(prev => ({ ...prev, bookName: null }));
                         }}
                         placeholder="Name of the book"
-                        className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pr-[3.2vw] text-[0.8vw] font-normal text-gray-800 placeholder-gray-300 focus:outline-none shadow-xs transition-colors ${errors.bookName ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:border-gray-400'}`}
+                        className={`w-full border rounded-[0.5vw] px-[0.8vw] py-[0.5vw] pr-[3.2vw] text-[0.8vw] font-normal text-gray-600 bg-gray-50/70 cursor-not-allowed placeholder-gray-300 focus:outline-none shadow-xs transition-colors ${errors.bookName ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'}`}
                       />
                       <span className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-[0.7vw] text-gray-300 font-normal select-none">
                         {bookName.length}/20
