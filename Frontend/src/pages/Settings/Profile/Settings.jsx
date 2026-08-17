@@ -1,9 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-import CrownImg from '../../assets/settings/Crown img.svg';
+import CrownImg from '../../../assets/settings/Crown img.svg';
+import p1 from '../../../assets/settings/p1.png';
 
 const SettingsLayout = () => {
+  const [user, setUser] = useState({ name: 'Luffy', email: 'luffyonepiece@gmail.com', picture: null, avatarBgColor: '#E8D4C8' });
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        const targetEmail = parsedUser.emailId || parsedUser.email || '';
+        setUser({
+          name: parsedUser.name || (targetEmail ? targetEmail.split('@')[0] : 'User'),
+          email: targetEmail || 'No Email',
+          picture: parsedUser.picture || null,
+          avatarBgColor: parsedUser.avatarBgColor || '#E8D4C8'
+        });
+      } catch (e) {
+        console.error("Failed to parse user data", e);
+      }
+    }
+  }, []);
+
   const sidebarGroups = [
     {
       title: 'General',
@@ -38,19 +59,34 @@ const SettingsLayout = () => {
     <div className="flex h-full bg-white font-sans overflow-hidden">
       
       {/* Sidebar */}
-      <aside className="w-[16.25vw] flex-shrink-0 border-r border-gray-100 flex flex-col">
+      <aside className="w-[16vw] flex-shrink-0 border-r border-gray-100 flex flex-col">
         
         {/* User Info (Top Left of Sidebar) */}
         <div className="p-[1.5vw] flex items-center justify-between border-b border-gray-100 mb-[0.5vw] relative group cursor-pointer hover:bg-gray-50 transition-colors">
           <div className="flex items-center gap-[1vw]">
-            <img 
-              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&q=80" 
-              alt="Profile" 
-              className="w-[2.5vw] h-[2.5vw] rounded-full object-cover shadow-sm"
-            />
+            <div 
+              className="w-[2.5vw] h-[2.5vw] rounded-full overflow-hidden relative shadow-sm flex items-center justify-center bg-white transition-colors duration-300"
+              style={{ backgroundColor: user.avatarBgColor === '#E8D4C8' && user.picture === 'color_only' ? '#E8D4C8' : (user.avatarBgColor === '#E8D4C8' ? '#ffffff' : user.avatarBgColor) }}
+            >
+              {user.picture && user.picture !== 'color_only' && !user.picture.includes('unsplash') ? (
+                 <img 
+                    src={user.picture} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                 />
+              ) : (user.picture === 'color_only' ? (
+                 <span className="text-white text-[1.2vw] font-bold drop-shadow-md">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
+              ) : (
+                 <img 
+                    src={p1} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                 />
+              ))}
+            </div>
             <div>
-              <h3 className="text-[1.1vw] font-semibold text-gray-900">Luffy</h3>
-              <p className="text-[0.75vw] text-gray-500">luffyonepiece@gmail.com</p>
+              <h3 className="text-[1.1vw] font-semibold text-gray-900 truncate max-w-[9vw]">{user.name}</h3>
+              <p className="text-[0.75vw] text-gray-500 truncate max-w-[9vw]">{user.email}</p>
             </div>
           </div>
           <button className="text-gray-800 hover:text-gray-900 mt-[-3vw] ">
@@ -64,7 +100,7 @@ const SettingsLayout = () => {
               
               {/* Group Title with Line */}
               <div className="flex items-center gap-[1vw] mb-[0.4vw] px-[0.5vw]">
-                <h4 className="text-[0.85vw] font-semibold text-gray-600 whitespace-nowrap">
+                <h4 className="text-[0.9vw] font-semibold text-gray-700 whitespace-nowrap">
                   {group.title}
                 </h4>
                 <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
@@ -104,9 +140,9 @@ const SettingsLayout = () => {
 
         {/* Upgrade Profile Button */}
         <div className="p-[0.5vw] mb-[0.5vw]">
-          <button className="w-full relative overflow-visible bg-gradient-to-r from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] text-white rounded-[0.8vw] py-[0.6vw] flex items-center justify-center gap-[0.5vw] transition-all hover:shadow-lg hover:-translate-y-0.5 group">
+          <button className="w-full relative overflow-visible bg-gradient-to-r from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] text-white rounded-[0.8vw] py-[0.6vw] flex items-center justify-center gap-[0.5vw] transition-all group">
             {/* Adding a subtle noise/stars pattern could be done with a background image here */}
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30 rounded-[0.8vw]"></div>
+            <div className="absolute inset-0 bg-black opacity-30 rounded-[0.8vw]"></div>
             
             <span className="font-semibold text-[0.9vw] relative z-10 flex items-center gap-[0.5vw]">
               Upgrade Profile 
@@ -124,8 +160,8 @@ const SettingsLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-white p-[2vw]">
-        <Outlet />
+      <main className="flex-1 overflow-y-auto bg-white p-[2vw] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <Outlet context={{ user, setUser }} />
       </main>
     </div>
   );
