@@ -17,6 +17,7 @@ import {
 } from './penToolEngine';
 
 import HotspotPresetPopup from './HotspotPresetPopup';
+import { generateHotspotSVG } from './HotspotCustomizationPopup';
 import { CropController, isElementCropped } from './Crop';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
@@ -2756,7 +2757,7 @@ const MainEditor = ({
       g.id = newId;
       g.setAttribute('data-type', 'hotspot');
       // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
-      g.setAttribute('transform', `translate(${centerX - 6}, ${centerY - 6}) scale(0.5)`);
+      g.setAttribute('transform', `translate(${centerX - 12}, ${centerY - 12}) scale(0.5)`);
       g.setAttribute('data-is-hotspot', 'true');
       
       const currentPresetId = e.detail.presetId || (icon && icon.presetId);
@@ -2781,7 +2782,8 @@ const MainEditor = ({
           'download': 'download',
           'info': 'info-box',
           'location': 'open-link',
-          '3d-viewer': '3d-viewer'
+          '3d-viewer': '3d-viewer',
+          'interactive-button': 'open-link'
         };
         
         const actionType = actionMap[currentPresetId];
@@ -2790,11 +2792,20 @@ const MainEditor = ({
         }
       }
 
-      if (icon.html) g.innerHTML = icon.html;
-      else if (icon.d) {
+      if (icon?.html) g.innerHTML = icon.html;
+      else if (icon?.d) {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', icon.d);
         g.appendChild(path);
+      } else if (icon?.src) {
+        const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+        image.setAttribute('href', icon.src);
+        image.setAttribute('width', '48');
+        image.setAttribute('height', '48');
+        image.setAttribute('x', '0');
+        image.setAttribute('y', '0');
+        image.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        g.appendChild(image);
       }
 
       const targetContainer = svg.querySelector('[data-type="frame"]') || svg.querySelector('[data-name="Overlay"]') || svg;
@@ -3022,6 +3033,30 @@ const MainEditor = ({
 
     window.addEventListener('add-icon-to-editor', handleAddIcon);
     window.addEventListener('add-hotspot-to-editor', handleAddHotspot);
+    window.addEventListener('update-hotspot-style', (e) => {
+      const { id, pageIndex, html, presetId, iconSrc, bgColor, iconColor } = e.detail;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      const g = svg.getElementById(id);
+      if (!g) return;
+
+      if (html) {
+        g.innerHTML = html;
+      }
+      if (presetId) g.setAttribute('data-preset-id', presetId);
+      if (iconSrc) g.setAttribute('data-hotspot-icon-src', iconSrc);
+      if (bgColor) g.setAttribute('data-bg-color', bgColor);
+      if (iconColor) g.setAttribute('data-icon-color', iconColor);
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+    });
     window.addEventListener('add-image-to-editor', handleAddImage);
     window.addEventListener('upload-video-to-editor', handleUploadVideo);
     return () => {
@@ -4355,7 +4390,13 @@ const MainEditor = ({
       // getBoundingClientRect() also works correctly for cropped elements since the browser
       // already clips the visual bounds via clipPath — so we no longer exclude isCropModeEl.
       if (!isFrame && !isLine) {
-        const localBBox = getVisualBBox(el);
+        let localBBox = getVisualBBox(el);
+        const isHotspot = el.getAttribute('data-is-hotspot') === 'true';
+        const isInteractiveButton = isHotspot && el.querySelector('rect') !== null && el.querySelector('text') !== null;
+        if (isHotspot && !isInteractiveButton) {
+          // Force a static bounding box for animated hotspots so the selection wrapper doesn't glitch or grow
+          localBBox = { x: 0, y: 0, width: 48, height: 48 };
+        }
         const elScreenCtm = el.getScreenCTM();
 
         if (localBBox && localBBox.width > 0 && localBBox.height > 0 && elScreenCtm) {
@@ -7921,11 +7962,15 @@ const MainEditor = ({
             const isScaledImage = isImage && !isElementInCropMode;
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
             const isForeignObject = el.tagName?.toLowerCase() === 'foreignobject';
-            const isGroup = el.tagName?.toLowerCase() === 'g' || el.tagName === 'multi';
+            const isGroup = (el.tagName?.toLowerCase() === 'g' || el.tagName === 'multi') && el.getAttribute('data-is-hotspot') !== 'true';
             const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || isForeignObject;
             const isShape = (['path', 'polygon', 'circle', 'ellipse', 'rect', 'polyline', 'line'].includes(el.tagName?.toLowerCase()) || isGroup) && !isFreeFrame && !isForeignObject;
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
             const isCtrlPressedMove = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
+
+            const isHotspot = el.getAttribute('data-is-hotspot') === 'true';
+            const isInteractiveButton = isHotspot && state.childrenData && state.childrenData.some(c => c.child.tagName.toLowerCase() === 'rect') && state.childrenData.some(c => c.child.tagName.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
+            const isHotspotPreset = isHotspot && !isInteractiveButton;
 
             if (event.shiftKey) {
               let targetRatio = null;
@@ -7970,9 +8015,9 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isScaledImage || isShape || isFreeFrame || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
+            } else if ((isCorner && (isScaledImage || isShape || isHotspotPreset || isFreeFrame || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || isHotspotPreset))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-              if (!isCorner && (isText && !isForeignObject)) {
+              if (!isCorner && ((isText && !isForeignObject) || isHotspotPreset)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
                 scaleX = sSide;
                 scaleY = sSide;
@@ -8279,28 +8324,20 @@ const MainEditor = ({
                     let myAnchorX = la.x;
                     let myAnchorY = la.y;
 
-                    if (isHotspot && (dir === 'e' || dir === 'w')) {
+                    if (isHotspot && isInteractiveButton && (dir === 'e' || dir === 'w')) {
                       myAnchorX = bound.x + bound.width / 2; // Anchor at the center
                       let newMyScaleX = 1 + 2 * (scaleX - 1);
-                      if (isInteractiveButton) {
-                        if (newMyScaleX < 1) newMyScaleX = 1;
-                        if (bound.width * newMyScaleX < 180) newMyScaleX = 180 / bound.width;
-                      } else {
-                        if (newMyScaleX < 0.2) newMyScaleX = 0.2;
-                      }
+                      if (newMyScaleX < 1) newMyScaleX = 1;
+                      if (bound.width * newMyScaleX < 180) newMyScaleX = 180 / bound.width;
                       myScaleX = newMyScaleX;
                     }
 
-                    if (isHotspot && (dir === 'n' || dir === 's')) {
+                    if (isHotspot && isInteractiveButton && (dir === 'n' || dir === 's')) {
                       myAnchorX = bound.x + bound.width / 2; // Anchor center X
                       myAnchorY = bound.y + bound.height / 2; // Anchor center Y
                       let newMyScale = 1 + 2 * (scaleY - 1);
-                      if (isInteractiveButton) {
-                        if (newMyScale < 1) newMyScale = 1;
-                        if (bound.height * newMyScale < 60) newMyScale = 60 / bound.height;
-                      } else {
-                        if (newMyScale < 0.2) newMyScale = 0.2;
-                      }
+                      if (newMyScale < 1) newMyScale = 1;
+                      if (bound.height * newMyScale < 60) newMyScale = 60 / bound.height;
                       myScaleY = newMyScale;
                     }
 
@@ -12440,7 +12477,7 @@ const MainEditor = ({
 
         {/* Interaction Group: Sub Tools */}
         {activeTopTool === 'interaction' && (
-          <div className="absolute right-0 top-[25vh] z-[100]">
+          <div className="absolute right-0 top-[25vh] z-[9999]">
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
 
               {/* Cover Top Border */}
@@ -12496,7 +12533,7 @@ const MainEditor = ({
                 </div>
               </div>
 
-              {/* Hotspot Tool */}
+              {/* Hotspot Tool (Icon Only) */}
               <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] relative group/tool" id="hotspot-trigger-container">
                 <button
                   onClick={() => setShowHotspotPopup(!showHotspotPopup)}
@@ -12513,32 +12550,11 @@ const MainEditor = ({
                 {showHotspotPopup && (
                   <HotspotPresetPopup
                     onClose={() => setShowHotspotPopup(false)}
-                    onSelectPreset={(data) => {
-                      if (data.type === 'hotspot') {
-                        const container = document.querySelector(`.page-svg-container[data-page-index="${displayIndex}"]`);
-                        const svg = container?.querySelector('svg');
-                        let centerX = 396;
-                        let centerY = 560;
-                        if (svg) {
-                          const svgW = parseFloat(svg.getAttribute('width')) || 793;
-                          const svgH = parseFloat(svg.getAttribute('height')) || 1121;
-                          centerX = svgW / 2;
-                          centerY = svgH / 2;
-                        }
-                        
-                        window.dispatchEvent(new CustomEvent('add-hotspot-to-editor', {
-                          detail: {
-                            pageIndex: displayIndex,
-                            icon: data.icon,
-                            dropPoint: { x: centerX, y: centerY },
-                            presetId: data.icon?.presetId
-                          }
-                        }));
-                      }
-                    }}
+                    onSelectPreset={() => {}} // No functionality for now as requested
                   />
                 )}
               </div>
+
             </div>
           </div>
         )}

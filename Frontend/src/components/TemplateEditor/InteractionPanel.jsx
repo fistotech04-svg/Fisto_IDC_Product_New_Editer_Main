@@ -16,8 +16,8 @@ import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { fontFamilies, fontWeights } from '../../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import ColorPicker from './ColorPicker';
-import HotspotCustomizationPopup from './HotspotCustomizationPopup';
-import { presets, generateSvgPayload } from './HotspotPresetPopup';
+import HotspotCustomizationPopup, { generateHotspotSVG } from './HotspotCustomizationPopup';
+
 const GlbModel = ({ url }) => {
   const { scene } = useGLTF(url);
   return (
@@ -1151,8 +1151,13 @@ const InteractionPanel = ({
         }
         
         let hotspotHtml = null;
+        let hotspotBBox = "0 0 24 24";
         if (isHotspot && !hotspotIconSrc) {
            hotspotHtml = foundEl.innerHTML;
+           const rectMatch = hotspotHtml.match(/<rect[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"/);
+           if (rectMatch) {
+             hotspotBBox = `0 0 ${rectMatch[1]} ${rectMatch[2]}`;
+           }
         }
 
         list.push({
@@ -1167,11 +1172,13 @@ const InteractionPanel = ({
           linkBehavior: foundEl.getAttribute('data-interaction-link-behavior') || 'current',
           zoomTargetId: foundEl.getAttribute('data-zoom-target') || null,
           zoomLevel: foundEl.getAttribute('data-zoom-level') || '2X',
-          pageIndex: foundPageIndex,
           isHotspot: isHotspot,
           hotspotIconSrc: hotspotIconSrc,
           hotspotHtml: hotspotHtml,
-          presetId: foundEl.getAttribute('data-preset-id') || null
+          hotspotBBox: hotspotBBox,
+          presetId: foundEl.getAttribute('data-preset-id') || null,
+          bgColor: foundEl.getAttribute('data-bg-color') || null,
+          iconColor: foundEl.getAttribute('data-icon-color') || null
         });
       }
     });
@@ -1520,111 +1527,42 @@ const InteractionPanel = ({
                       >
                         <div className="w-full border-t border-gray-100/60"></div>
                         
-                        {/* Hotspot Preset Preview Section */}
-                        {item.isHotspot && (item.hotspotIconSrc || item.hotspotHtml) && (
-                          <div className="w-full px-[1.6vw] pt-[1.5vh]">
-                            <div className="w-full h-[12vh] bg-white border border-gray-200/60 rounded-[0.5vw] flex items-center justify-center relative shadow-sm overflow-hidden p-[1vh]">
-                              {item.hotspotIconSrc ? (
-                                <img src={item.hotspotIconSrc} alt="Hotspot" className="w-[3.5vw] h-[3.5vw] object-contain pointer-events-none" />
-                              ) : (
-                                (() => {
-                                  let vb = "0 0 52 52";
-                                  let cls = "w-[3.5vw] h-[3.5vw] pointer-events-none";
-                                  let displayHtml = item.hotspotHtml;
-                                  
-                                  if (displayHtml) {
-                                    // If we have a presetId, we can perfectly regenerate the original pristine unscaled preset!
-                                    if (item.presetId) {
-                                      const matchedPreset = presets.find(p => p.id === item.presetId);
-                                      if (matchedPreset) {
-                                        displayHtml = generateSvgPayload(matchedPreset);
-                                      }
-                                    }
-
-                                    if (displayHtml.includes('<text')) {
-                                      // It's an Interactive Button preset.
-                                      // We force the original geometry so that moving/resizing on canvas doesn't break the preview.
-                                      const w = displayHtml.includes('#FFCC00') ? 220 : 180;
-                                        
-                                      try {
-                                        const temp = document.createElement('div');
-                                        temp.innerHTML = `<svg>${displayHtml}</svg>`;
-                                        const svg = temp.querySelector('svg');
-                                        if (svg) {
-                                          const r = svg.querySelector('rect');
-                                          if (r) {
-                                            r.setAttribute('x', '0');
-                                            r.setAttribute('y', '0');
-                                            r.setAttribute('width', w);
-                                            r.setAttribute('height', '60');
-                                            r.removeAttribute('transform');
-                                          }
-                                          const t = svg.querySelector('text');
-                                          if (t) {
-                                            t.setAttribute('x', w / 2);
-                                            t.setAttribute('y', 30);
-                                            t.setAttribute('dominant-baseline', 'central');
-                                            t.setAttribute('text-anchor', 'middle');
-                                            t.removeAttribute('transform');
-                                            svg.querySelectorAll('tspan').forEach(ts => {
-                                              ts.removeAttribute('x');
-                                              ts.removeAttribute('y');
-                                            });
-                                          }
-                                          displayHtml = svg.innerHTML;
-                                        }
-                                      } catch(e) {
-                                        console.error('Error parsing hotspot SVG preview', e);
-                                      }
-                                        
-                                      vb = `0 0 ${w} 60`;
-                                      cls = "w-[10vw] h-[3.33vw] pointer-events-none";
-                                    } else {
-                                      // Only run this fallback scaling reset if it was NOT a generated preset
-                                      if (!item.presetId || !presets.find(p => p.id === item.presetId)) {
-                                        try {
-                                          const temp = document.createElement('div');
-                                          temp.innerHTML = `<svg>${displayHtml}</svg>`;
-                                          const svg = temp.querySelector('svg');
-                                          if (svg) {
-                                            Array.from(svg.children).forEach(child => {
-                                              const tag = child.tagName.toLowerCase();
-                                              if (tag === 'circle' || tag === 'rect' || tag === 'path') {
-                                                child.removeAttribute('transform');
-                                              } else if (tag === 'g') {
-                                                child.setAttribute('transform', 'translate(14, 14)');
-                                              } else if (tag === 'svg') {
-                                                child.removeAttribute('transform');
-                                              }
-                                              child.removeAttribute('width');
-                                              child.removeAttribute('height');
-                                            });
-                                            displayHtml = svg.innerHTML;
-                                          }
-                                        } catch(e) {
-                                          console.error('Error parsing standard hotspot SVG preview', e);
-                                        }
-                                      }
-                                    }
-                                  }
-                                  
-                                  return <svg className={cls} viewBox={vb} preserveAspectRatio="xMidYMid meet" dangerouslySetInnerHTML={{ __html: displayHtml }} />;
-                                })()
-                              )}
+                        {item.isHotspot && (
+                          <div className="px-[1.6vw] pt-[2vh] pb-[0.5vh]">
+                            <div className="w-full h-[12vh] border border-gray-200 rounded-[0.5vw] bg-white flex items-center justify-center relative shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                              {/* Edit Button */}
                               <div 
-                                className="absolute top-[0.6vw] right-[0.6vw] cursor-pointer text-gray-500 hover:text-gray-700 transition-colors bg-white/90 rounded-md z-10"
+                                className="absolute top-[0.6vw] right-[0.6vw] w-[1.8vw] h-[1.8vw] bg-white border border-gray-200 rounded-[0.3vw] shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingHotspotId(item.id);
                                 }}
                               >
-                                <Icon icon="lucide:edit" className="text-[1.1vw]" strokeWidth="2.5" />
+                                <Icon icon="lucide:edit" className="text-gray-500 text-[0.9vw]" />
                               </div>
+                              
+                              {/* Icon Preview */}
+                              {item.hotspotIconSrc ? (
+                                <img src={item.hotspotIconSrc} alt="hotspot" className="w-[4.5vw] h-[4.5vw] object-contain pointer-events-none" />
+                              ) : item.hotspotHtml ? (
+                                <div className="w-[8vw] h-[4.5vw] flex items-center justify-center overflow-hidden pointer-events-none">
+                                  <svg 
+                                    className="w-full h-full" 
+                                    viewBox={item.hotspotBBox || "0 0 24 24"} 
+                                    preserveAspectRatio="xMidYMid meet"
+                                    dangerouslySetInnerHTML={{ __html: item.hotspotHtml }} 
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-[4.5vw] h-[4.5vw] flex items-center justify-center rounded-full bg-[#EFF6FF] border-[0.15vw] border-[#BFDBFE]">
+                                  <Icon icon="ph:link-bold" className="text-[#3B82F6] text-[2.2vw]" />
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
                         
-                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1.5vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
+                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
                           <div className="flex items-start gap-[0.5vw] w-full">
                             {(() => {
                               if (item.isHotspot) return null;
@@ -3480,131 +3418,60 @@ const InteractionPanel = ({
         onConfirm={alertState.onConfirm}
       />
 
-      {/* Hotspot Customization Popup */}
-      {editingHotspotId && (
-        <HotspotCustomizationPopup
-          initialHotspotIconSrc={(() => {
-            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            return item ? item.hotspotIconSrc : null;
-          })()}
-          interactionType={(() => {
-            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            return item ? (item.presetId || item.actionId || item.interactionType) : null;
-          })()}
-          initialHotspotHtml={(() => {
-            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            if (!item || !item.hotspotHtml) return null;
-            
-            let displayHtml = item.hotspotHtml;
-            if (item.presetId) {
-              const matchedPreset = presets.find(p => p.id === item.presetId);
-              if (matchedPreset) {
-                return generateSvgPayload(matchedPreset);
-              }
-            }
-            
-            if (!displayHtml.includes('<text')) {
-              try {
-                const temp = document.createElement('div');
-                temp.innerHTML = `<svg>${displayHtml}</svg>`;
-                const svg = temp.querySelector('svg');
-                if (svg) {
-                  Array.from(svg.children).forEach(child => {
-                    const tag = child.tagName.toLowerCase();
-                    if (tag === 'circle' || tag === 'rect' || tag === 'path') {
-                      child.removeAttribute('transform');
-                    } else if (tag === 'g') {
-                      child.setAttribute('transform', 'translate(14, 14)');
-                    } else if (tag === 'svg') {
-                      child.removeAttribute('transform');
-                    }
-                    child.removeAttribute('width');
-                    child.removeAttribute('height');
-                  });
-                  displayHtml = svg.innerHTML;
-                }
-              } catch(e) { }
-            }
-            return displayHtml;
-          })()}
-          initialBgColor={(() => {
-            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-bg-color']) {
-              return selectedElementProps['data-hotspot-bg-color'];
-            }
-            const el = document.getElementById(editingHotspotId);
-            if (el && el.hasAttribute('data-hotspot-bg-color')) return el.getAttribute('data-hotspot-bg-color');
-            
-            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            if (item && item.hotspotHtml) {
-               const fillMatch = item.hotspotHtml.match(/<circle[^>]*?fill="(#[a-fA-F0-9]{3,8})/i) || item.hotspotHtml.match(/fill="(#[a-fA-F0-9]{3,8})/i);
-               if (fillMatch && fillMatch[1].toLowerCase() !== '#ffffff') return fillMatch[1];
-            }
-            return undefined;
-          })()}
-          initialIconColor={(() => {
-            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-icon-color']) {
-              return selectedElementProps['data-hotspot-icon-color'];
-            }
-            const el = document.getElementById(editingHotspotId);
-            if (el) return el.getAttribute('data-hotspot-icon-color') || undefined;
-            return undefined;
-          })()}
-          initialBgStyle={(() => {
-            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-bg-style'] !== undefined) {
-              return parseInt(selectedElementProps['data-hotspot-bg-style']);
-            }
-            const el = document.getElementById(editingHotspotId);
-            if (el && el.hasAttribute('data-hotspot-bg-style')) return parseInt(el.getAttribute('data-hotspot-bg-style'));
-            return 0;
-          })()}
-          initialIconStyle={(() => {
-            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-icon-style'] !== undefined) {
-              return parseInt(selectedElementProps['data-hotspot-icon-style']);
-            }
-            const el = document.getElementById(editingHotspotId);
-            if (el && el.hasAttribute('data-hotspot-icon-style')) return parseInt(el.getAttribute('data-hotspot-icon-style'));
-            return 0;
-          })()}
-          onClose={() => setEditingHotspotId(null)}
-          onSave={({ iconColor, bgColor, iconStyle, bgStyle, generatedSvgString }) => {
-            if (updateElementAttribute) {
-              const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-              if (item) {
-                const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                
-                let iconSrcDataUrl = item.hotspotIconSrc;
-                if (generatedSvgString && generatedSvgString.fullSvg) {
-                  iconSrcDataUrl = `data:image/svg+xml;base64,${btoa(generatedSvgString.fullSvg)}`;
-                }
+      {editingHotspotId && (() => {
+        const item = interactiveElementsList.find(i => i.id === editingHotspotId);
+        
+        // Helper to get default color based on action type
+        const getDefaultBgColor = (actionId) => {
+          const colorMap = {
+            'whatsapp': '#25D366',
+            'instagram': '#E1306C',
+            'youtube': '#FF0000',
+            'email': '#F97316',
+            'location': '#F97316',
+            'facebook': '#1877F2',
+            'linkedin': '#0A66C2',
+            'x': '#000000',
+            'navigate-to': '#8B5CF6',
+            'slideshow': '#22C55E',
+            'popup': '#14B8A6'
+          };
+          return colorMap[actionId] || '#359CFD';
+        };
 
-                updateElementAttribute(targetIdx, editingHotspotId, {
-                  'data-hotspot-icon-color': iconColor,
-                  'data-hotspot-bg-color': bgColor,
-                  'data-hotspot-icon-style': iconStyle,
-                  'data-hotspot-bg-style': bgStyle,
-                  'data-hotspot-icon-src': iconSrcDataUrl,
-                  'hotspotHtml': generatedSvgString ? generatedSvgString.innerSvg : null
-                });
-                
-                // Directly update the canvas element innerHTML to immediately show the generated SVG!
-                if (generatedSvgString && generatedSvgString.innerSvg) {
-                  const canvasSvg = document.querySelector(`.page-svg-container[data-page-index="${targetIdx}"] svg`);
-                  if (canvasSvg) {
-                    const gEl = canvasSvg.querySelector(`[id="${editingHotspotId}"]`);
-                    if (gEl) {
-                      gEl.innerHTML = generatedSvgString.innerSvg;
-                    }
-                  }
-                }
-                
-                window.dispatchEvent(new CustomEvent('update-interaction-badge', {
-                  detail: { elementId: editingHotspotId }
-                }));
-              }
-            }
-          }}
-        />
-      )}
+        return (
+          <HotspotCustomizationPopup
+            isOpen={true}
+            onClose={() => setEditingHotspotId(null)}
+            initialData={{
+               preset: item?.presetId || 'preset3',
+               iconColor: item?.iconColor || '#FFFFFF',
+               bgColor: item?.bgColor || getDefaultBgColor(item?.actionId),
+               iconStyle: 'style1',
+               src: item?.hotspotIconSrc || null,
+               actionId: item?.actionId,
+               hotspotHtml: item?.hotspotHtml || null,
+               hotspotBBox: item?.hotspotBBox || null
+            }}
+            onSave={(data) => {
+               if (!item) return;
+               const html = data.customHtml || generateHotspotSVG(data.preset, data.bgColor, data.iconColor, data.src);
+               window.dispatchEvent(new CustomEvent('update-hotspot-style', {
+                 detail: {
+                   id: item.id,
+                   pageIndex: item.pageIndex,
+                   presetId: data.preset,
+                   iconSrc: data.src,
+                   html: html,
+                   bgColor: data.bgColor,
+                   iconColor: data.iconColor
+                 }
+               }));
+            }}
+          />
+        );
+      })()}
+
     </div>
   );
 };
