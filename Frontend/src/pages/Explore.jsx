@@ -119,7 +119,7 @@ const FlipbookCard = ({ coverImg, profileImg, bookName, authorName, location, pa
                     <img
                         src={profileImg}
                         alt="Author Avatar"
-                        className="w-[2.2vw] h-[2.2vw] rounded-full bg-teal-100 border border-gray-200 object-cover"
+                        className="w-[2.5vw] h-[2.5vw] rounded-full bg-teal-100 border border-gray-200 object-cover"
                     />
                     <div className="flex flex-col">
                         <span className="text-[0.85vw] font-medium text-gray-900 leading-tight">{authorName || 'Alex Johnson'}</span>
@@ -160,32 +160,70 @@ const FlipbookCard = ({ coverImg, profileImg, bookName, authorName, location, pa
     );
 };
 
-const booksData = [
-    { bookName: "The Art of Design", authorName: "Alex Johnson", location: "Coimbatore 📍", pages: 24, views: "12.5k", rating: 4.5, description: "“Bring your content to life with a real, interactive experience”", type: "Portrait", category: "Catalog" },
-    { bookName: "Modern Architecture", authorName: "Sarah Smith", location: "New York 📍", pages: 24, views: "8.2k", rating: 4.8, description: "“Explore the greatest architectural wonders of the 21st century”", type: "Landscape", category: "Brochure" },
-    { bookName: "Photography Basics", authorName: "Mike Davis", location: "London 📍", pages: 36, views: "15.1k", rating: 4.2, description: "“Master the fundamentals of photography with this comprehensive guide”", type: "Square", category: "Photography Book" },
-    { bookName: "Culinary Delights", authorName: "Emma Wilson", location: "Paris 📍", pages: 48, views: "9.7k", rating: 4.9, description: "“A journey through the world's most exquisite recipes”", type: "Portrait", category: "Magazine" },
-    { bookName: "Tech Innovations", authorName: "David Lee", location: "Tokyo 📍", pages: 18, views: "22.3k", rating: 4.6, description: "“Discover the latest trends in technology and innovation”", type: "3D Added Flipbook", category: "Portfolio" },
-    { bookName: "Fitness Journey", authorName: "Jessica Brown", location: "Sydney 📍", pages: 36, views: "5.4k", rating: 4.1, description: "“Your ultimate guide to staying fit and healthy”", type: "Portrait", category: "Catalog" },
-    { bookName: "Travel Diaries", authorName: "Chris Martin", location: "Rome 📍", pages: 42, views: "11.8k", rating: 4.7, description: "“Experience the beauty of the world through our travel logs”", type: "Landscape", category: "Storybook" },
-    { bookName: "Graphic Design Trends", authorName: "Lisa Taylor", location: "Berlin 📍", pages: 20, views: "18.9k", rating: 4.4, description: "“Stay updated with the latest in graphic design”", type: "Square", category: "Magazine" },
-    { bookName: "Creative Writing", authorName: "Mark Anderson", location: "Chicago 📍", pages: 50, views: "7.6k", rating: 4.3, description: "“Unlock your creative potential with these writing prompts”", type: "Portrait", category: "Storybook" },
-    { bookName: "Digital Marketing", authorName: "Rachel White", location: "Toronto 📍", pages: 28, views: "14.2k", rating: 4.5, description: "“Strategies and tips for successful digital marketing”", type: "Portrait", category: "Brochure" },
-    { bookName: "Interior Design", authorName: "Kevin Harris", location: "Milan 📍", pages: 34, views: "10.5k", rating: 4.8, description: "“Transform your space with these interior design ideas”", type: "Landscape", category: "Catalog" },
-    { bookName: "Music Production", authorName: "Amy Clark", location: "Los Angeles 📍", pages: 22, views: "16.7k", rating: 4.6, description: "“A beginner's guide to producing your own music”", type: "Square", category: "Product Catalog" },
-    { bookName: "Fashion Lookbook", authorName: "Brian Lewis", location: "Madrid 📍", pages: 40, views: "13.4k", rating: 4.7, description: "“Get inspired by the latest fashion trends and styles”", type: "Portrait", category: "Portfolio" },
-    { bookName: "Web Development", authorName: "Laura Hall", location: "Seattle 📍", pages: 28, views: "20.1k", rating: 4.9, description: "“Learn how to build stunning websites from scratch”", type: "3D Added Flipbook", category: "Product Catalog" },
-    { bookName: "Business Strategies", authorName: "Steven Young", location: "Hong Kong 📍", pages: 32, views: "9.3k", rating: 4.2, description: "“Essential strategies for growing your business”", type: "Portrait", category: "Catalog" }
-];
+import axios from 'axios';
 
 const Explore = () => {
+    const [booksData, setBooksData] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
     const [category, setCategory] = useState("All Category");
     const [sortBy, setSortBy] = useState("Most Popular");
     const [showMoreRatings, setShowMoreRatings] = useState(false);
+
+    useEffect(() => {
+        const fetchPublishedBooks = async () => {
+            try {
+                setIsLoading(true);
+                
+                // Fetch the logged-in user from localStorage (just like MyFlipbooks.jsx)
+                const storedUser = localStorage.getItem('user');
+                const user = storedUser ? JSON.parse(storedUser) : null;
+                const emailId = user?.emailId;
+                
+                if (!emailId) {
+                    console.warn("No user email found. Cannot fetch flipbooks.");
+                    setIsLoading(false);
+                    return;
+                }
+
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                
+                // Fetch the list of books for this user using the existing API
+                const response = await axios.get(`${backendUrl}/api/flipbook/list`, { params: { emailId } });
+                
+                if (response.data && response.data.books) {
+                    // Filter to only include published books and format them for the Explore UI
+                    const publishedBooks = response.data.books.filter(book => book.isPublished === true);
+                    
+                    const formattedBooks = publishedBooks.map(book => ({
+                        bookName: book.Customized_Settings?.FlipbookInfo?.flipbookName || book.title || "Untitled",
+                        authorName: emailId.split('@')[0],
+                        location: "Online 📍",
+                        pages: book.pages?.length || 12,
+                        views: "1k",
+                        rating: 4.5,
+                        description: book.Customized_Settings?.FlipbookInfo?.about || "“Bring your content to life with a real, interactive experience”",
+                        type: book.Customized_Settings?.FlipbookInfo?.orientation || "Portrait",
+                        category: book.Customized_Settings?.FlipbookInfo?.category || "Catalog"
+                    }));
+
+                    setBooksData(formattedBooks);
+                }
+            } catch (err) {
+                console.error("Error fetching data from backend API:", err);
+                setError("Failed to load flipbooks from server.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchPublishedBooks();
+    }, []);
     
     // Sidebar Filters State
-    const [selectedTypes, setSelectedTypes] = useState(['Portrait']);
-    const [selectedCategories, setSelectedCategories] = useState(['Catalog']);
+    const [selectedTypes, setSelectedTypes] = useState([]);
+    const [selectedCategories, setSelectedCategories] = useState([]);
     const [selectedRating, setSelectedRating] = useState(4);
     const [maxPages, setMaxPages] = useState(100);
     const [searchQuery, setSearchQuery] = useState("");
@@ -429,9 +467,9 @@ const Explore = () => {
                                 <h3 className="font-semibold text-[0.95vw] text-black">Ratings</h3>
                                 <div className="space-y-[1.2vh]">
                                     {[
-                                        { val: 4, stars: [1, 1, 1, 1, 0], label: "4 Star" },
-                                        { val: 4.5, stars: [1, 1, 1, 1, 0.5], label: "4.5 Star" },
                                         { val: 5, stars: [1, 1, 1, 1, 1], label: "5 Star" },
+                                        { val: 4.5, stars: [1, 1, 1, 1, 0.5], label: "4.5 Star" },
+                                        { val: 4, stars: [1, 1, 1, 1, 0], label: "4 Star" },
                                         { val: 3.5, stars: [1, 1, 1, 0.5, 0], label: "3.5 Star" },
                                         { val: 3, stars: [1, 1, 1, 0, 0], label: "3 Star" },
                                         { val: 2.5, stars: [1, 1, 0.5, 0, 0], label: "2.5 Star" },
@@ -489,27 +527,38 @@ const Explore = () => {
                     {/* Right Area (Books + Creators) */}
                     <div className="flex-1 flex flex-col">
                         {/* Books Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                            {filteredBooks.map((book, index) => (
-                                <FlipbookCard 
-                                    key={index} 
-                                    coverImg={covers[index % 5]} 
-                                    profileImg={profiles[index % 5]}
-                                    bookName={book.bookName}
-                                    authorName={book.authorName}
-                                    location={book.location}
-                                    pages={book.pages}
-                                    views={book.views}
-                                    rating={book.rating}
-                                    description={book.description}
-                                />
-                            ))}
-                            {filteredBooks.length === 0 && (
-                                <div className="col-span-full py-[5vh] text-center text-gray-500 text-[1vw]">
-                                    No flipbooks found matching your filters.
-                                </div>
-                            )}
-                        </div>
+                        {isLoading ? (
+                            <div className="w-full py-[10vh] flex items-center justify-center">
+                                <div className="w-[3vw] h-[3vw] border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
+                            </div>
+                        ) : error ? (
+                            <div className="w-full py-[10vh] flex flex-col items-center justify-center text-red-500">
+                                <svg className="w-[3vw] h-[3vw] mb-[1vh]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span className="text-[1.2vw] font-medium">{error}</span>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
+                                {filteredBooks.map((book, index) => (
+                                    <FlipbookCard 
+                                        key={index} 
+                                        coverImg={covers[index % 5]} 
+                                        profileImg={profiles[index % 5]}
+                                        bookName={book.bookName}
+                                        authorName={book.authorName}
+                                        location={book.location}
+                                        pages={book.pages}
+                                        views={book.views}
+                                        rating={book.rating}
+                                        description={book.description}
+                                    />
+                                ))}
+                                {filteredBooks.length === 0 && (
+                                    <div className="col-span-full py-[5vh] text-center text-gray-500 text-[1vw]">
+                                        No flipbooks found matching your filters.
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Top Creators Section */}
                         <div className="w-full pt-[6vh]">
@@ -535,15 +584,15 @@ const Explore = () => {
                                                         <img src={creator.profileImg} alt="Creator" className="w-full h-full object-cover bg-gray-50" />
                                                     </div>
                                                     {/* Left Smooth Corner */}
-                                                    <svg className="absolute top-[1.7vw] -left-[0.6vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
+                                                    <svg className="absolute top-[1.8vw] -left-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
                                                         <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
                                                     </svg>
                                                     {/* Right Smooth Corner */}
-                                                    <svg className="absolute top-[1.7vw] -right-[0.58vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
+                                                    <svg className="absolute top-[1.8vw] -right-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
                                                         <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
                                                     </svg>
                                                 </div>
-                                                <button className="bg-black text-white px-[1.5vw] py-[0.3vh] rounded-full text-[0.8vw] font-medium hover:bg-gray-800 transition-colors z-10 mb-[1vw] mr-[0.5vw]">
+                                                <button className="bg-black text-white px-[1.2vw] py-[0.3vh] rounded-full text-[0.85vw] font-medium hover:bg-gray-800 transition-colors z-10 mb-[1vw] ">
                                                     Follow
                                                 </button>
                                             </div>
