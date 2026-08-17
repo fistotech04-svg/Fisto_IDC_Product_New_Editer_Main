@@ -70,12 +70,23 @@ const PreviewPage = () => {
           const brandingObj = processedData.Customized_Settings?.Branding || {};
           const backgroundObj = processedData.Customized_Settings?.Background || {};
           const menuBarObj = processedData.Customized_Settings?.MenuBar || {};
+          const otherSetupObj = processedData.Customized_Settings?.otherSetup || processedData.Customized_Settings?.othersetup || processedData.settings?.otherSetup || processedData.settings?.othersetup || {};
           const layoutsObj = processedData.Customized_Settings?.Layouts || {};
-          const rawApp = processedData.Customized_Settings?.Appearance || {};
+          const rawApp = processedData.Customized_Settings?.BookAppearance || processedData.Customized_Settings?.Appearance || processedData.settings?.BookAppearance || processedData.settings?.appearance || {};
           const appearanceObj = {
-            dropShadow: { active: true, position: 'Bottom Right', strength: 35, softness: 35, ...(rawApp.dropShadow || {}) },
+            texture: 'Plain White',
+            hardCover: false,
+            grainIntensity: 20,
+            warmth: 0,
+            textureScale: 0,
+            opacity: 100,
+            flipStyle: 'Classic Flip',
+            flipSpeed: 'medium',
+            corner: 'Sharp',
+            dropShadow: { active: true, color: '#4f4f4fff', opacity: 50, xAxis: 0, yAxis: 0, blur: 0, spread: 0 },
             ...rawApp
           };
+          const leadFormObj = processedData.Customized_Settings?.leadForm || processedData.Customized_Settings?.leadform || processedData.settings?.leadForm || processedData.settings?.leadform || {};
           const mergedSettings = {
             ...(processedData.meta || {}),
             logo: brandingObj.logoSettings,
@@ -83,16 +94,23 @@ const PreviewPage = () => {
             preloader: brandingObj.preloaderSettings,
             background: backgroundObj,
             backgroundSettings: backgroundObj,
+            Background: backgroundObj,
             appearance: appearanceObj,
             bookAppearanceSettings: appearanceObj,
+            BookAppearance: appearanceObj,
             menuBar: menuBarObj,
             menuBarSettings: menuBarObj,
             MenuBar: menuBarObj,
+            otherSetup: otherSetupObj,
+            otherSetupSettings: otherSetupObj,
+            othersetup: otherSetupObj,
             Layouts: layoutsObj,
             layout: layoutsObj.layoutStyle !== undefined ? layoutsObj.layoutStyle : 1,
             layoutColors: layoutsObj.layoutColors,
             Branding: brandingObj,
-            Background: backgroundObj
+            Background: backgroundObj,
+            leadForm: leadFormObj,
+            leadform: leadFormObj
           };
 
           setData({

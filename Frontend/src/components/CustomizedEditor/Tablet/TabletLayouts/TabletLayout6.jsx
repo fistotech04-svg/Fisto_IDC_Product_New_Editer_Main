@@ -401,7 +401,9 @@ const TabletLayout6 = ({
                     <SidebarBtn icon="fluent:text-bullet-list-24-filled" active={showTOC} onClick={() => { setShowTOCMemo?.(!showTOC); setShowThumbnailBarMemo?.(false); setShowProfilePopup?.(false); }} />
                     <SidebarBtn icon="ph:squares-four-fill" active={showThumbnailBar} onClick={() => { setShowThumbnailBarMemo?.(!showThumbnailBar); setShowTOCMemo?.(false); setShowProfilePopup?.(false); }} />
                     <SidebarBtn icon="clarity:image-gallery-solid" active={showGalleryPopup} onClick={() => { setShowGalleryPopupMemo?.(!showGalleryPopup); setShowTOCMemo?.(false); setShowThumbnailBarMemo?.(false); setShowProfilePopup?.(false); }} />
-                    <SidebarBtn icon="solar:music-notes-bold" active={showSoundPopup} onClick={() => setShowSoundPopupMemo?.(!showSoundPopup)} />
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <SidebarBtn icon="solar:music-notes-bold" active={showSoundPopup} onClick={() => setShowSoundPopupMemo?.(!showSoundPopup)} />
+                    )}
                     {(settings?.brandingProfile?.profile ?? true) && (
                         <SidebarBtn icon="fluent:person-24-filled" active={showProfilePopup} onClick={() => { setShowProfilePopup?.(!showProfilePopup); setShowTOCMemo?.(false); setShowThumbnailBarMemo?.(false); }} />
                     )}

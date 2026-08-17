@@ -21,11 +21,23 @@ export const SUPABASE_URL = supabaseUrl || "";
  * So the browser loads assets directly from Supabase instead of going through the backend proxy.
  */
 export const rewriteUploadsToSupabase = (html, baseUrlPrefix = "") => {
-  if (!html || !supabaseUrl) return html;
+  if (!html || !supabaseUrl || typeof html !== 'string') return html;
+
+  // If already a full Supabase URL, clean up any double prefixes and return
+  if (html.includes('/storage/v1/object/public/')) {
+    if (html.indexOf('/storage/v1/object/public/') !== html.lastIndexOf('/storage/v1/object/public/')) {
+      const idx = html.lastIndexOf('/storage/v1/object/public/');
+      const pathPart = html.substring(idx + '/storage/v1/object/public/'.length);
+      const domain = html.split('/storage/v1/object/')[0];
+      return `${domain}/storage/v1/object/public/${pathPart.startsWith('uploads/') ? pathPart : 'uploads/' + pathPart}`;
+    }
+    return html;
+  }
+
   const cdnBase = `${supabaseUrl}/storage/v1/object/public/${SUPABASE_BUCKET}/`;
 
   let result = html
-    .replace(/(['"\s(])(\/uploads\/)/g, (match, prefix, _) => `${prefix}${cdnBase}`)
+    .replace(/(?<!\/storage\/v1\/object\/public\/uploads)(?<!\/storage\/v1\/object\/public)(['"\s(^])(\/uploads\/)/g, (match, prefix, _) => `${prefix}${cdnBase}`)
     .replace(/(href|src|url)=(["']?)(\/uploads\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}`);
 
   if (baseUrlPrefix) {
@@ -490,7 +502,19 @@ export const uploadFolderToSupabase = async (localFolderPath, supabaseFolderPref
  * Get Supabase Public URL for a given destination path.
  */
 export const getSupabasePublicUrl = (destinationPath) => {
-  if (!supabaseUrl || !destinationPath) return null;
+  if (!destinationPath || typeof destinationPath !== 'string') return destinationPath || null;
+  
+  // If destinationPath is already a full Supabase URL, clean up any double prefixes and return
+  if (destinationPath.includes("/storage/v1/object/public/") || destinationPath.includes(".supabase.co")) {
+    if (destinationPath.indexOf("/storage/v1/object/public/") !== destinationPath.lastIndexOf("/storage/v1/object/public/")) {
+      const idx = destinationPath.lastIndexOf("/storage/v1/object/public/");
+      const pathPart = destinationPath.substring(idx + "/storage/v1/object/public/".length);
+      const domain = destinationPath.split("/storage/v1/object/")[0];
+      return `${domain}/storage/v1/object/public/${pathPart.startsWith('uploads/') ? pathPart : 'uploads/' + pathPart}`;
+    }
+    return destinationPath;
+  }
+
   let key = destinationPath.replace(/\\/g, "/").replace(/^\/+/, "");
   if (key.startsWith("uploads/")) {
     key = key.substring("uploads/".length);

@@ -220,16 +220,18 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                     >
                         <Icon icon="clarity:image-gallery-solid" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
-                    <button
-                        className="hover:text-gray-200 transition-colors"
-                        onClick={() => {
-                            if (setShowSoundPopupMemo) {
-                                setShowSoundPopupMemo(!showSoundPopup);
-                            }
-                        }}
-                    >
-                        <Icon icon="solar:music-notes-bold" className="w-[1.9cqw] h-[1.9cqw]" />
-                    </button>
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <button
+                            className="hover:text-gray-200 transition-colors"
+                            onClick={() => {
+                                if (setShowSoundPopupMemo) {
+                                    setShowSoundPopupMemo(!showSoundPopup);
+                                }
+                            }}
+                        >
+                            <Icon icon="solar:music-notes-bold" className="w-[1.9cqw] h-[1.9cqw]" />
+                        </button>
+                    )}
                     <button
                         className="hover:text-gray-200 transition-colors"
                         onClick={() => {

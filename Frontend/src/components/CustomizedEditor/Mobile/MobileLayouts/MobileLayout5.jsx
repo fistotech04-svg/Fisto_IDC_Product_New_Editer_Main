@@ -856,18 +856,20 @@ const MobileLayout5 = (props) => {
                             }} className="text-white opacity-90 hover:opacity-100 hover:scale-110 active:scale-90 transition-all">
                                 <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
                             </button>
-                            <button onClick={(e) => {
-                                e.stopPropagation();
-                                const nextState = !showSoundPopup;
-                                setShowSoundPopup(nextState);
-                                if (nextState) {
-                                    setShowThumbnailBar(false);
-                                    setShowTOC(false);
-                                    setShowProfilePopup(false);
-                                }
-                            }} className="text-white opacity-90 hover:opacity-100 hover:scale-110 active:scale-90 transition-all">
-                                <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
-                            </button>
+                            {(settings?.media?.backgroundAudio ?? true) && (
+                                <button onClick={(e) => {
+                                    e.stopPropagation();
+                                    const nextState = !showSoundPopup;
+                                    setShowSoundPopup(nextState);
+                                    if (nextState) {
+                                        setShowThumbnailBar(false);
+                                        setShowTOC(false);
+                                        setShowProfilePopup(false);
+                                    }
+                                }} className="text-white opacity-90 hover:opacity-100 hover:scale-110 active:scale-90 transition-all">
+                                    <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
+                                </button>
+                            )}
                             <div className="relative">
                                 <button onClick={(e) => { e.stopPropagation(); setShowProfilePopup(!showProfilePopup); }} className="text-white opacity-90 hover:opacity-100 hover:scale-110 active:scale-90 transition-all">
                                     <Icon icon="solar:user-bold" className="w-[18px] h-[18px]" />

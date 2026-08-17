@@ -206,7 +206,7 @@ const flipbookSchema = new mongoose.Schema({
                         }
                     ],
                     transitionEffect: { type: String, default: 'Linear' },
-                    primaryColor: { type: String, default: '#4F46E5' },
+                    primaryColor: { type: String, default: '#5d57cfff' },
                     secondaryColor: { type: String, default: '#9CA3AF' },
                     bgColor: { type: String, default: '#FFFFFF' },
                     navigationIconType: { type: String, default: 'Chevron' },
@@ -260,6 +260,43 @@ const flipbookSchema = new mongoose.Schema({
                 }
             }
         },
+        BookAppearance: {
+            makeFirstLastPageHard: { type: Boolean, default: false },
+            selectCustomHardPages: { type: Boolean, default: false },
+            hardCover: { type: Boolean, default: false },
+            customHardPages: [{ type: mongoose.Schema.Types.Mixed }],
+            flipStyle: { type: String, default: 'Classic Flip' },
+            flipSpeed: { type: String, default: 'Slow' },
+            corner: { type: String, default: 'Sharp' },
+            dropShadow: {
+                position: { type: String, default: 'Bottom Right' },
+                strength: { type: Number, default: 35 },
+                softness: { type: Number, default: 35 },
+                color: { type: String, default: '#000000' }
+            }
+        },
+        leadForm: {
+            enabled: { type: Boolean, default: false },
+            formTitle: { type: String, default: 'Request More Information' },
+            leadText: { type: String, default: 'Tell us about your requirements and our team will reach out.' },
+            buttonText: { type: String, default: 'Request Callback' },
+            fields: [{ type: mongoose.Schema.Types.Mixed }],
+            appearance: {
+                timing: { type: String, default: 'before' },
+                afterSeconds: { type: Number, default: 30 },
+                afterPages: { type: Number, default: 4 },
+                allowSkip: { type: Boolean, default: true },
+                skipBehavior: { type: String, default: 'never' },
+                fontStyle: { type: String, default: 'Arial' },
+                textFill: { type: String, default: '#3E4491' },
+                textStroke: { type: String, default: '#' },
+                bgFill: { type: String, default: '#FFFFFF' },
+                bgStroke: { type: String, default: '#' },
+                btnFill: { type: String, default: '#4A3AFF' },
+                btnStroke: { type: String, default: '#' },
+                btnText: { type: String, default: '#FFFFFF' }
+            }
+        },
         Visibility: {
             shareId: {
                 type: String,
@@ -293,7 +330,15 @@ const flipbookSchema = new mongoose.Schema({
                 }]
             }
         }
-    }
+    },
+    collectedLeads: [
+        {
+            leadId: { type: String, default: () => nanoid(10) },
+            submittedAt: { type: Date, default: Date.now },
+            data: { type: mongoose.Schema.Types.Mixed },
+            viewerIp: { type: String }
+        }
+    ]
 }, { strict: true });
 
 // Ensure a user cannot have two books with the same name in the same folder

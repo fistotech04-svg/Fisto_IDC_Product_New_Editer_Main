@@ -837,11 +837,23 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
           </MenuItem>
           <MenuItem
             label="Audio Features"
-            enabled={settings.media?.backgroundAudio}
+            enabled={settings?.media?.backgroundAudio ?? settings?.media?.audio ?? true}
             hasSettings={true}
             isExpanded={expandedSection === 'sound'}
             onToggleSettings={() => toggleSection('sound')}
-            onChange={(val) => updateSection('media', 'backgroundAudio', val)}
+            onChange={(val) => {
+              updateSection('media', 'backgroundAudio', val);
+              updateSection('media', 'audio', val);
+              if (onUpdateOther) {
+                onUpdateOther(prev => ({
+                  ...prev,
+                  sound: {
+                    ...(prev?.sound || {}),
+                    bgSoundEnabled: val
+                  }
+                }));
+              }
+            }}
           >
             <AnimatePresence>
               {expandedSection === 'sound' && (
