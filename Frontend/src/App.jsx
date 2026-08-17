@@ -1,12 +1,24 @@
 //App.jsx
 import './App.css';
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Signin from './pages/Signin';
 import Signup from './pages/Signup';
 import Home from './pages/Home';
 import MyFlipbooks from './pages/MyFlipbooks';
-import Settings from './pages/Settings';
+import SettingsLayout from './pages/Settings/Settings';
+import Profile from './pages/Settings/Profile';
+import Account from './pages/Settings/Account';
+import Notifications from './pages/Settings/Notifications';
+import MyShelf from './pages/Settings/MyShelf';
+import EditorDefaults from './pages/Settings/EditorDefaults';
+import Library from './pages/Settings/Library';
+import Integrations from './pages/Settings/Integrations';
+import PrivacyAccess from './pages/Settings/PrivacyAccess';
+import Analytics from './pages/Settings/Analytics';
+import Billing from './pages/Settings/Billing';
+import Advanced from './pages/Settings/Advanced';
+import AccountManagement from './pages/Settings/AccountManagement';
 import About from './pages/About';
 import Explore from './pages/Explore';
 import ContactUs from './pages/ContactUs';
@@ -69,7 +81,21 @@ function App() {
               <Route path="/home" element={<Home />} />
               <Route path="/my-flipbooks" element={<MyFlipbooks />} />
               <Route path="/explore" element={<Explore />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route path="/settings" element={<SettingsLayout />}>
+                <Route index element={<Navigate to="profile" replace />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="account" element={<Account />} />
+                <Route path="notifications" element={<Notifications />} />
+                <Route path="my-shelf" element={<MyShelf />} />
+                <Route path="editor-defaults" element={<EditorDefaults />} />
+                <Route path="library" element={<Library />} />
+                <Route path="integrations" element={<Integrations />} />
+                <Route path="privacy-access" element={<PrivacyAccess />} />
+                <Route path="analytics" element={<Analytics />} />
+                <Route path="billing" element={<Billing />} />
+                <Route path="advanced" element={<Advanced />} />
+                <Route path="account-management" element={<AccountManagement />} />
+              </Route>
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<ContactUs />} />
             </Route>
