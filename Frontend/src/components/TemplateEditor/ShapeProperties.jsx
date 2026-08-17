@@ -341,6 +341,7 @@ const ShapeProperties = ({
         setSelectedNodeCount(1);
         setCanJoinNodes(false);
         setIsLineSelected(false);
+        setActiveNodeType(null); // Reset stale type; enterNodeEditMode will dispatch node-selected with the real type
       }
     };
     window.addEventListener('node-selected', handleNodeSelected);

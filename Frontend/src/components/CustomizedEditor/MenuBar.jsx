@@ -164,12 +164,28 @@ const TocItem = ({ item, index, isEditing, onUpdate, onDelete, activeTOCItem, se
           <div className={`${isHeadActive ? 'w-[2.6vw] h-[2.6vw]  bg-white rounded-[0.3vw] flex items-center justify-center' : ''}`}>
             <input
               type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={item.page || ''}
-              placeholder={String(index + 1)}
-              onChange={(e) => onUpdate({ ...item, page: e.target.value })}
+              placeholder={`Page-${index + 1}`}
+              onChange={(e) => {
+                const numericVal = e.target.value.replace(/\D/g, '');
+                onUpdate({ ...item, page: numericVal });
+              }}
+              onKeyDown={(e) => {
+                if (
+                  ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) ||
+                  (e.ctrlKey || e.metaKey)
+                ) {
+                  return;
+                }
+                if (!/^[0-9]$/.test(e.key)) {
+                  e.preventDefault();
+                }
+              }}
               className={`text-center text-[0.85vw] transition-all outline-none ${isHeadActive
                 ? 'w-full text-gray-900 bg-transparent border-none'
-                : 'w-[2.6vw] h-[2.6vw] text-gray-400 border border-[#BCBCBC] rounded-[0.6vw] hover:border-[#3F37C9] focus:border-[#3F37C9] shadow-sm'
+                : 'w-[3.8vw] h-[2.6vw] text-gray-700 border border-[#BCBCBC] rounded-[0.6vw] hover:border-[#3F37C9] focus:border-[#3F37C9] shadow-sm'
                 }`}
             />
           </div>
@@ -225,16 +241,30 @@ const TocItem = ({ item, index, isEditing, onUpdate, onDelete, activeTOCItem, se
                 <div className={`${isSubActive ? 'w-[2.6vw] h-[2.4vw] bg-white rounded-[0.3vw] flex items-center justify-center' : ''}`}>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={sub.page || ''}
-                    placeholder={String(sIdx + 1)}
+                    placeholder={`Page-${sIdx + 1}`}
                     onChange={(e) => {
+                      const numericVal = e.target.value.replace(/\D/g, '');
                       const newSubs = [...item.subheadings];
-                      newSubs[sIdx] = { ...sub, page: e.target.value };
+                      newSubs[sIdx] = { ...sub, page: numericVal };
                       onUpdate({ ...item, subheadings: newSubs });
+                    }}
+                    onKeyDown={(e) => {
+                      if (
+                        ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) ||
+                        (e.ctrlKey || e.metaKey)
+                      ) {
+                        return;
+                      }
+                      if (!/^[0-9]$/.test(e.key)) {
+                        e.preventDefault();
+                      }
                     }}
                     className={`text-center p-[0.3vw] text-[0.85vw] transition-all outline-none ${isSubActive
                       ? 'w-full text-gray-900 bg-transparent border-none'
-                      : 'w-[2.6vw] h-[2.4vw] text-gray-400 border border-[#BCBCBC] rounded-[0.6vw] hover:border-[#3F37C9] focus:border-[#3F37C9] '
+                      : 'w-[3.8vw] h-[2.4vw] text-gray-700 border border-[#BCBCBC] rounded-[0.6vw] hover:border-[#3F37C9] focus:border-[#3F37C9] '
                       }`}
                   />
                 </div>
@@ -284,10 +314,11 @@ const TocItem = ({ item, index, isEditing, onUpdate, onDelete, activeTOCItem, se
 };
 
 
-const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, folderName, bookName, activeLayout, onNavigateToOtherSetup, onTocSettingsClick }) => {
+const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pages = [], folderName, bookName, activeLayout, onNavigateToOtherSetup, onTocSettingsClick }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   const [showStylesPopup, setShowStylesPopup] = useState(false);
-  const [editingTOCIndex, setEditingTOCIndex] = useState((settings.tocSettings?.content?.length || 0) > 0 ? 0 : null);
+  const activeTocSettings = settings?.tocSettings || settings?.navigation?.tocSettings || {};
+  const [editingTOCIndex, setEditingTOCIndex] = useState((activeTocSettings.content?.length || 0) > 0 ? 0 : null);
   const [activeTOCItem, setActiveTOCItem] = useState(null); // { type: 'head'|'sub', index, sIdx }
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
@@ -302,40 +333,46 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
   };
 
   const updateSection = (section, field, value) => {
-    onUpdate({
-      ...settings,
+    onUpdate(prev => ({
+      ...prev,
       [section]: {
-        ...settings[section],
+        ...(prev[section] || {}),
         [field]: value
       }
-    });
+    }));
   };
 
   const updateNestedSetting = (section, nestedObject, field, value) => {
-    const sectionState = settings[section] || {};
-    const nestedState = sectionState[nestedObject] || {};
-
-    onUpdate({
-      ...settings,
-      [section]: {
-        ...sectionState,
-        [nestedObject]: {
-          ...nestedState,
-          [field]: value
-        }
-      }
+    onUpdate(prev => {
+      const sectionState = prev[section] || {};
+      const nestedState = sectionState[nestedObject] || {};
+      const newNestedState = { ...nestedState, [field]: value };
+      return {
+        ...prev,
+        [section]: {
+          ...sectionState,
+          [nestedObject]: newNestedState
+        },
+        [nestedObject]: newNestedState
+      };
     });
   };
 
   // Helper for direct property updates in settings root (like tocSettings which is separate)
   const updateRootSetting = (rootKey, field, value) => {
-    onUpdate(prev => ({
-      ...prev,
-      [rootKey]: {
-        ...(prev[rootKey] || {}),
-        [field]: value
-      }
-    }));
+    onUpdate(prev => {
+      const currentRoot = prev[rootKey] || (prev.navigation && prev.navigation[rootKey]) || {};
+      const newRoot = { ...currentRoot, [field]: value };
+      const currentNav = prev.navigation || {};
+      return {
+        ...prev,
+        [rootKey]: newRoot,
+        navigation: {
+          ...currentNav,
+          [rootKey]: newRoot
+        }
+      };
+    });
   };
 
   return (
@@ -404,8 +441,9 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                       <span className="text-[0.75vw] font-medium text-gray-700 whitespace-nowrap">Text style :</span>
                       <PremiumDropdown
                         options={fontFamilies}
-                        value={otherSettings?.toolbar?.textProperties?.font || 'Arial'}
+                        value={settings?.navigation?.addTextToIconsSettings?.font || settings?.addTextToIconsSettings?.font || otherSettings?.toolbar?.textProperties?.font || 'Arial'}
                         onChange={(val) => {
+                          updateNestedSetting('navigation', 'addTextToIconsSettings', 'font', val);
                           if (onUpdateOther) {
                             onUpdateOther(prev => ({
                               ...prev,
@@ -475,7 +513,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                       <div className="flex items-center justify-between">
                         <span className="text-[0.75vw] font-semibold text-gray-700">Add Search to the TOC</span>
                         <Switch
-                          enabled={settings.tocSettings?.addSearch}
+                          enabled={Boolean(activeTocSettings.addSearch)}
                           onChange={(val) => updateRootSetting('tocSettings', 'addSearch', val)}
                           variant="secondary"
                         />
@@ -483,7 +521,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                       <div className="flex items-center justify-between">
                         <span className="text-[0.75vw] font-semibold text-gray-700">Add Page Number to the TOC</span>
                         <Switch
-                          enabled={settings.tocSettings?.addPageNumber}
+                          enabled={Boolean(activeTocSettings.addPageNumber)}
                           onChange={(val) => updateRootSetting('tocSettings', 'addPageNumber', val)}
                           variant="secondary"
                         />
@@ -491,7 +529,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                       <div className="flex items-center justify-between">
                         <span className="text-[0.75vw] font-semibold text-gray-700">Add Serial Number to the Heading</span>
                         <Switch
-                          enabled={settings.tocSettings?.addSerialNumberHeading}
+                          enabled={Boolean(activeTocSettings.addSerialNumberHeading)}
                           onChange={(val) => updateRootSetting('tocSettings', 'addSerialNumberHeading', val)}
                           variant="secondary"
                         />
@@ -499,7 +537,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                       <div className="flex items-center justify-between">
                         <span className="text-[0.75vw] font-semibold text-gray-700">Add Serial Number to the Subheading</span>
                         <Switch
-                          enabled={settings.tocSettings?.addSerialNumberSubheading}
+                          enabled={Boolean(activeTocSettings.addSerialNumberSubheading)}
                           onChange={(val) => updateRootSetting('tocSettings', 'addSerialNumberSubheading', val)}
                           variant="secondary"
                         />
@@ -515,19 +553,19 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                       className="space-y-[0.2vw] max-h-[30vw] overflow-y-auto pr-[0.4vw] hide-scrollbar"
                       style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                     >
-                      {settings.tocSettings?.content?.map((item, idx) => (
+                      {activeTocSettings.content?.map((item, idx) => (
                         <TocItem
                           key={item.id || idx}
                           item={item}
                           index={idx}
                           isEditing={editingTOCIndex === idx}
                           onUpdate={(updatedItem) => {
-                            const newContent = [...(settings.tocSettings.content || [])];
+                            const newContent = [...(activeTocSettings.content || [])];
                             newContent[idx] = updatedItem;
                             updateRootSetting('tocSettings', 'content', newContent);
                           }}
                           onDelete={() => {
-                            const newContent = (settings.tocSettings.content || []).filter((_, i) => i !== idx);
+                            const newContent = (activeTocSettings.content || []).filter((_, i) => i !== idx);
                             updateRootSetting('tocSettings', 'content', newContent);
                             if (editingTOCIndex === idx) setEditingTOCIndex(newContent.length > 0 ? 0 : null);
                           }}
@@ -538,13 +576,13 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                             setActiveTOCItem({ type: 'head', index: idx });
                           }}
                           onAddHead={() => {
-                            const content = settings.tocSettings?.content || [];
+                            const content = activeTocSettings.content || [];
                             const nextIdx = idx + 1;
                             const newContent = [...content];
                             newContent.splice(nextIdx, 0, {
                               id: Date.now(),
                               title: `Heading ${content.length + 1}`,
-                              page: '',
+                              page: `Page-${nextIdx + 1}`,
                               subheadings: []
                             });
                             updateRootSetting('tocSettings', 'content', newContent);
@@ -552,7 +590,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                             setEditingTOCIndex(nextIdx);
                           }}
                           onAddSub={() => {
-                            const content = settings.tocSettings?.content || [];
+                            const content = activeTocSettings.content || [];
                             if (content.length > 0) {
                               const newContent = [...content];
                               const targetItem = newContent[idx];
@@ -561,7 +599,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                                 subheadings: [...(targetItem.subheadings || []), {
                                   id: Date.now() + 1,
                                   title: `Subheading ${(targetItem.subheadings || []).length + 1}`,
-                                  page: ''
+                                  page: `Page-${(targetItem.subheadings || []).length + 1}`
                                 }]
                               };
                               newContent[idx] = updatedItem;
@@ -575,11 +613,11 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                           }}
                         />
                       ))}
-                      {(settings.tocSettings?.content?.length || 0) === 0 && (
+                      {(activeTocSettings.content?.length || 0) === 0 && (
                         <div className="flex justify-center py-[1vw]">
                           <button
                             onClick={() => {
-                              const newContent = [{ id: Date.now(), title: 'Heading 1', page: '', subheadings: [] }];
+                              const newContent = [{ id: Date.now(), title: 'Heading 1', page: 'Page-1', subheadings: [] }];
                               updateRootSetting('tocSettings', 'content', newContent);
                               setEditingTOCIndex(0);
                               setActiveTOCItem({ type: 'head', index: 0 });
@@ -636,8 +674,9 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, fol
                 >
                   <div className="px-[1.25vw] pb-[1vw] pt-0 border-t border-gray-50">
                     <BookmarkStylesPopup
-                      settings={otherSettings}
-                      onUpdate={onUpdateOther}
+                      settings={settings}
+                      onUpdate={onUpdate}
+                      pages={pages}
                       onClose={() => toggleSection('bookmark')}
                     />
                   </div>

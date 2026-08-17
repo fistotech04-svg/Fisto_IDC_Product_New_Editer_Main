@@ -79,8 +79,9 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
     return `${mins}:${secs}`;
   };
 
-  // Check if we are in 3D Editor
+  // Check if we are in 3D Editor or Customized Editor
   const isThreedEditor = location.pathname.includes('threed_editor');
+  const isCustomizedEditor = location.pathname.includes('customized_editor');
 
   return (
     <>
@@ -218,44 +219,41 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             </span>
           </button>
 
-          {/* Save & Toast Container */}
-          <div className="relative ml-[0.2vw]">
-              <button 
-                onClick={onSave}
-                disabled={!hasUnsavedChanges}
-                className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm
-                  ${hasUnsavedChanges 
-                      ? 'bg-[#FFFBEB] text-yellow-600 cursor-pointer hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
-                      : 'bg-[#F2FDF8] text-green-600 cursor-default opacity-80 ring-[0.06vw] ring-green-300'
-                  }`}
-                title={hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "All changes saved"}
-              >
-                {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
-              </button>
-              
-              {/* Success Toast Popup */}
-              {saveSuccessInfo && (saveSuccessInfo.isManual || !isAutoSaveEnabled) && (
-                <div className="absolute top-full right-0 mt-[0.5vw] w-[12vw] z-[60] animate-in fade-in slide-in-from-top-1 duration-200">
-                  <div className="bg-[#5CBC49] rounded-[0.5vw] shadow-lg p-[0.6vw] text-white relative">
-                    <div className="absolute -top-[0.2vw] right-[1vw] w-[0.6vw] h-[0.6vw] bg-[#5CBC49] rotate-45 transform"></div>
-                    <div className="flex flex-col gap-[0.2vw] relative z-10">
+          {/* Save & Toast Container (Hidden in Customized Editor) */}
+          {!location.pathname.includes('customized_editor') && (
+            <div className="relative ml-[0.2vw]">
+                <button 
+                  onClick={onSave}
+                  disabled={!hasUnsavedChanges}
+                  className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm
+                    ${hasUnsavedChanges 
+                        ? 'bg-[#FFFBEB] text-yellow-600 cursor-pointer hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
+                        : 'bg-[#F2FDF8] text-green-600 cursor-default opacity-80 ring-[0.06vw] ring-green-300'
+                    }`}
+                  title={hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "All changes saved"}
+                >
+                  {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
+                </button>
+                
+                {/* Success Toast Popup */}
+                {saveSuccessInfo && (saveSuccessInfo.isManual || !isAutoSaveEnabled) && (
+                  <div className="absolute top-full right-0 mt-[0.5vw] w-[12vw] z-[60] animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="bg-[#5CBC49] rounded-[0.5vw] shadow-lg p-[0.6vw] text-white relative">
+                      <div className="absolute -top-[0.2vw] right-[1vw] w-[0.6vw] h-[0.6vw] bg-[#5CBC49] rotate-45 transform"></div>
                       <div className="flex items-center gap-[0.4vw]">
-                        <div className="bg-white rounded-full p-[0.1vw] flex items-center justify-center">
-                          <svg width="0.7vw" height="0.7vw" viewBox="0 0 24 24" fill="none" stroke="#5CBC49" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                          </svg>
+                        <div className="w-[1.2vw] h-[1.2vw] rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                          <Icon icon="lucide:check" className="w-[0.8vw] h-[0.8vw] text-white" />
                         </div>
-                        <span className="font-bold text-[0.8vw] leading-tight text-white">Saved Successfully</span>
-                      </div>
-                      <div className="h-[0.1vw] bg-white/20 w-full my-[0.1vw]"></div>
-                      <div className="text-[0.6vw] font-medium text-white/90 truncate">
-                        {saveSuccessInfo.name} - {saveSuccessInfo.folder}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[0.75vw] font-semibold truncate">{saveSuccessInfo.name || 'Flipbook'}</p>
+                          <p className="text-[0.65vw] text-white/90">Saved successfully</p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-          </div>
+                )}
+            </div>
+          )}
 
           {/* Share */}
           <button 
@@ -290,14 +288,16 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             <User size="1.2vw" />
           </button>
 
-          {/* Settings Button - In-between Profile and Preview */}
-          <button 
-            onClick={() => setIsEditorSettingsOpen(true)}
-            className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ml-[0.2vw]"
-            title="Editor Settings"
-          >
-            <Settings size="1.2vw" />
-          </button>
+          {/* Settings Button - In-between Profile and Preview (Hidden in Customized Editor) */}
+          {!isCustomizedEditor && (
+            <button 
+              onClick={() => setIsEditorSettingsOpen(true)}
+              className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ml-[0.2vw]"
+              title="Editor Settings"
+            >
+              <Settings size="1.2vw" />
+            </button>
+          )}
 
           {/* Preview Button - Hidden on 3D Editor */}
           {!isThreedEditor && (

@@ -409,7 +409,9 @@ const MobileLayout2 = (props) => {
                                 <MenuBtn icon="ph:bookmark-simple-bold" label="Add Bookmark" onClick={() => setShowAddBookmarkPopup(true)} />
                                 <MenuBtn icon="ph:bookmark-simple-fill" label="View Bookmarks" onClick={() => setShowViewBookmarkPopup(true)} />
                                 <MenuBtn icon="ph:user-fill" label="Profile" onClick={() => setShowProfilePopup(true)} />
-                                <MenuBtn icon="ph:music-notes-simple-bold" label="Background Music" onClick={() => setShowSoundPopup(true)} />
+                                 {(settings?.media?.backgroundAudio ?? true) && (
+                                     <MenuBtn icon="ph:music-notes-simple-bold" label="Background Music" onClick={() => setShowSoundPopup(true)} />
+                                 )}
                                 <div className="h-[1px] bg-white/20 my-1.5 mx-2" />
                                 <MenuBtn icon="ph:share-network-fill" label="Share Flipbook" onClick={() => handleShare()} />
                                 <MenuBtn icon="ph:download-fill" label="Download PDF" onClick={() => handleDownload()} />
@@ -739,7 +741,9 @@ const MobileLayout2 = (props) => {
                 {/* Bottom Control Row */}
                 <div className="flex items-center justify-between text-white">
                     {/* Music Icon on Left */}
-                    <BottomControlBtn title="Music" onClick={(e) => { e.stopPropagation(); setShowSoundPopup(true); }} icon="solar:music-notes-bold" iconClass="w-4.5 h-4.5" />
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <BottomControlBtn title="Music" onClick={(e) => { e.stopPropagation(); setShowSoundPopup(true); }} icon="solar:music-notes-bold" iconClass="w-4.5 h-4.5" />
+                    )}
 
                     {/* Centered Playback */}
                     <div className="flex items-center gap-10">

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
 import { Icon } from '@iconify/react';
 import { ArrowLeftRight, Minus, RefreshCw, ChevronDown, X, Check, Upload, Image as ImageIcon, ChevronRight, Link } from 'lucide-react';
 import backgroundComponents from './Backgrounds';
@@ -15,18 +16,6 @@ import {
   DraggableSpan,
   ImageCropOverlay
 } from './AppearanceShared';
-const VIDEO_THEMES = [
-  '/src/assets/Videos/vdo1.webm', '/src/assets/Videos/vdo2.webm', '/src/assets/Videos/vdo3.webm',
-  '/src/assets/Videos/vdo4.webm', '/src/assets/Videos/vdo5.webm', '/src/assets/Videos/vdo6.webm',
-  '/src/assets/Videos/vdo7.webm', '/src/assets/Videos/vdo8.webm', '/src/assets/Videos/vdo9.webm',
-  '/src/assets/Videos/vdo10.webm', '/src/assets/Videos/vdo11.webm', '/src/assets/Videos/vdo12.webm',
-  '/src/assets/Videos/vdo13.webm', '/src/assets/Videos/vdo14.webm', '/src/assets/Videos/vdo15.webm',
-  '/src/assets/Videos/vdo16.webm', '/src/assets/Videos/vdo17.webm', '/src/assets/Videos/vdo18.webm',
-  '/src/assets/Videos/vdo19.webm', '/src/assets/Videos/vdo20.webm', '/src/assets/Videos/vdo21.webm'
-];
-
-const bgImagesModules = import.meta.glob('/src/assets/bgimg/*.(webp|jpg|png|jpeg)', { eager: true });
-const BACKGROUND_IMAGE_URLS = Object.values(bgImagesModules).map(mod => mod.default);
 
 const themeStaticCache = {};
 
@@ -43,35 +32,35 @@ const ThemePreview = React.memo(({ name, isLive }) => {
 
   if (!themeStaticCache[name]) {
     switch (name) {
-      case 'Antigravity': themeStaticCache[name] = <div className="flex gap-1"><div className="w-1.5 h-1.5 rounded-full bg-pink-400 rotate-45"></div><div className="w-1.5 h-1.5 rounded-full bg-pink-300 -rotate-12"></div><div className="w-1.5 h-1.5 rounded-full bg-pink-500"></div></div>; break;
-      case 'ColorBlends': themeStaticCache[name] = <div className="w-full h-full bg-gradient-to-bl from-pink-400 via-purple-500 to-blue-600 opacity-50"></div>; break;
-      case 'DarkVeil': themeStaticCache[name] = <div className="w-full h-full bg-black/80 flex items-center justify-center"><div className="w-full h-[1px] bg-red-500/30 blur-[1px]"></div></div>; break;
-      case 'DotGrid': themeStaticCache[name] = <div className="grid grid-cols-3 gap-1 opacity-40"><div className="w-1 h-1 bg-white rounded-full"></div><div className="w-1 h-1 bg-white rounded-full"></div><div className="w-1 h-1 bg-white rounded-full"></div></div>; break;
-      case 'FloatingLines': themeStaticCache[name] = <div className="flex flex-col gap-1.5 opacity-40"><div className="w-8 h-[1px] bg-blue-300"></div><div className="w-8 h-[1px] bg-pink-300 translate-x-2"></div><div className="w-8 h-[1px] bg-blue-300"></div></div>; break;
-      case 'Galaxy': themeStaticCache[name] = <div className="text-white text-[10px] opacity-60">✨🌌</div>; break;
-      case 'GridScan': themeStaticCache[name] = <div className="w-full h-full bg-[linear-gradient(rgba(0,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.1)_1px,transparent_1px)] bg-[size:8px_8px]"><div className="w-full h-[2px] bg-cyan-400/30"></div></div>; break;
-      case 'Hyperspeed': themeStaticCache[name] = <div className="flex gap-0.5"><div className="w-10 h-[1px] bg-blue-400/50"></div><div className="w-10 h-[1px] bg-red-400/50"></div></div>; break;
-      case 'Iridescence': themeStaticCache[name] = <div className="w-full h-full bg-gradient-to-tr from-green-300 via-blue-300 to-purple-300 opacity-40 blur-sm"></div>; break;
-      case 'LightPillar': themeStaticCache[name] = <div className="flex gap-1.5 items-end"><div className="w-[2px] h-8 bg-white/40 shadow-[0_0_5px_white]"></div><div className="w-[1.5px] h-6 bg-white/20"></div></div>; break;
-      case 'LightRays': themeStaticCache[name] = <div className="w-full h-full bg-[linear-gradient(45deg,rgba(255,255,255,0.1),transparent)] flex items-end justify-center"><div className="w-[1px] h-full bg-white/20 rotate-12"></div></div>; break;
-      case 'LiquidEther': themeStaticCache[name] = <div className="w-full h-full bg-[radial-gradient(circle_at_center,_#5227FF33,_#000)] blur-[3px]"></div>; break;
-      case 'Orb': themeStaticCache[name] = <div className="w-6 h-6 rounded-full bg-indigo-500/40 blur-[4px]"></div>; break;
-      case 'Particles': themeStaticCache[name] = <div className="grid grid-cols-4 gap-1 opacity-50"><div className="w-1 h-1 bg-white rounded-full translate-x-1 translate-y-2"></div><div className="w-0.5 h-0.5 bg-blue-300 rounded-full"></div><div className="w-1 h-1 bg-white rounded-full"></div></div>; break;
-      case 'PixelSnow': themeStaticCache[name] = <div className="grid grid-cols-4 gap-2 opacity-60"><div className="w-0.5 h-0.5 bg-white"></div><div className="w-0.5 h-0.5 bg-white"></div><div className="w-0.5 h-0.5 bg-white"></div></div>; break;
-      case 'Prism': themeStaticCache[name] = <div className="w-4 h-4 rotate-45 border border-white/30 bg-white/5"></div>; break;
-      case 'PrismaticBurst': themeStaticCache[name] = <div className="w-full h-full bg-[conic-gradient(from_0deg,transparent,rgba(255,255,255,0.1),transparent)]"></div>; break;
-      case 'Silk': themeStaticCache[name] = <div className="w-full h-full bg-gradient-to-br from-gray-400 to-gray-600 opacity-50 blur-[2px]"></div>; break;
-      case 'SplashCursor': themeStaticCache[name] = <div className="w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(0,255,100,0.1),transparent)]"></div>; break;
-      case 'Threads': themeStaticCache[name] = <div className="w-full h-full opacity-40 overflow-hidden flex flex-col gap-0.5"><div className="w-full h-[1px] bg-white opacity-20 -rotate-12 translate-y-2"></div><div className="w-full h-[1px] bg-white opacity-40 -rotate-12 translate-y-1"></div><div className="w-full h-[1px] bg-white opacity-30 -rotate-12"></div></div>; break;
-      case 'Waves': themeStaticCache[name] = <div className="w-full h-full border-t border-white/20 mt-4 rounded-full"></div>; break;
-      default: themeStaticCache[name] = <div className="text-gray-400 opacity-20"><Icon icon="lucide:sparkles" className="w-6 h-6" /></div>; break;
+      case 'Antigravity': themeStaticCache[name] = <Icon icon="lucide:orbit" className="w-5 h-5 text-pink-400" />; break;
+      case 'ColorBlends': themeStaticCache[name] = <Icon icon="lucide:palette" className="w-5 h-5 text-purple-400" />; break;
+      case 'DarkVeil': themeStaticCache[name] = <Icon icon="lucide:eye-off" className="w-5 h-5 text-slate-400" />; break;
+      case 'DotGrid': themeStaticCache[name] = <Icon icon="lucide:grid-3x3" className="w-5 h-5 text-indigo-300" />; break;
+      case 'FloatingLines': themeStaticCache[name] = <Icon icon="lucide:rows-3" className="w-5 h-5 text-sky-400" />; break;
+      case 'Galaxy': themeStaticCache[name] = <Icon icon="lucide:sparkles" className="w-5 h-5 text-amber-300" />; break;
+      case 'GridScan': themeStaticCache[name] = <Icon icon="lucide:scan" className="w-5 h-5 text-cyan-400" />; break;
+      case 'Hyperspeed': themeStaticCache[name] = <Icon icon="lucide:zap" className="w-5 h-5 text-yellow-400" />; break;
+      case 'Iridescence': themeStaticCache[name] = <Icon icon="lucide:sun-medium" className="w-5 h-5 text-emerald-300" />; break;
+      case 'LightPillar': themeStaticCache[name] = <Icon icon="lucide:columns-2" className="w-5 h-5 text-slate-200" />; break;
+      case 'LightRays': themeStaticCache[name] = <Icon icon="lucide:sun-dim" className="w-5 h-5 text-amber-200" />; break;
+      case 'LiquidEther': themeStaticCache[name] = <Icon icon="lucide:droplet" className="w-5 h-5 text-blue-400" />; break;
+      case 'Orb': themeStaticCache[name] = <Icon icon="lucide:disc-3" className="w-5 h-5 text-indigo-400" />; break;
+      case 'Particles': themeStaticCache[name] = <Icon icon="lucide:loader" className="w-5 h-5 text-blue-300" />; break;
+      case 'PixelSnow': themeStaticCache[name] = <Icon icon="lucide:snowflake" className="w-5 h-5 text-blue-200" />; break;
+      case 'Prism': themeStaticCache[name] = <Icon icon="lucide:box" className="w-5 h-5 text-violet-300" />; break;
+      case 'PrismaticBurst': themeStaticCache[name] = <Icon icon="lucide:sun-snow" className="w-5 h-5 text-rose-300" />; break;
+      case 'Silk': themeStaticCache[name] = <Icon icon="lucide:waves" className="w-5 h-5 text-teal-300" />; break;
+      case 'SplashCursor': themeStaticCache[name] = <Icon icon="lucide:mouse-pointer-click" className="w-5 h-5 text-green-400" />; break;
+      case 'Threads': themeStaticCache[name] = <Icon icon="lucide:git-commit-horizontal" className="w-5 h-5 text-purple-300" />; break;
+      case 'Waves': themeStaticCache[name] = <Icon icon="lucide:activity" className="w-5 h-5 text-cyan-300" />; break;
+      default: themeStaticCache[name] = <Icon icon="lucide:sparkles" className="w-5 h-5 text-gray-400" />; break;
     }
   }
 
   return (
     <>
       <div
-        className="absolute inset-0 flex items-center justify-center transition-opacity duration-300"
+        className="absolute inset-0 pb-5 flex items-center justify-center transition-opacity duration-300 pointer-events-none"
         style={{ opacity: isLive ? 0 : 1 }}
       >
         {themeStaticCache[name]}
@@ -101,7 +90,7 @@ const AnimatedThemeItem = React.memo(({ name, isSelected, onSelect }) => {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <ThemePreview name={name} isLive={isSelected || isHovered} />
         </div>
-        <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/10 backdrop-blur-sm text-center'}`}>
+        <div className={`absolute inset-x-0 transition-all duration-300 z-10 pointer-events-none ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/90 backdrop-blur-md flex items-center justify-center' : 'bottom-0 py-1.5 bg-black/60 backdrop-blur-sm text-center opacity-100 group-hover:opacity-0'}`}>
           <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>{name}</span>
         </div>
       </div>
@@ -109,17 +98,71 @@ const AnimatedThemeItem = React.memo(({ name, isSelected, onSelect }) => {
   );
 });
 
-const VideoThemeItem = React.memo(({ vdo, i, isSelected, onSelect }) => (
-  <div
-    onClick={() => onSelect(vdo)}
-    className={`aspect-[6/5] w-full rounded-lg bg-black border-2 relative overflow-hidden transition-all cursor-pointer ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
-  >
-    <video src={vdo} className="w-full h-full object-cover" muted loop preload="none" onMouseEnter={(e) => e.target.play()} onMouseLeave={(e) => e.target.pause()} />
-    <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center'}`}>
-      <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>Video {i + 1}</span>
+const AssetSkeleton = React.memo(({ isVideo = false }) => (
+  <div className="absolute inset-0 bg-slate-200/90 rounded-lg overflow-hidden z-10 flex flex-col items-center justify-center border border-slate-300/40">
+    <div
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        animation: 'shimmer 1.5s infinite',
+        backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%)'
+      }}
+    />
+    <div className="w-[2vw] h-[2vw] rounded-full bg-slate-300/80 flex items-center justify-center mb-[0.4vw] shadow-xs">
+      <Icon icon={isVideo ? "lucide:film" : "lucide:image"} className="w-[1.1vw] h-[1.1vw] text-slate-400" />
     </div>
+    <div className="w-[50%] h-[0.4vw] bg-slate-300/80 rounded-full animate-pulse" />
+    <style>{`
+      @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+    `}</style>
   </div>
 ));
+
+const VideoThemeItem = React.memo(({ vdo, i, isSelected, onSelect }) => {
+  const [isVisible, setIsVisible] = React.useState(false);
+  const [isLoaded, setIsLoaded] = React.useState(false);
+  const divRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    
+    if (divRef.current) observer.observe(divRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={divRef}
+      onClick={() => onSelect(vdo)}
+      className={`aspect-[6/5] w-full rounded-lg bg-slate-100 border-2 relative overflow-hidden transition-all cursor-pointer ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
+    >
+      {!isLoaded && <AssetSkeleton isVideo={true} />}
+      {isVisible && (
+        <video
+          src={vdo}
+          className={`w-full h-full object-cover transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          muted
+          loop
+          preload="metadata"
+          onLoadedData={() => setIsLoaded(true)}
+          onCanPlay={() => setIsLoaded(true)}
+          onMouseEnter={(e) => e.target.play().catch(() => {})}
+          onMouseLeave={(e) => e.target.pause()}
+        />
+      )}
+      <div className={`absolute inset-x-0 transition-all duration-300 z-20 pointer-events-none ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center opacity-100 group-hover:opacity-0'}`}>
+        <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>Video {i + 1}</span>
+      </div>
+    </div>
+  );
+});
 
 const ImageThemeItem = React.memo(({ img, i, isSelected, onSelect }) => {
   const [isVisible, setIsVisible] = React.useState(false);
@@ -142,22 +185,19 @@ const ImageThemeItem = React.memo(({ img, i, isSelected, onSelect }) => {
     <div
       ref={divRef}
       onClick={() => onSelect(img)}
-      className={`aspect-[6/5] w-full rounded-lg bg-gray-100 border-2 relative overflow-hidden transition-all cursor-pointer group ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
+      className={`aspect-[6/5] w-full rounded-lg bg-slate-100 border-2 relative overflow-hidden transition-all cursor-pointer group ${isSelected ? 'border-gray shadow-md ring-2 ring-gray-100 scale-[1.09]' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm hover:scale-[1.05]'}`}
     >
-      {!isLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
-           <Icon icon="lucide:loader-2" className="w-[1.5vw] h-[1.5vw] text-gray-400 animate-spin" />
-        </div>
-      )}
+      {!isLoaded && <AssetSkeleton isVideo={false} />}
       {isVisible && (
         <img 
           src={img} 
           alt={`Theme ${i}`} 
-          className={`w-full h-full object-cover transition-opacity duration-700 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`w-full h-full object-cover transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
           onLoad={() => setIsLoaded(true)}
+          onError={() => setIsLoaded(true)}
         />
       )}
-      <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center opacity-0 group-hover:opacity-100 z-20'}`}>
+      <div className={`absolute inset-x-0 transition-all duration-300 z-20 pointer-events-none ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/40 backdrop-blur-sm text-center opacity-100 group-hover:opacity-0'}`}>
         <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>Theme {i}</span>
       </div>
     </div>
@@ -179,49 +219,49 @@ const AnimationPreview = React.memo(({ name, isLive }) => {
 
   if (!animationStaticCache[name]) {
     switch (name) {
-      case 'FallingLeaves': animationStaticCache[name] = <div className="text-red-500 text-[10px] animate-bounce">🍂</div>; break;
-      case 'Snow': animationStaticCache[name] = <div className="text-white text-[12px] animate-pulse">❄️</div>; break;
-      case 'Bubbles': animationStaticCache[name] = <div className="w-4 h-2 rounded-full border border-blue-300/50 bg-blue-100/20"></div>; break;
-      case 'Confetti': animationStaticCache[name] = <div className="flex gap-0.5"><div className="w-1 h-1 bg-red-400"></div><div className="w-1 h-1 bg-yellow-400"></div><div className="w-1 h-1 bg-blue-400"></div></div>; break;
-      case 'Rain': animationStaticCache[name] = <div className="w-[1px] h-3 bg-blue-400 rotate-[15deg] opacity-50"></div>; break;
-      case 'Fireflies': animationStaticCache[name] = <div className="w-1 h-1 bg-yellow-200 rounded-full shadow-[0_0_5px_#fef08a]"></div>; break;
-      case 'Matrix': animationStaticCache[name] = <div className="text-[8px] text-green-500 font-mono">1010</div>; break;
-      case 'Hearts': animationStaticCache[name] = <div className="text-red-400 text-[10px]">❤</div>; break;
-      case 'TwinklingStars': animationStaticCache[name] = <div className="text-white text-[10px]">⭐</div>; break;
-      case 'Petals': animationStaticCache[name] = <div className="text-pink-300 text-[10px]">🌸</div>; break;
-      case 'BinaryRain': animationStaticCache[name] = <div className="text-[6px] text-green-700 font-mono">0110</div>; break;
-      case 'Balloons': animationStaticCache[name] = <div className="w-5 h-3 bg-violet-400 rounded-t-full"></div>; break;
+      case 'FallingLeaves': animationStaticCache[name] = <Icon icon="lucide:leaf" className="w-4 h-4 text-amber-500" />; break;
+      case 'Snow': animationStaticCache[name] = <Icon icon="lucide:snowflake" className="w-4 h-4 text-sky-200" />; break;
+      case 'Bubbles': animationStaticCache[name] = <Icon icon="lucide:circle-dot" className="w-4 h-4 text-blue-300" />; break;
+      case 'Confetti': animationStaticCache[name] = <Icon icon="lucide:party-popper" className="w-4 h-4 text-pink-400" />; break;
+      case 'Rain': animationStaticCache[name] = <Icon icon="lucide:cloud-rain" className="w-4 h-4 text-cyan-400" />; break;
+      case 'Fireflies': animationStaticCache[name] = <Icon icon="lucide:sparkle" className="w-4 h-4 text-yellow-300" />; break;
+      case 'Matrix': animationStaticCache[name] = <Icon icon="lucide:code-2" className="w-4 h-4 text-emerald-400" />; break;
+      case 'Hearts': animationStaticCache[name] = <Icon icon="lucide:heart" className="w-4 h-4 text-rose-500" />; break;
+      case 'TwinklingStars': animationStaticCache[name] = <Icon icon="lucide:star" className="w-4 h-4 text-yellow-200" />; break;
+      case 'Petals': animationStaticCache[name] = <Icon icon="lucide:flower-2" className="w-4 h-4 text-pink-300" />; break;
+      case 'BinaryRain': animationStaticCache[name] = <Icon icon="lucide:terminal" className="w-4 h-4 text-emerald-500" />; break;
+      case 'Balloons': animationStaticCache[name] = <Icon icon="lucide:circle" className="w-4 h-4 text-purple-400" />; break;
       case 'Lightning': animationStaticCache[name] = <Icon icon="lucide:zap" className="w-4 h-4 text-yellow-300" />; break;
-      case 'Orbs': animationStaticCache[name] = <div className="w-4 h-4 rounded-full bg-indigo-400/30 blur-[2px]"></div>; break;
-      case 'Scanlines': animationStaticCache[name] = <div className="w-full h-full bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(255,255,255,0.05)_2px,rgba(255,255,255,0.05)_4px)]"></div>; break;
-      case 'Fireworks': animationStaticCache[name] = <div className="text-orange-400 text-[10px]">🎆</div>; break;
-      case 'Glitch': animationStaticCache[name] = <div className="w-4 h-2 bg-blue-500/30 skew-x-12"></div>; break;
-      case 'Butterflies': animationStaticCache[name] = <div className="text-purple-400 text-[10px]">🦋</div>; break;
-      case 'Clouds': animationStaticCache[name] = <Icon icon="lucide:cloud" className="w-4 h-4 text-white opacity-40" />; break;
-      case 'SpaceWarp': animationStaticCache[name] = <div className="text-white text-[8px]">✨🚀</div>; break;
-      case 'Jellyfish': animationStaticCache[name] = <div className="text-cyan-400 text-[10px]">🏮</div>; break;
-      case 'PaperPlanes': animationStaticCache[name] = <Icon icon="lucide:send" className="w-4 h-4 text-white/40" />; break;
-      case 'MusicalNotes': animationStaticCache[name] = <div className="text-white/40 text-[10px]">♪♫</div>; break;
-      case 'AutumnMix': animationStaticCache[name] = <div className="text-orange-600 text-[10px]">🍂🎃</div>; break;
-      case 'FloatingGeo': animationStaticCache[name] = <div className="w-3 h-3 border border-white/20 rotate-45"></div>; break;
-      case 'DustMotes': animationStaticCache[name] = <div className="w-0.5 h-0.5 bg-white/40 rounded-full"></div>; break;
-      case 'Nebula': animationStaticCache[name] = <div className="w-6 h-6 rounded-full bg-purple-500/20 blur-[4px]"></div>; break;
-      case 'Birds': animationStaticCache[name] = <div className="text-black/40 text-[10px]">🐦</div>; break;
-      case 'Plankton': animationStaticCache[name] = <div className="w-1 h-1 bg-cyan-200/30 rounded-full"></div>; break;
-      case 'FireEmbers': animationStaticCache[name] = <div className="w-1 h-1 bg-orange-500 rounded-full"></div>; break;
-      case 'WaterDrops': animationStaticCache[name] = <div className="w-2 h-3 bg-blue-200/20 rounded-full"></div>; break;
-      case 'Mist': animationStaticCache[name] = <div className="w-full h-2 bg-white/20 blur-[2px] mt-4"></div>; break;
-      case 'Disco': animationStaticCache[name] = <div className="w-4 h-4 rounded-full bg-gradient-to-r from-red-500 to-blue-500 opacity-40"></div>; break;
-      case 'Meteors': animationStaticCache[name] = <div className="w-4 h-[1px] bg-white rotate-45"></div>; break;
-      case 'Sparkles': animationStaticCache[name] = <div className="text-yellow-200 text-[10px]">✨</div>; break;
-      default: animationStaticCache[name] = null; break;
+      case 'Orbs': animationStaticCache[name] = <Icon icon="lucide:disc" className="w-4 h-4 text-indigo-400" />; break;
+      case 'Scanlines': animationStaticCache[name] = <Icon icon="lucide:rows-2" className="w-4 h-4 text-slate-400" />; break;
+      case 'Fireworks': animationStaticCache[name] = <Icon icon="lucide:sparkles" className="w-4 h-4 text-orange-400" />; break;
+      case 'Glitch': animationStaticCache[name] = <Icon icon="lucide:cpu" className="w-4 h-4 text-cyan-400" />; break;
+      case 'Butterflies': animationStaticCache[name] = <Icon icon="lucide:feather" className="w-4 h-4 text-purple-300" />; break;
+      case 'Clouds': animationStaticCache[name] = <Icon icon="lucide:cloud" className="w-4 h-4 text-slate-200" />; break;
+      case 'SpaceWarp': animationStaticCache[name] = <Icon icon="lucide:rocket" className="w-4 h-4 text-violet-300" />; break;
+      case 'Jellyfish': animationStaticCache[name] = <Icon icon="lucide:lightbulb" className="w-4 h-4 text-cyan-300" />; break;
+      case 'PaperPlanes': animationStaticCache[name] = <Icon icon="lucide:send" className="w-4 h-4 text-slate-300" />; break;
+      case 'MusicalNotes': animationStaticCache[name] = <Icon icon="lucide:music" className="w-4 h-4 text-violet-300" />; break;
+      case 'AutumnMix': animationStaticCache[name] = <Icon icon="lucide:tree-deciduous" className="w-4 h-4 text-amber-600" />; break;
+      case 'FloatingGeo': animationStaticCache[name] = <Icon icon="lucide:hexagon" className="w-4 h-4 text-slate-300" />; break;
+      case 'DustMotes': animationStaticCache[name] = <Icon icon="lucide:dot" className="w-4 h-4 text-amber-100" />; break;
+      case 'Nebula': animationStaticCache[name] = <Icon icon="lucide:atom" className="w-4 h-4 text-purple-400" />; break;
+      case 'Birds': animationStaticCache[name] = <Icon icon="lucide:bird" className="w-4 h-4 text-slate-400" />; break;
+      case 'Plankton': animationStaticCache[name] = <Icon icon="lucide:sparkles" className="w-4 h-4 text-teal-300" />; break;
+      case 'FireEmbers': animationStaticCache[name] = <Icon icon="lucide:flame" className="w-4 h-4 text-orange-500" />; break;
+      case 'WaterDrops': animationStaticCache[name] = <Icon icon="lucide:droplets" className="w-4 h-4 text-blue-400" />; break;
+      case 'Mist': animationStaticCache[name] = <Icon icon="lucide:cloud-fog" className="w-4 h-4 text-slate-300" />; break;
+      case 'Disco': animationStaticCache[name] = <Icon icon="lucide:sun" className="w-4 h-4 text-pink-400" />; break;
+      case 'Meteors': animationStaticCache[name] = <Icon icon="lucide:sparkles" className="w-4 h-4 text-amber-300" />; break;
+      case 'Sparkles': animationStaticCache[name] = <Icon icon="lucide:sparkles" className="w-4 h-4 text-yellow-300" />; break;
+      default: animationStaticCache[name] = <Icon icon="lucide:sparkles" className="w-4 h-4 text-gray-400" />; break;
     }
   }
 
   return (
     <>
       <div
-        className="absolute inset-0 flex items-center justify-center transition-opacity duration-300"
+        className="absolute inset-0 pb-5 flex items-center justify-center transition-opacity duration-300 pointer-events-none"
         style={{ opacity: isLive ? 0 : 1 }}
       >
         {animationStaticCache[name]}
@@ -251,7 +291,7 @@ const AnimationThemeItem = React.memo(({ name, isSelected, onSelect }) => {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-white/10">
           <AnimationPreview name={name} isLive={isSelected || isHovered} />
         </div>
-        <div className={`absolute inset-x-0 transition-all duration-300 ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/80 flex items-center justify-center' : 'bottom-0 py-1 bg-black/10 backdrop-blur-sm text-center'}`}>
+        <div className={`absolute inset-x-0 transition-all duration-300 z-10 pointer-events-none ${isSelected ? 'top-1/2 -translate-y-1/2 py-2 bg-white/90 backdrop-blur-md flex items-center justify-center' : 'bottom-0 py-1.5 bg-black/60 backdrop-blur-sm text-center opacity-100 group-hover:opacity-0'}`}>
           <span className={`text-[0.7vw] font-semibold transition-colors duration-300 ${isSelected ? 'text-black' : 'text-white'}`}>{name}</span>
         </div>
       </div>
@@ -261,7 +301,10 @@ const AnimationThemeItem = React.memo(({ name, isSelected, onSelect }) => {
 
 const BackgroundSection = ({
   backgroundSettings,
-  onUpdateBackground
+  onUpdateBackground,
+  folder,
+  flipbookName,
+  v_id
 }) => {
   const [activeTab, setActiveTab] = useState('Background');
   const [deferredTab, setDeferredTab] = useState('Background');
@@ -289,7 +332,33 @@ const BackgroundSection = ({
   const [selectedTheme, setSelectedTheme] = useState(null);
   const [localGallerySelected, setLocalGallerySelected] = useState(null);
   const [showBgCropOverlay, setShowBgCropOverlay] = useState(false);
+  const [videoThemes, setVideoThemes] = useState([]);
+  const [backgroundImageUrls, setBackgroundImageUrls] = useState([]);
   const galleryInputRef = useRef(null);
+
+  // Dynamically fetch preset background images and videos from backend
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('fisto_bg_assets_cache');
+    } catch (e) {}
+
+    const fetchAssets = async () => {
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const res = await axios.get(`${backendUrl}/api/flipbook/background-assets`);
+        if (res.data && res.data.success) {
+          const vdos = Array.isArray(res.data.videos) ? res.data.videos : [];
+          const imgs = Array.isArray(res.data.images) ? res.data.images : [];
+
+          setVideoThemes(vdos);
+          setBackgroundImageUrls(imgs);
+        }
+      } catch (err) {
+        console.warn("Could not fetch background assets from backend", err);
+      }
+    };
+    fetchAssets();
+  }, []);
 
   const handleEyeDropper = async () => {
     if (!window.EyeDropper) return;
@@ -326,7 +395,11 @@ const BackgroundSection = ({
   // Save gallery images to localStorage when updated
   useEffect(() => {
     if (uploadedImages.length > 0) {
-      localStorage.setItem('customized_editor_gallery', JSON.stringify(uploadedImages));
+      try {
+        localStorage.setItem('customized_editor_gallery', JSON.stringify(uploadedImages));
+      } catch (e) {
+        console.warn("localStorage quota exceeded for gallery images", e);
+      }
     }
   }, [uploadedImages]);
 
@@ -335,15 +408,110 @@ const BackgroundSection = ({
     // Media will load naturally with lazy loading
   }, []);
 
-  const handleModalFileUpload = (e) => {
-    const file = e.target.files[0];
+  const uploadCustomizedAsset = async (file, assetType = 'image') => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && file) {
+        const user = JSON.parse(storedUser);
+        const userEmail = user?.emailId || user?.email;
+        if (!userEmail) return null;
+
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const formData = new FormData();
+        formData.append('action', 'upload');
+        formData.append('file', file);
+        formData.append('emailId', userEmail);
+        formData.append('assetType', assetType);
+        formData.append('folderName', folder || 'My_Flipbooks');
+        formData.append('flipbookName', flipbookName || v_id || 'Untitled Document');
+        if (v_id) formData.append('v_id', v_id);
+        if (backgroundSettings?.image) formData.append('oldSrc', backgroundSettings.image);
+
+        const res = await axios.post(`${backendUrl}/api/flipbook/branding`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (res.data?.url) {
+          return res.data.url;
+        }
+      }
+    } catch (err) {
+      console.warn(`[BackgroundSection] ${assetType} upload warning:`, err);
+    }
+    return null;
+  };
+
+  const handleImageReplace = async (file) => {
     if (!file) return;
+
+    const uploadedUrl = await uploadCustomizedAsset(file, 'Image');
+    if (uploadedUrl) {
+      const newImageData = { id: Date.now(), url: uploadedUrl };
+      setUploadedImages((prev) => [newImageData, ...prev]);
+      setLocalGallerySelected(newImageData);
+      const newBgSettings = {
+        ...backgroundSettings,
+        style: 'Image',
+        image: uploadedUrl,
+        fit: backgroundSettings.fit || 'Cover',
+        reactBitType: null
+      };
+      onUpdateBackground(newBgSettings);
+
+      if (v_id) {
+        try {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const user = JSON.parse(storedUser);
+            const userEmail = user?.emailId || user?.email;
+            if (userEmail) {
+              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+              axios.post(`${backendUrl}/api/flipbook/background`, {
+                action: 'save',
+                emailId: userEmail,
+                v_id: v_id,
+                folderName: folder || 'My_Flipbooks',
+                bookName: flipbookName || v_id || 'Untitled Document',
+                backgroundSettings: newBgSettings
+              }).catch(err => console.warn('[BackgroundSection] Immediate bg save warning:', err));
+
+              axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+                emailId: userEmail,
+                v_id: v_id,
+                folderName: folder || 'My_Flipbooks',
+                bookName: flipbookName || v_id || 'Untitled Document',
+                Background: newBgSettings,
+                settings: { background: newBgSettings }
+              }).catch(err => console.warn('[BackgroundSection] Immediate update-settings warning:', err));
+            }
+          }
+        } catch (e) {
+          console.error('[BackgroundSection] Error auto-saving to DB:', e);
+        }
+      }
+
+      return uploadedUrl;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const newImageData = { id: Date.now(), url: event.target.result };
       setUploadedImages((prev) => [newImageData, ...prev]);
+      setLocalGallerySelected(newImageData);
+      onUpdateBackground({
+        ...backgroundSettings,
+        style: 'Image',
+        image: event.target.result,
+        fit: backgroundSettings.fit || 'Cover',
+        reactBitType: null
+      });
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleModalFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    await handleImageReplace(file);
     e.target.value = '';
   };
 
@@ -406,8 +574,160 @@ const BackgroundSection = ({
     settingsRef.current = backgroundSettings;
   }, [backgroundSettings]);
 
+  const [mediaSubTab, setMediaSubTab] = useState(() => {
+    return backgroundSettings?.style === 'Video' ? 'Video' : 'Image';
+  });
+
+  useEffect(() => {
+    if (backgroundSettings?.style === 'Video') {
+      setMediaSubTab('Video');
+    } else if (backgroundSettings?.style === 'Image') {
+      setMediaSubTab('Image');
+    }
+  }, [backgroundSettings?.style]);
+
+  const handleVideoReplace = async (file) => {
+    if (!file) return;
+
+    const uploadedUrl = await uploadCustomizedAsset(file, 'Video');
+    if (uploadedUrl) {
+      const newBgSettings = {
+        ...backgroundSettings,
+        style: 'Video',
+        video: uploadedUrl,
+        fit: backgroundSettings.fit || 'Fill',
+        reactBitType: null
+      };
+      onUpdateBackground(newBgSettings);
+
+      if (v_id) {
+        try {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const user = JSON.parse(storedUser);
+            const userEmail = user?.emailId || user?.email;
+            if (userEmail) {
+              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+              axios.post(`${backendUrl}/api/flipbook/background`, {
+                action: 'save',
+                emailId: userEmail,
+                v_id: v_id,
+                folderName: folder || 'My_Flipbooks',
+                bookName: flipbookName || v_id || 'Untitled Document',
+                backgroundSettings: newBgSettings
+              }).catch(err => console.warn('[BackgroundSection] Immediate bg video save warning:', err));
+
+              axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+                emailId: userEmail,
+                v_id: v_id,
+                folderName: folder || 'My_Flipbooks',
+                bookName: flipbookName || v_id || 'Untitled Document',
+                Background: newBgSettings,
+                settings: { background: newBgSettings }
+              }).catch(err => console.warn('[BackgroundSection] Immediate update-settings warning:', err));
+            }
+          }
+        } catch (e) {
+          console.error('[BackgroundSection] Error auto-saving video to DB:', e);
+        }
+      }
+      return uploadedUrl;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      onUpdateBackground({
+        ...backgroundSettings,
+        style: 'Video',
+        video: event.target.result,
+        fit: backgroundSettings.fit || 'Fill',
+        reactBitType: null
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveBackgroundToDB = useCallback(async (newBgSettings) => {
+    if (!v_id || !newBgSettings) return;
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        const userEmail = user?.emailId || user?.email;
+        if (userEmail) {
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          axios.post(`${backendUrl}/api/flipbook/background`, {
+            action: 'save',
+            emailId: userEmail,
+            v_id: v_id,
+            folderName: folder || 'My_Flipbooks',
+            bookName: flipbookName || v_id || 'Untitled Document',
+            backgroundSettings: newBgSettings
+          }).catch(err => console.warn('[BackgroundSection] Immediate bg save warning:', err));
+
+          axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+            emailId: userEmail,
+            v_id: v_id,
+            folderName: folder || 'My_Flipbooks',
+            bookName: flipbookName || v_id || 'Untitled Document',
+            Background: newBgSettings,
+            settings: { background: newBgSettings }
+          }).catch(err => console.warn('[BackgroundSection] Immediate update-settings warning:', err));
+        }
+      }
+    } catch (e) {
+      console.error('[BackgroundSection] Error auto-saving to DB:', e);
+    }
+  }, [v_id, folder, flipbookName]);
+
+  const lastSavedSettingsRef = useRef(null);
+
+  useEffect(() => {
+    if (!v_id || !backgroundSettings) return;
+    const settingsStr = JSON.stringify(backgroundSettings);
+    if (lastSavedSettingsRef.current === settingsStr) return;
+
+    const timer = setTimeout(() => {
+      lastSavedSettingsRef.current = settingsStr;
+      saveBackgroundToDB(backgroundSettings);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [backgroundSettings, v_id, saveBackgroundToDB]);
+
+  const handleStyleChange = (styleLabel) => {
+    let targetStyle = styleLabel;
+    if (styleLabel === 'Media') {
+      targetStyle = mediaSubTab === 'Video' ? 'Video' : 'Image';
+    }
+    const newSettings = {
+      ...backgroundSettings,
+      style: targetStyle,
+      reactBitType: null
+    };
+    onUpdateBackground(newSettings);
+    saveBackgroundToDB(newSettings);
+  };
+
+  const handleSubTabChange = (newSubTab) => {
+    setMediaSubTab(newSubTab);
+    const targetStyle = newSubTab === 'Video' ? 'Video' : 'Image';
+    if (backgroundSettings.style !== targetStyle) {
+      const newSettings = {
+        ...backgroundSettings,
+        style: targetStyle,
+        reactBitType: null
+      };
+      onUpdateBackground(newSettings);
+      saveBackgroundToDB(newSettings);
+    }
+  };
+
   const fileInputRef = useRef(null);
-  const bgStyle = (backgroundSettings?.style === 'ReactBits' || !backgroundSettings?.style) ? 'Solid' : backgroundSettings.style;
+  const videoInputRef = useRef(null);
+  const rawStyle = (backgroundSettings?.style === 'ReactBits' || !backgroundSettings?.style) ? 'Solid' : backgroundSettings.style;
+  const isMediaStyle = rawStyle === 'Image' || rawStyle === 'Video' || rawStyle === 'Media';
+  const bgStyle = isMediaStyle ? 'Media' : rawStyle;
 
   useEffect(() => {
     if (bgStyle === 'Gradient' && backgroundSettings.gradientStops && !backgroundSettings.gradient) {
@@ -535,6 +855,9 @@ const BackgroundSection = ({
       onUpdateBackground({ ...backgroundSettings, style, gradient, reactBitType: null });
     } else if (style === 'Solid' && backgroundSettings.savedSolidColor) {
       onUpdateBackground({ ...backgroundSettings, style, color: backgroundSettings.savedSolidColor, reactBitType: null });
+    } else if (style === 'Media') {
+      const targetStyle = mediaSubTab === 'Video' ? 'Video' : 'Image';
+      onUpdateBackground({ ...backgroundSettings, style: targetStyle, reactBitType: null });
     } else {
       onUpdateBackground({ ...backgroundSettings, style, reactBitType: null });
     }
@@ -559,15 +882,117 @@ const BackgroundSection = ({
     setSelectedTheme(name);
   }, []);
 
-  const handleVideoThemeSelect = React.useCallback((vdo) => {
+  const handleVideoThemeSelect = React.useCallback(async (vdo) => {
     setSelectedTheme(null);
-    onUpdateBackground({ ...settingsRef.current, style: 'Video', image: vdo, fit: 'Fill', reactBitType: null, color: '#000000' });
-  }, [onUpdateBackground]);
+    let finalVideoUrl = vdo;
 
-  const handleImageThemeSelect = React.useCallback((img) => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && vdo) {
+        const user = JSON.parse(storedUser);
+        const userEmail = user?.emailId || user?.email;
+        if (userEmail) {
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          const res = await axios.post(`${backendUrl}/api/flipbook/copy-theme-asset`, {
+            emailId: userEmail,
+            v_id: v_id,
+            folderName: folder || 'My_Flipbooks',
+            flipbookName: flipbookName || v_id || 'Untitled Document',
+            imageUrl: vdo
+          });
+
+          if (res.data?.url) {
+            finalVideoUrl = res.data.url;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[BackgroundSection] Failed to copy theme video to Supabase:", err);
+    }
+
+    const newBgSettings = {
+      ...settingsRef.current,
+      style: 'Video',
+      video: finalVideoUrl,
+      fit: 'Fill',
+      reactBitType: null,
+      color: '#000000'
+    };
+    onUpdateBackground(newBgSettings);
+    saveBackgroundToDB(newBgSettings);
+  }, [onUpdateBackground, saveBackgroundToDB, v_id, folder, flipbookName]);
+
+  const handleImageThemeSelect = React.useCallback(async (img) => {
     setSelectedTheme(null);
-    onUpdateBackground({ ...settingsRef.current, style: 'Image', image: img, fit: 'Fill', reactBitType: null });
-  }, [onUpdateBackground]);
+
+    let finalImageUrl = img;
+
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && img) {
+        const user = JSON.parse(storedUser);
+        const userEmail = user?.emailId || user?.email;
+        if (userEmail) {
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          const res = await axios.post(`${backendUrl}/api/flipbook/copy-theme-asset`, {
+            emailId: userEmail,
+            v_id: v_id,
+            folderName: folder || 'My_Flipbooks',
+            flipbookName: flipbookName || v_id || 'Untitled Document',
+            imageUrl: img
+          });
+
+          if (res.data?.url) {
+            finalImageUrl = res.data.url;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[BackgroundSection] Failed to copy theme image to Supabase:", err);
+    }
+
+    const newBgSettings = {
+      ...settingsRef.current,
+      style: 'Image',
+      image: finalImageUrl,
+      fit: 'Fill',
+      reactBitType: null
+    };
+
+    onUpdateBackground(newBgSettings);
+
+    if (v_id) {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          const userEmail = user?.emailId || user?.email;
+          if (userEmail) {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            axios.post(`${backendUrl}/api/flipbook/background`, {
+              action: 'save',
+              emailId: userEmail,
+              v_id: v_id,
+              folderName: folder || 'My_Flipbooks',
+              bookName: flipbookName || v_id || 'Untitled Document',
+              backgroundSettings: newBgSettings
+            }).catch(err => console.warn('[BackgroundSection] Immediate bg save warning:', err));
+
+            axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+              emailId: userEmail,
+              v_id: v_id,
+              folderName: folder || 'My_Flipbooks',
+              bookName: flipbookName || v_id || 'Untitled Document',
+              Background: newBgSettings,
+              settings: { background: newBgSettings }
+            }).catch(err => console.warn('[BackgroundSection] Immediate update-settings warning:', err));
+          }
+        }
+      } catch (e) {
+        console.error('[BackgroundSection] Error auto-saving to DB:', e);
+      }
+    }
+  }, [onUpdateBackground, folder, flipbookName, v_id]);
 
   const handleAnimationSelect = React.useCallback((n) => {
     const current = settingsRef.current;
@@ -607,20 +1032,20 @@ const BackgroundSection = ({
 
   const videoThemesList = React.useMemo(() => {
     if (deferredTab !== 'Themes') return null;
-    return VIDEO_THEMES.map((vdo, i) => (
+    return videoThemes.map((vdo, i) => (
       <VideoThemeItem
         key={vdo}
         vdo={vdo}
         i={i}
-        isSelected={backgroundSettings.image === vdo}
+        isSelected={backgroundSettings.video === vdo || backgroundSettings.image === vdo}
         onSelect={handleVideoThemeSelect}
       />
     ));
-  }, [backgroundSettings.image, handleVideoThemeSelect, deferredTab]);
+  }, [backgroundSettings.video, backgroundSettings.image, handleVideoThemeSelect, deferredTab, videoThemes]);
 
   const backgroundThemesList = React.useMemo(() => {
     if (deferredTab !== 'Themes') return null;
-    return BACKGROUND_IMAGE_URLS.map((imgUrl, index) => {
+    return backgroundImageUrls.map((imgUrl, index) => {
       return (
         <ImageThemeItem
           key={imgUrl}
@@ -631,7 +1056,7 @@ const BackgroundSection = ({
         />
       );
     });
-  }, [backgroundSettings.image, handleImageThemeSelect, deferredTab, themeType]);
+  }, [backgroundSettings.image, handleImageThemeSelect, deferredTab, themeType, backgroundImageUrls]);
 
   const animationsList = React.useMemo(() => {
     if (deferredTab !== 'Animations') return null;
@@ -681,22 +1106,24 @@ const BackgroundSection = ({
 
       {activeTab === 'Background' && (
         <div className="flex flex-col gap-[0.5vw] mt-[0.5vw]">
-          {/* Style Tabs (Solid Color, Gradient, Image) */}
+          {/* Style Tabs (Solid, Gradient, Media) */}
           <div className="flex items-center justify-between gap-[0.5vw] w-full">
-            {['Solid', 'Gradient', 'Image'].map((styleLabel) => {
-              const styleValue = styleLabel === 'Solid Color' ? 'Solid' : styleLabel;
+            {['Solid', 'Gradient', 'Media'].map((styleLabel) => {
+              const isSelected = styleLabel === 'Media'
+                ? bgStyle === 'Media'
+                : bgStyle === styleLabel;
               return (
                 <button
-                  key={styleValue}
-                  onClick={() => setBgStyle(styleValue)}
-                  className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${bgStyle === styleValue
+                  key={styleLabel}
+                  onClick={() => handleStyleChange(styleLabel)}
+                  className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${isSelected
                       ? 'bg-white text-gray-900 shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
                       : 'bg-white text-gray-400 shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
                     }`}
                 >
                   {styleLabel}
                 </button>
-              )
+              );
             })}
           </div>
 
@@ -1055,149 +1482,348 @@ const BackgroundSection = ({
             </div>
           )}
 
-          {bgStyle === 'Image' && (
-            <div className="flex flex-col gap-[1vw]">
-              <div className="mb-[0.5vw]">
-                <div className="flex items-center gap-[0.5vw] mt-[1vw]">
-                  <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Upload Image</span>
-                  <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
-                  {backgroundSettings.image && (
-                    <PremiumDropdown
-                      options={['Fit', 'Fill', 'Stretch', 'Crop']}
-                      value={backgroundSettings.fit}
-                      onChange={(fill) => {
-                        if (fill === 'Crop') {
-                          setShowBgCropOverlay(true);
-                        } else {
-                          onUpdateBackground({ ...backgroundSettings, fit: fill });
-                        }
-                      }}
-                      width="5vw"
-                      align="right"
-                    />
-                  )}
-                </div>
-
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (event) => onUpdateBackground({ ...backgroundSettings, style: 'Image', image: event.target.result });
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
-
-                {backgroundSettings.image ? (
-                  <div
-                    className="flex items-center gap-[1vw] "
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        const file = e.dataTransfer.files[0];
-                        if (file.type.startsWith('image/')) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => onUpdateBackground({ ...backgroundSettings, style: 'Image', image: event.target.result });
-                          reader.readAsDataURL(file);
-                        }
-                      }
-                    }}
-                  >
-                    {/* Thumbnail */}
-                    <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
-                      <img
-                        src={backgroundSettings.image}
-                        alt="Thumbnail"
-                        className={`w-full h-full ${backgroundSettings?.cropData ? 'object-cover' : 'object-fill'}`}
-                        style={(() => {
-                          const cd = backgroundSettings?.cropData;
-                          return cd && cd.inset ? {
-                            clipPath: cd.inset,
-                            WebkitClipPath: cd.inset,
-                            transform: `translate(${cd.offX}%, ${cd.offY}%) scale(${cd.scale})`,
-                            transformOrigin: 'center center'
-                          } : {};
-                        })()}
-                      />
-                    </div>
-
-                    {/* Info & Actions */}
-                    <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.1vw]">
-                      <div className="flex flex-col gap-[0.1vw] mt-[0.6vw]">
-                        <span className="text-[0.9vw] font-medium text-gray-700 truncate w-[10vw] mt-[0.8vw]" title="Image">
-                          Image
-                        </span>
-                        <span className="text-[0.75vw] text-gray-400 mt-[0.3vw]">
-                          Unknown Size
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-[0.5vw] mt-[0.3vw]">
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
-                        >
-                          Replace image
-                        </button>
-                        <button
-                          onClick={() => onUpdateBackground({ ...backgroundSettings, image: null })}
-                          className="p-[0.4vw] bg-gray-100 text-gray-500 rounded-[0.3vw] border border-gray-200 cursor-pointer transition-none"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[0.9vw] h-[0.9vw]">
-                            <path d="M3 6h18"></path>
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                            <line x1="14" y1="11" x2="14" y2="17"></line>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-[0.75vw] mb-[1vw] ">
-                    {/* Drag & Drop Box */}
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const file = e.dataTransfer.files[0];
-                        if (file && file.type.startsWith('image/')) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => onUpdateBackground({ ...backgroundSettings, style: 'Image', image: event.target.result });
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="w-full h-[7vw] mt-[1vw] border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all group shadow-sm"
-                    >
-                      <div className="flex items-center">
-                        <span className="text-gray-500 text-[0.8vw] font-semibold">+ Add Image</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+          {bgStyle === 'Media' && (
+            <div className="flex flex-col gap-[0.75vw]">
+              {/* Media Sub Tabs (Image & Video) */}
+              <div className="flex items-center gap-[0.4vw] p-[0.2vw] bg-gray-100/90 rounded-[0.5vw] mt-[0.5vw] border border-gray-200/50">
+                <button
+                  onClick={() => handleSubTabChange('Image')}
+                  className={`flex-1 py-[0.4vw] text-[0.78vw] font-semibold rounded-[0.4vw] transition-all flex items-center justify-center gap-[0.35vw] ${
+                    mediaSubTab === 'Image'
+                      ? 'bg-white text-gray-900 shadow-xs border border-gray-200/70 font-bold'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  <Icon icon="lucide:image" className="w-[0.9vw] h-[0.9vw]" />
+                  Image
+                </button>
+                <button
+                  onClick={() => handleSubTabChange('Video')}
+                  className={`flex-1 py-[0.4vw] text-[0.78vw] font-semibold rounded-[0.4vw] transition-all flex items-center justify-center gap-[0.35vw] ${
+                    mediaSubTab === 'Video'
+                      ? 'bg-white text-gray-900 shadow-xs border border-gray-200/70 font-bold'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  <Icon icon="lucide:film" className="w-[0.9vw] h-[0.9vw]" />
+                  Video
+                </button>
               </div>
+
+              {/* Sub Tab: Image */}
+              {mediaSubTab === 'Image' && (
+                <div className="flex flex-col gap-[1vw]">
+                  <div className="mb-[0.5vw]">
+                    <div className="flex items-center gap-[0.5vw] mt-[0.5vw]">
+                      <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Upload Image</span>
+                      <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
+                      {backgroundSettings.image && (
+                        <PremiumDropdown
+                          options={['Fit', 'Fill', 'Stretch', 'Crop']}
+                          value={backgroundSettings.fit}
+                          onChange={(fill) => {
+                            if (fill === 'Crop') {
+                              setShowBgCropOverlay(true);
+                            } else {
+                              onUpdateBackground({ ...backgroundSettings, fit: fill });
+                            }
+                          }}
+                          width="5vw"
+                          align="right"
+                        />
+                      )}
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          handleImageReplace(file);
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+
+                    {backgroundSettings.style === 'Image' && backgroundSettings.image ? (
+                      <div
+                        className="flex items-center gap-[1vw]"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                            const file = e.dataTransfer.files[0];
+                            if (file.type.startsWith('image/')) {
+                              handleImageReplace(file);
+                            }
+                          }
+                        }}
+                      >
+                        {/* Thumbnail */}
+                        <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
+                          <img
+                            src={backgroundSettings.image}
+                            alt="Thumbnail"
+                            className={`w-full h-full ${backgroundSettings?.cropData ? 'object-cover' : 'object-fill'}`}
+                            style={(() => {
+                              const cd = backgroundSettings?.cropData;
+                              return cd && cd.inset ? {
+                                clipPath: cd.inset,
+                                WebkitClipPath: cd.inset,
+                                transform: `translate(${cd.offX}%, ${cd.offY}%) scale(${cd.scale})`,
+                                transformOrigin: 'center center'
+                              } : {};
+                            })()}
+                          />
+                        </div>
+
+                        {/* Info & Actions */}
+                        <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.1vw]">
+                          <div className="flex flex-col gap-[0.1vw] mt-[0.6vw]">
+                            <span className="text-[0.9vw] font-medium text-gray-700 truncate w-[10vw] mt-[0.8vw]" title="Image">
+                              Image
+                            </span>
+                            <span className="text-[0.75vw] text-gray-400 mt-[0.3vw]">
+                              Unknown Size
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-[0.5vw] mt-[0.3vw]">
+                            <button
+                              onClick={() => fileInputRef.current?.click()}
+                              className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
+                            >
+                              Replace image
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const currentImage = backgroundSettings.image;
+                                const newBgSettings = { ...backgroundSettings, image: null };
+                                onUpdateBackground(newBgSettings);
+
+                                if (currentImage) {
+                                  try {
+                                    const storedUser = localStorage.getItem('user');
+                                    if (storedUser) {
+                                      const user = JSON.parse(storedUser);
+                                      const userEmail = user?.emailId || user?.email;
+                                      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+                                      await axios.post(`${backendUrl}/api/flipbook/branding`, {
+                                        action: 'delete',
+                                        emailId: userEmail,
+                                        v_id: v_id,
+                                        assetType: 'image',
+                                        src: currentImage,
+                                        folderName: folder || 'My_Flipbooks',
+                                        flipbookName: flipbookName || v_id || 'Untitled Document'
+                                      });
+
+                                      if (v_id) {
+                                        await axios.post(`${backendUrl}/api/flipbook/background`, {
+                                          action: 'save',
+                                          emailId: userEmail,
+                                          v_id: v_id,
+                                          folderName: folder || 'My_Flipbooks',
+                                          bookName: flipbookName || v_id || 'Untitled Document',
+                                          backgroundSettings: newBgSettings
+                                        });
+
+                                        await axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+                                          emailId: userEmail,
+                                          v_id: v_id,
+                                          folderName: folder || 'My_Flipbooks',
+                                          bookName: flipbookName || v_id || 'Untitled Document',
+                                          Background: newBgSettings,
+                                          settings: { background: newBgSettings }
+                                        });
+                                      }
+                                    }
+                                  } catch (err) {
+                                    console.warn('[BackgroundSection] Image delete asset warning:', err);
+                                  }
+                                }
+                              }}
+                              className="p-[0.4vw] bg-gray-100 text-gray-500 rounded-[0.3vw] border border-gray-200 cursor-pointer hover:text-red-600 transition-colors"
+                            >
+                              <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-[0.75vw] mb-[1vw]">
+                        {/* Drag & Drop Box */}
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const file = e.dataTransfer.files[0];
+                            if (file && file.type.startsWith('image/')) {
+                              handleImageReplace(file);
+                            }
+                          }}
+                          className="w-full h-[7vw] mt-[0.5vw] border-2 border-dashed border-slate-300 rounded-[1vw] bg-white flex items-center justify-center text-center cursor-pointer transition-all hover:border-slate-400 group shadow-2xs"
+                        >
+                          <div className="flex items-center gap-[0.5vw]">
+                            <Icon icon="lucide:image" className="w-[1.2vw] h-[1.2vw] text-slate-500 group-hover:text-slate-700" />
+                            <span className="text-slate-600 text-[0.85vw] font-medium group-hover:text-slate-800">+ Add Image</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Sub Tab: Video */}
+              {mediaSubTab === 'Video' && (
+                <div className="flex flex-col gap-[1vw]">
+                  <div className="mb-[0.5vw]">
+                    <div className="flex items-center gap-[0.5vw] mt-[0.5vw]">
+                      <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Upload Video</span>
+                      <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
+                      {backgroundSettings.video && (
+                        <PremiumDropdown
+                          options={['Fit', 'Fill', 'Stretch']}
+                          value={backgroundSettings.fit || 'Fill'}
+                          onChange={(fill) => {
+                            onUpdateBackground({ ...backgroundSettings, fit: fill });
+                          }}
+                          width="5vw"
+                          align="right"
+                        />
+                      )}
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={videoInputRef}
+                      className="hidden"
+                      accept="video/*"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          handleVideoReplace(file);
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+
+                    {backgroundSettings.style === 'Video' && backgroundSettings.video ? (
+                      <div className="flex items-center gap-[1vw]">
+                        {/* Video Thumbnail Preview */}
+                        <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-black flex-shrink-0 border border-gray-200">
+                          <video
+                            src={backgroundSettings.video}
+                            className="w-full h-full object-cover"
+                            muted
+                            loop
+                            autoPlay
+                            playsInline
+                          />
+                        </div>
+
+                        {/* Info & Actions */}
+                        <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.1vw]">
+                          <div className="flex flex-col gap-[0.1vw] mt-[0.6vw]">
+                            <span className="text-[0.9vw] font-medium text-gray-700 truncate w-[10vw] mt-[0.8vw]" title="Video">
+                              Video
+                            </span>
+                            <span className="text-[0.75vw] text-gray-400 mt-[0.3vw]">
+                              Background Video
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-[0.5vw] mt-[0.3vw]">
+                            <button
+                              onClick={() => videoInputRef.current?.click()}
+                              className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
+                            >
+                              Replace video
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const currentVideo = backgroundSettings.video;
+                                const newBgSettings = { ...backgroundSettings, video: null, style: 'Solid' };
+                                onUpdateBackground(newBgSettings);
+
+                                if (currentVideo) {
+                                  try {
+                                    const storedUser = localStorage.getItem('user');
+                                    if (storedUser) {
+                                      const user = JSON.parse(storedUser);
+                                      const userEmail = user?.emailId || user?.email;
+                                      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+                                      await axios.post(`${backendUrl}/api/flipbook/branding`, {
+                                        action: 'delete',
+                                        emailId: userEmail,
+                                        v_id: v_id,
+                                        assetType: 'video',
+                                        src: currentVideo,
+                                        folderName: folder || 'My_Flipbooks',
+                                        flipbookName: flipbookName || v_id || 'Untitled Document'
+                                      });
+                                    }
+                                  } catch (err) {
+                                    console.warn('[BackgroundSection] Video delete asset warning:', err);
+                                  }
+                                }
+                              }}
+                              className="p-[0.4vw] bg-gray-100 text-gray-500 rounded-[0.3vw] border border-gray-200 cursor-pointer hover:text-red-600 transition-colors"
+                            >
+                              <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-[0.75vw] mb-[1vw]">
+                        {/* Drag & Drop Box */}
+                        <div
+                          onClick={() => videoInputRef.current?.click()}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const file = e.dataTransfer.files[0];
+                            if (file && file.type.startsWith('video/')) {
+                              handleVideoReplace(file);
+                            }
+                          }}
+                          className="w-full h-[7vw] mt-[0.5vw] border-2 border-dashed border-slate-300 rounded-[1vw] bg-white flex items-center justify-center text-center cursor-pointer transition-all hover:border-slate-400 group shadow-2xs"
+                        >
+                          <div className="flex items-center gap-[0.5vw]">
+                            <Icon icon="lucide:film" className="w-[1.2vw] h-[1.2vw] text-slate-500 group-hover:text-slate-700" />
+                            <span className="text-slate-600 text-[0.85vw] font-medium group-hover:text-slate-800">+ Add Video</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-
-          {/* Opacity Slider and Adjustments - Only show for Image and Video */}
-          {bgStyle === 'Image' && backgroundSettings.image ? (
+          {/* Opacity Slider and Adjustments - Show only if active media sub-tab has data */}
+          {bgStyle === 'Media' && (mediaSubTab === 'Image' ? !!backgroundSettings.image : !!backgroundSettings.video) ? (
             <>
               <style>{`
                 .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
@@ -1206,23 +1832,23 @@ const BackgroundSection = ({
                 .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
                 .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
               `}</style>
-              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[-1vw]">
+              <div className="flex items-center gap-[1vw] py-[0.5vw] mt-[-0.5vw]">
                 <span className="text-[0.75vw] font-semibold text-gray-700 whitespace-nowrap">Opacity :</span>
                 <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
                   <input
                     type="range"
                     min={0}
                     max={100}
-                    value={backgroundSettings.opacity}
+                    value={backgroundSettings.opacity ?? 100}
                     onChange={(e) => onUpdateBackground({ ...backgroundSettings, opacity: parseInt(e.target.value) })}
                     className="w-full cursor-pointer custom-range-slider"
                     style={{
-                      backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${backgroundSettings.opacity}%, #E2E8F0 ${backgroundSettings.opacity}%, #E2E8F0 100%)`
+                      backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${backgroundSettings.opacity ?? 100}%, #E2E8F0 ${backgroundSettings.opacity ?? 100}%, #E2E8F0 100%)`
                     }}
                   />
                 </div>
                 <div className="px-[0.6vw] py-[0.3vw] bg-white border border-gray-200 rounded-[0.4vw] text-[0.75vw] font-semibold text-gray-700 min-w-[3vw] text-center shadow-sm">
-                  {backgroundSettings.opacity}%
+                  {backgroundSettings.opacity ?? 100}%
                 </div>
               </div>
 
@@ -1504,7 +2130,13 @@ const BackgroundSection = ({
             <button
               onClick={() => {
                 if (localGallerySelected) {
-                  onUpdateBackground({ ...backgroundSettings, image: localGallerySelected.url });
+                  onUpdateBackground({
+                    ...backgroundSettings,
+                    style: 'Image',
+                    image: localGallerySelected.url,
+                    fit: backgroundSettings.fit || 'Cover',
+                    reactBitType: null
+                  });
                   setShowGallery(false);
                 }
               }}

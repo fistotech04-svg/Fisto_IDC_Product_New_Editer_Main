@@ -17,25 +17,28 @@ const PublishModal = ({ isOpen, onClose, currentBook, onPublishSuccess }) => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Sync state when currentBook changes or modal opens
+  const bookId = currentBook?.v_id || currentBook?.id || currentBook?.realName || currentBook?.flipbookName || currentBook?.title || '';
+
+  // Sync state when book ID changes or modal opens
   useEffect(() => {
-    if (isOpen && currentBook) {
-      setBookName(currentBook.flipbookName || currentBook.realName || currentBook.title || '');
-      setQuotes(currentBook.quotes || currentBook.quote || currentBook.tagline || currentBook.meta?.quotes || currentBook.meta?.quote || currentBook.meta?.tagline || '');
-      setAbout(currentBook.about || currentBook.meta?.about || '');
-      setCategory(currentBook.category || currentBook.meta?.category || 'Product Based');
-      setLanguage(currentBook.language || currentBook.meta?.language || 'English');
+    if (isOpen) {
+      setBookName(currentBook?.flipbookName || currentBook?.realName || currentBook?.title || '');
+      setQuotes(currentBook?.quotes || currentBook?.quote || currentBook?.tagline || currentBook?.meta?.quotes || currentBook?.meta?.quote || currentBook?.meta?.tagline || '');
+      setAbout(currentBook?.about || currentBook?.meta?.about || '');
+      setCategory(currentBook?.category || currentBook?.meta?.category || 'Product Based');
+      setLanguage(currentBook?.language || currentBook?.meta?.language || 'English');
       setErrors({});
+      setTagInput('');
       
-      if (currentBook.tags && Array.isArray(currentBook.tags)) {
+      if (currentBook?.tags && Array.isArray(currentBook.tags)) {
         setTags(currentBook.tags);
-      } else if (currentBook.meta?.tags && Array.isArray(currentBook.meta.tags)) {
+      } else if (currentBook?.meta?.tags && Array.isArray(currentBook.meta.tags)) {
         setTags(currentBook.meta.tags);
       } else {
         setTags([]);
       }
     }
-  }, [isOpen, currentBook]);
+  }, [isOpen, bookId]);
 
   if (!isOpen) return null;
 
