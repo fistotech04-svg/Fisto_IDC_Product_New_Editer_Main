@@ -242,19 +242,15 @@ export const applyHandleDrag = (seg, handleSide, mousePoint, isAltKey) => {
     seg.nodeType = 'custom';
   }
 
-  const isClosed = seg.path ? seg.path.closed : false;
-  const prev = seg.previous || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[seg.path.segments.length - 1] : null);
-  const next = seg.next || (isClosed && seg.path && seg.path.segments.length > 0 ? seg.path.segments[0] : null);
-
   let nodeType = seg.nodeType;
   if (!nodeType) {
     if (seg.handleIn.isZero() && seg.handleOut.isZero()) {
       nodeType = 'sharp';
     } else if (!seg.handleIn.isZero() && !seg.handleOut.isZero()) {
       const dot = seg.handleIn.normalize().dot(seg.handleOut.normalize());
-      if (dot < -0.95) {
+      if (dot < -0.90) {
         const lenDiff = Math.abs(seg.handleIn.length - seg.handleOut.length);
-        nodeType = lenDiff < 1.5 ? 'balanced' : 'smooth';
+        nodeType = lenDiff < 4.0 ? 'balanced' : 'smooth';
       } else {
         nodeType = 'custom';
       }
@@ -265,35 +261,26 @@ export const applyHandleDrag = (seg, handleSide, mousePoint, isAltKey) => {
   }
 
   const mouseVec = mousePoint.subtract(seg.point);
-  const Point = mousePoint.constructor;
 
   if (handleSide === 'in') {
     seg.handleIn = mouseVec;
-    if (next && next !== seg) {
-      if (nodeType === 'balanced' && !seg.handleOut.isZero()) {
-        seg.handleOut = mouseVec.multiply(-1);
-      } else if (nodeType === 'smooth' && !seg.handleOut.isZero()) {
-        const outLen = seg.handleOut.length;
-        if (!mouseVec.isZero()) {
-          seg.handleOut = mouseVec.normalize(-outLen);
-        }
+    if (nodeType === 'balanced' && seg.handleOut && !seg.handleOut.isZero()) {
+      seg.handleOut = mouseVec.multiply(-1);
+    } else if (nodeType === 'smooth' && seg.handleOut && !seg.handleOut.isZero()) {
+      const outLen = seg.handleOut.length;
+      if (!mouseVec.isZero()) {
+        seg.handleOut = mouseVec.normalize(-outLen);
       }
-    } else {
-      seg.handleOut = new Point(0, 0);
     }
   } else if (handleSide === 'out') {
     seg.handleOut = mouseVec;
-    if (prev && prev !== seg) {
-      if (nodeType === 'balanced' && !seg.handleIn.isZero()) {
-        seg.handleIn = mouseVec.multiply(-1);
-      } else if (nodeType === 'smooth' && !seg.handleIn.isZero()) {
-        const inLen = seg.handleIn.length;
-        if (!mouseVec.isZero()) {
-          seg.handleIn = mouseVec.normalize(-inLen);
-        }
+    if (nodeType === 'balanced' && seg.handleIn && !seg.handleIn.isZero()) {
+      seg.handleIn = mouseVec.multiply(-1);
+    } else if (nodeType === 'smooth' && seg.handleIn && !seg.handleIn.isZero()) {
+      const inLen = seg.handleIn.length;
+      if (!mouseVec.isZero()) {
+        seg.handleIn = mouseVec.normalize(-inLen);
       }
-    } else {
-      seg.handleIn = new Point(0, 0);
     }
   }
 };
@@ -341,8 +328,13 @@ export const executeVectorPathAction = (paperPath, action, targetSegIndices, pap
       if (prev && next && prev !== seg && next !== seg) {
         const dir = next.point.subtract(prev.point);
         if (dir.isZero()) return;
-        const outLen = (!seg.handleOut.isZero() && seg.handleOut.length > 1) ? seg.handleOut.length : 25;
-        const inLen = (!seg.handleIn.isZero() && seg.handleIn.length > 1) ? seg.handleIn.length : 25;
+        let outLen = (!seg.handleOut.isZero() && seg.handleOut.length > 1) ? seg.handleOut.length : 35;
+        let inLen = (!seg.handleIn.isZero() && seg.handleIn.length > 1) ? seg.handleIn.length : 20;
+
+        if (Math.abs(outLen - inLen) < 4.0) {
+          outLen = 35;
+          inLen = 20;
+        }
 
         seg.handleOut = dir.normalize(outLen);
         seg.handleIn = dir.normalize(-inLen);
@@ -424,36 +416,46 @@ export const executeVectorPathAction = (paperPath, action, targetSegIndices, pap
           }
         }
 
+        // Use independent handle angles (rotated 25 deg) and asymmetric lengths (30 out / 20 in) for custom curves
         if (prev && next && prev !== seg && next !== seg) {
           const dir = next.point.subtract(prev.point);
           if (!dir.isZero()) {
-            seg.handleOut = dir.normalize(25);
-            seg.handleIn = dir.normalize(-25);
+            seg.handleOut = dir.rotate(25).normalize(30);
+            seg.handleIn = dir.multiply(-1).rotate(-25).normalize(20);
           } else {
-            seg.handleOut = new Point(25, 0);
-            seg.handleIn = new Point(-25, 0);
+            seg.handleOut = new Point(30, 8);
+            seg.handleIn = new Point(-20, -8);
           }
         } else if (prev && prev !== seg) {
           const dir = seg.point.subtract(prev.point);
           if (!dir.isZero()) {
-            seg.handleIn = dir.normalize(-25);
-            seg.handleOut = dir.normalize(25);
+            seg.handleIn = dir.multiply(-1).rotate(-25).normalize(20);
+            seg.handleOut = dir.rotate(25).normalize(30);
           } else {
-            seg.handleIn = new Point(-25, 0);
-            seg.handleOut = new Point(25, 0);
+            seg.handleIn = new Point(-20, -8);
+            seg.handleOut = new Point(30, 8);
           }
         } else if (next && next !== seg) {
           const dir = next.point.subtract(seg.point);
           if (!dir.isZero()) {
-            seg.handleOut = dir.normalize(25);
-            seg.handleIn = dir.normalize(-25);
+            seg.handleOut = dir.rotate(25).normalize(30);
+            seg.handleIn = dir.multiply(-1).rotate(-25).normalize(20);
           } else {
-            seg.handleOut = new Point(25, 0);
-            seg.handleIn = new Point(-25, 0);
+            seg.handleOut = new Point(30, 8);
+            seg.handleIn = new Point(-20, -8);
           }
         } else {
-          seg.handleOut = new Point(25, 0);
-          seg.handleIn = new Point(-25, 0);
+          seg.handleOut = new Point(30, 8);
+          seg.handleIn = new Point(-20, -8);
+        }
+      } else {
+        // Handles already exist — ensure nodeType is custom so handles move independently
+        // If handles were collinear (dot < -0.90), tilt handleOut by 30 deg so dot is -0.866 > -0.90 and auto-detection classifies as custom
+        if (!seg.handleIn.isZero() && !seg.handleOut.isZero()) {
+          const dot = seg.handleIn.normalize().dot(seg.handleOut.normalize());
+          if (dot < -0.90) {
+            seg.handleOut = seg.handleOut.rotate(30);
+          }
         }
       }
     });
@@ -1004,7 +1006,17 @@ export const processVectorPathAction = (action, {
       const newIdx = nodeEditSelectedSegIdxRef?.current || 0;
       window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: 'sharp', segIdx: newIdx, selectedCount: 1, canJoin: false, isLineSelected: false } }));
     } else if (['sharp', 'smooth', 'balanced', 'custom'].includes(action)) {
-      window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: action } }));
+      window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: action, selectedCount: 1, canJoin: false, isLineSelected: false } }));
+    } else if (action === 'curve-line') {
+      // After converting straight to curve, reflect new type in the sidebar
+      const curveSegs = getPaperSegments(paperPath);
+      const curveSegIdx = nodeEditSelectedSegIdxRef?.current;
+      const curveSeg = (curveSegIdx !== null && curveSegIdx !== undefined) ? curveSegs[curveSegIdx] : null;
+      let newCurveType = 'smooth';
+      if (curveSeg) {
+        newCurveType = curveSeg.nodeType || 'smooth';
+      }
+      window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: newCurveType, selectedCount: 1, canJoin: false, isLineSelected: false } }));
     }
 
     if (pathEl.ownerSVGElement && typeof updatePageHtml === 'function' && typeof saveModifiedPageHtml === 'function') {

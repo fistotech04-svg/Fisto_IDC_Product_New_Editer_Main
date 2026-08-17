@@ -62,7 +62,7 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
     );
 };
 
-const FlipbookCard = ({ coverImg, profileImg }) => {
+const FlipbookCard = ({ coverImg, profileImg, bookName, authorName, location, pages, views, rating, description }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -119,36 +119,36 @@ const FlipbookCard = ({ coverImg, profileImg }) => {
                     <img
                         src={profileImg}
                         alt="Author Avatar"
-                        className="w-[2.2vw] h-[2.2vw] rounded-full bg-teal-100 border border-gray-200 object-cover"
+                        className="w-[2.5vw] h-[2.5vw] rounded-full bg-teal-100 border border-gray-200 object-cover"
                     />
                     <div className="flex flex-col">
-                        <span className="text-[0.85vw] font-medium text-gray-900 leading-tight">Alex Johnson</span>
-                        <span className="text-[0.7vw] text-gray-400 mt-[0.2vh]">Coimbatore 📍</span>
+                        <span className="text-[0.85vw] font-medium text-gray-900 leading-tight">{authorName || 'Alex Johnson'}</span>
+                        <span className="text-[0.7vw] text-gray-400 mt-[0.2vh]">{location || 'Coimbatore 📍'}</span>
                     </div>
                 </div>
 
                 {/* Stats */}
                 <div className="flex items-center gap-[0.3vw] justify-start text-[0.75vw] text-gray-700 font-medium mt-[1.5vh] whitespace-nowrap">
                     <div className="flex items-center gap-[0.3vw]">
-                        <span className="text-black font-semibold">12</span>
+                        <span className="text-black font-semibold">{pages || 12}</span>
                         <span className="font-normal text-gray-500">Pages</span>
                     </div>
                     <span className="text-gray-200">|</span>
                     <span className="flex items-center gap-[0.3vw]">
                         <svg className="w-[0.9vw] text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                        12.5k
+                        {views || '12.5k'}
                     </span>
                     <span className="text-gray-200">|</span>
                     <span className="flex items-center gap-[0.3vw]">
-                        <svg className="w-[0.9vw] text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
-                        4.5
+                        <svg className="w-[0.9vw] text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path></svg>
+                        {rating || 4.5}
                     </span>
                 </div>
 
                 {/* Title & Desc & Button */}
                 <div className="relative flex-1 mt-[1.2vh]">
-                    <h4 className="text-[0.9vw] font-semibold text-black truncate tracking-tight">Name of the Flipbook</h4>
-                    <p className="text-[0.7vw] text-gray-500 leading-relaxed mt-[0.5vh] pr-[2vw]">“Bring your content to life with a real, interactive experience”</p>
+                    <h4 className="text-[0.9vw] font-semibold text-black truncate tracking-tight">{bookName || 'Name of the Flipbook'}</h4>
+                    <p className="text-[0.7vw] text-gray-500 leading-relaxed mt-[0.5vh] pr-[2vw]">{description || '“Bring your content to life with a real, interactive experience”'}</p>
 
                     {/* Action Button */}
                     <button className="absolute bottom-[0.5vw] right-[-0.5vw] bg-black text-white w-[2vw] h-[2vw] rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md">
@@ -160,9 +160,96 @@ const FlipbookCard = ({ coverImg, profileImg }) => {
     );
 };
 
+import axios from 'axios';
+
 const Explore = () => {
+    const [booksData, setBooksData] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
     const [category, setCategory] = useState("All Category");
     const [sortBy, setSortBy] = useState("Most Popular");
+    const [showMoreRatings, setShowMoreRatings] = useState(false);
+
+    useEffect(() => {
+        const fetchPublishedBooks = async () => {
+            try {
+                setIsLoading(true);
+                
+                // Fetch the logged-in user from localStorage (just like MyFlipbooks.jsx)
+                const storedUser = localStorage.getItem('user');
+                const user = storedUser ? JSON.parse(storedUser) : null;
+                const emailId = user?.emailId;
+                
+                if (!emailId) {
+                    console.warn("No user email found. Cannot fetch flipbooks.");
+                    setIsLoading(false);
+                    return;
+                }
+
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                
+                // Fetch the list of books for this user using the existing API
+                const response = await axios.get(`${backendUrl}/api/flipbook/list`, { params: { emailId } });
+                
+                if (response.data && response.data.books) {
+                    // Filter to only include published books and format them for the Explore UI
+                    const publishedBooks = response.data.books.filter(book => book.isPublished === true);
+                    
+                    const formattedBooks = publishedBooks.map(book => ({
+                        bookName: book.Customized_Settings?.FlipbookInfo?.flipbookName || book.title || "Untitled",
+                        authorName: emailId.split('@')[0],
+                        location: "Online 📍",
+                        pages: book.pages?.length || 12,
+                        views: "1k",
+                        rating: 4.5,
+                        description: book.Customized_Settings?.FlipbookInfo?.about || "“Bring your content to life with a real, interactive experience”",
+                        type: book.Customized_Settings?.FlipbookInfo?.orientation || "Portrait",
+                        category: book.Customized_Settings?.FlipbookInfo?.category || "Catalog"
+                    }));
+
+                    setBooksData(formattedBooks);
+                }
+            } catch (err) {
+                console.error("Error fetching data from backend API:", err);
+                setError("Failed to load flipbooks from server.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchPublishedBooks();
+    }, []);
+    
+    // Sidebar Filters State
+    const [selectedTypes, setSelectedTypes] = useState([]);
+    const [selectedCategories, setSelectedCategories] = useState([]);
+    const [selectedRating, setSelectedRating] = useState(4);
+    const [maxPages, setMaxPages] = useState(100);
+    const [searchQuery, setSearchQuery] = useState("");
+
+    // Filter booksData based on all filters
+    const filteredBooks = booksData.filter(book => {
+        // Top category filter
+        if (category !== "All Category" && book.category !== category) return false;
+        
+        // Search filter
+        if (searchQuery && !book.bookName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+
+        // Sidebar Type filter
+        if (selectedTypes.length > 0 && !selectedTypes.includes(book.type)) return false;
+
+        // Sidebar Category filter
+        if (selectedCategories.length > 0 && !selectedCategories.includes(book.category)) return false;
+
+        // Sidebar Rating filter
+        if (selectedRating && book.rating < selectedRating) return false;
+
+        // Sidebar Max Pages filter
+        if (book.pages > maxPages) return false;
+
+        return true;
+    });
 
     return (
         <div className="w-full bg-white font-sans pb-0">
@@ -176,6 +263,46 @@ const Explore = () => {
                 * {
                     -ms-overflow-style: none;  /* IE and Edge */
                     scrollbar-width: none;  /* Firefox */
+                }
+                
+                input[type="range"].custom-range-slider { 
+                    -webkit-appearance: none; 
+                    width: 100%; 
+                    background: transparent; 
+                    position: relative; 
+                    outline: none;
+                }
+                input[type="range"].custom-range-slider::before { 
+                    content: ""; 
+                    position: absolute; 
+                    top: -0.75vw; 
+                    bottom: -0.75vw; 
+                    left: 0; 
+                    right: 0; 
+                    cursor: pointer; 
+                    z-index: 1; 
+                }
+                input[type="range"].custom-range-slider::-webkit-slider-runnable-track { 
+                    height: 0.3vw; 
+                    border-radius: 0.15vw; 
+                    background: inherit; 
+                }
+                input[type="range"].custom-range-slider::-webkit-slider-thumb { 
+                    -webkit-appearance: none !important; 
+                    height: 1vw !important; 
+                    width: 1vw !important; 
+                    border-radius: 50% !important; 
+                    background: #4D47FF !important; 
+                    border: 0.1vw solid #ffffff !important; 
+                    box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4) !important; 
+                    margin-top: -0.35vw !important; 
+                    cursor: pointer !important; 
+                    transition: box-shadow 0.15s ease !important; 
+                    position: relative; 
+                    z-index: 2; 
+                }
+                input[type="range"].custom-range-slider::-webkit-slider-thumb:hover { 
+                    box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6) !important; 
                 }
             `}</style>
 
@@ -212,14 +339,14 @@ const Explore = () => {
             </motion.div>
 
             {/* Main Content Section */}
-            <div className="w-full px-[2vw] md:px-[3vw] py-[4vh] space-y-[4vh]">
+            <div className="w-full px-[2vw] md:px-[2vw] py-[4vh] space-y-[4vh]">
 
                 {/* Top Control Bar */}
                 <div className="flex flex-col md:flex-row justify-between items-center gap-[2vw]">
                     <div className="flex items-center gap-[1vw]">
                         <h2 className="text-[1.8vw] font-medium text-gray-900">Explore IDC by :</h2>
                         <CustomDropdown
-                            options={['All Category', 'Brochure', 'Catalog']}
+                            options={['All Category', 'Brochure', 'Catalog', 'Magazine', 'Portfolio', 'Storybook', 'Photography Book', 'Product Catalog']}
                             value={category}
                             onChange={setCategory}
                             className="min-w-[12vw]"
@@ -229,7 +356,7 @@ const Explore = () => {
                     <div className="flex items-center gap-[1.5vw] w-full md:w-auto">
                         <div className="relative flex items-center w-full md:w-[22vw]">
                             <svg className="w-[1vw] h-[1vw] text-gray-400 absolute left-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input type="text" placeholder="Search Flipbook..." className="w-full border-[1.5px] border-gray-300 rounded-[0.5vw] pl-[2.8vw] pr-[1vw] py-[0.6vh] text-[0.9vw] text-gray-700 outline-none focus:border-gray-400 placeholder-gray-400 transition-all" />
+                            <input type="text" placeholder="Search Flipbook..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full border-[1.5px] border-gray-300 rounded-[0.5vw] pl-[2.8vw] pr-[1vw] py-[0.6vh] text-[0.9vw] text-gray-700 outline-none focus:border-gray-400 placeholder-gray-400 transition-all" />
                         </div>
 
                         <div className="flex items-center justify-between border-[1.5px] border-gray-300 rounded-[0.5vw] p-[0.3vw] pl-[1vw] bg-white">
@@ -242,13 +369,13 @@ const Explore = () => {
                                 options={['Most Popular', 'Newest']}
                                 value={sortBy}
                                 onChange={setSortBy}
-                                className="ml-[0.5vw]"
+                                className="ml-[0.5vw] w-[8.5vw]"
                                 renderButton={(val, isOpen, setIsOpen) => (
                                     <button
                                         onClick={() => setIsOpen(!isOpen)}
                                         className="flex items-center justify-between w-full gap-[0.8vw] bg-[#f3f4f6] rounded-[0.4vw] px-[0.8vw] py-[0.3vh] focus:outline-none"
                                     >
-                                        <span className="text-[0.85vw] text-gray-700 font-medium whitespace-nowrap">{val}</span>
+                                        <span className="text-[0.85vw] text-gray-700 font-medium whitespace-nowrap text-left flex-1">{val}</span>
                                         <svg className={`w-[0.9vw] h-[0.9vw] text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                                     </button>
                                 )}
@@ -261,81 +388,177 @@ const Explore = () => {
                 <div className="flex flex-col md:flex-row gap-[2vw] items-start">
 
                     {/* Left Sidebar */}
-                    <div className="w-full md:w-[16vw] flex-shrink-0 bg-white border border-gray-200 rounded-[1vw] p-[1.5vw] space-y-[2vh]">
-                        <div className="flex items-center gap-[0.5vw] border-b border-gray-100 pb-[1vh]">
-                            <svg className="w-[1.2vw] h-[1.2vw] text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-                            <span className="font-semibold text-[1vw] text-gray-800">Filter Books By</span>
+                    <div className="w-full md:w-[16vw] flex-shrink-0 space-y-[1.5vh]">
+                        {/* Title */}
+                        <div className="flex items-center gap-[0.5vw] px-[0.5vw]">
+                            <Icon icon="flowbite:filter-outline" className="w-[1.3vw] h-[1.3vw] text-black" />
+                            <span className="font-semibold text-[1.1vw] text-black">Filter Books By</span>
                         </div>
 
-                        {/* Flipbook Type */}
-                        <div className="space-y-[1vh]">
-                            <h3 className="font-semibold text-[0.9vw] text-gray-800">Flipbook Type</h3>
-                            <div className="space-y-[0.8vh]">
-                                {['Landscape', 'Portrait', 'Square', '3D Added Flipbook'].map((type, i) => (
-                                    <label key={i} className="flex items-center justify-between cursor-pointer">
-                                        <span className="text-[0.85vw] text-gray-600">{type}</span>
-                                        <input type="checkbox" className="w-[1vw] h-[1vw] rounded border-gray-300 text-blue-600 focus:ring-blue-500" defaultChecked={type === 'Portrait'} />
-                                    </label>
-                                ))}
+                        {/* Filter Container */}
+                        <div className="bg-white border border-gray-200 rounded-[0.5vw] flex flex-col">
+                            
+                            {/* Flipbook Type */}
+                            <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh]">
+                                <h3 className="font-semibold text-[0.95vw] text-black">Flipbook Type</h3>
+                                <div className="space-y-[1.2vh]">
+                                    {['Landscape', 'Portrait', 'Square', '3D Added Flipbook'].map((type, i) => (
+                                        <label key={i} className="flex items-center justify-between cursor-pointer group">
+                                            <span className="text-[0.85vw] text-gray-800">{type}</span>
+                                            <div className="relative flex items-center justify-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors" 
+                                                    checked={selectedTypes.includes(type)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedTypes([...selectedTypes, type]);
+                                                        else setSelectedTypes(selectedTypes.filter(t => t !== type));
+                                                    }}
+                                                />
+                                                <svg className="absolute w-[0.75vw] h-[0.75vw] text-white pointer-events-none opacity-0 peer-checked:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Category */}
-                        <div className="space-y-[1vh] pt-[1vh]">
-                            <h3 className="font-semibold text-[0.9vw] text-gray-800">Category</h3>
-                            <div className="space-y-[0.8vh]">
-                                {['Brochure', 'Catalog', 'Magazine', 'Portfolio', 'Storybook', 'Photography Book', 'Product Catalog'].map((cat, i) => (
-                                    <label key={i} className="flex items-center justify-between cursor-pointer">
-                                        <span className="text-[0.85vw] text-gray-600">{cat}</span>
-                                        <input type="checkbox" className="w-[1vw] h-[1vw] rounded border-gray-300 text-blue-600 focus:ring-blue-500" defaultChecked={cat === 'Catalog'} />
-                                    </label>
-                                ))}
+                            {/* Category */}
+                            <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh]">
+                                <h3 className="font-semibold text-[0.95vw] text-black">Category</h3>
+                                <div className="space-y-[1.2vh]">
+                                    {['Brochure', 'Catalog', 'Magazine', 'Portfolio', 'Storybook', 'Photography Book', 'Product Catalog'].map((cat, i) => (
+                                        <label key={i} className="flex items-center justify-between cursor-pointer group">
+                                            <span className="text-[0.85vw] text-gray-800">{cat}</span>
+                                            <div className="relative flex items-center justify-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors" 
+                                                    checked={selectedCategories.includes(cat)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedCategories([...selectedCategories, cat]);
+                                                        else setSelectedCategories(selectedCategories.filter(c => c !== cat));
+                                                    }}
+                                                />
+                                                <svg className="absolute w-[0.75vw] h-[0.75vw] text-white pointer-events-none opacity-0 peer-checked:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Ratings */}
-                        <div className="space-y-[1vh] pt-[1vh]">
-                            <h3 className="font-semibold text-[0.9vw] text-gray-800">Ratings</h3>
-                            <div className="space-y-[0.8vh]">
-                                {[
-                                    { val: 5, stars: [1, 1, 1, 1, 1] },
-                                    { val: 4.5, stars: [1, 1, 1, 1, 0.5] },
-                                    { val: 4, stars: [1, 1, 1, 1, 0] }
-                                ].map((rate, i) => (
-                                    <label key={i} className="flex items-center gap-[0.5vw] cursor-pointer">
-                                        <input type="radio" name="rating" className="w-[1vw] h-[1vw] border-gray-300 text-blue-600 focus:ring-blue-500" defaultChecked={rate.val === 4.5} />
-                                        <span className="text-[0.85vw] text-gray-600 w-[3vw]">{rate.val} Star</span>
-                                        <div className="flex gap-[0.2vw]">
-                                            {rate.stars.map((s, idx) => (
-                                                <svg key={idx} className={`w-[0.9vw] h-[0.9vw] ${s === 1 ? 'text-yellow-400' : s === 0.5 ? 'text-yellow-400' : 'text-gray-300'}`} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
-                                            ))}
-                                        </div>
-                                    </label>
-                                ))}
+                            {/* Ratings */}
+                            <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh] relative">
+                                <svg width="0" height="0" className="absolute">
+                                    <defs>
+                                        <linearGradient id="star-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stopColor="#FFCA44" />
+                                            <stop offset="50%" stopColor="#FFE091" />
+                                            <stop offset="100%" stopColor="#FFCA44" />
+                                        </linearGradient>
+                                        <linearGradient id="half-star" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stopColor="#FFCA44" />
+                                            <stop offset="25%" stopColor="#FFE091" />
+                                            <stop offset="50%" stopColor="#FFCA44" />
+                                            <stop offset="50%" stopColor="#ffffff" />
+                                            <stop offset="100%" stopColor="#ffffff" />
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                                <h3 className="font-semibold text-[0.95vw] text-black">Ratings</h3>
+                                <div className="space-y-[1.2vh]">
+                                    {[
+                                        { val: 5, stars: [1, 1, 1, 1, 1], label: "5 Star" },
+                                        { val: 4.5, stars: [1, 1, 1, 1, 0.5], label: "4.5 Star" },
+                                        { val: 4, stars: [1, 1, 1, 1, 0], label: "4 Star" },
+                                        { val: 3.5, stars: [1, 1, 1, 0.5, 0], label: "3.5 Star" },
+                                        { val: 3, stars: [1, 1, 1, 0, 0], label: "3 Star" },
+                                        { val: 2.5, stars: [1, 1, 0.5, 0, 0], label: "2.5 Star" },
+                                        { val: 2, stars: [1, 1, 0, 0, 0], label: "2 Star" },
+                                        { val: 1.5, stars: [1, 0.5, 0, 0, 0], label: "1.5 Star" },
+                                        { val: 1, stars: [1, 0, 0, 0, 0], label: "1 Star" }
+                                    ].slice(0, showMoreRatings ? 9 : 3).map((rate, i) => (
+                                        <label key={i} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-[0.8vw]">
+                                                <div className="relative flex items-center justify-center">
+                                                    <input 
+                                                        type="radio" 
+                                                        name="rating" 
+                                                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#5551ff] cursor-pointer transition-colors" 
+                                                        checked={selectedRating === rate.val}
+                                                        onChange={() => setSelectedRating(rate.val)}
+                                                    />
+                                                    <div className="absolute w-[0.65vw] h-[0.65vw] bg-[#5551ff] rounded-full pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                                                </div>
+                                                <span className="text-[0.85vw] text-gray-800">{rate.label}</span>
+                                            </div>
+                                            <div className="flex gap-[0.2vw]">
+                                                {rate.stars.map((s, idx) => (
+                                                    <svg key={idx} className="w-[1.1vw] h-[1.1vw] overflow-visible" fill={s === 1 ? "url(#star-gradient)" : s === 0.5 ? "url(#half-star)" : "white"} stroke="url(#star-gradient)" strokeWidth="1" viewBox="0 0 20 20">
+                                                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                                                    </svg>
+                                                ))}
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={() => setShowMoreRatings(!showMoreRatings)}
+                                    className="text-[#5551ff] text-[0.85vw] mt-[1vh] font-medium hover:underline focus:outline-none"
+                                >
+                                    {showMoreRatings ? 'Less' : 'More'}
+                                </button>
                             </div>
-                        </div>
 
-                        {/* Max Pages */}
-                        <div className="space-y-[1vh] pt-[1vh]">
-                            <div className="flex justify-between items-center">
-                                <h3 className="font-semibold text-[0.9vw] text-gray-800">Max Pages</h3>
-                                <span className="text-[0.75vw] text-gray-400">4 - 100</span>
+                            {/* Max Pages */}
+                            <div className="p-[1.2vw] space-y-[1.5vh]">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-semibold text-[0.95vw] text-black">Max Pages</h3>
+                                    <span className="text-[0.8vw] text-gray-400">4 - 100</span>
+                                </div>
+                                <div className="flex items-center gap-[1vw] pt-[1vh] pb-[0.5vh]">
+                                    <input type="range" min="4" max="100" value={maxPages} onChange={(e) => setMaxPages(Number(e.target.value))} className="w-full cursor-pointer custom-range-slider" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${((maxPages - 4) / 96) * 100}%, #E2E8F0 ${((maxPages - 4) / 96) * 100}%, #E2E8F0 100%)` }} />
+                                    <span className="text-[0.8vw] text-black font-medium whitespace-nowrap min-w-[3.5vw]">{maxPages} pages</span>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-[1vw]">
-                                <input type="range" min="4" max="100" defaultValue="24" className="w-full h-[0.4vh] bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                                <span className="text-[0.8vw] text-gray-600 whitespace-nowrap">24 pgs</span>
-                            </div>
+
                         </div>
                     </div>
 
                     {/* Right Area (Books + Creators) */}
                     <div className="flex-1 flex flex-col">
                         {/* Books Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((item, index) => (
-                                <FlipbookCard key={item} coverImg={covers[index % 5]} profileImg={profiles[index % 5]} />
-                            ))}
-                        </div>
+                        {isLoading ? (
+                            <div className="w-full py-[10vh] flex items-center justify-center">
+                                <div className="w-[3vw] h-[3vw] border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
+                            </div>
+                        ) : error ? (
+                            <div className="w-full py-[10vh] flex flex-col items-center justify-center text-red-500">
+                                <svg className="w-[3vw] h-[3vw] mb-[1vh]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span className="text-[1.2vw] font-medium">{error}</span>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
+                                {filteredBooks.map((book, index) => (
+                                    <FlipbookCard 
+                                        key={index} 
+                                        coverImg={covers[index % 5]} 
+                                        profileImg={profiles[index % 5]}
+                                        bookName={book.bookName}
+                                        authorName={book.authorName}
+                                        location={book.location}
+                                        pages={book.pages}
+                                        views={book.views}
+                                        rating={book.rating}
+                                        description={book.description}
+                                    />
+                                ))}
+                                {filteredBooks.length === 0 && (
+                                    <div className="col-span-full py-[5vh] text-center text-gray-500 text-[1vw]">
+                                        No flipbooks found matching your filters.
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Top Creators Section */}
                         <div className="w-full pt-[6vh]">
@@ -357,19 +580,19 @@ const Explore = () => {
                                             {/* Avatar & Follow Button */}
                                             <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
                                                 <div className="relative shrink-0 z-10">
-                                                    <div className="w-[6vw] h-[6w]  rounded-full border-[0.25vw] border-white overflow-hidden bg-white shadow-sm relative z-10">
+                                                    <div className="w-[6vw] h-[6w]  rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10">
                                                         <img src={creator.profileImg} alt="Creator" className="w-full h-full object-cover bg-gray-50" />
                                                     </div>
                                                     {/* Left Smooth Corner */}
-                                                    <svg className="absolute top-[1.7vw] -left-[0.6vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
+                                                    <svg className="absolute top-[1.8vw] -left-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
                                                         <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
                                                     </svg>
                                                     {/* Right Smooth Corner */}
-                                                    <svg className="absolute top-[1.7vw] -right-[0.58vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
+                                                    <svg className="absolute top-[1.8vw] -right-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
                                                         <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
                                                     </svg>
                                                 </div>
-                                                <button className="bg-black text-white px-[1.5vw] py-[0.3vh] rounded-full text-[0.8vw] font-medium hover:bg-gray-800 transition-colors z-10 mb-[1vw] mr-[0.5vw]">
+                                                <button className="bg-black text-white px-[1.2vw] py-[0.3vh] rounded-full text-[0.85vw] font-medium hover:bg-gray-800 transition-colors z-10 mb-[1vw] ">
                                                     Follow
                                                 </button>
                                             </div>

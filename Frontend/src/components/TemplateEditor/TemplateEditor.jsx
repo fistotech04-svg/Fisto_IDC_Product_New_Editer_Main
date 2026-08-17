@@ -3971,7 +3971,7 @@ const TemplateEditor = () => {
             setCurrentBook(prev => ({
               ...(fetchedMeta || {}),
               ...(prev || {}),
-              flipbookName: prev?.flipbookName || fetchedMeta.flipbookName || 'Untitled Flipbook',
+              flipbookName: fetchedMeta.flipbookName || prev?.flipbookName || 'Untitled Flipbook',
               width: targetWidth,
               height: targetHeight,
               templateId: targetTemplateId,
@@ -4110,7 +4110,7 @@ const TemplateEditor = () => {
             setCurrentBook(prev => ({
               ...res.data.meta,
               ...(prev || {}),
-              flipbookName: prev?.flipbookName || res.data.meta.flipbookName,
+              flipbookName: res.data.meta?.flipbookName || prev?.flipbookName || 'Untitled Flipbook',
               share: shareData
             }));
             setHasUnsavedChanges(false);

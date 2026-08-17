@@ -134,15 +134,17 @@ export const generateGradientString = (type, stops, angle = 0, radius = 100) => 
 import ColorPicker from './ColorPallet';
 
 export const CustomColorPicker = React.memo(({ color, onChange, onClose, position, opacity, onOpacityChange }) => {
-  return (
+  if (typeof document === 'undefined') return null;
+  return ReactDOM.createPortal(
     <ColorPicker
       color={color}
       onChange={onChange}
       onClose={onClose}
       opacity={opacity}
       onOpacityChange={onOpacityChange}
-      style={{ top: position?.y, left: position?.x, position: 'fixed' }}
-    />
+      style={{ top: position?.y, left: position?.x, position: 'fixed', zIndex: 100000 }}
+    />,
+    document.body
   );
 });
 

@@ -177,17 +177,57 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
     const dropdownRef = useRef(null);
     const [layoutChangeAlert, setLayoutChangeAlert] = useState({ isOpen: false, index: null });
 
-    // ── Merge saved with defaults ──────────────────────────────────────────
-    const [colors, setColors] = useState(() => {
-        const saved = layoutColors || {};
+    // ── Helper to format layout colors payload matching backend schema ────
+    const formatLayoutColorsPayload = (updated) => {
+        if (!updated) return updated;
+        const layout1 = updated[1] || updated['1'] || [];
+        const primaryToolbarHex = (Array.isArray(layout1) ? layout1.find(c => c && c.id === 'toolbar-bg')?.hex : null) || updated.toolbarColor?.primary || '';
+        const secondaryToolbarHex = (Array.isArray(layout1) ? layout1.find(c => c && c.id === 'toolbar-text-main')?.hex : null) || updated.toolbarColor?.secondary || '';
+        const primaryPopupHex = (Array.isArray(layout1) ? layout1.find(c => c && ['toc-bg', 'dropdown-bg'].includes(c.id))?.hex : null) || updated.popupColor?.primary || '';
+        const secondaryPopupHex = (Array.isArray(layout1) ? layout1.find(c => c && ['toc-text', 'dropdown-text'].includes(c.id))?.hex : null) || updated.popupColor?.secondary || '';
+
+        return {
+            ...updated,
+            toolbarColor: {
+                primary: primaryToolbarHex,
+                secondary: secondaryToolbarHex
+            },
+            popupColor: {
+                primary: primaryPopupHex,
+                secondary: secondaryPopupHex
+            }
+        };
+    };
+
+    const buildMergedColors = (savedSource) => {
+        const saved = savedSource || {};
         const merged = {};
+        const toolbarP = saved.toolbarColor?.primary;
+        const toolbarS = saved.toolbarColor?.secondary;
+        const popupP = saved.popupColor?.primary;
+        const popupS = saved.popupColor?.secondary;
+
         for (const key of Object.keys(LAYOUT_DEFAULT_COLORS)) {
             const idx = parseInt(key);
             merged[idx] = LAYOUT_DEFAULT_COLORS[idx].map((c) => {
                 const savedItem = saved[idx]?.find(s => s && s.id === c.id);
+                let hexVal = c.hex;
+                if (savedItem && savedItem.hex) {
+                    hexVal = savedItem.hex;
+                } else if (toolbarP && ['toolbar-bg', 'bottom-toolbar-bg', 'page-number-bg'].includes(c.id)) {
+                    hexVal = toolbarP;
+                } else if (toolbarS && ['toolbar-text-main', 'toolbar-icon', 'reset-text', 'page-number-text'].includes(c.id)) {
+                    hexVal = toolbarS;
+                } else if (popupP && ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'].includes(c.id)) {
+                    hexVal = popupP;
+                } else if (popupS && ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'].includes(c.id)) {
+                    hexVal = popupS;
+                }
+
                 return {
                     ...c,
                     ...(savedItem ? savedItem : {}),
+                    hex: hexVal
                 };
             });
         }
@@ -206,7 +246,6 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                     const currentPrimary = merged[layoutIdx].find(c => popupPrimaryIds.includes(c.id))?.hex;
                     const currentSecondary = merged[layoutIdx].find(c => popupSecondaryIds.includes(c.id))?.hex;
 
-                    // If a Style B layout has the exact same popup colors as Layout 1, it's either an old save or a bad default. Fix it by swapping.
                     if (currentPrimary === masterPrimary && currentSecondary === masterSecondary) {
                         merged[layoutIdx] = merged[layoutIdx].map(c => {
                             if (popupPrimaryIds.includes(c.id)) return { ...c, hex: masterSecondary };
@@ -219,7 +258,14 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
         }
 
         return merged;
-    });
+    };
+
+    // ── Merge saved with defaults ──────────────────────────────────────────
+    const [colors, setColors] = useState(() => buildMergedColors(layoutColors));
+
+    useEffect(() => {
+        setColors(buildMergedColors(layoutColors));
+    }, [layoutColors]);
 
     // ── Helper methods for inline edits ─────────────────────────────────────
     const getTint = (hex, weight = 0.8) => {
@@ -344,7 +390,8 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 updated[layoutIdx] = updated[layoutIdx].map(c => c.id === colorId ? { ...c, hex: newHex } : c);
             }
 
-            if (onUpdateLayoutColors) onUpdateLayoutColors(updated);
+            const formatted = formatLayoutColorsPayload(updated);
+            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
             return updated;
         });
     };
@@ -387,21 +434,18 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 updated[layoutIdx] = updated[layoutIdx].map(c => c.id === colorId ? { ...c, opacity: newOpacity } : c);
             }
 
-            if (onUpdateLayoutColors) onUpdateLayoutColors(updated);
+            const formatted = formatLayoutColorsPayload(updated);
+            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
+            return updated;
             return updated;
         });
     };
 
     // ── Handlers ──────────────────────────────────────────────────────────
     const handleLayoutClick = (index) => {
-        setLayoutChangeAlert({ isOpen: true, index });
-    };
-
-    const confirmLayoutChange = () => {
-        if (layoutChangeAlert.index !== null) {
-            onUpdateLayout(layoutChangeAlert.index);
+        if (onUpdateLayout) {
+            onUpdateLayout(index);
         }
-        setLayoutChangeAlert({ isOpen: false, index: null });
     };
 
     const openPopup = (layoutIdx) => {
@@ -668,18 +712,6 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 colors={colors}
                 setColors={setColors}
                 onUpdateLayoutColors={onUpdateLayoutColors}
-            />
-
-            <AlertModal
-                isOpen={layoutChangeAlert.isOpen}
-                onClose={() => setLayoutChangeAlert({ isOpen: false, index: null })}
-                onConfirm={confirmLayoutChange}
-                type="info"
-                title="Layout Change"
-                message="Changing the layout may affect toolbar alignments and positions. Are you sure you want to proceed?"
-                showCancel={true}
-                confirmText="Change Layout"
-                cancelText="Cancel"
             />
         </div>
     );

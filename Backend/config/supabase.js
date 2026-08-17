@@ -32,7 +32,9 @@ export const rewriteUploadsToSupabase = (html, baseUrlPrefix = "") => {
     const cleanPrefix = baseUrlPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
     result = result
       .replace(/(href|src|url)=(["']?)(\.\/assets\/|assets\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}${cleanPrefix}/assets/`)
-      .replace(/(['"\s(])(\.\/assets\/|assets\/)/g, (match, prefix, _) => `${prefix}${cdnBase}${cleanPrefix}/assets/`);
+      .replace(/(['"\s(])(\.\/assets\/|assets\/)/g, (match, prefix, _) => `${prefix}${cdnBase}${cleanPrefix}/assets/`)
+      .replace(/(href|src|url)=(["']?)(\.\/customized_assets\/|customized_assets\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}${cleanPrefix}/customized_assets/`)
+      .replace(/(['"\s(])(\.\/customized_assets\/|customized_assets\/)/g, (match, prefix, _) => `${prefix}${cdnBase}${cleanPrefix}/customized_assets/`);
   }
 
   return result;
@@ -139,6 +141,7 @@ export const uploadBufferToSupabase = async (buffer, destinationPath, contentTyp
 export const deleteFileFromSupabase = async (destinationPath) => {
   try {
     if (!supabaseUrl || !supabaseKey || !destinationPath) return;
+    if (typeof destinationPath === 'string' && destinationPath.startsWith('data:')) return;
 
     let key = destinationPath;
     if (key.includes(`/storage/v1/object/public/${SUPABASE_BUCKET}/`)) {
@@ -279,7 +282,7 @@ export const ensureUserFoldersInSupabase = async (sanitizedEmail) => {
 };
 
 /**
- * Ensure flipbook subfolders (assets/Image, assets/gif, assets/video, assets/3D_Model, assets/audio, assets/download) exist in Supabase Storage.
+ * Ensure flipbook subfolders (assets/Image, assets/gif, assets/video, assets/3D_Model, assets/audio, assets/download, and customized_assets/Logo, customized_assets/Watermark, customized_assets/Image) exist in Supabase Storage.
  */
 export const ensureFlipbookFoldersInSupabase = async (sanitizedEmail, physicalFolderName, flipbookName) => {
   try {
@@ -287,11 +290,13 @@ export const ensureFlipbookFoldersInSupabase = async (sanitizedEmail, physicalFo
 
     const folder = physicalFolderName || "My_Flipbooks";
     const subfolders = ["Image", "gif", "video", "3D_Model", "audio", "download"];
+    const customizedSubfolders = ["Logo", "Watermark", "Video", "Image", "Gallery_Image", "Audio"];
 
     const keepPaths = [
       `${sanitizedEmail}/My_Flipbooks/${folder}/.keep`,
       `${sanitizedEmail}/My_Flipbooks/${folder}/${flipbookName}/.keep`,
-      ...subfolders.map(sub => `${sanitizedEmail}/My_Flipbooks/${folder}/${flipbookName}/assets/${sub}/.keep`)
+      ...subfolders.map(sub => `${sanitizedEmail}/My_Flipbooks/${folder}/${flipbookName}/assets/${sub}/.keep`),
+      ...customizedSubfolders.map(sub => `${sanitizedEmail}/My_Flipbooks/${folder}/${flipbookName}/customized_assets/${sub}/.keep`)
     ];
 
     const tasks = keepPaths.map(keepPath =>
@@ -299,7 +304,7 @@ export const ensureFlipbookFoldersInSupabase = async (sanitizedEmail, physicalFo
     );
 
     await Promise.allSettled(tasks);
-    console.log(`[Supabase] Auto-created flipbook subfolders for: ${flipbookName}`);
+    console.log(`[Supabase] Auto-created flipbook subfolders (assets & customized_assets) for: ${flipbookName}`);
   } catch (err) {
     console.warn("[Supabase] Could not create flipbook subfolders in Supabase:", err);
   }
@@ -317,6 +322,8 @@ export const renamePathInSupabase = async (oldPrefix, newPrefix) => {
 
     if (cleanOld.startsWith("uploads/")) cleanOld = cleanOld.substring("uploads/".length);
     if (cleanNew.startsWith("uploads/")) cleanNew = cleanNew.substring("uploads/".length);
+
+    if (cleanOld === cleanNew) return;
 
     const listAllFiles = async (dirPath) => {
       let files = [];
@@ -338,11 +345,26 @@ export const renamePathInSupabase = async (oldPrefix, newPrefix) => {
       return files;
     };
 
-    const allOldKeys = await listAllFiles(cleanOld);
+    let decodedOld = cleanOld;
+    try { decodedOld = decodeURIComponent(cleanOld); } catch(e) {}
+
+    const prefixesToList = [...new Set([cleanOld, decodedOld])].filter(Boolean);
+
+    let allOldKeys = [];
+    for (const p of prefixesToList) {
+      const keys = await listAllFiles(p);
+      allOldKeys = allOldKeys.concat(keys);
+    }
+    allOldKeys = [...new Set(allOldKeys)];
 
     if (allOldKeys.length > 0) {
       for (const oldKey of allOldKeys) {
-        const relativePath = oldKey.substring(cleanOld.length);
+        let relativePath = oldKey;
+        if (oldKey.startsWith(cleanOld)) {
+          relativePath = oldKey.substring(cleanOld.length);
+        } else if (oldKey.startsWith(decodedOld)) {
+          relativePath = oldKey.substring(decodedOld.length);
+        }
         const newKey = `${cleanNew}${relativePath}`;
 
         const { error: moveError } = await supabase.storage
@@ -351,9 +373,22 @@ export const renamePathInSupabase = async (oldPrefix, newPrefix) => {
 
         if (moveError) {
           console.warn(`[Supabase] Move error for ${oldKey} -> ${newKey}:`, moveError.message || moveError);
+          const { error: copyError } = await supabase.storage
+            .from(SUPABASE_BUCKET)
+            .copy(oldKey, newKey);
+
+          if (!copyError || copyError.message?.includes("already exists") || copyError.message?.includes("Duplicate")) {
+            await supabase.storage.from(SUPABASE_BUCKET).remove([oldKey]);
+          }
         }
       }
-      console.log(`[Supabase] Moved ${allOldKeys.length} objects from "${cleanOld}" to "${cleanNew}"`);
+      console.log(`[Supabase] Moved/processed ${allOldKeys.length} objects from "${cleanOld}" to "${cleanNew}"`);
+    }
+
+    // Always purge old folder completely from Supabase to ensure no old files/folders remain
+    await deleteFolderFromSupabase(cleanOld);
+    if (decodedOld !== cleanOld) {
+      await deleteFolderFromSupabase(decodedOld);
     }
   } catch (err) {
     console.warn("[Supabase] Rename operation failed:", err);

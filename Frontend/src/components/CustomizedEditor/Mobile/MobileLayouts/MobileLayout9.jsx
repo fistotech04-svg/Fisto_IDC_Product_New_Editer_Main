@@ -336,7 +336,9 @@ const MobileLayout9 = ({
                                 <MenuBtn icon="material-symbols-light:add-notes" label="Add Notes" onClick={() => { setShowLocalNotesMenu(prev => !prev); setShowLocalBookmarkMenu(false); setShowMoreMenu(false); }} />
                                 <MenuBtn icon="mingcute:bookmark-fill" label="Bookmarks" onClick={() => { setShowLocalBookmarkMenu(prev => !prev); setShowLocalNotesMenu(false); setShowMoreMenu(false); }} />
                                 <MenuBtn icon="solar:user-bold" label="Profile" onClick={() => { setShowProfilePopup(true); setShowMoreMenu(false); setShowLocalNotesMenu(false); setShowLocalBookmarkMenu(false); }} />
-                                <MenuBtn icon="solar:music-notes-bold" label="BG Music" onClick={() => { setShowSoundPopup(true); setShowMoreMenu(false); }} />
+                                {(settings?.media?.backgroundAudio ?? true) && (
+                                    <MenuBtn icon="solar:music-notes-bold" label="BG Music" onClick={() => { setShowSoundPopup(true); setShowMoreMenu(false); }} />
+                                )}
                                 <div className="h-[1px] bg-white/10 my-1 mx-2" />
                                 <MenuBtn icon="mage:share-fill" label="Share" onClick={() => { handleShare(); setShowMoreMenu(false); }} />
                                 <MenuBtn icon="meteor-icons:download" label="Download" onClick={() => { handleDownload(); setShowMoreMenu(false); }} />

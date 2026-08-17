@@ -15,7 +15,10 @@ const Appearance = ({
   onUpdateLayout,
   layoutColors,
   onUpdateLayoutColors,
-  pages
+  pages,
+  folder,
+  flipbookName,
+  v_id
 }) => {
   return (
     <div className="flex flex-col h-full bg-white font-sans relative">
@@ -48,7 +51,10 @@ const Appearance = ({
         {(activeSub === 'background' || activeSub === 'background_fetch') ? (
           <BackgroundSection 
             backgroundSettings={backgroundSettings} 
-            onUpdateBackground={onUpdateBackground} 
+            onUpdateBackground={onUpdateBackground}
+            folder={folder}
+            flipbookName={flipbookName}
+            v_id={v_id}
           />
         ) : activeSub === 'bookappearance' ? (
           <BookAppearanceSection 

@@ -114,19 +114,54 @@ const ShareViewBook = () => {
         return 'http://localhost:5000';
     };
 
-    // Prepare settings fallback
+    // Prepare settings fallback & branding/appearance extraction
+    const brandingObj = React.useMemo(() => {
+        return bookData?.Customized_Settings?.Branding || {};
+    }, [bookData]);
+
+    const appearanceObj = React.useMemo(() => {
+        const rawApp = bookData?.Customized_Settings?.Appearance || {};
+        return {
+            dropShadow: { active: true, position: 'Bottom Right', strength: 35, softness: 35, ...(rawApp.dropShadow || {}) },
+            ...rawApp
+        };
+    }, [bookData]);
+
+    const backgroundObj = React.useMemo(() => {
+        return bookData?.Customized_Settings?.Background || {};
+    }, [bookData]);
+
+    const menuBarObj = React.useMemo(() => {
+        return bookData?.Customized_Settings?.MenuBar || {};
+    }, [bookData]);
+
+    const layoutsObj = React.useMemo(() => {
+        return bookData?.Customized_Settings?.Layouts || {};
+    }, [bookData]);
+
     const settings = React.useMemo(() => {
-        const baseSettings = bookData?.settings || {};
         const searchParams = new URLSearchParams(location.search);
         const queryLayout = searchParams.get('layout');
-        if (queryLayout && !isNaN(Number(queryLayout))) {
-            return {
-                ...baseSettings,
-                layout: Number(queryLayout)
-            };
-        }
-        return baseSettings;
-    }, [bookData?.settings, location.search]);
+        const activeLayout = queryLayout && !isNaN(Number(queryLayout)) ? Number(queryLayout) : (layoutsObj.layoutStyle !== undefined ? layoutsObj.layoutStyle : 1);
+        return {
+            ...(bookData?.meta || {}),
+            logo: brandingObj.logoSettings,
+            watermark: brandingObj.watermarkSettings,
+            preloader: brandingObj.preloaderSettings,
+            background: backgroundObj,
+            backgroundSettings: backgroundObj,
+            Background: backgroundObj,
+            appearance: appearanceObj,
+            bookAppearanceSettings: appearanceObj,
+            Branding: brandingObj,
+            menuBar: menuBarObj,
+            menuBarSettings: menuBarObj,
+            MenuBar: menuBarObj,
+            Layouts: layoutsObj,
+            layout: activeLayout,
+            layoutColors: layoutsObj.layoutColors
+        };
+    }, [bookData, brandingObj, backgroundObj, appearanceObj, menuBarObj, layoutsObj, location.search]);
 
     const layoutColorVars = React.useMemo(() => {
         if (!bookData) return '';
@@ -432,18 +467,7 @@ const ShareViewBook = () => {
     const isMobileDevice = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     if (loading) return (
-        <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}>
-            <FlipbookPreview
-                pages={[]}
-                pageName="Loading..."
-                settings={tempSettings || {}}
-                isMobile={isMobileDevice}
-                onClose={null}
-                baseUrl={null}
-                isPublishedPreview={true}
-                isLoadingParent={true}
-            />
-        </div>
+        <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0, backgroundColor: '#ffffff' }} />
     );
 
     if (accessMode === 'password') return (
@@ -731,6 +755,7 @@ const ShareViewBook = () => {
                 isMobile={isMobileDevice}
                 onClose={null}
                 baseUrl={bookData.meta?.baseUrl ? `${getBackendUrl()}${bookData.meta.baseUrl}` : null}
+                v_id={shareId || bookData?.v_id}
                 isPublishedPreview={true}
                 isLoadingParent={false}
             />
