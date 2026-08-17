@@ -508,22 +508,24 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
 
                 {/* Right Icons */}
                 <div className="flex items-center gap-[1.2cqw]">
-                    <div className="relative">
-                        <button
-                            className="text-white hover:text-gray-200 transition-colors relative"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowTOCMemo?.(false);
-                                setShowThumbnailBarMemo?.(false);
-                                setShowProfilePopupMemo?.(false);
-                                setShowGalleryPopupMemo?.(false);
-                                setShowSoundPopupMemo?.(!showSoundPopup);
-                            }}
-                            style={{ opacity: showSoundPopup ? 0.7 : 1 }}
-                        >
-                            <Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" />
-                        </button>
-                    </div>
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <div className="relative">
+                            <button
+                                className="text-white hover:text-gray-200 transition-colors relative"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowTOCMemo?.(false);
+                                    setShowThumbnailBarMemo?.(false);
+                                    setShowProfilePopupMemo?.(false);
+                                    setShowGalleryPopupMemo?.(false);
+                                    setShowSoundPopupMemo?.(!showSoundPopup);
+                                }}
+                                style={{ opacity: showSoundPopup ? 0.7 : 1 }}
+                            >
+                                <Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" />
+                            </button>
+                        </div>
+                    )}
                     <button
                         className="text-white hover:text-gray-200 transition-colors"
                         onClick={(e) => {

@@ -70,7 +70,8 @@ const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
   }
 
   const bObj = inputSettings?.Branding || inputSettings?.Customized_Settings?.Branding || {};
-  const appObj = inputSettings?.appearance || inputSettings?.bookAppearanceSettings || inputSettings?.Customized_Settings?.Appearance || cachedAppearance || {};
+  const appObj = inputSettings?.appearance || inputSettings?.bookAppearanceSettings || inputSettings?.BookAppearance || inputSettings?.Customized_Settings?.BookAppearance || inputSettings?.Customized_Settings?.Appearance || cachedAppearance || {};
+  const otherObj = inputSettings?.othersetup || inputSettings?.otherSetupSettings || inputSettings?.otherSetup || inputSettings?.Customized_Settings?.otherSetup || {};
 
   return {
     ...(inputSettings || {}),
@@ -79,7 +80,11 @@ const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
     preloader: inputSettings?.preloader || inputSettings?.preloaderSettings || bObj.preloaderSettings || cachedPreloader,
     profile: inputSettings?.profile || inputSettings?.profileSettings || bObj.profileSettings || cachedProfile,
     appearance: appObj,
-    bookAppearanceSettings: appObj
+    bookAppearanceSettings: appObj,
+    BookAppearance: appObj,
+    othersetup: otherObj,
+    otherSetupSettings: otherObj,
+    otherSetup: otherObj
   };
 };
 
@@ -516,7 +521,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         backgroundSettings={localSettings?.background}
         bookAppearanceSettings={localSettings?.appearance || localSettings?.bookAppearanceSettings || settings?.appearance || settings?.bookAppearanceSettings}
         menuBarSettings={localSettings?.menuBarSettings || localSettings?.menuBar || localSettings?.menubar || localSettings?.MenuBar || localSettings?.Customized_Settings?.MenuBar || settings?.menuBarSettings || settings?.menuBar || settings?.menubar || settings?.MenuBar}
-        leadFormSettings={localSettings?.leadform}
+        leadFormSettings={localSettings?.leadForm || localSettings?.leadform || localSettings?.Customized_Settings?.leadForm || localSettings?.settings?.leadForm || settings?.leadForm || settings?.leadform}
         profileSettings={localSettings?.profile || localSettings?.profileSettings || localSettings?.Branding?.profileSettings}
         otherSetupSettings={localSettings?.othersetup}
         activeLayout={localSettings?.layout || 1}

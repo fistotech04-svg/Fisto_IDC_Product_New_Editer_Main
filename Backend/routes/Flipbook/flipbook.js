@@ -2067,9 +2067,10 @@ router.get("/public/get/:shareId", async (req, res) => {
 
     const vis = dbDoc.Customized_Settings?.Visibility || dbDoc.share || {};
 
-    const reqEmail = req.query.emailId;
-    const isOwner = reqEmail && reqEmail === dbDoc.userEmail;
-    const accessMode = (vis.access || 'public').toLowerCase();
+    const reqEmail = (req.query.emailId || '').trim().toLowerCase();
+    const ownerEmail = (dbDoc.userEmail || '').trim().toLowerCase();
+    const isOwner = Boolean(reqEmail && ownerEmail && reqEmail === ownerEmail);
+    const accessMode = String(vis.access || vis.type || 'public').toLowerCase();
 
     // Publication check (Owner can view unpublished flipbook, public readers cannot view ANY unpublished flipbook)
     if (!isOwner && (dbDoc.isPublished === false || !dbDoc.isPublished)) {
@@ -2092,9 +2093,9 @@ router.get("/public/get/:shareId", async (req, res) => {
       v_id: p.v_id
     }));
 
-    // 1. Private access check
-    if (accessMode.includes('private') && (!reqEmail || reqEmail !== dbDoc.userEmail)) {
-      return res.status(403).json({ message: "This flipbook is private", isPrivate: true, accessMode: 'private' });
+    // 1. Private access check (Private flipbooks cannot be viewed via public share links)
+    if (accessMode.includes('private')) {
+      return res.status(403).json({ message: "This flipbook is private. It cannot be viewed via public link.", isPrivate: true, accessMode: 'private' });
     }
 
     // 2. Password Protect access check (Strictly require matching Access Key ONLY)

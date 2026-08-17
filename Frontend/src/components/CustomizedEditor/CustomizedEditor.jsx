@@ -136,45 +136,24 @@ const CustomizedEditor = () => {
   const [saveSuccessInfo, setSaveSuccessInfo] = useState(null);
 
   // Customization States
+  // Customization States (Loaded from currentBook/location.state synchronously, then updated via DB API)
   const [logoSettings, setLogoSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const l = parsed.logo || parsed.logoSettings || parsed.Branding?.logoSettings;
-        if (l) return l;
-      } catch (e) {
-        console.error("Failed to parse logo settings from local storage", e);
-      }
-    }
+    const cb = currentBook?.Customized_Settings?.Branding || currentBook?.settings?.Branding || currentBook?.settings || {};
+    const l = cb.logoSettings || cb.logo || location.state?.logoSettings || location.state?.logo;
+    if (l && typeof l === 'object') return l;
     return {
       src: '',
       url: '',
       type: 'Fit',
       opacity: 100,
-      adjustments: {
-        exposure: 0,
-        contrast: 0,
-        saturation: 0,
-        temperature: 0,
-        tint: 0,
-        highlights: 0,
-        shadows: 0
-      }
+      adjustments: { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 }
     };
   });
 
   const [watermarkSettings, setWatermarkSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const w = parsed.watermark || parsed.watermarkSettings || parsed.Branding?.watermarkSettings;
-        if (w) return w;
-      } catch (e) {
-        console.error("Failed to parse watermark settings", e);
-      }
-    }
+    const cb = currentBook?.Customized_Settings?.Branding || currentBook?.settings?.Branding || currentBook?.settings || {};
+    const w = cb.watermarkSettings || cb.watermark || location.state?.watermarkSettings || location.state?.watermark;
+    if (w && typeof w === 'object') return w;
     return {
       src: '',
       opacity: 64,
@@ -183,36 +162,34 @@ const CustomizedEditor = () => {
   });
 
   const [preloaderSettings, setPreloaderSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
-    if (saved) {
+    const cb = currentBook?.Customized_Settings?.Branding || currentBook?.settings?.Branding || currentBook?.settings || {};
+    const p = cb.preloaderSettings || cb.preloader || location.state?.preloaderSettings || location.state?.preloader;
+    if (p && typeof p === 'object' && Object.keys(p).length > 0) return p;
+
+    if (v_id) {
       try {
-        const parsed = JSON.parse(saved);
-        const p = parsed.preloader || parsed.preloaderSettings || parsed.Branding?.preloaderSettings;
-        if (p) return p;
-      } catch (e) {
-        console.error("Failed to parse preloader settings", e);
-      }
+        const cached = localStorage.getItem(`flipbook_preloader_${v_id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) return parsed;
+        }
+      } catch (e) {}
     }
+
     return {
-      text: 'Loading Modal Please Wait....',
-      bgColor: '#2D2F33',
-      textColor: '#ffffff',
-      spinnerColor: '#3B3C8A',
-      showPercentage: true,
-      layout: 'spinner'
+      // text: 'Loading Modal Please Wait....',
+      // bgColor: '#2D2F33',
+      // textColor: '#ffffff',
+      // spinnerColor: '#3B3C8A',
+      // showPercentage: true,
+      // layout: 'spinner'
     };
   });
 
   const [profileSettings, setProfileSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.profile) return parsed.profile;
-      } catch (e) {
-        console.error("Failed to parse profile settings from local storage", e);
-      }
-    }
+    const cb = currentBook?.Customized_Settings?.Branding || currentBook?.settings?.Branding || currentBook?.settings || {};
+    const pr = cb.profileSettings || cb.profile || location.state?.profileSettings || location.state?.profile;
+    if (pr && typeof pr === 'object') return pr;
     return {
       name: '',
       about: '',
@@ -224,18 +201,11 @@ const CustomizedEditor = () => {
   });
 
   const [backgroundSettings, setBackgroundSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.background) return parsed.background;
-      } catch (e) {
-        console.error("Failed to parse background settings from local storage", e);
-      }
-    }
+    const bg = currentBook?.Customized_Settings?.Background || currentBook?.settings?.Background || location.state?.backgroundSettings || location.state?.background;
+    if (bg && typeof bg === 'object') return bg;
     return {
       color: '#DADBE8',
-      style: 'Solid', // Solid, Gradient, Image, ReactBits
+      style: 'Solid',
       gradient: 'linear-gradient(to bottom, #b363f1ff, #a855f7)',
       image: '',
       fit: 'Cover',
@@ -246,15 +216,8 @@ const CustomizedEditor = () => {
   });
 
   const [bookAppearanceSettings, setBookAppearanceSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.appearance) return parsed.appearance;
-      } catch (e) {
-        console.error("Failed to parse appearance settings from local storage", e);
-      }
-    }
+    const app = currentBook?.Customized_Settings?.BookAppearance || currentBook?.settings?.BookAppearance || location.state?.bookAppearanceSettings || location.state?.appearance;
+    if (app && typeof app === 'object') return app;
     return {
       texture: 'Plain White',
       hardCover: false,
@@ -279,27 +242,13 @@ const CustomizedEditor = () => {
   });
 
   const [layoutSettings, setLayoutSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.layout) return parsed.layout;
-      } catch (e) {
-        console.error("Failed to parse layout settings from local storage", e);
-      }
-    }
-    return 1;
+    const lStyle = currentBook?.Customized_Settings?.Layouts?.layoutStyle || currentBook?.settings?.Layouts?.layoutStyle || location.state?.layoutSettings;
+    return lStyle !== undefined ? lStyle : 1;
   });
 
   const [layoutColors, setLayoutColors] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.layoutColors) return parsed.layoutColors;
-      } catch (e) { }
-    }
-    return {};
+    const lColors = currentBook?.Customized_Settings?.Layouts?.layoutColors || currentBook?.settings?.Layouts?.layoutColors || location.state?.layoutColors;
+    return (lColors && typeof lColors === 'object') ? lColors : {};
   });
 
   // Track background changes to trigger color extraction
@@ -417,250 +366,161 @@ const CustomizedEditor = () => {
     }
   }, [backgroundSettings.style, backgroundSettings.image, backgroundSettings.video, backgroundSettings.reactBitType]);
 
-  const [menuBarSettings, setMenuBarSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.menuBar) {
-          const mb = parsed.menuBar;
-          const navToc = mb.navigation?.tocSettings || mb.tocSettings;
-          const navBookmark = mb.navigation?.bookmarkSettings || mb.bookmarkSettings;
-          return {
-            ...mb,
-            tocSettings: navToc,
-            navigation: {
-              ...(mb.navigation || {}),
-              tocSettings: navToc,
-              bookmarkSettings: navBookmark
-            }
-          };
-        }
-      } catch (e) {
-        console.error("Failed to parse menu bar settings from local storage", e);
-      }
-    }
-    const defaultToc = {
-      addSearch: true,
-      addPageNumber: true,
-      addSerialNumberHeading: true,
-      addSerialNumberSubheading: true,
-      content: []
-    };
-    const defaultBookmark = {
-      icon: 'default',
-      font: 'Poppins',
-      color: '#C45A5A',
-      shape: 1,
-      style: 1,
-      items: []
-    };
-    return {
-      navigation: {
-        nextPrevButtons: true,
-        mouseWheel: true,
-        dragToTurn: true,
-        pageQuickAccess: true,
-        tableOfContents: true,
-        tocSettings: defaultToc,
-        pageThumbnails: true,
-        bookmark: true,
-        bookmarkSettings: defaultBookmark,
-        startEndNav: true,
-      },
-      viewing: {
-        zoom: true,
-        zoomSettings: {
-          maximumZoom: 4,
-          twoClickToZoom: true
-        },
-        fullScreen: true,
-      },
-      interaction: {
-        search: true,
-        notes: true,
-        gallery: true,
-        gallerySettings: {
-          imageFitType: 'Fill All',
-          images: [],
-          transitionEffect: 'Linear',
-          primaryColor: '#4F46E5',
-          secondaryColor: '#9CA3AF',
-          bgColor: '#FFFFFF',
-          navigationIconType: 'Chevron',
-          autoPlay: true,
-          speed: 2,
-          infiniteLoop: true,
-          showDots: true
-        }
-      },
-      media: {
-        autoFlip: true,
-        autoFlipSettings: {
-          duration: 4,
-          countdown: true
-        },
-        audio: true,
-        audioSettings: {
-          flipSound: 'Soft Paper Flip',
-          pageSpecificSound: false,
-          bgSound: 'BG Sound 1',
-          bgSoundFile: '',
-          customBgSounds: []
-        }
-      },
-      shareExport: {
-        share: true,
-        download: true
-      },
-      brandingProfile: {
-        logo: true,
-        profile: true,
-      },
-      tocSettings: defaultToc
-    };
-  });
+  const defaultToc = {
+    addSearch: true,
+    addPageNumber: true,
+    addSerialNumberHeading: true,
+    addSerialNumberSubheading: true,
+    content: []
+  };
+  const defaultBookmark = {
+    icon: 'default',
+    font: 'Poppins',
+    color: '#C45A5A',
+    shape: 1,
+    style: 1,
+    items: []
+  };
 
-  const [tocOpenTrigger, setTocOpenTrigger] = useState(0); 
-
-  const [otherSetupSettings, setOtherSetupSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.otherSetup) {
-          // Migration: remove old hardcoded Unsplash placeholder images
-          const UNSPLASH_DEFAULTS = [
-            'photo-1581450234418-ad4c9954d68b',
-            'photo-1486406146926-c627a92ad1ab',
-            'photo-1497215728101-856f4ea42174',
-            'photo-1497366216548-37526070297c',
-          ];
-          if (parsed.otherSetup.gallery?.images) {
-            parsed.otherSetup.gallery.images = parsed.otherSetup.gallery.images.filter(
-              img => !UNSPLASH_DEFAULTS.some(id => img.url?.includes(id))
-            );
-          }
-          return parsed.otherSetup;
-        }
-      } catch (e) {
-        console.error("Failed to parse other setup settings from local storage", e);
-      }
-    }
-    return {
-      toolbar: {
-        displayMode: 'icon',
-        addTextBelowIcons: false,
-        addSearchOnTop: true,
-        textProperties: { font: 'Arial', fill: '#ffffffff', stroke: '#' },
-        toolbarColor: { fill: '#3E4491', stroke: '#' },
-        iconsColor: { fill: '#ffffff', stroke: '#' },
-        processBar: { fill: '#ffffffff', stroke: '#' },
-        autoFlipEnabled: false,
-        autoFlipDuration: 2,
-        addForwardFlipCountdownLine: true,
-        nextFlipCountdown: true,
-        maximumZoom: 1,
-        twoClickToZoom: true,
+  const [menuBarSettings, setMenuBarSettings] = useState({
+    navigation: {
+      nextPrevButtons: true,
+      mouseWheel: true,
+      dragToTurn: true,
+      pageQuickAccess: true,
+      tableOfContents: true,
+      tocSettings: defaultToc,
+      pageThumbnails: true,
+      bookmark: true,
+      bookmarkSettings: defaultBookmark,
+      startEndNav: true,
+    },
+    viewing: {
+      zoom: true,
+      zoomSettings: {
+        maximumZoom: 4,
+        twoClickToZoom: true
       },
-
-      sound: {
-        flipSound: 'Soft Paper Flip',
-        flipSoundEnabled: true,
-        pageSpecificSound: false,
-        bgSound: 'BG Sound 1',
-        customBgSounds: [], // To store list of uploaded background sounds
-        bgSoundFile: null
-      },
-      gallery: {
+      fullScreen: true,
+    },
+    interaction: {
+      search: true,
+      notes: true,
+      gallery: true,
+      gallerySettings: {
+        imageFitType: 'Fill All',
+        images: [],
+        transitionEffect: 'Linear',
+        primaryColor: '#4F46E5',
+        secondaryColor: '#9CA3AF',
+        bgColor: '#FFFFFF',
+        navigationIconType: 'Chevron',
         autoPlay: true,
         speed: 2,
         infiniteLoop: true,
-        showDots: true,
-        dotColor: '#4F46E5',
-        imageFitType: 'Fill All',
-        transitionEffect: 'Linear',
-        dragToSlide: false,
-        images: [],
+        showDots: true
+      }
+    },
+    media: {
+      autoFlip: true,
+      autoFlipSettings: {
+        duration: 4,
+        countdown: true
       },
-    };
+      backgroundAudio: true,
+      audio: true,
+      audioSettings: {
+        flipSound: 'Soft Paper Flip',
+        pageSpecificSound: false,
+        bgSound: 'BG Sound 1',
+        bgSoundFile: '',
+        customBgSounds: []
+      }
+    },
+    shareExport: {
+      share: true,
+      download: true
+    },
+    brandingProfile: {
+      logo: true,
+      profile: true,
+    },
+    tocSettings: defaultToc
   });
 
-  const [leadFormSettings, setLeadFormSettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.leadForm) {
-          let lf = parsed.leadForm;
-          if (lf.fields && !Array.isArray(lf.fields)) {
-            const newFields = [];
-            if (lf.fields.name) newFields.push({ id: '1', type: 'name', placeholder: 'Enter your Name' });
-            if (lf.fields.email) newFields.push({ id: '2', type: 'email', placeholder: 'Enter your Gmail' });
-            if (lf.fields.phone) newFields.push({ id: '3', type: 'phone', placeholder: 'Enter your Phone Number' });
-            if (lf.fields.feedback) newFields.push({ id: '4', type: 'feedback', placeholder: 'Enter your Feedback' });
-            lf.fields = newFields;
-          }
-          return lf;
-        }
-      } catch (e) {
-        console.error("Failed to parse lead form settings from local storage", e);
-      }
-    }
-    return {
-      enabled: false,
-      leadText: 'Share your information to get personalized updates.',
-      fields: [
-        { id: '1', type: 'name', placeholder: 'Enter your Name' },
-        { id: '2', type: 'email', placeholder: 'Enter your Gmail' },
-        { id: '3', type: 'feedback', placeholder: 'Enter your Feedback' }
-      ],
-      appearance: {
-        timing: 'after-pages', // before, after-pages, end
-        afterPages: 4,
-        allowSkip: true,
-        fontStyle: 'Arial',
-        textFill: '#3E4491',
-        textStroke: '',
-        bgFill: '#ffffffff',
-        bgStroke: '',
-        btnFill: '#3E4491',
-        btnStroke: '',
-        btnText: 'white'
-      }
-    };
+  const [tocOpenTrigger, setTocOpenTrigger] = useState(0);
+
+  const [otherSetupSettings, setOtherSetupSettings] = useState({
+    toolbar: {
+      displayMode: 'icon',
+      addTextBelowIcons: false,
+      addSearchOnTop: true,
+      textProperties: { font: 'Arial', fill: '#ffffffff', stroke: '#' },
+      toolbarColor: { fill: '#3E4491', stroke: '#' },
+      iconsColor: { fill: '#ffffff', stroke: '#' },
+      processBar: { fill: '#ffffffff', stroke: '#' },
+      autoFlipEnabled: false,
+      autoFlipDuration: 2,
+      addForwardFlipCountdownLine: true,
+      nextFlipCountdown: true,
+      maximumZoom: 1,
+      twoClickToZoom: true,
+    },
+    sound: {
+      flipSound: 'Soft Paper Flip',
+      flipSoundEnabled: true,
+      pageSpecificSound: false,
+      bgSound: 'BG Sound 1',
+      customBgSounds: [],
+      bgSoundFile: null
+    },
+    gallery: {
+      autoPlay: true,
+      speed: 2,
+      infiniteLoop: true,
+      showDots: true,
+      dotColor: '#4F46E5',
+      imageFitType: 'Fill All',
+      transitionEffect: 'Linear',
+      dragToSlide: false,
+      images: [],
+    },
   });
 
-  const [visibilitySettings, setVisibilitySettings] = useState(() => {
-    const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.visibility) return parsed.visibility;
-      } catch (e) {
-        console.error("Failed to parse visibility settings from local storage", e);
+  const [leadFormSettings, setLeadFormSettings] = useState({
+    enabled: false,
+    leadText: 'Share your information to get personalized updates.',
+    fields: [
+      { id: '1', type: 'name', placeholder: 'Enter your Name' },
+      { id: '2', type: 'email', placeholder: 'Enter your Gmail' },
+      { id: '3', type: 'feedback', placeholder: 'Enter your Feedback' }
+    ],
+    appearance: {
+      timing: 'after-pages',
+      afterPages: 4,
+      allowSkip: true,
+      fontStyle: 'Arial',
+      textFill: '#3E4491',
+      textStroke: '',
+      bgFill: '#ffffffff',
+      bgStroke: '',
+      btnFill: '#3E4491',
+      btnStroke: '',
+      btnText: 'white'
+    }
+  });
+
+  const [visibilitySettings, setVisibilitySettings] = useState({
+    type: 'Public',
+    password: '',
+    inviteOnly: {
+      allowReAccess: true,
+      notifyOnView: true,
+      autoExpire: {
+        enabled: false,
+        duration: '0 Hr 5 Min'
       }
     }
-    return {
-      type: 'Public', // Public, Private, Password Protect, Invite only Access
-      password: '',
-      inviteOnly: {
-        allowReAccess: true,
-        notifyOnView: true,
-        autoExpire: {
-          enabled: true,
-          days: '0 Days',
-          time: '5 Mins',
-          duration: '5 Mins'
-        },
-        emails: [
-          { email: 'naveen1234@gmail.com', status: 'valid' }
-        ],
-        domains: [
-          { domain: 'fist-o.com', status: 'valid' }
-        ]
-      }
-    };
   });
 
   const [shareSettings, setShareSettings] = useState({
@@ -668,23 +528,73 @@ const CustomizedEditor = () => {
     access: 'public'
   });
 
-  // Save Appearance Logic
+  // Keep menuBarSettings.media strictly in sync with otherSetupSettings.sound
   useEffect(() => {
-    const settings = {
-      background: backgroundSettings,
-      appearance: bookAppearanceSettings,
-      layout: layoutSettings,
-      layoutColors: layoutColors
-    };
-    const key = `customized_editor_appearance_${v_id || 'default'}`;
-    try {
-      localStorage.setItem(key, JSON.stringify(settings));
-    } catch (e) {
-      console.warn("localStorage quota exceeded for appearance settings, using IndexedDB", e);
-    }
-    saveToDB(key, settings);
+    if (otherSetupSettings?.sound) {
+      setMenuBarSettings(prev => {
+        const curMedia = prev?.media || {};
+        const curAudioSet = curMedia.audioSettings || {};
+        const newAudioSet = otherSetupSettings.sound;
+        const newAudioVal = newAudioSet.bgSoundEnabled !== false;
 
-    if (v_id && isDataLoaded) {
+        if (
+          curMedia.backgroundAudio === newAudioVal &&
+          curMedia.audio === newAudioVal &&
+          curAudioSet.bgSound === newAudioSet.bgSound &&
+          curAudioSet.bgSoundFile === newAudioSet.bgSoundFile &&
+          curAudioSet.flipSound === newAudioSet.flipSound &&
+          curAudioSet.pageSpecificSound === newAudioSet.pageSpecificSound
+        ) {
+          return prev;
+        }
+
+        return {
+          ...(prev || {}),
+          media: {
+            ...curMedia,
+            backgroundAudio: newAudioVal,
+            audio: newAudioVal,
+            audioSettings: {
+              ...curAudioSet,
+              ...newAudioSet
+            }
+          }
+        };
+      });
+    }
+  }, [otherSetupSettings?.sound]);
+
+  // Keep menuBarSettings.interaction.gallerySettings strictly in sync with otherSetupSettings.gallery
+  useEffect(() => {
+    if (otherSetupSettings?.gallery?.images) {
+      setMenuBarSettings(prev => {
+        const curInteraction = prev?.interaction || {};
+        const curGallery = curInteraction.gallerySettings || {};
+        const newImages = otherSetupSettings.gallery.images;
+
+        if (JSON.stringify(curGallery.images) === JSON.stringify(newImages)) {
+          return prev;
+        }
+
+        return {
+          ...(prev || {}),
+          interaction: {
+            ...curInteraction,
+            gallerySettings: {
+              ...curGallery,
+              images: newImages
+            }
+          }
+        };
+      });
+    }
+  }, [otherSetupSettings?.gallery?.images]);
+
+  // Save Appearance Logic with Debounce
+  useEffect(() => {
+    if (!v_id || !isDataLoaded) return;
+
+    const timer = setTimeout(() => {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         try {
@@ -723,28 +633,19 @@ const CustomizedEditor = () => {
           console.error("User parse error in background auto-save", e);
         }
       }
-    }
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [backgroundSettings, bookAppearanceSettings, layoutSettings, layoutColors, v_id, isDataLoaded, folder]);
 
   const bookNameRef = useRef(bookName);
   bookNameRef.current = bookName;
 
-  // Save Setup Logic
+  // Save Setup Logic with Debounce
   useEffect(() => {
-    const settings = {
-      menuBar: menuBarSettings,
-      otherSetup: otherSetupSettings,
-      visibility: visibilitySettings,
-      leadForm: leadFormSettings
-    };
-    const key = `customized_editor_setup_${v_id || 'default'}`;
-    try {
-      localStorage.setItem(key, JSON.stringify(settings));
-    } catch (e) {
-      console.warn("localStorage quota exceeded for setup settings, using IndexedDB", e);
-    }
+    if (!v_id || !isDataLoaded) return;
 
-    if (v_id && isDataLoaded) {
+    const timer = setTimeout(() => {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         try {
@@ -768,36 +669,36 @@ const CustomizedEditor = () => {
             newName: bookNameRef.current || currentBook?.flipbookName,
             share: updatedShare,
             MenuBar: menuBarSettings,
-            settings: settings
+            otherSetup: otherSetupSettings,
+            leadForm: leadFormSettings,
+            settings: {
+              menuBar: menuBarSettings,
+              otherSetup: otherSetupSettings,
+              visibility: visibilitySettings,
+              leadForm: leadFormSettings
+            }
           }).then((res) => {
             if (res.data?.share) {
-              setShareSettings(res.data.share);
+              setShareSettings(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(res.data.share)) return prev;
+                return res.data.share;
+              });
             }
           }).catch(err => console.error("Visibility auto-save failed:", err));
         } catch (e) {
           console.error("User parse error in visibility auto-save", e);
         }
       }
-    }
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [menuBarSettings, otherSetupSettings, leadFormSettings, isDataLoaded, v_id, folder, shareSettings, visibilitySettings, currentBook]);
 
-  // Save Branding Logic
+  // Save Branding Logic with Debounce
   useEffect(() => {
-    const settings = {
-      logo: logoSettings,
-      watermark: watermarkSettings,
-      preloader: preloaderSettings,
-      profile: profileSettings
-    };
-    const key = `customized_editor_branding_${v_id || 'default'}`;
-    try {
-      localStorage.setItem(key, JSON.stringify(settings));
-    } catch (e) {
-      console.warn("localStorage quota exceeded for branding settings, using IndexedDB", e);
-    }
-    saveToDB(key, settings);
+    if (!v_id || !isDataLoaded) return;
 
-    if (v_id && isDataLoaded) {
+    const timer = setTimeout(() => {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         try {
@@ -805,17 +706,6 @@ const CustomizedEditor = () => {
           const userEmail = user?.emailId || user?.email;
           if (!userEmail) return;
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-          axios.post(`${backendUrl}/api/flipbook/branding`, {
-            action: 'save',
-            emailId: userEmail,
-            v_id: v_id,
-            folderName: folder || 'Recent Book',
-            bookName: bookNameRef.current || bookName,
-            logoSettings,
-            watermarkSettings,
-            preloaderSettings,
-            profileSettings
-          }).catch(err => console.warn("Branding API auto-save warning:", err));
 
           axios.post(`${backendUrl}/api/flipbook/update-settings`, {
             emailId: userEmail,
@@ -826,15 +716,96 @@ const CustomizedEditor = () => {
             Branding: {
               logoSettings,
               watermarkSettings,
-              preloaderSettings
+              preloaderSettings,
+              profileSettings
             }
           }).catch(err => console.warn("Branding auto-save warning:", err));
         } catch (e) {
           console.error("User parse error in branding auto-save", e);
         }
       }
-    }
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [logoSettings, watermarkSettings, preloaderSettings, profileSettings, v_id, isDataLoaded, folder]);
+
+  // Auto-save & Real-time preview sync for otherSetupSettings (Gallery, Slide Effect, Popup Customization, Controls, etc.)
+  useEffect(() => {
+    if (!isDataLoaded || !otherSetupSettings) return;
+
+    // Real-time sync gallery to menuBarSettings for live preview
+    if (otherSetupSettings.gallery) {
+      setMenuBarSettings(prev => {
+        const curGallery = prev?.interaction?.gallerySettings || {};
+        const newGallery = otherSetupSettings.gallery;
+        if (
+          curGallery.primaryColor === newGallery.primaryColor &&
+          curGallery.secondaryColor === newGallery.secondaryColor &&
+          curGallery.bgColor === newGallery.bgColor &&
+          curGallery.transitionEffect === newGallery.transitionEffect &&
+          curGallery.speed === newGallery.speed &&
+          curGallery.autoPlay === newGallery.autoPlay &&
+          curGallery.autoSlide === newGallery.autoSlide &&
+          curGallery.infiniteLoop === newGallery.infiniteLoop &&
+          curGallery.showDots === newGallery.showDots &&
+          curGallery.navStyle === newGallery.navStyle &&
+          curGallery.images === newGallery.images
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          interaction: {
+            ...prev?.interaction,
+            gallerySettings: {
+              ...curGallery,
+              ...newGallery
+            }
+          }
+        };
+      });
+    }
+
+    // Debounced Auto-save to MongoDB
+    const timer = setTimeout(() => {
+      if (!v_id) return;
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+      try {
+        const user = JSON.parse(storedUser);
+        const userEmail = user?.emailId || user?.email;
+        if (!userEmail) return;
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+        const mergedGallery = {
+          ...(menuBarSettings?.interaction?.gallerySettings || {}),
+          ...(otherSetupSettings?.gallery || {})
+        };
+
+        axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+          emailId: userEmail,
+          v_id: v_id,
+          folderName: folder || 'Recent Book',
+          bookName: bookNameRef.current || bookName,
+          otherSetup: {
+            ...otherSetupSettings,
+            gallery: mergedGallery
+          },
+          MenuBar: {
+            ...menuBarSettings,
+            interaction: {
+              ...menuBarSettings?.interaction,
+              gallerySettings: mergedGallery
+            }
+          }
+        }).catch(err => console.warn("otherSetup auto-save warning:", err));
+      } catch (e) {
+        console.error("Auto-save error for otherSetup", e);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [otherSetupSettings, isDataLoaded, v_id, folder, bookName]);
 
   // Save Bookmarks and Notes Logic
   useEffect(() => {
@@ -863,7 +834,8 @@ const CustomizedEditor = () => {
 
       const prevBookName = lastLoadedBookNameRef.current || currentBook?.flipbookName;
       const validBookName = bookName || currentBook?.flipbookName || currentBook?.title || (v_id ? decodeURIComponent(v_id) : 'Untitled Document');
-      const isRenamed = prevBookName && prevBookName !== validBookName && prevBookName !== 'Name of the Book';
+      const newBookName = validBookName;
+      const isRenamed = prevBookName && prevBookName !== newBookName && prevBookName !== 'Name of the Book';
 
       // 1. Save flipbook pages and structure to /api/flipbook/save (same as main editor)
       if (pages && pages.length > 0 && validBookName) {
@@ -887,6 +859,32 @@ const CustomizedEditor = () => {
         });
       }
 
+      // Ensure all gallery settings, popup customization, and control properties are fully synced in payload
+      const rawGalleryImages = (otherSetupSettings?.gallery?.images && otherSetupSettings.gallery.images.length > 0)
+        ? otherSetupSettings.gallery.images
+        : (menuBarSettings?.interaction?.gallerySettings?.images || []);
+
+      const effectiveGalleryImages = rawGalleryImages.filter(img => img && img.url && !img.url.startsWith('blob:'));
+
+      const mergedGallerySettings = {
+        ...(menuBarSettings?.interaction?.gallerySettings || {}),
+        ...(otherSetupSettings?.gallery || {}),
+        images: effectiveGalleryImages
+      };
+
+      const syncedMenuBarSettings = {
+        ...menuBarSettings,
+        interaction: {
+          ...menuBarSettings?.interaction,
+          gallerySettings: mergedGallerySettings
+        }
+      };
+
+      const syncedOtherSetupSettings = {
+        ...otherSetupSettings,
+        gallery: mergedGallerySettings
+      };
+
       // 2. Save customization settings
       const payload = {
         emailId: userEmail,
@@ -907,14 +905,18 @@ const CustomizedEditor = () => {
           Branding: {
             logoSettings,
             watermarkSettings,
-            preloaderSettings
+            preloaderSettings,
+            profileSettings
           },
           Background: backgroundSettings,
-          MenuBar: menuBarSettings,
+          MenuBar: syncedMenuBarSettings,
+          otherSetup: syncedOtherSetupSettings,
+          leadForm: leadFormSettings,
           Layouts: {
             layoutStyle: layoutSettings,
             layoutColors: layoutColors
-          }
+          },
+          BookAppearance: bookAppearanceSettings
         },
         settings: {
           logo: logoSettings,
@@ -924,8 +926,10 @@ const CustomizedEditor = () => {
           background: backgroundSettings,
           appearance: bookAppearanceSettings,
           layout: layoutSettings,
-          menubar: menuBarSettings,
-          othersetup: otherSetupSettings,
+          menubar: syncedMenuBarSettings,
+          otherSetup: syncedOtherSetupSettings,
+          othersetup: syncedOtherSetupSettings,
+          leadForm: leadFormSettings,
           leadform: leadFormSettings,
           visibility: visibilitySettings,
           bookmarks: bookmarks,
@@ -1266,40 +1270,31 @@ const CustomizedEditor = () => {
         }
       }
 
-      // Check for synced settings from TemplateEditor or other sessions
-      const appearance = await getFromDB(`customized_editor_appearance_${v_id || 'default'}`);
-      if (appearance) {
-        if (appearance.background) setBackgroundSettings(appearance.background);
-        if (appearance.appearance) setBookAppearanceSettings(appearance.appearance);
-        if (appearance.layout) setLayoutSettings(appearance.layout);
-        if (appearance.layoutColors) setLayoutColors(appearance.layoutColors);
-      }
-
-      const branding = await getFromDB(`customized_editor_branding_${v_id || 'default'}`);
-      if (branding) {
-        if (branding.logo) setLogoSettings(branding.logo);
-        if (branding.watermark) setWatermarkSettings(branding.watermark);
-        if (branding.preloader) setPreloaderSettings(branding.preloader);
-        if (branding.profile) setProfileSettings(branding.profile);
-      }
-
-      const setup = await getFromDB(`customized_editor_setup_${v_id || 'default'}`);
-      if (setup) {
-        if (setup.menuBar) setMenuBarSettings(setup.menuBar);
-        if (setup.otherSetup) setOtherSetupSettings(setup.otherSetup);
-        if (setup.leadForm) {
-          let lf = setup.leadForm;
-          if (lf.fields && !Array.isArray(lf.fields)) {
-            const newFields = [];
-            if (lf.fields.name) newFields.push({ id: '1', type: 'name', placeholder: 'Enter your Name' });
-            if (lf.fields.email) newFields.push({ id: '2', type: 'email', placeholder: 'Enter your Gmail' });
-            if (lf.fields.phone) newFields.push({ id: '3', type: 'phone', placeholder: 'Enter your Phone Number' });
-            if (lf.fields.feedback) newFields.push({ id: '4', type: 'feedback', placeholder: 'Enter your Feedback' });
-            lf.fields = newFields;
-          }
-          setLeadFormSettings(lf);
+      // Only load from local IndexedDB if there is NO v_id (new unsaved draft)
+      if (!v_id) {
+        const appearance = await getFromDB(`customized_editor_appearance_default`);
+        if (appearance) {
+          if (appearance.background) setBackgroundSettings(appearance.background);
+          if (appearance.appearance) setBookAppearanceSettings(appearance.appearance);
+          if (appearance.layout) setLayoutSettings(appearance.layout);
+          if (appearance.layoutColors) setLayoutColors(appearance.layoutColors);
         }
-        if (setup.visibility) setVisibilitySettings(setup.visibility);
+
+        const branding = await getFromDB(`customized_editor_branding_default`);
+        if (branding) {
+          if (branding.logo) setLogoSettings(branding.logo);
+          if (branding.watermark) setWatermarkSettings(branding.watermark);
+          if (branding.preloader) setPreloaderSettings(branding.preloader);
+          if (branding.profile) setProfileSettings(branding.profile);
+        }
+
+        const setup = await getFromDB(`customized_editor_setup_default`);
+        if (setup) {
+          if (setup.menuBar) setMenuBarSettings(setup.menuBar);
+          if (setup.otherSetup) setOtherSetupSettings(setup.otherSetup);
+          if (setup.leadForm) setLeadFormSettings(setup.leadForm);
+          if (setup.visibility) setVisibilitySettings(setup.visibility);
+        }
       }
 
       if (v_id) {
@@ -1361,16 +1356,28 @@ const CustomizedEditor = () => {
                 setPages(mappedPages);
               }
 
-            // ALWAYS load settings from backend
-            const customizedBranding = res.data.Customized_Settings?.Branding || res.data.settings?.Branding;
-            if (customizedBranding) {
-              if (customizedBranding.logoSettings) setLogoSettings(customizedBranding.logoSettings);
-              if (customizedBranding.watermarkSettings) setWatermarkSettings(customizedBranding.watermarkSettings);
-              if (customizedBranding.preloaderSettings) {
-                setPreloaderSettings(customizedBranding.preloaderSettings);
-                if (v_id) try { localStorage.setItem(`flipbook_preloader_${v_id}`, JSON.stringify(customizedBranding.preloaderSettings)); } catch (e) {}
+            // ALWAYS load settings directly from backend
+            const cs = res.data.Customized_Settings || res.data.settings || {};
+            const cb = cs.Branding || cs.branding || res.data.Branding || res.data.branding || {};
+
+            const lVal = cb.logoSettings || cb.logo || cs.logoSettings || cs.logo || res.data.logoSettings || res.data.logo;
+            if (lVal && typeof lVal === 'object') setLogoSettings(lVal);
+
+            const wVal = cb.watermarkSettings || cb.watermark || cs.watermarkSettings || cs.watermark || res.data.watermarkSettings || res.data.watermark;
+            if (wVal && typeof wVal === 'object') setWatermarkSettings(wVal);
+
+            const pVal = cb.preloaderSettings || cb.preloader || cs.preloaderSettings || cs.preloader || res.data.preloaderSettings || res.data.preloader;
+            if (pVal && typeof pVal === 'object') {
+              setPreloaderSettings(pVal);
+              if (v_id) {
+                try {
+                  localStorage.setItem(`flipbook_preloader_${v_id}`, JSON.stringify(pVal));
+                } catch (e) {}
               }
             }
+
+            const prVal = cb.profileSettings || cb.profile || cs.profileSettings || cs.profile || res.data.profileSettings || res.data.profile;
+            if (prVal && typeof prVal === 'object') setProfileSettings(prVal);
             const customizedBackground = res.data.Customized_Settings?.Background || res.data.settings?.Background;
             if (customizedBackground) {
               setBackgroundSettings(customizedBackground);
@@ -1381,59 +1388,131 @@ const CustomizedEditor = () => {
               if (styleVal !== undefined) setLayoutSettings(styleVal);
               if (loadedLayouts.layoutColors) setLayoutColors(loadedLayouts.layoutColors);
             }
+            const customizedAppearance = res.data.Customized_Settings?.BookAppearance || res.data.Customized_Settings?.bookAppearance || res.data.Customized_Settings?.appearance || res.data.settings?.appearance || res.data.settings?.bookAppearanceSettings;
+            if (customizedAppearance) {
+              setBookAppearanceSettings(customizedAppearance);
+            }
             if (res.data.settings) {
-              if (res.data.settings.logo && (!customizedBranding || !customizedBranding.logoSettings)) setLogoSettings(res.data.settings.logo);
-              if (res.data.settings.watermark && (!customizedBranding || !customizedBranding.watermarkSettings)) setWatermarkSettings(res.data.settings.watermark);
-              if (res.data.settings.preloader && (!customizedBranding || !customizedBranding.preloaderSettings)) {
-                setPreloaderSettings(res.data.settings.preloader);
-                if (v_id) try { localStorage.setItem(`flipbook_preloader_${v_id}`, JSON.stringify(res.data.settings.preloader)); } catch (e) {}
-              }
-              if (res.data.settings.profile) setProfileSettings(res.data.settings.profile);
               if (res.data.settings.background && !customizedBackground) setBackgroundSettings(res.data.settings.background);
               if (res.data.settings.appearance) setBookAppearanceSettings(res.data.settings.appearance);
               if (res.data.settings.layout && (!loadedLayouts || (loadedLayouts.layoutStyle === undefined && loadedLayouts.style === undefined))) {
                 setLayoutSettings(res.data.settings.layout);
               }
             }
-              const loadedMenuBar = res.data.Customized_Settings?.MenuBar || res.data.settings?.MenuBar || res.data.settings?.menubar;
-              if (loadedMenuBar) {
-                const navAddTextToIcons = loadedMenuBar.navigation?.addTextToIconsSettings || loadedMenuBar.addTextToIconsSettings || {
-                  font: 'Arial'
+            const loadedMenuBar = res.data.Customized_Settings?.MenuBar || res.data.settings?.MenuBar || res.data.settings?.menubar;
+            const loadedOtherSetup = res.data.Customized_Settings?.otherSetup || res.data.settings?.otherSetup || res.data.settings?.othersetup;
+
+            if (loadedMenuBar || loadedOtherSetup) {
+                const mediaObj = loadedMenuBar?.media || {};
+                const audioVal = mediaObj.audio !== undefined
+                  ? Boolean(mediaObj.audio)
+                  : (mediaObj.backgroundAudio !== undefined ? Boolean(mediaObj.backgroundAudio) : true);
+
+                const rawCustomBgSounds = (Array.isArray(loadedOtherSetup?.sound?.customBgSounds) && loadedOtherSetup.sound.customBgSounds.length > 0)
+                  ? loadedOtherSetup.sound.customBgSounds
+                  : (Array.isArray(mediaObj.audioSettings?.customBgSounds) ? mediaObj.audioSettings.customBgSounds : []);
+
+                const audioCustomBgSounds = rawCustomBgSounds.map((item, idx) => ({
+                  ...item,
+                  label: item.label || item.id || item.name || `BG Sound ${idx + 5}`
+                }));
+
+                const audioSet = {
+                  ...(mediaObj.audioSettings || {}),
+                  ...(loadedOtherSetup?.sound || {}),
+                  customBgSounds: audioCustomBgSounds
                 };
-                const navToc = loadedMenuBar.navigation?.tocSettings || loadedMenuBar.tocSettings || {
-                  addSearch: true,
-                  addPageNumber: true,
-                  addSerialNumberHeading: true,
-                  addSerialNumberSubheading: true,
-                  content: []
-                };
-                const navBookmark = loadedMenuBar.navigation?.bookmarkSettings || loadedMenuBar.bookmarkSettings || {
-                  icon: 'default',
-                  font: 'Poppins',
-                  color: '#C45A5A',
-                  shape: 1,
-                  style: 1,
-                  items: []
-                };
-                setMenuBarSettings({
-                  ...loadedMenuBar,
-                  addTextToIconsSettings: navAddTextToIcons,
-                  tocSettings: navToc,
-                  navigation: {
-                    ...(loadedMenuBar.navigation || {}),
+
+                const navAddTextToIcons = loadedMenuBar?.navigation?.addTextToIconsSettings || loadedMenuBar?.addTextToIconsSettings || { font: 'Arial' };
+                const navToc = loadedMenuBar?.navigation?.tocSettings || loadedMenuBar?.tocSettings || { addSearch: true, addPageNumber: true, addSerialNumberHeading: true, addSerialNumberSubheading: true, content: [] };
+                const navBookmark = loadedMenuBar?.navigation?.bookmarkSettings || loadedMenuBar?.bookmarkSettings || { icon: 'default', font: 'Poppins', color: '#C45A5A', shape: 1, style: 1, items: [] };
+
+                const loadedGalleryImgs = (Array.isArray(loadedOtherSetup?.gallery?.images) && loadedOtherSetup.gallery.images.length > 0)
+                  ? loadedOtherSetup.gallery.images
+                  : (Array.isArray(loadedMenuBar?.interaction?.gallerySettings?.images) ? loadedMenuBar.interaction.gallerySettings.images : []);
+
+                if (loadedMenuBar) {
+                  setMenuBarSettings({
+                    ...loadedMenuBar,
+                    interaction: {
+                      ...(loadedMenuBar.interaction || {}),
+                      gallerySettings: {
+                        imageFitType: 'Fill All',
+                        transitionEffect: 'Linear',
+                        primaryColor: '#4F46E5',
+                        secondaryColor: '#9CA3AF',
+                        bgColor: '#FFFFFF',
+                        navigationIconType: 'Chevron',
+                        autoPlay: true,
+                        speed: 2,
+                        infiniteLoop: true,
+                        showDots: true,
+                        ...(loadedMenuBar.interaction?.gallerySettings || {}),
+                        images: loadedGalleryImgs
+                      }
+                    },
+                    media: {
+                      autoFlip: true,
+                      ...(mediaObj || {}),
+                      audio: audioVal,
+                      backgroundAudio: audioVal,
+                      audioSettings: {
+                        bgSound: audioSet.bgSound || 'BG Sound 1',
+                        bgSoundFile: audioSet.bgSoundFile || '',
+                        customBgSounds: audioCustomBgSounds,
+                        flipSound: audioSet.flipSound || 'Soft Paper Flip',
+                        pageSpecificSound: Boolean(audioSet.pageSpecificSound)
+                      }
+                    },
                     addTextToIconsSettings: navAddTextToIcons,
                     tocSettings: navToc,
-                    bookmarkSettings: navBookmark
+                    navigation: {
+                      ...(loadedMenuBar.navigation || {}),
+                      addTextToIconsSettings: navAddTextToIcons,
+                      tocSettings: navToc,
+                      bookmarkSettings: navBookmark
+                    }
+                  });
+                }
+
+                const loadedGallerySettings = {
+                  ...(loadedMenuBar?.interaction?.gallerySettings || {}),
+                  ...(loadedOtherSetup?.gallery || {})
+                };
+
+                setOtherSetupSettings(prev => ({
+                  ...(prev || {}),
+                  ...(loadedOtherSetup || {}),
+                  gallery: {
+                    ...(prev?.gallery || {}),
+                    ...loadedGallerySettings,
+                    transitionEffect: loadedGallerySettings.transitionEffect || prev?.gallery?.transitionEffect || 'Linear',
+                    primaryColor: loadedGallerySettings.primaryColor || prev?.gallery?.primaryColor || '#575C9C',
+                    secondaryColor: loadedGallerySettings.secondaryColor || prev?.gallery?.secondaryColor || '#9B9B9B',
+                    bgColor: loadedGallerySettings.bgColor || prev?.gallery?.bgColor || '#FFFFFF',
+                    navStyle: loadedGallerySettings.navStyle || loadedGallerySettings.navigationIconType || prev?.gallery?.navStyle || 1,
+                    autoSlide: loadedGallerySettings.autoSlide ?? loadedGallerySettings.autoPlay ?? prev?.gallery?.autoSlide ?? true,
+                    autoPlay: loadedGallerySettings.autoPlay ?? loadedGallerySettings.autoSlide ?? prev?.gallery?.autoPlay ?? true,
+                    speed: loadedGallerySettings.speed ?? prev?.gallery?.speed ?? 2,
+                    infiniteLoop: loadedGallerySettings.infiniteLoop ?? prev?.gallery?.infiniteLoop ?? true,
+                    showDots: loadedGallerySettings.showDots ?? prev?.gallery?.showDots ?? true,
+                    images: loadedGalleryImgs
+                  },
+                  sound: {
+                    ...(prev?.sound || {}),
+                    ...(loadedOtherSetup?.sound || {}),
+                    bgSound: audioSet.bgSound || loadedOtherSetup?.sound?.bgSound || prev?.sound?.bgSound || 'BG Sound 1',
+                    bgSoundFile: audioSet.bgSoundFile || loadedOtherSetup?.sound?.bgSoundFile || prev?.sound?.bgSoundFile || '',
+                    customBgSounds: audioCustomBgSounds,
+                    flipSound: audioSet.flipSound || loadedOtherSetup?.sound?.flipSound || prev?.sound?.flipSound || 'Soft Paper Flip',
+                    pageSpecificSound: audioSet.pageSpecificSound !== undefined ? Boolean(audioSet.pageSpecificSound) : Boolean(loadedOtherSetup?.sound?.pageSpecificSound ?? prev?.sound?.pageSpecificSound),
+                    bgSoundEnabled: audioVal
                   }
-                });
+                }));
               }
-              if (res.data.settings.othersetup) {
-                const setup = res.data.settings.othersetup;
-                if (setup.sound && !setup.sound.customBgSounds) setup.sound.customBgSounds = [];
-                setOtherSetupSettings(setup);
-              }
-              if (res.data.settings.leadform) {
-                let lf = res.data.settings.leadform;
+              const loadedLeadForm = res.data.Customized_Settings?.leadForm || res.data.settings?.leadForm || res.data.settings?.leadform;
+              if (loadedLeadForm) {
+                let lf = { ...loadedLeadForm };
                 if (lf.fields && !Array.isArray(lf.fields)) {
                   const newFields = [];
                   if (lf.fields.name) newFields.push({ id: '1', type: 'name', placeholder: 'Enter your Name' });
@@ -1444,9 +1523,10 @@ const CustomizedEditor = () => {
                 }
                 setLeadFormSettings(lf);
               }
-              if (res.data.settings.visibility) setVisibilitySettings(res.data.settings.visibility);
-              if (res.data.settings.bookmarks) setBookmarks(res.data.settings.bookmarks);
-              if (res.data.settings.notes) setNotes(res.data.settings.notes);
+              const loadedVisibility = res.data.Customized_Settings?.Visibility || res.data.settings?.visibility || res.data.settings?.Visibility;
+              if (loadedVisibility) setVisibilitySettings(loadedVisibility);
+              if (res.data.settings?.bookmarks) setBookmarks(res.data.settings.bookmarks);
+              if (res.data.settings?.notes) setNotes(res.data.settings.notes);
             let shareData = res.data.share;
             if (!shareData || !shareData.shareId) {
               const newShareId = Math.random().toString(36).substring(2, 14);
@@ -1538,11 +1618,11 @@ const CustomizedEditor = () => {
             type={activeSubView}
             onBack={handleBack}
             logoSettings={logoSettings}
-            onUpdateLogo={setLogoSettings}
+            onUpdateLogo={(newVal) => setLogoSettings(prev => ({ ...(prev || {}), ...(newVal || {}) }))}
             watermarkSettings={watermarkSettings}
-            onUpdateWatermark={setWatermarkSettings}
+            onUpdateWatermark={(newVal) => setWatermarkSettings(prev => ({ ...(prev || {}), ...(newVal || {}) }))}
             preloaderSettings={preloaderSettings}
-            onUpdatePreloader={setPreloaderSettings}
+            onUpdatePreloader={(newVal) => setPreloaderSettings(prev => ({ ...(prev || {}), ...(newVal || {}) }))}
             folder={folder}
             flipbookName={bookName}
             v_id={v_id}
@@ -1769,8 +1849,8 @@ const CustomizedEditor = () => {
             <div 
               className="absolute inset-0 z-50 flex flex-col items-center justify-center transition-all duration-300"
               style={{
-                backgroundColor: preloaderSettings?.bgColor || '#ffffff',
-                color: preloaderSettings?.textColor || '#374151'
+                backgroundColor: preloaderSettings?.bgColor || '#2D2F33',
+                color: preloaderSettings?.textColor || '#ffffff'
               }}
             >
               <div className="flex flex-col items-center gap-4">
@@ -1818,7 +1898,7 @@ const CustomizedEditor = () => {
                   className="font-semibold text-[0.9vw]"
                   style={{ fontFamily: preloaderSettings?.font || 'Poppins' }}
                 >
-                  {preloaderSettings?.text || 'Loading Flipbook...'}
+                  {preloaderSettings?.text || 'Loading Modal Please Wait....'}
                 </p>
               </div>
             </div>

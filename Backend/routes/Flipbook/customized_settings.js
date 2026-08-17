@@ -7,6 +7,7 @@ import multer from "multer";
 import { nanoid } from "nanoid";
 import Flipbook from "../../models/Flipbook.js";
 import FlipbookAsset from "../../models/FlipbookAsset.js";
+import Lead from "../../models/Lead.js";
 import {
   uploadFileToSupabase,
   uploadBufferToSupabase,
@@ -236,7 +237,7 @@ router.post("/upload-customized-asset", (req, res) => {
     }
 
     try {
-      const { emailId, assetType, folderName, flipbookName } = req.body;
+      const { emailId, assetType, folderName, flipbookName, v_id } = req.body;
       if (!emailId || !req.file) {
         cleanupTempFile(req.file);
         return res.status(400).json({ message: "Missing required fields" });
@@ -244,23 +245,23 @@ router.post("/upload-customized-asset", (req, res) => {
 
       const typeFolder = getAssetTypeFolder(assetType);
       const sanitizedEmail = sanitizeEmail(emailId);
-      const physicalFolder = sanitizePathSegment(folderName, "My_Flipbooks");
-      const bookName = sanitizePathSegment(flipbookName, "Untitled Document");
+      const { physicalFolder, bookName } = await resolveFlipbookPaths(v_id, folderName, flipbookName);
 
       const fileName = req.file.filename;
       const supabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolder}/${bookName}/customized_assets/${typeFolder}/${fileName}`;
 
-      await uploadFileToSupabase(req.file.path, supabasePath).catch((err) =>
-        console.warn("[Supabase] Customized asset upload warning:", err)
-      );
+      const uploadedPublicUrl = await uploadFileToSupabase(req.file.path, supabasePath).catch((err) => {
+        console.warn("[Supabase] Customized asset upload warning:", err);
+        return null;
+      });
 
       cleanupTempFile(req.file);
 
-      const cdnUrl = rewriteUploadsToSupabase(`/uploads/${supabasePath}`);
+      const finalPublicUrl = uploadedPublicUrl || getSupabasePublicUrl(supabasePath) || rewriteUploadsToSupabase(`/uploads/${supabasePath}`);
 
       return res.status(200).json({
         message: "Customized asset uploaded successfully",
-        url: cdnUrl,
+        url: finalPublicUrl,
         fileName,
         assetType: typeFolder,
         supabasePath
@@ -271,6 +272,30 @@ router.post("/upload-customized-asset", (req, res) => {
       return res.status(500).json({ message: "Internal server error", error: err.message });
     }
   });
+});
+
+// @route   POST /api/flipbook/delete-customized-asset
+router.post("/delete-customized-asset", async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({ message: "Asset URL is required" });
+    }
+
+    if (url.includes("/customized_assets/") || url.includes("supabase.co") || url.includes("/uploads/")) {
+      await deleteFileFromSupabase(url).catch((err) =>
+        console.warn("[Supabase] Direct delete asset warning:", err)
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Asset deleted from Supabase successfully"
+    });
+  } catch (err) {
+    console.error("Error deleting customized asset:", err);
+    return res.status(500).json({ message: "Internal server error", error: err.message });
+  }
 });
 
 // @route   GET & POST /api/flipbook/branding
@@ -480,16 +505,11 @@ router.route("/branding")
 
         let processedLogo = logoSettings ? { ...logoSettings } : undefined;
         if (processedLogo) {
-          if (processedLogo.src) {
+          if (processedLogo.src && typeof processedLogo.src === 'string' && processedLogo.src.trim() !== '') {
             processedLogo.src = await ensureBrandingAssetInSupabase(processedLogo.src, sanitizedEmail, physicalFolder, bookName, 'Logo');
           }
-          if (processedLogo.url) {
+          if (processedLogo.url && typeof processedLogo.url === 'string' && processedLogo.url.startsWith('data:')) {
             processedLogo.url = await ensureBrandingAssetInSupabase(processedLogo.url, sanitizedEmail, physicalFolder, bookName, 'Logo');
-          }
-          if (processedLogo.src && !processedLogo.url) {
-            processedLogo.url = processedLogo.src;
-          } else if (!processedLogo.src && processedLogo.url) {
-            processedLogo.src = processedLogo.url;
           }
         }
 
@@ -919,7 +939,13 @@ router.post("/update-settings", async (req, res) => {
       return res.status(400).json({ message: "Missing emailId or v_id" });
     }
 
-    const existingDoc = await Flipbook.findOne({ userEmail: emailId, v_id });
+    let existingDoc = null;
+    if (v_id) {
+      existingDoc = await Flipbook.findOne({ v_id });
+    }
+    if (!existingDoc && emailId) {
+      existingDoc = await Flipbook.findOne({ userEmail: new RegExp(`^${emailId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+    }
     const updateData = {};
 
     const incomingSettings = Customized_Settings || settings;
@@ -933,9 +959,12 @@ router.post("/update-settings", async (req, res) => {
 
       let finalVis = currentVis;
       if (incomingVis) {
+        const accVal = incomingVis.access || incomingVis.type || currentVis.access || currentVis.type || 'Public';
         finalVis = {
           ...currentVis,
           ...incomingVis,
+          access: accVal,
+          type: accVal,
           shareId: incomingVis.shareId || currentVis.shareId || nanoid(12)
         };
 
@@ -1047,40 +1076,33 @@ router.post("/update-settings", async (req, res) => {
         const incWatermark = rawBranding.watermarkSettings !== undefined ? rawBranding.watermarkSettings : (rawBranding.watermark !== undefined ? rawBranding.watermark : cleanIncoming.watermarkSettings);
         const incPreloader = rawBranding.preloaderSettings !== undefined ? rawBranding.preloaderSettings : (rawBranding.preloader !== undefined ? rawBranding.preloader : cleanIncoming.preloaderSettings);
 
-        let newLogo = currentBranding.logoSettings || {};
-        if (incLogo !== undefined) {
-          if (!incLogo || (incLogo.src === '' && incLogo.url === '') || (incLogo.src === null && incLogo.url === null)) {
-            newLogo = { ...incLogo, src: '', url: '' };
-          } else {
-            newLogo = { ...(currentBranding.logoSettings || {}), ...incLogo };
-            if (incLogo.src === '' || incLogo.src === null) {
-              newLogo.src = '';
-              newLogo.url = '';
-            }
-          }
+        const incProfile = rawBranding.profileSettings !== undefined ? rawBranding.profileSettings : (rawBranding.profile !== undefined ? rawBranding.profile : cleanIncoming.profileSettings);
+
+        let newLogo = { ...(currentBranding.logoSettings || {}) };
+        if (incLogo && typeof incLogo === 'object') {
+          newLogo = { ...newLogo, ...incLogo };
         }
 
-        let newWatermark = currentBranding.watermarkSettings || {};
-        if (incWatermark !== undefined) {
-          if (!incWatermark || incWatermark.src === '' || incWatermark.src === null) {
-            newWatermark = { ...incWatermark, src: '' };
-          } else {
-            newWatermark = { ...(currentBranding.watermarkSettings || {}), ...incWatermark };
-            if (incWatermark.src === '' || incWatermark.src === null) {
-              newWatermark.src = '';
-            }
-          }
+        let newWatermark = { ...(currentBranding.watermarkSettings || {}) };
+        if (incWatermark && typeof incWatermark === 'object') {
+          newWatermark = { ...newWatermark, ...incWatermark };
         }
 
-        let newPreloader = currentBranding.preloaderSettings || {};
-        if (incPreloader !== undefined) {
-          newPreloader = { ...(currentBranding.preloaderSettings || {}), ...incPreloader };
+        let newPreloader = { ...(currentBranding.preloaderSettings || {}) };
+        if (incPreloader && typeof incPreloader === 'object') {
+          newPreloader = { ...newPreloader, ...incPreloader };
+        }
+
+        let newProfile = { ...(currentBranding.profileSettings || {}) };
+        if (incProfile && typeof incProfile === 'object') {
+          newProfile = { ...newProfile, ...incProfile };
         }
 
         mergedBranding = {
           logoSettings: newLogo,
           watermarkSettings: newWatermark,
-          preloaderSettings: newPreloader
+          preloaderSettings: newPreloader,
+          profileSettings: newProfile
         };
       }
 
@@ -1088,16 +1110,11 @@ router.post("/update-settings", async (req, res) => {
       const { physicalFolder, bookName } = await resolveFlipbookPaths(v_id, req.body.folderName, newName || existingDoc?.flipbookName);
 
       if (mergedBranding.logoSettings) {
-        if (mergedBranding.logoSettings.src && mergedBranding.logoSettings.src.trim() !== '') {
+        if (mergedBranding.logoSettings.src && typeof mergedBranding.logoSettings.src === 'string' && mergedBranding.logoSettings.src.trim() !== '') {
           mergedBranding.logoSettings.src = await ensureBrandingAssetInSupabase(mergedBranding.logoSettings.src, sanitizedEmail, physicalFolder, bookName, 'Logo');
         }
-        if (mergedBranding.logoSettings.url && mergedBranding.logoSettings.url.trim() !== '') {
+        if (mergedBranding.logoSettings.url && typeof mergedBranding.logoSettings.url === 'string' && mergedBranding.logoSettings.url.startsWith('data:')) {
           mergedBranding.logoSettings.url = await ensureBrandingAssetInSupabase(mergedBranding.logoSettings.url, sanitizedEmail, physicalFolder, bookName, 'Logo');
-        }
-        if (mergedBranding.logoSettings.src && !mergedBranding.logoSettings.url) {
-          mergedBranding.logoSettings.url = mergedBranding.logoSettings.src;
-        } else if (!mergedBranding.logoSettings.src && mergedBranding.logoSettings.url) {
-          mergedBranding.logoSettings.src = mergedBranding.logoSettings.url;
         }
       }
 
@@ -1141,9 +1158,51 @@ router.post("/update-settings", async (req, res) => {
       const currentMenuBar = cleanCurrent.MenuBar || cleanCurrent.menuBar || existingDoc?.Customized_Settings?.MenuBar || {};
       let mergedMenuBar = currentMenuBar;
       if (incomingMenuBar) {
+        const incMedia = incomingMenuBar.media || {};
+        const curMedia = currentMenuBar.media || {};
+        const bgAudioVal = incMedia.backgroundAudio !== undefined
+          ? Boolean(incMedia.backgroundAudio)
+          : (incMedia.audio !== undefined ? Boolean(incMedia.audio) : (curMedia.backgroundAudio ?? curMedia.audio ?? true));
+
+        const incAudioSet = incMedia.audioSettings || req.body.otherSetup?.sound || cleanIncoming.otherSetup?.sound || {};
+        const curAudioSet = curMedia.audioSettings || {};
+
+        const incInteraction = incomingMenuBar.interaction || {};
+        const curInteraction = currentMenuBar.interaction || {};
+        const incGallerySettings = incInteraction.gallerySettings || req.body.otherSetup?.gallery || cleanIncoming.otherSetup?.gallery || {};
+        const curGallerySettings = curInteraction.gallerySettings || {};
+
         mergedMenuBar = {
           ...currentMenuBar,
           ...incomingMenuBar,
+          interaction: {
+            ...curInteraction,
+            ...incInteraction,
+            gallerySettings: {
+              ...curGallerySettings,
+              ...incGallerySettings,
+              images: Array.isArray(incGallerySettings.images)
+                ? incGallerySettings.images
+                : (Array.isArray(req.body.otherSetup?.gallery?.images)
+                  ? req.body.otherSetup.gallery.images
+                  : (curGallerySettings.images || []))
+            }
+          },
+          media: {
+            ...curMedia,
+            ...incMedia,
+            backgroundAudio: bgAudioVal,
+            audio: bgAudioVal,
+            audioSettings: {
+              ...curAudioSet,
+              ...incAudioSet,
+              bgSound: incAudioSet.bgSound || curAudioSet.bgSound || 'BG Sound 1',
+              bgSoundFile: incAudioSet.bgSoundFile !== undefined ? incAudioSet.bgSoundFile : (curAudioSet.bgSoundFile || ''),
+              customBgSounds: Array.isArray(incAudioSet.customBgSounds) ? incAudioSet.customBgSounds : (curAudioSet.customBgSounds || []),
+              flipSound: incAudioSet.flipSound || curAudioSet.flipSound || 'Soft Paper Flip',
+              pageSpecificSound: incAudioSet.pageSpecificSound !== undefined ? Boolean(incAudioSet.pageSpecificSound) : Boolean(curAudioSet.pageSpecificSound)
+            }
+          },
           navigation: {
             ...(currentMenuBar.navigation || {}),
             ...(incomingMenuBar.navigation || {}),
@@ -1186,6 +1245,105 @@ router.post("/update-settings", async (req, res) => {
         };
       }
 
+      const rawBookAppearance = req.body.BookAppearance || req.body.bookAppearance || cleanIncoming.BookAppearance || cleanIncoming.bookAppearance || cleanIncoming.appearance || req.body.bookAppearanceSettings;
+      const currentBookAppearance = cleanCurrent.BookAppearance || cleanCurrent.bookAppearance || cleanCurrent.appearance || existingDoc?.Customized_Settings?.BookAppearance || {};
+      let mergedBookAppearance = currentBookAppearance;
+      if (rawBookAppearance) {
+        mergedBookAppearance = {
+          ...currentBookAppearance,
+          ...rawBookAppearance,
+          dropShadow: {
+            ...(currentBookAppearance.dropShadow || {}),
+            ...(rawBookAppearance.dropShadow || {})
+          }
+        };
+      }
+
+      const rawOtherSetup = req.body.otherSetup || req.body.othersetup || cleanIncoming.otherSetup || cleanIncoming.othersetup;
+      const currentOtherSetup = cleanCurrent.otherSetup || cleanCurrent.othersetup || existingDoc?.Customized_Settings?.otherSetup || {};
+      let mergedOtherSetup = currentOtherSetup;
+      if (rawOtherSetup) {
+        let galleryImgs = (Array.isArray(rawOtherSetup.gallery?.images) && rawOtherSetup.gallery.images.length > 0)
+          ? rawOtherSetup.gallery.images
+          : (Array.isArray(mergedMenuBar?.interaction?.gallerySettings?.images)
+            ? mergedMenuBar.interaction.gallerySettings.images
+            : (currentOtherSetup.gallery?.images || []));
+
+        galleryImgs = galleryImgs.map(img => {
+          if (!img) return img;
+          let currentUrl = typeof img === 'string' ? img : (img.url || img.src || '');
+          if (currentUrl && typeof currentUrl === 'string' && !currentUrl.startsWith('blob:')) {
+            const absoluteSupabaseUrl = getSupabasePublicUrl(currentUrl) || rewriteUploadsToSupabase(currentUrl);
+            if (typeof img === 'string') return absoluteSupabaseUrl;
+            return {
+              ...img,
+              url: absoluteSupabaseUrl
+            };
+          }
+          return img;
+        }).filter(Boolean);
+
+        mergedOtherSetup = {
+          ...currentOtherSetup,
+          ...rawOtherSetup,
+          gallery: {
+            ...(currentOtherSetup.gallery || {}),
+            ...(rawOtherSetup.gallery || {}),
+            images: galleryImgs
+          },
+          sound: {
+            ...(currentOtherSetup.sound || {}),
+            ...(rawOtherSetup.sound || {})
+          }
+        };
+
+        if (mergedMenuBar) {
+          if (mergedMenuBar.interaction) {
+            mergedMenuBar.interaction.gallerySettings = {
+              ...(mergedMenuBar.interaction?.gallerySettings || {}),
+              images: galleryImgs
+            };
+          }
+          if (rawOtherSetup.sound) {
+            mergedMenuBar.media = {
+              ...(mergedMenuBar.media || {}),
+              audioSettings: {
+                ...(mergedMenuBar.media?.audioSettings || {}),
+                ...(rawOtherSetup.sound || {})
+              }
+            };
+          }
+        }
+
+        const oldGalleryImgs = (currentOtherSetup.gallery?.images || []).concat(currentMenuBar.interaction?.gallerySettings?.images || []);
+        const oldUrls = oldGalleryImgs.map(img => typeof img === 'string' ? img : (img?.url || img?.src)).filter(Boolean);
+        const newUrls = galleryImgs.map(img => typeof img === 'string' ? img : (img?.url || img?.src)).filter(Boolean);
+
+        const removedUrls = oldUrls.filter(oldUrl => oldUrl && !newUrls.includes(oldUrl));
+
+        for (const removedUrl of removedUrls) {
+          if (removedUrl && typeof removedUrl === 'string' && (removedUrl.includes('/customized_assets/') || removedUrl.includes('supabase.co'))) {
+            deleteFileFromSupabase(removedUrl).catch((err) =>
+              console.warn("[Supabase] Delete removed gallery asset warning:", err)
+            );
+          }
+        }
+      }
+
+      const rawLeadForm = req.body.leadForm || req.body.leadform || cleanIncoming.leadForm || cleanIncoming.leadform;
+      const currentLeadForm = cleanCurrent.leadForm || cleanCurrent.leadform || existingDoc?.Customized_Settings?.leadForm || {};
+      let mergedLeadForm = currentLeadForm;
+      if (rawLeadForm) {
+        mergedLeadForm = {
+          ...currentLeadForm,
+          ...rawLeadForm,
+          appearance: {
+            ...(currentLeadForm.appearance || {}),
+            ...(rawLeadForm.appearance || {})
+          }
+        };
+      }
+
       const mergedCustomizedSettings = {
         ...cleanCurrent,
         ...cleanIncoming,
@@ -1194,7 +1352,10 @@ router.post("/update-settings", async (req, res) => {
         Branding: mergedBranding,
         Background: mergedBackground,
         MenuBar: mergedMenuBar,
-        Layouts: mergedLayouts
+        Layouts: mergedLayouts,
+        BookAppearance: mergedBookAppearance,
+        otherSetup: mergedOtherSetup,
+        leadForm: mergedLeadForm
       };
 
       updateData.Customized_Settings = mergedCustomizedSettings;
@@ -1203,7 +1364,7 @@ router.post("/update-settings", async (req, res) => {
     updateData.lastUpdated = new Date();
 
     const updatedDoc = await Flipbook.findOneAndUpdate(
-      { v_id },
+      existingDoc ? { _id: existingDoc._id } : { v_id },
       {
         $set: updateData,
         $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
@@ -1266,6 +1427,100 @@ router.get(["/customized-settings", "/customized_settings"], async (req, res) =>
   } catch (err) {
     console.error("Error fetching customized settings:", err);
     return res.status(500).json({ success: false, message: "Internal server error", error: err.message });
+  }
+});
+
+// @route   POST /api/flipbook/submit-lead
+// @desc    Collect a lead submitted by a viewer
+router.post(['/submit-lead', '/public/submit-lead'], async (req, res) => {
+  try {
+    const { v_id, shareId, flipbookName, userEmail, leadData } = req.body;
+    if (!leadData || typeof leadData !== 'object') {
+      return res.status(400).json({ success: false, message: 'Invalid leadData' });
+    }
+
+    let flipbook = null;
+    if (v_id && v_id !== 'preview') {
+      flipbook = await Flipbook.findOne({ v_id });
+    }
+
+    if (!flipbook && shareId) {
+      flipbook = await Flipbook.findOne({
+        $or: [
+          { 'Customized_Settings.Visibility.shareId': shareId },
+          { 'share.shareId': shareId }
+        ]
+      });
+    }
+
+    if (!flipbook && flipbookName && userEmail) {
+      flipbook = await Flipbook.findOne({ userEmail, flipbookName });
+    }
+
+    const effectiveVId = (flipbook ? flipbook.v_id : null) || (v_id && v_id !== 'preview' ? v_id : null) || 'preview';
+    const effectiveShareId = shareId || flipbook?.Customized_Settings?.Visibility?.shareId || flipbook?.share?.shareId || '';
+    const effectiveBookName = flipbook?.flipbookName || flipbookName || 'Flipbook';
+    const effectiveUserEmail = flipbook?.userEmail || userEmail || '';
+
+    const newLead = new Lead({
+      leadId: nanoid(12),
+      v_id: effectiveVId,
+      shareId: effectiveShareId,
+      flipbookName: effectiveBookName,
+      userEmail: effectiveUserEmail,
+      leadData: leadData,
+      viewerIp: req.ip || req.headers['x-forwarded-for'] || ''
+    });
+
+    await newLead.save();
+
+    if (flipbook) {
+      flipbook.collectedLeads = flipbook.collectedLeads || [];
+      flipbook.collectedLeads.push({
+        leadId: newLead.leadId,
+        submittedAt: newLead.submittedAt,
+        data: leadData,
+        viewerIp: newLead.viewerIp
+      });
+      await flipbook.save().catch(err => console.warn("Flipbook lead push warning:", err));
+    }
+
+    return res.json({ success: true, message: 'Lead submitted successfully', leadId: newLead.leadId });
+  } catch (err) {
+    console.error('Error submitting lead:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
+  }
+});
+
+// @route   GET /api/flipbook/get-leads
+// @desc    Get all collected leads for a flipbook
+router.get('/get-leads', async (req, res) => {
+  try {
+    const { v_id, emailId, bookName } = req.query;
+    let effectiveVId = v_id;
+    if (!effectiveVId && emailId && bookName) {
+      const doc = await Flipbook.findOne({ userEmail: emailId, flipbookName: bookName }).select('v_id');
+      if (doc) effectiveVId = doc.v_id;
+    }
+
+    if (!effectiveVId && !emailId) {
+      return res.status(400).json({ success: false, message: 'Missing v_id or emailId' });
+    }
+
+    let filter = {};
+    if (effectiveVId) filter.v_id = effectiveVId;
+    else if (emailId) filter.userEmail = emailId;
+
+    const leads = await Lead.find(filter).sort({ createdAt: -1 });
+
+    return res.json({
+      success: true,
+      v_id: effectiveVId || null,
+      leads: leads
+    });
+  } catch (err) {
+    console.error('Error fetching leads:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
   }
 });
 

@@ -79,18 +79,20 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
             <button className="hover:text-gray-200 transition-colors">
               <Icon icon="clarity:image-gallery-solid" className="w-[1.6cqw] h-[1.6cqw]" />
             </button>
-            <button 
-              className="hover:text-gray-200 transition-colors relative"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowTOC(false);
-                setShowProfilePopupMemo?.(false);
-                setShowSoundPopupMemo?.(!showSoundPopup);
-              }}
-              style={{ opacity: showSoundPopup ? 0.7 : 1 }}
-            >
-              <Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" />
-            </button>
+            {(settings?.media?.backgroundAudio ?? true) && (
+              <button 
+                className="hover:text-gray-200 transition-colors relative"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowTOC(false);
+                  setShowProfilePopupMemo?.(false);
+                  setShowSoundPopupMemo?.(!showSoundPopup);
+                }}
+                style={{ opacity: showSoundPopup ? 0.7 : 1 }}
+              >
+                <Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" />
+              </button>
+            )}
             <button className="hover:text-gray-200 transition-colors">
               <Icon icon="ph:play-fill" className="w-[1.8cqw] h-[1.8cqw]" />
             </button>

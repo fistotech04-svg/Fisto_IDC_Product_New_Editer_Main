@@ -120,9 +120,14 @@ const ShareViewBook = () => {
     }, [bookData]);
 
     const appearanceObj = React.useMemo(() => {
-        const rawApp = bookData?.Customized_Settings?.Appearance || {};
+        const rawApp = bookData?.Customized_Settings?.BookAppearance || bookData?.Customized_Settings?.Appearance || bookData?.settings?.BookAppearance || bookData?.settings?.appearance || {};
         return {
-            dropShadow: { active: true, position: 'Bottom Right', strength: 35, softness: 35, ...(rawApp.dropShadow || {}) },
+            texture: 'Plain White',
+            hardCover: false,
+            flipStyle: 'Classic Flip',
+            flipSpeed: 'medium',
+            corner: 'Sharp',
+            dropShadow: { active: true, color: '#4f4f4fff', opacity: 50, xAxis: 0, yAxis: 0, blur: 0, spread: 0 },
             ...rawApp
         };
     }, [bookData]);
@@ -135,8 +140,16 @@ const ShareViewBook = () => {
         return bookData?.Customized_Settings?.MenuBar || {};
     }, [bookData]);
 
+    const otherSetupObj = React.useMemo(() => {
+        return bookData?.Customized_Settings?.otherSetup || bookData?.Customized_Settings?.othersetup || bookData?.settings?.otherSetup || bookData?.settings?.othersetup || {};
+    }, [bookData]);
+
     const layoutsObj = React.useMemo(() => {
         return bookData?.Customized_Settings?.Layouts || {};
+    }, [bookData]);
+
+    const leadFormObj = React.useMemo(() => {
+        return bookData?.Customized_Settings?.leadForm || bookData?.Customized_Settings?.leadform || bookData?.settings?.leadForm || bookData?.settings?.leadform || {};
     }, [bookData]);
 
     const settings = React.useMemo(() => {
@@ -153,15 +166,21 @@ const ShareViewBook = () => {
             Background: backgroundObj,
             appearance: appearanceObj,
             bookAppearanceSettings: appearanceObj,
+            BookAppearance: appearanceObj,
             Branding: brandingObj,
             menuBar: menuBarObj,
             menuBarSettings: menuBarObj,
             MenuBar: menuBarObj,
+            otherSetup: otherSetupObj,
+            otherSetupSettings: otherSetupObj,
+            othersetup: otherSetupObj,
             Layouts: layoutsObj,
             layout: activeLayout,
-            layoutColors: layoutsObj.layoutColors
+            layoutColors: layoutsObj.layoutColors,
+            leadForm: leadFormObj,
+            leadform: leadFormObj
         };
-    }, [bookData, brandingObj, backgroundObj, appearanceObj, menuBarObj, layoutsObj, location.search]);
+    }, [bookData, brandingObj, backgroundObj, appearanceObj, menuBarObj, otherSetupObj, layoutsObj, leadFormObj, location.search]);
 
     const layoutColorVars = React.useMemo(() => {
         if (!bookData) return '';
@@ -382,6 +401,11 @@ const ShareViewBook = () => {
                 }
 
                 if (status === 403) {
+                    if (errData.isPrivate) {
+                        setError(errData.message || "This flipbook is private. Only the author can view this book.");
+                        setLoading(false);
+                        return;
+                    }
                     if (errData.isInviteOnly) {
                         if (errData.isExpired) {
                             setError(errData.message || "Time Expired! The access time granted for this flipbook has expired.");

@@ -1036,13 +1036,25 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
         }
     }
 
+    const isBookPublished = Boolean(
+        currentBook?.isPublished
+    );
+
     const handleCopy = () => {
+        if (!isBookPublished) {
+            alert("Please publish your flipbook first to copy or share the link.");
+            return;
+        }
         navigator.clipboard.writeText(publicUrl);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
 
     const shareModel = async (platform = 'native') => {
+        if (!isBookPublished) {
+            alert("Please publish your flipbook first to copy or share the link.");
+            return;
+        }
         const shareTitle = currentBook?.flipbookName || 'Check out my flipbook!';
         const shareUrl = publicUrl;
 
@@ -1185,18 +1197,31 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             <input
                                                 type="text"
                                                 readOnly
-                                                value={publicUrl}
-                                                className="flex-1 bg-transparent border-none outline-none text-[0.75vw] font-medium text-gray-600 truncate"
+                                                value={isBookPublished ? publicUrl : 'Publish flipbook to enable link sharing'}
+                                                className={`flex-1 bg-transparent border-none outline-none text-[0.75vw] font-medium truncate ${isBookPublished ? 'text-gray-600' : 'text-amber-600 italic'}`}
                                             />
                                         </div>
                                         <button
                                             onClick={handleCopy}
-                                            className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] cursor-pointer rounded-[0.4vw] transition-all active:scale-95 shadow-lg ${copied ? 'bg-green-500 text-white' : 'bg-[#4A3AFF] text-white hover:bg-blue-700'}`}
+                                            disabled={!isBookPublished}
+                                            className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.4vw] transition-all shadow-lg ${
+                                                !isBookPublished
+                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60 shadow-none'
+                                                    : copied
+                                                    ? 'bg-green-500 text-white cursor-pointer active:scale-95'
+                                                    : 'bg-[#4A3AFF] text-white hover:bg-blue-700 cursor-pointer active:scale-95'
+                                            }`}
+                                            title={!isBookPublished ? "Please publish your flipbook first to copy link" : "Copy link"}
                                         >
                                             <Icon icon={copied ? "lucide:check" : "lucide:copy"} className="w-[0.9vw] h-[0.9vw]" />
                                             <span className="text-[0.75vw] font-semibold">{copied ? 'Copied' : 'Copy'}</span>
                                         </button>
                                     </div>
+                                    {!isBookPublished && (
+                                        <p className="text-[0.65vw] text-amber-600 font-medium mt-[0.1vw]">
+                                            * Flipbook is currently unpublished. Click "Publish" in top bar to enable link sharing.
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Share QR */}

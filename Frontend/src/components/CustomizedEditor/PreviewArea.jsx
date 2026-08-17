@@ -37,7 +37,6 @@ import { LAYOUT_DEFAULT_COLORS } from './Layout';
 import TabletLayout8 from './Tablet/TabletLayouts/TabletLayout8';
 import TabletLayout9 from './Tablet/TabletLayouts/TabletLayout9';
 import GalleryPopup from './popups/GalleryPopup';
-import TabletGalleryPopup from './Tablet/TabletLayouts/TabletGalleryPopup';
 import { getBookmarkClipPath, getBookmarkBorderRadius, getBookmarkSVGPath } from './BookmarkStylesPopup';
 import FlipBookEngine from './FlipBookEngine';
 import LeadFormPopup from './popups/LeadFormPopup';
@@ -2411,14 +2410,15 @@ const PreviewArea = React.memo(({
     bookName,
     targetPage = 0,
     backgroundSettings,
-    bookAppearanceSettings,
+    bookAppearanceSettings: incomingBookAppearanceSettings,
     logoSettings: incomingLogoSettings,
     watermarkSettings,
-    leadFormSettings,
+    leadFormSettings: incomingLeadFormSettings,
+    settings: incomingSettings,
     profileSettings,
     zoom = 1.0,
     menuBarSettings,
-    otherSetupSettings,
+    otherSetupSettings: incomingOtherSetupSettings,
     onUpdateOtherSetup,
     hideHeader = false,
     activeLayout,
@@ -2437,6 +2437,9 @@ const PreviewArea = React.memo(({
     onFlip: externalOnFlip,
     isLoading = false,
     externalShowTOC = false,
+    v_id: incomingVId,
+    vId: incomingVIdProp,
+    shareId: incomingShareId,
     currentBook,
 }) => {
     const [processedLogoSrc, setProcessedLogoSrc] = useState(incomingLogoSettings?.src || '');
@@ -2487,6 +2490,79 @@ const PreviewArea = React.memo(({
             src: processedLogoSrc || incomingLogoSettings.src
         };
     }, [incomingLogoSettings, processedLogoSrc]);
+
+    const bookAppearanceSettings = React.useMemo(() => {
+        const rawApp = incomingBookAppearanceSettings || incomingSettings?.bookAppearanceSettings || incomingSettings?.BookAppearance || incomingSettings?.appearance || currentBook?.Customized_Settings?.BookAppearance || {};
+        return {
+            texture: 'Plain White',
+            hardCover: false,
+            grainIntensity: 20,
+            warmth: 0,
+            textureScale: 0,
+            opacity: 100,
+            flipStyle: 'Classic Flip',
+            flipSpeed: 'medium',
+            corner: 'Sharp',
+            dropShadow: { active: true, color: '#4f4f4fff', opacity: 50, xAxis: 0, yAxis: 0, blur: 0, spread: 0 },
+            ...rawApp
+        };
+    }, [incomingBookAppearanceSettings, incomingSettings, currentBook]);
+
+    const otherSetupSettings = React.useMemo(() => {
+        return incomingOtherSetupSettings || incomingSettings?.otherSetupSettings || incomingSettings?.otherSetup || incomingSettings?.othersetup || currentBook?.Customized_Settings?.otherSetup || {};
+    }, [incomingOtherSetupSettings, incomingSettings, currentBook]);
+
+    const leadFormSettings = React.useMemo(() => {
+        return incomingLeadFormSettings || incomingSettings?.leadForm || incomingSettings?.leadform || incomingSettings?.Customized_Settings?.leadForm || currentBook?.Customized_Settings?.leadForm || null;
+    }, [incomingLeadFormSettings, incomingSettings, currentBook]);
+
+    const resolvedVId = React.useMemo(() => {
+        return incomingVId || incomingVIdProp || currentBook?.v_id || currentBook?.id || incomingSettings?.v_id || incomingSettings?.FlipbookInfo?.v_id || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('v_id') : null) || null;
+    }, [incomingVId, incomingVIdProp, currentBook, incomingSettings]);
+
+    const resolvedShareId = React.useMemo(() => {
+        if (incomingShareId) return incomingShareId;
+        if (currentBook?.shareId) return currentBook.shareId;
+        if (currentBook?.share?.shareId) return currentBook.share.shareId;
+        if (incomingSettings?.shareId) return incomingSettings.shareId;
+        if (incomingSettings?.Visibility?.shareId) return incomingSettings.Visibility.shareId;
+        if (incomingSettings?.share?.shareId) return incomingSettings.share.shareId;
+        if (typeof window !== 'undefined') {
+            const match = window.location.pathname.match(/\/share=[^/]+\/([^/?#]+)/);
+            if (match && match[1]) return match[1];
+        }
+        return '';
+    }, [incomingShareId, currentBook, incomingSettings]);
+
+    const resolvedBookName = React.useMemo(() => {
+        return bookName || currentBook?.flipbookName || currentBook?.title || incomingSettings?.flipbookName || incomingSettings?.FlipbookInfo?.flipbookName || 'Flipbook';
+    }, [bookName, currentBook, incomingSettings]);
+
+    const resolvedUserEmail = React.useMemo(() => {
+        if (currentBook?.userEmail) return currentBook.userEmail;
+        if (incomingSettings?.userEmail) return incomingSettings.userEmail;
+        if (incomingSettings?.FlipbookInfo?.userEmail) return incomingSettings.FlipbookInfo.userEmail;
+        try {
+            const stored = localStorage.getItem('user');
+            if (stored) {
+                const u = JSON.parse(stored);
+                return u?.emailId || u?.email || '';
+            }
+        } catch (e) {}
+        return '';
+    }, [currentBook, incomingSettings]);
+
+    const galleryPopupSettings = React.useMemo(() => {
+        const galleryFromOther = otherSetupSettings?.gallery || {};
+        const galleryFromMenuBar = menuBarSettings?.interaction?.gallerySettings || {};
+        return {
+            ...galleryFromOther,
+            ...galleryFromMenuBar,
+            images: (galleryFromOther.images && galleryFromOther.images.length > 0) 
+                ? galleryFromOther.images 
+                : (galleryFromMenuBar.images || [])
+        };
+    }, [otherSetupSettings, menuBarSettings]);
 
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
@@ -2586,7 +2662,8 @@ const PreviewArea = React.memo(({
             media: {
                 ...defaultMenuBarSettings.media,
                 ...(otherSetupSettings?.media || {}),
-                ...(menuBar?.media || {})
+                ...(menuBar?.media || {}),
+                backgroundAudio: menuBar?.media?.backgroundAudio ?? menuBar?.media?.audio ?? otherSetupSettings?.media?.backgroundAudio ?? defaultMenuBarSettings.media.backgroundAudio
             },
             shareExport: {
                 ...defaultMenuBarSettings.shareExport,
@@ -2652,6 +2729,8 @@ const PreviewArea = React.memo(({
     // Declare isFullscreen here (before the computeFitScale effect that depends on it)
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isToolbarHidden, setIsToolbarHidden] = useState(false);
+
+
 
     useEffect(() => {
         if (!isFullscreen) {
@@ -3663,59 +3742,52 @@ const PreviewArea = React.memo(({
 
 
     useEffect(() => {
-        // Reset submitted state when entering lead form tab to ensure it's visible for editing
-        if (activeSubView === 'leadform' && !onClose) {
+        const isLeadFormTabActive = (activeSubView || '').toLowerCase() === 'leadform';
+        if (isLeadFormTabActive) {
             setLeadFormSubmitted(false);
+            setShowLeadForm(true);
+            return;
         }
-    }, [activeSubView, onClose]);
 
-    useEffect(() => {
-        // 1. If lead form was submitted or closed, hide it
+        if (isLoading) {
+            setShowLeadForm(false);
+            return;
+        }
+
         if (leadFormSubmitted) {
             setShowLeadForm(false);
             return;
         }
 
-        // 2. If lead form is disabled, hide it (even when editing)
-        if (!leadFormSettings || !leadFormSettings.enabled) {
+        const isEnabled = leadFormSettings?.enabled === true || leadFormSettings?.enabled === 'true';
+        if (!leadFormSettings || !isEnabled) {
             setShowLeadForm(false);
             return;
         }
 
-        // 3. Force show lead form if we are explicitly editing it in the sidebar and it's enabled
-        if (activeSubView === 'leadform' && !onClose) {
-            setShowLeadForm(true);
-            return;
-        }
+        const timing = leadFormSettings.appearance?.timing || 'before';
+        const afterPages = leadFormSettings.appearance?.afterPages || 1;
 
-        // 4. In editor preview area (no onClose), if not editing leadform, don't show it automatically
-        if (!onClose && activeSubView !== 'leadform') {
-            setShowLeadForm(false);
-            return;
-        }
-
-        // 5. Normal timing logic (e.g. for full preview)
-        const timing = leadFormSettings.appearance.timing;
-        const afterPages = leadFormSettings.appearance.afterPages || 1;
-
-        if (timing === 'before' && currentPage >= 0) {
+        if (timing === 'before') {
             setShowLeadForm(true);
-        } else if (timing === 'after-pages' && currentPage >= afterPages) {
+        } else if (timing === 'after-pages' && currentPage >= afterPages - 1) {
             setShowLeadForm(true);
-        } else if (timing === 'end' && currentPage >= pages.length - 1) {
+        } else if (timing === 'end' && pages.length > 0 && currentPage >= pages.length - 2) {
             setShowLeadForm(true);
         } else if (timing !== 'after-seconds') {
             setShowLeadForm(false);
         }
-    }, [currentPage, leadFormSettings, leadFormSubmitted, pages.length, activeSubView, onClose]);
+    }, [currentPage, leadFormSettings, leadFormSubmitted, pages.length, activeSubView, isLoading]);
 
     // Separate useEffect for after-seconds to prevent resetting timer on page change
     useEffect(() => {
         let timeoutId;
-        
-        // Only run timer in full preview (onClose exists) or when we are not hiding it
-        if (leadFormSettings?.enabled && !leadFormSubmitted && leadFormSettings.appearance?.timing === 'after-seconds' && (onClose || activeSubView === 'leadform')) {
-            const afterSeconds = leadFormSettings.appearance.afterSeconds || 30;
+        const isLeadFormTabActive = (activeSubView || '').toLowerCase() === 'leadform';
+        if (isLeadFormTabActive || isLoading) return;
+
+        const isEnabled = leadFormSettings?.enabled === true || leadFormSettings?.enabled === 'true';
+        if (isEnabled && !leadFormSubmitted && leadFormSettings.appearance?.timing === 'after-seconds') {
+            const afterSeconds = leadFormSettings.appearance?.afterSeconds || 30;
             timeoutId = setTimeout(() => {
                 setShowLeadForm(true);
             }, afterSeconds * 1000);
@@ -3724,7 +3796,7 @@ const PreviewArea = React.memo(({
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [leadFormSettings?.enabled, leadFormSettings?.appearance?.timing, leadFormSettings?.appearance?.afterSeconds, leadFormSubmitted, activeSubView, onClose]);
+    }, [leadFormSettings?.enabled, leadFormSettings?.appearance?.timing, leadFormSettings?.appearance?.afterSeconds, leadFormSubmitted, activeSubView, isLoading]);
 
 
 
@@ -4383,17 +4455,7 @@ const PreviewArea = React.memo(({
                 isMobile={isMobile}
             />
 
-            {showGalleryPopup && activeDevice !== 'Tablet' && (<GalleryPopup
-                onClose={() => setShowGalleryPopupMemo(false)}
-                settings={otherSetupSettings?.gallery}
-                popupSettings={menuBarSettings?.appearance?.popup}
-                isTablet={isTablet}
-                activeLayout={activeLayout}
-                isLandscape={isLandscape}
-                isMobileLandscape={isMobileLandscape}
-            />
 
-            )}
             {/* Visual Countdown Overlay - Positioned after layouts to stay on top */}
             {countdown !== null && (
                 <div className="absolute inset-0 z-[1000] flex items-center justify-center pointer-events-none ">
@@ -4606,15 +4668,7 @@ const PreviewArea = React.memo(({
 
                             {renderSharedOverlays()}
 
-                            {/* Lead Form Overlay */}
-                            {showLeadForm && (
-                                <LeadFormPopup
-                                    leadFormSettings={leadFormSettings}
-                                    isTablet={isTablet}
-                                    isMobile={true}
-                                    onClose={() => setLeadFormSubmitted(true)}
-                                />
-                            )}
+
                         </div>
                     );
 
@@ -4670,13 +4724,7 @@ const PreviewArea = React.memo(({
                                 }
                             `}</style>
 
-                            {showGalleryPopup && activeDevice === 'Tablet' && (
-                                <TabletGalleryPopup
-                                    onClose={() => setShowGalleryPopupMemo(false)}
-                                    settings={otherSetupSettings?.gallery}
-                                    popupSettings={menuBarSettings?.appearance?.popup}
-                                />
-                            )}
+
 
                             {activeDevice === 'Tablet' && (!activeLayout || Number(activeLayout) === 1) ? (
                                 <TabletLayout1
@@ -5777,14 +5825,7 @@ const PreviewArea = React.memo(({
 
                             {renderSharedOverlays()}
 
-                            {/* Lead Form Overlay */}
-                            {showLeadForm && (
-                                <LeadFormPopup
-                                    leadFormSettings={leadFormSettings}
-                                    isTablet={isTablet}
-                                    onClose={() => setLeadFormSubmitted(true)}
-                                />
-                            )}
+
                         </div>
                     </div>
 
@@ -5991,6 +6032,30 @@ const PreviewArea = React.memo(({
 
                     </AnimatePresence>
                 </>
+            )}
+
+            {!isLoading && showLeadForm && (
+                <LeadFormPopup
+                    leadFormSettings={leadFormSettings}
+                    isTablet={activeDevice === 'Tablet'}
+                    isMobile={activeDevice === 'Mobile'}
+                    vId={resolvedVId}
+                    shareId={resolvedShareId}
+                    flipbookName={resolvedBookName}
+                    userEmail={resolvedUserEmail}
+                    onClose={() => {
+                        setShowLeadForm(false);
+                        setLeadFormSubmitted(true);
+                    }}
+                />
+            )}
+
+            {showGalleryPopup && (
+                <GalleryPopup
+                    onClose={() => setShowGalleryPopupMemo(false)}
+                    settings={galleryPopupSettings}
+                    isTablet={activeDevice === 'Tablet'}
+                />
             )}
 
             {interactionZoom?.active && (

@@ -409,13 +409,15 @@ const MobileLayout8 = (props) => {
 
                 {/* Control Row */}
                 <div className="flex items-center justify-between px-2">
-                    <button onClick={() => {
-                        const willShow = !showSoundPopup;
-                        setShowSoundPopup(willShow);
-                        if (willShow) { setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
-                    }} className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon="solar:music-notes-bold" className="w-7 h-7" />
-                    </button>
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <button onClick={() => {
+                            const willShow = !showSoundPopup;
+                            setShowSoundPopup(willShow);
+                            if (willShow) { setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                        }} className="text-white/80 hover:text-white transition-colors">
+                            <Icon icon="solar:music-notes-bold" className="w-7 h-7" />
+                        </button>
+                    )}
 
                     <div className="flex items-center gap-8">
                         <button onClick={() => onPageClick(0)} className="text-white hover:scale-110 active:scale-95 transition-all">

@@ -649,9 +649,11 @@ const MobileLayout6 = ({
                             <Icon icon="fluent:bookmark-24-filled" className="w-[15px] h-[15px]" />
                         </button>
                         <button className="text-white/60 hover:text-white transition-all"><Icon icon="solar:gallery-bold" className="w-[15px] h-[15px]" /></button>
-                        <button onClick={() => { closeAllPopups(); setShowSoundPopup(true); }} className={`transition-all ${showSoundPopup ? 'text-white' : 'text-white/60 hover:text-white'}`}>
-                            <Icon icon="solar:music-notes-bold" className="w-[15px] h-[15px]" />
-                        </button>
+                        {(settings?.media?.backgroundAudio ?? true) && (
+                            <button onClick={() => { closeAllPopups(); setShowSoundPopup(true); }} className={`transition-all ${showSoundPopup ? 'text-white' : 'text-white/60 hover:text-white'}`}>
+                                <Icon icon="solar:music-notes-bold" className="w-[15px] h-[15px]" />
+                            </button>
+                        )}
                         <button onClick={() => { closeAllPopups(); setShowProfilePanel(true); }} className={`transition-all ${showProfilePanel ? 'text-white' : 'text-white/60 hover:text-white'}`}>
                             <Icon icon="fluent:person-24-filled" className="w-[15px] h-[15px]" />
                         </button>
@@ -873,16 +875,18 @@ const MobileLayout6 = ({
                         <button className="text-white hover:scale-110 active:scale-90 transition-all">
                             <Icon icon="clarity:image-gallery-solid" className="w-4 h-4" />
                         </button>
-                        <button
-                            onClick={() => {
-                                const isCurrentlyOpen = showSoundPopup;
-                                closeAllPopups();
-                                setShowSoundPopup(!isCurrentlyOpen);
-                            }}
-                            className="text-white hover:scale-110 active:scale-90 transition-all"
-                        >
-                            <Icon icon="solar:music-notes-bold" className="w-4 h-4" />
-                        </button>
+                        {(settings?.media?.backgroundAudio ?? true) && (
+                            <button
+                                onClick={() => {
+                                    const isCurrentlyOpen = showSoundPopup;
+                                    closeAllPopups();
+                                    setShowSoundPopup(!isCurrentlyOpen);
+                                }}
+                                className="text-white hover:scale-110 active:scale-90 transition-all"
+                            >
+                                <Icon icon="solar:music-notes-bold" className="w-4 h-4" />
+                            </button>
+                        )}
 
                         <button
                             onClick={() => {
