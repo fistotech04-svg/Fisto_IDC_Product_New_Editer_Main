@@ -3741,27 +3741,29 @@ const PreviewArea = React.memo(({
     };
 
 
+    const prevSubViewRef = useRef(activeSubView);
     useEffect(() => {
-        const isLeadFormTabActive = (activeSubView || '').toLowerCase() === 'leadform';
-        if (isLeadFormTabActive) {
+        if ((activeSubView || '').toLowerCase() === 'leadform' && (prevSubViewRef.current || '').toLowerCase() !== 'leadform') {
             setLeadFormSubmitted(false);
-            setShowLeadForm(true);
-            return;
         }
+        prevSubViewRef.current = activeSubView;
+    }, [activeSubView]);
 
-        if (isLoading) {
-            setShowLeadForm(false);
-            return;
-        }
-
-        if (leadFormSubmitted) {
-            setShowLeadForm(false);
-            return;
-        }
-
+    useEffect(() => {
         const isEnabled = leadFormSettings?.enabled === true || leadFormSettings?.enabled === 'true';
         if (!leadFormSettings || !isEnabled) {
             setShowLeadForm(false);
+            return;
+        }
+
+        if (isLoading || leadFormSubmitted) {
+            setShowLeadForm(false);
+            return;
+        }
+
+        const isLeadFormTabActive = (activeSubView || '').toLowerCase() === 'leadform';
+        if (isLeadFormTabActive) {
+            setShowLeadForm(true);
             return;
         }
 

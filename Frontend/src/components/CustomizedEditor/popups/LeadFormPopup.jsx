@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import axios from 'axios';
 
@@ -13,21 +13,80 @@ const LeadFormPopup = ({
     onClose
 }) => {
     const [formValues, setFormValues] = useState({});
+    const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [viewerIp, setViewerIp] = useState('');
 
-    if (!leadFormSettings) return null;
+    useEffect(() => {
+        let isMounted = true;
+        axios.get('https://api.ipify.org?format=json', { timeout: 2500 })
+            .then(res => {
+                if (isMounted && res.data?.ip) setViewerIp(res.data.ip);
+            })
+            .catch(() => {});
+        return () => { isMounted = false; };
+    }, []);
+
+    const isEnabled = leadFormSettings?.enabled === true || leadFormSettings?.enabled === 'true';
+    if (!leadFormSettings || !isEnabled) return null;
 
     const handleInputChange = (fieldKey, value) => {
         setFormValues(prev => ({
             ...prev,
             [fieldKey]: value
         }));
+        if (errors[fieldKey]) {
+            setErrors(prev => {
+                const next = { ...prev };
+                delete next[fieldKey];
+                return next;
+            });
+        }
     };
 
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
         if (isSubmitting || isSubmitted) return;
+
+        const newErrors = {};
+        const fields = leadFormSettings.fields || [];
+
+        fields.forEach(field => {
+            const fieldKey = field.label || field.type;
+            const value = (formValues[fieldKey] || '').trim();
+
+            // 1. Required check: Mandatory mode (!allowSkip) or field.required
+            if (field.required || !leadFormSettings.appearance?.allowSkip) {
+                if (!value) {
+                    newErrors[fieldKey] = `${field.label || 'This field'} is required`;
+                    return;
+                }
+            }
+
+            // 2. Email validation
+            if (field.type === 'email' && value) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(value)) {
+                    newErrors[fieldKey] = 'Please enter a valid email address';
+                }
+            }
+
+            // 3. Phone validation
+            if (field.type === 'phone' && value) {
+                const phoneRegex = /^[0-9+\-\s()]{7,15}$/;
+                if (!phoneRegex.test(value)) {
+                    newErrors[fieldKey] = 'Please enter a valid phone number';
+                }
+            }
+        });
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+        setErrors({});
+
         setIsSubmitting(true);
         try {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -36,7 +95,8 @@ const LeadFormPopup = ({
                 shareId: shareId,
                 flipbookName: flipbookName,
                 userEmail: userEmail,
-                leadData: formValues
+                leadData: formValues,
+                viewerIp: viewerIp || ''
             });
             setIsSubmitted(true);
             try {
@@ -98,19 +158,12 @@ const LeadFormPopup = ({
                                                 className="h-px flex-1"
                                                 style={{ backgroundColor: leadFormSettings.appearance?.bgStroke && leadFormSettings.appearance?.bgStroke !== '#' ? leadFormSettings.appearance.bgStroke : '#E5E7EB' }}
                                             />
-                                            {leadFormSettings.appearance?.allowSkip ? (
+                                            {leadFormSettings.appearance?.allowSkip && (
                                                 <button
                                                     onClick={onClose}
                                                     className="text-[12px] font-semibold text-blue-600 hover:text-blue-700 transition-colors flex-shrink-0"
                                                 >
                                                     Skip
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={onClose}
-                                                    className="w-7 h-7 flex items-center justify-center border-[1.5px] border-red-500 rounded-md hover:bg-red-50 transition-all flex-shrink-0"
-                                                >
-                                                    <Icon icon="lucide:x" className="w-3.5 h-3.5 text-red-500 stroke-[3]" />
                                                 </button>
                                             )}
                                         </div>
@@ -147,16 +200,17 @@ const LeadFormPopup = ({
                                     <form onSubmit={handleSubmit} className="space-y-3 w-full">
                                         {(leadFormSettings.fields || []).map(field => {
                                             const fieldKey = field.label || field.type;
+                                            const hasError = Boolean(errors[fieldKey]);
                                             if (field.type === 'feedback') {
                                                 return (
-                                                    <div key={field.id} className="space-y-1.5">
+                                                    <div key={field.id} className="space-y-1">
                                                         <textarea
                                                             placeholder={field.placeholder || 'Enter your Feedback'}
                                                             value={formValues[fieldKey] || ''}
                                                             onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                            className="w-full bg-white border rounded-lg p-3 text-[12px] font-medium focus:outline-none transition-all resize-none shadow-sm h-20"
+                                                            className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} rounded-lg p-3 text-[12px] font-medium focus:outline-none transition-all resize-none shadow-sm h-20`}
                                                             style={{
-                                                                borderColor: leadFormSettings.appearance?.bgStroke || '#D1D5DB',
+                                                                borderColor: hasError ? '#EF4444' : '#D1D5DB',
                                                                 color: leadFormSettings.appearance?.textFill || '#111827',
                                                                 fontFamily: 'inherit'
                                                             }}
@@ -171,9 +225,9 @@ const LeadFormPopup = ({
                                                         <select
                                                             value={formValues[fieldKey] || ''}
                                                             onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                            className="w-full bg-white border rounded-lg py-2.5 px-3 text-[12px] font-medium focus:outline-none transition-all shadow-sm appearance-none"
+                                                            className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} rounded-lg py-2.5 px-3 text-[12px] font-medium focus:outline-none transition-all shadow-sm appearance-none`}
                                                             style={{
-                                                                borderColor: leadFormSettings.appearance?.bgStroke || '#D1D5DB',
+                                                                borderColor: hasError ? '#EF4444' : '#D1D5DB',
                                                                 color: leadFormSettings.appearance?.textFill || '#111827',
                                                                 fontFamily: 'inherit'
                                                             }}
@@ -203,9 +257,9 @@ const LeadFormPopup = ({
                                                         placeholder={field.placeholder || `Enter your ${field.type}`}
                                                         value={formValues[fieldKey] || ''}
                                                         onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                        className="w-full bg-white border rounded-lg py-2.5 pl-9 pr-3 text-[12px] font-medium focus:outline-none transition-all shadow-sm"
+                                                        className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} rounded-lg py-2.5 pl-9 pr-3 text-[12px] font-medium focus:outline-none transition-all shadow-sm`}
                                                         style={{
-                                                            borderColor: leadFormSettings.appearance?.bgStroke || '#D1D5DB',
+                                                            borderColor: hasError ? '#EF4444' : '#D1D5DB',
                                                             color: leadFormSettings.appearance?.textFill || '#111827',
                                                             fontFamily: 'inherit'
                                                         }}
@@ -213,7 +267,13 @@ const LeadFormPopup = ({
                                                 </div>
                                             );
                                         })}
-                                        <div className="mt-4 w-full">
+                                        {Object.values(errors).filter(Boolean).length > 0 && (
+                                            <div className="w-full bg-red-50 border border-red-200 text-red-600 rounded-lg p-2 text-xs font-medium text-center flex items-center justify-center gap-1.5">
+                                                <Icon icon="lucide:alert-circle" className="w-4 h-4 shrink-0" />
+                                                <span>{Object.values(errors).filter(Boolean).find(msg => msg && msg.includes('valid')) || 'Please fill in all required fields'}</span>
+                                            </div>
+                                        )}
+                                        <div className="mt-3 w-full">
                                             <button
                                                 type="submit"
                                                 disabled={isSubmitting}
@@ -248,7 +308,7 @@ const LeadFormPopup = ({
         <div className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-[0.25vw]">
             <div className="relative" style={{ fontFamily: leadFormSettings.appearance?.fontStyle || 'Inter' }}>
                 <div
-                    className={`${isTablet ? 'w-[24vw] rounded-[1vw]' : 'w-[30vw] rounded-[1.3vw]'} shadow-[0_1vw_4vw_rgba(0,0,0,0.1)] overflow-hidden relative border animate-in zoom-in-95 duration-300`}
+                    className={`${isTablet ? 'w-[24vw] rounded-[1vw]' : 'w-[30vw] rounded-[1.3vw]'} max-h-[85vh] overflow-y-auto custom-scrollbar shadow-[0_1vw_4vw_rgba(0,0,0,0.1)] relative border animate-in zoom-in-95 duration-300`}
                     style={{
                         fontFamily: leadFormSettings.appearance?.fontStyle || 'Inter',
                         backgroundColor: leadFormSettings.appearance?.bgFill || '#ffffff',
@@ -268,19 +328,12 @@ const LeadFormPopup = ({
                             <>
                                 {/* Header & Lead Message */}
                                 <div className="relative text-center pb-[0.2vw]">
-                                    {leadFormSettings.appearance?.allowSkip ? (
+                                    {leadFormSettings.appearance?.allowSkip && (
                                         <button
                                             onClick={onClose}
                                             className={`absolute right-0 top-0 ${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-semibold text-[#3E4491] hover:brightness-150 underline underline-offset-2 transition-colors cursor-pointer`}
                                         >
                                             Skip
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={onClose}
-                                            className={`absolute right-0 top-0 ${isTablet ? 'w-[1.4vw] h-[1.4vw] rounded-[0.2vw]' : 'w-[1.7vw] h-[1.7vw] rounded-[0.35vw]'} flex items-center justify-center border-[1.5px] border-red-500 hover:bg-red-50 transition-all cursor-pointer`}
-                                        >
-                                            <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1vw] h-[1vw]'} text-red-500 stroke-[3]`} />
                                         </button>
                                     )}
                                     
@@ -309,13 +362,14 @@ const LeadFormPopup = ({
                                 <form onSubmit={handleSubmit} className={`${isTablet ? 'space-y-[0.8vw] w-full max-w-[14vw]' : 'space-y-[0.7vw] w-full max-w-[18vw]'} mx-auto`}>
                                     {(leadFormSettings.fields || []).map(field => {
                                         const fieldKey = field.label || field.type;
+                                        const hasError = Boolean(errors[fieldKey]);
                                         return (
                                             <div key={field.id} className="flex flex-col space-y-[0.2vw]">
                                                 <label 
                                                     className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-normal`}
                                                     style={{ color: '#000000' }}
                                                 >
-                                                    {field.label}
+                                                    {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
                                                 </label>
 
                                                 <div className="relative">
@@ -324,9 +378,9 @@ const LeadFormPopup = ({
                                                             placeholder={field.placeholder || 'Enter your Feedback'}
                                                             value={formValues[fieldKey] || ''}
                                                             onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                            className={`w-full bg-white border ${isTablet ? 'rounded-[0.4vw] p-[0.8vw] text-[0.5vw] h-[6vw]' : 'rounded-[0.6vw] p-[1vw] text-[0.75vw] h-[8vw]'} font-medium focus:outline-none transition-all resize-none shadow-sm`}
+                                                            className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] p-[0.8vw] text-[0.5vw] h-[6vw]' : 'rounded-[0.6vw] p-[1vw] text-[0.75vw] h-[8vw]'} font-medium focus:outline-none transition-all resize-none shadow-sm`}
                                                             style={{
-                                                                borderColor: leadFormSettings.appearance?.bgStroke || '#D1D5DB',
+                                                                borderColor: hasError ? '#EF4444' : '#D1D5DB',
                                                                 color: leadFormSettings.appearance?.textFill || '#111827',
                                                                 fontFamily: 'inherit'
                                                             }}
@@ -336,9 +390,9 @@ const LeadFormPopup = ({
                                                             <select
                                                                 value={formValues[fieldKey] || ''}
                                                                 onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                                className={`w-full bg-white border ${isTablet ? 'rounded-[0.4vw] py-[0.5vw] px-[0.8vw] text-[0.5vw]' : 'rounded-[0.6vw] py-[0.5vw] px-[0.9vw] text-[0.75vw]'} font-medium focus:outline-none transition-all shadow-sm appearance-none`}
+                                                                className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] py-[0.5vw] px-[0.8vw] text-[0.5vw]' : 'rounded-[0.6vw] py-[0.5vw] px-[0.9vw] text-[0.75vw]'} font-medium focus:outline-none transition-all shadow-sm appearance-none`}
                                                                 style={{
-                                                                    borderColor: leadFormSettings.appearance?.bgStroke || '#D1D5DB',
+                                                                    borderColor: hasError ? '#EF4444' : '#D1D5DB',
                                                                     color: leadFormSettings.appearance?.textFill || '#111827',
                                                                     fontFamily: 'inherit'
                                                                 }}
@@ -365,9 +419,9 @@ const LeadFormPopup = ({
                                                                 placeholder={field.placeholder || `Enter your ${field.type}`}
                                                                 value={formValues[fieldKey] || ''}
                                                                 onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                                className={`w-full bg-white border ${isTablet ? 'rounded-[0.4vw] py-[0.5vw] pl-[2.5vw] pr-[0.8vw] text-[0.5vw]' : 'rounded-[0.6vw] py-[0.5vw] pl-[3.5vw] pr-[0.9vw] text-[0.75vw]'} font-medium focus:outline-none transition-all shadow-sm`}
+                                                                className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] py-[0.5vw] pl-[2.5vw] pr-[0.8vw] text-[0.5vw]' : 'rounded-[0.6vw] py-[0.5vw] pl-[3.5vw] pr-[0.9vw] text-[0.75vw]'} font-medium focus:outline-none transition-all shadow-sm`}
                                                                 style={{
-                                                                    borderColor: leadFormSettings.appearance?.bgStroke || '#D1D5DB',
+                                                                    borderColor: hasError ? '#EF4444' : '#D1D5DB',
                                                                     color: leadFormSettings.appearance?.textFill || '#111827',
                                                                     fontFamily: 'inherit'
                                                                 }}
@@ -378,6 +432,12 @@ const LeadFormPopup = ({
                                             </div>
                                         );
                                     })}
+                                    {Object.values(errors).filter(Boolean).length > 0 && (
+                                        <div className="w-full bg-red-50 border border-red-200 text-red-600 rounded-[0.4vw] py-[0.3vw] px-[0.6vw] text-[0.68vw] font-medium text-center flex items-center justify-center gap-[0.3vw] animate-in fade-in duration-200">
+                                            <Icon icon="lucide:alert-circle" className="w-[0.9vw] h-[0.9vw] shrink-0" />
+                                            <span>{Object.values(errors).filter(Boolean).find(msg => msg && msg.includes('valid')) || 'Please fill in all required fields'}</span>
+                                        </div>
+                                    )}
                                     {/* Submit Button */}
                                     <div className="w-full mt-[0.4vw]">
                                         <button

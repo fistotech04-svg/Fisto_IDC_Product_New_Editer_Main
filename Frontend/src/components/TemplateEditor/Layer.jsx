@@ -280,7 +280,7 @@ const handleContextMenu = (e) => {
               onBlur={handleRenameSubmit}
               onKeyDown={handleKeyDown}
               onClick={(e) => e.stopPropagation()}
-              className="w-full bg-white border border-indigo-500 rounded-[0.1vw] px-[0.2vw] py-0 text-[0.7vw] font-medium text-gray-900 outline-none"
+              className="block w-full bg-transparent p-0 m-0 border-b border-none outline-none focus:outline-none focus:ring-0 text-[0.7vw] font-medium text-gray-900"
             />
           ) : (
             <span className="block text-[0.7vw] font-medium text-gray-700 truncate group-hover/layer:text-[#111827]">
