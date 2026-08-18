@@ -3424,12 +3424,12 @@ const InteractionPanel = ({
         // Helper to get default color based on action type
         const getDefaultBgColor = (actionId) => {
           const colorMap = {
-            'whatsapp': '#25D366',
-            'instagram': '#E1306C',
+            'whatsapp': '#34A853',
+            'instagram': 'linear-gradient(45deg, rgba(255, 221, 85, 1) 0%, rgba(255, 84, 62, 1) 50%, rgba(200, 55, 171, 1) 100%)',
             'youtube': '#FF0000',
             'email': '#F97316',
             'location': '#F97316',
-            'facebook': '#1877F2',
+            'facebook': '#3D5A98',
             'linkedin': '#0A66C2',
             'x': '#000000',
             'navigate-to': '#8B5CF6',
@@ -3446,7 +3446,7 @@ const InteractionPanel = ({
             initialData={{
                preset: item?.presetId || 'preset3',
                iconColor: item?.iconColor || '#FFFFFF',
-               bgColor: item?.bgColor || getDefaultBgColor(item?.actionId),
+               bgColor: item?.bgColor || getDefaultBgColor(item?.presetId || item?.actionId),
                iconStyle: 'style1',
                src: item?.hotspotIconSrc || null,
                actionId: item?.actionId,

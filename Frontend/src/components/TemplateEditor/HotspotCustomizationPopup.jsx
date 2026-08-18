@@ -1,30 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
-import ColorPicker from './ColorPicker';
+import ColorPicker, { parseGradient } from './ColorPicker';
 import { presets as hotspotPresets } from './HotspotPresetPopup';
 
-const rawGlob1 = import.meta.glob('../../assets/hotspot preset icon/*.svg', { as: 'url', eager: true });
-const rawGlob2 = import.meta.glob('../../assets/hotspot preset icon/icons/*.svg', { as: 'url', eager: true });
-const ALL_ICON_ASSETS = { ...rawGlob1, ...rawGlob2 };
+const ALL_ICON_ASSETS = import.meta.glob('../../assets/hotspot preset icon/**/*.svg', { as: 'url', eager: true });
 
 const getCategoryKeywords = (actionId) => {
   const map = {
-    'whatsapp': ['whatsapp'],
-    'open-link': ['link icon', 'linkicon', 'location'],
-    'video': ['video'],
-    'instagram': ['instagram'],
-    'facebook': ['facebook'],
-    'linkedin': ['linkedin'],
-    'x': ['twitter', 'x-logo'],
-    'youtube': ['youtube'],
-    'popup': ['popup'],
-    'slideshow': ['slideshow'],
-    '3d-viewer': ['cube'],
-    'email': ['mail', 'email', 'envelope'],
-    'call': ['phone', 'call'],
-    'location': ['location'],
-    'navigate-to': ['file', 'folder', 'navigation'],
     'zoom': ['zoom'],
     'download': ['download'],
     'info': ['info']
@@ -34,17 +17,80 @@ const getCategoryKeywords = (actionId) => {
 
 const getIconsForAction = (actionId) => {
   if (!actionId) return [];
-  const keywords = getCategoryKeywords(actionId);
-  if (keywords.length === 0) return [];
   
+  const folderMap = {
+    'whatsapp': 'whatsapp',
+    'open-link': 'open link',
+    'video': 'video',
+    'instagram': 'instagram',
+    'facebook': 'facebook',
+    'linkedin': 'linkedin',
+    'x': 'x',
+    'youtube': 'youtube',
+    'popup': 'popup',
+    'slideshow': 'slideshow',
+    '3d-viewer': '3d viewer',
+    'email': 'email',
+    'call': 'call',
+    'location': 'location',
+    'navigate-to': 'navigation page'
+  };
+
+  const folder = folderMap[actionId];
   const matched = [];
-  for (const [path, url] of Object.entries(ALL_ICON_ASSETS)) {
-    const lowerPath = path.toLowerCase();
-    if (keywords.some(kw => lowerPath.includes(kw))) {
-      matched.push({ id: path, src: url });
+  
+  if (folder) {
+    const prefix = `../../assets/hotspot preset icon/${folder}/`.toLowerCase();
+    for (const [path, url] of Object.entries(ALL_ICON_ASSETS)) {
+      if (path.toLowerCase().startsWith(prefix)) {
+        matched.push({ id: path, src: url });
+      }
+    }
+  } else {
+    const keywords = getCategoryKeywords(actionId);
+    if (keywords.length > 0) {
+      for (const [path, url] of Object.entries(ALL_ICON_ASSETS)) {
+        const lowerPath = path.toLowerCase();
+        if (keywords.some(kw => lowerPath.includes(kw))) {
+          matched.push({ id: path, src: url });
+        }
+      }
     }
   }
+  
   return matched;
+};
+
+const generateSvgGradient = (colorStr, idPrefix) => {
+  if (!colorStr || typeof colorStr !== 'string' || !colorStr.includes('gradient')) {
+    return { fillValue: colorStr, defsString: '' };
+  }
+  const parsed = parseGradient(colorStr);
+  if (!parsed || !parsed.stops || parsed.stops.length === 0) {
+    return { fillValue: colorStr, defsString: '' };
+  }
+  const id = `${idPrefix}-${Math.random().toString(36).substr(2, 9)}`;
+  let defsString = `<defs>`;
+  if (parsed.type === 'Linear') {
+    const angle = ((parsed.angle || 0) - 90) * (Math.PI / 180);
+    const x1 = Math.round(50 + Math.cos(angle) * 50) + '%';
+    const y1 = Math.round(50 + Math.sin(angle) * 50) + '%';
+    const x2 = Math.round(50 - Math.cos(angle) * 50) + '%';
+    const y2 = Math.round(50 - Math.sin(angle) * 50) + '%';
+    defsString += `<linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">`;
+    parsed.stops.forEach(stop => {
+      defsString += `<stop offset="${stop.offset}%" stop-color="${stop.color}" stop-opacity="${stop.opacity / 100}" />`;
+    });
+    defsString += `</linearGradient>`;
+  } else {
+    defsString += `<radialGradient id="${id}" cx="50%" cy="50%" r="50%">`;
+    parsed.stops.forEach(stop => {
+      defsString += `<stop offset="${stop.offset}%" stop-color="${stop.color}" stop-opacity="${stop.opacity / 100}" />`;
+    });
+    defsString += `</radialGradient>`;
+  }
+  defsString += `</defs>`;
+  return { fillValue: `url(#${id})`, defsString };
 };
 
 const PRESETS = [
@@ -57,54 +103,88 @@ const PRESETS = [
 ];
 
 export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgInfo = null) => {
-  let backgroundHTML = '';
+  const bgInfo = generateSvgGradient(bgColor, 'bg');
+  const bgFill = bgInfo.fillValue;
+  const fgInfo = generateSvgGradient(iconColor, 'fg');
+  const fgFill = fgInfo.fillValue;
+  let backgroundHTML = bgInfo.defsString + fgInfo.defsString;
   
   if (preset === 'preset1') {
     // No extra rings, just the rich icon itself
   } else if (preset === 'preset2') {
-    backgroundHTML = `
-      <circle cx="24" cy="24" r="24" fill="${bgColor}" opacity="0.3">
+    backgroundHTML += `
+      <circle cx="24" cy="24" r="24" fill="${bgFill}" opacity="0.3">
         <animate attributeName="r" values="22; 28; 22" dur="2s" repeatCount="indefinite" />
         <animate attributeName="opacity" values="0.5; 0.1; 0.5" dur="2s" repeatCount="indefinite" />
       </circle>`;
   } else if (preset === 'preset3') {
-    backgroundHTML = `
-      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgColor}" stroke-width="2" stroke-dasharray="6 6">
+    backgroundHTML += `
+      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgFill}" stroke-width="2" stroke-dasharray="6 6">
         <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="8s" repeatCount="indefinite" />
       </circle>`;
   } else if (preset === 'preset4') {
-    backgroundHTML = `
-      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgColor}" stroke-width="1.5" opacity="0.5" />
-      <circle cx="24" cy="24" r="30" fill="none" stroke="${bgColor}" stroke-width="2" stroke-dasharray="18 16">
+    backgroundHTML += `
+      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgFill}" stroke-width="1.5" opacity="0.5" />
+      <circle cx="24" cy="24" r="30" fill="none" stroke="${bgFill}" stroke-width="2" stroke-dasharray="18 16">
         <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="6s" repeatCount="indefinite" />
       </circle>`;
   } else if (preset === 'preset5') {
-    backgroundHTML = `
-      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgColor}" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0 8" opacity="0.8">
+    backgroundHTML += `
+      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgFill}" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0 8" opacity="0.8">
         <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="10s" repeatCount="indefinite" />
       </circle>
-      <circle cx="24" cy="24" r="31" fill="none" stroke="${bgColor}" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="0 6" opacity="0.4">
+      <circle cx="24" cy="24" r="31" fill="none" stroke="${bgFill}" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="0 6" opacity="0.4">
         <animateTransform attributeName="transform" type="rotate" from="360 24 24" to="0 24 24" dur="15s" repeatCount="indefinite" />
       </circle>`;
   } else if (preset === 'preset6') {
-    backgroundHTML = `
-      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgColor}" stroke-width="1" opacity="0.5"/>
-      <circle cx="24" cy="24" r="30" fill="none" stroke="${bgColor}" stroke-width="1" opacity="0.3"/>
+    backgroundHTML += `
+      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgFill}" stroke-width="1" opacity="0.5"/>
+      <circle cx="24" cy="24" r="30" fill="none" stroke="${bgFill}" stroke-width="1" opacity="0.3"/>
       <g>
         <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="4s" repeatCount="indefinite" />
-        <circle cx="24" cy="5" r="2.5" fill="${bgColor}" />
+        <circle cx="24" cy="5" r="2.5" fill="${bgFill}" />
       </g>
       <g>
         <animateTransform attributeName="transform" type="rotate" from="360 24 24" to="0 24 24" dur="6s" repeatCount="indefinite" />
-        <circle cx="24" cy="1" r="1.5" fill="${bgColor}" opacity="0.8"/>
+        <circle cx="24" cy="1" r="1.5" fill="${bgFill}" opacity="0.8"/>
       </g>`;
   }
 
   // Draw the original image or the recolored inline SVG
   if (inlinedSvgInfo) {
+    let innerSvgAttrs = `x="0" y="0" width="48" height="48"`;
+    let extraBg = '';
+    let fillAttr = '';
+    let strokeAttr = '';
+    
+    if (inlinedSvgInfo.isRawIcon) {
+      extraBg = `<circle cx="24" cy="24" r="20" fill="${bgFill}" />`;
+      innerSvgAttrs = `x="12" y="12" width="24" height="24"`;
+      
+      const origFill = inlinedSvgInfo.svgTagFill;
+      const origStroke = inlinedSvgInfo.svgTagStroke;
+      
+      if (origStroke === 'none') {
+        strokeAttr = 'stroke="none"';
+      } else if (origStroke) {
+        strokeAttr = `stroke="${fgFill}"`;
+      }
+
+      if (origFill === 'none') {
+        fillAttr = 'fill="none"';
+      } else if (origFill) {
+        fillAttr = `fill="${fgFill}"`;
+      }
+      
+      if (!origFill && !origStroke) {
+        fillAttr = `fill="${fgFill}"`;
+      }
+    }
+
     return `
       ${backgroundHTML}
-      <svg x="0" y="0" width="48" height="48" viewBox="${inlinedSvgInfo.viewBox}" overflow="visible">
+      ${extraBg}
+      <svg ${innerSvgAttrs} viewBox="${inlinedSvgInfo.viewBox}" overflow="visible" ${fillAttr} ${strokeAttr}>
         ${inlinedSvgInfo.innerHTML}
       </svg>
     `;
@@ -117,7 +197,8 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
 };
 
 export const generateButtonSVG = (label, bgCol, textCol, hasIcon, w = 80, h = 32, rx = 4, fontSize = 14) => {
-  let html = `<rect x="0" y="0" width="${w}" height="${h}" rx="${rx}" fill="${bgCol}" />`;
+  const bgInfo = generateSvgGradient(bgCol, 'btnBg');
+  let html = bgInfo.defsString + `<rect x="0" y="0" width="${w}" height="${h}" rx="${rx}" fill="${bgInfo.fillValue}" />`;
   const textY = h / 2 + (fontSize / 3);
   if (hasIcon) {
     const textWidth = label.length * (fontSize * 0.55);
@@ -156,6 +237,48 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
   const [btnHeight, setBtnHeight] = useState(32);
   const [btnRx, setBtnRx] = useState(4);
   const [btnFontSize, setBtnFontSize] = useState(14);
+  
+  const [bareDefaultSrc, setBareDefaultSrc] = useState(null);
+
+  useEffect(() => {
+    if (initialData?.src) {
+      fetch(initialData.src)
+        .then(res => res.text())
+        .then(text => {
+          if (text.includes('<svg')) {
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(text, 'image/svg+xml');
+            const svg = svgDoc.querySelector('svg');
+            if (svg) {
+              const bgElements = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon')).filter(el => {
+                const fill = el.getAttribute('fill');
+                if (!fill) return false;
+                const f = fill.toLowerCase();
+                if (f.startsWith('url(')) return true;
+                return f !== 'none' && f !== 'white' && f !== '#ffffff' && f !== '#fff';
+              });
+              
+              bgElements.forEach(el => el.remove());
+
+              const fgElements = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon')).filter(el => {
+                const fill = el.getAttribute('fill');
+                if (!fill) return false;
+                const f = fill.toLowerCase();
+                return f === 'white' || f === '#ffffff' || f === '#fff';
+              });
+              
+              fgElements.forEach(el => el.setAttribute('fill', '#000000'));
+              
+              const svgString = new XMLSerializer().serializeToString(svg);
+              const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+              setBareDefaultSrc(dataUrl);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [initialData?.src]);
+  
   const getCurrentIconSrc = () => {
     if (selectedIconStyle === 'custom') return customSrc;
     const style = iconStyles.find(s => s.id === selectedIconStyle);
@@ -231,36 +354,59 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
     const bg = overrideBg || applyOpacity(bgColor, bgOpacity);
     const fg = overrideFg || applyOpacity(iconColor, iconOpacity);
 
-    // Any shape with a non-white/none fill is a background shape
-    const bgElements = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon')).filter(el => {
-      const fill = el.getAttribute('fill');
-      if (!fill) return false;
-      const f = fill.toLowerCase();
-      // Preserve gradient fills visually
-      if (f.startsWith('url(')) return false;
-      return f !== 'none' && f !== 'white' && f !== '#ffffff' && f !== '#fff';
-    });
-    
-    bgElements.forEach(el => {
-      el.setAttribute('fill', bg);
-    });
+    const bgInfo = generateSvgGradient(bg, 'svgBg');
+    const fgInfo = generateSvgGradient(fg, 'svgFg');
 
-    // Any shape with a white fill is a foreground shape
-    if (fg && fg.toLowerCase() !== '#ffffff' && fg !== 'white') {
-      const fgElements = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon')).filter(el => {
+    const isRawIcon = selectedIconStyle !== 'default';
+    const allShapes = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon'));
+
+    if (isRawIcon) {
+      allShapes.forEach(el => {
+        const fill = el.getAttribute('fill') || el.style.fill;
+        const stroke = el.getAttribute('stroke') || el.style.stroke;
+
+        if (fill && fill.toLowerCase() !== 'none') {
+           el.setAttribute('fill', fgInfo.fillValue);
+           el.style.fill = '';
+        }
+        
+        if (stroke && stroke.toLowerCase() !== 'none') {
+           el.setAttribute('stroke', fgInfo.fillValue);
+           el.style.stroke = '';
+        }
+      });
+    } else {
+      // Original logic for built-in preset SVGs
+      const bgElements = allShapes.filter(el => {
         const fill = el.getAttribute('fill');
         if (!fill) return false;
         const f = fill.toLowerCase();
-        return f === 'white' || f === '#ffffff' || f === '#fff';
+        return f !== 'none' && f !== 'white' && f !== '#ffffff' && f !== '#fff';
       });
-      fgElements.forEach(el => {
-        el.setAttribute('fill', fg);
+      
+      bgElements.forEach(el => {
+        el.setAttribute('fill', bgInfo.fillValue);
       });
+
+      if (fg && fg.toLowerCase() !== '#ffffff' && fg !== 'white') {
+        const fgElements = allShapes.filter(el => {
+          const fill = el.getAttribute('fill');
+          if (!fill) return false;
+          const f = fill.toLowerCase();
+          return f === 'white' || f === '#ffffff' || f === '#fff';
+        });
+        fgElements.forEach(el => {
+          el.setAttribute('fill', fgInfo.fillValue);
+        });
+      }
     }
 
     return {
-      innerHTML: svg.innerHTML,
-      viewBox: svg.getAttribute('viewBox') || '0 0 52 52'
+      innerHTML: bgInfo.defsString + fgInfo.defsString + svg.innerHTML,
+      viewBox: svg.getAttribute('viewBox') || '0 0 52 52',
+      isRawIcon,
+      svgTagFill: svg.getAttribute('fill'),
+      svgTagStroke: svg.getAttribute('stroke')
     };
   };
 
@@ -316,11 +462,21 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
       if (initialData.preset) setSelectedPreset(initialData.preset);
       
       let styles = [];
-      if (initialData.actionId) {
-        styles = getIconsForAction(initialData.actionId);
-      }
-      if (styles.length === 0 && initialData.src) {
+      if (initialData.src) {
         styles.push({ id: 'default', src: initialData.src });
+      }
+      
+      const lookupKey = (initialData.preset && getIconsForAction(initialData.preset).length > 0) 
+        ? initialData.preset 
+        : initialData.actionId;
+        
+      if (lookupKey) {
+        const actionIcons = getIconsForAction(lookupKey);
+        actionIcons.forEach(icon => {
+          if (!styles.some(s => s.src === icon.src)) {
+            styles.push(icon);
+          }
+        });
       }
       setIconStyles(styles);
 
@@ -566,7 +722,7 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                           className={`w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-[0.3vw] border transition-colors ${selectedIconStyle === style.id ? 'border-gray-800 shadow-sm' : 'border-transparent hover:bg-gray-50'}`}
                           onClick={() => setSelectedIconStyle(style.id)}
                         >
-                          <img src={style.src} className="w-[1.4vw] h-[1.4vw] object-contain" />
+                          <img src={style.id === 'default' && bareDefaultSrc ? bareDefaultSrc : style.src} className="w-[1.4vw] h-[1.4vw] object-contain" />
                         </button>
                       ))}
                     </div>

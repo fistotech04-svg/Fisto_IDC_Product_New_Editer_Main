@@ -2771,7 +2771,7 @@ const MainEditor = ({
           'facebook': 'open-link',
           'linkedin': 'open-link',
           'open-link': 'open-link',
-          'navigate': 'navigate-to',
+          'navigate-to': 'navigate-to',
           'whatsapp': 'whatsapp',
           'call': 'call',
           'email': 'email',
@@ -2780,7 +2780,7 @@ const MainEditor = ({
           'slideshow': 'slideshow',
           'zoom': 'zoom',
           'download': 'download',
-          'info': 'info-box',
+          'info-box': 'info-box',
           'location': 'open-link',
           '3d-viewer': '3d-viewer',
           'interactive-button': 'open-link'

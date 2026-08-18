@@ -76,7 +76,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
   return createPortal(
     <div 
       ref={popupRef}
-      className="fixed right-[12vw] top-[20vh] bg-white rounded-[0.8vw] shadow-[0_4px_20px_rgba(0,0,0,0.15)] w-[18vw] border border-gray-100 flex flex-col z-[99999] overflow-hidden"
+      className="fixed right-[12vw] top-[10vh] bg-white rounded-[0.8vw] shadow-[0_4px_20px_rgba(0,0,0,0.15)] w-[18vw] border border-gray-100 flex flex-col z-[99999] overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header: Search and Style Dropdown */}
@@ -97,18 +97,18 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto max-h-[60vh] p-[1vw] custom-scrollbar">
+      <div className="flex-1 p-[1vw]">
         {/* Interactive Hotspot Section */}
-        <div className="flex items-center gap-[0.5vw] mb-[1.5vh]">
-          <h3 className="text-[0.85vw] font-semibold text-gray-800 whitespace-nowrap">Interactive Hotspot</h3>
+        <div className="flex items-center gap-[0.5vw] mb-[1vh]">
+          <h3 className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Interactive Hotspot</h3>
           <div className="h-px bg-gray-200 flex-1"></div>
         </div>
 
-        <div className="grid grid-cols-4 gap-y-[2vh] gap-x-[0.5vw] mb-[3vh]">
+        <div className="grid grid-cols-4 gap-y-[0.5vh] gap-x-[0.5vw] mb-[1vh]">
           {filteredPresets.map((preset) => (
             <div 
               key={preset.id}
-              className="group flex flex-col items-center cursor-grab active:cursor-grabbing hover:bg-gray-50 rounded-[0.5vw] p-[0.5vw] transition-colors"
+              className="group flex flex-col items-center cursor-grab active:cursor-grabbing hover:bg-gray-50 rounded-[0.5vw] p-[0.4vw] transition-colors"
               draggable="true"
               onDragStart={(e) => {
                 const data = {
@@ -127,10 +127,10 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
                 }));
               }}
             >
-              <div className="w-[3.5vw] h-[3.5vw] flex items-center justify-center rounded-full mb-[0.5vh] pointer-events-none">
+              <div className="w-[2.8vw] h-[2.8vw] flex items-center justify-center rounded-full pointer-events-none">
                 <img src={preset.src} alt={preset.label} className="w-full h-full object-contain pointer-events-none" />
               </div>
-              <span className="text-[0.65vw] text-gray-600 font-medium text-center leading-tight">
+              <span className="text-[0.6vw] text-gray-600 font-medium text-center leading-tight mt-[0.3vh]">
                 {preset.label}
               </span>
             </div>
@@ -138,8 +138,8 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
         </div>
 
         {/* Interactive Buttons Section */}
-        <div className="flex items-center gap-[0.5vw] mb-[1.5vh]">
-          <h3 className="text-[0.85vw] font-semibold text-gray-800 whitespace-nowrap">Interactive Buttons</h3>
+        <div className="flex items-center gap-[0.5vw] mb-[1vh]">
+          <h3 className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Interactive Buttons</h3>
           <div className="h-px bg-gray-200 flex-1"></div>
         </div>
 
@@ -151,7 +151,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
             { id: 'btn-yellow-round', color: '#FFD600', text: 'Round Button', rounded: 16, w: 100, h: 32 },
             { id: 'btn-purple-round', color: '#7B42F6', text: 'Button', rounded: 16, w: 80, h: 32 }
           ].map((btn) => {
-            
+          
             const handleDragStart = (e) => {
               let html = `<rect x="0" y="0" width="${btn.w}" height="${btn.h}" rx="${btn.rounded}" fill="${btn.color}" />`;
               if (btn.icon) {
@@ -159,7 +159,7 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
                 const contentWidth = 15 + 5 + textWidth;
                 const startX = (btn.w - contentWidth) / 2;
                 const textX = startX + 20 + (textWidth / 2);
-                
+              
                 html += `<g transform="translate(${startX - 20}, 0)">`;
                 html += `<path d="M20 16 L25 21 L35 11" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />`;
                 html += `</g>`;

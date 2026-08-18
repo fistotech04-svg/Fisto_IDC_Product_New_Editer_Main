@@ -199,74 +199,6 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
         };
     };
 
-    const buildMergedColors = (savedSource) => {
-        const saved = savedSource || {};
-        const merged = {};
-        const toolbarP = saved.toolbarColor?.primary;
-        const toolbarS = saved.toolbarColor?.secondary;
-        const popupP = saved.popupColor?.primary;
-        const popupS = saved.popupColor?.secondary;
-
-        for (const key of Object.keys(LAYOUT_DEFAULT_COLORS)) {
-            const idx = parseInt(key);
-            merged[idx] = LAYOUT_DEFAULT_COLORS[idx].map((c) => {
-                const savedItem = saved[idx]?.find(s => s && s.id === c.id);
-                let hexVal = c.hex;
-                if (savedItem && savedItem.hex) {
-                    hexVal = savedItem.hex;
-                } else if (toolbarP && ['toolbar-bg', 'bottom-toolbar-bg', 'page-number-bg'].includes(c.id)) {
-                    hexVal = toolbarP;
-                } else if (toolbarS && ['toolbar-text-main', 'toolbar-icon', 'reset-text', 'page-number-text'].includes(c.id)) {
-                    hexVal = toolbarS;
-                } else if (popupP && ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'].includes(c.id)) {
-                    hexVal = popupP;
-                } else if (popupS && ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'].includes(c.id)) {
-                    hexVal = popupS;
-                }
-
-                return {
-                    ...c,
-                    ...(savedItem ? savedItem : {}),
-                    hex: hexVal
-                };
-            });
-        }
-
-        // Auto-correct legacy saved colors for Style B layouts (light background / vibrant text)
-        const styleBLayouts = [3, 4, 5, 6, 7, 9];
-        const popupPrimaryIds = ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'];
-        const popupSecondaryIds = ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'];
-
-        const masterPrimary = merged[1]?.find(c => popupPrimaryIds.includes(c.id))?.hex;
-        const masterSecondary = merged[1]?.find(c => popupSecondaryIds.includes(c.id))?.hex;
-
-        if (masterPrimary && masterSecondary) {
-            styleBLayouts.forEach(layoutIdx => {
-                if (merged[layoutIdx]) {
-                    const currentPrimary = merged[layoutIdx].find(c => popupPrimaryIds.includes(c.id))?.hex;
-                    const currentSecondary = merged[layoutIdx].find(c => popupSecondaryIds.includes(c.id))?.hex;
-
-                    if (currentPrimary === masterPrimary && currentSecondary === masterSecondary) {
-                        merged[layoutIdx] = merged[layoutIdx].map(c => {
-                            if (popupPrimaryIds.includes(c.id)) return { ...c, hex: masterSecondary };
-                            if (popupSecondaryIds.includes(c.id)) return { ...c, hex: masterPrimary };
-                            return c;
-                        });
-                    }
-                }
-            });
-        }
-
-        return merged;
-    };
-
-    // ── Merge saved with defaults ──────────────────────────────────────────
-    const [colors, setColors] = useState(() => buildMergedColors(layoutColors));
-
-    useEffect(() => {
-        setColors(buildMergedColors(layoutColors));
-    }, [layoutColors]);
-
     // ── Helper methods for inline edits ─────────────────────────────────────
     const getTint = (hex, weight = 0.8) => {
         let r = parseInt(hex.slice(1, 3), 16); let g = parseInt(hex.slice(3, 5), 16); let b = parseInt(hex.slice(5, 7), 16);
@@ -306,6 +238,91 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
         if (luminance > 0.45) return getShade(hex, 0.5);
         return hex;
     };
+
+    const buildMergedColors = (savedSource) => {
+        const saved = savedSource || {};
+        const merged = {};
+        const toolbarP = saved.toolbarColor?.primary;
+        const toolbarS = saved.toolbarColor?.secondary;
+        const popupP = saved.popupColor?.primary;
+        const popupS = saved.popupColor?.secondary;
+
+        for (const key of Object.keys(LAYOUT_DEFAULT_COLORS)) {
+            const idx = parseInt(key);
+            merged[idx] = LAYOUT_DEFAULT_COLORS[idx].map((c) => {
+                const savedItem = saved[idx]?.find(s => s && s.id === c.id);
+                let hexVal = c.hex;
+                let opacityVal = c.opacity;
+
+                if (savedItem && savedItem.hex) {
+                    hexVal = savedItem.hex;
+                    opacityVal = savedItem.opacity !== undefined ? savedItem.opacity : c.opacity;
+                } else {
+                    if (toolbarP && ['toolbar-bg', 'bottom-toolbar-bg', 'page-number-bg'].includes(c.id)) {
+                        hexVal = toolbarP;
+                    } else if (toolbarP && ['search-bg-v1', 'search-bg-v2', 'reset-bg'].includes(c.id)) {
+                        hexVal = getTint(toolbarP, 0.75);
+                    } else if (toolbarS && ['toolbar-text-main', 'toolbar-icon', 'search-text-v1', 'reset-text', 'page-number-text'].includes(c.id)) {
+                        if (c.id === 'search-text-v1') {
+                            const isLightBar = isLightColor(toolbarP || c.hex);
+                            hexVal = ensureDarkText(isLightBar ? toolbarS : (toolbarP || c.hex));
+                            opacityVal = 100;
+                        } else {
+                            hexVal = toolbarS;
+                            const isLightBg = isLightColor(toolbarP || c.hex);
+                            const isStandardPurple = toolbarS.toUpperCase() === '#575C9C';
+                            if (isLightBg && isStandardPurple) opacityVal = 100;
+                        }
+                    } else if (popupP && ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'].includes(c.id)) {
+                        hexVal = popupP;
+                    } else if (popupS && ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'].includes(c.id)) {
+                        hexVal = popupS;
+                    }
+                }
+
+                return {
+                    ...c,
+                    ...(savedItem ? savedItem : {}),
+                    hex: hexVal,
+                    opacity: opacityVal
+                };
+            });
+        }
+
+        // Auto-correct legacy saved colors for Style B layouts (light background / vibrant text)
+        const styleBLayouts = [3, 4, 5, 6, 7, 9];
+        const popupPrimaryIds = ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'];
+        const popupSecondaryIds = ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'];
+
+        const masterPrimary = merged[1]?.find(c => popupPrimaryIds.includes(c.id))?.hex;
+        const masterSecondary = merged[1]?.find(c => popupSecondaryIds.includes(c.id))?.hex;
+
+        if (masterPrimary && masterSecondary) {
+            styleBLayouts.forEach(layoutIdx => {
+                if (merged[layoutIdx]) {
+                    const currentPrimary = merged[layoutIdx].find(c => popupPrimaryIds.includes(c.id))?.hex;
+                    const currentSecondary = merged[layoutIdx].find(c => popupSecondaryIds.includes(c.id))?.hex;
+
+                    if (currentPrimary === masterPrimary && currentSecondary === masterSecondary) {
+                        merged[layoutIdx] = merged[layoutIdx].map(c => {
+                            if (popupPrimaryIds.includes(c.id)) return { ...c, hex: masterSecondary };
+                            if (popupSecondaryIds.includes(c.id)) return { ...c, hex: masterPrimary };
+                            return c;
+                        });
+                    }
+                }
+            });
+        }
+
+        return merged;
+    };
+
+    // ── Merge saved with defaults ──────────────────────────────────────────
+    const [colors, setColors] = useState(() => buildMergedColors(layoutColors));
+
+    useEffect(() => {
+        setColors(buildMergedColors(layoutColors));
+    }, [layoutColors]);
 
     // ── Inline color change handlers ───────────────────────────────────────
     const handleInlineColorChange = (layoutIdx, colorId, newHex) => {
