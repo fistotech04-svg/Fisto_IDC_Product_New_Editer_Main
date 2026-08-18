@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
 import TabletLayoutSound from './TabletLayoutSound';
+import ShareModal from '../../../ShareModal';
 
-const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPageClick, settings, bookName = "Name of the Book", showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, handleDownload }) => {
+const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPageClick, settings, bookName = "Name of the Book", showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, handleDownload, currentBook, activeLayout }) => {
   const [inputPage, setInputPage] = useState(currentPage === 0 ? 1 : (currentPage || 1));
   const [showTOC, setShowTOC] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   useEffect(() => {
     setInputPage(currentPage === 0 ? 1 : (currentPage || 1));
@@ -108,7 +110,16 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
             >
               <Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" />
             </button>
-            <button className="hover:text-gray-200 transition-colors">
+            <button 
+              className="hover:text-gray-200 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowTOC(false);
+                setShowSoundPopupMemo?.(false);
+                setShowProfilePopupMemo?.(false);
+                setIsShareOpen(true);
+              }}
+            >
               <Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" />
             </button>
             <button className="hover:text-gray-200 transition-colors" onClick={() => {
@@ -240,6 +251,13 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
 
       </div>
 
+      <ShareModal
+          isOpen={isShareOpen}
+          onClose={() => setIsShareOpen(false)}
+          isTabletLayout={true}
+          currentBook={currentBook || settings}
+          activeLayout={activeLayout || '2'}
+      />
     </div>
   );
 };

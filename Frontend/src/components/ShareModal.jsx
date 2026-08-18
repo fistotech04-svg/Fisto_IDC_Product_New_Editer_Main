@@ -256,7 +256,7 @@ const CustomQRCode = React.forwardRef(({
 });
 
 
-const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook, activeLayout }) => {
+const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook, activeLayout, isTabletLayout = false }) => {
     const [addCover, setAddCover] = useState(false);
 
     const getResolvedFirstPageHtml = () => {
@@ -1096,6 +1096,269 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
             if (url) window.open(url, '_blank');
         }
     };
+
+    if (isTabletLayout) {
+        return (
+            <div className="absolute inset-0 z-[150] flex items-center justify-center p-[2cqw]">
+                {/* Backdrop */}
+                <div
+                    className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
+                    onClick={onClose}
+                />
+
+                {/* Responsive Tablet Modal Container */}
+                <div className="relative bg-white w-[75cqw] max-h-[90vh] rounded-[1.5cqw] shadow-2xl animate-in fade-in zoom-in-95 duration-300 flex flex-col overflow-hidden">
+                    {/* Header */}
+                    <div className="px-[2.5cqw] py-[1.5cqw] flex items-center gap-[1cqw] border-b border-gray-50 shrink-0">
+                        <h2 className="text-[1.8cqw] font-bold text-gray-900 whitespace-nowrap">Share Flipbook</h2>
+                        <div className="flex-1 h-[1px] bg-gray-200" />
+                        <button
+                            onClick={onClose}
+                            className="p-[0.5cqw] rounded-full hover:bg-gray-100 transition-colors border border-red-200 text-red-500 cursor-pointer"
+                        >
+                            <X className="w-[1.5cqw] h-[1.5cqw]" />
+                        </button>
+                    </div>
+
+                    {/* Modal Body */}
+                    <div className="p-[2.5cqw] flex flex-row gap-[2.5cqw] overflow-y-auto custom-scrollbar">
+
+                        {/* Left Column: Preview */}
+                        <div className="flex-[0.8] flex flex-col w-full">
+                            <div className="relative rounded-[1.2cqw] overflow-hidden shadow-lg aspect-[3/4] md:aspect-square bg-gray-100 w-full">
+                                {(() => {
+                                    const storedUser = localStorage.getItem('user');
+                                    const user = storedUser ? JSON.parse(storedUser) : null;
+                                    const emailId = user?.emailId || '';
+                                    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+                                    const emailFolder = emailId ? emailId.replace(/[@.]/g, "_") : '';
+                                    const actualFolder = currentBook?.folder || currentBook?.folderName || '';
+                                    const realName = currentBook?.realName || currentBook?.title || currentBook?.flipbookName || '';
+                                    const iframeBaseUrl = getSupabaseBaseUrl(
+                                        emailFolder,
+                                        actualFolder,
+                                        realName
+                                    );
+
+                                    return (
+                                        <LazyPreview
+                                            v_id={currentBook?.v_id}
+                                            emailId={emailId}
+                                            backendUrl={backendUrl}
+                                            iframeBaseUrl={iframeBaseUrl}
+                                            title={currentBook?.title}
+                                            imageUrl={currentBook?.image || null}
+                                        />
+                                    );
+                                })()}
+                                {/* Footer Overlay */}
+                                <div className="absolute bottom-0 left-0 right-0 bg-[#3d3331]/80 backdrop-blur-sm py-[1cqw] px-[1.5cqw] flex items-center justify-center gap-[1cqw] rounded-b-[1.2cqw]">
+                                    <span className="text-white text-[1.1cqw] font-medium opacity-90">
+                                        Add Cover picture while sharing
+                                    </span>
+                                    <div
+                                        className={`w-[1.5cqw] h-[1.5cqw] rounded-[0.3cqw] border-[0.15cqw] border-white/50 flex items-center justify-center cursor-pointer transition-all ${addCover ? 'bg-white border-white' : 'hover:border-white'}`}
+                                        onClick={() => setAddCover(!addCover)}
+                                    >
+                                        {addCover && <Icon icon="lucide:check" className="text-[#3d3331] w-[1cqw] h-[1cqw]" strokeWidth={4} />}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Column: Share Options */}
+                        <div className="flex-1 flex flex-col gap-[2cqw] w-full">
+                            {/* Flipbook Link */}
+                            <div className="flex flex-col gap-[1cqw]">
+                                <div className="flex items-center gap-[1cqw]">
+                                    <h3 className="text-[1.2cqw] font-bold text-gray-800 whitespace-nowrap">Flipbook Link</h3>
+                                    <div className="flex-1 h-[1px] bg-gray-100" />
+                                </div>
+                                <div className="flex flex-row items-center gap-[1cqw]">
+                                    <div className="flex-1 flex items-center gap-[0.8cqw] bg-white border border-gray-300 rounded-[0.8cqw] px-[1cqw] py-[0.8cqw] shadow-sm min-w-0">
+                                        <LinkIcon className="w-[1.4cqw] h-[1.4cqw] text-gray-400 shrink-0" />
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={publicUrl}
+                                            className="flex-1 bg-transparent border-none outline-none text-[1.1cqw] font-medium text-gray-600 truncate min-w-0"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleCopy}
+                                        className={`flex items-center justify-center gap-[0.8cqw] px-[1.5cqw] py-[0.8cqw] cursor-pointer rounded-[0.8cqw] transition-all active:scale-95 shadow-lg shrink-0 ${copied ? 'bg-green-500 text-white' : 'bg-[#4A3AFF] text-white hover:bg-blue-700'}`}
+                                    >
+                                        <Icon icon={copied ? "lucide:check" : "lucide:copy"} className="w-[1.2cqw] h-[1.2cqw]" />
+                                        <span className="text-[1.1cqw] font-semibold">{copied ? 'Copied' : 'Copy'}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Share QR */}
+                            <div className="flex flex-col gap-[1cqw]">
+                                <div className="flex items-center gap-[1cqw]">
+                                    <h3 className="text-[1.2cqw] font-bold text-gray-800 whitespace-nowrap">Share QR</h3>
+                                    <div className="flex-1 h-[1px] bg-gray-100" />
+                                </div>
+                                <div className="flex flex-row items-center gap-[1.5cqw]">
+                                    <div
+                                        className="relative w-[7cqw] h-[7cqw] bg-gray-100 rounded-[0.8cqw] overflow-hidden border border-gray-200 shadow-sm flex items-center justify-center shrink-0"
+                                    >
+                                        <CustomQRCode
+                                            value={publicUrl}
+                                            size={128}
+                                            fgColor={savedConfig.qrColor}
+                                            bgColor={savedConfig.qrBgColor}
+                                            dotType={savedConfig.qrDotType}
+                                            cornerSquareType={savedConfig.qrCornerSquareType}
+                                            cornerDotType={savedConfig.qrCornerDotType}
+                                            level={savedConfig.qrLevel}
+                                            logo={savedConfig.qrLogo}
+                                            style={{ width: '100%', height: '100%', padding: '0.5cqw' }}
+                                        />
+                                    </div>
+                                    <div className="w-[18cqw] relative">
+                                        <div className="flex items-center bg-white border border-gray-200 rounded-[0.8cqw] shadow-sm hover:border-gray-300 transition-all overflow-hidden h-[3cqw]">
+                                            <button
+                                                onClick={downloadQRCode}
+                                                disabled={isDownloading}
+                                                className={`flex-1 px-[1cqw] font-bold text-[1.1cqw] flex items-center justify-center gap-[0.5cqw] transition-colors h-full ${isDownloading
+                                                        ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                                                        : 'text-gray-700 cursor-pointer hover:bg-gray-50'
+                                                    }`}
+                                            >
+                                                {isDownloading ? (
+                                                    <Icon icon="lucide:loader-2" className="animate-spin text-[#4A3AFF] w-[1.2cqw] h-[1.2cqw] shrink-0" />
+                                                ) : (
+                                                    <Download className="text-gray-400 w-[1.2cqw] h-[1.2cqw] shrink-0" />
+                                                )}
+                                                <span className="truncate">
+                                                    {isDownloading ? 'Generating...' : `Download ${exportFormat}`}
+                                                </span>
+                                            </button>
+                                            <div className="w-[1px] h-[2cqw] bg-gray-200 shrink-0" />
+                                            <button
+                                                onClick={() => !isDownloading && setShowExportDropdown(!showExportDropdown)}
+                                                disabled={isDownloading}
+                                                className={`px-[0.8cqw] h-full transition-all shrink-0 flex items-center justify-center ${isDownloading
+                                                        ? 'bg-gray-50 cursor-not-allowed opacity-50'
+                                                        : showExportDropdown ? 'bg-gray-100 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
+                                                    }`}
+                                            >
+                                                <ChevronDown className={`text-gray-400 w-[1.2cqw] h-[1.2cqw] transition-transform duration-200 ${showExportDropdown ? 'rotate-180' : ''}`} />
+                                            </button>
+                                        </div>
+
+                                        {showExportDropdown && (
+                                            <>
+                                                <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowExportDropdown(false)} />
+                                                <div className="absolute top-[3.5cqw] left-0 right-0 bg-white border border-gray-100 rounded-[0.8cqw] shadow-xl z-50 py-[0.5cqw] animate-in fade-in slide-in-from-top-2 duration-200">
+                                                    {['JPG', 'PNG', 'WebP'].map((format) => (
+                                                        <button
+                                                            key={format}
+                                                            onClick={() => {
+                                                                setExportFormat(format);
+                                                                setShowExportDropdown(false);
+                                                            }}
+                                                            className={`w-full text-left px-[1.5cqw] py-[0.8cqw] text-[1.1cqw] font-bold transition-all hover:bg-gray-50 flex items-center justify-between cursor-pointer ${exportFormat === format ? 'text-[#4A3AFF]' : 'text-gray-600'}`}
+                                                        >
+                                                            {format}
+                                                            {exportFormat === format && <Check className="w-[1cqw] h-[1cqw]" />}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Share Through */}
+                            <div className="flex flex-col gap-[1cqw]">
+                                <div className="flex items-center gap-[1cqw]">
+                                    <h3 className="text-[1.2cqw] font-bold text-gray-800 whitespace-nowrap">Share Through</h3>
+                                    <div className="flex-1 h-[1px] bg-gray-100" />
+                                </div>
+                                <div className="flex items-center justify-start gap-[1cqw] flex-wrap">
+                                    {/* Embed */}
+                                    <div
+                                        onClick={() => setShowEmbedCode(!showEmbedCode)}
+                                        title="Toggle Embed Code"
+                                        className={`w-[4cqw] h-[4cqw] rounded-[0.8cqw] border flex items-center justify-center transition-all cursor-pointer shadow-sm group ${showEmbedCode ? 'bg-gray-100 border-gray-400' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}`}
+                                    >
+                                        <Icon icon="lucide:code-2" className={`w-[1.8cqw] h-[1.8cqw] ${showEmbedCode ? 'text-gray-800' : 'text-gray-600'} transition-transform`} />
+                                    </div>
+                                    {/* WhatsApp */}
+                                    <div
+                                        onClick={() => shareModel('whatsapp')}
+                                        className="w-[4cqw] h-[4cqw] rounded-[0.8cqw] bg-[#25D366] flex items-center justify-center transition-all cursor-pointer shadow-md"
+                                    >
+                                        <Icon icon="ic:baseline-whatsapp" className="w-[2cqw] h-[2cqw] text-white" />
+                                    </div>
+                                    {/* X */}
+                                    <div
+                                        onClick={() => shareModel('x')}
+                                        className="w-[4cqw] h-[4cqw] rounded-[0.8cqw] bg-black flex items-center justify-center transition-all cursor-pointer shadow-md"
+                                    >
+                                        <Icon icon="ri:twitter-x-fill" className="w-[1.8cqw] h-[1.8cqw] text-white" />
+                                    </div>
+                                    {/* Gmail */}
+                                    <div
+                                        onClick={() => shareModel('mail')}
+                                        className="w-[4cqw] h-[4cqw] rounded-[0.8cqw] border border-gray-200 flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-all cursor-pointer shadow-sm"
+                                    >
+                                        <Icon icon="logos:google-gmail" className="w-[1.8cqw] h-[1.8cqw]" />
+                                    </div>
+                                    {/* LinkedIn */}
+                                    <div
+                                        onClick={() => shareModel('linkedin')}
+                                        className="w-[4cqw] h-[4cqw] rounded-[0.8cqw] bg-[#0A66C2] flex items-center justify-center transition-all cursor-pointer shadow-md"
+                                    >
+                                        <Icon icon="ri:linkedin-fill" className="w-[2cqw] h-[2cqw] text-white" />
+                                    </div>
+                                    {/* Instagram */}
+                                    <div
+                                        onClick={() => shareModel('instagram')}
+                                        className="w-[4cqw] h-[4cqw] rounded-[0.8cqw] bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] flex items-center justify-center transition-all cursor-pointer shadow-md"
+                                    >
+                                        <Icon icon="ri:instagram-line" className="w-[2.4cqw] h-[2.4cqw] text-white" />
+                                    </div>
+                                </div>
+
+                                {/* Embed Code smoothly expanding */}
+                                <div className={`grid transition-all duration-300 ease-in-out ${showEmbedCode ? 'grid-rows-[1fr] opacity-100 mt-[1cqw]' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+                                    <div className="overflow-hidden flex flex-col gap-[1cqw]">
+                                        <div className="flex items-center gap-[1cqw]">
+                                            <h3 className="text-[1.2cqw] font-bold text-gray-800 whitespace-nowrap">Embed Code</h3>
+                                            <div className="flex-1 h-[1px] bg-gray-100" />
+                                        </div>
+                                        <div className="relative w-full h-[8cqw] bg-white border border-gray-300 rounded-[0.8cqw] shadow-sm overflow-hidden flex shrink-0">
+                                            <textarea
+                                                readOnly
+                                                value={`<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`}
+                                                className="w-full h-full bg-transparent border-none outline-none text-[1.1cqw] font-medium text-gray-600 resize-none p-[1cqw] pr-[3cqw] custom-scrollbar"
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(`<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`);
+                                                    setEmbedCopied(true);
+                                                    setTimeout(() => setEmbedCopied(false), 2000);
+                                                }}
+                                                className="absolute bottom-[0.5cqw] right-[0.5cqw] p-[0.4cqw] bg-white rounded-[0.4cqw] border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+                                                title="Copy Embed Code"
+                                            >
+                                                <Icon icon={embedCopied ? "lucide:check" : "lucide:copy"} className={`w-[1.2cqw] h-[1.2cqw] ${embedCopied ? 'text-green-500' : 'text-[#4A3AFF]'}`} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 z-[150] flex items-center justify-center">

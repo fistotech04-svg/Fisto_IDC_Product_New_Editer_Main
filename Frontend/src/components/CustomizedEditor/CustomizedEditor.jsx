@@ -902,6 +902,13 @@ const CustomizedEditor = () => {
           inviteOnly: visibilitySettings?.inviteOnly || {}
         },
         Customized_Settings: {
+          FlipbookInfo: {
+            category: currentBook?.category || 'Product Based',
+            language: currentBook?.language || 'English',
+            tags: currentBook?.tags || [],
+            quotes: currentBook?.quotes || '',
+            about: currentBook?.about || ''
+          },
           Branding: {
             logoSettings,
             watermarkSettings,
@@ -910,30 +917,14 @@ const CustomizedEditor = () => {
           },
           Background: backgroundSettings,
           MenuBar: syncedMenuBarSettings,
-          otherSetup: syncedOtherSetupSettings,
-          leadForm: leadFormSettings,
           Layouts: {
             layoutStyle: layoutSettings,
             layoutColors: layoutColors
           },
-          BookAppearance: bookAppearanceSettings
-        },
-        settings: {
-          logo: logoSettings,
-          watermark: watermarkSettings,
-          preloader: preloaderSettings,
-          profile: profileSettings,
-          background: backgroundSettings,
-          appearance: bookAppearanceSettings,
-          layout: layoutSettings,
-          menubar: syncedMenuBarSettings,
+          BookAppearance: bookAppearanceSettings,
           otherSetup: syncedOtherSetupSettings,
-          othersetup: syncedOtherSetupSettings,
           leadForm: leadFormSettings,
-          leadform: leadFormSettings,
-          visibility: visibilitySettings,
-          bookmarks: bookmarks,
-          notes: notes
+          Visibility: visibilitySettings
         }
       };
 

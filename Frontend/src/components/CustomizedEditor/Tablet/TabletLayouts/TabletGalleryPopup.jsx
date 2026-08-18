@@ -118,7 +118,7 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
         onClick={onClose}
       >
         <div
-          className="relative w-full shadow-2xl flex flex-col items-center justify-center overflow-hidden max-w-[85cqw] h-[65cqh] rounded-[1cqw]"
+          className="relative w-full shadow-2xl flex flex-col items-center justify-center overflow-hidden max-w-[85cqw] h-[57cqh] rounded-[1cqw]"
           style={{
             backgroundColor: popupBgColor,
             backdropFilter: 'blur(12px)',
@@ -129,10 +129,10 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            className="absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer top-[1.2cqw] right-[1.2cqw] w-[1.8cqw] h-[1.8cqw] rounded-[0.3cqw]"
+            className="absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer top-[1.2cqw] right-[1.2cqw] w-[1.4cqw] h-[1.4cqw] rounded-[0.3cqw]"
             onClick={(e) => { e.stopPropagation(); onClose(); }}
           >
-            <X size="1cqw" strokeWidth={2} />
+            <X size="0.8cqw" strokeWidth={2} />
           </button>
           <p className="text-gray-500 font-medium text-[1.2cqw]">Images are not found</p>
         </div>
@@ -148,7 +148,7 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
     >
       {/* The White Box */}
       <div
-        className="relative w-full shadow-2xl flex flex-col overflow-hidden max-w-[85cqw] h-[65cqh] rounded-[1cqw]"
+        className="relative w-full shadow-2xl flex flex-col overflow-hidden max-w-[85cqw] h-[57cqh] rounded-[1cqw]"
         style={{
           backgroundColor: popupBgColor,
           backdropFilter: 'blur(12px)',
@@ -160,10 +160,10 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
       >
         {/* Close Button at top-right */}
         <button
-          className="absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer top-[1.2cqw] right-[1.2cqw] w-[1.8cqw] h-[1.8cqw] rounded-[0.3cqw]"
+          className="absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer top-[1.2cqw] right-[1.2cqw] w-[1.4cqw] h-[1.4cqw] rounded-[0.3cqw]"
           onClick={(e) => { e.stopPropagation(); onClose(); }}
         >
-          <X size="1cqw" strokeWidth={2} />
+          <X size="0.8cqw" strokeWidth={2} />
         </button>
 
         {/* Carousel Area */}
@@ -177,7 +177,7 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
         >
           {images.length > 1 && (
             <button
-              className="absolute z-[210] transition-all cursor-pointer left-[8cqw] p-[1cqw]"
+              className="absolute z-[210] transition-all cursor-pointer left-[3cqw] p-[1cqw]"
               style={{ color: primaryColor, backgroundColor: 'transparent' }}
               onClick={(e) => { e.stopPropagation(); goPrev(); setIsPlaying(false); }}
             >
@@ -239,15 +239,15 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
                   zIndex = 10;
                   opacity = 1;
                 } else if (isPrev) {
-                  transform = `translateX(-24cqw) scale(0.65)`;
+                  transform = `translateX(-15cqw) scale(0.65)`;
                   zIndex = 5;
                   opacity = 0.8;
                 } else if (isNext) {
-                  transform = `translateX(24cqw) scale(0.65)`;
+                  transform = `translateX(15cqw) scale(0.65)`;
                   zIndex = 5;
                   opacity = 0.8;
                 } else {
-                  transform = `translateX(${direction > 0 ? '24cqw' : '-24cqw'}) scale(0.65)`;
+                  transform = `translateX(${direction > 0 ? '15cqw' : '-15cqw'}) scale(0.65)`;
                   zIndex = 0;
                   opacity = 0;
                 }
@@ -262,8 +262,8 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
                     transform,
                     zIndex,
                     opacity,
-                    width: '24cqw',
-                    height: '28cqh',
+                    width: '20cqw',
+                    height: '26cqh',
                     pointerEvents: isCurrent ? 'auto' : 'none'
                   }}
                 >
@@ -281,7 +281,7 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
 
           {images.length > 1 && (
             <button
-              className="absolute z-[210] transition-all cursor-pointer right-[8cqw] p-[1cqw]"
+              className="absolute z-[210] transition-all cursor-pointer right-[3cqw] p-[1cqw]"
               style={{ color: primaryColor, backgroundColor: 'transparent' }}
               onClick={(e) => { e.stopPropagation(); goNext(); setIsPlaying(false); }}
             >
@@ -296,15 +296,15 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
 
         {/* Dots (Centered Below Image) */}
         {showDots && images.length > 1 && (
-          <div className="flex justify-center items-center z-[210] gap-[1cqw] mb-[2cqw]">
+          <div className="flex justify-center items-center z-[210] gap-[0.6cqw] mb-[2cqw]">
             {images.map((_, i) => (
               <button
                 key={i}
                 onClick={() => { goTo(i); setIsPlaying(false); }}
                 className="rounded-full transition-all duration-300 cursor-pointer"
                 style={{
-                  width: '0.8cqw',
-                  height: '0.8cqw',
+                  width: '0.5cqw',
+                  height: '0.5cqw',
                   backgroundColor: i === currentIndex ? primaryColor : secondaryColor,
                   border: 'none'
                 }}
@@ -315,20 +315,20 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
 
         {/* Bottom Bar: Play, Progress, Counter */}
         <div className="w-full flex items-center justify-between h-[6cqw] px-[4cqw] pb-[2cqw]">
-          <div className="flex items-center flex-1 gap-[2cqw]">
+          <div className="flex items-center flex-1 gap-[1.5cqw]">
             {images.length > 1 && (
               <button
                 className="transition-colors cursor-pointer"
                 style={{ color: primaryColor }}
                 onClick={() => setIsPlaying(!isPlaying)}
               >
-                {isPlaying ? <Pause fill="currentColor" size="1.5cqw" /> : <Play fill="currentColor" size="1.5cqw" />}
+                {isPlaying ? <Pause fill="currentColor" size="1.2cqw" /> : <Play fill="currentColor" size="1.2cqw" />}
               </button>
             )}
 
             {/* Progress Bar */}
             <div
-              className="relative flex-1 rounded-full overflow-hidden h-[0.2cqw] mr-[4cqw]"
+              className="relative flex-1 rounded-full overflow-hidden h-[0.15cqw] mr-[4cqw]"
               style={{ backgroundColor: secondaryColor }}
             >
               <div
@@ -338,7 +338,7 @@ const TabletGalleryPopup = ({ onClose, settings = {}, popupSettings = {} }) => {
             </div>
           </div>
 
-          <div className="font-medium text-gray-700 font-sans min-w-max text-[1cqw]">
+          <div className="font-medium text-gray-700 font-sans min-w-max text-[0.85cqw]">
             Image {currentIndex + 1} / {images.length}
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import exploreHeroImg from '../assets/Explore/explore-hero-section.svg';
@@ -13,6 +14,8 @@ import p3 from '../assets/Explore/p3.png';
 import p4 from '../assets/Explore/p4.png';
 import p5 from '../assets/Explore/p5.png';
 import Footer from './Footer';
+import ShareModal from '../components/ShareModal';
+import ExportModal from '../components/ExportModal';
 
 const covers = [cover1, cover2, cover3, cover4, cover5];
 const profiles = [p1, p2, p3, p4, p5];
@@ -62,9 +65,17 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
     );
 };
 
-const FlipbookCard = ({ coverImg, profileImg, bookName, authorName, location, pages, views, rating, description }) => {
+const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bookName, authorName, location, pages, views, rating, description, onShare, onDownload }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
+
+    const handleOpenBook = () => {
+        const targetShareId = shareId || v_id;
+        const rawAcc = String(access).toLowerCase();
+        if (targetShareId) {
+            window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+        }
+    };
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -79,11 +90,11 @@ const FlipbookCard = ({ coverImg, profileImg, bookName, authorName, location, pa
     return (
         <div className="bg-white border border-gray-100 rounded-[0.8vw] overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative group">
             {/* Thumbnail Container */}
-            <div className="relative w-full aspect-[4/4] flex items-center justify-center hover:scale-[1.1] transition-transform duration-300 ">
+            <div className="relative w-full aspect-[4/4] flex items-center justify-center">
                 <img src={coverImg} alt="Flipbook Cover" className="w-full h-full object-cover" />
 
                 {/* Menu Button */}
-                <div className="absolute top-[0.8vw] right-[0.8vw]" ref={menuRef}>
+                <div className={`absolute top-[0.8vw] right-[0.8vw] transition-opacity duration-200 ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} ref={menuRef}>
                     <button
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
                         className="bg-white/80 backdrop-blur-sm p-[0.1vw] rounded-[0.3vw] hover:bg-white text-gray-800 focus:outline-none transition-colors shadow-sm"
@@ -102,7 +113,20 @@ const FlipbookCard = ({ coverImg, profileImg, bookName, authorName, location, pa
                                 { name: 'Download', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> },
                                 { name: 'Report', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> }
                             ].map((menuItem, idx) => (
-                                <button key={idx} className="w-[8.8vw] flex items-center mx-[0.5vw] gap-[0.8vw] px-[0.8vw] py-[0.8vh] transition-colors text-left rounded-md text-gray-600 hover:text-black hover:bg-gray-50">
+                                <button
+                                    key={idx}
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        if (menuItem.name === 'View Book') {
+                                            handleOpenBook();
+                                        } else if (menuItem.name === 'Share') {
+                                            if (onShare) onShare(rawBook);
+                                        } else if (menuItem.name === 'Download') {
+                                            if (onDownload) onDownload(rawBook);
+                                        }
+                                    }}
+                                    className="w-[8.8vw] flex items-center mx-[0.5vw] gap-[0.8vw] px-[0.8vw] py-[0.8vh] transition-colors text-left rounded-md text-gray-600 hover:text-black hover:bg-gray-50"
+                                >
                                     <span className="transition-colors flex items-center justify-center">{menuItem.icon}</span>
                                     <span className="text-[0.75vw] font-medium transition-colors">{menuItem.name}</span>
                                 </button>
@@ -151,8 +175,11 @@ const FlipbookCard = ({ coverImg, profileImg, bookName, authorName, location, pa
                     <p className="text-[0.7vw] text-gray-500 leading-relaxed mt-[0.5vh] pr-[2vw]">{description || '“Bring your content to life with a real, interactive experience”'}</p>
 
                     {/* Action Button */}
-                    <button className="absolute bottom-[0.5vw] right-[-0.5vw] bg-black text-white w-[2vw] h-[2vw] rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md">
-                        <svg className="w-[1.5vw] h-[15vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 7l-10 10M17 7H8M17 7v9"></path></svg>
+                    <button
+                        onClick={handleOpenBook}
+                        className="absolute bottom-[0.5vw] right-[-0.5vw] bg-black text-white w-[2vw] h-[2vw] rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                    >
+                        <svg className="w-[1.5vw] h-[1.5vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 7l-10 10M17 7H8M17 7v9"></path></svg>
                     </button>
                 </div>
             </div>
@@ -160,12 +187,64 @@ const FlipbookCard = ({ coverImg, profileImg, bookName, authorName, location, pa
     );
 };
 
-import axios from 'axios';
+const FlipbookCardSkeleton = () => {
+    return (
+        <div className="bg-white border border-gray-100 rounded-[0.8vw] overflow-hidden flex flex-col shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative animate-pulse">
+            {/* Thumbnail Container */}
+            <div className="relative w-full aspect-[4/4] bg-gray-200"></div>
+
+            {/* Card Details */}
+            <div className="p-[1.2vw] flex flex-col flex-1 bg-white">
+                {/* Author Info */}
+                <div className="flex items-center gap-[0.6vw]">
+                    <div className="w-[2.5vw] h-[2.5vw] rounded-full bg-gray-200 shrink-0"></div>
+                    <div className="flex flex-col gap-[0.3vh]">
+                        <div className="h-[0.85vw] bg-gray-200 rounded w-[6vw]"></div>
+                        <div className="h-[0.7vw] bg-gray-100 rounded w-[4vw]"></div>
+                    </div>
+                </div>
+
+                {/* Stats */}
+                <div className="flex items-center gap-[0.3vw] justify-start text-[0.75vw] mt-[1.5vh]">
+                    <div className="h-[0.75vw] bg-gray-200 rounded w-[3.5vw]"></div>
+                    <span className="text-gray-200">|</span>
+                    <div className="h-[0.75vw] bg-gray-200 rounded w-[3vw]"></div>
+                    <span className="text-gray-200">|</span>
+                    <div className="h-[0.75vw] bg-gray-200 rounded w-[2.5vw]"></div>
+                </div>
+
+                {/* Title & Desc & Button */}
+                <div className="relative flex-1 mt-[1.2vh] min-h-[4vw]">
+                    <div className="h-[0.9vw] bg-gray-200 rounded w-[9vw]"></div>
+                    <div className="h-[0.7vw] bg-gray-100 rounded w-[11vw] mt-[0.5vh]"></div>
+
+                    {/* Action Button Skeleton */}
+                    <div className="absolute bottom-[0.5vw] right-[-0.5vw] bg-gray-200 w-[2vw] h-[2vw] rounded-full"></div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const Explore = () => {
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [selectedBookForModal, setSelectedBookForModal] = useState(null);
+
+    const handleOpenShareModal = (rawBook) => {
+        setSelectedBookForModal(rawBook);
+        setIsShareModalOpen(true);
+    };
+
+    const handleOpenExportModal = (rawBook) => {
+        setSelectedBookForModal(rawBook);
+        setIsExportModalOpen(true);
+    };
 
     const [category, setCategory] = useState("All Category");
     const [sortBy, setSortBy] = useState("Most Popular");
@@ -175,38 +254,57 @@ const Explore = () => {
         const fetchPublishedBooks = async () => {
             try {
                 setIsLoading(true);
-                
-                // Fetch the logged-in user from localStorage (just like MyFlipbooks.jsx)
-                const storedUser = localStorage.getItem('user');
-                const user = storedUser ? JSON.parse(storedUser) : null;
-                const emailId = user?.emailId;
-                
-                if (!emailId) {
-                    console.warn("No user email found. Cannot fetch flipbooks.");
-                    setIsLoading(false);
-                    return;
-                }
-
                 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
                 
-                // Fetch the list of books for this user using the existing API
-                const response = await axios.get(`${backendUrl}/api/flipbook/list`, { params: { emailId } });
+                // Fetch all published flipbooks across all users from /api/explore/published
+                const response = await axios.get(`${backendUrl}/api/explore/published`);
                 
                 if (response.data && response.data.books) {
-                    // Filter to only include published books and format them for the Explore UI
-                    const publishedBooks = response.data.books.filter(book => book.isPublished === true);
-                    
-                    const formattedBooks = publishedBooks.map(book => ({
-                        bookName: book.Customized_Settings?.FlipbookInfo?.flipbookName || book.title || "Untitled",
-                        authorName: emailId.split('@')[0],
-                        location: "Online 📍",
-                        pages: book.pages?.length || 12,
-                        views: "1k",
-                        rating: 4.5,
-                        description: book.Customized_Settings?.FlipbookInfo?.about || "“Bring your content to life with a real, interactive experience”",
-                        type: book.Customized_Settings?.FlipbookInfo?.orientation || "Portrait",
-                        category: book.Customized_Settings?.FlipbookInfo?.category || "Catalog"
-                    }));
+                    const formattedBooks = response.data.books.map(book => {
+                        let rawOrient = (book.Customized_Settings?.FlipbookInfo?.orientation || '').toLowerCase();
+                        if (!rawOrient) {
+                            const w = book.Customized_Settings?.FlipbookInfo?.width;
+                            const h = book.Customized_Settings?.FlipbookInfo?.height;
+                            if (w && h) {
+                                rawOrient = w > h ? 'landscape' : w < h ? 'portrait' : 'square';
+                            } else {
+                                rawOrient = 'portrait';
+                            }
+                        }
+
+                        let typeName = 'Portrait';
+                        if (rawOrient.includes('landscape')) typeName = 'Landscape';
+                        else if (rawOrient.includes('square')) typeName = 'Square';
+                        else if (rawOrient.includes('portrait')) typeName = 'Portrait';
+
+                        const has3D = Boolean(
+                            book.is3D || 
+                            book.has3DModels || 
+                            (book.Customized_Settings?.InteractionThreedModel && Object.keys(book.Customized_Settings.InteractionThreedModel).length > 0)
+                        );
+
+                        const vis = book.Customized_Settings?.Visibility || book.Visibility || {};
+                        const shareId = vis.shareId || book.v_id;
+                        const access = (vis.access || 'public').toLowerCase();
+
+                        return {
+                            rawBook: book,
+                            v_id: book.v_id,
+                            shareId: shareId,
+                            access: access,
+                            userEmail: book.userEmail,
+                            bookName: book.flipbookName,
+                            authorName: book.userEmail ? book.userEmail.split('@')[0] : "Creator",
+                            location: "Online 📍",
+                            pages: book.pages?.length,
+                            views: "1.2k",
+                            rating: 4.5,
+                            description: book.Customized_Settings?.FlipbookInfo?.quotes,
+                            type: typeName,
+                            has3D: has3D,
+                            category: book.Customized_Settings?.FlipbookInfo?.category
+                        };
+                    });
 
                     setBooksData(formattedBooks);
                 }
@@ -231,16 +329,29 @@ const Explore = () => {
     // Filter booksData based on all filters
     const filteredBooks = booksData.filter(book => {
         // Top category filter
-        if (category !== "All Category" && book.category !== category) return false;
+        if (category !== "All Category" && book.category?.toLowerCase() !== category.toLowerCase()) return false;
         
         // Search filter
         if (searchQuery && !book.bookName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
 
-        // Sidebar Type filter
-        if (selectedTypes.length > 0 && !selectedTypes.includes(book.type)) return false;
+        // Sidebar Type filter (Landscape, Portrait, Square, 3D Added Flipbook)
+        if (selectedTypes.length > 0) {
+            const isTypeMatched = selectedTypes.some(typeOpt => {
+                if (typeOpt === "3D Added Flipbook") {
+                    return book.has3D || book.type === "3D Added Flipbook";
+                }
+                return book.type?.toLowerCase() === typeOpt.toLowerCase();
+            });
+            if (!isTypeMatched) return false;
+        }
 
         // Sidebar Category filter
-        if (selectedCategories.length > 0 && !selectedCategories.includes(book.category)) return false;
+        if (selectedCategories.length > 0) {
+            const isCatMatched = selectedCategories.some(catOpt => 
+                book.category?.toLowerCase() === catOpt.toLowerCase()
+            );
+            if (!isCatMatched) return false;
+        }
 
         // Sidebar Rating filter
         if (selectedRating && book.rating < selectedRating) return false;
@@ -253,18 +364,7 @@ const Explore = () => {
 
     return (
         <div className="w-full bg-white font-sans pb-0">
-            {/* Hide Scrollbar Globally for this page */}
             <style>{`
-                /* Hide scrollbar for Chrome, Safari and Opera */
-                ::-webkit-scrollbar {
-                    display: none;
-                }
-                /* Hide scrollbar for IE, Edge and Firefox */
-                * {
-                    -ms-overflow-style: none;  /* IE and Edge */
-                    scrollbar-width: none;  /* Firefox */
-                }
-                
                 input[type="range"].custom-range-slider { 
                     -webkit-appearance: none; 
                     width: 100%; 
@@ -342,9 +442,9 @@ const Explore = () => {
             <div className="w-full px-[2vw] md:px-[2vw] py-[4vh] space-y-[4vh]">
 
                 {/* Top Control Bar */}
-                <div className="flex flex-col md:flex-row justify-between items-center gap-[2vw]">
+                <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md py-[1.5vh] px-[2vw] -mx-[2vw] flex flex-col md:flex-row justify-between items-center gap-[2vw] border-b border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all">
                     <div className="flex items-center gap-[1vw]">
-                        <h2 className="text-[1.8vw] font-medium text-gray-900">Explore IDC by :</h2>
+                        <h2 className="text-[1.8vw] font-medium text-gray-900">Explore IDC By :</h2>
                         <CustomDropdown
                             options={['All Category', 'Brochure', 'Catalog', 'Magazine', 'Portfolio', 'Storybook', 'Photography Book', 'Product Catalog']}
                             value={category}
@@ -479,15 +579,29 @@ const Explore = () => {
                                     ].slice(0, showMoreRatings ? 9 : 3).map((rate, i) => (
                                         <label key={i} className="flex items-center justify-between cursor-pointer group">
                                             <div className="flex items-center gap-[0.8vw]">
-                                                <div className="relative flex items-center justify-center">
+                                                <div className="relative flex items-center justify-center shrink-0 w-[1.1vw] h-[1.1vw] min-w-[18px] min-h-[18px]">
                                                     <input 
                                                         type="radio" 
                                                         name="rating" 
-                                                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#5551ff] cursor-pointer transition-colors" 
+                                                        className="sr-only" 
                                                         checked={selectedRating === rate.val}
                                                         onChange={() => setSelectedRating(rate.val)}
                                                     />
-                                                    <div className="absolute w-[0.65vw] h-[0.65vw] bg-[#5551ff] rounded-full pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                                                    <svg 
+                                                        onClick={() => setSelectedRating(rate.val)}
+                                                        className="w-full h-full cursor-pointer overflow-visible" 
+                                                        viewBox="0 0 24 24" 
+                                                        fill="none"
+                                                    >
+                                                        {selectedRating === rate.val ? (
+                                                            <>
+                                                                <circle cx="12" cy="12" r="10" stroke="#5551ff" strokeWidth="2" fill="none" />
+                                                                <circle cx="12" cy="12" r="5" fill="#5551ff" />
+                                                            </>
+                                                        ) : (
+                                                            <circle cx="12" cy="12" r="10" stroke="#374151" strokeWidth="1.8" fill="none" />
+                                                        )}
+                                                    </svg>
                                                 </div>
                                                 <span className="text-[0.85vw] text-gray-800">{rate.label}</span>
                                             </div>
@@ -528,8 +642,10 @@ const Explore = () => {
                     <div className="flex-1 flex flex-col">
                         {/* Books Grid */}
                         {isLoading ? (
-                            <div className="w-full py-[10vh] flex items-center justify-center">
-                                <div className="w-[3vw] h-[3vw] border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
+                                {[...Array(10)].map((_, idx) => (
+                                    <FlipbookCardSkeleton key={idx} />
+                                ))}
                             </div>
                         ) : error ? (
                             <div className="w-full py-[10vh] flex flex-col items-center justify-center text-red-500">
@@ -541,6 +657,10 @@ const Explore = () => {
                                 {filteredBooks.map((book, index) => (
                                     <FlipbookCard 
                                         key={index} 
+                                        v_id={book.v_id}
+                                        shareId={book.shareId}
+                                        access={book.access}
+                                        rawBook={book.rawBook}
                                         coverImg={covers[index % 5]} 
                                         profileImg={profiles[index % 5]}
                                         bookName={book.bookName}
@@ -550,6 +670,8 @@ const Explore = () => {
                                         views={book.views}
                                         rating={book.rating}
                                         description={book.description}
+                                        onShare={handleOpenShareModal}
+                                        onDownload={handleOpenExportModal}
                                     />
                                 ))}
                                 {filteredBooks.length === 0 && (
@@ -634,6 +756,21 @@ const Explore = () => {
 
             {/* Footer */}
             <Footer />
+
+            {/* Share Modal */}
+            <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                currentBook={selectedBookForModal}
+            />
+
+            {/* Export Modal */}
+            <ExportModal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                currentBook={selectedBookForModal}
+                isFromMyFlipbooks={true}
+            />
         </div>
     );
 };
