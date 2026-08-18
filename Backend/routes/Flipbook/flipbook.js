@@ -1655,7 +1655,7 @@ router.get("/get", async (req, res) => {
     let effectiveBookName = bookName;
 
     if (dbDoc) {
-      if (reqEmailId && dbDoc.userEmail !== reqEmailId)
+      if (reqEmailId && dbDoc.userEmail !== reqEmailId && !dbDoc.isPublished)
         return res.status(403).json({ message: "Unauthorized" });
 
       effectiveBookName = dbDoc.flipbookName;

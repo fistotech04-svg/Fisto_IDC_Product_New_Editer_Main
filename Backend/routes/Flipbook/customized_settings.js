@@ -1430,6 +1430,31 @@ router.get(["/customized-settings", "/customized_settings"], async (req, res) =>
   }
 });
 
+const getClientIp = (req) => {
+  let rawIp = req.body?.viewerIp ||
+              req.headers['cf-connecting-ip'] ||
+              req.headers['x-client-ip'] ||
+              req.headers['x-real-ip'] ||
+              req.headers['x-forwarded-for'] ||
+              req.ip ||
+              req.socket?.remoteAddress ||
+              req.connection?.remoteAddress ||
+              '';
+
+  if (typeof rawIp === 'string' && rawIp) {
+    if (rawIp.includes(',')) {
+      rawIp = rawIp.split(',')[0].trim();
+    }
+    if (rawIp.startsWith('::ffff:')) {
+      rawIp = rawIp.replace('::ffff:', '');
+    }
+    if (rawIp === '::1') {
+      rawIp = '127.0.0.1';
+    }
+  }
+  return rawIp || '';
+};
+
 // @route   POST /api/flipbook/submit-lead
 // @desc    Collect a lead submitted by a viewer
 router.post(['/submit-lead', '/public/submit-lead'], async (req, res) => {
@@ -1461,6 +1486,7 @@ router.post(['/submit-lead', '/public/submit-lead'], async (req, res) => {
     const effectiveShareId = shareId || flipbook?.Customized_Settings?.Visibility?.shareId || flipbook?.share?.shareId || '';
     const effectiveBookName = flipbook?.flipbookName || flipbookName || 'Flipbook';
     const effectiveUserEmail = flipbook?.userEmail || userEmail || '';
+    const detectedViewerIp = getClientIp(req);
 
     const newLead = new Lead({
       leadId: nanoid(12),
@@ -1469,7 +1495,7 @@ router.post(['/submit-lead', '/public/submit-lead'], async (req, res) => {
       flipbookName: effectiveBookName,
       userEmail: effectiveUserEmail,
       leadData: leadData,
-      viewerIp: req.ip || req.headers['x-forwarded-for'] || ''
+      viewerIp: detectedViewerIp
     });
 
     await newLead.save();
