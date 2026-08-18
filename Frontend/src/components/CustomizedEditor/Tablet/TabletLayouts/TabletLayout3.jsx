@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Icon } from '@iconify/react';
 import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
+import ShareModal from '../../../ShareModal';
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     const cleanHtml = (html || '')
@@ -56,7 +57,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
-const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPageClick, settings, bookName = "Name of the Book", showTOC, setShowTOCMemo, showThumbnailBar, setShowThumbnailBarMemo, showGalleryPopup, setShowGalleryPopupMemo, showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, showExportPopup, setShowExportPopupMemo }) => {
+const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPageClick, settings, bookName = "Name of the Book", showTOC, setShowTOCMemo, showThumbnailBar, setShowThumbnailBarMemo, showGalleryPopup, setShowGalleryPopupMemo, showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, showExportPopup, setShowExportPopupMemo, currentBook, activeLayout }) => {
     const totalPages = Array.isArray(pages) ? pages.length : pages || 12;
     const displayPage = currentPage === 0 ? 1 : (currentPage || 1);
     let progressPercentage = 0;
@@ -71,6 +72,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
     const [canScrollRight, setCanScrollRight] = useState(false);
     const [visibleIndices, setVisibleIndices] = useState([]);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isShareOpen, setIsShareOpen] = useState(false);
 
     useEffect(() => {
         if (isPlaying && currentPage >= totalPages - 1 && totalPages > 1) {
@@ -242,7 +244,18 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                     >
                         <Icon icon="fluent:person-24-filled" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
-                    <button className="hover:text-gray-200 transition-colors">
+                    <button 
+                        className="hover:text-gray-200 transition-colors"
+                        onClick={() => {
+                            setShowTOCMemo?.(false);
+                            setShowThumbnailBarMemo?.(false);
+                            setShowGalleryPopupMemo?.(false);
+                            setShowSoundPopupMemo?.(false);
+                            setShowProfilePopupMemo?.(false);
+                            setShowExportPopupMemo?.(false);
+                            setIsShareOpen(true);
+                        }}
+                    >
                         <Icon icon="mage:share-fill" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
                     <button
@@ -485,6 +498,14 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
             <div id="tablet-sound-portal" className="absolute inset-0 z-50 pointer-events-none"></div>
             <div id="tablet-profile-portal" className="absolute inset-0 z-[55] pointer-events-none"></div>
             <div id="tablet-download-portal" className="absolute inset-0 z-[60] pointer-events-none"></div>
+
+            <ShareModal
+                isOpen={isShareOpen}
+                onClose={() => setIsShareOpen(false)}
+                isTabletLayout={true}
+                currentBook={currentBook || settings}
+                activeLayout={activeLayout || '3'}
+            />
         </div>
     );
 };

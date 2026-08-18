@@ -4670,7 +4670,6 @@ const PreviewArea = React.memo(({
 
                             {renderSharedOverlays()}
 
-
                         </div>
                     );
 
@@ -4770,9 +4769,8 @@ const PreviewArea = React.memo(({
                                     currentZoom={currentZoom}
                                     handleZoomIn={handleZoomIn}
                                     handleZoomOut={handleZoomOut}
-                                    handleFullScreen={handleFullScreen}
-                                    handleShare={handleShare}
                                     handleDownload={handleDownload}
+                                    currentBook={currentBook}
                                     offset={isSinglePage ? 0 : offset}
                                     backgroundSettings={layoutBackgroundSettings}
                                     backgroundStyle={layoutBackgroundStyle}
@@ -4804,6 +4802,8 @@ const PreviewArea = React.memo(({
                                     showProfilePopup={showProfilePopup}
                                     setShowProfilePopupMemo={setShowProfilePopup}
                                     handleDownload={handleDownload}
+                                    currentBook={currentBook}
+                                    activeLayout={activeLayout}
                                 >
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
@@ -4832,6 +4832,8 @@ const PreviewArea = React.memo(({
                                     setShowProfilePopupMemo={setShowProfilePopup}
                                     showExportPopup={showExportPopup}
                                     setShowExportPopupMemo={setShowExportPopup}
+                                    currentBook={currentBook}
+                                    activeLayout={activeLayout}
                                 >
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
@@ -4858,7 +4860,7 @@ const PreviewArea = React.memo(({
                                     pages={pages}
                                     setIsPlaying={setIsPlaying}
                                     isAutoFlipping={isAutoFlipping}
-                                    handleShare={handleShare}
+                                    currentBook={currentBook}
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
@@ -5037,7 +5039,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5157,7 +5159,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5276,7 +5278,7 @@ const PreviewArea = React.memo(({
                                     pages={pages}
                                     setIsPlaying={setIsPlaying}
                                     isAutoFlipping={isAutoFlipping}
-                                    handleShare={handleShare}
+                                    currentBook={currentBook}
                                     handleDownload={handleDownload}
                                     showSharePopup={showSharePopup}
                                     setShowSharePopup={setShowSharePopup}
@@ -5404,7 +5406,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5433,6 +5435,7 @@ const PreviewArea = React.memo(({
                                         setShowSoundPopupMemo={setShowSoundPopupMemo}
                                         showTOC={showTOC}
                                         showThumbnailBar={showThumbnailBar}
+                                        activeLayout={activeLayout}
                                     >
                                         <TurnJsBookRenderer
                                             {...bookRendererProps}
@@ -5517,7 +5520,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5544,13 +5547,8 @@ const PreviewArea = React.memo(({
                                         isFullscreen={isFullscreen}
                                         showSoundPopup={showSoundPopup}
                                         setShowSoundPopupMemo={setShowSoundPopupMemo}
-                                        layoutColors={settings?.layoutColors?.[8] ? {
-                                            primary: settings.layoutColors[8].find(c => c.label === 'Icons color')?.hex || '#575C9C',
-                                            secondary: settings.layoutColors[8].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
-                                        } : {
-                                            primary: '#575C9C',
-                                            secondary: '#E3E4EF'
-                                        }}
+                                        layoutColors={layoutColors}
+                                        activeLayout={activeLayout}
                                     >
                                         <TurnJsBookRenderer
                                             {...bookRendererProps}
@@ -5607,13 +5605,7 @@ const PreviewArea = React.memo(({
                                         activeLayout={activeLayout}
                                         showSoundPopup={showSoundPopup}
                                         setShowSoundPopupMemo={setShowSoundPopupMemo}
-                                        layoutColors={settings?.layoutColors?.[8] ? {
-                                            primary: settings.layoutColors[8].find(c => c.label === 'Icons color')?.hex || '#575C9C',
-                                            secondary: settings.layoutColors[8].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
-                                        } : {
-                                            primary: '#575C9C',
-                                            secondary: '#E3E4EF'
-                                        }}
+                                        layoutColors={layoutColors}
                                     >
                                         <TurnJsBookRenderer
                                             {...bookRendererProps}
@@ -5642,7 +5634,7 @@ const PreviewArea = React.memo(({
                                         pages={pages}
                                         setIsPlaying={setIsPlaying}
                                         isAutoFlipping={isAutoFlipping}
-                                        handleShare={handleShare}
+                                        currentBook={currentBook}
                                         handleDownload={handleDownload}
                                         handleFullScreen={handleFullScreen}
                                         setShowProfilePopup={setShowProfilePopup}
@@ -5735,13 +5727,7 @@ const PreviewArea = React.memo(({
                                     setShowSoundPopupMemo={setShowSoundPopupMemo}
                                     showTOC={showTOC}
                                     showThumbnailBar={showThumbnailBar}
-                                    layoutColors={settings?.layoutColors?.[9] ? {
-                                        primary: settings.layoutColors[9].find(c => c.label === 'Icons color')?.hex || '#575C9C',
-                                        secondary: settings.layoutColors[9].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
-                                    } : {
-                                        primary: '#575C9C',
-                                        secondary: '#E3E4EF'
-                                    }}
+                                    layoutColors={layoutColors}
                                 >
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
@@ -5809,13 +5795,7 @@ const PreviewArea = React.memo(({
                                     offset={isSinglePage ? 0 : offset}
                                     bookmarks={layout1Bookmarks}
                                     isFullscreen={isFullscreen}
-                                    layoutColors={settings?.layoutColors?.[1] ? {
-                                        primary: settings.layoutColors[1].find(c => c.label === 'Icons color')?.hex || '#575C9C',
-                                        secondary: settings.layoutColors[1].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
-                                    } : {
-                                        primary: '#575C9C',
-                                        secondary: '#E3E4EF'
-                                    }}
+                                    layoutColors={layoutColors}
                                 >
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
@@ -5826,7 +5806,6 @@ const PreviewArea = React.memo(({
                             )}
 
                             {renderSharedOverlays()}
-
 
                         </div>
                     </div>
@@ -6065,6 +6044,17 @@ const PreviewArea = React.memo(({
                     className="absolute inset-0 z-[9999]"
                     style={{ cursor: 'zoom-out' }}
                     onClick={() => setInteractionZoom(null)}
+                />
+            )}
+
+            {/* Centered Screen Lead Form Modal Overlay */}
+            {console.log("LEAD FORM DEBUG: rendering LeadFormPopup? showLeadForm=", showLeadForm)}
+            {showLeadForm && (
+                <LeadFormPopup
+                    leadFormSettings={leadFormSettings}
+                    isTablet={isTablet}
+                    isMobile={activeDevice === 'Mobile'}
+                    onClose={() => setLeadFormSubmitted(true)}
                 />
             )}
         </div>
