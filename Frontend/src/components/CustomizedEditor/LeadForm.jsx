@@ -5,6 +5,12 @@ import { Plus, Trash2 } from 'lucide-react';
 import PremiumDropdown from './PremiumDropdown';
 import ColorPallet from './ColorPallet';
 
+import Template1Icon from '../../assets/quick template/Frame 1171276601 (1).svg';
+import Template2Icon from '../../assets/quick template/Frame 1171276601 (2).svg';
+import Template3Icon from '../../assets/quick template/Frame 1171276601 (3).svg';
+import Template4Icon from '../../assets/quick template/Frame 1171276601 (4).svg';
+import Template5Icon from '../../assets/quick template/Frame 1171276601 (5).svg';
+
 const fontFamilies = [
   'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
   'Helvetica', 'Poppins', 'Roboto', 'Open Sans', 'Lato', 'Montserrat',
@@ -41,22 +47,16 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeDeleteMenuId, setActiveDeleteMenuId] = useState(null);
   const [isAddFieldPopupOpen, setIsAddFieldPopupOpen] = useState(false);
+  const [activePopupTab, setActivePopupTab] = useState('templates');
 
   useEffect(() => {
-    if (!settings.fields || !settings.fields.some(f => f.type === 'dropdown')) {
+    if (settings.enabled && (!settings.fields || settings.fields.length === 0)) {
       onUpdate({
         ...settings,
         fields: [
           { id: Date.now().toString(), type: 'name', label: 'Full Name', placeholder: 'Enter your Name' },
           { id: (Date.now() + 1).toString(), type: 'email', label: 'Email Address', placeholder: 'Enter your Email' },
-          { id: (Date.now() + 2).toString(), type: 'company', label: 'Company Name', placeholder: 'Enter your company name' },
-          { id: (Date.now() + 3).toString(), type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number' },
-          { 
-            id: (Date.now() + 4).toString(), 
-            type: 'dropdown', 
-            label: 'Interested Service', 
-            options: ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'] 
-          }
+          { id: (Date.now() + 2).toString(), type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number' }
         ]
       });
     }
@@ -89,12 +89,14 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
 
   const handleAddField = (type = 'empty') => {
     const newField = { id: Date.now().toString(), type };
-    if (type === 'dropdown' || type === 'radio') {
-      newField.label = type === 'radio' ? 'Select Option' : 'Interested Service';
-      newField.options = type === 'radio' ? ['Option 1', 'Option 2'] : ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'];
+    if (type === 'dropdown' || type === 'radio' || type === 'checkbox') {
+      newField.label = type === 'radio' ? 'Select Option' : type === 'checkbox' ? 'Interested Products' : 'Interested Service';
+      newField.options = type === 'radio' ? ['Option 1', 'Option 2'] : type === 'checkbox' ? ['500 ml Round', '1000 ml round', '250 ml Square', '500 ml Square'] : ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'];
     } else if (type === 'feedback') {
       newField.label = 'feedback';
       newField.placeholder = 'Enter your Feedback';
+    } else if (type === 'rating') {
+      newField.label = 'Provide Ratings';
     }
     const newFields = [...(settings.fields || []), newField];
     onUpdate({ ...settings, fields: newFields });
@@ -172,6 +174,116 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     });
   };
 
+  const quickTemplates = [
+    {
+      id: 'basic-contact',
+      name: 'Basic Contact Form',
+      icon: Template1Icon,
+      config: {
+        formTitle: 'Get in Touch',
+        leadText: 'Share your details and we will contact you shortly',
+        buttonText: 'SUBMIT',
+        fields: [
+          { id: Date.now().toString() + '-1', type: 'name', label: 'Full Name', placeholder: 'Enter your Name' },
+          { id: Date.now().toString() + '-2', type: 'email', label: 'Email Address', placeholder: 'Enter your Email' },
+          { id: Date.now().toString() + '-3', type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number' }
+        ]
+      }
+    },
+    {
+      id: 'business-inquiry',
+      name: 'Business Inquiry',
+      icon: Template2Icon,
+      config: {
+        formTitle: 'Request More Information',
+        leadText: 'Tell us about your requirements and our team will reach out.',
+        buttonText: 'Request Callback',
+        fields: [
+          { id: Date.now().toString() + '-1', type: 'name', label: 'Full Name', placeholder: 'Enter your Name' },
+          { id: Date.now().toString() + '-2', type: 'email', label: 'Email Address', placeholder: 'Enter your Email' },
+          { id: Date.now().toString() + '-3', type: 'company', label: 'Company Name', placeholder: 'Enter your company name' },
+          { id: Date.now().toString() + '-4', type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number' },
+          { 
+            id: Date.now().toString() + '-5', 
+            type: 'dropdown', 
+            label: 'Interested Service', 
+            options: ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'] 
+          }
+        ]
+      }
+    },
+    {
+      id: 'product-inquiry',
+      name: 'Product Inquiry',
+      icon: Template3Icon,
+      config: {
+        formTitle: 'Interested in Our Products?',
+        leadText: 'Let us know what you are interested in.',
+        buttonText: 'Get Details',
+        fields: [
+          { id: Date.now().toString() + '-1', type: 'name', label: 'Full Name', placeholder: 'Enter your Name' },
+          { id: Date.now().toString() + '-2', type: 'email', label: 'Email Address', placeholder: 'Enter your Email' },
+          { id: Date.now().toString() + '-3', type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number' },
+          { 
+            id: Date.now().toString() + '-4', 
+            type: 'checkbox', 
+            label: 'Interested Products', 
+            options: ['500 ml Round', '1000 ml round', '250 ml Square', '500 ml Square'] 
+          }
+        ]
+      }
+    },
+    {
+      id: 'feedback-form',
+      name: 'Feedback Form',
+      icon: Template4Icon,
+      config: {
+        formTitle: 'Share Your Feedback',
+        leadText: 'We value your feedback. Help us improve.',
+        buttonText: 'Submit Feedback',
+        fields: [
+          { id: Date.now().toString() + '-1', type: 'name', label: 'Full Name', placeholder: 'Enter your Name' },
+          { id: Date.now().toString() + '-2', type: 'email', label: 'Email Address', placeholder: 'Enter your Email' },
+          { id: Date.now().toString() + '-3', type: 'rating', label: 'Provide Ratings' },
+          { id: Date.now().toString() + '-4', type: 'feedback', label: 'feedback', placeholder: 'Enter your Feedback' }
+        ]
+      }
+    },
+    {
+      id: 'event-registration',
+      name: 'Event Registration',
+      icon: Template5Icon,
+      config: {
+        formTitle: 'Register Now',
+        leadText: 'Secure your spot for the upcoming event.',
+        buttonText: 'Register',
+        fields: [
+          { id: Date.now().toString() + '-1', type: 'name', label: 'Full Name', placeholder: 'Enter your Name' },
+          { id: Date.now().toString() + '-2', type: 'email', label: 'Email Address', placeholder: 'Enter your Email' },
+          { id: Date.now().toString() + '-3', type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number' },
+          { 
+            id: Date.now().toString() + '-4', 
+            type: 'dropdown', 
+            label: 'Number of Tickets', 
+            options: ['1', '2', '3', '4+'] 
+          }
+        ]
+      }
+    }
+  ];
+
+  const handleSelectTemplate = (template) => {
+    onUpdate({
+      ...settings,
+      enabled: true,
+      formTitle: template.config.formTitle,
+      leadText: template.config.leadText,
+      buttonText: template.config.buttonText,
+      fields: template.config.fields
+    });
+    setIsAddFieldPopupOpen(false);
+  };
+
   return (
     <div className="flex flex-col h-full bg-white relative overflow-visible">
       <style>{`
@@ -204,7 +316,24 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
         </div>
         <Switch
           enabled={settings.enabled}
-          onChange={(val) => onUpdate({ ...settings, enabled: val })}
+          onChange={(val) => {
+            if (val && (!settings.fields || settings.fields.length === 0)) {
+              onUpdate({
+                ...settings,
+                enabled: true,
+                formTitle: settings.formTitle || 'Get in Touch',
+                leadText: settings.leadText || 'Share your details and we will contact you shortly',
+                buttonText: settings.buttonText || 'SUBMIT',
+                fields: [
+                  { id: Date.now().toString() + '-1', type: 'name', label: 'Full Name', placeholder: 'Enter your Name' },
+                  { id: Date.now().toString() + '-2', type: 'email', label: 'Email Address', placeholder: 'Enter your Gmail' },
+                  { id: Date.now().toString() + '-3', type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number' }
+                ]
+              });
+            } else {
+              onUpdate({ ...settings, enabled: val });
+            }
+          }}
         />
       </div>
 
@@ -265,7 +394,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
 
             <div className="space-y-[1vw]">
               {settings.fields?.map((field) => {
-                if (field.type === 'dropdown' || field.type === 'radio') {
+                if (field.type === 'dropdown' || field.type === 'radio' || field.type === 'checkbox') {
                   return (
                     <div
                       key={field.id}
@@ -274,7 +403,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                       {/* Card Header */}
                       <div className="flex items-center justify-between px-[0.75vw] py-[0.5vw] border-b border-gray-100">
                         <span className="text-[0.75vw] text-gray-800 font-medium">
-                          {field.type === 'radio' ? 'Radio Button' : 'Drop Down'}
+                          {field.type === 'radio' ? 'Radio Button' : field.type === 'checkbox' ? 'Check Box' : 'Drop Down'}
                         </span>
                         <div className="relative" id={`delete-menu-${field.id}`}>
                           <button
@@ -338,6 +467,63 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                                 <Plus size="0.7vw" /> Add
                               </button>
                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                } else if (field.type === 'rating') {
+                  return (
+                    <div
+                      key={field.id}
+                      className="bg-white border border-gray-200 rounded-[0.5vw] overflow-visible shadow-sm"
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between px-[0.75vw] py-[0.5vw] border-b border-gray-100">
+                        <span className="text-[0.75vw] text-gray-800 font-medium">Ratings</span>
+                        <div className="relative" id={`delete-menu-${field.id}`}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setActiveDeleteMenuId(activeDeleteMenuId === field.id ? null : field.id); }}
+                            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.2vw] rounded-full hover:bg-gray-100"
+                            title="More Options"
+                          >
+                            <Icon icon="lucide:more-vertical" width="1vw" />
+                          </button>
+                          {activeDeleteMenuId === field.id && (
+                            <div className="absolute right-0 top-[100%] mt-[0.2vw] bg-white border border-gray-200 shadow-md rounded-[0.4vw] p-[0.2vw] z-[50] min-w-[7vw]">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRemoveField(field.id); setActiveDeleteMenuId(null); }}
+                                className="flex items-center gap-[0.4vw] w-full px-[0.5vw] py-[0.4vw] text-red-500 hover:bg-red-50 rounded-[0.3vw] text-[0.7vw] font-medium transition-colors"
+                              >
+                                <Icon icon="lucide:trash-2" width="0.8vw" />
+                                Delete Field
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Body */}
+                      <div className="p-[0.75vw] space-y-[0.75vw]">
+                        {/* Label Row */}
+                        <div className="flex items-center gap-[0.5vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-700 w-[2.5vw]">Label :</label>
+                          <input
+                            type="text"
+                            value={field.label || ''}
+                            onChange={(e) => handleFieldChange(field.id, field.placeholder, e.target.value)}
+                            className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
+                            placeholder="Provide Ratings"
+                          />
+                        </div>
+
+                        {/* Input Row */}
+                        <div className="flex items-center gap-[0.5vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-700 w-[2.5vw]">Input :</label>
+                          <div className="flex items-center gap-[0.3vw]">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Icon key={star} icon="lucide:star" className="w-[1.4vw] h-[1.4vw] text-yellow-400 stroke-[1.5]" />
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -542,6 +728,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             <div className="rounded-[0.75vw]">
               {[
                 { id: 'before', label: 'Before opening the flipbook' },
+                { id: 'after-pages', label: 'Show on selected page' },
                 { id: 'after-seconds', label: 'After X seconds' },
                 { id: 'end', label: 'At the end of the flipbook' }
               ].map((opt, idx, arr) => (
@@ -563,6 +750,31 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                     </div>
                     <span className={`text-[0.75vw] font-medium ${settings.appearance.timing === opt.id ? 'text-gray-900' : 'text-gray-600'}`}>{opt.label}</span>
                   </label>
+
+                  {opt.id === 'after-pages' && settings.appearance.timing === 'after-pages' && (
+                    <div className="ml-[1.85vw] mt-[0.5vw]">
+                      <div className="relative inline-block w-[6vw]">
+                        <select
+                          value={settings.appearance.afterPages || 1}
+                          onChange={(e) => updateAppearance('afterPages', parseInt(e.target.value))}
+                          className="w-full appearance-none bg-white border border-gray-100 shadow-sm rounded-[0.4vw] py-[0.4vw] pl-[0.6vw] pr-[1.8vw] text-[0.75vw] text-black font-medium focus:outline-none cursor-pointer"
+                        >
+                          {pages.length > 0 ? (
+                            pages.map((_, idx) => (
+                              <option key={idx} value={idx + 1}>Page {idx + 1}</option>
+                            ))
+                          ) : (
+                            [1, 2, 3, 4, 5].map(num => (
+                              <option key={num} value={num}>Page {num}</option>
+                            ))
+                          )}
+                        </select>
+                        <div className="absolute right-[0.5vw] top-1/2 -translate-y-1/2 pointer-events-none">
+                          <Icon icon="fluent:chevron-down-12-regular" className="w-[0.9vw] h-[0.9vw] text-gray-700 stroke-[1.5]" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {opt.id === 'after-seconds' && settings.appearance.timing === 'after-seconds' && (
                     <div className="ml-[1.85vw] mt-[0.5vw] flex items-center gap-[0.5vw]">
@@ -728,23 +940,49 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             className="absolute top-0 left-full w-[100vw] h-[100vh] z-[100]"
             onClick={() => setIsAddFieldPopupOpen(false)}
           />
-          <div className="absolute top-[40%] right-0 translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-[1vw] w-[17vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+          <div className="absolute top-[40%] right-0 translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-[1vw] w-[17vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col transition-all">
             
             {/* Header Tabs */}
             <div className="flex bg-[#E5E5E5] w-full">
-              <button className="flex-1 py-[0.9vw] text-[0.8vw] font-medium text-gray-500 hover:text-gray-700 transition-colors border-b border-[#D1D1D1]">
+              <button 
+                onClick={() => setActivePopupTab('templates')}
+                className={`flex-1 py-[0.9vw] text-[1vw] transition-colors border-b ${activePopupTab === 'templates' ? 'text-black bg-white border-black border-b-[0.15vw] font-semibold' : 'text-gray-500 hover:text-gray-700 border-[#D1D1D1] font-medium'}`}>
                 Quick Templates
               </button>
-              <button className="flex-1 py-[0.9vw] text-[0.8vw] font-semibold text-black bg-white border-b-[0.15vw] border-black">
+              <button 
+                onClick={() => setActivePopupTab('custom')}
+                className={`flex-1 py-[0.9vw] text-[1vw] transition-colors border-b ${activePopupTab === 'custom' ? 'text-black bg-white border-black border-b-[0.15vw] font-semibold' : 'text-gray-500 hover:text-gray-700 border-[#D1D1D1] font-medium'}`}>
                 Custom Fields
               </button>
             </div>
             
             {/* Content */}
-            <div className="p-[1.5vw] flex flex-col items-center bg-white w-full">
-              <p className="text-[0.75vw] text-gray-600 mb-[1.5vw] font-medium text-center">
-                Click a field below to add it to your lead form.
-              </p>
+            <div className="p-[1.5vw] flex flex-col items-center bg-white w-full h-[17vw]">
+              {activePopupTab === 'templates' ? (
+                <div className="w-full flex flex-col items-start h-full overflow-y-auto [&::-webkit-scrollbar]:w-[0.4vw] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full pr-[0.5vw]">
+                  <p className="text-[0.9vw] text-gray-700 mb-[1.5vw] font-medium text-left leading-tight w-full">
+                    Start quickly with a pre-designed lead form template.
+                  </p>
+                  <div className="grid grid-cols-2 gap-[1vw] w-full pb-[1vw]">
+                    {quickTemplates.map((template) => (
+                      <div 
+                        key={template.id} 
+                        onClick={() => handleSelectTemplate(template)}
+                        className="flex flex-col items-center justify-between cursor-pointer group rounded-[0.8vw] border border-gray-100 p-[0.6vw] shadow-[0_0.2vw_0.8vw_rgba(0,0,0,0.04)] group-hover:border-gray-300 group-hover:shadow-[0_0.4vw_1.2vw_rgba(0,0,0,0.08)] transition-all bg-white"
+                      >
+                        <div className="w-full flex justify-center rounded-[0.4vw] bg-white mb-[0.8vw]">
+                          <img src={template.icon} alt={template.name} className="w-[4.5vw] h-auto object-contain rounded-[0.4vw]" />
+                        </div>
+                        <span className="text-[0.85vw] font-semibold text-black text-center leading-tight pb-[0.2vw]">{template.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-[0.75vw] text-gray-600 mb-[1.5vw] font-medium text-center">
+                    Click a field below to add it to your lead form.
+                  </p>
               
               <div className="grid grid-cols-2 gap-[0.8vw] w-full">
                 <button onClick={() => handleAddField('empty')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
@@ -776,7 +1014,9 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                   <Icon icon="lucide:check-square" className="w-[1vw] h-[1vw] text-gray-600" />
                   <span className="text-[0.7vw] font-medium text-gray-700">Checkbox</span>
                 </button>
-              </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>

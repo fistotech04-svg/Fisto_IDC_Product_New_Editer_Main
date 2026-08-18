@@ -776,7 +776,7 @@ const RightSidebar = ({
 
         const isVideo = lowerTagName === 'video' || lowerTagName === 'iframe' || dataType === 'video' || lowerDataName.includes('video') || lowerId.includes('video') || (lowerTagName === 'foreignobject' && el.querySelector('video, iframe'));
         const isText = (lowerTagName === 'text' || lowerTagName === 'tspan' || (lowerTagName === 'foreignobject' && !isVideo)) || dataType === 'text' || lowerDataName.includes('text') || lowerId.includes('text');
-        const isIcon = dataType === 'icon' || lowerDataName.includes('icon') || lowerId.includes('icon') || lowerTagName.includes('lucide') || el.classList.contains('lucide') || el.classList.contains('iconify');
+        const isIcon = dataType === 'icon' || dataType === 'hotspot' || lowerDataName.includes('icon') || lowerDataName.includes('hotspot') || lowerId.includes('icon') || lowerId.includes('hotspot') || lowerTagName.includes('lucide') || el.classList.contains('lucide') || el.classList.contains('iconify');
 
         props.isUserGroup = isUserGroup;
         props.isImage = isImage;

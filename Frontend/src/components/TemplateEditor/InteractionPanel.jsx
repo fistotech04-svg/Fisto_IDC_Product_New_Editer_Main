@@ -4,6 +4,7 @@ import { Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
+import { parsePhoneNumberFromString, isValidPhoneNumber } from 'libphonenumber-js';
 import PopupTemplateSelection, { TEMPLATES } from './PopupTemplateSelection';
 import ModelGalleryModal from '../ThreedEditor/Components/ModelGalleryModal';
 import AlertModal from '../AlertModal';
@@ -15,7 +16,8 @@ import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { fontFamilies, fontWeights } from '../../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import ColorPicker from './ColorPicker';
-import HotspotCustomizationPopup from './HotspotCustomizationPopup';
+import HotspotCustomizationPopup, { generateHotspotSVG } from './HotspotCustomizationPopup';
+
 const GlbModel = ({ url }) => {
   const { scene } = useGLTF(url);
   return (
@@ -208,36 +210,28 @@ const ZoomTargetThumbnail = ({ targetId }) => {
   );
 };
 
-// Helper for international phone validation
-const validatePhoneNumber = (value) => {
-  if (!value) return true; // Empty is treated as valid (not yet filled)
-  // Strip non-digits
-  const clean = value.replace(/\D/g, '');
-  if (clean.length === 0) return true;
-
-  // Custom validation rules based on dial code
-  if (clean.startsWith('91')) {
-    // India: +91 followed by exactly 10 digits starting with 6, 7, 8, or 9
-    return clean.length === 12 && /^[6-9]/.test(clean.substring(2));
-  }
-  if (clean.startsWith('1')) {
-    // US/Canada: +1 followed by exactly 10 digits
-    return clean.length === 11;
-  }
-  if (clean.startsWith('44')) {
-    // UK: +44 followed by exactly 10 digits
-    return clean.length === 12;
-  }
-
-  // Generic validation rule: international numbers must be between 10 and 15 digits total
-  return clean.length >= 10 && clean.length <= 15;
-};
-
-
 const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
-  const [localValue, setLocalValue] = useState(initialValue || '');
-  const [dialCode, setDialCode] = useState('91');
+  const parsedInitial = React.useMemo(() => {
+    if (!initialValue) return { country: 'af', nationalNumber: '', dialCode: '93' };
+    const str = initialValue.startsWith('+') ? initialValue : '+' + initialValue;
+    try {
+      const phoneNumber = parsePhoneNumberFromString(str);
+      if (phoneNumber && phoneNumber.country) {
+        return {
+          country: phoneNumber.country.toLowerCase(),
+          nationalNumber: phoneNumber.nationalNumber,
+          dialCode: phoneNumber.countryCallingCode
+        };
+      }
+    } catch (e) {}
+    return { country: 'af', nationalNumber: '', dialCode: '93' };
+  }, [initialValue]);
+
+  const [localValue, setLocalValue] = useState(parsedInitial.nationalNumber);
+  const [selectedCountry, setSelectedCountry] = useState(parsedInitial.country);
+  const [dialCode, setDialCode] = useState(parsedInitial.dialCode);
   const [isSaved, setIsSaved] = useState(true);
+  const containerRef = useRef(null);
 
   const cleanLocal = localValue.replace(/\D/g, '');
   let isInvalid = false;
@@ -252,8 +246,14 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
       isInvalid = !validStart || localNumber.length !== 10;
     }
   } else {
-    hasDigits = cleanLocal.length > 0;
-    isInvalid = hasDigits && !validatePhoneNumber(localValue);
+    hasDigits = localValue.trim().length > 0;
+    if (hasDigits) {
+      try {
+        isInvalid = !isValidPhoneNumber(localValue, selectedCountry.toUpperCase());
+      } catch (e) {
+        isInvalid = true;
+      }
+    }
   }
 
   const isValidAndFilled = hasDigits && !isInvalid;
@@ -264,12 +264,83 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
   const bgColor = isUnsavedValid ? '#F0FDF4' : (isInvalid ? '#FEF2F2' : '#F3F4F6');
 
   useEffect(() => {
-    setLocalValue(initialValue || '');
+    if (initialValue) {
+      const str = initialValue.startsWith('+') ? initialValue : '+' + initialValue;
+      try {
+        const phoneNumber = parsePhoneNumberFromString(str);
+        if (phoneNumber && phoneNumber.country) {
+          setSelectedCountry(phoneNumber.country.toLowerCase());
+          setLocalValue(phoneNumber.nationalNumber);
+          setDialCode(phoneNumber.countryCallingCode);
+        }
+      } catch (e) {}
+    } else {
+      setLocalValue('');
+      setSelectedCountry('af');
+      setDialCode('93');
+    }
     setIsSaved(true);
   }, [initialValue]);
 
+  useEffect(() => {
+    if (!containerRef.current || isWhatsApp) return;
+
+    const removeTitle = () => {
+      if (!containerRef.current) return;
+      const flags = containerRef.current.querySelectorAll('.selected-flag');
+      flags.forEach(el => {
+        if (el.hasAttribute('title')) {
+          el.removeAttribute('title');
+        }
+      });
+    };
+
+    removeTitle();
+
+    const observer = new MutationObserver(() => {
+      removeTitle();
+    });
+
+    observer.observe(containerRef.current, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['title']
+    });
+
+    return () => observer.disconnect();
+  }, [isWhatsApp]);
+
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full h-full relative" ref={containerRef}>
+      {!isWhatsApp && (
+        <style>{`
+          .react-tel-input .flag-dropdown .selected-flag,
+          .react-tel-input .flag-dropdown:hover .selected-flag,
+          .react-tel-input .flag-dropdown.open-dropdown .selected-flag,
+          .react-tel-input .flag-dropdown:focus .selected-flag {
+            background-color: transparent !important;
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          .react-tel-input .country-list .country {
+            padding: 0.6vw 0.6vw 0.6vw 2.6vw !important;
+          }
+          .react-tel-input .country-list .flag {
+            left: 0.8vw !important;
+            margin-top: 0.2vw !important;
+          }
+          .react-tel-input .country-list {
+            margin: 0 !important;
+            left: 0 !important;
+            transform: none !important;
+            top: 100% !important;
+            bottom: auto !important;
+            margin-top: 0.2vw !important;
+            z-index: 99999 !important;
+          }
+        `}</style>
+      )}
       {isWhatsApp ? (
         <div className="relative w-full h-full bg-white rounded-[0.6vw]">
           <div className="absolute left-[0.6vw] top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center z-10">
@@ -290,8 +361,9 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
               }
             }}
             onBlur={() => {
-              if (localValue !== initialValue) {
-                onSave(localValue);
+              const saveVal = '+91' + localValue.replace(/\D/g, '');
+              if (saveVal !== initialValue) {
+                onSave(saveVal);
                 setIsSaved(true);
               }
             }}
@@ -307,21 +379,27 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
         </div>
       ) : (
         <PhoneInput
-          country={'in'}
+          country={selectedCountry}
           preferredCountries={['in', 'us', 'gb']}
-          disableCountryCode={true}
-          value={localValue}
+          disableCountryGuess={true}
+          value={'+' + dialCode + localValue}
           onChange={(phone, data) => {
-            const formatted = phone.startsWith('+') ? phone : '+' + phone;
-            setLocalValue(formatted);
-            if (data && data.dialCode) {
+            let nationalNum = phone;
+            if (data && data.dialCode && phone.startsWith(data.dialCode)) {
+              nationalNum = phone.substring(data.dialCode.length);
+            }
+            setLocalValue(nationalNum);
+            
+            if (data && data.countryCode && data.countryCode !== selectedCountry) {
+              setSelectedCountry(data.countryCode);
               setDialCode(data.dialCode);
             }
             setIsSaved(false);
           }}
           onBlur={() => {
-            if (localValue !== initialValue) {
-              onSave(localValue);
+            const saveVal = '+' + dialCode + localValue;
+            if (saveVal !== initialValue) {
+              onSave(saveVal);
               setIsSaved(true);
             }
           }}
@@ -338,7 +416,7 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
             fontSize: '0.85vw',
             color: textColor,
             fontWeight: '500',
-            paddingLeft: '5.8vw',
+            paddingLeft: '3.8vw',
             backgroundColor: '#FFFFFF',
             outline: 'none',
             boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
@@ -347,16 +425,15 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
           buttonStyle={{
             backgroundColor: bgColor,
             border: `1px solid ${borderColor}`,
-            borderRight: 'none',
+            borderRight: '1px solid #D1D5DB',
             borderRadius: '0.6vw 0 0 0.6vw',
-            width: '5.2vw',
+            width: '3.2vw',
             height: '100%',
             top: '0',
             left: '0',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-start',
-            paddingLeft: '0.6vw',
+            justifyContent: 'center',
             transition: 'all 0.3s ease'
           }}
           dropdownStyle={{
@@ -370,15 +447,6 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
             zIndex: 50
           }}
         />
-      )}
-      {!isWhatsApp && (
-        <div
-          className="absolute left-[1.8vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-700 text-[0.85vw] font-medium z-10 flex items-center px-[0.2vw] h-[80%]"
-          style={{ backgroundColor: bgColor }}
-        >
-          <span>+{dialCode}</span>
-          <Icon icon="lucide:chevron-down" className="text-gray-500 text-[0.8vw] ml-[0.3vw]" />
-        </div>
       )}
       {/* Green Checkmark inside input when valid */}
       {isValidAndFilled && (
@@ -959,7 +1027,7 @@ const InteractionPanel = ({
         detectedType = 'GIF';
       } else if (dataType === 'video' || tagName === 'video' || idLower.includes('video')) {
         detectedType = 'Video';
-      } else if (dataType === 'icon' || idLower.includes('icon') || el.classList?.contains('iconify')) {
+      } else if (dataType === 'icon' || dataType === 'hotspot' || idLower.includes('icon') || idLower.includes('hotspot') || el.classList?.contains('iconify')) {
         detectedType = 'Icon';
       } else if (tagName === 'image' || tagName === 'img' || dataType === 'image' || idLower.includes('image')) {
         detectedType = 'Image';
@@ -1000,7 +1068,7 @@ const InteractionPanel = ({
         detectedType = 'GIF';
       } else if (dataType === 'video' || tagName === 'video' || idLower.includes('video')) {
         detectedType = 'Video';
-      } else if (dataType === 'icon' || idLower.includes('icon') || el.classList?.contains('iconify')) {
+      } else if (dataType === 'icon' || dataType === 'hotspot' || idLower.includes('icon') || idLower.includes('hotspot') || el.classList?.contains('iconify')) {
         detectedType = 'Icon';
       } else if (tagName === 'image' || tagName === 'img' || dataType === 'image' || idLower.includes('image')) {
         detectedType = 'Image';
@@ -1076,15 +1144,20 @@ const InteractionPanel = ({
 
         const imageEl = foundEl.querySelector('image');
         const isHotspot = foundEl.getAttribute('data-is-hotspot') === 'true' || 
-                          (foundEl.getAttribute('data-type') === 'icon' && imageEl && imageEl.getAttribute('width') === '52');
+                          (foundEl.getAttribute('data-type') === 'icon' || foundEl.getAttribute('data-type') === 'hotspot') && imageEl && imageEl.getAttribute('width') === '52';
         let hotspotIconSrc = foundEl.getAttribute('data-hotspot-icon-src');
         if (!hotspotIconSrc && isHotspot && imageEl) {
            hotspotIconSrc = imageEl.getAttribute('href');
         }
         
         let hotspotHtml = null;
+        let hotspotBBox = "0 0 24 24";
         if (isHotspot && !hotspotIconSrc) {
            hotspotHtml = foundEl.innerHTML;
+           const rectMatch = hotspotHtml.match(/<rect[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"/);
+           if (rectMatch) {
+             hotspotBBox = `0 0 ${rectMatch[1]} ${rectMatch[2]}`;
+           }
         }
 
         list.push({
@@ -1099,11 +1172,13 @@ const InteractionPanel = ({
           linkBehavior: foundEl.getAttribute('data-interaction-link-behavior') || 'current',
           zoomTargetId: foundEl.getAttribute('data-zoom-target') || null,
           zoomLevel: foundEl.getAttribute('data-zoom-level') || '2X',
-          pageIndex: foundPageIndex,
           isHotspot: isHotspot,
           hotspotIconSrc: hotspotIconSrc,
           hotspotHtml: hotspotHtml,
-          presetId: foundEl.getAttribute('data-preset-id') || null
+          hotspotBBox: hotspotBBox,
+          presetId: foundEl.getAttribute('data-preset-id') || null,
+          bgColor: foundEl.getAttribute('data-bg-color') || null,
+          iconColor: foundEl.getAttribute('data-icon-color') || null
         });
       }
     });
@@ -1145,7 +1220,7 @@ const InteractionPanel = ({
     // Direct type checks on this element
     if (dt === 'gif' || dn.includes('gif') || id.includes('gif') || href.toLowerCase().endsWith('.gif')) return 'GIF';
     if (dt === 'video' || tag === 'video' || tag === 'iframe' || dn.includes('video')) return 'Video';
-    if (dt === 'icon' || dn.includes('icon') || el.classList?.contains('iconify')) return 'Icon';
+    if (dt === 'icon' || dt === 'hotspot' || dn.includes('icon') || dn.includes('hotspot') || el.classList?.contains('iconify')) return 'Icon';
     if (tag === 'image' || tag === 'img' || dt === 'image' || dn.includes('image') || id.includes('image') || (href && !href.toLowerCase().endsWith('.gif'))) return 'Image';
     if (tag === 'text' || tag === 'tspan' || dt === 'text' || dn.includes('text') || id.includes('text')) return 'Text';
     if (tag === 'rect') return 'Rectangle';
@@ -1214,7 +1289,7 @@ const InteractionPanel = ({
     if (dataType === 'text' || dataName.includes('text')) return 'Text';
     if (dataType === 'gif' || dataName.includes('gif')) return 'GIF';
     if (dataType === 'video' || dataName.includes('video')) return 'Video';
-    if (dataType === 'icon' || dataName.includes('icon')) return 'Icon';
+    if (dataType === 'icon' || dataType === 'hotspot' || dataName.includes('icon') || dataName.includes('hotspot')) return 'Icon';
     if (dataType === 'image' || dataName.includes('image')) return 'Image';
 
     // For groups: deep-scan all descendants
@@ -1305,8 +1380,8 @@ const InteractionPanel = ({
                     }));
                   }}
                   className={`w-full mx-auto bg-white/70 backdrop-blur-md border rounded-[0.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col relative transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] ${isSelected
-                    ? 'border-[#5145F6]/50 ring-2 ring-[#5145F6]/15 bg-white/95'
-                    : 'border-white/40 hover:border-[#5145F6]/30'
+                    ? 'border-[#5145F6]/50 ring-2 ring-[#5145F6]/15 bg-white/95 z-[50]'
+                    : 'border-white/40 hover:border-[#5145F6]/30 z-[10]'
                     }`}
                 >
 
@@ -1452,94 +1527,42 @@ const InteractionPanel = ({
                       >
                         <div className="w-full border-t border-gray-100/60"></div>
                         
-                        {/* Hotspot Preset Preview Section */}
-                        {item.isHotspot && (item.hotspotIconSrc || item.hotspotHtml) && (
-                          <div className="w-full px-[1.6vw] pt-[1.5vh]">
-                            <div className="w-full h-[12vh] bg-white border border-gray-200/60 rounded-[0.5vw] flex items-center justify-center relative shadow-sm overflow-hidden p-[1vh]">
-                              {item.hotspotIconSrc ? (
-                                <img src={item.hotspotIconSrc} alt="Hotspot" className="w-[3.5vw] h-[3.5vw] object-contain pointer-events-none" />
-                              ) : (
-                                (() => {
-                                  let vb = "0 0 52 52";
-                                  let cls = "w-[3.5vw] h-[3.5vw] pointer-events-none";
-                                  let displayHtml = item.hotspotHtml;
-                                  
-                                  if (displayHtml) {
-                                    if (displayHtml.includes('<text')) {
-                                      // It's an Interactive Button preset.
-                                      // We force the original geometry so that moving/resizing on canvas doesn't break the preview.
-                                      const w = displayHtml.includes('#FFCC00') ? 220 : 180;
-                                        
-                                      try {
-                                        const temp = document.createElement('div');
-                                        temp.innerHTML = `<svg>${displayHtml}</svg>`;
-                                        const svg = temp.querySelector('svg');
-                                        if (svg) {
-                                          const r = svg.querySelector('rect');
-                                          if (r) {
-                                            r.setAttribute('x', '0');
-                                            r.setAttribute('y', '0');
-                                            r.setAttribute('width', w);
-                                            r.setAttribute('height', '60');
-                                            r.removeAttribute('transform');
-                                          }
-                                          const t = svg.querySelector('text');
-                                          if (t) {
-                                            t.setAttribute('x', w / 2);
-                                            t.setAttribute('y', 30);
-                                            t.setAttribute('dominant-baseline', 'central');
-                                            t.setAttribute('text-anchor', 'middle');
-                                            t.removeAttribute('transform');
-                                            svg.querySelectorAll('tspan').forEach(ts => {
-                                              ts.removeAttribute('x');
-                                              ts.removeAttribute('y');
-                                            });
-                                          }
-                                          displayHtml = svg.innerHTML;
-                                        }
-                                      } catch(e) {
-                                        console.error('Error parsing hotspot SVG preview', e);
-                                      }
-                                        
-                                      vb = `0 0 ${w} 60`;
-                                      cls = "w-[10vw] h-[3.33vw] pointer-events-none";
-                                    } else {
-                                      try {
-                                        const temp = document.createElement('div');
-                                        temp.innerHTML = `<svg>${displayHtml}</svg>`;
-                                        const svg = temp.querySelector('svg');
-                                        if (svg) {
-                                          const child = svg.firstElementChild;
-                                          if (child) {
-                                            child.removeAttribute('transform');
-                                            child.removeAttribute('width');
-                                            child.removeAttribute('height');
-                                          }
-                                          displayHtml = svg.innerHTML;
-                                        }
-                                      } catch(e) {
-                                        console.error('Error parsing standard hotspot SVG preview', e);
-                                      }
-                                    }
-                                  }
-                                  
-                                  return <svg className={cls} viewBox={vb} preserveAspectRatio="xMidYMid meet" dangerouslySetInnerHTML={{ __html: displayHtml }} />;
-                                })()
-                              )}
+                        {item.isHotspot && (
+                          <div className="px-[1.6vw] pt-[2vh] pb-[0.5vh]">
+                            <div className="w-full h-[12vh] border border-gray-200 rounded-[0.5vw] bg-white flex items-center justify-center relative shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                              {/* Edit Button */}
                               <div 
-                                className="absolute top-[0.6vw] right-[0.6vw] cursor-pointer text-gray-500 hover:text-gray-700 transition-colors bg-white/90 rounded-md z-10"
+                                className="absolute top-[0.6vw] right-[0.6vw] w-[1.8vw] h-[1.8vw] bg-white border border-gray-200 rounded-[0.3vw] shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingHotspotId(item.id);
                                 }}
                               >
-                                <Icon icon="lucide:edit" className="text-[1.1vw]" strokeWidth="2.5" />
+                                <Icon icon="lucide:edit" className="text-gray-500 text-[0.9vw]" />
                               </div>
+                              
+                              {/* Icon Preview */}
+                              {item.hotspotIconSrc ? (
+                                <img src={item.hotspotIconSrc} alt="hotspot" className="w-[4.5vw] h-[4.5vw] object-contain pointer-events-none" />
+                              ) : item.hotspotHtml ? (
+                                <div className="w-[8vw] h-[4.5vw] flex items-center justify-center overflow-hidden pointer-events-none">
+                                  <svg 
+                                    className="w-full h-full" 
+                                    viewBox={item.hotspotBBox || "0 0 24 24"} 
+                                    preserveAspectRatio="xMidYMid meet"
+                                    dangerouslySetInnerHTML={{ __html: item.hotspotHtml }} 
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-[4.5vw] h-[4.5vw] flex items-center justify-center rounded-full bg-[#EFF6FF] border-[0.15vw] border-[#BFDBFE]">
+                                  <Icon icon="ph:link-bold" className="text-[#3B82F6] text-[2.2vw]" />
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
                         
-                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1.5vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
+                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
                           <div className="flex items-start gap-[0.5vw] w-full">
                             {(() => {
                               if (item.isHotspot) return null;
@@ -3395,99 +3418,60 @@ const InteractionPanel = ({
         onConfirm={alertState.onConfirm}
       />
 
-      {/* Hotspot Customization Popup */}
-      {editingHotspotId && (
-        <HotspotCustomizationPopup
-          initialHotspotIconSrc={(() => {
-            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            return item ? item.hotspotIconSrc : null;
-          })()}
-          interactionType={(() => {
-            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            return item ? (item.presetId || item.actionId || item.interactionType) : null;
-          })()}
-          initialHotspotHtml={(() => {
-            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            return item ? item.hotspotHtml : null;
-          })()}
-          initialBgColor={(() => {
-            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-bg-color']) {
-              return selectedElementProps['data-hotspot-bg-color'];
-            }
-            const el = document.getElementById(editingHotspotId);
-            if (el && el.hasAttribute('data-hotspot-bg-color')) return el.getAttribute('data-hotspot-bg-color');
-            
-            const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-            if (item && item.hotspotHtml) {
-               const fillMatch = item.hotspotHtml.match(/<circle[^>]*?fill="(#[a-fA-F0-9]{3,8})/i) || item.hotspotHtml.match(/fill="(#[a-fA-F0-9]{3,8})/i);
-               if (fillMatch && fillMatch[1].toLowerCase() !== '#ffffff') return fillMatch[1];
-            }
-            return undefined;
-          })()}
-          initialIconColor={(() => {
-            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-icon-color']) {
-              return selectedElementProps['data-hotspot-icon-color'];
-            }
-            const el = document.getElementById(editingHotspotId);
-            if (el) return el.getAttribute('data-hotspot-icon-color') || undefined;
-            return undefined;
-          })()}
-          initialBgStyle={(() => {
-            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-bg-style'] !== undefined) {
-              return parseInt(selectedElementProps['data-hotspot-bg-style']);
-            }
-            const el = document.getElementById(editingHotspotId);
-            if (el && el.hasAttribute('data-hotspot-bg-style')) return parseInt(el.getAttribute('data-hotspot-bg-style'));
-            return 0;
-          })()}
-          initialIconStyle={(() => {
-            if (editingHotspotId === selectedLayerId && selectedElementProps && selectedElementProps['data-hotspot-icon-style'] !== undefined) {
-              return parseInt(selectedElementProps['data-hotspot-icon-style']);
-            }
-            const el = document.getElementById(editingHotspotId);
-            if (el && el.hasAttribute('data-hotspot-icon-style')) return parseInt(el.getAttribute('data-hotspot-icon-style'));
-            return 0;
-          })()}
-          onClose={() => setEditingHotspotId(null)}
-          onSave={({ iconColor, bgColor, iconStyle, bgStyle, generatedSvgString }) => {
-            if (updateElementAttribute) {
-              const item = interactiveElementsList.find(i => i.id === editingHotspotId);
-              if (item) {
-                const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                
-                let iconSrcDataUrl = item.hotspotIconSrc;
-                if (generatedSvgString && generatedSvgString.fullSvg) {
-                  iconSrcDataUrl = `data:image/svg+xml;base64,${btoa(generatedSvgString.fullSvg)}`;
-                }
+      {editingHotspotId && (() => {
+        const item = interactiveElementsList.find(i => i.id === editingHotspotId);
+        
+        // Helper to get default color based on action type
+        const getDefaultBgColor = (actionId) => {
+          const colorMap = {
+            'whatsapp': '#34A853',
+            'instagram': 'linear-gradient(45deg, rgba(255, 221, 85, 1) 0%, rgba(255, 84, 62, 1) 50%, rgba(200, 55, 171, 1) 100%)',
+            'youtube': '#FF0000',
+            'email': '#F97316',
+            'location': '#F97316',
+            'facebook': '#3D5A98',
+            'linkedin': '#0A66C2',
+            'x': '#000000',
+            'navigate-to': '#8B5CF6',
+            'slideshow': '#22C55E',
+            'popup': '#14B8A6'
+          };
+          return colorMap[actionId] || '#359CFD';
+        };
 
-                updateElementAttribute(targetIdx, editingHotspotId, {
-                  'data-hotspot-icon-color': iconColor,
-                  'data-hotspot-bg-color': bgColor,
-                  'data-hotspot-icon-style': iconStyle,
-                  'data-hotspot-bg-style': bgStyle,
-                  'data-hotspot-icon-src': iconSrcDataUrl,
-                  'hotspotHtml': generatedSvgString ? generatedSvgString.innerSvg : null
-                });
-                
-                // Directly update the canvas element innerHTML to immediately show the generated SVG!
-                if (generatedSvgString && generatedSvgString.innerSvg) {
-                  const canvasSvg = document.querySelector(`.page-svg-container[data-page-index="${targetIdx}"] svg`);
-                  if (canvasSvg) {
-                    const gEl = canvasSvg.querySelector(`[id="${editingHotspotId}"]`);
-                    if (gEl) {
-                      gEl.innerHTML = generatedSvgString.innerSvg;
-                    }
-                  }
-                }
-                
-                window.dispatchEvent(new CustomEvent('update-interaction-badge', {
-                  detail: { elementId: editingHotspotId }
-                }));
-              }
-            }
-          }}
-        />
-      )}
+        return (
+          <HotspotCustomizationPopup
+            isOpen={true}
+            onClose={() => setEditingHotspotId(null)}
+            initialData={{
+               preset: item?.presetId || 'preset3',
+               iconColor: item?.iconColor || '#FFFFFF',
+               bgColor: item?.bgColor || getDefaultBgColor(item?.presetId || item?.actionId),
+               iconStyle: 'style1',
+               src: item?.hotspotIconSrc || null,
+               actionId: item?.actionId,
+               hotspotHtml: item?.hotspotHtml || null,
+               hotspotBBox: item?.hotspotBBox || null
+            }}
+            onSave={(data) => {
+               if (!item) return;
+               const html = data.customHtml || generateHotspotSVG(data.preset, data.bgColor, data.iconColor, data.src);
+               window.dispatchEvent(new CustomEvent('update-hotspot-style', {
+                 detail: {
+                   id: item.id,
+                   pageIndex: item.pageIndex,
+                   presetId: data.preset,
+                   iconSrc: data.src,
+                   html: html,
+                   bgColor: data.bgColor,
+                   iconColor: data.iconColor
+                 }
+               }));
+            }}
+          />
+        );
+      })()}
+
     </div>
   );
 };

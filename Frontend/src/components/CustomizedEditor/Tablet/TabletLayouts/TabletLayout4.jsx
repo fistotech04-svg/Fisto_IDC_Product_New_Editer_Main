@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
 import TabletProfilePopup from './TabletProfilePopup';
+import ShareModal from '../../../ShareModal';
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     const cleanHtml = (html || '')
@@ -100,7 +101,6 @@ const TabletLayout4 = ({
     currentZoom,
     setCurrentZoom,
     onPageClick,
-    handleShare,
     handleDownload,
     handleFullScreen,
     isFullscreen,
@@ -114,9 +114,12 @@ const TabletLayout4 = ({
     backgroundStyle,
     showExportPopup,
     setShowExportPopupMemo,
-    offset = 0
+    offset = 0,
+    currentBook,
+    activeLayout
 }) => {
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
+    const [isShareOpen, setIsShareOpen] = useState(false);
 
     const spreads = useMemo(() => {
         const result = [];
@@ -264,7 +267,15 @@ const TabletLayout4 = ({
                         <SidebarButton 
                             icon="mage:share-fill" 
                             label="Share" 
-                            onClick={handleShare} 
+                            onClick={() => {
+                                setShowTOCMemo?.(false);
+                                setShowThumbnailBarMemo?.(false);
+                                setShowGalleryPopupMemo?.(false);
+                                setShowSoundPopupMemo?.(false);
+                                setShowProfilePopup?.(false);
+                                setShowExportPopupMemo?.(false);
+                                setIsShareOpen(true);
+                            }} 
                         />
                     )}
                     
@@ -452,6 +463,14 @@ const TabletLayout4 = ({
             
             <div id="tablet-sound-portal" className="absolute inset-0 z-50 pointer-events-none"></div>
             <div id="tablet-download-portal" className="absolute inset-0 z-50 pointer-events-none"></div>
+
+            <ShareModal
+                isOpen={isShareOpen}
+                onClose={() => setIsShareOpen(false)}
+                isTabletLayout={true}
+                currentBook={currentBook || settings}
+                activeLayout={activeLayout || '4'}
+            />
         </div>
     );
 };

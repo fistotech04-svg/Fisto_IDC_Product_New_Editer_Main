@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
 import TabletProfilePopup from './TabletProfilePopup';
+import ShareModal from '../../../ShareModal';
 
 const hexToRgb = (hex) => {
     if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return '255, 255, 255';
@@ -104,7 +105,6 @@ const TabletLayout6 = ({
     currentZoom,
     setCurrentZoom,
     onPageClick,
-    handleShare,
     handleDownload,
     handleFullScreen,
     isFullscreen,
@@ -121,9 +121,12 @@ const TabletLayout6 = ({
     setShowExportPopupMemo,
     setIsPlaying,
     isAutoFlipping,
-    offset = 0
+    offset = 0,
+    currentBook,
+    activeLayout
 }) => {
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
+    const [isShareOpen, setIsShareOpen] = useState(false);
     const [recommendations, setRecommendations] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const spreads = useMemo(() => {
@@ -408,7 +411,15 @@ const TabletLayout6 = ({
                         <SidebarBtn icon="fluent:person-24-filled" active={showProfilePopup} onClick={() => { setShowProfilePopup?.(!showProfilePopup); setShowTOCMemo?.(false); setShowThumbnailBarMemo?.(false); }} />
                     )}
                     {(settings?.shareExport?.share ?? true) && (
-                        <SidebarBtn icon="mage:share-fill" onClick={() => handleShare && handleShare()} />
+                        <SidebarBtn icon="mage:share-fill" onClick={() => {
+                            setShowTOCMemo?.(false);
+                            setShowThumbnailBarMemo?.(false);
+                            setShowGalleryPopupMemo?.(false);
+                            setShowSoundPopupMemo?.(false);
+                            setShowProfilePopup?.(false);
+                            setShowExportPopupMemo?.(false);
+                            setIsShareOpen(true);
+                        }} />
                     )}
                     {(settings?.shareExport?.download ?? true) && (
                         <SidebarBtn icon="meteor-icons:download" onClick={() => handleDownload && handleDownload()} />
@@ -477,6 +488,13 @@ const TabletLayout6 = ({
                 </div>
             </div>
             
+            <ShareModal
+                isOpen={isShareOpen}
+                onClose={() => setIsShareOpen(false)}
+                isTabletLayout={true}
+                currentBook={currentBook || settings}
+                activeLayout={activeLayout || '6'}
+            />
         </div>
     );
 };
