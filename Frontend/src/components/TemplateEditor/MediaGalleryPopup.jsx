@@ -5,8 +5,10 @@ import axios from 'axios';
 import { checkIsAnimatedWebp } from './editorUtils';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
 
-const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
-  const [galleryType, setGalleryType] = useState('All');
+const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGalleryType, imageOnly = false }) => {
+  const [galleryType, setGalleryType] = useState(() => {
+    return initialGalleryType || (imageOnly ? 'Image Gallery' : 'All');
+  });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [galleryAssets, setGalleryAssets] = useState([]);
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -17,6 +19,14 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
   const fileInputRefReplaceItem = useRef(null);
   const dropdownRef = useRef(null);
   const popupRef = useRef(null);
+
+  useEffect(() => {
+    if (initialGalleryType) {
+      setGalleryType(initialGalleryType);
+    } else if (imageOnly) {
+      setGalleryType('Image Gallery');
+    }
+  }, [initialGalleryType, imageOnly, isOpen]);
 
   // Fetch gallery assets from backend whenever modal opens
   useEffect(() => {
@@ -129,25 +139,43 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
           file: newFile
         };
 
-        if (user) {
+        const userEmail = user ? (user.emailId || user.email) : 'guest@fisto.tech';
+        if (userEmail) {
           try {
             const formData = new FormData();
-            formData.append('emailId', user.emailId);
-            formData.append('isGallery', 'true');
-            formData.append('type', isVideo ? 'video' : isAnimated ? 'gif' : 'image');
-            formData.append('file', newFile);
-            formData.append('page_v_id', 'global');
+            formData.append('emailId', userEmail);
+            if (imageOnly) {
+              formData.append('assetType', 'gallery_image');
+              formData.append('folderName', 'My_Flipbooks');
+              formData.append('flipbookName', 'Untitled Document');
+              formData.append('file', newFile);
+              const res = await axios.post(`${backendUrl}/api/flipbook/upload-customized-asset`, formData);
+              if (res.data.url) {
+                return {
+                  ...tempAsset,
+                  id: res.data.fileName || objectUrl,
+                  url: res.data.url,
+                  rawUrl: res.data.url,
+                  file_v_id: res.data.fileName
+                };
+              }
+            } else {
+              formData.append('isGallery', 'true');
+              formData.append('type', isVideo ? 'video' : isAnimated ? 'gif' : 'image');
+              formData.append('file', newFile);
+              formData.append('page_v_id', 'global');
 
-            const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-            if (res.data.url) {
-              const serverUrl = resolveUploadsPath(res.data.url);
-              return {
-                ...tempAsset,
-                id: res.data.file_v_id || objectUrl,
-                url: serverUrl,
-                rawUrl: res.data.url,
-                file_v_id: res.data.file_v_id
-              };
+              const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+              if (res.data.url) {
+                const serverUrl = resolveUploadsPath(res.data.url);
+                return {
+                  ...tempAsset,
+                  id: res.data.file_v_id || objectUrl,
+                  url: serverUrl,
+                  rawUrl: res.data.url,
+                  file_v_id: res.data.file_v_id
+                };
+              }
             }
           } catch (err) {
             console.error('Failed to upload global asset:', err);
@@ -249,9 +277,9 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
   let popupStyle = {
     position: 'fixed',
     top: '50%',
-    right: '25vw',
-    transform: 'translateY(-50%)',
-    zIndex: 5000,
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 100000,
   };
 
   if (anchorRef && anchorRef.current) {
@@ -261,18 +289,24 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
       top: `${rect.top + rect.height / 2}px`,
       left: `${rect.left + 60}px`,
       transform: 'translate(-100%, -50%)',
-      zIndex: 5000,
+      zIndex: 100000,
     };
   }
 
-  const galleryOptions = ['All', 'Image Gallery', 'Video Gallery', 'GIF Gallery'];
+  const galleryOptions = imageOnly ? ['Image Gallery'] : ['All', 'Image Gallery', 'Video Gallery', 'GIF Gallery'];
 
   return createPortal(
     <>
+    {!anchorRef && (
+      <div
+        className="fixed inset-0 bg-black/40 backdrop-blur-[1px] z-[99999]"
+        onClick={onClose}
+      />
+    )}
     <div 
       ref={popupRef}
       style={popupStyle} 
-      className="bg-white rounded-[0.8vw] w-[19vw] shadow-[0_1vw_3vw_-0.5vw_rgba(0,0,0,0.2)] border border-gray-400 flex flex-col font-sans relative" 
+      className="bg-white rounded-[0.8vw] w-[24vw] min-w-[320px] max-w-[90vw] shadow-2xl border border-gray-300 flex flex-col font-sans relative z-[100000]" 
       onClick={(e) => {
         e.stopPropagation();
         setSelectedAsset(null);
@@ -282,7 +316,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect }) => {
       {/* Header */}
       <div className="flex items-center justify-between p-[1.5vw] pb-[1vw]">
         <h2 className="text-[0.9vw] font-bold text-gray-900 mr-[1vw]">
-          Media Gallery
+          {imageOnly ? 'Image Gallery' : 'Media Gallery'}
         </h2>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
           <Icon icon="lucide:x" className="w-[1vw] h-[1vw]" />

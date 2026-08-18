@@ -483,9 +483,11 @@ const MobileLayout4 = (props) => {
                                     <button onClick={() => { if (props.setShowGalleryPopup) props.setShowGalleryPopup(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                                         <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
                                     </button>
-                                    <button onClick={() => { setShowSoundPopup(true); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                                        <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
-                                    </button>
+                                    {(settings?.media?.backgroundAudio ?? true) && (
+                                        <button onClick={() => { setShowSoundPopup(true); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                            <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
+                                        </button>
+                                    )}
                                     <button onClick={() => { setShowLocalProfile(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                                         <Icon icon="fluent:person-24-filled" className="w-[18px] h-[18px]" />
                                     </button>

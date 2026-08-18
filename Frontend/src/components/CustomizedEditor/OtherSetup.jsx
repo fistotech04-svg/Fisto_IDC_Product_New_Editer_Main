@@ -26,6 +26,7 @@ import { EffectControlRow, ImageCropOverlay } from './AppearanceShared';
 import { CoverPicturePopup } from '../FlipbookInfoModal';
 import BookmarkStylesPopup from './BookmarkStylesPopup';
 import AlertModal from '../AlertModal';
+import MediaGalleryPopup from '../TemplateEditor/MediaGalleryPopup';
 import cover1 from '../../assets/cover/cover1.svg';
 const fontFamilies = [
   'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
@@ -242,8 +243,18 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     setOpenContextMenu(null);
   };
 
-  const handleDeleteImage = () => {
+  const handleDeleteImage = async () => {
     if (deleteImageIndex !== null) {
+      const imgToDelete = slideshowImages[deleteImageIndex];
+      const imageUrl = imgToDelete?.url || imgToDelete?.src;
+
+      if (imageUrl && typeof imageUrl === 'string' && (imageUrl.includes('/customized_assets/') || imageUrl.includes('supabase.co'))) {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        axios.post(`${backendUrl}/api/flipbook/delete-customized-asset`, { url: imageUrl }).catch((err) => {
+          console.warn("Failed to delete asset from Supabase:", err);
+        });
+      }
+
       updateGallery('images', (prev = []) => prev.filter((_, idx) => idx !== deleteImageIndex));
       setDeleteImageIndex(null);
     }
@@ -285,24 +296,48 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   const visibleSlotCount = Math.min(MAX_GALLERY_IMAGES, slideshowImages.length + 1);
 
   const updateGallery = (field, value) => {
-    updateNested('gallery', field, value);
+    onUpdate(prev => {
+      const currentGallery = prev?.gallery || {};
+      const updatedFieldValue = typeof value === 'function' ? value(currentGallery[field]) : value;
+      const newImages = field === 'images' ? updatedFieldValue : (currentGallery.images || []);
+
+      return {
+        ...prev,
+        gallery: {
+          ...currentGallery,
+          [field]: updatedFieldValue
+        },
+        menuBar: {
+          ...prev?.menuBar,
+          interaction: {
+            ...prev?.menuBar?.interaction,
+            gallerySettings: {
+              ...prev?.menuBar?.interaction?.gallerySettings,
+              [field]: updatedFieldValue,
+              images: newImages
+            }
+          }
+        }
+      };
+    });
   };
 
   const uploadFile = async (file, replacingVideoId = null) => {
+    let emailId = 'guest@fisto.tech';
     const storedUser = localStorage.getItem('user');
-    if (!storedUser) return null;
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        emailId = user.emailId || user.email || emailId;
+      } catch (e) {}
+    }
 
-    const user = JSON.parse(storedUser);
     const formData = new FormData();
-    formData.append('emailId', user.emailId);
-
-    // Provide defaults for unsaved books
+    formData.append('emailId', emailId);
     formData.append('folderName', folderName || 'My_Flipbooks');
     formData.append('flipbookName', bookName || 'Untitled Document');
-
-    formData.append('type', 'image');
-    formData.append('assetType', 'Image');
-    formData.append('page_v_id', 'popup_gallery'); // Using a fixed ID for popup gallery
+    formData.append('type', 'gallery_image');
+    formData.append('assetType', 'gallery_image');
 
     if (replacingVideoId) {
       formData.append('replacing_file_v_id', replacingVideoId);
@@ -311,17 +346,16 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
 
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+      const res = await axios.post(`${backendUrl}/api/flipbook/upload-customized-asset`, formData);
       if (res.data.url) {
-        const fullUrl = res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`;
         return {
-          url: fullUrl,
-          file_v_id: res.data.file_v_id,
-          name: res.data.filename
+          url: res.data.url,
+          file_v_id: res.data.fileName || file.name,
+          name: res.data.fileName || file.name
         };
       }
     } catch (err) {
-      console.error("Slideshow image upload failed:", err);
+      console.error("Gallery image upload failed:", err);
     }
     return null;
   };
@@ -347,20 +381,22 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     updateGallery('images', current => [...(current || []), ...optimisticImages]);
     e.target.value = '';
 
-    // Upload in Background and Update State
+    // Upload in Background and Update State with Supabase URL
     for (const img of optimisticImages) {
       const uploadedData = await uploadFile(img.file_orig);
 
       updateGallery('images', current =>
-        current.map(item => {
-          if (item.id === img.id) {
-            if (uploadedData) {
-              return { ...item, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false };
+        (current || [])
+          .map(item => {
+            if (item.id === img.id) {
+              if (uploadedData && uploadedData.url) {
+                return { ...item, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false };
+              }
+              return null; // Remove failed blob items
             }
-            return { ...item, isUploading: false };
-          }
-          return item;
-        })
+            return item;
+          })
+          .filter(Boolean)
       );
     }
     updateGallery('previewOpen', Date.now());
@@ -403,28 +439,32 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   };
 
   const uploadAudioFile = async (file) => {
+    let emailId = 'guest@fisto.tech';
     const storedUser = localStorage.getItem('user');
-    if (!storedUser) return null;
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        emailId = user.emailId || user.email || emailId;
+      } catch (e) {}
+    }
 
-    const user = JSON.parse(storedUser);
     const formData = new FormData();
-    formData.append('emailId', user.emailId);
+    formData.append('emailId', emailId);
     formData.append('folderName', folderName || 'My_Flipbooks');
     formData.append('flipbookName', bookName || 'Untitled Document');
+    if (v_id) formData.append('v_id', v_id);
     formData.append('type', 'audio');
     formData.append('assetType', 'Audio');
-    formData.append('page_v_id', 'background_audio');
     formData.append('file', file);
 
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+      const res = await axios.post(`${backendUrl}/api/flipbook/upload-customized-asset`, formData);
       if (res.data.url) {
-        const fullUrl = res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`;
         return {
-          url: fullUrl,
-          file_v_id: res.data.file_v_id,
-          name: res.data.filename
+          url: res.data.url,
+          file_v_id: res.data.fileName || file.name,
+          name: res.data.fileName || file.name
         };
       }
     } catch (err) {
@@ -438,14 +478,14 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    if (file.type.startsWith('audio/')) {
+    if (file.type.startsWith('audio/') || file.name.match(/\.(mp3|wav|m4a)$/i)) {
       updateNested('sound', 'isUploadingBg', true);
       const uploadedData = await uploadAudioFile(file);
-      if (uploadedData) {
+      if (uploadedData && uploadedData.url) {
         onUpdate(prev => {
           const currentCustom = prev.sound?.customBgSounds || [];
 
-          // Find the maximum number among existing custom sound labels to ensure sequential naming
+          // Find maximum number among existing custom sound labels for sequential naming
           const usedNumbers = currentCustom.map(s => {
             const match = s.label.match(/BG Sound (\d+)/);
             return match ? parseInt(match[1]) : 0;
@@ -457,14 +497,17 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
             id: `BG Sound ${nextIdNumber}`,
             label: `BG Sound ${nextIdNumber}`,
             url: uploadedData.url,
-            name: uploadedData.name
+            name: uploadedData.name || file.name,
+            fileName: uploadedData.file_v_id || file.name
           };
+
           return {
             ...prev,
             sound: {
               ...(prev.sound || {}),
               customBgSounds: [...currentCustom, newCustomSound],
               bgSound: newCustomSound.id,
+              bgSoundFile: uploadedData.url,
               isUploadingBg: false
             }
           };
@@ -485,20 +528,10 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     setOpenContextMenu(null);
 
     // Backend delete
-    if (img.file_v_id) {
+    if (img.file_v_id || img.url) {
       try {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-          await axios.post(`${backendUrl}/api/flipbook/delete-asset`, {
-            emailId: user.emailId,
-            file_v_id: img.file_v_id,
-            assetType: 'Image',
-            folderName: folderName || 'My_Flipbooks',
-            bookName: bookName || 'Untitled Document'
-          });
-        }
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        await axios.post(`${backendUrl}/api/flipbook/delete-customized-asset`, { url: img.url });
       } catch (error) {
         console.error("Failed to delete asset from backend:", error);
       }
@@ -508,17 +541,28 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   const handleDeleteCustomSound = (id) => {
     onUpdate(prev => {
       const currentCustom = prev.sound?.customBgSounds || [];
+      const targetSound = currentCustom.find(s => s.id === id);
+      if (targetSound?.url && typeof targetSound.url === 'string' && (targetSound.url.includes('/customized_assets/') || targetSound.url.includes('supabase.co'))) {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        axios.post(`${backendUrl}/api/flipbook/delete-customized-asset`, { url: targetSound.url }).catch((err) => {
+          console.warn("Failed to delete custom sound from Supabase:", err);
+        });
+      }
+
       const nextCustom = currentCustom.filter(s => s.id !== id);
       let nextSelected = prev.sound?.bgSound;
+      let nextBgSoundFile = prev.sound?.bgSoundFile;
       if (nextSelected === id) {
         nextSelected = 'BG Sound 1'; // Fallback to default
+        nextBgSoundFile = '';
       }
       return {
         ...prev,
         sound: {
           ...prev.sound,
           customBgSounds: nextCustom,
-          bgSound: nextSelected
+          bgSound: nextSelected,
+          bgSoundFile: nextBgSoundFile
         }
       };
     });
@@ -660,10 +704,10 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
               { id: 'BG Sound 4', label: 'Bg Sound 4' },
               ...(settings.sound?.customBgSounds || [])
             ].map((s, sIdx) => (
-              <button
+              <div
                 key={s.id}
                 onClick={() => updateNested('sound', 'bgSound', s.id)}
-                className={`w-full flex items-center justify-between px-[0.9vw] py-[0.3vw] transition-all group ${settings.sound?.bgSound === s.id
+                className={`w-full flex items-center justify-between px-[0.9vw] py-[0.3vw] cursor-pointer transition-all group ${settings.sound?.bgSound === s.id
                   ? 'bg-transparent'
                   : 'bg-transparent '
                   }`}
@@ -697,7 +741,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                     )}
                   </div>
                   <span className={`text-[0.75vw] font-semibold truncate ${settings.sound?.bgSound === s.id ? 'text-gray-900' : 'text-gray-500'
-                    }`}>{s.label}</span>
+                    }`}>{s.label || s.id || s.name || `Bg Sound ${sIdx}`}</span>
                 </div>
 
                 {sIdx > 4 && (
@@ -709,7 +753,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                     <Trash2 size="0.95vw" />
                   </button>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -1039,81 +1083,53 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
         
         {/* Modals from Gallery Option (Library, Pickers) */}
         {showLibrary && (
-          <div className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-            style={{ width: '320px', height: '540px', top: '50%', left: '24vw', transform: 'translate(-50%, -50%)' }}>
-            <div className="flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
-              <h2 className="text-[1vw] font-semibold text-gray-900">Image Gallery</h2>
-              <button onClick={() => setShowLibrary(false)} className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-                <X className="w-[1.2vw] h-[1.2vw] text-gray-400" />
-              </button>
-            </div>
+          <MediaGalleryPopup
+            isOpen={showLibrary}
+            onClose={() => setShowLibrary(false)}
+            imageOnly={true}
+            initialGalleryType="Image Gallery"
+            onFileSelect={async (fileOrUrl) => {
+              if (fileOrUrl) {
+                let imgUrl = typeof fileOrUrl === 'string' ? fileOrUrl : (fileOrUrl.url || fileOrUrl.rawUrl || '');
+                let imageName = typeof fileOrUrl === 'object' ? (fileOrUrl.name || 'Gallery Image') : 'Gallery Image';
 
-            <div className="px-[1vw] py-[0.5vw]">
-              <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.2vw]">Upload your Image</h3>
-              <p className="text-[0.7vw] text-gray-400 mb-[1vw]">
-                <span>You Can Reuse The File Which Is Uploaded In Gallery</span>
-                <span className="text-red-500">*</span>
-              </p>
-              <div
-                onClick={() => galleryInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const file = e.dataTransfer.files[0];
-                  if (file && file.type.startsWith('image/')) {
-                    handleLibraryFileUpload({ target: { files: [file] } });
+                if (fileOrUrl instanceof File || fileOrUrl?.file instanceof File) {
+                  const targetFile = fileOrUrl instanceof File ? fileOrUrl : fileOrUrl.file;
+                  const uploaded = await uploadFile(targetFile);
+                  if (uploaded?.url) {
+                    imgUrl = uploaded.url;
+                    imageName = uploaded.name || imageName;
                   }
-                }}
-                className="w-full h-[12vh] rounded-2xl flex flex-col items-center justify-center bg-white hover:bg-indigo-50 transition-all cursor-pointer group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
-              >
-                <p className="text-[0.9vw] text-gray-600 font-semibold mb-[0.5vw]">Drag & Drop or <span className="text-[#4F46E5] font-semibold">Upload</span></p>
-                <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw] text-gray-400 mb-2" />
-                <div className="flex flex-col items-center">
-                  <span className="text-[0.7vw] font-semibold text-gray-500">Supported File</span>
-                  <span className="text-[0.7vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
-                </div>
-              </div>
-              <input type="file" ref={galleryInputRef} onChange={handleLibraryFileUpload} accept="image/*" className="hidden" />
-            </div>
+                } else if (imgUrl && (imgUrl.startsWith('blob:') || imgUrl.startsWith('data:'))) {
+                  try {
+                    const resp = await fetch(imgUrl);
+                    const blob = await resp.blob();
+                    const file = new File([blob], imageName.includes('.') ? imageName : `${imageName}.png`, { type: blob.type || 'image/png' });
+                    const uploaded = await uploadFile(file);
+                    if (uploaded?.url) {
+                      imgUrl = uploaded.url;
+                      imageName = uploaded.name || imageName;
+                    }
+                  } catch (err) {
+                    console.warn("Failed to convert blob URL to Supabase asset:", err);
+                  }
+                }
 
-            <div
-              className="hide-scrollbar overflow-y-auto px-[1vw] py-[0.5vw] flex-1"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            >
-              <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.5vw]">Uploaded Images</h3>
-              {uploadedImages.length > 0 ? (
-                <div className="grid grid-cols-3 gap-[0.5vw]">
-                  {uploadedImages.map((img, index) => (
-                    <div key={img.id || index} className="group cursor-pointer flex flex-col items-center" onClick={() => setLocalLibrarySelected(img)}>
-                      <div className={`aspect-square w-full rounded-[0.5vw] overflow-hidden border-[0.15vw] transition-all ${localLibrarySelected?.url === img.url ? 'border-indigo-600 shadow-md scale-[1.02]' : 'hover:border-indigo-400 border-gray-100'}`}>
-                        <img src={img.url} className="w-full h-full object-cover" alt="" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-[2vw] text-gray-400">
-                  <p className="text-[0.8vw]">No uploaded images yet</p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-[0.75vw] border-t flex justify-end gap-[0.5vw] bg-white mt-auto">
-              <button
-                onClick={() => { setShowLibrary(false); setLocalLibrarySelected(null); }}
-                className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] hover:bg-gray-50"
-              >
-                <X size="0.9vw" /> Close
-              </button>
-              <button
-                onClick={handlePlaceFromLibrary}
-                disabled={!localLibrarySelected}
-                className={`flex-1 h-[2vw] rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] transition-all ${localLibrarySelected ? 'bg-black text-white hover:bg-zinc-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-              >
-                <Check size="0.9vw" /> Place
-              </button>
-            </div>
-          </div>
+                if (imgUrl && !imgUrl.startsWith('blob:')) {
+                  const newImg = {
+                    id: Date.now().toString(),
+                    url: imgUrl,
+                    name: imageName
+                  };
+                  const currentImages = gallery.images || [];
+                  if (currentImages.length < MAX_GALLERY_IMAGES) {
+                    updateGallery('images', [...currentImages, newImg]);
+                  }
+                }
+              }
+              setShowLibrary(false);
+            }}
+          />
         )}
 
         {activePopupPicker && createPortal(
@@ -1868,89 +1884,35 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                   <Upload size="0.9vw" className="rotate-0" />
                   <span className="text-[0.85vw] font-medium">Download</span>
                 </button>
+                {showLibrary && (
+                  <MediaGalleryPopup
+                    isOpen={showLibrary}
+                    onClose={() => setShowLibrary(false)}
+                    imageOnly={true}
+                    initialGalleryType="Image Gallery"
+                    onFileSelect={(fileOrUrl) => {
+                      if (fileOrUrl) {
+                        let imgUrl = typeof fileOrUrl === 'string' ? fileOrUrl : (fileOrUrl.url || (fileOrUrl instanceof File ? URL.createObjectURL(fileOrUrl) : ''));
+                        if (imgUrl) {
+                          const newImg = {
+                            id: Date.now().toString(),
+                            url: imgUrl,
+                            name: fileOrUrl.name || 'Gallery Image'
+                          };
+                          const currentImages = gallery.images || [];
+                          if (currentImages.length < MAX_GALLERY_IMAGES) {
+                            updateGallery('images', [...currentImages, newImg]);
+                          }
+                        }
+                      }
+                      setShowLibrary(false);
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
         </AccordionItem>
-
-        {/* Image Library Pop-up (Library of uploaded images) */}
-        {showLibrary && (
-          <div className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-            style={{ width: '320px', height: '540px', top: '50%', left: '24vw', transform: 'translate(-50%, -50%)' }}>
-            <div className="flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
-              <h2 className="text-[1vw] font-semibold text-gray-900">Image Gallery</h2>
-              <button onClick={() => setShowLibrary(false)} className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-                <X className="w-[1.2vw] h-[1.2vw] text-gray-400" />
-              </button>
-            </div>
-
-            <div className="px-[1vw] py-[0.5vw]">
-              <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.2vw]">Upload your Image</h3>
-              <p className="text-[0.7vw] text-gray-400 mb-[1vw]">
-                <span>You Can Reuse The File Which Is Uploaded In Gallery</span>
-                <span className="text-red-500">*</span>
-              </p>
-              <div
-                onClick={() => galleryInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const file = e.dataTransfer.files[0];
-                  if (file && file.type.startsWith('image/')) {
-                    handleLibraryFileUpload({ target: { files: [file] } });
-                  }
-                }}
-                className="w-full h-[12vh] rounded-2xl flex flex-col items-center justify-center bg-white hover:bg-indigo-50 transition-all cursor-pointer group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
-              >
-                <p className="text-[0.9vw] text-gray-600 font-semibold mb-[0.5vw]">Drag & Drop or <span className="text-[#4F46E5] font-semibold">Upload</span></p>
-                <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw] text-gray-400 mb-2" />
-                <div className="flex flex-col items-center">
-                  <span className="text-[0.7vw] font-semibold text-gray-500">Supported File</span>
-                  <span className="text-[0.7vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
-                </div>
-              </div>
-              <input type="file" ref={galleryInputRef} onChange={handleLibraryFileUpload} accept="image/*" className="hidden" />
-            </div>
-
-            <div
-              className="hide-scrollbar overflow-y-auto px-[1vw] py-[0.5vw] flex-1"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            >
-              <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.5vw]">Uploaded Images</h3>
-              {uploadedImages.length > 0 ? (
-                <div className="grid grid-cols-3 gap-[0.5vw]">
-                  {uploadedImages.map((img, index) => (
-                    <div key={img.id || index} className="group cursor-pointer flex flex-col items-center" onClick={() => setLocalLibrarySelected(img)}>
-                      <div className={`aspect-square w-full rounded-[0.5vw] overflow-hidden border-[0.15vw] transition-all ${localLibrarySelected?.url === img.url ? 'border-indigo-600 shadow-md scale-[1.02]' : 'hover:border-indigo-400 border-gray-100'}`}>
-                        <img src={img.url} className="w-full h-full object-cover" alt="" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-[2vw] text-gray-400">
-                  <p className="text-[0.8vw]">No uploaded images yet</p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-[0.75vw] border-t flex justify-end gap-[0.5vw] bg-white mt-auto">
-              <button
-                onClick={() => { setShowLibrary(false); setLocalLibrarySelected(null); }}
-                className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] hover:bg-gray-50"
-              >
-                <X size="0.9vw" /> Close
-              </button>
-              <button
-                onClick={handlePlaceFromLibrary}
-                disabled={!localLibrarySelected}
-                className={`flex-1 h-[2vw] rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] transition-all ${localLibrarySelected ? 'bg-black text-white hover:bg-zinc-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-              >
-                <Check size="0.9vw" /> Place
-              </button>
-            </div>
-          </div>
-        )}
 
         {activePopupPicker && createPortal(
           <ColorPicker

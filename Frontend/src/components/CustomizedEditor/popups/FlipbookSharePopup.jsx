@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 import QRCode from 'react-qr-code';
 
-const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https://flipbook/page", popupSettings, isMobile = false, isLandscape = false }) => {
+const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https://flipbook/page", popupSettings, isMobile = false, isLandscape = false, isPublished = true }) => {
     const [shareCurrentPage, setShareCurrentPage] = useState(false);
     const [localUrl, setLocalUrl] = useState(url);
     const [copied, setCopied] = useState(false);
@@ -52,14 +52,20 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                 <div className={`flex items-center w-full ${isLandscape ? 'gap-1.5' : 'gap-2'}`}>
                     <input
                         type="text"
-                        value={localUrl}
-                        onChange={(e) => setLocalUrl(e.target.value)}
-                        className={`${isMobile ? (isLandscape ? 'h-7 px-2 text-[10px]' : 'h-9 px-3 text-[12px]') : 'h-[2.5vw] px-[0.8vw] text-[0.8vw]'} flex-1 min-w-0 border border-gray-300 rounded-lg bg-gray-50 shadow-sm outline-none text-gray-600 truncate focus:border-black transition-colors`}
+                        value={isPublished ? localUrl : 'Publish flipbook to enable link sharing'}
+                        onChange={(e) => isPublished && setLocalUrl(e.target.value)}
+                        readOnly={!isPublished}
+                        className={`${isMobile ? (isLandscape ? 'h-7 px-2 text-[10px]' : 'h-9 px-3 text-[12px]') : 'h-[2.5vw] px-[0.8vw] text-[0.8vw]'} flex-1 min-w-0 border border-gray-300 rounded-lg bg-gray-50 shadow-sm outline-none text-gray-600 truncate focus:border-black transition-colors ${!isPublished ? 'italic text-amber-600 font-medium' : ''}`}
                     />
                     <div className="relative flex-shrink-0">
                         <button
-                            className={`${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-2.5') : 'h-[2.5vw] px-[1.2vw]'} bg-black text-white rounded-lg flex items-center gap-1 hover:bg-gray-800 transition-colors shadow-sm`}
+                            disabled={!isPublished}
+                            className={`${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-2.5') : 'h-[2.5vw] px-[1.2vw]'} ${!isPublished ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60' : 'bg-black text-white hover:bg-gray-800 cursor-pointer'} rounded-lg flex items-center gap-1 transition-colors shadow-sm`}
                             onClick={() => {
+                                if (!isPublished) {
+                                    alert("Please publish your flipbook first to copy or share the link.");
+                                    return;
+                                }
                                 navigator.clipboard.writeText(localUrl);
                                 setCopied(true);
                                 setTimeout(() => setCopied(false), 2000);

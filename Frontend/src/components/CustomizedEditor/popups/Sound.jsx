@@ -2,6 +2,8 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Icon } from '@iconify/react';
+import axios from 'axios';
+import { resolveUploadsPath } from '../../../utils/supabaseUtils';
 
 import classicBookFlipSound from '../../../assets/Audios/Classic book flip.mp3';
 import hardCoverPageSound from '../../../assets/Audios/Hard cover page.mp3';
@@ -1017,6 +1019,7 @@ const Sound = ({
     const flipAudioRef = useRef(null);
     const lastBgSoundUrlRef = useRef('');
     const lastFlipSoundUrlRef = useRef('');
+    const [backendSoundSettings, setBackendSoundSettings] = useState(null);
 
     const [dynamicPos, setDynamicPos] = useState({ left: 0, bottom: 0, ready: false });
     const layout = settings?.toolbar?.sound?.layout || activeLayout || 1;
@@ -1048,26 +1051,96 @@ const Sound = ({
         }
     }, [isOpen, isTablet, layout]);
 
+    const targetVId = settings?.v_id || settings?.vId || settings?.FlipbookInfo?.v_id || (typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('shareId') || new URLSearchParams(window.location.search).get('v_id')) : null) || '';
+
+    useEffect(() => {
+        if (!targetVId) return;
+
+        const fetchBackendSound = async () => {
+            try {
+                const getBackendUrl = () => {
+                    if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+                    const origin = window.location.origin;
+                    if (origin.includes('devtunnels.ms')) return origin.replace('-5173', '-5000');
+                    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+                        const portMatch = origin.match(/:(\d+)/);
+                        if (portMatch) return origin.replace(portMatch[0], ':5000');
+                    }
+                    return 'http://localhost:5000';
+                };
+                const backendUrl = getBackendUrl();
+                const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${targetVId}`);
+                if (res.data) {
+                    const fetchedOther = res.data?.Customized_Settings?.otherSetup || res.data?.settings?.otherSetup || res.data?.Customized_Settings?.othersetup || res.data?.settings?.othersetup;
+                    if (fetchedOther) {
+                        setBackendSoundSettings(fetchedOther);
+                    }
+                }
+            } catch (err) {
+                console.log("Direct backend sound fetch info:", err?.message || err);
+            }
+        };
+
+        fetchBackendSound();
+    }, [targetVId]);
+
     // Handle Background Sound Logic
     useEffect(() => {
-        if (!bgAudioRef.current || !otherSetupSettings?.sound) return;
+        if (!bgAudioRef.current) return;
 
-        const { bgSound, customBgSounds, bgSoundEnabled } = otherSetupSettings.sound;
-        const isEnabled = settings?.media?.backgroundAudio && !isMuted && bgSoundEnabled !== false && !isLoading;
+        const getEffectiveSoundValue = (key) => {
+            const v1 = otherSetupSettings?.sound?.[key];
+            if (v1 !== undefined && v1 !== null && v1 !== '') return v1;
+            const v2 = otherSetupSettings?.[key];
+            if (v2 !== undefined && v2 !== null && v2 !== '') return v2;
+            const v3 = settings?.otherSetup?.sound?.[key];
+            if (v3 !== undefined && v3 !== null && v3 !== '') return v3;
+            const v4 = settings?.otherSetup?.[key];
+            if (v4 !== undefined && v4 !== null && v4 !== '') return v4;
+            const v5 = settings?.menuBar?.media?.audioSettings?.[key];
+            if (v5 !== undefined && v5 !== null && v5 !== '') return v5;
+            const v6 = settings?.media?.audioSettings?.[key];
+            if (v6 !== undefined && v6 !== null && v6 !== '') return v6;
+            const v7 = backendSoundSettings?.sound?.[key];
+            if (v7 !== undefined && v7 !== null && v7 !== '') return v7;
+            const v8 = backendSoundSettings?.[key];
+            if (v8 !== undefined && v8 !== null && v8 !== '') return v8;
+            return undefined;
+        };
+
+        const bgSound = getEffectiveSoundValue('bgSound') || 'BG Sound 1';
+        const customBgSounds = getEffectiveSoundValue('customBgSounds') || otherSetupSettings?.sound?.customBgSounds || backendSoundSettings?.sound?.customBgSounds || [];
+        const bgSoundEnabled = getEffectiveSoundValue('bgSoundEnabled') !== false;
+        const isEnabled = (settings?.media?.backgroundAudio ?? settings?.media?.audio ?? true) && !isMuted && bgSoundEnabled !== false && !isLoading;
+
+        const rawBgStr = String(bgSound || '').trim();
+        const normBgStr = rawBgStr.toLowerCase().replace(/[^a-z0-9]/g, '');
 
         let soundUrl = '';
-        if (bgSound === 'BG Sound 1') {
-            soundUrl = bgSound1;
-        } else if (bgSound === 'BG Sound 2') {
+        if (normBgStr === 'none') {
+            soundUrl = '';
+        } else if (normBgStr.includes('bgsound2') || normBgStr.includes('bgmusic2') || normBgStr === '2') {
             soundUrl = bgSound2;
-        } else if (bgSound === 'BG Sound 3') {
+        } else if (normBgStr.includes('bgsound3') || normBgStr.includes('bgmusic3') || normBgStr === '3') {
             soundUrl = bgSound3;
-        } else if (bgSound === 'BG Sound 4') {
+        } else if (normBgStr.includes('bgsound4') || normBgStr.includes('bgmusic4') || normBgStr === '4') {
             soundUrl = bgSound4;
+        } else if (normBgStr.includes('bgsound1') || normBgStr.includes('bgmusic1') || normBgStr === '1') {
+            soundUrl = bgSound1;
         } else {
-            const custom = customBgSounds?.find(s => s.id === bgSound || s.label === bgSound);
-            if (custom) {
-                soundUrl = custom.url;
+            const custom = customBgSounds?.find(s => 
+                String(s.id || '').toLowerCase() === rawBgStr.toLowerCase() || 
+                String(s.label || '').toLowerCase() === rawBgStr.toLowerCase() ||
+                String(s.name || '').toLowerCase() === rawBgStr.toLowerCase()
+            );
+            if (custom && custom.url) {
+                soundUrl = resolveUploadsPath(custom.url);
+            } else if (getEffectiveSoundValue('bgSoundFile')) {
+                soundUrl = resolveUploadsPath(getEffectiveSoundValue('bgSoundFile'));
+            } else if (rawBgStr && (rawBgStr.includes('/') || rawBgStr.includes('http') || rawBgStr.includes('.'))) {
+                soundUrl = resolveUploadsPath(rawBgStr);
+            } else {
+                soundUrl = bgSound1;
             }
         }
 
@@ -1075,10 +1148,15 @@ const Sound = ({
             lastBgSoundUrlRef.current = soundUrl;
             bgAudioRef.current.src = soundUrl;
             bgAudioRef.current.loop = true;
+            try { bgAudioRef.current.load(); } catch (e) {}
         }
 
         if (isEnabled && soundUrl) {
-            const playAudio = () => bgAudioRef.current.play().catch(e => console.log("BG Audio play blocked", e));
+            const playAudio = () => {
+                if (bgAudioRef.current) {
+                    bgAudioRef.current.play().catch(e => console.log("BG Audio play blocked", e));
+                }
+            };
             playAudio();
 
             // Retry playing on first user interaction if blocked by autoplay policies
@@ -1088,43 +1166,75 @@ const Sound = ({
                 }
                 document.removeEventListener('click', handleInteraction);
                 document.removeEventListener('touchstart', handleInteraction);
+                document.removeEventListener('pointerdown', handleInteraction);
             };
             document.addEventListener('click', handleInteraction);
             document.addEventListener('touchstart', handleInteraction);
-
+            document.addEventListener('pointerdown', handleInteraction);
         } else {
             bgAudioRef.current.pause();
         }
-    }, [otherSetupSettings?.sound, settings?.media?.backgroundAudio, isMuted, isLoading]);
+    }, [otherSetupSettings, backendSoundSettings, settings, isMuted, isLoading]);
 
     // Handle Flip Sound Source management
     useEffect(() => {
-        if (!flipAudioRef.current || !otherSetupSettings?.sound) return;
-        const { flipSound } = otherSetupSettings.sound;
-        if (flipSound === 'None') {
+        if (!flipAudioRef.current) return;
+
+        const getEffectiveSoundValue = (key) => {
+            const v1 = otherSetupSettings?.sound?.[key];
+            if (v1 !== undefined && v1 !== null && v1 !== '') return v1;
+            const v2 = otherSetupSettings?.[key];
+            if (v2 !== undefined && v2 !== null && v2 !== '') return v2;
+            const v3 = settings?.otherSetup?.sound?.[key];
+            if (v3 !== undefined && v3 !== null && v3 !== '') return v3;
+            const v4 = settings?.otherSetup?.[key];
+            if (v4 !== undefined && v4 !== null && v4 !== '') return v4;
+            const v5 = settings?.menuBar?.media?.audioSettings?.[key];
+            if (v5 !== undefined && v5 !== null && v5 !== '') return v5;
+            const v6 = settings?.media?.audioSettings?.[key];
+            if (v6 !== undefined && v6 !== null && v6 !== '') return v6;
+            const v7 = backendSoundSettings?.sound?.[key];
+            if (v7 !== undefined && v7 !== null && v7 !== '') return v7;
+            const v8 = backendSoundSettings?.[key];
+            if (v8 !== undefined && v8 !== null && v8 !== '') return v8;
+            return undefined;
+        };
+
+        const flipSound = getEffectiveSoundValue('flipSound') || 'Soft Paper Flip';
+        
+        const rawFlipStr = String(flipSound || '').trim();
+        const normFlipStr = rawFlipStr.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        if (normFlipStr === 'none') {
             flipAudioRef.current.src = '';
             return;
         }
 
-        const flipSoundMap = {
-            'Classic Book Flip': hardCoverPageSound,
-            'Soft Paper Flip': softCoverPageSound,
-            'Hard Cover Flip': classicBookFlipSound
-        };
-        const url = flipSoundMap[flipSound] || classicBookFlipSound;
+        let url = '';
+        if (normFlipStr.includes('softpaper') || normFlipStr.includes('softcover') || normFlipStr.includes('soft')) {
+            url = softCoverPageSound;
+        } else if (normFlipStr.includes('hardcover') || normFlipStr.includes('classicbook') || normFlipStr.includes('hard')) {
+            url = hardCoverPageSound;
+        } else if (normFlipStr.includes('classic')) {
+            url = classicBookFlipSound;
+        } else if (rawFlipStr && (rawFlipStr.includes('/') || rawFlipStr.includes('http') || rawFlipStr.includes('.'))) {
+            url = resolveUploadsPath(rawFlipStr);
+        } else {
+            url = classicBookFlipSound;
+        }
 
-        // When using imports, Vite returns the absolute or relative path, so we can set src directly
         if (url && lastFlipSoundUrlRef.current !== url) {
             lastFlipSoundUrlRef.current = url;
             flipAudioRef.current.src = url;
+            try { flipAudioRef.current.load(); } catch(e) {}
         }
-    }, [otherSetupSettings?.sound?.flipSound]);
+    }, [otherSetupSettings, backendSoundSettings, settings, isMuted, isLoading]);
 
     const canPlayFlipRef = useRef(false);
     useEffect(() => {
         const timer = setTimeout(() => {
             canPlayFlipRef.current = true;
-        }, 1000); // Wait 1 second before allowing flip sounds to avoid initialization events
+        }, 100); // 100ms initialization threshold
         return () => clearTimeout(timer);
     }, []);
 
@@ -1132,13 +1242,17 @@ const Sound = ({
     const playFlipSound = useCallback(() => {
         if (!canPlayFlipRef.current) return;
 
-        const flipEnabled = otherSetupSettings?.sound?.flipSoundEnabled !== false;
-        const isNone = otherSetupSettings?.sound?.flipSound === 'None';
+        const soundObj = otherSetupSettings?.sound || backendSoundSettings?.sound || (otherSetupSettings && typeof otherSetupSettings === 'object' && (otherSetupSettings.flipSound || otherSetupSettings.bgSound) ? otherSetupSettings : (backendSoundSettings || {}));
+        const flipEnabled = soundObj.flipSoundEnabled !== false;
+        const isNone = soundObj.flipSound === 'None';
         if (flipAudioRef.current && !isFlipMuted && flipEnabled && !isNone) {
+            if (!flipAudioRef.current.src) {
+                flipAudioRef.current.src = classicBookFlipSound;
+            }
             flipAudioRef.current.currentTime = 0;
             flipAudioRef.current.play().catch(e => console.log("Flip sound play blocked", e));
         }
-    }, [isFlipMuted, otherSetupSettings?.sound?.flipSoundEnabled]);
+    }, [isFlipMuted, otherSetupSettings, backendSoundSettings]);
 
     const prevFlipTriggerRef = useRef(flipTrigger);
     useEffect(() => {

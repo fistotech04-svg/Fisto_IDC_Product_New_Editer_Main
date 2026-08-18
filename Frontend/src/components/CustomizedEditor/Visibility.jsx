@@ -800,11 +800,16 @@ const Visibility = ({ onBack, settings, onUpdate, bookName, v_id, folder }) => {
   };
 
   const handleTypeChange = (typeId) => {
-    setLocalSettings(prev => ({
-      ...prev,
-      type: typeId
-    }));
+    const updated = {
+      ...localSettings,
+      type: typeId,
+      access: typeId
+    };
+    setLocalSettings(updated);
     setIsDirty(true);
+    if (onUpdate) {
+      onUpdate(updated);
+    }
   };
 
   const updateInvite = (field, value) => {

@@ -118,7 +118,9 @@ const TabletLayout8 = ({
 
                     {/* Right Icons */}
                     <div className="flex items-center gap-[2.5cqw]">
-                        <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                        {(settings?.media?.backgroundAudio ?? true) && (
+                            <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                        )}
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform" onClick={() => setIsShareOpen(true)}><Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" /></button>

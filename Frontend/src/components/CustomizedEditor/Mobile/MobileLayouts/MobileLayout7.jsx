@@ -370,13 +370,15 @@ const MobileLayout7 = (props) => {
                         }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
                         </button>
-                        <button onClick={() => {
-                            const willShow = !showSoundPopup;
-                            setShowSoundPopup(willShow);
-                            if (willShow) { setShowThumbnails(false); setLocalShowTOC(false); setLocalShowProfile(false); }
-                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
-                        </button>
+                        {(settings?.media?.backgroundAudio ?? true) && (
+                            <button onClick={() => {
+                                const willShow = !showSoundPopup;
+                                setShowSoundPopup(willShow);
+                                if (willShow) { setShowThumbnails(false); setLocalShowTOC(false); setLocalShowProfile(false); }
+                            }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
+                            </button>
+                        )}
                         <button onClick={() => {
                             const willShow = !localShowProfile;
                             setLocalShowProfile(willShow);

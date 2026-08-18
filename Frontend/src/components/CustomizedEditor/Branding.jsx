@@ -1200,7 +1200,7 @@ const Branding = ({
                   </button>
                   <button
                     onClick={() => {
-                      onUpdatePreloader(tempPreloaderSettings);
+                      onUpdatePreloader({ ...(preloaderSettings || {}), ...(tempPreloaderSettings || {}) });
                       setShowPreloaderModal(false);
                     }}
                     className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.35vw] bg-black text-white rounded-[0.4vw] text-[0.8vw] hover:bg-gray-800 transition-colors font-medium border border-black cursor-pointer"

@@ -84,7 +84,9 @@ const TabletLayout7 = ({
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="fluent:text-bullet-list-24-filled" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="ph:squares-four-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="clarity:image-gallery-solid" className="w-[1.6cqw] h-[1.6cqw]" /></button>
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                    )}
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform" onClick={() => setIsShareOpen(true)}><Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" /></button>

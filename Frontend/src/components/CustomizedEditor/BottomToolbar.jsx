@@ -174,7 +174,7 @@ const BottomToolbar = ({
                             showBookmarkMenu
                         )
                     }
-                    {settings.media.backgroundAudio && 
+                    {(settings?.media?.backgroundAudio ?? true) && 
                         renderIconWithLabel(
                             "solar:music-notes-bold", 
                             "Music", 
