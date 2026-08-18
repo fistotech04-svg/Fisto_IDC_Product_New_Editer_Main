@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Pencil, Info, Phone, User, Building, MapPin, BarChart2, MoreVertical } from 'lucide-react';
+import { Pencil, Info, Phone, User, Building, MapPin, BarChart2, MoreVertical, Globe } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ThumbnailPopup from './Thumbnail_Popup';
 import AvatarPopup from './AvatarPopup';
@@ -9,7 +9,31 @@ import Activity from './Activity';
 import p1 from '../../../assets/settings/p1.png';
 const Profile = () => {
   const context = useOutletContext();
-  const [localUser, setLocalUser] = useState({ name: 'Luffy', email: 'luffyonepiece@gmail.com', picture: null });
+  const [localUser, setLocalUser] = useState({
+    name: 'Luffy',
+    email: 'luffyonepiece@gmail.com',
+    picture: null,
+    about: "I'm going to be the King of the Pirates — that's my dream, and I'm never giving up on it. I love adventure, freedom, and good food (especially meat). I may not be the smartest, but I always trust my instincts and fight for what I believe in.",
+    mobile: '6383319976',
+    companyName: 'Fist-o Tech Private lmt',
+    industryType: 'Software Development',
+    companyEmail: 'fistotech@gmail.com',
+    website: 'Fist-o.com',
+    services: ['Website Development', '3D Animations', 'IDC'],
+    address1: 'No. 45, Lake View Street, Near Central Bus Stand',
+    address2: 'Gandhipuram',
+    city: 'Coimbatore',
+    pincode: '641012',
+    state: 'Tamil Nadu',
+    country: 'INDIA',
+    socials: {
+      website: 'https://www.fistotech.com',
+      instagram: 'https://www.instagram.com/fistotech',
+      linkedin: 'https://www.linkedin.com/company/fistotech',
+      facebook: 'https://www.facebook.com/fistotech',
+      whatsapp: 'https://wa.me/918876543210'
+    }
+  });
   const user = context?.user || localUser;
   const setUser = context?.setUser || setLocalUser;
 
@@ -21,6 +45,25 @@ const Profile = () => {
     type: 'gradient',
     value: 'linear-gradient(to bottom right, #c1e8d7, #85d8c3, #60bba3)'
   });
+
+  useEffect(() => {
+    const handleWheel = (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    };
+
+    const profileContainer = document.getElementById('profile-container');
+    if (profileContainer) {
+      profileContainer.addEventListener('wheel', handleWheel, { passive: false });
+    }
+
+    return () => {
+      if (profileContainer) {
+        profileContainer.removeEventListener('wheel', handleWheel);
+      }
+    };
+  }, []);
 
   const mockFlipbooks = [
     { id: 1, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
@@ -34,7 +77,7 @@ const Profile = () => {
   ];
 
   return (
-    <div className="flex flex-col min-h-full bg-transparent relative pb-[1vw]">
+    <div id="profile-container" className="flex flex-col min-h-full bg-transparent relative pb-[1vw]">
 
       {/* Top Banner */}
       <div className="relative h-[14vw] w-full rounded-[1vw]">
@@ -85,18 +128,30 @@ const Profile = () => {
           {/* Avatar Wrapper */}
           <div className="relative flex justify-center items-center z-30 w-[12vw] h-[12vw] mt-[-6vw]">
             {/* Left Smooth Corner */}
-            <svg className="absolute top-[2.95vw] -left-[1.35vw] w-[2vw] h-[2vw] z-10 pointer-events-none" viewBox="0 0 10 10">
+            <svg className="absolute top-[3.19vw] -left-[1vw] w-[1.5vw] h-[2vw] z-10 pointer-events-none" viewBox="0 0 10 10">
               <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
             </svg>
             {/* Right Smooth Corner */}
-            <svg className="absolute top-[2.95vw] -right-[1.35vw] w-[2vw] h-[2vw] z-10 pointer-events-none" viewBox="0 0 10 10">
+            <svg className="absolute top-[3.19vw] -right-[1vw] w-[1.5vw] h-[2vw] z-10 pointer-events-none" viewBox="0 0 10 10">
               <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
             </svg>
 
-            <div className="w-full h-full rounded-full bg-white p-[0.6vw] relative flex items-center justify-center">
+            <div className="w-full h-full rounded-full bg-white p-[0.8vw] relative flex items-center justify-center">
 
               {/* Semi-circle black border for the bottom half */}
-              <div className="absolute bottom-0 left-0 w-full h-[50%] border-b-2 border-l-2 border-r-2 border-gray-200 rounded-b-full pointer-events-none z-20"></div>
+              <div
+                className="absolute bottom-0 left-0 w-full h-[50%] border-b-2 border-l-2 border-r-2 border-gray-200 rounded-b-full pointer-events-none z-20"
+                style={{ clipPath: 'polygon(0 16%, 100% 16%, 100% 100%, 0 100%)' }}
+              ></div>
+
+              <svg className="absolute bottom-[42%] -left-[1.15vw] w-[1.4vw] h-[1vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
+                <path d="M -7 0 L 0 0 A 10 10 0 0 1 10 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+              </svg>
+              {/* Right Smooth Corner */}
+              <svg className="absolute bottom-[42%] -right-[1.13vw] w-[1.4vw] h-[1vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
+                <path d="M 17 0 L 10 0 A 10 10 0 0 0 0 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+              </svg>
+
               <div
                 className="w-[10.7vw] h-[10.7vw] rounded-full overflow-hidden relative shadow-inner z-10 bg-white transition-colors duration-300 flex items-center justify-center"
                 style={{ backgroundColor: user.avatarBgColor === '#E8D4C8' && user.picture === 'color_only' ? '#E8D4C8' : (user.avatarBgColor === '#E8D4C8' ? '#ffffff' : user.avatarBgColor) }}
@@ -108,7 +163,7 @@ const Profile = () => {
                     className="w-full h-full object-cover"
                   />
                 ) : (user.picture === 'color_only' ? (
-                  <span className="text-white text-[4.5vw] font-bold drop-shadow-md">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
+                  <span className="text-white text-[4.5vw] font-semibold drop-shadow-md">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
                 ) : (
                   <img
                     src={p1}
@@ -126,7 +181,7 @@ const Profile = () => {
                   setIsAvatarPopupOpen(!isAvatarPopupOpen);
                   if (!isAvatarPopupOpen) setIsColorPickerOpen(false);
                 }}
-                className="w-[2vw] h-[2vw] bg-white rounded-[0.4vw] shadow-[0_2px_8px_rgba(0,0,0,0.12)] border border-gray-100 hover:bg-gray-50 text-gray-700 flex items-center justify-center transition-colors"
+                className="w-[2vw] h-[2vw] bg-white rounded-[0.4vw] border border-gray-100 hover:bg-gray-50 text-gray-700 flex items-center justify-center transition-colors"
               >
                 <Icon icon="mdi:edit-outline" className="w-[1.2vw] h-[1.2vw]" />
               </button>
@@ -142,11 +197,9 @@ const Profile = () => {
           </div>
 
           {/* Name and Email */}
-          <h1 className="text-[1.8vw] font-bold text-gray-900 mt-[1vw] truncate max-w-[18vw]">{user.name}</h1>
-          <div className="flex items-center gap-[0.4vw] text-[0.8vw] text-gray-500 mt-[0.2vw] truncate max-w-[18vw]">
-            <span className="w-[0.9vw] h-[0.9vw] bg-[#22c55e] rounded-full inline-block flex items-center justify-center flex-shrink-0">
-              <svg width="0.5vw" height="0.5vw" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            </span>
+          <h1 className="text-[1.5vw] font-semibold text-gray-900 mt-[1vw] truncate max-w-[18vw]">{user.name}</h1>
+          <div className="flex items-center gap-[0.4vw] text-[1vw] text-gray-500 mt-[0.2vw] truncate max-w-[18vw]">
+            <Icon icon="mdi:check-decagram" className="w-[1.2vw] h-[1.2vw] text-[#22c55e] flex-shrink-0" />
             <span className="truncate">{user.email}</span>
           </div>
 
@@ -157,8 +210,8 @@ const Profile = () => {
               <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
                 <Info size="1vw" /> About
               </h3>
-              <p className="text-[0.75vw] text-gray-500 leading-relaxed">
-                I'm going to be the King of the Pirates — that's my dream, and I'm never giving up on it. I love adventure, freedom, and good food (especially meat). I may not be the smartest, but I always trust my instincts and fight for what I believe in.
+              <p className="text-[0.75vw] text-gray-500 leading-relaxed whitespace-pre-wrap">
+                {user.about}
               </p>
             </div>
 
@@ -166,28 +219,59 @@ const Profile = () => {
               <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
                 <Phone size="1vw" /> Contact Number
               </h3>
-              <p className="text-[0.75vw] text-gray-500">6383319976</p>
+              <p className="text-[0.75vw] text-gray-500">{user.mobile}</p>
             </div>
 
             <div className="p-[1vw] border-b border-gray-100">
-              <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
-                <User size="1vw" /> Gender
+              <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
+                <Building size="1vw" /> Company / Organization Details
               </h3>
-              <p className="text-[0.75vw] text-gray-500">Male</p>
+              <div className="flex flex-col gap-[0.4vw] text-[0.75vw]">
+                {user.companyName && <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">{user.companyName}</span></p>}
+                {user.industryType && <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">{user.industryType}</span></p>}
+                {user.companyEmail && <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">{user.companyEmail}</span></p>}
+                {user.website && <p><span className="font-semibold text-gray-700">Website :</span> <a href={user.website?.startsWith('http') ? user.website : `https://${user.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">{user.website}</a></p>}
+                {user.services?.length > 0 && <p><span className="font-semibold text-gray-700">Services :</span> <span className="text-gray-500">{Array.isArray(user.services) ? user.services.join(', ') : user.services}</span></p>}
+              </div>
             </div>
 
             <div className="p-[1vw] border-b border-gray-100 bg-[#FAFAFA]">
               <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
-                <Building size="1vw" /> Company Name
-              </h3>
-              <p className="text-[0.75vw] text-gray-500">Fist-o Tech Private lmt</p>
-            </div>
-
-            <div className="p-[1vw]">
-              <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
                 <MapPin size="1vw" /> Address
               </h3>
-              <p className="text-[0.75vw] text-gray-500">No. 45, Lake View Street, Near Central Bus Stand,<br />Gandhipuram , Coimbatore,<br />Tamil Nadu - 641012</p>
+              <div className="text-[0.75vw] text-gray-500">
+                {user.address1 || user.address2 ? <div>{[user.address1, user.address2].filter(Boolean).join(', ')}</div> : null}
+                {user.city || user.state ? <div>{[user.city, user.state].filter(Boolean).join(', ')}</div> : null}
+                {user.country || user.pincode ? <div>{[user.country, user.pincode].filter(Boolean).join(' - ')}</div> : null}
+              </div>
+            </div>
+
+            <div className="p-[1vw] flex gap-[0.5vw] justify-center items-center">
+              {user.socials?.website && (
+                <div onClick={() => window.open(user.socials.website, '_blank')} className="w-[2vw] h-[2vw] bg-[#1a1a1a] rounded-[0.4vw] flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                  <Globe className="w-[1.2vw] h-[1.2vw] text-white" />
+                </div>
+              )}
+              {user.socials?.linkedin && (
+                <div onClick={() => window.open(user.socials.linkedin, '_blank')} className="w-[2vw] h-[2vw] bg-[#0077b5] rounded-[0.4vw] flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                  <Icon icon="mdi:linkedin" className="w-[1.4vw] h-[1.4vw] text-white" />
+                </div>
+              )}
+              {user.socials?.instagram && (
+                <div onClick={() => window.open(user.socials.instagram, '_blank')} className="w-[2vw] h-[2vw] bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 rounded-[0.4vw] flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                  <Icon icon="mdi:instagram" className="w-[1.3vw] h-[1.3vw] text-white" />
+                </div>
+              )}
+              {user.socials?.facebook && (
+                <div onClick={() => window.open(user.socials.facebook, '_blank')} className="w-[2vw] h-[2vw] bg-[#1877f2] rounded-[0.4vw] flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                  <Icon icon="mdi:facebook" className="w-[1.4vw] h-[1.4vw] text-white" />
+                </div>
+              )}
+              {user.socials?.whatsapp && (
+                <div onClick={() => window.open(user.socials.whatsapp, '_blank')} className="w-[2vw] h-[2vw] bg-[#25d366] rounded-[0.4vw] flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                  <Icon icon="mdi:whatsapp" className="w-[1.4vw] h-[1.4vw] text-white" />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -221,9 +305,9 @@ const Profile = () => {
           {activeTab === 'Edit Profile' && <EditProfile user={user} setUser={setUser} />}
 
           {activeTab === 'Your IDC' && (
-            <div className="flex-1 flex flex-col relative mt-[1vw]">
+            <div className="flex-1 flex flex-col relative">
               {/* Catalog Section */}
-              <h2 className="text-[1.25vw] font-bold text-gray-900 mb-[1.5vw]">
+              <h2 className="text-[1.25vw] font-semibold text-gray-900 mb-[1.5vw]">
                 Your Interactive Digital catalog
               </h2>
 
@@ -244,49 +328,53 @@ const Profile = () => {
 
                     <div className="p-[0.8vw] flex items-center justify-between border-t border-gray-50 bg-white rounded-b-[0.6vw]">
                       <div className="flex-1 min-w-0 pr-[0.5vw]">
-                        <h4 className="text-[0.75vw] font-bold text-gray-900 truncate">
+                        <h4 className="text-[0.75vw] font-semibold text-gray-900 truncate">
                           {book.name}
                         </h4>
                         <p className="text-[0.6vw] text-gray-500 mt-[0.1vw] truncate">
                           Bring your content to life with a real, interactive experience.
                         </p>
                       </div>
-                      <button
-                        onClick={() => setActiveStatsBookId(activeStatsBookId === book.id ? null : book.id)}
-                        className="bg-black text-white p-[0.35vw] rounded-full hover:bg-gray-800 transition-colors flex-shrink-0 shadow-sm relative z-20"
+                      <div
+                        onMouseEnter={() => setActiveStatsBookId(book.id)}
+                        onMouseLeave={() => setActiveStatsBookId(null)}
                       >
-                        <BarChart2 size="0.8vw" />
-                      </button>
+                        <button
+                          className="bg-black text-white p-[0.35vw] rounded-full hover:bg-gray-800 transition-colors flex-shrink-0 shadow-sm relative z-20"
+                        >
+                          <BarChart2 size="0.8vw" />
+                        </button>
 
-                      {/* Stats Tooltip */}
-                      {activeStatsBookId === book.id && (
-                        <div className="absolute bottom-[3vw] right-[0.5vw] w-[10vw] bg-[#424242]/95 backdrop-blur-md border border-gray-600/30 rounded-[0.6vw] p-[0.5vw] shadow-2xl z-30 text-white animate-in fade-in zoom-in-95 duration-200">
-                          <div className="flex flex-col gap-[0.4vw] text-[0.65vw] font-medium text-gray-300">
-                            <div>Views : <span className="text-white font-bold">528k</span></div>
-                            <div>No of Pages : <span className="text-white font-bold">{book.pages}</span></div>
-                            <div>Added to Shelf : <span className="text-white font-bold">250k</span></div>
-                            <div className="flex items-center gap-[0.2vw]">
-                              Ratings :
-                              <div className="flex items-center text-yellow-400">
-                                <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
-                                <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
-                                <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
-                                <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
-                                <Icon icon="lucide:star" className="w-[0.65vw] h-[0.65vw]" />
+                        {/* Stats Tooltip */}
+                        {activeStatsBookId === book.id && (
+                          <div className="absolute bottom-[3vw] right-[0.5vw] w-[10vw] bg-[#424242]/95 backdrop-blur-md border border-gray-600/30 rounded-[0.6vw] p-[0.5vw] shadow-2xl z-30 text-white animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex flex-col gap-[0.4vw] text-[0.65vw] font-medium text-gray-300">
+                              <div>Views : <span className="text-white font-semibold">528k</span></div>
+                              <div>No of Pages : <span className="text-white font-semibold">{book.pages}</span></div>
+                              <div>Added to Shelf : <span className="text-white font-semibold">250k</span></div>
+                              <div className="flex items-center gap-[0.2vw]">
+                                Ratings :
+                                <div className="flex items-center text-yellow-400">
+                                  <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
+                                  <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
+                                  <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
+                                  <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
+                                  <Icon icon="lucide:star" className="w-[0.65vw] h-[0.65vw]" />
+                                </div>
+                                <span className="text-gray-400">(4.5)</span>
                               </div>
-                              <span className="text-gray-400">(4.5)</span>
+                              <div>No of Ratings : <span className="text-white font-semibold">1528</span></div>
                             </div>
-                            <div>No of Ratings : <span className="text-white font-bold">1528</span></div>
-                          </div>
 
-                          <div className="mt-[0.5vw] flex justify-start">
-                            <a href="#" className="flex items-center gap-[0.2vw] text-[0.75vw] text-white hover:text-gray-200 underline underline-offset-2 transition-colors">
-                              View More details
-                              <Icon icon="lucide:arrow-up-right" className="w-[1vw] h-[1vw]" />
-                            </a>
+                            <div className="mt-[0.5vw] flex justify-start">
+                              <a href="#" className="flex items-center gap-[0.2vw] text-[0.75vw] text-white hover:text-gray-200 underline underline-offset-2 transition-colors">
+                                View More details
+                                <Icon icon="lucide:arrow-up-right" className="w-[1vw] h-[1vw]" />
+                              </a>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
                   </div>
