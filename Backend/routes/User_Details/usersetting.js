@@ -23,7 +23,14 @@ router.get('/get-settings', async (req, res) => {
     let settings = await UserSettings.findOne({ emailId });
     if (!settings) {
         // If settings don't exist, create default
-        settings = new UserSettings({ emailId, isAutoSaveEnabled: true });
+        settings = new UserSettings({
+          emailId,
+          editorSettings: {
+            isAutoSaveEnabled: true,
+            isTrimViewEnabled: false,
+            isRulerEnabled: true
+          }
+        });
         await settings.save();
     }
 
@@ -56,11 +63,46 @@ router.post('/update-autosave', async (req, res) => {
 
     const settings = await UserSettings.findOneAndUpdate(
       { emailId },
-      { isAutoSaveEnabled },
+      { $set: { 'editorSettings.isAutoSaveEnabled': isAutoSaveEnabled } },
       { new: true, upsert: true }
     );
 
-    res.json({ message: 'Settings updated', isAutoSaveEnabled: settings.isAutoSaveEnabled });
+    res.json({ 
+      message: 'Settings updated', 
+      isAutoSaveEnabled: settings.editorSettings?.isAutoSaveEnabled ?? isAutoSaveEnabled,
+      editorSettings: settings.editorSettings
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/usersetting/update-editor-settings
+// @desc    Update all editor settings (isAutoSaveEnabled, isTrimViewEnabled, isRulerEnabled)
+// @access  Public
+router.post('/update-editor-settings', async (req, res) => {
+  try {
+    const { emailId, editorSettings } = req.body;
+    
+    if (!emailId) {
+        return res.status(400).json({ message: 'Email ID is required' });
+    }
+
+    const updateObj = {};
+    if (editorSettings) {
+      if (editorSettings.isAutoSaveEnabled !== undefined) updateObj['editorSettings.isAutoSaveEnabled'] = editorSettings.isAutoSaveEnabled;
+      if (editorSettings.isTrimViewEnabled !== undefined) updateObj['editorSettings.isTrimViewEnabled'] = editorSettings.isTrimViewEnabled;
+      if (editorSettings.isRulerEnabled !== undefined) updateObj['editorSettings.isRulerEnabled'] = editorSettings.isRulerEnabled;
+    }
+
+    const settings = await UserSettings.findOneAndUpdate(
+      { emailId },
+      { $set: updateObj },
+      { new: true, upsert: true }
+    );
+
+    res.json({ message: 'Editor settings updated', editorSettings: settings.editorSettings });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

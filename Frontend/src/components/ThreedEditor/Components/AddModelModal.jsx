@@ -28,7 +28,7 @@ export default function AddModelModal({ isOpen, onClose, onAdd }) {
     };
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-[0.1vw] animate-in fade-in duration-200">
+        <div className="fixed top-[8vh] left-0 right-0 bottom-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-[0.1vw] animate-in fade-in duration-200">
             <div className="bg-white rounded-[1.2vw] w-[27vw] shadow-[0_1.5vw_4vw_-2vw_rgba(0,0,0,0.15)] p-[1.5vw] relative animate-in zoom-in-95 duration-200 border border-white">
                 
                 {/* Header */}

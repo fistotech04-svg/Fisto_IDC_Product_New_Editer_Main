@@ -345,8 +345,8 @@ export default function Export3DModal({
   }, [selectedMaterial, exportScope]);
 
   return (
-    <div ref={modalRef} className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-[0.1vw] animate-in fade-in zoom-in duration-200">
-      <div className="bg-white rounded-[0.75vw] shadow-2xl w-[70vw] h-[42vw] flex flex-col overflow-hidden relative border border-gray-100">
+    <div ref={modalRef} className="fixed top-[8vh] left-0 right-0 bottom-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-[0.1vw] animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-[0.75vw] shadow-2xl w-[70vw] h-[42vw] max-h-[85vh] flex flex-col overflow-hidden relative border border-gray-100">
         
         {/* Global Loading Overlay */}
         <GlobalLoader manualLoading={isInitializing} text="Preparing 3D Export ..." />

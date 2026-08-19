@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import ExportModal from '../components/ExportModal';
 import PublishModal from '../components/PublishModal';
@@ -34,9 +35,21 @@ const Editor = () => {
                     params: { emailId: user.emailId }
                 });
                 
-                if (res.data && res.data.isAutoSaveEnabled !== undefined) {
-                    setIsAutoSaveEnabled(res.data.isAutoSaveEnabled);
-                    localStorage.setItem('isAutoSaveEnabled', JSON.stringify(res.data.isAutoSaveEnabled));
+                if (res.data) {
+                    const editorSettings = res.data.editorSettings;
+                    const autoSaveVal = editorSettings?.isAutoSaveEnabled ?? res.data.isAutoSaveEnabled;
+                    if (autoSaveVal !== undefined) {
+                        setIsAutoSaveEnabled(autoSaveVal);
+                        localStorage.setItem('isAutoSaveEnabled', JSON.stringify(autoSaveVal));
+                    }
+                    if (editorSettings) {
+                        if (editorSettings.isTrimViewEnabled !== undefined) {
+                            localStorage.setItem('isTrimViewEnabled', JSON.stringify(editorSettings.isTrimViewEnabled));
+                        }
+                        if (editorSettings.isRulerEnabled !== undefined) {
+                            localStorage.setItem('isRulerEnabled', JSON.stringify(editorSettings.isRulerEnabled));
+                        }
+                    }
                 }
             } catch (err) {
                 console.error("Failed to fetch user settings", err);
@@ -57,9 +70,9 @@ const Editor = () => {
             const user = JSON.parse(storedUser);
             const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
             
-            await axios.post(`${backendUrl}/api/usersetting/update-autosave`, {
+            await axios.post(`${backendUrl}/api/usersetting/update-editor-settings`, {
                 emailId: user.emailId,
-                isAutoSaveEnabled: value
+                editorSettings: { isAutoSaveEnabled: value }
             });
         }
     } catch (error) {
@@ -354,14 +367,22 @@ const Editor = () => {
     setExportContext
   }), [isAutoSaveEnabled, isSaving, hasUnsavedChanges, canSave, threedState, currentBook, activeDevice, isExportModalOpen]);
 
-  if (isRestoring) {
-      return (
-          <div className="flex flex-col h-screen items-center justify-center bg-gray-50">
-             <div className="w-10 h-10 border-4 border-[#3b4190]/30 border-t-[#3b4190] rounded-full animate-spin"></div>
-             <p className="mt-4 text-gray-500 font-medium">Restoring Editor Session...</p>
-          </div>
-      );
-  }
+  // if (isRestoring) {
+  //     return (
+  //         <AnimatePresence>
+  //             <motion.div
+  //                 key="restore-loader"
+  //                 initial={{ opacity: 1 }}
+  //                 exit={{ opacity: 0 }}
+  //                 transition={{ duration: 0.5, ease: 'easeInOut' }}
+  //                 className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white gap-3"
+  //             >
+  //                 <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+  //                 <span className="text-[0.85vw] font-semibold text-gray-600 tracking-wide">Restoring Editor Session...</span>
+  //             </motion.div>
+  //         </AnimatePresence>
+  //     );
+  // }
 
   return (
     <div className="flex flex-col h-screen">

@@ -825,29 +825,60 @@ const getInteractionScript = (pageNumber) => `
                        } catch(e) {
                            console.error('Failed to parse slideshow interaction images', e);
                        }
-                   }  else if (type === '3d-viewer') {
-                       e.preventDefault();
-                       e.stopPropagation();
-                       let modelUrl = value;
-                       let configObj = null;
-                       if (value && value.startsWith('{')) {
-                           try {
-                               var parsed = JSON.parse(value);
-                               modelUrl = parsed.data || parsed.url || value;
-                           } catch(e) {}
-                       }
-                       const configStr = el.dataset.interactionConfig || el.getAttribute('data-interaction-config');
-                       if (configStr) {
-                           try {
-                               configObj = JSON.parse(configStr);
-                           } catch(e) {}
-                       }
-                       window.parent.postMessage({
-                           type: 'show-3d-viewer',
-                           url: modelUrl,
-                           config: configObj
-                       }, '*');
-                   } else if (type === 'audio' && value) {
+                    }  else if (type === '3d-viewer') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        let modelUrl = value;
+                        let configObj = null;
+                        let vId = null;
+                        let modelName = '3D Model';
+                        if (value && value.startsWith('{')) {
+                            try {
+                                var parsed = JSON.parse(value);
+                                modelUrl = parsed.data || parsed.url || value;
+                                if (parsed.v_id) vId = parsed.v_id;
+                                if (parsed.displayName || parsed.name) {
+                                    modelName = parsed.displayName || parsed.name;
+                                }
+                            } catch(e) {}
+                        }
+                        const configStr = el.dataset.interactionConfig || el.getAttribute('data-interaction-config');
+                        if (configStr) {
+                            try {
+                                configObj = JSON.parse(configStr);
+                            } catch(e) {}
+                        }
+                        if (!configObj) {
+                            configObj = {
+                                topText: 'You can Rotate 3D Model',
+                                bottomText: modelName,
+                                shadowStrength: 35,
+                                shadowSoftness: 35,
+                                autoRotate: true,
+                                autoRotateSpeed: 1.5,
+                                lockMaxZoom: true,
+                                maxZoom: 4.5,
+                                bgType: 'Solid',
+                                bgColor: '#ffffff',
+                                customBg: true,
+                                enableAR: true,
+                                qrText: 'Scan Me',
+                                qrColor: '#000000',
+                                qrBgType: 'Solid',
+                                qrBgColor: '#ffffff'
+                            };
+                        } else {
+                            if (!configObj.topText) configObj.topText = 'You can Rotate 3D Model';
+                            if (!configObj.bottomText) configObj.bottomText = modelName;
+                        }
+                        window.parent.postMessage({
+                            type: 'show-3d-viewer',
+                            url: modelUrl,
+                            v_id: vId,
+                            vId: vId,
+                            config: configObj
+                        }, '*');
+                    } else if (type === 'audio' && value) {
                        e.preventDefault();
                        e.stopPropagation();
                        try {
@@ -3327,7 +3358,7 @@ const PreviewArea = React.memo(({
                 }
                 setActive3DModelUrl(finalUrl);
 
-                setActive3DModelVId(e.data.v_id || null);
+                setActive3DModelVId(e.data.v_id || e.data.vId || null);
                 if (e.data.config) {
                     setActive3DModelConfig(e.data.config);
                 } else {

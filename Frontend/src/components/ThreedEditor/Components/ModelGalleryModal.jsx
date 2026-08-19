@@ -225,9 +225,11 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
 
 
 
+    if (!isOpen) return null;
+
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-[2px] animate-in fade-in duration-300">
-            <div className="bg-white w-[70vw] h-[40vw] rounded-[0.75vw] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="fixed top-[8vh] left-0 right-0 bottom-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
+            <div className="bg-white w-[70vw] h-[40vw] max-h-[85vh] rounded-[0.75vw] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 {/* Header Section */}
                 <div className="p-[1.5vw] pb-[1vw] flex items-start justify-between">
                     <div>

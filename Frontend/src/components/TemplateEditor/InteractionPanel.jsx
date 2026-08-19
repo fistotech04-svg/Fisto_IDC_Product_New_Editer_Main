@@ -2592,9 +2592,13 @@ const InteractionPanel = ({
                                           });
                                           setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
                                           const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          const defaultConfig = JSON.stringify({
+                                            shadowStrength: 35, shadowSoftness: 35, autoRotate: true, autoRotateSpeed: 1.5, lockMaxZoom: true, maxZoom: 4.5, bgType: 'Solid', bgColor: '#000000', customBg: true, enableAR: true, qrText: 'Scan Me', qrColor: '#000000', qrBgType: 'Solid', qrBgColor: '#ffffff', qrLevel: 'L', qrDotType: 'square', qrCornerSquareType: 'square', qrCornerDotType: 'square', qrLogo: null, topText: 'You can Rotate 3D Model', bottomText: file.name || '3D Model'
+                                          });
                                           updateElementAttribute(targetIdx, item.id, {
                                             'data-interaction': '3d-viewer',
-                                            'data-interaction-value': storedVal
+                                            'data-interaction-value': storedVal,
+                                            'data-interaction-config': defaultConfig
                                           });
                                         }
                                       }}
@@ -2614,9 +2618,13 @@ const InteractionPanel = ({
                                           });
                                           setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
                                           const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          const defaultConfig = JSON.stringify({
+                                            shadowStrength: 35, shadowSoftness: 35, autoRotate: true, autoRotateSpeed: 1.5, lockMaxZoom: true, maxZoom: 4.5, bgType: 'Solid', bgColor: '#ffffffff', customBg: true, enableAR: true, qrText: 'Scan Me', qrColor: '#000000', qrBgType: 'Solid', qrBgColor: '#ffffff', qrLevel: 'L', qrDotType: 'square', qrCornerSquareType: 'square', qrCornerDotType: 'square', qrLogo: null, topText: 'You can Rotate 3D Model', bottomText: file.name || '3D Model'
+                                          });
                                           updateElementAttribute(targetIdx, item.id, {
                                             'data-interaction': '3d-viewer',
-                                            'data-interaction-value': storedVal
+                                            'data-interaction-value': storedVal,
+                                            'data-interaction-config': defaultConfig
                                           });
                                         }
                                       }}
@@ -3394,10 +3402,15 @@ const InteractionPanel = ({
 
             setItemValueOverrides(prev => ({ ...prev, [currentItem.id]: storedVal }));
             const targetIdx = currentItem.pageIndex !== undefined ? currentItem.pageIndex : activePageIndex;
+            const galleryModelName = model.displayName || model.name || '3D Model';
+            const defaultConfig = JSON.stringify({
+              shadowStrength: 35, shadowSoftness: 35, autoRotate: true, autoRotateSpeed: 1.5, lockMaxZoom: true, maxZoom: 4.5, bgType: 'Solid', bgColor: '#000000', customBg: true, enableAR: true, qrText: 'Scan Me', qrColor: '#000000', qrBgType: 'Solid', qrBgColor: '#ffffff', qrLevel: 'L', qrDotType: 'square', qrCornerSquareType: 'square', qrCornerDotType: 'square', qrLogo: null, topText: 'You can Rotate 3D Model', bottomText: galleryModelName
+            });
             if (updateElementAttribute) {
               updateElementAttribute(targetIdx, currentItem.id, {
                 'data-interaction': '3d-viewer',
-                'data-interaction-value': storedVal
+                'data-interaction-value': storedVal,
+                'data-interaction-config': defaultConfig
               });
             }
           } catch (error) {
