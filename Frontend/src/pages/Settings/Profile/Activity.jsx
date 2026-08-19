@@ -43,7 +43,7 @@ const Activity = () => {
       </div>
 
       {/* Outer Container for Filter and Timeline */}
-      <div className="border border-gray-300 rounded-[1vw] bg-white shadow-lg overflow-hidden flex flex-col">
+      <div className="border border-gray-300 rounded-[1vw] bg-white shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
         
         {/* Filter and Search Bar */}
         <div className="flex items-center gap-[1vw] p-[1vw]">
@@ -67,7 +67,7 @@ const Activity = () => {
         <div className="w-full h-[1px] bg-gray-300"></div>
 
         {/* Activity Timeline Container */}
-        <div className="p-[2vw]">
+        <div className="p-[2vw] flex-1 overflow-y-auto hide-scrollbar">
           <div className="flex flex-col relative pl-[2.5vw]">
             {/* Continuous left line */}
             <div className="absolute left-[0.4vw] top-[1.5vw] bottom-[2vw] w-[2px] bg-gray-200 z-0"></div>

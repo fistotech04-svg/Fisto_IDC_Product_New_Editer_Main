@@ -48,17 +48,6 @@ const Profile = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
-    const handleWheel = (e) => {
-      if (e.ctrlKey) {
-        e.preventDefault();
-      }
-    };
-
-    const profileContainer = document.getElementById('profile-container');
-    if (profileContainer) {
-      profileContainer.addEventListener('wheel', handleWheel, { passive: false });
-    }
-
     const handleScroll = (e) => {
       const target = e?.target;
       const scrollTop = window.scrollY || document.documentElement.scrollTop || (target?.scrollTop ?? 0);
@@ -71,9 +60,6 @@ const Profile = () => {
     handleScroll();
 
     return () => {
-      if (profileContainer) {
-        profileContainer.removeEventListener('wheel', handleWheel);
-      }
       window.removeEventListener('scroll', handleScroll, { capture: true });
     };
   }, []);
@@ -90,49 +76,20 @@ const Profile = () => {
   ];
 
   return (
-    <div id="profile-container" className="flex flex-col min-h-full bg-transparent relative pb-[1vw]">
+    <div id="profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative ">
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
 
-      {/* Top Banner Wrapper (Fixed height to prevent double scroll) */}
-      <div className="relative h-[14vw] w-full rounded-[1vw] sticky top-0 z-[45]">
-
-        {/* Blocker to hide content scrolling above the banner */}
-        <div className="absolute bottom-[100%] -left-[4px] -right-[4px] h-[100vh] bg-white pointer-events-none z-[40]"></div>
-
-        {/* Blocker to hide the scrolling borders behind the banner and in the 1vw gap */}
-        <div
-          className="absolute top-0 -left-[4px] -right-[4px] bg-white pointer-events-none"
-          style={{
-            height: `${15 - (8 * scrollProgress)}vw`,
-            zIndex: -1
-          }}
-        ></div>
-
-        {/* Actual Shrinking Banner */}
-        <div
-          className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden"
-          style={{
-            height: `${14 - (8 * scrollProgress)}vw`,
-            background: bannerBg.type === 'solid' ? bannerBg.value : undefined,
-            backgroundImage: (bannerBg.type === 'gradient' || bannerBg.type === 'media') ? bannerBg.value : undefined,
-            backgroundSize: bannerBg.type === 'media' ? 'cover' : undefined,
-            backgroundPosition: bannerBg.type === 'image' ? 'center' : undefined
-          }}
-        >
-          {/* Faint wavy overlay could go here, using a CSS radial gradient as a placeholder for the texture */}
-          <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 30% 150%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 70% -50%, rgba(255,255,255,0.4) 0%, transparent 50%)' }}></div>
-        </div>
-
-        {/* Blocker to hide the scrolling borders behind the banner and in the 1vw gap */}
-        <div
-          className="absolute top-0 left-0 right-0 bg-white pointer-events-none"
-          style={{
-            height: `${15 - (8 * scrollProgress)}vw`,
-            zIndex: -1
-          }}
-        ></div>
-
-        {/* Top right menu icon */}
-        <div className="absolute top-[1vw] right-[1vw]">
+      {/* Top right menu icon - Moved outside banner wrapper to avoid stacking context issues */}
+      <div className="sticky top-0 z-[60] w-full pointer-events-none" style={{ height: 0 }}>
+        <div className="absolute top-[1vw] right-[1vw] pointer-events-auto">
           <button
             onClick={() => {
               setIsColorPickerOpen(!isColorPickerOpen);
@@ -153,20 +110,35 @@ const Profile = () => {
         </div>
       </div>
 
+      {/* Top Banner Wrapper */}
+      <div 
+        className="relative w-full rounded-[1vw] z-[05] flex-shrink-0"
+        style={{ height: `${14 - (8 * scrollProgress)}vw` }}
+      >
+
+        {/* Actual Shrinking Banner */}
+        <div
+          className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden"
+          style={{
+            height: `${14 - (8 * scrollProgress)}vw`,
+            background: bannerBg.type === 'solid' ? bannerBg.value : undefined,
+            backgroundImage: (bannerBg.type === 'gradient' || bannerBg.type === 'media') ? bannerBg.value : undefined,
+            backgroundSize: bannerBg.type === 'media' ? 'cover' : undefined,
+            backgroundPosition: bannerBg.type === 'image' ? 'center' : undefined
+          }}
+        >
+          {/* Faint wavy overlay could go here, using a CSS radial gradient as a placeholder for the texture */}
+          <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 30% 150%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 70% -50%, rgba(255,255,255,0.4) 0%, transparent 50%)' }}></div>
+        </div>
+      </div>
+
       {/* Main Content Area */}
-      <div className="flex flex-col md:flex-row relative mt-[1vw] bg-white border-2 border-gray-200 rounded-[1vw] shadow-sm">
+      <div className="flex flex-col md:flex-row relative mt-[1vw] bg-white border-2 border-gray-200 rounded-[1vw] shadow-sm flex-1 min-h-0 min-w-0 w-full z-[40]">
 
         {/* Left Column (Avatar + Info) */}
-        <div className="w-[22vw] flex-shrink-0 border-r-2 border-gray-200 relative">
-          <div
-            className="flex flex-col items-center pb-[2vw] sticky z-[50]"
-            style={{ top: `${15 - (8 * scrollProgress)}vw` }}
-          >
-            {/* Sticky Background to preserve cutout illusion */}
-            <div className="absolute top-[-2px] left-[-2px] right-0 bottom-0 bg-white border-t-2 border-l-2 border-gray-200 rounded-tl-[1vw]" style={{ zIndex: -1 }}></div>
+        <div className="w-[22vw] flex-shrink-0 border-r-2 border-gray-200 relative h-full">
+          <div className="flex flex-col items-center pb-[2vw] h-full z-[50]">
 
-            {/* Fake vertical line filler for the top corner T-junction */}
-            <div className="absolute top-[-2px] right-[-2px] w-[2px] h-[2px] bg-gray-200" style={{ zIndex: 10 }}></div>
 
             {/* Top border eraser for container */}
             <div
@@ -196,11 +168,11 @@ const Profile = () => {
                   style={{ clipPath: 'polygon(0 16%, 100% 16%, 100% 100%, 0 100%)' }}
                 ></div>
 
-                <svg className="absolute bottom-[42%] -left-[1.15vw] w-[1.4vw] h-[1vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
+                <svg className="absolute bottom-[41.5%] -left-[1.1vw] w-[1.4vw] h-[1.1vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
                   <path d="M -7 0 L 0 0 A 10 10 0 0 1 10 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
                 </svg>
                 {/* Right Smooth Corner */}
-                <svg className="absolute bottom-[42%] -right-[1.13vw] w-[1.4vw] h-[1vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
+                <svg className="absolute bottom-[41.5%] -right-[1.15vw] w-[1.4vw] h-[1.1vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
                   <path d="M 17 0 L 10 0 A 10 10 0 0 0 0 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
                 </svg>
 
@@ -256,7 +228,7 @@ const Profile = () => {
             </div>
 
             {/* Info Cards Container */}
-            <div className="w-full mt-[2vw] flex flex-col">
+            <div className="w-full mt-[2vw] flex flex-col flex-1 overflow-y-auto min-h-0 hide-scrollbar">
 
               <div className="p-[1vw] border-b border-gray-100">
                 <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
@@ -330,18 +302,11 @@ const Profile = () => {
         </div>
 
         {/* Right Column (Buttons + Catalog) */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 relative h-full min-w-0">
+          <div className="flex flex-col h-full w-full z-[45]">
+            {/* Header Area */}
+            <div className="pt-[1.5vw] pl-[1.5vw] pr-[1.5vw] pb-[2vw] relative flex-shrink-0">
 
-          {/* Sticky Header Area for Right Column */}
-          <div
-            className="sticky z-[45] pt-[1.5vw] pl-[1.5vw] pr-[1.5vw] pb-[2vw]"
-            style={{ top: `${15 - (8 * scrollProgress)}vw` }}
-          >
-            {/* Absolute Background to overlap parent borders and hide scrolling content */}
-            <div
-              className="absolute top-[-2px] left-0 right-[-2px] bottom-0 bg-white border-t-2 border-r-2 border-gray-200 rounded-tr-[1vw]"
-              style={{ zIndex: -1 }}
-            ></div>
 
             {/* Buttons Row & Save Actions Portal */}
             <div className="flex justify-between items-center w-full relative z-10">
@@ -370,7 +335,7 @@ const Profile = () => {
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-y-auto px-[1.5vw] pb-[1.5vw]">
+          <div className="flex-1 overflow-y-auto px-[1.5vw] pb-[1.5vw] hide-scrollbar">
             {activeTab === 'Edit Profile' && <EditProfile user={user} setUser={setUser} />}
 
             {activeTab === 'Your IDC' && (
@@ -457,7 +422,8 @@ const Profile = () => {
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default Profile;
