@@ -772,7 +772,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
 
     const storedUser = localStorage.getItem('user');
     const user = storedUser ? JSON.parse(storedUser) : null;
-    const emailId = user?.emailId || user?.email;
+    const emailId = currentBook?.userEmail || currentBook?.emailId || user?.emailId || user?.email;
 
     if (emailId && currentBook) {
       const folderName = Array.isArray(currentBook.folderName) ? currentBook.folderName[0] : (currentBook.folderName || currentBook.folder || 'My_Flipbooks');

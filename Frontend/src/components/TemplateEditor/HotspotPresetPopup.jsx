@@ -7,7 +7,7 @@ import openLinkSvg from '../../assets/hotspot preset icon/icons/openlink.svg';
 import whatsappSvg from '../../assets/hotspot preset icon/icons/whatsapp.svg';
 import navigationSvg from '../../assets/hotspot preset icon/icons/Navigation.svg';
 import threeDSvg from '../../assets/hotspot preset icon/icons/3D.svg';
-import callSvg from '../../assets/hotspot preset icon/icons/Call.svg';
+import callSvg from '../../assets/hotspot preset icon/icons/call.svg';
 import emailSvg from '../../assets/hotspot preset icon/icons/email.svg';
 import locationSvg from '../../assets/hotspot preset icon/icons/location.svg';
 import youtubeSvg from '../../assets/hotspot preset icon/icons/yotube.svg';

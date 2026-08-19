@@ -158,41 +158,50 @@ const ShareViewBook = () => {
         const activeLayout = queryLayout && !isNaN(Number(queryLayout)) ? Number(queryLayout) : (layoutsObj.layoutStyle !== undefined ? layoutsObj.layoutStyle : 1);
         return {
             ...(bookData?.meta || {}),
-            logo: brandingObj.logoSettings,
-            watermark: brandingObj.watermarkSettings,
-            preloader: brandingObj.preloaderSettings,
-            background: backgroundObj,
-            backgroundSettings: backgroundObj,
-            Background: backgroundObj,
-            appearance: appearanceObj,
-            bookAppearanceSettings: appearanceObj,
-            BookAppearance: appearanceObj,
+            FlipbookInfo: bookData?.Customized_Settings?.FlipbookInfo || {},
             Branding: brandingObj,
-            menuBar: menuBarObj,
-            menuBarSettings: menuBarObj,
+            Background: backgroundObj,
             MenuBar: menuBarObj,
+            Layouts: {
+                ...layoutsObj,
+                layoutStyle: activeLayout
+            },
+            BookAppearance: appearanceObj,
             otherSetup: otherSetupObj,
-            otherSetupSettings: otherSetupObj,
-            othersetup: otherSetupObj,
-            Layouts: layoutsObj,
-            layout: activeLayout,
-            layoutColors: layoutsObj.layoutColors,
-            leadForm: leadFormObj,
-            leadform: leadFormObj
+            leadForm: leadFormObj
         };
     }, [bookData, brandingObj, backgroundObj, appearanceObj, menuBarObj, otherSetupObj, layoutsObj, leadFormObj, location.search]);
 
     const layoutColorVars = React.useMemo(() => {
         if (!bookData) return '';
-        const activeIdx = Number(settings?.layout) || 1;
+        const activeIdx = Number(settings?.Layouts?.layoutStyle) || 1;
         const defaults = LAYOUT_DEFAULT_COLORS[activeIdx] || [];
-        const saved = settings?.layoutColors?.[activeIdx] || [];
+        const layoutColorsObj = settings?.Layouts?.layoutColors;
+        const saved = Array.isArray(layoutColorsObj?.[activeIdx]) ? layoutColorsObj[activeIdx] : [];
+        const toolbarP = layoutColorsObj?.toolbarColor?.primary;
+        const toolbarS = layoutColorsObj?.toolbarColor?.secondary;
+        const popupP = layoutColorsObj?.popupColor?.primary;
+        const popupS = layoutColorsObj?.popupColor?.secondary;
 
         const mergedColors = defaults.map((c) => {
             const savedItem = saved.find(s => s && s.id === c.id);
+            let hexVal = c.hex;
+            if (savedItem && savedItem.hex) {
+                hexVal = savedItem.hex;
+            } else if (toolbarP && ['toolbar-bg', 'bottom-toolbar-bg', 'page-number-bg'].includes(c.id)) {
+                hexVal = toolbarP;
+            } else if (toolbarS && ['toolbar-text-main', 'toolbar-icon', 'reset-text', 'page-number-text'].includes(c.id)) {
+                hexVal = toolbarS;
+            } else if (popupP && ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'].includes(c.id)) {
+                hexVal = popupP;
+            } else if (popupS && ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'].includes(c.id)) {
+                hexVal = popupS;
+            }
+
             return {
                 ...c,
-                ...(savedItem ? savedItem : {})
+                ...(savedItem ? savedItem : {}),
+                hex: hexVal
             };
         });
 
@@ -206,7 +215,7 @@ const ShareViewBook = () => {
             const varName = c.id || `layout-color-${i}`;
             return `--${varName}: ${hex}; --${varName}-opacity: ${op}; --${varName}-rgb: ${r},${g},${b};`;
         }).join(' ');
-    }, [bookData, settings?.layout, settings?.layoutColors]);
+    }, [bookData, settings?.Layouts]);
 
     const varsObject = React.useMemo(() => {
         if (!layoutColorVars) return {};

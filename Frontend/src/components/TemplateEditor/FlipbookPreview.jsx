@@ -145,11 +145,17 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
       try {
         let finalSettings = { ...(settings || {}) };
 
-        // Ensure logo/watermark/preloader/menuBar are extracted if passed via Branding/MenuBar objects
+        // Ensure logo/watermark/preloader/menuBar/background/appearance are extracted if passed via exact Customized_Settings schema objects
         const bObj = finalSettings.Customized_Settings?.Branding || finalSettings.Branding || {};
         if (bObj.logoSettings) finalSettings.logo = bObj.logoSettings;
         if (bObj.watermarkSettings) finalSettings.watermark = bObj.watermarkSettings;
         if (bObj.preloaderSettings) finalSettings.preloader = bObj.preloaderSettings;
+
+        const bgObj = finalSettings.Customized_Settings?.Background || finalSettings.Background;
+        if (bgObj) finalSettings.background = bgObj;
+
+        const appObj = finalSettings.Customized_Settings?.BookAppearance || finalSettings.BookAppearance;
+        if (appObj) finalSettings.appearance = appObj;
 
         const mObj = finalSettings.Customized_Settings?.MenuBar || finalSettings.MenuBar || {};
         if (mObj && Object.keys(mObj).length > 0) {
@@ -161,6 +167,18 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         const lObj = finalSettings.Customized_Settings?.Layouts || finalSettings.Layouts || {};
         if (lObj.layoutStyle !== undefined) finalSettings.layout = lObj.layoutStyle;
         if (lObj.layoutColors) finalSettings.layoutColors = lObj.layoutColors;
+
+        const oSetup = finalSettings.Customized_Settings?.otherSetup || finalSettings.otherSetup;
+        if (oSetup) {
+          finalSettings.otherSetup = oSetup;
+          finalSettings.othersetup = oSetup;
+        }
+
+        const lfObj = finalSettings.Customized_Settings?.leadForm || finalSettings.leadForm;
+        if (lfObj) {
+          finalSettings.leadForm = lfObj;
+          finalSettings.leadform = lfObj;
+        }
 
         // Try getting local unsaved state ONLY if NOT in published preview mode
         if (!isPublishedPreview) {

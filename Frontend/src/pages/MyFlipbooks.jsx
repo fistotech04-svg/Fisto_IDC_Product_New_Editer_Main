@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Folder, Plus, ArrowLeft, Search, MoreVertical, Trash2, Edit2, Copy, Eye, Wrench, PenTool, BarChart2, Share2, Download, FolderInput, SlidersHorizontal, CheckSquare, Check, X, Home, Library, ArrowRight, UploadCloud, Upload, ChevronLeft, ChevronRight, ChevronDown, ArrowDownUp, Globe, Lock, Settings, CloudUpload } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
@@ -291,6 +292,8 @@ export default function MyFlipbooks() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [processingProgress, setProcessingProgress] = useState(null);
+    const isUploadCancelledRef = useRef(false);
+    const createdFlipbookVIdRef = useRef(null);
     const [alertState, setAlertState] = useState({
         isOpen: false,
         title: '',
@@ -349,12 +352,15 @@ export default function MyFlipbooks() {
         if (!files || files.length === 0) return;
         setIsCreateModalOpen(false);
         setIsLoading(true);
+        isUploadCancelledRef.current = false;
+        createdFlipbookVIdRef.current = null;
 
         try {
             let allImages = [];
 
             // Step 1 — Extract all PDF pages into SVG blobs
             for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+                if (isUploadCancelledRef.current) return;
                 const file = files[fileIndex];
                 setProcessingProgress({
                     current: 0,
@@ -362,8 +368,11 @@ export default function MyFlipbooks() {
                     message: `Extracting pages from ${file.name}...`
                 });
                 const images = await convertPdfToImages(file, 2);
+                if (isUploadCancelledRef.current) return;
                 allImages = [...allImages, ...images];
             }
+
+            if (isUploadCancelledRef.current) return;
 
             if (allImages.length === 0) {
                 showAlert("Error", "No pages could be extracted from the selected files.");
@@ -403,10 +412,20 @@ export default function MyFlipbooks() {
                 folderName: targetFolder
             });
             const v_id = createRes.data.v_id;
+            createdFlipbookVIdRef.current = v_id;
+
+            if (isUploadCancelledRef.current) {
+                axios.delete(`${backendUrl}/api/flipbook/delete/${v_id}`, { params: { emailId } }).catch(() => {});
+                return;
+            }
 
             // Step 3 — Process pages in batches to speed up upload while avoiding huge payload limits
             const BATCH_SIZE = 5;
             for (let i = 0; i < allImages.length; i += BATCH_SIZE) {
+                if (isUploadCancelledRef.current) {
+                    axios.delete(`${backendUrl}/api/flipbook/delete/${v_id}`, { params: { emailId } }).catch(() => {});
+                    return;
+                }
                 const batch = allImages.slice(i, i + BATCH_SIZE);
                 
                 setProcessingProgress({
@@ -436,15 +455,33 @@ export default function MyFlipbooks() {
                 });
             }
 
+            if (isUploadCancelledRef.current) {
+                axios.delete(`${backendUrl}/api/flipbook/delete/${v_id}`, { params: { emailId } }).catch(() => {});
+                return;
+            }
+
             // Step 4 — Navigate to the customized editor
             navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${v_id}`);
 
         } catch (error) {
-            console.error("PDF conversion error:", error);
-            showAlert("Error", "Failed to process PDF. Please try again.");
+            if (!isUploadCancelledRef.current) {
+                console.error("PDF conversion error:", error);
+                showAlert("Error", "Failed to process PDF. Please try again.");
+            }
         } finally {
             setIsLoading(false);
             setProcessingProgress(null);
+            isUploadCancelledRef.current = false;
+        }
+    };
+
+    const handleCancelUploadPDF = () => {
+        isUploadCancelledRef.current = true;
+        setIsLoading(false);
+        setProcessingProgress(null);
+        if (createdFlipbookVIdRef.current) {
+            axios.delete(`${backendUrl}/api/flipbook/delete/${createdFlipbookVIdRef.current}`, { params: { emailId } }).catch(() => {});
+            createdFlipbookVIdRef.current = null;
         }
     };
 
@@ -2081,17 +2118,23 @@ export default function MyFlipbooks() {
             />
 
             {/* PDF Processing Overlay */}
-            <PdfProcessingLoader progress={processingProgress} />
+            <PdfProcessingLoader progress={processingProgress} onCancel={handleCancelUploadPDF} />
 
             {/* General Loading Overlay (without specific progress) */}
-            {isLoading && !processingProgress && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="flex flex-col items-center gap-[1vw] max-w-[20vw] w-full text-center">
-                        <div className="w-[3.5vw] h-[3.5vw] border-[0.3vw] border-white/30 border-t-white rounded-full animate-spin mb-[0.5vw]"></div>
-                        <p className="text-white font-bold text-[1.15vw] drop-shadow-sm">Loading...</p>
-                    </div>
-                </div>
-            )}
+            <AnimatePresence>
+                {isLoading && !processingProgress && (
+                    <motion.div
+                        key="myflipbooks-loader"
+                        initial={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5, ease: "easeInOut" }}
+                        className="fixed top-[8vh] left-0 right-0 bottom-0 z-40 flex flex-col items-center justify-center bg-white gap-3"
+                    >
+                        <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+                        <span className="text-[0.85vw] font-semibold text-gray-600 tracking-wide">Loading Flipbooks...</span>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Generic Alert Modal */}
             <AlertModal

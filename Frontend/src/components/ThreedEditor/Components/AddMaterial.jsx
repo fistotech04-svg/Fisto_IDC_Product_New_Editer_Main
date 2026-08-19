@@ -415,8 +415,8 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-      <div className="bg-white w-[50vw] max-h-[90vh] rounded-[1.2vw] shadow-[0_20px_50px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
+    <div className="fixed top-[8vh] left-0 right-0 bottom-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+      <div className="bg-white w-[50vw] max-h-[85vh] rounded-[1.2vw] shadow-[0_20px_50px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
         
         {/* Header - Fixed */}
         <div className="px-[2vw] pt-[1.5vw] pb-[1vw] flex items-start justify-between border-b border-gray-50">

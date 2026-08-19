@@ -89,28 +89,14 @@ const PreviewPage = () => {
           const leadFormObj = processedData.Customized_Settings?.leadForm || processedData.Customized_Settings?.leadform || processedData.settings?.leadForm || processedData.settings?.leadform || {};
           const mergedSettings = {
             ...(processedData.meta || {}),
-            logo: brandingObj.logoSettings,
-            watermark: brandingObj.watermarkSettings,
-            preloader: brandingObj.preloaderSettings,
-            background: backgroundObj,
-            backgroundSettings: backgroundObj,
-            Background: backgroundObj,
-            appearance: appearanceObj,
-            bookAppearanceSettings: appearanceObj,
-            BookAppearance: appearanceObj,
-            menuBar: menuBarObj,
-            menuBarSettings: menuBarObj,
-            MenuBar: menuBarObj,
-            otherSetup: otherSetupObj,
-            otherSetupSettings: otherSetupObj,
-            othersetup: otherSetupObj,
-            Layouts: layoutsObj,
-            layout: layoutsObj.layoutStyle !== undefined ? layoutsObj.layoutStyle : 1,
-            layoutColors: layoutsObj.layoutColors,
+            FlipbookInfo: processedData.Customized_Settings?.FlipbookInfo || {},
             Branding: brandingObj,
             Background: backgroundObj,
-            leadForm: leadFormObj,
-            leadform: leadFormObj
+            MenuBar: menuBarObj,
+            Layouts: layoutsObj,
+            BookAppearance: appearanceObj,
+            otherSetup: otherSetupObj,
+            leadForm: leadFormObj
           };
 
           setData({
