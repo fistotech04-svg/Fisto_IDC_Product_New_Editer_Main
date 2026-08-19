@@ -43,7 +43,7 @@ const Activity = () => {
       </div>
 
       {/* Outer Container for Filter and Timeline */}
-      <div className="border border-gray-300 rounded-[1vw] bg-white shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      <div className="border border-gray-300 rounded-[1vw] mb-[-1vw] bg-white shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
         
         {/* Filter and Search Bar */}
         <div className="flex items-center gap-[1vw] p-[1vw]">
