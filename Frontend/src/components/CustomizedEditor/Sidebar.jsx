@@ -64,22 +64,11 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
   const navigate = useNavigate();
   const { folder, v_id } = useParams();
   const [openSection, setOpenSection] = useState(null);
-  const [isNavigatingToEditor, setIsNavigatingToEditor] = useState(false);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
-  const handleGoToPageEditor = async () => {
-    if (isNavigatingToEditor) return;
-    setIsNavigatingToEditor(true);
-    try {
-      if (onSave) {
-        await onSave();
-      }
-      const path = folder ? `/editor/${folder}/${v_id}` : `/editor/${v_id}`;
-      navigate(path);
-    } catch (err) {
-      console.error("Navigation save error:", err);
-      setIsNavigatingToEditor(false);
-    }
+  const handleGoToPageEditor = () => {
+    const path = folder ? `/editor/${folder}/${v_id}` : `/editor/${v_id}`;
+    navigate(path);
   };
 
   const getParentSection = (subView) => {
@@ -330,14 +319,22 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
               <span className="text-[0.72vw] text-gray-500 font-medium tracking-wide">
                 Pages : {pageCount || 10}
               </span>
-              <button
-                type="button"
-                onClick={() => setIsInfoModalOpen(true)}
-                className="text-[#373d8a] hover:text-[#2a2e6b] transition-colors cursor-pointer"
-                title="Edit Flipbook Information"
-              >
-                <Icon icon="ph:pencil-simple-fill" className="w-[0.95vw] h-[0.95vw]" />
-              </button>
+              <div className="relative group/tooltip flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setIsInfoModalOpen(true)}
+                  className="text-[#373d8a] hover:text-[#2a2e6b] transition-colors cursor-pointer p-[0.1vw] rounded-[0.2vw] hover:bg-indigo-50/80"
+                >
+                  <Icon icon="ph:pencil-simple-fill" className="w-[0.95vw] h-[0.95vw]" />
+                </button>
+                {/* Styled Tooltip on Hover - Positioned below pen icon */}
+                <div className="absolute right-0 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
+                  <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90 mr-[0.3vw]" />
+                  <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
+                    Edit Flipbook Information
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -439,20 +436,10 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
         ) : (
           <button
             onClick={handleGoToPageEditor}
-            disabled={isNavigatingToEditor}
-            className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-900 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.4)] cursor-pointer disabled:opacity-80"
+            className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-900 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.4)] cursor-pointer"
           >
-            {isNavigatingToEditor ? (
-              <>
-                <div className="w-[1vw] h-[1vw] border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
-                <span>Saving & Opening Editor...</span>
-              </>
-            ) : (
-              <>
-                <ArrowUpRight size="1.2vw" className="rotate-0" />
-                <span>Go to Page Editor</span>
-              </>
-            )}
+            <ArrowUpRight size="1.2vw" className="rotate-0" />
+            <span>Go to Page Editor</span>
           </button>
         )}
       </div>

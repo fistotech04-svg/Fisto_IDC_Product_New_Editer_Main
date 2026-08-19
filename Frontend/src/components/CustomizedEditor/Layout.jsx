@@ -183,8 +183,23 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
         const layout1 = updated[1] || updated['1'] || [];
         const primaryToolbarHex = (Array.isArray(layout1) ? layout1.find(c => c && c.id === 'toolbar-bg')?.hex : null) || updated.toolbarColor?.primary || '';
         const secondaryToolbarHex = (Array.isArray(layout1) ? layout1.find(c => c && c.id === 'toolbar-text-main')?.hex : null) || updated.toolbarColor?.secondary || '';
-        const primaryPopupHex = (Array.isArray(layout1) ? layout1.find(c => c && ['toc-bg', 'dropdown-bg'].includes(c.id))?.hex : null) || updated.popupColor?.primary || '';
-        const secondaryPopupHex = (Array.isArray(layout1) ? layout1.find(c => c && ['toc-text', 'dropdown-text'].includes(c.id))?.hex : null) || updated.popupColor?.secondary || '';
+        let primaryPopupHex = (Array.isArray(layout1) ? layout1.find(c => c && ['toc-bg', 'dropdown-bg'].includes(c.id))?.hex : null) || updated.popupColor?.primary || '';
+        let secondaryPopupHex = (Array.isArray(layout1) ? layout1.find(c => c && ['toc-text', 'dropdown-text'].includes(c.id))?.hex : null) || updated.popupColor?.secondary || '';
+
+        const checkIsLight = (hex) => {
+            if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return false;
+            let c = hex.substring(1).toUpperCase();
+            if (c.length === 3) c = c.split('').map(x => x + x).join('');
+            if (c.length !== 6) return false;
+            const r = parseInt(c.substring(0, 2), 16); const g = parseInt(c.substring(2, 4), 16); const b = parseInt(c.substring(4, 6), 16);
+            return ((0.299 * r + 0.587 * g + 0.114 * b) / 255) > 0.7;
+        };
+
+        if (primaryPopupHex && secondaryPopupHex && checkIsLight(primaryPopupHex) && !checkIsLight(secondaryPopupHex)) {
+            const temp = primaryPopupHex;
+            primaryPopupHex = secondaryPopupHex;
+            secondaryPopupHex = temp;
+        }
 
         return {
             ...updated,

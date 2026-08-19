@@ -807,6 +807,37 @@ const CustomizedEditor = () => {
     return () => clearTimeout(timer);
   }, [otherSetupSettings, isDataLoaded, v_id, folder, bookName]);
 
+  // Auto-save Layouts (layoutStyle & layoutColors) to MongoDB
+  useEffect(() => {
+    if (!isDataLoaded || !v_id || !layoutColors) return;
+
+    const timer = setTimeout(() => {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+      try {
+        const user = JSON.parse(storedUser);
+        const userEmail = user?.emailId || user?.email;
+        if (!userEmail) return;
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+        axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+          emailId: userEmail,
+          v_id: v_id,
+          folderName: folder || 'Recent Book',
+          bookName: bookNameRef.current || bookName,
+          Layouts: {
+            layoutStyle: layoutSettings,
+            layoutColors: layoutColors
+          }
+        }).catch(err => console.warn("Layouts auto-save warning:", err));
+      } catch (e) {
+        console.error("User parse error in Layouts auto-save", e);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [layoutSettings, layoutColors, isDataLoaded, v_id, folder, bookName]);
+
   // Save Bookmarks and Notes Logic
   useEffect(() => {
     if (isDataLoaded) {

@@ -6,7 +6,15 @@ import { CustomQRCode } from './Model3DEditor';
 import ColorPicker from './ColorPicker';
 import axios from 'axios';
 
-const GlbModelViewer = React.memo(({ url, autoRotate, autoRotateSpeed }) => {
+const GlbModelViewer = React.memo(({ 
+  url, 
+  autoRotate = true, 
+  autoRotateSpeed = 1.5,
+  shadowStrength = 35,
+  shadowSoftness = 35,
+  lockMaxZoom = true,
+  maxZoom = 4.5
+}) => {
   const [timestamp, setTimestamp] = useState('');
 
   React.useEffect(() => {
@@ -24,12 +32,38 @@ const GlbModelViewer = React.memo(({ url, autoRotate, autoRotateSpeed }) => {
   }, [url, timestamp]);
 
   const { scene } = useGLTF(finalUrl);
+
+  const numShadowStrength = Number(shadowStrength) || 0;
+  const numShadowSoftness = Number(shadowSoftness) || 0;
+  const numAutoRotateSpeed = Number(autoRotateSpeed) || 1.5;
+  const numMaxZoom = Number(maxZoom) || 4.5;
+
+  const minZoomDist = lockMaxZoom ? Math.max(0.5, 5 / Math.max(1, numMaxZoom)) : 0.5;
+  const maxZoomDist = lockMaxZoom ? Math.max(5, 5 * Math.max(1, numMaxZoom)) : 50;
+
   return (
     <Canvas camera={{ fov: 50, position: [0, 0, 5] }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
-      <Stage environment="city" adjustCamera={1.5} intensity={1}>
+      <Stage 
+        environment="city" 
+        adjustCamera={1.5} 
+        intensity={1}
+        shadows={numShadowStrength > 0 ? {
+          type: 'contact',
+          opacity: numShadowStrength / 100,
+          blur: numShadowSoftness / 100
+        } : false}
+      >
         <primitive object={scene} />
       </Stage>
-      <OrbitControls makeDefault enableZoom={true} enablePan={true} autoRotate={autoRotate} autoRotateSpeed={autoRotateSpeed} />
+      <OrbitControls 
+        makeDefault 
+        enableZoom={true} 
+        enablePan={true} 
+        autoRotate={autoRotate} 
+        autoRotateSpeed={numAutoRotateSpeed} 
+        minDistance={minZoomDist}
+        maxDistance={maxZoomDist}
+      />
     </Canvas>
   );
 });
@@ -37,8 +71,12 @@ const GlbModelViewer = React.memo(({ url, autoRotate, autoRotateSpeed }) => {
 const Model3DPreviewModal = ({ 
   isOpen, 
   dataUrl, 
+  shadowStrength = 35,
+  shadowSoftness = 35,
   autoRotate = true, 
   autoRotateSpeed = 1.5, 
+  lockMaxZoom = true,
+  maxZoom = 4.5,
   bgType = 'Solid', 
   bgColor: initialBgColor = '#ffffff',
   customBg = true,
@@ -108,7 +146,15 @@ const Model3DPreviewModal = ({
         {/* Canvas Area */}
         <div className="flex-1 w-full h-full relative" style={{ backgroundColor: bgType === 'Solid' ? bgColor : 'transparent' }}>
           {dataUrl ? (
-            <GlbModelViewer url={dataUrl} autoRotate={autoRotate} autoRotateSpeed={autoRotateSpeed} />
+            <GlbModelViewer 
+              url={dataUrl} 
+              autoRotate={autoRotate} 
+              autoRotateSpeed={autoRotateSpeed} 
+              shadowStrength={shadowStrength}
+              shadowSoftness={shadowSoftness}
+              lockMaxZoom={lockMaxZoom}
+              maxZoom={maxZoom}
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <span className="text-gray-400">No Model Data</span>
