@@ -178,7 +178,8 @@ const RightSidebar = ({
   customBg, setCustomBg,
     enableAR, setEnableAR,
   qrText, setQrText, qrColor, setQrColor, qrBgType, setQrBgType, qrBgColor, setQrBgColor, qrLevel, setQrLevel, qrDotType, setQrDotType, qrCornerSquareType, setQrCornerSquareType, qrCornerDotType, setQrCornerDotType, qrLogo, setQrLogo,
-  topText, setTopText, bottomText, setBottomText
+  topText, setTopText, bottomText, setBottomText,
+  current3DVId
 }) => {
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
@@ -1036,6 +1037,7 @@ const RightSidebar = ({
               qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
               topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
               dataUrl={preview3DDataUrl}
+              vId={current3DVId}
             />
           </div>
         ) : activeTopTool === 'editor' ? (

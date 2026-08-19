@@ -350,7 +350,7 @@ export default function CameraModal({
     // ─── Export View (after capture) ────────────────────────────────────────────
     if (showTakenShot) {
         return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
+            <div className="fixed top-[8vh] left-0 right-0 bottom-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
                 <div className="bg-white w-[60vw] h-[85vh] rounded-[0.75vw] shadow-2xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-300">
 
                     {/* Export Header */}
@@ -535,7 +535,7 @@ export default function CameraModal({
 
     // ─── Capture View (default) ──────────────────────────────────────────────────
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
+        <div className="fixed top-[8vh] left-0 right-0 bottom-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
             <div className="bg-white w-[60vw] h-[85vh] rounded-[0.75vw] shadow-2xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-300">
                 
                 {/* Header */}

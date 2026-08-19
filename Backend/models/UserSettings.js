@@ -6,9 +6,19 @@ const userSettingsSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  isAutoSaveEnabled: {
-    type: Boolean,
-    default: true
+  editorSettings: {
+    isAutoSaveEnabled: {
+      type: Boolean,
+      default: true
+    },
+    isTrimViewEnabled: {
+      type: Boolean,
+      default: false
+    },
+    isRulerEnabled: {
+      type: Boolean,
+      default: true
+    }
   },
   maxStorage: {
     type: Number,
