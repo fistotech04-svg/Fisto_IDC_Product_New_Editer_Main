@@ -7,27 +7,30 @@ export default function EditorSettingsModal({
   onClose,
   isAutoSaveEnabled,
   onToggleAutoSave,
-  isDoublePage: initialDoublePage = false,
-  onToggleDoublePage,
   isTrimView: initialTrimView = false,
   onToggleTrimView,
   isRulerEnabled: initialRuler = true,
   onToggleRuler
 }) {
-  const [isDoublePage, setIsDoublePage] = useState(initialDoublePage);
-  const [isTrimView, setIsTrimView] = useState(initialTrimView);
+  const [isTrimView, setIsTrimView] = useState(() => {
+    const saved = localStorage.getItem('isTrimViewEnabled');
+    return saved !== null ? JSON.parse(saved) : initialTrimView;
+  });
   const [autoSave, setAutoSave] = useState(() => {
     const saved = localStorage.getItem('isAutoSaveEnabled');
     return saved !== null ? JSON.parse(saved) : (isAutoSaveEnabled !== undefined ? isAutoSaveEnabled : true);
   });
-  const [isRulerEnabled, setIsRulerEnabled] = useState(initialRuler);
+  const [isRulerEnabled, setIsRulerEnabled] = useState(() => {
+    const saved = localStorage.getItem('isRulerEnabled');
+    return saved !== null ? JSON.parse(saved) : initialRuler;
+  });
 
   const syncEditorSettings = async (partialSettings) => {
     try {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         const user = JSON.parse(storedUser);
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
         await axios.post(`${backendUrl}/api/usersetting/update-editor-settings`, {
           emailId: user.emailId,
           editorSettings: partialSettings
@@ -45,22 +48,20 @@ export default function EditorSettingsModal({
   }, [isAutoSaveEnabled]);
 
   useEffect(() => {
-    setIsDoublePage(initialDoublePage);
-  }, [initialDoublePage]);
-
-  useEffect(() => {
-    setIsTrimView(initialTrimView);
-  }, [initialTrimView]);
-
-  useEffect(() => {
-    setIsRulerEnabled(initialRuler);
-  }, [initialRuler]);
+    if (isOpen) {
+      const savedRuler = localStorage.getItem('isRulerEnabled');
+      if (savedRuler !== null) setIsRulerEnabled(JSON.parse(savedRuler));
+      const savedTrim = localStorage.getItem('isTrimViewEnabled');
+      if (savedTrim !== null) setIsTrimView(JSON.parse(savedTrim));
+      const savedAutoSave = localStorage.getItem('isAutoSaveEnabled');
+      if (savedAutoSave !== null) setAutoSave(JSON.parse(savedAutoSave));
+    }
+  }, [isOpen]);
 
   // Listen to global editor settings changes
   useEffect(() => {
     const handleSettingsChanged = (e) => {
       if (e.detail) {
-        if (e.detail.isDoublePage !== undefined) setIsDoublePage(e.detail.isDoublePage);
         if (e.detail.isRulerEnabled !== undefined) setIsRulerEnabled(e.detail.isRulerEnabled);
         if (e.detail.isTrimView !== undefined) setIsTrimView(e.detail.isTrimView);
       }
@@ -68,13 +69,6 @@ export default function EditorSettingsModal({
     window.addEventListener('editor_settings_changed', handleSettingsChanged);
     return () => window.removeEventListener('editor_settings_changed', handleSettingsChanged);
   }, []);
-
-  const handleDoublePageToggle = () => {
-    const next = !isDoublePage;
-    setIsDoublePage(next);
-    if (onToggleDoublePage) onToggleDoublePage(next);
-    window.dispatchEvent(new CustomEvent('editor_toggleDoublePage', { detail: next }));
-  };
 
   const handleTrimViewToggle = () => {
     const next = !isTrimView;
