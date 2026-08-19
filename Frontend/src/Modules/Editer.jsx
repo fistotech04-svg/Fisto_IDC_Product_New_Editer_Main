@@ -45,9 +45,11 @@ const Editor = () => {
                     if (editorSettings) {
                         if (editorSettings.isTrimViewEnabled !== undefined) {
                             localStorage.setItem('isTrimViewEnabled', JSON.stringify(editorSettings.isTrimViewEnabled));
+                            window.dispatchEvent(new CustomEvent('editor_toggleTrimView', { detail: editorSettings.isTrimViewEnabled }));
                         }
                         if (editorSettings.isRulerEnabled !== undefined) {
                             localStorage.setItem('isRulerEnabled', JSON.stringify(editorSettings.isRulerEnabled));
+                            window.dispatchEvent(new CustomEvent('editor_toggleRuler', { detail: editorSettings.isRulerEnabled }));
                         }
                     }
                 }
