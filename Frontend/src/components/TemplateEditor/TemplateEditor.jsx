@@ -326,8 +326,8 @@ const TemplateEditor = () => {
   const [qrCornerDotType, setQrCornerDotType] = useState('square');
   const [qrLogo, setQrLogo] = useState(null);
 
-  const [topText, setTopText] = useState('You can Rotate 3D object');
-  const [bottomText, setBottomText] = useState('Machine');
+  const [topText, setTopText] = useState('You can Rotate 3D Model');
+  const [bottomText, setBottomText] = useState('3D Model');
 
   useEffect(() => {
     if (current3DItem && is3DModalOpen) {
@@ -4382,8 +4382,12 @@ const TemplateEditor = () => {
           <Model3DPreviewModal
             isOpen={is3DModalOpen}
             dataUrl={preview3DDataUrl}
+            shadowStrength={shadowStrength}
+            shadowSoftness={shadowSoftness}
             autoRotate={autoRotate}
             autoRotateSpeed={autoRotateSpeed}
+            lockMaxZoom={lockMaxZoom}
+            maxZoom={maxZoom}
             bgType={bgType}
             bgColor={bgColor}
             customBg={customBg}
