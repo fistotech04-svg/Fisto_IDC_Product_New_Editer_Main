@@ -138,7 +138,7 @@ const TabletLayoutSound = ({
             }
             onClick={(e) => e.stopPropagation()}
             style={isLayout2
-                ? { backgroundColor: 'rgba(98, 95, 162, 0.95)', backdropFilter: 'blur(12px)' }
+                ? { backgroundColor: 'rgba(var(--dropdown-bg-rgb, 98, 95, 162), 0.95)', backdropFilter: 'blur(12px)' }
                 : {
                 backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'),
                 width: '18cqw',

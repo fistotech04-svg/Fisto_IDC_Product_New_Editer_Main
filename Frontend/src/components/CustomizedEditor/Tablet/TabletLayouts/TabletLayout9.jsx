@@ -217,7 +217,7 @@ const TabletLayout9 = ({
     const secondaryColor = '#FFFFFF';
 
     return (
-        <div className="flex flex-col w-full h-full min-h-0 overflow-hidden font-sans relative" style={{ ...backgroundStyle, backgroundColor: '#e2e4ed', containerType: 'size' }}>
+        <div className="flex flex-col w-full h-full min-h-0 overflow-hidden font-sans relative" style={{ ...backgroundStyle, backgroundColor: 'transparent', containerType: 'size' }}>
 
             {/* Click-away Overlay for Search Suggestions */}
             {showSuggestions && recommendations.length > 0 && (

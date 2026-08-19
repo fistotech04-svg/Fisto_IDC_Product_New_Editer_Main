@@ -172,7 +172,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
 
     return (
         <div
-            className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-[#E3E4EF]"
+            className="relative w-full h-full flex flex-col font-sans overflow-hidden "
             style={{ containerType: 'inline-size' }}
         >
             {/* Top Bar */}
@@ -415,7 +415,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
 
                 <div className="flex items-center justify-between w-full -mt-[0.5cqw]">
                     {/* Left: Page Info */}
-                    <div className="bg-[#E3E4EF] text-[#625FA2] px-[1cqw] py-[0.4cqw] rounded-[0.4cqw] text-[0.9cqw] font-semibold shadow-sm">
+                    <div className=" text-[#625FA2] px-[1cqw] py-[0.4cqw] rounded-[0.4cqw] text-[0.9cqw] font-semibold shadow-sm">
                         Page {displayPage} / {totalPages}
                     </div>
 
@@ -457,7 +457,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                     </div>
 
                     {/* Right: Zoom Controls */}
-                    <div className="bg-[#E3E4EF] rounded-[0.4cqw] flex items-center px-[0.6cqw] py-[0.4cqw] gap-[0.8cqw] shadow-sm">
+                    <div className=" rounded-[0.4cqw] flex items-center px-[0.6cqw] py-[0.4cqw] gap-[0.8cqw] shadow-sm">
                         <button className="text-[#625FA2] hover:opacity-80 transition-opacity">
                             <Icon icon="fluent:zoom-out-24-regular" className="w-[1.2cqw] h-[1.2cqw]" />
                         </button>

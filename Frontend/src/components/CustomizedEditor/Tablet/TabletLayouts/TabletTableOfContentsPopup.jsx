@@ -46,8 +46,8 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                 style={isLayout6 || isLayout4 || isLayout3 || isLayout5
                     ? {}
                     : isLayout2
-                        ? { backgroundColor: 'rgba(98, 95, 162, 0.95)', backdropFilter: 'blur(12px)' }
-                        : { backgroundColor: 'rgba(87, 92, 156, 0.9)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255, 255, 255, 0.15)' }
+                        ? { backgroundColor: 'rgba(var(--toc-bg-rgb, 98, 95, 162), 0.95)', backdropFilter: 'blur(12px)' }
+                        : { backgroundColor: `rgba(var(--toc-bg-rgb, 87, 92, 156), 0.9)`, backdropFilter: 'blur(10px)', border: '1px solid rgba(255, 255, 255, 0.15)' }
                 }
                 onClick={(e) => e.stopPropagation()}
             >

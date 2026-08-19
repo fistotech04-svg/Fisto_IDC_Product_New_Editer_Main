@@ -31,7 +31,7 @@ export const LAYOUT_DEFAULT_COLORS = {
         { id: 'dropdown-text', label: 'Text color', hex: '#FFFFFF', opacity: 100, component: 'Dropdown' },
         { id: 'thumbnail-outer-v2', label: 'Outer container color', hex: '#575C9C', opacity: 80, component: 'Thumbnail' },
         { id: 'thumbnail-inner-v2', label: 'Inner container color', hex: '#BCBEE1', opacity: 100, component: 'Thumbnail' },
-        { id: 'toc-bg', label: 'Background color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'toc-bg', label: 'Background color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-text', label: 'Text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-overlay', label: 'Overlay layer', hex: '#000000', opacity: 100, component: 'Table Of Content' },
     ],
@@ -39,14 +39,14 @@ export const LAYOUT_DEFAULT_COLORS = {
         { id: 'toolbar-bg', label: 'Topbar BG color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'bottom-toolbar-bg', label: 'Bottombar BG color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'toolbar-text-main', label: 'Icons color', hex: '#FFFFFF', opacity: 80, component: 'Toolbar' },
-        { id: 'dropdown-bg', label: 'Background color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'dropdown-bg', label: 'Background color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-text', label: 'Text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-icon', label: 'Dropdown icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'search-bg-v2', label: 'Search bar BG color', hex: '#DDE0F4', opacity: 100, component: 'Toolbar' },
         { id: 'search-text-v1', label: 'Search bar text color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'thumbnail-outer-v2', label: 'Thumbnail BG color', hex: '#dcdef7', opacity: 100, component: 'Table Of Content' },
         { id: 'thumbnail-inner-v2', label: 'Inner container color', hex: '#BCBEE1', opacity: 100, component: 'Table Of Content' },
-        { id: 'toc-bg', label: 'TOC Background color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'toc-bg', label: 'TOC Background color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-text', label: 'TOC Text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-icon', label: 'TOC Icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-overlay', label: 'TOC Overlay', hex: '#000000', opacity: 100, component: 'Table Of Content' },
@@ -88,14 +88,14 @@ export const LAYOUT_DEFAULT_COLORS = {
         { id: 'toolbar-bg', label: 'Topbar BG color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'bottom-toolbar-bg', label: 'Bottombar BG color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'toolbar-text-main', label: 'Icons color', hex: '#FFFFFF', opacity: 80, component: 'Toolbar' },
-        { id: 'dropdown-bg', label: 'Background color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'dropdown-bg', label: 'Background color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-text', label: 'Text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-icon', label: 'Dropdown icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'search-bg-v2', label: 'Search bar BG color', hex: '#DDE0F4', opacity: 100, component: 'Toolbar' },
         { id: 'search-text-v1', label: 'Search bar text color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'thumbnail-outer-v2', label: 'Thumbnail BG color', hex: '#dcdef7', opacity: 100, component: 'Table Of Content' },
         { id: 'thumbnail-inner-v2', label: 'Inner container color', hex: '#BCBEE1', opacity: 100, component: 'Table Of Content' },
-        { id: 'toc-bg', label: 'TOC Background color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'toc-bg', label: 'TOC Background color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-text', label: 'TOC Text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-icon', label: 'TOC Icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-overlay', label: 'TOC Overlay', hex: '#000000', opacity: 100, component: 'Table Of Content' },
@@ -107,12 +107,12 @@ export const LAYOUT_DEFAULT_COLORS = {
         { id: 'toolbar-icon', label: 'Toolbar icon color', hex: '#FFFFFF', opacity: 100, component: 'Toolbar' },
         { id: 'search-bg-v2', label: 'Search bar background color', hex: '#DDE0F4', opacity: 100, component: 'Toolbar' },
         { id: 'search-text-v1', label: 'Search bar text color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
-        { id: 'dropdown-bg', label: 'Dropdown BG color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'dropdown-bg', label: 'Dropdown BG color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-text', label: 'Dropdown text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-icon', label: 'Dropdown icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'thumbnail-outer-v2', label: 'Thumbnail BG color', hex: '#dcdef7', opacity: 100, component: 'Table Of Content' },
         { id: 'thumbnail-inner-v2', label: 'Inner container color', hex: '#BCBEE1', opacity: 100, component: 'Table Of Content' },
-        { id: 'toc-bg', label: 'TOC Background color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'toc-bg', label: 'TOC Background color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-text', label: 'TOC Text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-icon', label: 'TOC Icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-overlay', label: 'TOC Overlay', hex: '#000000', opacity: 100, component: 'Table Of Content' },
@@ -124,7 +124,7 @@ export const LAYOUT_DEFAULT_COLORS = {
         { id: 'bottom-toolbar-bg', label: 'Bottom Bar BG', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'search-bg-v2', label: 'Search BG color', hex: '#FFFFFF', opacity: 100, component: 'Toolbar' },
         { id: 'search-text-v1', label: 'Search text color', hex: '#2D2D2D', opacity: 100, component: 'Toolbar' },
-        { id: 'dropdown-bg', label: 'Dropdown BG color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'dropdown-bg', label: 'Dropdown BG color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-text', label: 'Dropdown text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-icon', label: 'Dropdown icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-bg', label: 'TOC Background', hex: '#FFFFFF', opacity: 40, component: 'Table Of Content' },
@@ -135,7 +135,7 @@ export const LAYOUT_DEFAULT_COLORS = {
         { id: 'toolbar-bg', label: 'Topbar BG color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'bottom-toolbar-bg', label: 'Bottombar BG color', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'toolbar-text-main', label: 'Icons color', hex: '#FFFFFF', opacity: 80, component: 'Toolbar' },
-        { id: 'dropdown-bg', label: 'Background color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'dropdown-bg', label: 'Background color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-text', label: 'Text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'dropdown-icon', label: 'Dropdown icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'search-bg-v2', label: 'Search bar BG color', hex: '#DDE0F4', opacity: 100, component: 'Toolbar' },
@@ -146,7 +146,7 @@ export const LAYOUT_DEFAULT_COLORS = {
         { id: 'page-number-text', label: 'Page number text', hex: '#FFFFFF', opacity: 100, component: 'Toolbar' },
         { id: 'thumbnail-outer-v2', label: 'Thumbnail BG color', hex: '#dcdef7', opacity: 100, component: 'Table Of Content' },
         { id: 'thumbnail-inner-v2', label: 'Inner container color', hex: '#BCBEE1', opacity: 100, component: 'Table Of Content' },
-        { id: 'toc-bg', label: 'TOC Background color', hex: '#575C9C', opacity: 80, component: 'Table Of Content' },
+        { id: 'toc-bg', label: 'TOC Background color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-text', label: 'TOC Text color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-icon', label: 'TOC Icon color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
         { id: 'toc-overlay', label: 'TOC Overlay', hex: '#000000', opacity: 100, component: 'Table Of Content' },
@@ -161,6 +161,15 @@ export const LAYOUT_DEFAULT_COLORS = {
         { id: 'reset-text', label: 'Reset box text', hex: '#FFFFFF', opacity: 100, component: 'Toolbar' },
         { id: 'page-number-bg', label: 'Page number BG', hex: '#575C9C', opacity: 100, component: 'Toolbar' },
         { id: 'page-number-text', label: 'Page number text', hex: '#FFFFFF', opacity: 100, component: 'Toolbar' },
+        { id: 'dropdown-bg', label: 'Dropdown BG color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
+        { id: 'dropdown-text', label: 'Dropdown text color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
+        { id: 'dropdown-icon', label: 'Dropdown icon color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
+        { id: 'thumbnail-outer-v2', label: 'Thumbnail BG color', hex: '#EBEBEB', opacity: 100, component: 'Table Of Content' },
+        { id: 'thumbnail-inner-v2', label: 'Thumbnail Accent color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
+        { id: 'toc-bg', label: 'TOC Background color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
+        { id: 'toc-text', label: 'TOC Text color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
+        { id: 'toc-icon', label: 'TOC Icon color', hex: '#575C9C', opacity: 100, component: 'Table Of Content' },
+        { id: 'toc-overlay', label: 'Overlay color', hex: '#FFFFFF', opacity: 100, component: 'Table Of Content' },
     ],
 };
 
@@ -314,7 +323,11 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
             });
         }
 
-        return merged;
+        return {
+            ...merged,
+            toolbarColor: savedSource?.toolbarColor || {},
+            popupColor: savedSource?.popupColor || {}
+        };
     };
 
     // ── Merge saved with defaults ──────────────────────────────────────────
@@ -381,8 +394,8 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 const styleBLayouts = [3, 4, 5, 6, 7, 9];
                 const sourceIsStyleB = styleBLayouts.includes(layoutIdx);
 
-                const currentSourcePrimary = updated[layoutIdx].find(c => popupPrimaryIds.includes(c.id))?.hex || newHex;
-                const currentSourceSecondary = updated[layoutIdx].find(c => popupSecondaryIds.includes(c.id))?.hex || newHex;
+                const currentSourcePrimary = updated[layoutIdx].find(c => popupPrimaryIds.includes(c.id))?.hex || updated.popupColor?.primary || newHex;
+                const currentSourceSecondary = updated[layoutIdx].find(c => popupSecondaryIds.includes(c.id))?.hex || updated.popupColor?.secondary || newHex;
 
                 const sourcePrimaryHex = isPrimary ? newHex : currentSourcePrimary;
                 const sourceSecondaryHex = !isPrimary ? newHex : currentSourceSecondary;
@@ -408,8 +421,10 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
             }
 
             const formatted = formatLayoutColorsPayload(updated);
-            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
-            return updated;
+            if (onUpdateLayoutColors) {
+                setTimeout(() => onUpdateLayoutColors(formatted), 0);
+            }
+            return formatted;
         });
     };
 
@@ -452,9 +467,10 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
             }
 
             const formatted = formatLayoutColorsPayload(updated);
-            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
-            return updated;
-            return updated;
+            if (onUpdateLayoutColors) {
+                setTimeout(() => onUpdateLayoutColors(formatted), 0);
+            }
+            return formatted;
         });
     };
 
@@ -473,7 +489,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
 
     // ─────────────────────────────────────────────────────────────────────
     return (
-        <div className="relative flex flex-col w-full min-h-full pb-[5vw] overflow-x-hidden">
+        <div className="relative flex flex-col w-full min-h-full pb-[5vw]">
             {/* ── Top Tab Buttons ── */}
             <div className="sticky top-0 z-[50] grid grid-cols-2 gap-[0.8vw] py-[0.8vw] mb-[1vw] bg-white px-[1vw] border-b border-gray-100">
                 {['Layouts', 'Layout Colors'].map((tab) => {
@@ -541,10 +557,16 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                     return saved ? { ...saved } : { ...d };
                 });
 
-                const toolbarPrimary = currentLayoutColors.find(c => c.id === 'toolbar-bg') || { id: 'toolbar-bg', hex: '#575C9C', opacity: 100 };
-                const toolbarSecondary = currentLayoutColors.find(c => c.id === 'toolbar-text-main') || { id: 'toolbar-text-main', hex: '#FFFFFF', opacity: 100 };
-                const popupPrimary = currentLayoutColors.find(c => c.id === 'toc-bg') || currentLayoutColors.find(c => c.id === 'dropdown-bg') || { id: 'toc-bg', hex: '#575C9C', opacity: 80 };
-                const popupSecondary = currentLayoutColors.find(c => c.id === 'toc-text') || currentLayoutColors.find(c => c.id === 'dropdown-text') || { id: 'toc-text', hex: '#FFFFFF', opacity: 100 };
+                const styleBLayouts = [3, 4, 5, 6, 7, 9];
+                const isStyleB = styleBLayouts.includes(activeLayout);
+                
+                const fallbackPopupPrimary = isStyleB ? (colors.popupColor?.secondary || '#FFFFFF') : (colors.popupColor?.primary || '#575C9C');
+                const fallbackPopupSecondary = isStyleB ? (colors.popupColor?.primary || '#575C9C') : (colors.popupColor?.secondary || '#FFFFFF');
+
+                const toolbarPrimary = currentLayoutColors.find(c => c.id === 'toolbar-bg') || { id: 'toolbar-bg', hex: colors.toolbarColor?.primary || '#575C9C', opacity: 100 };
+                const toolbarSecondary = currentLayoutColors.find(c => c.id === 'toolbar-text-main') || { id: 'toolbar-text-main', hex: colors.toolbarColor?.secondary || '#FFFFFF', opacity: 100 };
+                const popupPrimary = currentLayoutColors.find(c => c.id === 'toc-bg') || currentLayoutColors.find(c => c.id === 'dropdown-bg') || { id: 'toc-bg', hex: fallbackPopupPrimary, opacity: 80 };
+                const popupSecondary = currentLayoutColors.find(c => c.id === 'toc-text') || currentLayoutColors.find(c => c.id === 'dropdown-text') || { id: 'toc-text', hex: fallbackPopupSecondary, opacity: 100 };
 
                 const colorPresets = [
                     { primary: LAYOUT_DEFAULT_COLORS[1][0].hex, secondary: LAYOUT_DEFAULT_COLORS[1][2].hex },

@@ -76,7 +76,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
         const r = parseInt(h.substring(0, 2), 16);
         const g = parseInt(h.substring(2, 4), 16);
         const b = parseInt(h.substring(4, 6), 16);
-        const a = Math.max(0, Math.min(1, opacity / 100));
+        const a = 0.4 + (Math.max(0, Math.min(1, opacity / 100)) * 0.6);
         return a >= 1 ? hex : `rgba(${r},${g},${b},${a})`;
     };
     const getLayoutColor = (id, defaultColor) => {
@@ -93,7 +93,10 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
     const dropdownBgHex = layoutColors?.find(c => c.id === 'dropdown-bg')?.hex || '#2D2D2D';
     const dropdownTextHex = layoutColors?.find(c => c.id === 'dropdown-text')?.hex || '#FFFFFF';
     const toolbarBgHex = layoutColors?.find(c => c.id === 'toolbar-bg')?.hex || '#575C9C';
-    const bodyTextColor = isLightColor(dropdownBgHex) ? dropdownTextHex : dropdownBgHex;
+    let bodyTextColor = isLightColor(dropdownBgHex) ? dropdownTextHex : dropdownBgHex;
+    if (isLightColor(bodyTextColor)) {
+        bodyTextColor = '#333333';
+    }
 
     const contacts = currentProfile?.contacts || [];
 
@@ -304,7 +307,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                         >
                             <div
                                 className={`rounded-[0.65vw] p-[1vw] ${isTablet ? 'w-[9.5vw] min-h-[13vw]' : 'w-[15.5vw] min-h-[18vw]'} relative`}
-                                style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
+                                style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.2 + var(--dropdown-bg-opacity, 1) * 0.8))` }}
                             >
                                 <div className="w-full">
                                     {!hasData ? (
@@ -417,7 +420,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                         >
                             <div
                                 className="p-[0.8vw] w-full"
-                                style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
+                                style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.2 + var(--dropdown-bg-opacity, 1) * 0.8))` }}
                             >
                                 <div className="relative z-10 p-[0.8vw]">
                                     {!hasData ? (
@@ -625,7 +628,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                     <div className="bg-white/60 backdrop-blur-xl border border-white/50 p-[3px] rounded-[12px] shadow-2xl">
                         <div
                             className="rounded-[8px] p-3 w-[150px] relative"
-                            style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
+                            style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.2 + var(--dropdown-bg-opacity, 1) * 0.8))` }}
                         >
                             {!hasData ? (
                                 <div className="text-[10px] text-center py-3 opacity-80 font-medium whitespace-nowrap" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 0.8)" }}>
@@ -719,7 +722,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                     >
                         <div
                             className="rounded-[inherit] p-2.5 w-full flex flex-col"
-                            style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
+                            style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.2 + var(--dropdown-bg-opacity, 1) * 0.8))` }}
                         >
                             {!hasData ? (
                                 <div className="text-[10px] text-center py-2 opacity-80 font-medium whitespace-nowrap" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 0.8)", fontFamily: "'Poppins', sans-serif" }}>
@@ -914,20 +917,20 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                 </defs>
                                 <path
                                     d={hasData ? "M0 162C0 137.1 8.95 117 20 117H180C191.05 117 200 108 200 97V65C200 29.1 211.2 0 225 0C238.8 0 250 29.1 250 65V585C250 610 241.05 630 230 630H20C8.95 630 0 610 0 585V162Z" : "M0 250C0 211.34 8.95 180 20 180H180C191.05 180 200 166.6 200 150V100C200 44.8 211.2 0 225 0C238.8 0 250 44.8 250 100V560C250 598.66 241.05 630 230 630H20C8.95 630 0 598.66 0 560V250Z"}
-                                    fill={toolbarBgHex}
-                                    fillOpacity={0.8}
+                                    fill={dropdownBgHex}
+                                    fillOpacity={1}
                                 />
                             </svg>
                         </div>
 
                         {/* Content Layer */}
                         <div
-                            className="relative z-10 flex flex-col flex-1 px-[0.4vw] pb-[0.4vw] backdrop-blur-md pt-[3.7vw]"
+                            className="relative z-10 flex flex-col flex-1 px-[0.4vw] pb-[0.4vw] pt-[3.7vw]"
                             style={{ clipPath: 'url(#profile-shape-clip)', WebkitClipPath: 'url(#profile-shape-clip)' }}
                         >
-                            <div className={`bg-white/90 rounded-[0.8vw] flex flex-col w-full h-full p-[1vw] shadow-sm overflow-hidden ${hasData ? 'min-h-[13.5vw]' : 'min-h-[7vw]'}`}>
+                            <div className={`rounded-[0.8vw] flex flex-col w-full h-full p-[1vw] shadow-sm overflow-hidden ${hasData ? 'min-h-[13.5vw]' : 'min-h-[7vw]'}`} style={{ backgroundColor: dropdownTextHex }}>
                                 {!hasData ? (
-                                    <div className="text-[0.9vw] text-center py-[2vw] italic font-medium" style={{ color: layout9AccentColor, opacity: 0.5 }}>
+                                    <div className="text-[0.9vw] text-center py-[2vw] italic font-medium" style={{ color: dropdownBgHex, opacity: 0.8 }}>
                                         No profile found
                                     </div>
                                 ) : (
@@ -935,21 +938,21 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                         {/* Name Row */}
                                         {name && (
                                             <div className="flex items-start gap-[0.5vw] animate-in slide-in-from-left-2 duration-300">
-                                                <span className="text-[0.9vw] font-medium tracking-tight" style={{ color: layout9AccentColor }}>Name :</span>
-                                                <span className="text-[1vw] font-semibold" style={{ color: layout9AccentColor }}>{name}</span>
+                                                <span className="text-[0.9vw] font-medium tracking-tight" style={{ color: dropdownBgHex }}>Name :</span>
+                                                <span className="text-[1vw] font-semibold" style={{ color: dropdownBgHex }}>{name}</span>
                                             </div>
                                         )}
                                         {/* About Row */}
                                         {about && (
                                             <div className="flex flex-col gap-[0.3vw] animate-in slide-in-from-left-2 duration-400">
-                                                <span className="text-[0.9vw] font-medium tracking-tight" style={{ color: layout9AccentColor }}>About :</span>
-                                                <p className="text-[0.88vw] leading-relaxed font-semibold opacity-90 text-justify tracking-tight" style={{ color: layout9AccentColor }}>{about}</p>
+                                                <span className="text-[0.9vw] font-medium tracking-tight" style={{ color: dropdownBgHex }}>About :</span>
+                                                <p className="text-[0.88vw] leading-relaxed font-semibold opacity-90 text-justify tracking-tight" style={{ color: dropdownBgHex }}>{about}</p>
                                             </div>
                                         )}
                                         {/* Contact Section */}
                                         {contacts.length > 0 && (
                                             <div className="flex flex-col gap-[0.8vw] animate-in slide-in-from-bottom-2 duration-500 mt-[0.5vw]">
-                                                <span className="text-[0.9vw] font-medium tracking-tight" style={{ color: layout9AccentColor }}>Contact :</span>
+                                                <span className="text-[0.9vw] font-medium tracking-tight" style={{ color: dropdownBgHex }}>Contact :</span>
                                                 <div className="flex items-center flex-wrap gap-[0.6vw]">
                                                     {contacts.map((contact) => {
                                                         if (!contact.value) return null;
@@ -962,7 +965,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                                 title={contact.value}
                                                             >
                                                                 {contact.type === 'phone' ? (
-                                                                    <Icon icon={style.icon} className="w-[1.4vw] h-[1.4vw]" style={{ color: layout9AccentColor }} strokeWidth={3} />
+                                                                    <Icon icon={style.icon} className="w-[1.4vw] h-[1.4vw]" style={{ color: dropdownBgHex }} strokeWidth={3} />
                                                                 ) : contact.type === 'x' ? (
                                                                     <span className="text-white font-bold text-[1.4vw] leading-none" style={{ fontFamily: 'serif' }}>𝕏</span>
                                                                 ) : (
@@ -1518,12 +1521,13 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                         fontFamily: isLayout3 ? "'Poppins', sans-serif" : undefined
                     }}
                 >
-                    <div
-                        className={isLayout2 ? `rounded-[0.65vw] ${isTablet ? 'p-[0.8vw] w-[9.5vw]' : 'p-[1vw] w-[15.5vw]'} ${hasData ? (isTablet ? 'min-h-[13vw]' : 'min-h-[18vw]') : ''} relative` : (isLayout4 || isLayout5 || isLayout6 || isLayout7 || isLayout8 || isLayout9 ? 'rounded-[0.7vw] p-[0.8vw] w-full' : `rounded-[0.7vw] ${isLayout1 ? 'pt-[0.05vw] pb-[0.8vw] px-[0.8vw]' : (isLayout3 ? 'pt-[0.3vw] pb-[0.8vw] px-[0.8vw]' : 'p-[0.8vw]')} w-full`)}
-                        style={{ backgroundColor: (isLayout2 || isLayout3) ? `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` : (isLayout1 ? 'transparent' : getLayoutColor('dropdown-bg', '#FFFFFF')) }}
-                    >
-                        <div className={isLayout3 ? (isMobile ? 'relative z-10 p-[10px] flex-1 flex flex-col justify-between' : 'relative z-10 pt-[0.2vw] pb-[0.8vw] px-[0.8vw]') : 'w-full'}>
-                            {!hasData ? (
+                    <div className={isLayout2 ? "bg-white rounded-[0.65vw] overflow-hidden" : ""}>
+                        <div
+                            className={isLayout2 ? `rounded-[0.65vw] ${isTablet ? 'p-[0.8vw] w-[9.5vw]' : 'p-[1vw] w-[15.5vw]'} ${hasData ? (isTablet ? 'min-h-[13vw]' : 'min-h-[18vw]') : ''} relative` : (isLayout4 || isLayout5 || isLayout6 || isLayout7 || isLayout8 || isLayout9 ? 'rounded-[0.7vw] p-[0.8vw] w-full' : `rounded-[0.7vw] ${isLayout1 ? 'pt-[0.05vw] pb-[0.8vw] px-[0.8vw]' : (isLayout3 ? 'pt-[0.3vw] pb-[0.8vw] px-[0.8vw]' : 'p-[0.8vw]')} w-full`)}
+                            style={{ backgroundColor: (isLayout2 || isLayout3) ? `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.2 + var(--dropdown-bg-opacity, 1) * 0.8))` : (isLayout1 ? 'transparent' : getLayoutColor('dropdown-bg', '#FFFFFF')) }}
+                        >
+                            <div className={isLayout3 ? (isMobile ? 'relative z-10 p-[10px] flex-1 flex flex-col justify-between' : 'relative z-10 pt-[0.2vw] pb-[0.8vw] px-[0.8vw]') : 'w-full'}>
+                                {!hasData ? (
                                 <div className="text-[0.8vw] text-center py-[1.5vw] opacity-80 font-medium whitespace-nowrap" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 0.8)", fontFamily: isLayout3 ? "'Poppins', sans-serif" : undefined }}>
                                     No profile found
                                 </div>
@@ -1626,6 +1630,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                             )}
                         </div>
                     </div>
+                    </div>
                 </div>
             </div>
         </>
@@ -1633,3 +1638,5 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
 };
 
 export default ProfilePopup;
+
+

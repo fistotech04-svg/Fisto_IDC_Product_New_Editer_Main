@@ -174,8 +174,10 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
             }
 
             const formatted = formatLayoutColorsPayload(updated);
-            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
-            return updated;
+            if (onUpdateLayoutColors) {
+                setTimeout(() => onUpdateLayoutColors(formatted), 0);
+            }
+            return formatted;
         });
     };
 
@@ -224,8 +226,10 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
             }
 
             const formatted = formatLayoutColorsPayload(updated);
-            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
-            return updated;
+            if (onUpdateLayoutColors) {
+                setTimeout(() => onUpdateLayoutColors(formatted), 0);
+            }
+            return formatted;
         });
     };
 
@@ -237,8 +241,10 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                 updated[i] = LAYOUT_DEFAULT_COLORS[i].map(c => ({ ...c }));
             }
             const formatted = formatLayoutColorsPayload(updated);
-            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
-            return updated;
+            if (onUpdateLayoutColors) {
+                setTimeout(() => onUpdateLayoutColors(formatted), 0);
+            }
+            return formatted;
         });
         setPickerColorIdx(null);
     };
@@ -311,8 +317,10 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
             }
 
             const formatted = formatLayoutColorsPayload(updated);
-            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
-            return updated;
+            if (onUpdateLayoutColors) {
+                setTimeout(() => onUpdateLayoutColors(formatted), 0);
+            }
+            return formatted;
         });
     };
 
@@ -359,10 +367,17 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                         if (isFirstPreset) {
                             newHex = def.hex;
                         } else {
-                            if (isPrimary) newHex = theme.primary;
-                            else if (isShade) newHex = getTint(theme.primary, 0.75);
-                            else if (isContrast) newHex = theme.secondary || '#FFFFFF';
-                            else if (isSearchText) {
+                            const styleBLayouts = [3, 4, 5, 6, 7, 9];
+                            const isStyleB = styleBLayouts.includes(i);
+                            const isPopupElement = isPopupsTab;
+
+                            if (isPrimary) {
+                                newHex = (isStyleB && isPopupElement) ? (theme.secondary || '#FFFFFF') : theme.primary;
+                            } else if (isShade) {
+                                newHex = getTint((isStyleB && isPopupElement) ? (theme.secondary || '#FFFFFF') : theme.primary, 0.75);
+                            } else if (isContrast) {
+                                newHex = (isStyleB && isPopupElement) ? theme.primary : (theme.secondary || '#FFFFFF');
+                            } else if (isSearchText) {
                                 const isLightBar = isLightColor(theme.primary);
                                 newHex = ensureDarkText(isLightBar ? (theme.secondary || '#FFFFFF') : theme.primary);
                             }
@@ -379,8 +394,10 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
             }
 
             const formatted = formatLayoutColorsPayload(updated);
-            if (onUpdateLayoutColors) onUpdateLayoutColors(formatted);
-            return updated;
+            if (onUpdateLayoutColors) {
+                setTimeout(() => onUpdateLayoutColors(formatted), 0);
+            }
+            return formatted;
         });
     };
 

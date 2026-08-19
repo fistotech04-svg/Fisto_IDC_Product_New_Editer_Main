@@ -390,7 +390,7 @@ const Grid8Layout = ({
         const r = parseInt(h.substring(0, 2), 16);
         const g = parseInt(h.substring(2, 4), 16);
         const b = parseInt(h.substring(4, 6), 16);
-        const a = Math.max(0.4, Math.min(1, opacity / 100));
+        const a = 0.4 + (Math.max(0, Math.min(1, opacity / 100)) * 0.6);
         return a >= 1 ? hex : `rgba(${r},${g},${b},${a})`;
     };
 
@@ -459,6 +459,7 @@ const Grid8Layout = ({
                 setShowSuggestions(false);
                 setShowBookmarkOptions(false);
                 setShowNotesOptions(false);
+                closeAllPopups();
             }}
         >
             {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[80] bg-transparent" onClick={() => setShowSuggestions(false)} />}
@@ -1042,16 +1043,17 @@ const Grid8Layout = ({
                         exit={{ y: '100%' }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                         className="fixed z-[101] rounded-t-[0.8vw] overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
                         style={{
-                            left: isSidebarOpen ? '40vw' : '34vw',
-                            right: isSidebarOpen ? '10vw' : '16vw',
+                            left: isFullscreen ? '25vw' : (isSidebarOpen ? '43.5vw' : '34vw'),
+                            right: isFullscreen ? '25vw' : (isSidebarOpen ? '6.5vw' : '16vw'),
                             bottom: isTablet ? '7.5vh' : '9vh',
                             backgroundColor: '#FFFFFF',
                             maxHeight: '45vh',
                             boxShadow: '0 -10px 40px rgba(0,0,0,0.3)',
                             backdropFilter: 'none',
                             opacity: 1,
-                            transition: 'left 0.3s ease'
+                            transition: 'left 0.3s ease, right 0.3s ease'
                         }}
                     >
                         {/* Header */}
@@ -1121,3 +1123,5 @@ const Grid8Layout = ({
 };
 
 export default Grid8Layout;
+
+

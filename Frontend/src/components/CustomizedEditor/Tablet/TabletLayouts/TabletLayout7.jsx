@@ -38,13 +38,13 @@ const TabletLayout7 = ({
     };
 
     return (
-        <div className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-[#E6E8ED]" style={{ containerType: 'inline-size' }}>
+        <div className="relative w-full h-full flex flex-col font-sans overflow-hidden " style={{ containerType: 'inline-size' }}>
       <div id="tablet-download-portal" className="absolute inset-0 z-[60] pointer-events-none"></div>
             
             {/* Top Bar - Floating/Transparent */}
             <div className="absolute top-[2cqw] left-[2cqw] right-[2cqw] flex items-center justify-between z-20 pointer-events-none">
                 {/* Search Bar */}
-                <div className="pointer-events-auto flex items-center bg-[#E6E8ED]/40 border border-[#CBD5E1] rounded-[0.5cqw] px-[1cqw] py-[0.6cqw] w-[20cqw] backdrop-blur-sm shadow-sm">
+                <div className="pointer-events-auto flex items-center /40 border border-[#CBD5E1] rounded-[0.5cqw] px-[1cqw] py-[0.6cqw] w-[20cqw] backdrop-blur-sm shadow-sm">
                     <Icon icon="lucide:search" className="text-[#8492A6] w-[1.5cqw] h-[1.5cqw]" />
                     <input type="text" placeholder="Quick Search..." className="bg-transparent outline-none border-none text-[1.2cqw] ml-[0.5cqw] text-gray-700 w-full placeholder-[#8492A6]" />
                 </div>

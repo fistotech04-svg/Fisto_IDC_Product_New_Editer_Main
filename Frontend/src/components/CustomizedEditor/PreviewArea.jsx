@@ -4388,6 +4388,7 @@ const PreviewArea = React.memo(({
                     isEditor={!onClose}
                     isFullscreen={isFullscreen}
                     isSidebarOpen={isSidebarOpen}
+                    layoutColors={layoutColors?.[activeLayout]}
                 />
             )}
 
@@ -4638,7 +4639,7 @@ const PreviewArea = React.memo(({
             }}
         >
 
-            {backgroundLayers}
+            {(!['Tablet', 'Mobile'].includes(activeDevice) || isPublishedPreview || (activeDevice === 'Tablet' && isPhysicalTablet) || (activeDevice === 'Mobile' && isPhysicalMobile)) && backgroundLayers}
 
             {activeDevice === 'Mobile' ? (
                 (() => {
@@ -4681,18 +4682,7 @@ const PreviewArea = React.memo(({
                 })()
             ) : (
                 <>
-                    {/* Tablet Outer Background Layer */}
-                    {activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet && (
-                        <div
-                            className="absolute inset-0 z-0 pointer-events-none"
-                            style={{ ...backgroundStyle, opacity: 0.4 }}
-                        />
-                    )}
-                    {activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
-                        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-50">
-                            {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
-                        </div>
-                    )}
+                    {/* Outer background explicitly removed for tablet mockup as per requirement to not show background outside */}
 
                     <div style={{ ...((activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet) ? deviceStyles.Tablet : deviceStyles.Desktop), zIndex: 10 }} className="relative">
                         {/* Floor shadow effect for Tablet bottom (using the style of the SVG) */}
@@ -6060,3 +6050,5 @@ const PreviewArea = React.memo(({
 });
 
 export default PreviewArea;
+
+
