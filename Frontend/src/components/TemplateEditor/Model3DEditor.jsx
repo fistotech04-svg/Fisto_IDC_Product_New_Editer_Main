@@ -109,10 +109,51 @@ export const CustomQRCode = React.forwardRef(({
     }, [value, size, margin, fgColor, bgColor, dotType, cornerSquareType, cornerDotType, level, logo]);
 
     React.useImperativeHandle(ref, () => ({
-        download: async (options) => {
+        download: async (options = {}) => {
             if (qrStylingRef.current) {
                 try {
-                    await qrStylingRef.current.download(options);
+                    const ext = options.extension || 'png';
+                    const downloadSize = options.size || 1024;
+                    const resolvedBgColor = bgColor === 'transparent' ? 'rgba(0,0,0,0)' : bgColor;
+
+                    qrStylingRef.current.update({
+                        type: ext === 'svg' ? 'svg' : 'canvas',
+                        width: downloadSize,
+                        height: downloadSize,
+                        data: value || 'https://google.com',
+                        margin: margin !== undefined ? margin : Math.max(2, Math.round(downloadSize * 0.05)),
+                        dotsOptions: {
+                            color: fgColor,
+                            type: dotType
+                        },
+                        backgroundOptions: {
+                            color: resolvedBgColor
+                        },
+                        cornersSquareOptions: {
+                            color: fgColor,
+                            type: cornerSquareType
+                        },
+                        cornersDotOptions: {
+                            color: fgColor,
+                            type: cornerDotType
+                        },
+                        qrOptions: {
+                            errorCorrectionLevel: level || 'L'
+                        },
+                        imageOptions: {
+                            crossOrigin: 'anonymous',
+                            margin: Math.round(downloadSize * 0.03),
+                            hideBackgroundDots: true
+                        },
+                        image: logo || undefined
+                    });
+
+                    await qrStylingRef.current.download({
+                        name: options.name || 'ar-qr-code',
+                        extension: ext
+                    });
+
+                    qrStylingRef.current.update({ type: 'svg' });
                 } catch (e) {
                     console.error('Error downloading QR code via qr-code-styling:', e);
                 }
@@ -154,7 +195,7 @@ const Model3DEditor = ({
   enableAR, setEnableAR,
   qrText, setQrText, qrColor, setQrColor, qrBgType, setQrBgType, qrBgColor, setQrBgColor, qrLevel, setQrLevel, qrDotType, setQrDotType, qrCornerSquareType, setQrCornerSquareType, qrCornerDotType, setQrCornerDotType, qrLogo, setQrLogo,
   topText, setTopText, bottomText, setBottomText,
-  dataUrl
+  dataUrl, vId
 }) => {
 
   useEffect(() => {
@@ -172,16 +213,30 @@ const Model3DEditor = ({
   ];
 
   const safeQrValue = React.useMemo(() => {
-    if (!dataUrl) return qrText || "Scan Me";
-    if (dataUrl.startsWith('data:') || dataUrl.startsWith('blob:')) {
+    if (!dataUrl && !vId) return qrText || "Scan Me";
+    
+    let resolvedVId = vId || null;
+    if (!resolvedVId && typeof dataUrl === 'string' && dataUrl.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(dataUrl);
+        if (parsed.v_id) resolvedVId = parsed.v_id;
+        if (parsed.vId) resolvedVId = parsed.vId;
+      } catch (e) {}
+    }
+
+    if (resolvedVId) {
+      return `${window.location.origin}/ar-view?id=${resolvedVId}`;
+    }
+
+    if (dataUrl && (dataUrl.startsWith('data:') || dataUrl.startsWith('blob:'))) {
       return "AR View unavailable for local/unsaved models.";
     }
-    // Resolve absolute URL to avoid relative path issues when scanned, 
-    // and use encodeURI to keep the QR string much shorter and simpler than encodeURIComponent.
-    const resolvedUrl = new URL(dataUrl, window.location.href).href;
-    return `${window.location.origin}/ar-view?url=${encodeURI(resolvedUrl)}`;
-  }, [dataUrl, qrText]);
 
+    const resolvedUrl = new URL(dataUrl, window.location.href).href;
+    return `${window.location.origin}/ar-view?url=${encodeURIComponent(resolvedUrl)}`;
+  }, [dataUrl, qrText, vId]);
+
+  const mainQrRef = useRef(null);
   const [activeThemeIdx, setActiveThemeIdx] = useState(0);
 
   const [showDotTypeDropdown, setShowDotTypeDropdown] = useState(false);
@@ -548,21 +603,42 @@ const Model3DEditor = ({
                   ))}
                 </div>
 
-                {/* Real QR Preview */}
-                <div className="w-full flex justify-center mb-[1vw]">
+                {/* Real QR Preview & Download */}
+                <div className="w-full flex flex-col items-center gap-[0.75vw] mb-[1vw]">
                   <div className="w-[12vw] h-[12vw] border border-gray-200 rounded-[1vw] overflow-hidden shadow-sm p-[1vw]" style={{ backgroundColor: qrBgType === 'Solid' ? qrBgColor : 'transparent' }}>
                     <CustomQRCode 
+                      ref={mainQrRef}
                       value={enableAR ? safeQrValue : qrText} 
                       size={1024} 
-                      margin={0}
+                      margin={4}
                       fgColor={qrColor} 
                       bgColor={qrBgType === 'Solid' ? qrBgColor : 'transparent'} 
                       dotType={qrDotType} 
                       cornerSquareType={qrCornerSquareType} 
                       cornerDotType={qrCornerDotType} 
-                      level={qrLevel}
+                      level={qrLevel || 'L'}
                       logo={qrLogo}
                     />
+                  </div>
+                  <div className="flex gap-[0.5vw] w-full max-w-[12vw]">
+                    <button
+                      type="button"
+                      onClick={() => mainQrRef.current?.download({ name: 'ar-qr-code', extension: 'png' })}
+                      className="flex-1 bg-[#5145F6] hover:bg-[#4335E6] text-white text-[0.75vw] font-semibold py-[0.45vw] px-[0.6vw] rounded-[0.4vw] flex items-center justify-center gap-[0.3vw] shadow-sm transition-all cursor-pointer"
+                      title="Download QR Code as PNG image"
+                    >
+                      <Icon icon="lucide:download" className="w-[0.85vw] h-[0.85vw]" />
+                      <span>PNG</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => mainQrRef.current?.download({ name: 'ar-qr-code', extension: 'svg' })}
+                      className="flex-1 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-[0.75vw] font-semibold py-[0.45vw] px-[0.6vw] rounded-[0.4vw] flex items-center justify-center gap-[0.3vw] shadow-sm transition-all cursor-pointer"
+                      title="Download QR Code as vector SVG"
+                    >
+                      <Icon icon="lucide:download" className="w-[0.85vw] h-[0.85vw]" />
+                      <span>SVG</span>
+                    </button>
                   </div>
                 </div>
 

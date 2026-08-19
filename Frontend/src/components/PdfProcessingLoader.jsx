@@ -1,51 +1,79 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X } from 'lucide-react';
 
-const PdfProcessingLoader = ({ progress }) => {
+const PdfProcessingLoader = ({ progress, onCancel }) => {
     if (!progress) return null;
 
     const { current, total, message, fileName } = progress;
     const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
 
     return (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="flex flex-col items-center gap-[1vw] max-w-[30vw] w-full text-center">
-                {/* Spinning Indicator */}
-                <div className="w-[3.5vw] h-[3.5vw] border-[0.3vw] border-white/30 border-t-white rounded-full animate-spin mb-[0.5vw]"></div>
-                
-                <div className="w-full">
+        <AnimatePresence>
+            <motion.div
+                className="fixed top-[8vh] left-0 right-0 bottom-0 z-40 flex flex-col items-center justify-center bg-white"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25, ease: 'easeInOut' }}
+            >
+                <div className="flex flex-col items-center max-w-[24vw] w-full text-center">
+                    {/* Indigo Spinner */}
+                    <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin mb-[1vw]"></div>
+
+                    {/* File Name Badge */}
+                    {fileName && (
+                        <span className="text-[0.7vw] font-semibold text-indigo-600 bg-indigo-50 px-[0.8vw] py-[0.2vw] rounded-full max-w-[18vw] truncate mb-[0.6vw]">
+                            {fileName}
+                        </span>
+                    )}
+
                     {/* Dynamic Message */}
-                    <p className="text-white font-bold text-[1.15vw] mb-[0.5vw] drop-shadow-sm">
+                    <p className="text-[0.95vw] font-semibold text-gray-700 mb-[0.4vw]">
                         {message || (current === 0 
                             ? `Extracting pages from ${fileName || 'PDF'}...` 
                             : `Uploading page ${current} of ${total}...`
                         )}
                     </p>
-                    
+
                     {/* Progress Bar */}
                     {total > 0 && (
-                        <div className="w-full h-[0.4vw] bg-white/20 rounded-full overflow-hidden">
-                            <motion.div 
-                                className="h-full bg-white transition-all duration-300 ease-out"
-                                initial={{ width: 0 }}
-                                animate={{ width: `${percentage}%` }}
-                            ></motion.div>
+                        <div className="w-full mt-[0.6vw]">
+                            <div className="w-full h-[0.45vw] bg-gray-100 rounded-full overflow-hidden">
+                                <motion.div 
+                                    className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${percentage}%` }}
+                                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                                />
+                            </div>
+
+                            {/* Progress Info Row */}
+                            <div className="flex items-center justify-between mt-[0.4vw]">
+                                <span className="text-[0.7vw] font-medium text-gray-400">
+                                    {total > 1 ? `${current} of ${total} pages` : 'Processing...'}
+                                </span>
+                                <span className="text-[0.75vw] font-bold text-indigo-600">
+                                    {percentage}%
+                                </span>
+                            </div>
                         </div>
                     )}
-                    
-                    {/* Counter Text */}
-                    {total > 1 && (
-                        <p className="text-white/70 text-[0.75vw] mt-[0.4vw] font-medium">
-                            {current} of {total} pages
-                        </p>
-                    )}
 
-                    <p className="mt-[1.5vw] text-white/50 text-[0.7vw] font-medium tracking-wide uppercase">
-                        Please wait while we prepare your workspace
-                    </p>
+                    {/* Cancel Button */}
+                    {onCancel && (
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="mt-[1.4vw] px-[1.2vw] py-[0.45vw] text-[0.75vw] font-semibold text-gray-600 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-[0.5vw] transition-all cursor-pointer flex items-center gap-[0.35vw] active:scale-95 shadow-sm"
+                        >
+                            <X size="0.85vw" />
+                            <span>Cancel Upload</span>
+                        </button>
+                    )}
                 </div>
-            </div>
-        </div>
+            </motion.div>
+        </AnimatePresence>
     );
 };
 

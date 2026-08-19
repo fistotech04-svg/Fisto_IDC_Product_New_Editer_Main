@@ -329,6 +329,22 @@ const TemplateEditor = () => {
   const [topText, setTopText] = useState('You can Rotate 3D Model');
   const [bottomText, setBottomText] = useState('3D Model');
 
+  const current3DVId = React.useMemo(() => {
+    if (!current3DItem) return null;
+    const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
+    const el = doc.getElementById(current3DItem?.id);
+    if (el) {
+      const dataVal = el.getAttribute('data-interaction-value');
+      if (dataVal && dataVal.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(dataVal);
+          return parsed.v_id || null;
+        } catch (e) { }
+      }
+    }
+    return null;
+  }, [current3DItem, pages, activePageIndex]);
+
   useEffect(() => {
     if (current3DItem && is3DModalOpen) {
       const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
@@ -514,6 +530,53 @@ const TemplateEditor = () => {
             let dataVal = el.getAttribute('data-interaction-value');
             if (!dataVal) continue;
 
+            // Ensure default data-interaction-config exists on element
+            let existingConfig = {};
+            const confStr = el.getAttribute('data-interaction-config');
+            if (confStr) {
+              try { existingConfig = JSON.parse(confStr); } catch (e) {}
+            }
+            let modelName = '3D Model';
+            try {
+              const parsedVal = JSON.parse(dataVal);
+              if (parsedVal.displayName || parsedVal.name) {
+                modelName = parsedVal.displayName || parsedVal.name;
+              }
+            } catch (e) {}
+
+            const defaultConfig = {
+              shadowStrength: 35,
+              shadowSoftness: 35,
+              autoRotate: true,
+              autoRotateSpeed: 1.5,
+              lockMaxZoom: true,
+              maxZoom: 4.5,
+              bgType: 'Solid',
+              bgColor: '#ffffffff',
+              customBg: true,
+              enableAR: true,
+              qrText: 'Scan Me',
+              qrColor: '#000000',
+              qrBgType: 'Solid',
+              qrBgColor: '#ffffff',
+              qrLevel: 'L',
+              qrDotType: 'square',
+              qrCornerSquareType: 'square',
+              qrCornerDotType: 'square',
+              qrLogo: null,
+              topText: 'You can Rotate 3D Model',
+              bottomText: modelName
+            };
+
+            const mergedConfig = {
+              ...defaultConfig,
+              ...existingConfig,
+              topText: (existingConfig && existingConfig.topText !== undefined && existingConfig.topText !== '') ? existingConfig.topText : 'You can Rotate 3D Model',
+              bottomText: (existingConfig && existingConfig.bottomText !== undefined && existingConfig.bottomText !== '') ? existingConfig.bottomText : modelName
+            };
+
+            el.setAttribute('data-interaction-config', JSON.stringify(mergedConfig));
+
             let actualDataUri = null;
 
             if (dataVal.startsWith('{')) {
@@ -589,6 +652,8 @@ const TemplateEditor = () => {
                   } catch (e) { }
                 }
 
+                el.setAttribute('data-interaction-value', newHtmlVal);
+
                 const escapedOld = dataVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
                 const escapedNew = newHtmlVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
@@ -612,12 +677,14 @@ const TemplateEditor = () => {
                       } else if (lDataVal && lDataVal.includes(actualDataUri)) {
                         lEl.setAttribute('data-interaction-value', lDataVal.replace(actualDataUri, absoluteUrl));
                       }
+                      lEl.setAttribute('data-interaction-config', JSON.stringify(mergedConfig));
                     });
                   }
                 } catch (e) { }
               }
             }
           }
+          newHtml = new XMLSerializer().serializeToString(doc.documentElement);
           // --- DIRECT STRING SEARCH base64 extraction and upload ---
           // Regex engines often fail silently or hit length limits on 3MB+ contiguous strings.
           // We use a pure indexOf search to safely extract huge data URIs.
@@ -4394,7 +4461,7 @@ const TemplateEditor = () => {
             enableAR={enableAR}
             setBgColor={setBgColor}
             qrText={qrText} qrColor={qrColor} qrBgType={qrBgType} qrBgColor={qrBgColor} qrLevel={qrLevel} qrDotType={qrDotType} qrCornerSquareType={qrCornerSquareType} qrCornerDotType={qrCornerDotType} qrLogo={qrLogo}
-            topText={topText} bottomText={bottomText}
+            topText={topText} bottomText={bottomText} vId={current3DVId}
           />
         </div>
       )}
@@ -4449,6 +4516,7 @@ const TemplateEditor = () => {
         setEnableAR={setEnableAR}
         qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
         topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
+        current3DVId={current3DVId}
       />
 
       {showTemplateModal && (
@@ -4491,7 +4559,7 @@ const TemplateEditor = () => {
       />
 
       {/* PDF Processing Overlay */}
-      <PdfProcessingLoader progress={pdfProcessing} />
+      <PdfProcessingLoader progress={pdfProcessing} onCancel={() => setPdfProcessing(null)} />
 
       <AlertModal
         isOpen={alertState.isOpen}

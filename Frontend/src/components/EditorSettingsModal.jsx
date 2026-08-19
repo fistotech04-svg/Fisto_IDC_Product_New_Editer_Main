@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import axios from 'axios';
 
 export default function EditorSettingsModal({
   isOpen,
@@ -20,6 +21,22 @@ export default function EditorSettingsModal({
     return saved !== null ? JSON.parse(saved) : (isAutoSaveEnabled !== undefined ? isAutoSaveEnabled : true);
   });
   const [isRulerEnabled, setIsRulerEnabled] = useState(initialRuler);
+
+  const syncEditorSettings = async (partialSettings) => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        await axios.post(`${backendUrl}/api/usersetting/update-editor-settings`, {
+          emailId: user.emailId,
+          editorSettings: partialSettings
+        });
+      }
+    } catch (err) {
+      console.error("Failed to sync editor settings to backend:", err);
+    }
+  };
 
   useEffect(() => {
     if (isAutoSaveEnabled !== undefined) {
@@ -62,8 +79,10 @@ export default function EditorSettingsModal({
   const handleTrimViewToggle = () => {
     const next = !isTrimView;
     setIsTrimView(next);
+    localStorage.setItem('isTrimViewEnabled', JSON.stringify(next));
     if (onToggleTrimView) onToggleTrimView(next);
     window.dispatchEvent(new CustomEvent('editor_toggleTrimView', { detail: next }));
+    syncEditorSettings({ isTrimViewEnabled: next });
   };
 
   const handleAutoSaveToggle = () => {
@@ -71,13 +90,16 @@ export default function EditorSettingsModal({
     setAutoSave(next);
     localStorage.setItem('isAutoSaveEnabled', JSON.stringify(next));
     if (onToggleAutoSave) onToggleAutoSave(next);
+    syncEditorSettings({ isAutoSaveEnabled: next });
   };
 
   const handleRulerToggle = () => {
     const next = !isRulerEnabled;
     setIsRulerEnabled(next);
+    localStorage.setItem('isRulerEnabled', JSON.stringify(next));
     if (onToggleRuler) onToggleRuler(next);
     window.dispatchEvent(new CustomEvent('editor_toggleRuler', { detail: next }));
+    syncEditorSettings({ isRulerEnabled: next });
   };
 
   if (!isOpen) return null;
@@ -146,7 +168,7 @@ export default function EditorSettingsModal({
 
           {/* Rules (Ruler) */}
           <div className="flex items-center justify-between">
-            <span className="text-[0.82vw] font-normal text-gray-600">Rules</span>
+            <span className="text-[0.82vw] font-normal text-gray-600">Ruler</span>
             <div className="flex-1 border-b border-dashed border-gray-200 mx-[0.6vw]"></div>
             <button
               type="button"

@@ -12438,7 +12438,7 @@ const MainEditor = ({
 
         {/* Interaction Group: Sub Tools */}
         {activeTopTool === 'interaction' && (
-          <div className="absolute right-0 top-[25vh] z-[9999]">
+          <div className="absolute right-0 top-[25vh] z-50">
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
 
               {/* Cover Top Border */}
@@ -12472,7 +12472,7 @@ const MainEditor = ({
                   <Icon icon="clarity:cursor-arrow-line" width="1.2vw" height="1.2vw" className={activeMainTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} />
                 </button>
                 <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
-                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
                   Select Tool
                 </div>
               </div>
@@ -12489,7 +12489,7 @@ const MainEditor = ({
                   <Icon icon="iconoir:frame-alt" width="1.2vw" height="1.2vw" className={activeMainTool === 'shapes' && selectedShapeTool === 'free-frame' ? 'text-[#111827]' : 'text-[#4B5563]'} />
                 </button>
                 <div className="w-[0.7vw]"></div>
-                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
                   Frame Tool
                 </div>
               </div>
@@ -12504,7 +12504,7 @@ const MainEditor = ({
                 </button>
                 <div className="w-[0.7vw]"></div>
                 {!showHotspotPopup && (
-                  <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-[#111827] text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
                     Hotspot Tool
                   </div>
                 )}

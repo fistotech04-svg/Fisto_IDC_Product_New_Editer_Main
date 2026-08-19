@@ -1,10 +1,100 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
-import { Canvas } from '@react-three/fiber';
-import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { OrbitControls, useGLTF, Environment, Center, ContactShadows } from '@react-three/drei';
+import * as THREE from 'three';
 import { CustomQRCode } from './Model3DEditor';
 import ColorPicker from './ColorPicker';
 import axios from 'axios';
+
+const ModelScene = ({ 
+  url, 
+  autoRotate = true, 
+  autoRotateSpeed = 1.5,
+  shadowStrength = 35,
+  shadowSoftness = 35,
+  lockMaxZoom = true,
+  maxZoom = 4.5
+}) => {
+  const { scene } = useGLTF(url);
+  const { camera, controls } = useThree();
+  const [modelBounds, setModelBounds] = useState({ radius: 1.5, height: 1 });
+
+  // Set initial camera framing ONLY when model url/scene changes
+  React.useEffect(() => {
+    if (!scene) return;
+    const box = new THREE.Box3().setFromObject(scene);
+    const size = box.getSize(new THREE.Vector3());
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const radius = sphere.radius || 1.5;
+    const height = size.y || 1;
+    setModelBounds({ radius, height });
+
+    const fov = camera.fov || 50;
+    const fovRad = (fov * Math.PI) / 360;
+    const dist = (radius / Math.sin(fovRad)) * 1.3;
+
+    camera.position.set(0, 0, Math.max(dist, 1.5));
+    camera.near = Math.max(0.01, dist / 100);
+    camera.far = Math.max(1000, dist * 100);
+    camera.updateProjectionMatrix();
+
+    if (controls) {
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+  }, [url, scene, camera, controls]);
+
+  const numShadowStrength = Number(shadowStrength) || 0;
+  const numShadowSoftness = Number(shadowSoftness) || 0;
+  const numAutoRotateSpeed = Number(autoRotateSpeed) || 1.5;
+  const numMaxZoom = Number(maxZoom) || 4.5;
+
+  const baseDist = React.useMemo(() => {
+    const fovRad = ((camera.fov || 50) * Math.PI) / 360;
+    return (modelBounds.radius / Math.sin(fovRad)) * 1.3;
+  }, [modelBounds.radius, camera.fov]);
+
+  const minZoomDist = lockMaxZoom ? Math.max(0.1, baseDist / Math.max(1, numMaxZoom)) : 0.1;
+  const maxZoomDist = lockMaxZoom ? Math.max(baseDist, baseDist * Math.max(1, numMaxZoom)) : 500;
+
+  const shadowY = -modelBounds.height / 2 - 0.01;
+
+  return (
+    <>
+      <Environment preset="city" />
+      <ambientLight intensity={0.7} />
+      <directionalLight position={[10, 10, 10]} intensity={1} />
+      <directionalLight position={[-10, -10, -10]} intensity={0.3} />
+
+      <Center>
+        <primitive object={scene} />
+      </Center>
+
+      {numShadowStrength > 0 && (
+        <ContactShadows
+          position={[0, shadowY, 0]}
+          opacity={numShadowStrength / 100}
+          blur={(numShadowSoftness / 100) * 3 + 0.2}
+          far={modelBounds.radius * 4}
+          resolution={1024}
+          scale={modelBounds.radius * 6}
+          color="#000000"
+        />
+      )}
+
+      <OrbitControls 
+        makeDefault 
+        enableZoom={true} 
+        enablePan={true} 
+        autoRotate={autoRotate} 
+        autoRotateSpeed={numAutoRotateSpeed} 
+        minDistance={minZoomDist}
+        maxDistance={maxZoomDist}
+      />
+    </>
+  );
+};
 
 const GlbModelViewer = React.memo(({ 
   url, 
@@ -31,39 +121,19 @@ const GlbModelViewer = React.memo(({
     return timestamp ? `${url}${timestamp}` : url;
   }, [url, timestamp]);
 
-  const { scene } = useGLTF(finalUrl);
-
-  const numShadowStrength = Number(shadowStrength) || 0;
-  const numShadowSoftness = Number(shadowSoftness) || 0;
-  const numAutoRotateSpeed = Number(autoRotateSpeed) || 1.5;
-  const numMaxZoom = Number(maxZoom) || 4.5;
-
-  const minZoomDist = lockMaxZoom ? Math.max(0.5, 5 / Math.max(1, numMaxZoom)) : 0.5;
-  const maxZoomDist = lockMaxZoom ? Math.max(5, 5 * Math.max(1, numMaxZoom)) : 50;
-
   return (
     <Canvas camera={{ fov: 50, position: [0, 0, 5] }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
-      <Stage 
-        environment="city" 
-        adjustCamera={1.5} 
-        intensity={1}
-        shadows={numShadowStrength > 0 ? {
-          type: 'contact',
-          opacity: numShadowStrength / 100,
-          blur: numShadowSoftness / 100
-        } : false}
-      >
-        <primitive object={scene} />
-      </Stage>
-      <OrbitControls 
-        makeDefault 
-        enableZoom={true} 
-        enablePan={true} 
-        autoRotate={autoRotate} 
-        autoRotateSpeed={numAutoRotateSpeed} 
-        minDistance={minZoomDist}
-        maxDistance={maxZoomDist}
-      />
+      <React.Suspense fallback={null}>
+        <ModelScene 
+          url={finalUrl}
+          autoRotate={autoRotate}
+          autoRotateSpeed={autoRotateSpeed}
+          shadowStrength={shadowStrength}
+          shadowSoftness={shadowSoftness}
+          lockMaxZoom={lockMaxZoom}
+          maxZoom={maxZoom}
+        />
+      </React.Suspense>
     </Canvas>
   );
 });
@@ -124,13 +194,28 @@ const Model3DPreviewModal = ({
   };
 
   const safeQrValue = React.useMemo(() => {
-    if (!dataUrl) return qrText || "Scan Me";
-    if (dataUrl.startsWith('data:') || dataUrl.startsWith('blob:')) {
+    if (!dataUrl && !vId) return qrText || "Scan Me";
+    
+    let resolvedVId = vId || null;
+    if (!resolvedVId && typeof dataUrl === 'string' && dataUrl.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(dataUrl);
+        if (parsed.v_id) resolvedVId = parsed.v_id;
+        if (parsed.vId) resolvedVId = parsed.vId;
+      } catch (e) {}
+    }
+
+    if (resolvedVId) {
+      return `${window.location.origin}/ar-view?id=${resolvedVId}`;
+    }
+
+    if (dataUrl && (dataUrl.startsWith('data:') || dataUrl.startsWith('blob:'))) {
       return "AR View unavailable for local/unsaved models.";
     }
+
     const resolvedUrl = new URL(dataUrl, window.location.href).href;
-    return `${window.location.origin}/ar-view?url=${encodeURI(resolvedUrl)}`;
-  }, [dataUrl, qrText]);
+    return `${window.location.origin}/ar-view?url=${encodeURIComponent(resolvedUrl)}`;
+  }, [dataUrl, qrText, vId]);
 
   if (!isOpen) return null;
 

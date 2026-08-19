@@ -118,7 +118,7 @@ const TopToolbar = ({
             className={`flex flex-col items-center group ${canUndo ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'}`}
           >
             <Undo2 size="1.2vw" className={`text-[#374151] ${canUndo ? 'group-hover:text-black' : ''} transition-colors`} />
-            <span className={`text-[0.6vw] text-[#6B7280] font-medium ${canUndo ? 'group-hover:text-black' : ''}`}>Undo</span>
+            {/* <span className={`text-[0.6vw] text-[#6B7280] font-medium ${canUndo ? 'group-hover:text-black' : ''}`}>Undo</span> */}
           </div>
           {canUndo && (
             <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.35vw] hidden group-hover/tt:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
@@ -136,7 +136,7 @@ const TopToolbar = ({
             className={`flex flex-col items-center group ${canRedo ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'}`}
           >
             <Redo2 size="1.2vw" className={`text-[#374151] ${canRedo ? 'group-hover:text-black' : ''} transition-colors`} />
-            <span className={`text-[0.6vw] text-[#6B7280] font-medium ${canRedo ? 'group-hover:text-black' : ''}`}>Redo</span>
+            {/* <span className={`text-[0.6vw] text-[#6B7280] font-medium ${canRedo ? 'group-hover:text-black' : ''}`}>Redo</span> */}
           </div>
           {canRedo && (
             <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.35vw] hidden group-hover/tt:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
