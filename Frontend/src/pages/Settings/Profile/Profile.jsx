@@ -48,9 +48,15 @@ const Profile = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
-    const handleScroll = (e) => {
-      const target = e?.target;
-      const scrollTop = window.scrollY || document.documentElement.scrollTop || (target?.scrollTop ?? 0);
+    const handleScroll = () => {
+      const leftCol = document.getElementById('left-scroll-container');
+      const rightCol = document.getElementById('main-scroll-container');
+      
+      const windowScroll = window.scrollY || document.documentElement.scrollTop || 0;
+      const leftScroll = leftCol?.scrollTop || 0;
+      const rightScroll = rightCol?.scrollTop || 0;
+      
+      const scrollTop = Math.max(windowScroll, leftScroll, rightScroll);
       const maxScroll = window.innerWidth * 0.15; // 15vw scroll distance for full effect
       const progress = Math.min(Math.max(scrollTop / maxScroll, 0), 1);
       setScrollProgress(progress);
@@ -136,8 +142,8 @@ const Profile = () => {
       <div className="flex flex-col md:flex-row relative mt-[1vw] bg-white border-2 border-gray-200 rounded-[1vw] shadow-sm flex-1 min-h-0 min-w-0 w-full z-[40]">
 
         {/* Left Column (Avatar + Info) */}
-        <div className="w-[22vw] flex-shrink-0 border-r-2 border-gray-200 relative h-full">
-          <div className="flex flex-col items-center pb-[2vw] h-full z-[50]">
+        <div className="w-[22vw] flex-shrink-0 border-r-2 border-gray-200 relative flex flex-col min-h-0">
+          <div className="flex flex-col items-center flex-1 min-h-0 z-[50] w-full">
 
 
             {/* Top border eraser for container */}
@@ -228,7 +234,7 @@ const Profile = () => {
             </div>
 
             {/* Info Cards Container */}
-            <div className="w-full mt-[2vw] flex flex-col flex-1 overflow-y-auto min-h-0 hide-scrollbar">
+            <div id="left-scroll-container" className="w-full mt-[2vw] pb-[2vw] flex flex-col flex-1 overflow-y-auto min-h-0 hide-scrollbar">
 
               <div className="p-[1vw] border-b border-gray-100">
                 <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
@@ -305,7 +311,7 @@ const Profile = () => {
         <div className="flex-1 relative h-full min-w-0">
           <div className="flex flex-col h-full w-full z-[45]">
             {/* Header Area */}
-            <div className="pt-[1.5vw] pl-[1.5vw] pr-[1.5vw] pb-[2vw] relative flex-shrink-0">
+            <div className="pt-[1vw] pl-[1vw] pr-[1vw] pb-[1vw] relative flex-shrink-0">
 
 
             {/* Buttons Row & Save Actions Portal */}
@@ -335,7 +341,7 @@ const Profile = () => {
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-y-auto px-[1.5vw] pb-[1.5vw] hide-scrollbar">
+          <div id="main-scroll-container" className="flex-1 overflow-y-auto px-[1.5vw] pb-[2vw] hide-scrollbar">
             {activeTab === 'Edit Profile' && <EditProfile user={user} setUser={setUser} />}
 
             {activeTab === 'Your IDC' && (
