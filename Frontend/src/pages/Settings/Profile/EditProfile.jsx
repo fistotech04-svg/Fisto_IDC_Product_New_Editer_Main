@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { User, Building, MapPin, Globe, Check, X, Upload } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
@@ -19,6 +20,23 @@ const EditProfile = ({ user, setUser }) => {
     setEditedUser(user);
   };
 
+  const [portalTarget, setPortalTarget] = useState(null);
+
+  useEffect(() => {
+    setPortalTarget(document.getElementById('save-buttons-portal-target'));
+  }, []);
+
+  const saveActions = isEdited && (
+    <div className="flex gap-[0.5vw]">
+      <button onClick={handleCancel} className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] border border-gray-300 rounded-[0.4vw] text-[0.8vw] font-medium text-gray-600 hover:text-gray-900 transition-colors">
+        <X size="0.9vw" /> Cancel
+      </button>
+      <button onClick={handleSave} className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] bg-green-600 rounded-[0.4vw] text-[0.8vw] font-medium text-white transition-colors">
+        <Check size="0.9vw" /> Save Changes
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col flex-1 w-full relative h-full">
       {/* Header section */}
@@ -27,16 +45,7 @@ const EditProfile = ({ user, setUser }) => {
           <h2 className="text-[1.25vw] font-semibold text-gray-900">Edit Profile</h2>
           <p className="text-[0.75vw] text-gray-500 mt-[0.2vw]">Only your actions and activities will appear here.</p>
         </div>
-        {isEdited && (
-          <div className="flex gap-[0.5vw] mt-[-4.5vw]">
-            <button onClick={handleCancel} className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] border border-gray-300 rounded-[0.4vw] text-[0.8vw] font-medium text-gray-600 hover:text-gray-900 transition-colors">
-              <X size="0.9vw" /> Cancel
-            </button>
-            <button onClick={handleSave} className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] bg-green-600 rounded-[0.4vw] text-[0.8vw] font-medium text-white transition-colors">
-              <Check size="0.9vw" /> Save Changes
-            </button>
-          </div>
-        )}
+        {portalTarget ? createPortal(saveActions, portalTarget) : saveActions}
       </div>
 
       <div className="flex flex-col gap-[2vw]">

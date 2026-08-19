@@ -40,14 +40,6 @@ const Activity = () => {
           <h2 className="text-[1.25vw] font-semibold text-gray-900">My Activity</h2>
           <p className="text-[0.75vw] text-gray-400 mt-[0.2vw]">Only your actions and activities will appear here.</p>
         </div>
-        <div className="flex gap-[0.5vw] mt-[-4.5vw]">
-          <button className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] border border-gray-300 rounded-[0.4vw] text-[0.8vw] font-medium text-gray-600 hover:text-gray-900 transition-colors bg-white">
-            <X size="0.9vw" /> Cancel
-          </button>
-          <button className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] bg-green-600 rounded-[0.4vw] text-[0.8vw] font-medium text-white transition-colors">
-            <Check size="0.9vw" /> Save Changes
-          </button>
-        </div>
       </div>
 
       {/* Outer Container for Filter and Timeline */}
