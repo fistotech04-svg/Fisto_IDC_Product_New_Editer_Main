@@ -604,7 +604,6 @@ const syncDOM = (oldNode, newNode) => {
 
 const MainEditor = ({
   isPdfProject,
-  isDoublePage,
   isRulerEnabled = true,
   isTrimView = false,
   pages = [],
@@ -677,6 +676,8 @@ const MainEditor = ({
   const [isSpaceDown, setIsSpaceDown] = useState(false);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
   const [rotation, setRotation] = useState(0);
+  const [pageInputVal, setPageInputVal] = useState('');
+  const [isEditingPage, setIsEditingPage] = useState(false);
 
   const pdfDefaultsSetRef = useRef(false);
   useEffect(() => {
@@ -692,7 +693,6 @@ const MainEditor = ({
   const currentFrameIdRef = useRef(null);
   const marqueeRef = useRef(null);
   const marqueeOverlayRef1 = useRef(null);
-  const marqueeOverlayRef2 = useRef(null);
   const marqueeCandidatesRef = useRef([]);
   const marqueeDataRef = useRef({ startX: 0, startY: 0, containerRect: null, scale: 1 });
   const multiSelectedIdsRef = useRef(new Set());
@@ -3927,15 +3927,7 @@ const MainEditor = ({
     if (!rect1 || !rect2) return;
 
     // Map viewport pixels to mm using the actual base document dimensions
-    const ptToMmScale = baseWidth / (() => {
-      const spreadStartIndex = (isDoublePage && activePageIndex > 0)
-        ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-        : activePageIndex;
-      const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-      const baseVhHeight = window.innerHeight * 0.78;
-      const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
-      return baseVhHeight * (totalWidth / baseHeight);
-    })();
+    const ptToMmScale = baseWidth / ((window.innerHeight * 0.78) * (baseWidth / baseHeight));
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('class', 'measurement-overlay-group');
     g.style.pointerEvents = 'none';
@@ -4150,18 +4142,23 @@ const MainEditor = ({
 
       const label = document.createElement('div');
       label.setAttribute('data-badge-label', 'true');
-      label.className = 'absolute top-1/2 -translate-y-1/2 bg-black text-white text-[0.5vw] font-medium px-[0.5vw] py-[0.25vw] shadow-lg whitespace-nowrap flex items-center opacity-0 group-hover/badge:opacity-100 transition-opacity duration-200 pointer-events-none';
+      label.className = 'absolute top-1/2 -translate-y-1/2 bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.2vw] rounded-[0.3vw] shadow-md backdrop-blur-xs whitespace-nowrap flex items-center opacity-0 group-hover/badge:opacity-100 transition-opacity duration-150 pointer-events-none z-50';
       label.style.left = '100%';
       label.style.marginLeft = '0.5vw';
-      label.innerHTML = isAnimation
-        ? (isAssigned ? 'Animation Added' : 'Click To Add Animation')
-        : (isAssigned ? 'Interaction Added' : 'Click To Add Interaction');
 
       const arrow = document.createElement('div');
       arrow.setAttribute('data-badge-arrow', 'true');
-      arrow.className = 'absolute w-0 h-0';
-      arrow.style.cssText = 'position:absolute; left:-5px; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black;';
+      arrow.className = 'absolute w-0 h-0 pointer-events-none';
+      arrow.style.cssText = 'position:absolute; left:-0.22vw; top:50%; transform:translateY(-50%); width:0; height:0; border-top:0.25vw solid transparent; border-bottom:0.25vw solid transparent; border-right:0.3vw solid rgba(17, 24, 39, 0.9); border-left:none;';
+
+      const textSpan = document.createElement('span');
+      textSpan.setAttribute('data-badge-text', 'true');
+      textSpan.textContent = isAnimation
+        ? (isAssigned ? 'Animation Added' : 'Click To Add Animation')
+        : (isAssigned ? 'Interaction Added' : 'Click To Add Interaction');
+
       label.appendChild(arrow);
+      label.appendChild(textSpan);
       badge.appendChild(mainBox);
       badge.appendChild(label);
 
@@ -4208,11 +4205,9 @@ const MainEditor = ({
               </svg>
             `;
           }
-          const labelBox = badge.querySelector('[data-badge-label]');
-          if (labelBox) {
-            const arrowEl = labelBox.querySelector('[data-badge-arrow]');
-            const arrowHTML = arrowEl ? arrowEl.outerHTML : '';
-            labelBox.innerHTML = `${arrowHTML}Animation Added`;
+          const textBox = badge.querySelector('[data-badge-text]');
+          if (textBox) {
+            textBox.textContent = 'Animation Added';
           }
 
           if (typeof setActiveTopTool === 'function') setActiveTopTool('animation');
@@ -4269,25 +4264,27 @@ const MainEditor = ({
       const containerWidth = htmlOverlay?.getBoundingClientRect?.()?.width || 9999;
       const labelEl = badge.querySelector('[data-badge-label]');
       const arrowEl = badge.querySelector('[data-badge-arrow]');
-      if (labelEl && arrowEl) {
-        const arrowHTML = arrowEl.outerHTML;
+      const textEl = badge.querySelector('[data-badge-text]');
+      if (textEl) {
         const textStr = isAnimation
           ? (isAssigned ? 'Animation Added' : 'Click To Add Animation')
           : (isAssigned ? 'Interaction Added' : 'Click To Add Interaction');
-        labelEl.innerHTML = `${arrowHTML}${textStr}`;
+        textEl.textContent = textStr;
+      }
 
+      if (labelEl && arrowEl) {
         if (midN.x > containerWidth * 0.55) {
           labelEl.style.left = 'auto';
           labelEl.style.right = '100%';
           labelEl.style.marginLeft = '0';
           labelEl.style.marginRight = '0.5vw';
-          arrowEl.style.cssText = 'position:absolute; right:-5px; left:auto; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-left:5px solid black; border-right:none;';
+          arrowEl.style.cssText = 'position:absolute; right:-0.22vw; left:auto; top:50%; transform:translateY(-50%); width:0; height:0; border-top:0.25vw solid transparent; border-bottom:0.25vw solid transparent; border-left:0.3vw solid rgba(17, 24, 39, 0.9); border-right:none;';
         } else {
           labelEl.style.left = '100%';
           labelEl.style.right = 'auto';
           labelEl.style.marginLeft = '0.5vw';
           labelEl.style.marginRight = '0';
-          arrowEl.style.cssText = 'position:absolute; left:-5px; right:auto; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black; border-left:none;';
+          arrowEl.style.cssText = 'position:absolute; left:-0.22vw; right:auto; top:50%; transform:translateY(-50%); width:0; height:0; border-top:0.25vw solid transparent; border-bottom:0.25vw solid transparent; border-right:0.3vw solid rgba(17, 24, 39, 0.9); border-left:none;';
         }
       }
     }
@@ -6152,17 +6149,9 @@ const MainEditor = ({
     // Note: The canvas has height: 78vh in the CSS
     const baseVhHeight = window.innerHeight * 0.78;
 
-    const spreadStartIndex = (isDoublePage && activePageIndex > 0)
-      ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-      : activePageIndex;
-    const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-
     // Calculate effective aspect ratio
     let totalWidth = baseWidth || 210;
     let totalHeight = baseHeight || 297;
-    if (isCurrentlySpread) {
-      totalWidth = 2 * totalWidth;
-    }
 
     const baseCanvasHeight = baseVhHeight;
     const baseCanvasWidth = baseCanvasHeight * (totalWidth / totalHeight);
@@ -6177,7 +6166,7 @@ const MainEditor = ({
     autoZoom = Math.max(55, Math.min(250, Math.round(autoZoom)));
 
     setZoom(autoZoom);
-  }, [baseWidth, baseHeight, activePageIndex, isDoublePage, pages.length]);
+  }, [baseWidth, baseHeight, activePageIndex, pages.length]);
 
   const handleResetZoom = () => {
     handleAutoFitZoom();
@@ -6195,7 +6184,7 @@ const MainEditor = ({
       clearTimeout(t2);
       clearTimeout(t3);
     };
-  }, [activePageIndex, isDoublePage, pages.length, baseWidth, baseHeight, handleAutoFitZoom]);
+  }, [activePageIndex, pages.length, baseWidth, baseHeight, handleAutoFitZoom]);
 
   // ── Bound Panning ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -6207,13 +6196,8 @@ const MainEditor = ({
     const containerWidth = editorContainerRef.current.clientWidth;
     const containerHeight = editorContainerRef.current.clientHeight;
 
-    const spreadStartIndex = (isDoublePage && activePageIndex > 0)
-      ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-      : activePageIndex;
-    const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-
     const baseVhHeight = window.innerHeight * 0.78;
-    const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
+    const totalWidth = baseWidth || 210;
     const baseCanvasHeight = baseVhHeight;
     const baseCanvasWidth = baseCanvasHeight * (totalWidth / baseHeight);
     const currentScale = zoom / 100;
@@ -6235,7 +6219,7 @@ const MainEditor = ({
       if (boundedX === prev.x && boundedY === prev.y) return prev;
       return { x: boundedX, y: boundedY };
     });
-  }, [zoom, activePageIndex, isDoublePage, pages.length, baseWidth, baseHeight]);
+  }, [zoom, activePageIndex, pages.length, baseWidth, baseHeight]);
 
   // ── Maintain Fit on Window/Sidebar Resize ────────────────────────────────
   useEffect(() => {
@@ -6637,14 +6621,6 @@ const MainEditor = ({
     }
   };
 
-  // Helper: Get the starting index (left page) of the spread containing activePageIndex
-  const spreadStartIndex = (isDoublePage && activePageIndex > 0)
-    ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-    : activePageIndex;
-
-  const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-
-
   // ── Sync refs and perform page-level DOM highlights ──────────────────────────
   useEffect(() => {
     // Force immediate visual cleanup of all overlays before redraw
@@ -6666,14 +6642,6 @@ const MainEditor = ({
         }
       }
     });
-
-    // Highlights across all visible pages in the spread
-    const pageIndices = [activePageIndex];
-    if (isCurrentlySpread) {
-      if (!pageIndices.includes(spreadStartIndex)) pageIndices.push(spreadStartIndex);
-      if (!pageIndices.includes(spreadStartIndex + 1)) pageIndices.push(spreadStartIndex + 1);
-    }
-
 
     if (multiSelectedIds.size > 1) {
       drawMultiSelectionHighlight(multiSelectedIds, 'selected');
@@ -6711,7 +6679,7 @@ const MainEditor = ({
       document.querySelectorAll('.selection-overlay-layer .resize-handle').forEach(h => h.remove());
       document.querySelectorAll('[id^="highlight-overlay-html-"] .resize-handle').forEach(h => h.remove());
     }
-  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom, activeTopTool]);
+  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, zoom, activeTopTool]);
 
   // Sync refs
   useEffect(() => {
@@ -8867,19 +8835,6 @@ const MainEditor = ({
     tempDiv.innerHTML = targetSvg.outerHTML;
     tempDiv.querySelectorAll('.slideshow-transition-clone').forEach(el => el.remove());
     let finalHtml = tempDiv.innerHTML;
-    if (isDoublePage && pages && pages[targetPageIndex]) {
-      const groupWrap = targetSvg.querySelector(`#page-group-${targetPageIndex}`);
-      if (groupWrap) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(pages[targetPageIndex].html, 'image/svg+xml');
-        const cleanSvg = doc.querySelector('svg');
-        if (cleanSvg) {
-          cleanSvg.innerHTML = '';
-          Array.from(groupWrap.children).forEach(c => cleanSvg.appendChild(c.cloneNode(true)));
-          finalHtml = cleanSvg.outerHTML;
-        }
-      }
-    }
     finalHtml = finalHtml.replace(/<br\s*>/gi, '<br/>');
     if (updatePageHtmlRef.current) {
       updatePageHtmlRef.current(targetPageIndex, finalHtml);
@@ -9559,17 +9514,6 @@ const MainEditor = ({
     let candidates = [];
     let effectiveFrameId = currentFrameIdRef.current;
 
-    // Auto-enter root frame context on mouse down for double pageview
-    if (isDoublePage) {
-      const topLevels = getTopLevelFrames(svg);
-      const hitRoot = topLevels.find(f => hitTest(f, e.clientX, e.clientY));
-      if (hitRoot && topLevels.length === 1 && effectiveFrameId !== hitRoot.id) {
-        effectiveFrameId = hitRoot.id;
-        setCurrentFrameId(hitRoot.id);
-        currentFrameIdRef.current = hitRoot.id;
-      }
-    }
-
     if (effectiveFrameId) {
       const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
       candidates = frameEl ? getDirectChildFrames(frameEl) : [];
@@ -9667,18 +9611,7 @@ const MainEditor = ({
 
       setMarquee({ pageIndex });
 
-      let activeRef;
-      if (isDoublePage) {
-        if (activePageIndex === 0 && pageIndex === 0) {
-          activeRef = marqueeOverlayRef2; // Cover is on the right
-        } else if (pageIndex === spreadStartIndex) {
-          activeRef = marqueeOverlayRef1; // Left side of spread
-        } else {
-          activeRef = marqueeOverlayRef2; // Right side of spread
-        }
-      } else {
-        activeRef = marqueeOverlayRef1; // Single page is always container 1
-      }
+      const activeRef = marqueeOverlayRef1; // Single page is always container 1
       if (activeRef.current) {
         Object.assign(activeRef.current.style, {
           display: 'block',
@@ -10019,18 +9952,7 @@ const MainEditor = ({
       const height = Math.abs(curY - startY);
 
       // Direct DOM update for marquee box - avoids React re-render lag
-      let activeRef;
-      if (isDoublePage) {
-        if (activePageIndex === 0 && marqueeRef.current.pageIndex === 0) {
-          activeRef = marqueeOverlayRef2;
-        } else if (marqueeRef.current.pageIndex === spreadStartIndex) {
-          activeRef = marqueeOverlayRef1;
-        } else {
-          activeRef = marqueeOverlayRef2;
-        }
-      } else {
-        activeRef = marqueeOverlayRef1;
-      }
+      const activeRef = marqueeOverlayRef1;
       if (activeRef.current) {
         activeRef.current.style.left = `${x}px`;
         activeRef.current.style.top = `${y}px`;
@@ -10064,21 +9986,7 @@ const MainEditor = ({
       }
     }
 
-    const frameId = currentFrameIdRef.current;
-
-    // ── DYNAMIC CONTEXT (Double Page): Auto-adjust target level for easy edit ─────
-    // If we're on a spread, always try to "enter" the page we are hovering
-    let effectiveFrameId = frameId;
-    if (isDoublePage) {
-      const tops = getTopLevelFrames(svg);
-      const hitRoot = tops.find(f => hitTest(f, e.clientX, e.clientY));
-      if (hitRoot && tops.length === 1 && effectiveFrameId !== hitRoot.id) {
-        effectiveFrameId = hitRoot.id;
-        // No need to set state via setCurrentFrameId here, 
-        // the handleClick will finalize it. 
-        // Just use local effectiveFrameId for hover highlighting.
-      }
-    }
+    const effectiveFrameId = currentFrameIdRef.current;
 
     if (effectiveFrameId) {
       // ── Inside a frame: hover its direct children ──
@@ -10656,27 +10564,7 @@ const MainEditor = ({
       selectedLayerIdRef.current = id;
     }
 
-    // In double page mode, if we are selecting a root folder, 
-    // we should try to keep both root folders in the multi-selection set.
     const newSet = id ? new Set([id]) : new Set();
-
-    if (isDoublePage && id && pages.length > 0) {
-      // Find the page index this ID belongs to
-      const pgIdx = pages.findIndex(p => p.layers?.[0]?.id === id);
-      if (pgIdx !== -1) {
-        // If it's a root folder, check if its spread-mate should stay selected
-        const lIdx = pgIdx % 2 === 1 ? pgIdx : pgIdx - 1;
-        const rIdx = pgIdx % 2 === 1 ? pgIdx + 1 : pgIdx;
-
-        if (lIdx >= 0 && lIdx < pages.length && rIdx < pages.length) {
-          const rootL = pages[lIdx]?.layers?.[0]?.id;
-          const rootR = pages[rIdx]?.layers?.[0]?.id;
-          if (rootL) newSet.add(rootL);
-          if (rootR) newSet.add(rootR);
-        }
-      }
-    }
-
     multiSelectedIdsRef.current = newSet;
     setMultiSelectedIds(newSet);
 
@@ -11391,19 +11279,7 @@ const MainEditor = ({
     const frameId = currentFrameIdRef.current;
     const selId = selectedLayerIdRef.current;
 
-    // ── DYNAMIC CONTEXT (Double Page): Auto-enter context to avoid double click ───
-    let effectiveFrameId = frameId;
-    const topFrames = getTopLevelFrames(svg);
-    const hitRoot = topFrames.find(f => hitTest(f, e.clientX, e.clientY));
-
-    if (isDoublePage && hitRoot) {
-      // Always enter the context of the page we click, even if another was entered
-      effectiveFrameId = hitRoot.id;
-      if (frameId !== hitRoot.id) {
-        setCurrentFrameId(hitRoot.id);
-        currentFrameIdRef.current = hitRoot.id;
-      }
-    }
+    const effectiveFrameId = frameId;
 
     // ── Case 1: We are INSIDE an entered frame — INFINITE RECURSIVE DRILL-DOWN ─
     if (effectiveFrameId) {
@@ -11830,38 +11706,12 @@ const MainEditor = ({
   };
 
   const handlePrevPage = () => {
-    if (isDoublePage) {
-      if (activePageIndex <= 0) return;
-      if (activePageIndex === 1 || activePageIndex === 2) {
-        setActivePageIndex(0);
-        return;
-      }
-      // Jump to the start of the previous spread
-      const currentSpreadStart = activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex;
-      setActivePageIndex(Math.max(1, currentSpreadStart - 2));
-    } else {
-      setActivePageIndex(prev => Math.max(0, prev - 1));
-    }
+    setActivePageIndex(prev => Math.max(0, prev - 1));
   };
 
   const handleNextPage = () => {
-    if (isDoublePage) {
-      if (activePageIndex === 0) {
-        if (pages.length > 1) setActivePageIndex(1);
-        return;
-      }
-
-      // Jump to the start of the next spread/page after the current spread
-      const currentSpreadStart = activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex;
-      const nextIdx = currentSpreadStart + 2;
-
-      if (nextIdx < pages.length) {
-        setActivePageIndex(nextIdx);
-      }
-    } else {
-      if (activePageIndex + 1 < pages.length) {
-        setActivePageIndex(prev => prev + 1);
-      }
+    if (activePageIndex + 1 < pages.length) {
+      setActivePageIndex(prev => prev + 1);
     }
   };
 
@@ -12184,13 +12034,8 @@ const MainEditor = ({
             const containerWidth = editorContainerRef.current.clientWidth;
             const containerHeight = editorContainerRef.current.clientHeight;
 
-            const spreadStartIndex = (isDoublePage && activePageIndex > 0)
-              ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-              : activePageIndex;
-            const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-
             const baseVhHeight = window.innerHeight * 0.78;
-            const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
+            const totalWidth = baseWidth || 210;
             const baseCanvasHeight = baseVhHeight;
             const baseCanvasWidth = baseCanvasHeight * (totalWidth / baseHeight);
             const currentScale = zoom / 100;
@@ -12281,23 +12126,9 @@ const MainEditor = ({
           <CanvasRuler
             zoom={zoom}
             pan={currentPanRef.current}
-            baseLogicalWidth={(() => {
-              const spreadStartIndex = (isDoublePage && activePageIndex > 0)
-                ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-                : activePageIndex;
-              const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-              return currentSpread ? 2 * baseWidth : baseWidth;
-            })()}
+            baseLogicalWidth={baseWidth}
             baseLogicalHeight={baseHeight}
-            baseCanvasWidth={(() => {
-              const spreadStartIndex = (isDoublePage && activePageIndex > 0)
-                ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-                : activePageIndex;
-              const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-              const baseVhHeight = window.innerHeight * 0.78;
-              const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
-              return baseVhHeight * (totalWidth / baseHeight);
-            })()}
+            baseCanvasWidth={window.innerHeight * 0.78 * (baseWidth / baseHeight)}
             baseCanvasHeight={window.innerHeight * 0.78}
           />
         )}
@@ -12307,15 +12138,7 @@ const MainEditor = ({
           <GuidesOverlay
             zoom={zoom}
             pan={currentPanRef.current}
-            baseCanvasWidth={(() => {
-              const spreadStartIndex = (isDoublePage && activePageIndex > 0)
-                ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-                : activePageIndex;
-              const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-              const baseVhHeight = window.innerHeight * 0.78;
-              const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
-              return baseVhHeight * (totalWidth / baseHeight);
-            })()}
+            baseCanvasWidth={window.innerHeight * 0.78 * (baseWidth / baseHeight)}
             baseCanvasHeight={window.innerHeight * 0.78}
           />
         )}
@@ -12926,15 +12749,12 @@ const MainEditor = ({
           >
             {/* Pages Container Centered */}
             <div className="flex items-center justify-center gap-[0] relative z-10 shadow-[0_0_15px_rgba(0,0,0,0.20)] rounded-sm">
-              {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
-              {pages.length > 0 && (isDoublePage ? (spreadStartIndex > 0 && pages[spreadStartIndex]) : pages[activePageIndex]) && (
-
+              {/* Single A4 Canvas Page */}
+              {pages.length > 0 && pages[activePageIndex] && (
                 <div className="relative group/page">
-                  {/* Page Control Button (Floating Above Top) Removed as per user request */}
-
-                  {/* A4 Canvas Page 1 Inner */}
+                  {/* A4 Canvas Page Inner */}
                   <div
-                    className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
+                    className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'}`}
                     style={isPopupEditor ? {
                       width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
                       height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
@@ -12947,14 +12767,17 @@ const MainEditor = ({
                     }}
                   >
                     {/* Page Content */}
-                    <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
+                    <div
+                      className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil') ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen') ? 'pen-mode' : ''} ${(activeMainTool === 'shapes') ? 'shape-mode' : ''} ${(activeMainTool === 'type') ? 'type-mode' : ''}`}
+                      data-page-index={activePageIndex}
+                    >
                       <style>{svgGlobalStyles}</style>
                       {(() => {
-                        const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
-                        const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
-                        const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
-                        const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
-                        const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
+                        const displayIndex = activePageIndex;
+                        const isShapeActive = activeMainTool === 'shapes';
+                        const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil';
+                        const isPenToolActive = activeMainTool === 'pen';
+                        const isTypeActive = activeMainTool === 'type';
 
                         const pageHtml = pages[displayIndex]?.html;
                         const isPageEmpty = !pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0));
@@ -13062,269 +12885,112 @@ const MainEditor = ({
 
                                     // 3. Try reading external files dropped directly from Desktop / File Explorer
                                     if (!data && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                                    const files = Array.from(e.dataTransfer.files);
-                                    files.forEach(async (file, idx) => {
-                                      const fileUrl = URL.createObjectURL(file);
-                                      const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
+                                      const files = Array.from(e.dataTransfer.files);
+                                      files.forEach(async (file, idx) => {
+                                        const fileUrl = URL.createObjectURL(file);
+                                        const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
 
-                                      if (file.type.startsWith('image/')) {
-                                        let isGif = file.type === 'image/gif';
-                                        if (!isGif && file.type.includes('webp')) {
-                                          isGif = await checkIsAnimatedWebp(file);
-                                        }
-                                        window.dispatchEvent(new CustomEvent('add-image-to-editor', {
-                                          detail: {
-                                            pageIndex: displayIndex,
-                                            url: fileUrl,
-                                            gifUrl: isGif ? fileUrl : undefined,
-                                            name: file.name,
-                                            type: isGif ? 'gif' : 'image',
-                                            dropPoint: offsetPoint
+                                        if (file.type.startsWith('image/')) {
+                                          let isGif = file.type === 'image/gif';
+                                          if (!isGif && file.type.includes('webp')) {
+                                            isGif = await checkIsAnimatedWebp(file);
                                           }
-                                        }));
-                                      } else if (file.type.startsWith('video/')) {
-                                        window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
-                                          detail: {
-                                            pageIndex: displayIndex,
-                                            videoUrl: fileUrl,
-                                            file,
-                                            originalUrl: fileUrl,
-                                            dropPoint: offsetPoint
-                                          }
-                                        }));
-                                      }
-                                    });
-                                    return;
-                                  }
-
-                                  if (!data) return;
-
-                                  if (data.type === 'hotspot') {
-                                    window.dispatchEvent(new CustomEvent('add-hotspot-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        icon: data.icon,
-                                        dropPoint,
-                                        presetId: data.icon?.presetId
-                                      }
-                                    }));
-                                    setShowHotspotPopup(false);
-                                  } else if (data.type === 'icon') {
-                                    window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        icon: data.icon,
-                                        dropPoint
-                                      }
-                                    }));
-                                  } else if (data.type === 'image' || data.type === 'upload' || data.url) {
-                                    window.dispatchEvent(new CustomEvent('add-image-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        url: data.url || data.src,
-                                        name: data.name || 'Image',
-                                        type: 'image',
-                                        dropPoint
-                                      }
-                                    }));
-                                  } else if (data.type === 'gif') {
-                                    window.dispatchEvent(new CustomEvent('add-image-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        url: data.url || data.src,
-                                        gifUrl: data.url || data.src,
-                                        name: data.name || 'GIF',
-                                        type: 'gif',
-                                        dropPoint
-                                      }
-                                    }));
-                                  } else if (data.type === 'video') {
-                                    window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
-                                      detail: {
-                                        pageIndex: displayIndex,
-                                        videoUrl: data.url || data.src,
-                                        file: data.file,
-                                        originalUrl: data.url || data.src,
-                                        dropPoint
-                                      }
-                                    }));
-                                  }
-                                } catch (err) {
-                                  console.error('[MainEditor] Drop error:', err);
-                                }
-                              }}
-                              // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
-                              onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
-                            />
-                          )}
-                          {/* Selection Overlay (Overlay rotated element perfectly) */}
-                          <svg
-                            id={`highlight-overlay-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-
-                          {/* HTML Overlay for Resize Handles (Clickable) */}
-                          <div
-                            id={`highlight-overlay-html-${displayIndex}`}
-                            className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
-                          />
-                          <AnimatePresence>
-                            {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
-                              <SelectionTooltip
-                                selectedId={selectedLayerId}
-                                multiSelectedIds={multiSelectedIds}
-                                zoom={zoom}
-                                setActiveTopTool={setActiveTopTool}
-                                pageIndex={displayIndex}
-                                activePageIndex={activePageIndex}
-                                updateElementAttribute={updateElementAttribute}
-                                activeTopTool={activeTopTool}
-                              />
-                            )}
-                          </AnimatePresence>
-
-
-
-                          {/* Marquee Selection Box */}
-                          <div
-                            ref={marqueeOverlayRef1}
-                            style={{
-                              position: 'absolute',
-                              border: '1px solid #6366F1',
-                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                              pointerEvents: 'none',
-                              zIndex: 1000,
-                              display: 'none'
-                            }}
-                          />
-
-                          {isPageEmpty && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
-                              <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
-                                Ready-made templates<br />are available for a quicker start
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenTemplateModal(displayIndex);
-                                }}
-                                className="text-[#5145F6] hover:text-[#3B2DD6] text-[0.85vw] font-medium mb-[0.8vw] pointer-events-auto cursor-pointer underline underline-offset-4 decoration-1"
-                              >
-                                Add Templates
-                              </button>
-                              <div className="text-[#B0B5C1] text-[0.85vw] mb-[0.8vw] font-normal">
-                                (or)
-                              </div>
-                              <div className="text-[#D1D5DB] text-[0.85vw] font-normal">
-                                Create your own Design
-                              </div>
-                            </div>
-                          )}
-                          </div>
-                        );
-                      })()}
-
-                    </div>
-
-                  </div>
-                </div>
-              )}
-
-              {/* Subtle Center Divider for Double Page - Only show if it's a spread */}
-              {isCurrentlySpread && (
-                <div className="w-[1px] h-[78vh] bg-gray-100/50 relative z-10 shrink-0"></div>
-              )}
-
-              {/* A4 Canvas Page 2 (Visible if Double Page is enabled OR Right-Side Cover) */}
-              {(activePageIndex === 0 ? (isDoublePage && pages[0]) : isCurrentlySpread) && (
-
-                <div className="relative group/page">
-                  {/* Page Control Button (Floating Above Top - Right Side) Removed as per user request */}
-
-                  {/* A4 Canvas Page 2 Inner */}
-                  <div
-                    className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'} ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
-                    style={isPopupEditor ? {
-                      width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
-                      height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
-                      borderRadius: '1.2vw',
-                      backgroundColor: '#ffffff'
-                    } : {
-                      height: '78vh',
-                      aspectRatio: canvasAspectRatio,
-                      minHeight: '400px',
-                    }}
-                  >
-                    {/* Page Content */}
-                    <div className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
-
-                      <style>{svgGlobalStyles}</style>
-                      {(() => {
-                        const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
-                        const page = pages[displayIndex];
-                        const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
-                        const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
-                        const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
-
-
-                        const pageHtml = page?.html;
-                        const isPageEmpty = !pageHtml || (page?.layers?.length === 1 && (!page.layers[0].children || page.layers[0].children.length === 0));
-
-                        return (
-                          <div
-                            className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
-                            style={{ cursor: ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
-                          >
-                            {pageHtml && (
-                              <div
-                                id={`canvas-content-${displayIndex}`}
-                                className="w-full h-full flex items-center justify-center"
-                                ref={(el) => {
-                                  if (el) {
-                                    const newHtml = getHtmlToRender(displayIndex, page.html);
-                                    if (window.__skipCanvasUpdateForPage === displayIndex) {
-                                      window.__skipCanvasUpdateForPage = -1;
-                                      el.__lastHtml = newHtml;
-                                    } else if (el.__lastHtml !== newHtml) {
-                                      const parser = new DOMParser();
-                                      const doc = parser.parseFromString(newHtml, 'text/html');
-                                      const newChildren = Array.from(doc.body.childNodes);
-
-                                      const oldChildren = Array.from(el.childNodes);
-                                      const maxLength = Math.max(oldChildren.length, newChildren.length);
-
-                                      for (let i = 0; i < maxLength; i++) {
-                                        if (!oldChildren[i]) {
-                                          el.appendChild(newChildren[i].cloneNode(true));
-                                        } else if (!newChildren[i]) {
-                                          el.removeChild(oldChildren[i]);
-                                        } else {
-                                          syncDOM(oldChildren[i], newChildren[i]);
+                                          window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                            detail: {
+                                              pageIndex: displayIndex,
+                                              url: fileUrl,
+                                              gifUrl: isGif ? fileUrl : undefined,
+                                              name: file.name,
+                                              type: isGif ? 'gif' : 'image',
+                                              dropPoint: offsetPoint
+                                            }
+                                          }));
+                                        } else if (file.type.startsWith('video/')) {
+                                          window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                                            detail: {
+                                              pageIndex: displayIndex,
+                                              videoUrl: fileUrl,
+                                              file,
+                                              originalUrl: fileUrl,
+                                              dropPoint: offsetPoint
+                                            }
+                                          }));
                                         }
-                                      }
-
-                                      el.__lastHtml = newHtml;
+                                      });
+                                      return;
                                     }
+
+                                    if (!data) return;
+
+                                    if (data.type === 'hotspot') {
+                                      window.dispatchEvent(new CustomEvent('add-hotspot-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          icon: data.icon,
+                                          dropPoint,
+                                          presetId: data.icon?.presetId
+                                        }
+                                      }));
+                                      setShowHotspotPopup(false);
+                                    } else if (data.type === 'icon') {
+                                      window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          icon: data.icon,
+                                          dropPoint
+                                        }
+                                      }));
+                                    } else if (data.type === 'image' || data.type === 'upload' || data.url) {
+                                      window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          url: data.url || data.src,
+                                          name: data.name || 'Image',
+                                          type: 'image',
+                                          dropPoint
+                                        }
+                                      }));
+                                    } else if (data.type === 'gif') {
+                                      window.dispatchEvent(new CustomEvent('add-image-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          url: data.url || data.src,
+                                          gifUrl: data.url || data.src,
+                                          name: data.name || 'GIF',
+                                          type: 'gif',
+                                          dropPoint
+                                        }
+                                      }));
+                                    } else if (data.type === 'video') {
+                                      window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+                                        detail: {
+                                          pageIndex: displayIndex,
+                                          videoUrl: data.url || data.src,
+                                          file: data.file,
+                                          originalUrl: data.url || data.src,
+                                          dropPoint
+                                        }
+                                      }));
+                                    }
+                                  } catch (err) {
+                                    console.error('[MainEditor] Drop error:', err);
                                   }
                                 }}
-                                onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                                onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
-                                onMouseLeave={handleSvgMouseLeave}
-                                onClick={handleSvgClick}
-                                // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
                                 onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
                               />
                             )}
                             {/* Selection Overlay (Overlay rotated element perfectly) */}
                             <svg
                               id={`highlight-overlay-${displayIndex}`}
-                              className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                              className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
+                              style={{ overflow: 'visible', pointerEvents: 'none' }}
                             />
 
                             {/* HTML Overlay for Resize Handles (Clickable) */}
                             <div
                               id={`highlight-overlay-html-${displayIndex}`}
-                              className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                              className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
+                              style={{ overflow: 'visible', pointerEvents: 'none' }}
                             />
                             <AnimatePresence>
                               {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
@@ -13341,10 +13007,9 @@ const MainEditor = ({
                               )}
                             </AnimatePresence>
 
-
                             {/* Marquee Selection Box */}
                             <div
-                              ref={marqueeOverlayRef2}
+                              ref={marqueeOverlayRef1}
                               style={{
                                 position: 'absolute',
                                 border: '1px solid #6366F1',
@@ -13355,41 +13020,10 @@ const MainEditor = ({
                               }}
                             />
 
-                            {/* In-Place Crop Mode Banner & Floating Overlay */}
-                            {activeCropId && activePageIndex === displayIndex && (
-                              <div className="absolute inset-0 pointer-events-none z-[2500]">
-                                {/* Semi-transparent white backdrop */}
-                                <div className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] pointer-events-none" />
-                                {/* Floating action banner */}
-                                <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto bg-[#181825] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-4 border border-white/20 animate-in fade-in slide-in-from-top-4 duration-200">
-                                  <div className="flex items-center gap-2.5 text-xs font-medium">
-                                    <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-indigo-400/30">
-                                      Crop Mode
-                                    </span>
-                                    <span className="text-gray-200 text-xs">Drag image to move • Scroll mouse wheel to zoom</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveCropId(null);
-                                      activeCropIdRef.current = null;
-                                    }}
-                                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3.5 py-1 rounded-full font-semibold transition-all active:scale-95 shadow-md flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <span>Done</span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                      <polyline points="20 6 9 17 4 12"></polyline>
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
                             {isPageEmpty && (
                               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
                                 <div className="text-center text-[#B0B5C1] text-[0.85vw] font-normal leading-snug mb-[0.8vw]">
-                                  Ready-made templates<br />are available for a
+                                  Ready-made templates<br />are available for a quicker start
                                 </div>
                                 <button
                                   onClick={(e) => {
@@ -13436,34 +13070,51 @@ const MainEditor = ({
                   <Icon icon="ion:caret-up" width="1.4vw" height="1.4vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[-90deg]" />
                 </button>
 
-                {/* Center Page Number Text */}
-                <span className="text-[#4B5563] text-[0.85vw] font-medium tracking-wide">
-                  {isDoublePage && isCurrentlySpread
-                    ? `${spreadStartIndex + 1}-${Math.min(spreadStartIndex + 2, pages.length)} / ${pages.length}`
-                    : `${activePageIndex + 1} / ${pages.length}`}
-                </span>
+                {/* Center Page Number Input & Total */}
+                <div className="flex items-center text-[#4B5563] text-[0.85vw] font-medium tracking-wide">
+                  <input
+                    type="text"
+                    className="text-center bg-transparent border-b border-transparent hover:border-gray-300 outline-none text-[#111827] font-semibold text-[0.85vw] p-0 transition-all cursor-text select-all"
+                    style={{
+                      width: `${Math.max(1.1, String(isEditingPage ? pageInputVal : (activePageIndex + 1)).length * 0.62)}vw`
+                    }}
+                    value={isEditingPage ? pageInputVal : (activePageIndex + 1)}
+                    onFocus={(e) => {
+                      setIsEditingPage(true);
+                      setPageInputVal((activePageIndex + 1).toString());
+                      e.target.select();
+                    }}
+                    onBlur={() => {
+                      setIsEditingPage(false);
+                      const parsed = parseInt(pageInputVal, 10);
+                      if (!isNaN(parsed) && parsed >= 1 && parsed <= pages.length) {
+                        const targetIdx = parsed - 1;
+                        if (targetIdx !== activePageIndex && typeof setActivePageIndex === 'function') {
+                          setActivePageIndex(targetIdx);
+                        }
+                      }
+                    }}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      setPageInputVal(val);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.target.blur();
+                      } else if (e.key === 'Escape') {
+                        setIsEditingPage(false);
+                      }
+                    }}
+                  />
+                  <span className="text-[#6B7280] font-normal mx-[0.25vw]">/</span>
+                  <span className="text-[#4B5563] font-medium">{pages.length}</span>
+                </div>
 
                 {/* Right Arrow Button */}
                 <button
-                  disabled={
-                    isDoublePage
-                      ? activePageIndex === 0
-                        ? pages.length <= 1
-                        : isCurrentlySpread
-                          ? spreadStartIndex + 2 >= pages.length
-                          : spreadStartIndex + 1 >= pages.length
-                      : activePageIndex + 1 >= pages.length
-                  }
+                  disabled={activePageIndex + 1 >= pages.length}
                   onClick={handleNextPage}
-                  className={`flex items-center justify-center transition-all duration-200 group ${(
-                    isDoublePage
-                      ? activePageIndex === 0
-                        ? pages.length <= 1
-                        : isCurrentlySpread
-                          ? spreadStartIndex + 2 >= pages.length
-                          : spreadStartIndex + 1 >= pages.length
-                      : activePageIndex + 1 >= pages.length
-                  ) ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
+                  className={`flex items-center justify-center transition-all duration-200 group ${activePageIndex + 1 >= pages.length ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
                   title="Next Page"
                 >
                   <Icon icon="ion:caret-up" width="1.4vw" height="1.4vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[90deg]" />

@@ -360,5 +360,32 @@ export const CropController = ({
     };
   }, [activeCropId, activePageIndex, zoom]);
 
-  return null;
+  if (!activeCropId) return null;
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[9999]">
+      <div className="absolute top-[17vh] left-1/2 -translate-x-1/2 pointer-events-auto bg-[#181825] text-white px-[1.2vw] py-[0.6vh] rounded-[0.5vw] shadow-2xl flex items-center gap-[1vw] border border-white/20 animate-in fade-in duration-200">
+        <div className="flex items-center gap-[0.6vw] text-[0.75vw] font-medium">
+          <span className="bg-green-500/30 text-green-300 px-[0.6vw] py-[0.2vh] rounded-full text-[0.65vw] font-bold uppercase tracking-wider border border-green-400/30">
+            Crop Mode
+          </span>
+          <span className="text-gray-200 text-[0.75vw]">Drag image to move • Scroll mouse wheel to zoom</span>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveCropId(null);
+            activeCropIdRef.current = null;
+          }}
+          className="bg-green-600 hover:bg-green-500 text-white text-[0.75vw] px-[0.9vw] py-[0.4vh] rounded-full font-semibold transition-all active:scale-95 shadow-md flex items-center gap-[0.35vw] cursor-pointer"
+        >
+          <span>Done</span>
+          {/* <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: '0.75vw', height: '0.75vw' }}>
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg> */}
+        </button>
+      </div>
+    </div>
+  );
 };

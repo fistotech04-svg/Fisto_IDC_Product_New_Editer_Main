@@ -21,7 +21,7 @@ import { fileURLToPath } from "url";
 // Connect to database
 connectDB();
 
-import { SUPABASE_BUCKET, downloadFileFromSupabase } from "./config/supabase.js";
+import { SUPABASE_BUCKET, getSupabasePublicUrl, downloadFileFromSupabase } from "./config/supabase.js";
 
 console.log(`[Supabase] Storage integration initialized for bucket '${SUPABASE_BUCKET}'.`);
 
@@ -64,24 +64,21 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "500mb" }));
-app.use(bodyParser.urlencoded({ limit: "500mb", extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 
-// Serve /uploads EXCLUSIVELY from Supabase Storage (no local disk)
-app.use("/uploads", async (req, res, next) => {
+// Serve /uploads by redirecting directly to Supabase Storage CDN (zero memory usage on Render)
+app.use("/uploads", (req, res) => {
   const relPath = req.path;
 
   try {
-    const fileBuffer = await downloadFileFromSupabase(relPath);
-    if (fileBuffer) {
-      const ext = path.extname(relPath).toLowerCase();
-      const mimeType = mimeTypes[ext] || "application/octet-stream";
-      res.setHeader("Content-Type", mimeType);
-      res.setHeader("Cache-Control", "public, max-age=300");
-      return res.send(fileBuffer);
+    const publicUrl = getSupabasePublicUrl(relPath);
+    if (publicUrl) {
+      res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+      return res.redirect(302, publicUrl);
     }
   } catch (err) {
-    console.warn("[Supabase /uploads Error]:", err);
+    console.warn("[Supabase /uploads Redirect Error]:", err);
   }
 
   console.warn(`[/uploads] File not found in Supabase: ${relPath}`);

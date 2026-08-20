@@ -49,24 +49,23 @@ const Profile = () => {
 
   useEffect(() => {
     const handleScroll = () => {
-      const leftCol = document.getElementById('left-scroll-container');
-      const rightCol = document.getElementById('main-scroll-container');
-      
-      const windowScroll = window.scrollY || document.documentElement.scrollTop || 0;
-      const leftScroll = leftCol?.scrollTop || 0;
-      const rightScroll = rightCol?.scrollTop || 0;
-      
-      const scrollTop = Math.max(windowScroll, leftScroll, rightScroll);
+      const container = document.getElementById('profile-container');
+      const scrollTop = container?.scrollTop || 0;
       const maxScroll = window.innerWidth * 0.15; // 15vw scroll distance for full effect
       const progress = Math.min(Math.max(scrollTop / maxScroll, 0), 1);
       setScrollProgress(progress);
     };
 
-    window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
+    const container = document.getElementById('profile-container');
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+    }
     handleScroll();
 
     return () => {
-      window.removeEventListener('scroll', handleScroll, { capture: true });
+      if (container) {
+        container.removeEventListener('scroll', handleScroll);
+      }
     };
   }, []);
 
@@ -82,7 +81,7 @@ const Profile = () => {
   ];
 
   return (
-    <div id="profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative ">
+    <div id="profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative overflow-y-auto hide-scrollbar">
       <style>{`
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
@@ -92,6 +91,12 @@ const Profile = () => {
           scrollbar-width: none;
         }
       `}</style>
+
+      {/* Dummy spacer to create 15vw scroll area */}
+      <div style={{ height: `calc(100% + 15vw)` }} className="w-full absolute top-0 left-0 pointer-events-none z-[-1]"></div>
+
+      {/* Sticky wrapper for actual content */}
+      <div className="sticky top-0 h-full flex flex-col w-full min-h-0 pointer-events-auto">
 
       {/* Top right menu icon - Moved outside banner wrapper to avoid stacking context issues */}
       <div className="sticky top-0 z-[60] w-full pointer-events-none" style={{ height: 0 }}>
@@ -234,7 +239,7 @@ const Profile = () => {
             </div>
 
             {/* Info Cards Container */}
-            <div id="left-scroll-container" className="w-full mt-[2vw] pb-[2vw] flex flex-col flex-1 overflow-y-auto min-h-0 hide-scrollbar">
+            <div id="left-scroll-container" className={`w-full mt-[2vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar ${scrollProgress >= 0.99 ? 'overflow-y-auto' : 'overflow-hidden'}`}>
 
               <div className="p-[1vw] border-b border-gray-100">
                 <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
@@ -341,7 +346,7 @@ const Profile = () => {
           </div>
 
           {/* Content Area */}
-          <div id="main-scroll-container" className="flex-1 overflow-y-auto px-[1.5vw] pb-[2vw] hide-scrollbar">
+          <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] hide-scrollbar ${scrollProgress >= 0.99 ? 'overflow-y-auto' : 'overflow-hidden'}`}>
             {activeTab === 'Edit Profile' && <EditProfile user={user} setUser={setUser} />}
 
             {activeTab === 'Your IDC' && (
@@ -426,6 +431,7 @@ const Profile = () => {
             {activeTab === 'Activity' && <Activity />}
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>
