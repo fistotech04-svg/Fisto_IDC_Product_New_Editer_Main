@@ -16,6 +16,7 @@ import p5 from '../assets/Explore/p5.png';
 import Footer from './Footer';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
+import CreatorProfileModal from './CreatorProfileModal';
 
 const covers = [cover1, cover2, cover3, cover4, cover5];
 const profiles = [p1, p2, p3, p4, p5];
@@ -65,7 +66,7 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
     );
 };
 
-const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bookName, authorName, location, pages, views, rating, description, onShare, onDownload }) => {
+const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -119,6 +120,8 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bo
                                         setIsMenuOpen(false);
                                         if (menuItem.name === 'View Book') {
                                             handleOpenBook();
+                                        } else if (menuItem.name === 'Creator Profile') {
+                                            if (onProfileClick) onProfileClick({ name: authorName, profileImg: profileImg, role: 'Creator' });
                                         } else if (menuItem.name === 'Share') {
                                             if (onShare) onShare(rawBook);
                                         } else if (menuItem.name === 'Download') {
@@ -143,7 +146,8 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bo
                     <img
                         src={profileImg}
                         alt="Author Avatar"
-                        className="w-[2.5vw] h-[2.5vw] rounded-full bg-teal-100 border border-gray-200 object-cover"
+                        className="w-[2.5vw] h-[2.5vw] rounded-full bg-teal-100 border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: profileImg, role: 'Creator' })}
                     />
                     <div className="flex flex-col">
                         <span className="text-[0.85vw] font-medium text-gray-900 leading-tight">{authorName || 'Alex Johnson'}</span>
@@ -235,6 +239,14 @@ const Explore = () => {
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [selectedBookForModal, setSelectedBookForModal] = useState(null);
+
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [selectedCreator, setSelectedCreator] = useState(null);
+
+    const handleProfileClick = (creator) => {
+        setSelectedCreator(creator);
+        setIsProfileModalOpen(true);
+    };
 
     const handleOpenShareModal = (rawBook) => {
         setSelectedBookForModal(rawBook);
@@ -672,6 +684,7 @@ const Explore = () => {
                                         description={book.description}
                                         onShare={handleOpenShareModal}
                                         onDownload={handleOpenExportModal}
+                                        onProfileClick={handleProfileClick}
                                     />
                                 ))}
                                 {filteredBooks.length === 0 && (
@@ -701,8 +714,11 @@ const Explore = () => {
                                         <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
                                             {/* Avatar & Follow Button */}
                                             <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
-                                                <div className="relative shrink-0 z-10">
-                                                    <div className="w-[6vw] h-[6w]  rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10">
+                                                <div 
+                                                    className="relative shrink-0 z-10 cursor-pointer hover:opacity-90 transition-opacity"
+                                                    onClick={() => handleProfileClick(creator)}
+                                                >
+                                                    <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10">
                                                         <img src={creator.profileImg} alt="Creator" className="w-full h-full object-cover bg-gray-50" />
                                                     </div>
                                                     {/* Left Smooth Corner */}
@@ -770,6 +786,13 @@ const Explore = () => {
                 onClose={() => setIsExportModalOpen(false)}
                 currentBook={selectedBookForModal}
                 isFromMyFlipbooks={true}
+            />
+
+            {/* Profile Modal */}
+            <CreatorProfileModal 
+                isOpen={isProfileModalOpen} 
+                onClose={() => setIsProfileModalOpen(false)} 
+                creator={selectedCreator} 
             />
         </div>
     );
