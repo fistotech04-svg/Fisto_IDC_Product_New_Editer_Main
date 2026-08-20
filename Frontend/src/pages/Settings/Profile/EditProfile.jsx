@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import axios from 'axios';
 import { User, Building, MapPin, Globe, Check, X, Upload } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
 const EditProfile = ({ user, setUser }) => {
   const [editedUser, setEditedUser] = useState(user);
   const [errors, setErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
 
   useEffect(() => {
     setEditedUser(user);
@@ -69,9 +73,50 @@ const EditProfile = ({ user, setUser }) => {
     setErrors(newErrors);
   };
 
-  const handleSave = () => {
-    if (validate()) {
+  const handleSave = async () => {
+    if (!validate()) return;
+    setIsSaving(true);
+    try {
+      const email = editedUser.email || editedUser.emailId;
+      const res = await axios.post(`${backendUrl}/api/profile/save`, {
+        emailId: email,
+        ...editedUser
+      });
+
+      if (res.data?.success && res.data?.profile) {
+        const p = res.data.profile;
+        const merged = {
+          ...editedUser,
+          ...p,
+          email: p.emailId || email,
+          emailId: p.emailId || email,
+          services: p.services || editedUser.services || [],
+          socials: {
+            ...(editedUser.socials || {}),
+            ...(p.socials || {})
+          }
+        };
+        if (setUser) setUser(merged);
+
+        try {
+          const stored = localStorage.getItem('user');
+          const parsed = stored ? JSON.parse(stored) : {};
+          localStorage.setItem('user', JSON.stringify({
+            ...parsed,
+            name: merged.name,
+            emailId: merged.emailId,
+            picture: merged.picture,
+            avatarBgColor: merged.avatarBgColor
+          }));
+        } catch (e) {}
+      } else {
+        if (setUser) setUser(editedUser);
+      }
+    } catch (err) {
+      console.error("Error saving profile:", err);
       if (setUser) setUser(editedUser);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -88,11 +133,26 @@ const EditProfile = ({ user, setUser }) => {
 
   const saveActions = isEdited && (
     <div className="flex gap-[0.5vw]">
-      <button onClick={handleCancel} className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] border border-gray-300 rounded-[0.4vw] text-[0.8vw] font-medium text-gray-600 hover:text-gray-900 transition-colors">
+      <button
+        type="button"
+        disabled={isSaving}
+        onClick={handleCancel}
+        className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] border border-gray-300 rounded-[0.4vw] text-[0.8vw] font-medium text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50"
+      >
         <X size="0.9vw" /> Cancel
       </button>
-      <button onClick={handleSave} className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] bg-green-600 rounded-[0.4vw] text-[0.8vw] font-medium text-white transition-colors">
-        <Check size="0.9vw" /> Save Changes
+      <button
+        type="button"
+        disabled={isSaving}
+        onClick={handleSave}
+        className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] bg-green-600 hover:bg-green-700 rounded-[0.4vw] text-[0.8vw] font-medium text-white transition-colors disabled:opacity-50"
+      >
+        {isSaving ? (
+          <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
+        ) : (
+          <Check size="0.9vw" />
+        )}
+        {isSaving ? 'Saving...' : 'Save Changes'}
       </button>
     </div>
   );

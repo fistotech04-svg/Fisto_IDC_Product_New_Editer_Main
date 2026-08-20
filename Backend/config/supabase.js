@@ -648,6 +648,47 @@ export const getUserStorageSizeFromSupabase = async (sanitizedEmail) => {
   }
 };
 
+/**
+ * Recursively list all files in a folder path in Supabase Storage and sum their physical size in bytes.
+ */
+export const getFolderSizeFromSupabase = async (folderPath) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !folderPath) return 0;
+    let cleanPath = folderPath.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    if (cleanPath.startsWith("uploads/")) {
+      cleanPath = cleanPath.substring("uploads/".length);
+    }
+    if (cleanPath.includes(`/storage/v1/object/public/${SUPABASE_BUCKET}/`)) {
+      cleanPath = cleanPath.split(`/storage/v1/object/public/${SUPABASE_BUCKET}/`)[1];
+    }
+
+    const listAllFiles = async (dirPath) => {
+      let totalSize = 0;
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .list(dirPath, { limit: 1000 });
+
+      if (error || !data) return 0;
+
+      for (const item of data) {
+        if (!item || item.name === ".keep") continue;
+        const itemPath = `${dirPath}/${item.name}`;
+        if (!item.id && (!item.metadata || Object.keys(item.metadata).length === 0)) {
+          totalSize += await listAllFiles(itemPath);
+        } else if (item.metadata && typeof item.metadata.size === 'number') {
+          totalSize += item.metadata.size;
+        }
+      }
+      return totalSize;
+    };
+
+    return await listAllFiles(cleanPath);
+  } catch (err) {
+    console.warn("[Supabase] getFolderSizeFromSupabase error:", err);
+    return 0;
+  }
+};
+
 
 
 

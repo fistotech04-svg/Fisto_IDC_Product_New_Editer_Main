@@ -4,24 +4,85 @@ import { Icon } from '@iconify/react';
 import CrownImg from '../../../assets/settings/Crown img.svg';
 import p1 from '../../../assets/settings/p1.png';
 
+const defaultProfile = {
+  name: 'User',
+  email: '',
+  emailId: '',
+  picture: null,
+  avatarBgColor: '#E8D4C8',
+  about: '',
+  mobile: '',
+  companyName: '',
+  industryType: '',
+  companyEmail: '',
+  website: '',
+  services: [],
+  address1: '',
+  address2: '',
+  city: '',
+  pincode: '',
+  state: '',
+  country: 'INDIA',
+  socials: {
+    website: '',
+    instagram: '',
+    linkedin: '',
+    facebook: '',
+    whatsapp: ''
+  },
+  bannerBg: {
+    type: 'gradient',
+    value: 'linear-gradient(to bottom right, #c1e8d7, #85d8c3, #60bba3)'
+  }
+};
+
 const SettingsLayout = () => {
-  const [user, setUser] = useState({ name: 'Luffy', email: 'luffyonepiece@gmail.com', picture: null, avatarBgColor: '#E8D4C8' });
+  const [user, setUser] = useState(defaultProfile);
 
   useEffect(() => {
+    let targetEmail = '';
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
-        const targetEmail = parsedUser.emailId || parsedUser.email || '';
-        setUser({
+        targetEmail = parsedUser.emailId || parsedUser.email || '';
+        setUser(prev => ({
+          ...prev,
           name: parsedUser.name || (targetEmail ? targetEmail.split('@')[0] : 'User'),
-          email: targetEmail || 'No Email',
+          email: targetEmail || '',
+          emailId: targetEmail || '',
           picture: parsedUser.picture || null,
           avatarBgColor: parsedUser.avatarBgColor || '#E8D4C8'
-        });
+        }));
       } catch (e) {
         console.error("Failed to parse user data", e);
       }
+    }
+
+    if (targetEmail) {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      fetch(`${backendUrl}/api/profile?emailId=${encodeURIComponent(targetEmail)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data?.success && data?.profile) {
+            const p = data.profile;
+            setUser(prev => ({
+              ...defaultProfile,
+              ...prev,
+              ...p,
+              email: p.emailId || prev.email || targetEmail,
+              emailId: p.emailId || prev.emailId || targetEmail,
+              name: p.name || prev.name,
+              services: p.services || prev.services || [],
+              socials: {
+                ...defaultProfile.socials,
+                ...(prev.socials || {}),
+                ...(p.socials || {})
+              }
+            }));
+          }
+        })
+        .catch(err => console.error("Error loading profile in settings:", err));
     }
   }, []);
 
