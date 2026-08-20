@@ -1,6 +1,43 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import ShareModal from '../../../ShareModal';
+import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
+
+const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
+    if (!html) return <div className="w-full h-full bg-white flex items-center justify-center text-gray-300">Empty</div>;
+    
+    let processedHtml = html;
+    processedHtml = processedHtml.replace(/<img\b([^>]*src=['"]https:\/\/codia-f2c\.s3\.us-west-1\.amazonaws\.com\/[^'"]*['"])([^>]*)>/gi, '<img $1 crossOrigin="anonymous" $2>');
+
+    const srcDoc = `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body { margin: 0; padding: 0; overflow: hidden; background: white; width: 400px; height: 566px; position: relative; }
+                    * { box-sizing: border-box; }
+                    img { max-width: 100%; object-fit: contain; }
+                </style>
+            </head>
+            <body>
+                <div style="transform: scale(${scale}); transform-origin: top left; width: ${100 / scale}%; height: ${100 / scale}%;">
+                    ${processedHtml}
+                </div>
+            </body>
+        </html>
+    `;
+
+    return (
+        <iframe
+            srcDoc={srcDoc}
+            title={`Thumbnail ${index + 1}`}
+            className="w-full h-full border-none select-none pointer-events-none bg-white"
+            scrolling="no"
+            sandbox="allow-same-origin"
+        />
+    );
+});
 
 const TabletLayout7 = ({ 
     children, 
@@ -13,10 +50,32 @@ const TabletLayout7 = ({
     zoom = 1,
     currentBook,
     activeLayout,
-    settings
+    settings,
+    showTOC,
+    setShowTOCMemo,
+    showThumbnailBar,
+    setShowThumbnailBarMemo,
+    showSoundPopup,
+    setShowSoundPopupMemo
 }) => {
     const [isShareOpen, setIsShareOpen] = useState(false);
     const progressRef = useRef(null);
+
+    const spreads = useMemo(() => {
+        if (!pages || !pages.length) return [];
+        const result = [];
+        result.push({ pages: [pages[0]], indices: [0] });
+        for (let i = 1; i < pages.length; i += 2) {
+            const spreadPages = [pages[i]];
+            const indices = [i];
+            if (i + 1 < pages.length) {
+                spreadPages.push(pages[i + 1]);
+                indices.push(i + 1);
+            }
+            result.push({ pages: spreadPages, indices });
+        }
+        return result;
+    }, [pages]);
     
     const pagesCount = pages ? (Array.isArray(pages) ? pages.length : pages) : 12;
     let progressPercentage = 0;
@@ -40,6 +99,72 @@ const TabletLayout7 = ({
     return (
         <div className="relative w-full h-full flex flex-col font-sans overflow-hidden " style={{ containerType: 'inline-size' }}>
       <div id="tablet-download-portal" className="absolute inset-0 z-[60] pointer-events-none"></div>
+            
+            {/* Thumbnails Popup */}
+            {showThumbnailBar && (
+                <div className="absolute right-[6.8cqw] bottom-[7.5%] top-[10cqw] w-[26cqw] bg-[#F5F6F8] rounded-t-[1.5cqw] shadow-[-4px_0_24px_rgba(0,0,0,0.15)] flex flex-col pointer-events-auto z-[100]">
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-[2cqw] pb-[1cqw]">
+                        <h2 className="text-[1.8cqw] font-bold text-[#575C9C]">
+                            Thumbnails
+                        </h2>
+                        <button onClick={() => setShowThumbnailBarMemo?.(false)} className="text-[#575C9C] hover:opacity-70 transition-colors">
+                            <Icon icon="lucide:x" className="w-[2cqw] h-[2cqw]" />
+                        </button>
+                    </div>
+                    
+                    <div className="h-[1px] w-full bg-[#575C9C]/10 mb-[1.5cqw]"></div>
+
+                    {/* Thumbnail Items List */}
+                    <div className="flex-1 overflow-y-auto px-[1.5cqw] pb-[2cqw] flex flex-col items-center gap-[2cqw]" style={{ scrollbarWidth: 'none' }}>
+                        {spreads.map((spread, idx) => {
+                            const isSelected = spread.indices.includes(currentPage);
+                            
+                            return (
+                                <div 
+                                    key={idx} 
+                                    className="flex flex-col items-center cursor-pointer group w-[22cqw]"
+                                    onClick={() => {
+                                        if (bookRef?.current?.pageFlip) {
+                                            bookRef.current.pageFlip().turnToPage(spread.indices[0]);
+                                        } else if (onPageClick) {
+                                            onPageClick(spread.indices[0]);
+                                        }
+                                        setShowThumbnailBarMemo?.(false);
+                                    }}
+                                >
+                                    <div className={`p-[0.5cqw] rounded-[0.8cqw] bg-white transition-colors shadow-sm w-full ${isSelected ? 'border-[2px] border-[#575C9C]' : 'border-[2px] border-transparent hover:shadow-md'}`}>
+                                        <div className="w-full aspect-[4/3] flex bg-white border border-[#E5E7EB] rounded-[0.4cqw] overflow-hidden">
+                                            {spread.pages.map((page, pIdx) => (
+                                                <div key={pIdx} className="flex-1 relative border-r border-[#E5E7EB] last:border-r-0 h-full flex items-center justify-center">
+                                                    <PageThumbnail
+                                                        html={page.html || page.content}
+                                                        index={spread.indices[pIdx]}
+                                                        scale={0.12}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <span className="text-[1.2cqw] text-[#575C9C] font-bold mt-[1cqw] px-[1.5cqw] py-[0.5cqw] bg-white rounded-full shadow-sm">
+                                        Page {spread.indices.length === 1 ? spread.indices[0] + 1 : `${spread.indices[0] + 1}-${spread.indices[1] + 1}`}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* TOC Popup */}
+            {showTOC && (
+                <TabletTableOfContentsPopup 
+                    onClose={() => setShowTOCMemo?.(false)} 
+                    onNavigate={onPageClick} 
+                    settings={settings} 
+                    variant="layout7" 
+                />
+            )}
             
             {/* Top Bar - Floating/Transparent */}
             <div className="absolute top-[2cqw] left-[2cqw] right-[2cqw] flex items-center justify-between z-20 pointer-events-none">
@@ -80,17 +205,17 @@ const TabletLayout7 = ({
                 </button>
 
                 {/* Right Vertical Toolbar */}
-                <div className="absolute right-[1.5cqw] top-1/2 -translate-y-1/2 bg-[#5C5898] rounded-[0.8cqw] flex flex-col items-center py-[1.2cqw] gap-[1.2cqw] z-20 shadow-lg px-[0.7cqw]">
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="fluent:text-bullet-list-24-filled" className="w-[1.6cqw] h-[1.6cqw]" /></button>
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="ph:squares-four-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="clarity:image-gallery-solid" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                <div className="absolute right-[1.5cqw] top-1/2 -translate-y-1/2 bg-[#5C5898] rounded-[1.2cqw] flex flex-col items-center py-[1.8cqw] gap-[1.8cqw] z-20 shadow-lg px-[1.2cqw]">
+                    <button onClick={() => { setShowTOCMemo?.(!showTOC); setShowThumbnailBarMemo?.(false); setShowSoundPopupMemo?.(false); }} className={`text-white hover:text-gray-300 active:scale-95 transition-transform ${showTOC ? 'text-gray-300 opacity-70' : ''}`}><Icon icon="fluent:text-bullet-list-24-filled" className="w-[2.4cqw] h-[2.4cqw]" /></button>
+                    <button onClick={() => { setShowThumbnailBarMemo?.(!showThumbnailBar); setShowTOCMemo?.(false); setShowSoundPopupMemo?.(false); }} className={`text-white hover:text-gray-300 active:scale-95 transition-transform ${showThumbnailBar ? 'text-gray-300 opacity-70' : ''}`}><Icon icon="ph:squares-four-fill" className="w-[2.4cqw] h-[2.4cqw]" /></button>
+                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="clarity:image-gallery-solid" className="w-[2.4cqw] h-[2.4cqw]" /></button>
                     {(settings?.media?.backgroundAudio ?? true) && (
-                        <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                        <button onClick={() => { setShowSoundPopupMemo?.(!showSoundPopup); setShowTOCMemo?.(false); setShowThumbnailBarMemo?.(false); }} className={`text-white hover:text-gray-300 active:scale-95 transition-transform ${showSoundPopup ? 'text-gray-300 opacity-70' : ''}`}><Icon icon="solar:music-notes-bold" className="w-[2.4cqw] h-[2.4cqw]" /></button>
                     )}
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" /></button>
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform" onClick={() => setIsShareOpen(true)}><Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" /></button>
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="lucide:fullscreen" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="fluent:person-24-filled" className="w-[2.4cqw] h-[2.4cqw]" /></button>
+                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform" onClick={() => setIsShareOpen(true)}><Icon icon="mage:share-fill" className="w-[2.4cqw] h-[2.4cqw]" /></button>
+                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="meteor-icons:download" className="w-[2.4cqw] h-[2.4cqw]" /></button>
+                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="lucide:fullscreen" className="w-[2.4cqw] h-[2.4cqw]" /></button>
                 </div>
 
                 {/* Bottom Right Badge */}

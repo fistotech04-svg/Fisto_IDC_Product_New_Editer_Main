@@ -57,6 +57,14 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
+const getLayoutColor = (id, defaultColor) => `var(--${id}, ${defaultColor})`;
+const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) =>
+    `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
+
+const getLayoutColorAlpha = (id, defaultRgb, alpha) => {
+    return `rgba(var(--${id}-rgb, ${defaultRgb}), ${alpha})`;
+};
+
 const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPageClick, settings, bookName = "Name of the Book", showTOC, setShowTOCMemo, showThumbnailBar, setShowThumbnailBarMemo, showGalleryPopup, setShowGalleryPopupMemo, showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, showExportPopup, setShowExportPopupMemo, currentBook, activeLayout }) => {
     const totalPages = Array.isArray(pages) ? pages.length : pages || 12;
     const displayPage = currentPage === 0 ? 1 : (currentPage || 1);
@@ -176,24 +184,32 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
             style={{ containerType: 'inline-size' }}
         >
             {/* Top Bar */}
-            <div className="w-full h-[7.5%] bg-[#625FA2] flex items-center px-[2cqw] flex-shrink-0 z-20 shadow-sm relative justify-between">
+            <div className="w-full h-[7.5%] flex items-center px-[2cqw] flex-shrink-0 z-20 shadow-sm relative justify-between" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}>
 
                 {/* Left: Search Bar */}
                 <div className="flex-none flex items-center h-full py-[1.2cqw]">
-                    <div className="relative w-[18cqw] h-[70%] bg-white rounded-full flex items-center px-[1cqw]">
-                        <Icon icon="lucide:search" className="text-[#625FA2] w-[1.2cqw] h-[1.2cqw]" />
+                    <div className="relative w-[18cqw] h-[70%] rounded-full flex items-center px-[1cqw]" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
+                        <Icon icon="lucide:search" className="w-[1.2cqw] h-[1.2cqw]" style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }} />
+                        <style>{`
+                            .tablet-layout3-search::placeholder {
+                                color: ${getLayoutColor('search-text-v1', '#575C9C')} !important;
+                                opacity: var(--search-text-v1-opacity, 1);
+                            }
+                        `}</style>
                         <input
                             type="text"
                             placeholder="Quick Search..."
-                            className="bg-transparent border-none outline-none w-full h-full text-[1cqw] ml-[0.6cqw] text-gray-700 placeholder-[#625FA2]/70 font-medium"
+                            className="tablet-layout3-search bg-transparent border-none outline-none w-full h-full text-[1cqw] ml-[0.6cqw] font-medium"
+                            style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
                         />
                     </div>
                 </div>
 
                 {/* Center: Icons */}
-                <div className="flex-none flex items-center gap-[1.5cqw] text-white absolute left-1/2 -translate-x-1/2">
+                <div className="flex-none flex items-center gap-[1.5cqw] absolute left-1/2 -translate-x-1/2">
                     <button
-                        className="hover:text-gray-200 transition-colors"
+                        className="transition-colors hover:opacity-80"
+                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                         onClick={() => {
                             if (setShowTOCMemo) {
                                 setShowTOCMemo(!showTOC);
@@ -203,7 +219,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                         <Icon icon="fluent:text-bullet-list-24-filled" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
                     <button
-                        className="hover:text-gray-200 transition-colors"
+                        className="transition-colors hover:opacity-80"
+                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                         onClick={() => {
                             if (setShowThumbnailBarMemo) {
                                 setShowThumbnailBarMemo(!showThumbnailBar);
@@ -213,7 +230,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                         <Icon icon="ph:squares-four-fill" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
                     <button
-                        className="hover:text-gray-200 transition-colors"
+                        className="transition-colors hover:opacity-80"
+                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                         onClick={() => {
                             if (setShowGalleryPopupMemo) {
                                 setShowGalleryPopupMemo(!showGalleryPopup);
@@ -224,7 +242,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                     </button>
                     {(settings?.media?.backgroundAudio ?? true) && (
                         <button
-                            className="hover:text-gray-200 transition-colors"
+                            className="transition-colors hover:opacity-80"
+                            style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                             onClick={() => {
                                 if (setShowSoundPopupMemo) {
                                     setShowSoundPopupMemo(!showSoundPopup);
@@ -235,7 +254,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                         </button>
                     )}
                     <button
-                        className="hover:text-gray-200 transition-colors"
+                        className="transition-colors hover:opacity-80"
+                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                         onClick={() => {
                             if (setShowProfilePopupMemo) {
                                 setShowProfilePopupMemo(!showProfilePopup);
@@ -245,7 +265,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                         <Icon icon="fluent:person-24-filled" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
                     <button 
-                        className="hover:text-gray-200 transition-colors"
+                        className="transition-colors hover:opacity-80"
+                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                         onClick={() => {
                             setShowTOCMemo?.(false);
                             setShowThumbnailBarMemo?.(false);
@@ -259,7 +280,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                         <Icon icon="mage:share-fill" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
                     <button
-                        className="hover:text-gray-200 transition-colors"
+                        className="transition-colors hover:opacity-80"
+                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                         onClick={() => {
                             if (setShowExportPopupMemo) {
                                 setShowExportPopupMemo(!showExportPopup);
@@ -268,13 +290,16 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                     >
                         <Icon icon="meteor-icons:download" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
-                    <button className="hover:text-gray-200 transition-colors">
+                    <button 
+                        className="transition-colors hover:opacity-80"
+                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
+                    >
                         <Icon icon="lucide:fullscreen" className="w-[1.9cqw] h-[1.9cqw]" />
                     </button>
                 </div>
 
                 {/* Right: Book Name */}
-                <div className="flex-none text-white font-semibold text-[1.2cqw] truncate max-w-[20cqw]">
+                <div className="flex-none font-semibold text-[1.2cqw] truncate max-w-[20cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 'var(--toolbar-text-main-opacity, 1)' }}>
                     {bookName}
                 </div>
             </div>
@@ -283,16 +308,18 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
             {showThumbnailBar && (
                 <div className="absolute top-[10%] left-1/2 -translate-x-1/2 z-[150] pointer-events-auto">
                     <div
-                        className="relative flex items-center bg-white shadow-[0_0.5cqw_2cqw_rgba(0,0,0,0.25)] rounded-[1.5cqw] px-[1cqw] py-[1cqw]"
+                        className="relative flex items-center shadow-[0_0.5cqw_2cqw_rgba(0,0,0,0.25)] rounded-[1.5cqw] px-[1cqw] py-[1cqw]"
                         style={{
                             width: 'fit-content',
                             maxWidth: '85cqw',
+                            backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF')
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {spreads.length > 6 && (
                             <button
-                                className={`flex items-center justify-center shrink-0 transition-opacity z-20 px-[0.5cqw] ${canScrollLeft ? 'opacity-100 cursor-pointer text-[#4F4A95]' : 'opacity-30 cursor-default text-[#4F4A95]'}`}
+                                className={`flex items-center justify-center shrink-0 transition-opacity z-20 px-[0.5cqw] ${canScrollLeft ? 'opacity-100 cursor-pointer' : 'opacity-30 cursor-default'}`}
+                                style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
                                 onClick={(e) => { e.stopPropagation(); if (canScrollLeft) scroll('left'); }}
                             >
                                 <Icon icon="lucide:chevron-left" className="w-[2cqw] h-[2cqw]" />
@@ -319,8 +346,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                                         className={`thumbnail-item flex flex-col items-center shrink-0 cursor-pointer rounded-[0.8cqw] p-[0.4cqw] border-[0.3cqw] transition-all gap-[0.3cqw]`}
                                         style={{
                                             width: '10cqw',
-                                            borderColor: isActive ? '#4F4A95' : '#E5E7EB',
-                                            backgroundColor: isActive ? '#4F4A95' : 'white'
+                                            borderColor: isActive ? getLayoutColor('dropdown-text', '#575C9C') : 'transparent',
+                                            backgroundColor: isActive ? getLayoutColor('dropdown-text', '#575C9C') : 'transparent'
                                         }}
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -333,9 +360,9 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                                             className={`relative overflow-hidden w-full h-[6.5cqw] bg-white rounded-[0.4cqw]`}
                                         >
                                             {/* Inner Flex Container for Spread */}
-                                            <div className="flex w-full h-full gap-[1px] bg-gray-200 justify-center">
+                                            <div className="flex w-full h-full gap-[1px] justify-center" style={{ backgroundColor: getLayoutColor('thumbnail-inner-v2', '#E2E4F0') }}>
                                                 {spread.pages.map((page, pIdx) => (
-                                                    <div key={pIdx} className="flex-1 max-w-[50%] h-full relative border-r border-black/10 last:border-r-0 bg-white overflow-hidden flex items-center justify-center">
+                                                    <div key={pIdx} className="flex-1 max-w-[50%] h-full relative bg-white overflow-hidden flex items-center justify-center">
                                                         {(isActive || visibleIndices.includes(idx) ||
                                                             (visibleIndices.length > 0 && Math.abs(idx - visibleIndices[0]) <= 5) ||
                                                             (visibleIndices.length > 0 && Math.abs(idx - visibleIndices[visibleIndices.length - 1]) <= 5)
@@ -352,7 +379,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                                         </div>
                                         <div className="w-full flex-1 flex items-center justify-center">
                                             <span
-                                                className={`text-[0.95cqw] font-bold tracking-tight pb-[0.2cqw] ${isActive ? 'text-white' : 'text-[#4F4A95]'}`}
+                                                className={`text-[0.95cqw] font-bold tracking-tight pb-[0.2cqw]`}
+                                                style={{ color: isActive ? getLayoutColor('dropdown-bg', '#FFFFFF') : getLayoutColor('dropdown-text', '#575C9C') }}
                                             >
                                                 {spread.label}
                                             </span>
@@ -364,7 +392,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
 
                         {spreads.length > 6 && (
                             <button
-                                className={`flex items-center justify-center shrink-0 transition-opacity z-20 px-[0.5cqw] ${canScrollRight ? 'opacity-100 cursor-pointer text-[#4F4A95]' : 'opacity-30 cursor-default text-[#4F4A95]'}`}
+                                className={`flex items-center justify-center shrink-0 transition-opacity z-20 px-[0.5cqw] ${canScrollRight ? 'opacity-100 cursor-pointer' : 'opacity-30 cursor-default'}`}
+                                style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
                                 onClick={(e) => { e.stopPropagation(); if (canScrollRight) scroll('right'); }}
                             >
                                 <Icon icon="lucide:chevron-right" className="w-[2cqw] h-[2cqw]" />
@@ -377,8 +406,17 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
             {/* Middle Content Area */}
             <div className="flex-1 min-h-0 w-full relative flex items-center justify-center overflow-hidden">
                 {/* Navigation Arrows */}
+                <style>{`
+                    .tablet-layout3-arrow {
+                        background-color: ${getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1')};
+                    }
+                    .tablet-layout3-arrow:hover {
+                        filter: brightness(115%);
+                    }
+                `}</style>
                 <button
-                    className="absolute left-[3cqw] z-10 w-[3cqw] h-[3cqw] rounded-full bg-[#625FA2] text-white flex items-center justify-center hover:bg-[#504d85] transition-colors shadow-md"
+                    className="tablet-layout3-arrow absolute left-[3cqw] z-10 w-[3cqw] h-[3cqw] rounded-full flex items-center justify-center transition-colors shadow-md"
+                    style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                     onClick={() => {
                         if (bookRef?.current?.pageFlip) {
                             bookRef.current.pageFlip().flipPrev();
@@ -389,7 +427,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                 </button>
 
                 <button
-                    className="absolute right-[3cqw] z-10 w-[3cqw] h-[3cqw] rounded-full bg-[#625FA2] text-white flex items-center justify-center hover:bg-[#504d85] transition-colors shadow-md"
+                    className="tablet-layout3-arrow absolute right-[3cqw] z-10 w-[3cqw] h-[3cqw] rounded-full flex items-center justify-center transition-colors shadow-md"
+                    style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                     onClick={() => {
                         if (bookRef?.current?.pageFlip) {
                             bookRef.current.pageFlip().flipNext();
@@ -411,18 +450,19 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
             </div>
 
             {/* Bottom Bar */}
-            <div className="w-full h-[6.5%] bg-[#625FA2] flex flex-col justify-center px-[2cqw] relative flex-shrink-0 z-20 shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+            <div className="w-full h-[6.5%] flex flex-col justify-center px-[2cqw] relative flex-shrink-0 z-20 shadow-[0_-2px_10px_rgba(0,0,0,0.1)]" style={{ backgroundColor: getLayoutColorRgba('bottom-toolbar-bg', '62, 68, 145', '1') }}>
 
                 <div className="flex items-center justify-between w-full -mt-[0.5cqw]">
                     {/* Left: Page Info */}
-                    <div className=" text-[#625FA2] px-[1cqw] py-[0.4cqw] rounded-[0.4cqw] text-[0.9cqw] font-semibold shadow-sm">
+                    <div className="px-[1cqw] py-[0.4cqw] rounded-[0.4cqw] text-[0.9cqw] font-semibold shadow-sm" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'), color: getLayoutColor('search-text-v1', '#575C9C') }}>
                         Page {displayPage} / {totalPages}
                     </div>
 
                     {/* Center: Playback Controls */}
-                    <div className="flex items-center gap-[1.5cqw] text-white absolute left-1/2 -translate-x-1/2">
+                    <div className="flex items-center gap-[1.5cqw] absolute left-1/2 -translate-x-1/2">
                         <button
-                            className="hover:text-gray-200 transition-colors"
+                            className="transition-colors hover:opacity-80"
+                            style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                             onClick={() => {
                                 if (bookRef?.current?.pageFlip) {
                                     bookRef.current.pageFlip().turnToPage(0);
@@ -432,7 +472,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                             <Icon icon="ph:skip-back" className="w-[1.4cqw] h-[1.4cqw]" />
                         </button>
                         <button
-                            className="hover:text-gray-200 transition-colors"
+                            className="transition-colors hover:opacity-80"
+                            style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                             onClick={() => {
                                 // If we're at the end and they click play, optionally restart from beginning
                                 if (!isPlaying && currentPage >= totalPages - 1 && bookRef?.current?.pageFlip) {
@@ -444,7 +485,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                             <Icon icon={isPlaying ? "ph:pause-fill" : "ph:play-fill"} className="w-[1.6cqw] h-[1.6cqw]" />
                         </button>
                         <button
-                            className="hover:text-gray-200 transition-colors"
+                            className="transition-colors hover:opacity-80"
+                            style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                             onClick={() => {
                                 if (bookRef?.current?.pageFlip) {
                                     const lastIndex = Array.isArray(pages) ? pages.length - 1 : (pages || 12) - 1;
@@ -457,25 +499,31 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                     </div>
 
                     {/* Right: Zoom Controls */}
-                    <div className=" rounded-[0.4cqw] flex items-center px-[0.6cqw] py-[0.4cqw] gap-[0.8cqw] shadow-sm">
-                        <button className="text-[#625FA2] hover:opacity-80 transition-opacity">
+                    <div className=" rounded-[0.4cqw] flex items-center px-[0.6cqw] py-[0.4cqw] gap-[0.8cqw] shadow-sm" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
+                        <button className="hover:opacity-80 transition-opacity" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
                             <Icon icon="fluent:zoom-out-24-regular" className="w-[1.2cqw] h-[1.2cqw]" />
                         </button>
-                        <span className="text-[#625FA2] text-[0.9cqw] font-semibold min-w-[2.5cqw] text-center">100%</span>
-                        <button className="text-[#625FA2] hover:opacity-80 transition-opacity">
+                        <span className="text-[0.9cqw] font-semibold min-w-[2.5cqw] text-center" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>100%</span>
+                        <button className="hover:opacity-80 transition-opacity" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
                             <Icon icon="fluent:zoom-in-24-regular" className="w-[1.2cqw] h-[1.2cqw]" />
                         </button>
-                        <button className="bg-[#625FA2] text-white px-[0.8cqw] py-[0.2cqw] rounded-[0.3cqw] text-[0.8cqw] font-semibold hover:bg-[#504d85] transition-colors ml-[0.2cqw]">
+                        <button className="px-[0.8cqw] py-[0.2cqw] rounded-[0.3cqw] text-[0.8cqw] font-semibold hover:opacity-90 transition-colors ml-[0.2cqw]"
+                            style={{
+                                backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1'),
+                                color: getLayoutColor('toolbar-icon', '#FFFFFF'),
+                                opacity: 'var(--toolbar-icon-opacity, 1)'
+                            }}
+                        >
                             Reset
                         </button>
                     </div>
                 </div>
 
                 {/* Progress Line */}
-                <div className="absolute bottom-[0.8cqw] left-[2cqw] right-[2cqw] h-[2px] bg-white/20 rounded-full">
+                <div className="absolute bottom-[0.8cqw] left-[2cqw] right-[2cqw] h-[2px] rounded-full" style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 0.3 }}>
                     <div
-                        className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-300"
-                        style={{ width: `${progressPercentage}%` }}
+                        className="absolute left-0 top-0 h-full rounded-full transition-all duration-300"
+                        style={{ width: `${progressPercentage}%`, backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
                     ></div>
                 </div>
             </div>

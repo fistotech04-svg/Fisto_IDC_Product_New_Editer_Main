@@ -214,8 +214,8 @@ const TabletLayout5 = ({
 
     const totalPages = pagesCount;
     const progressPercentage = totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0;
-    const iconColor = getLayoutColor('toolbar-bg', '#575C9C');
-    const pillBgColor = '#FFFFFF';
+    const pillBgColor = currentPage === 0 ? getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') : getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1');
+    const iconColor = currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF');
 
     return (
         <div className="flex flex-col w-full h-full min-h-0 overflow-hidden font-sans relative" style={{ ...backgroundStyle, backgroundColor: 'transparent', containerType: 'size' }}>
@@ -236,7 +236,7 @@ const TabletLayout5 = ({
                     {(settings?.interaction?.search ?? true) && (
                         <div
                             className="flex items-center px-[1.5cqw] py-[1cqh] rounded-[1cqw] shadow-md transition-all relative"
-                            style={{ backgroundColor: '#FFFFFF' }}
+                            style={{ backgroundColor: currentPage === 0 ? '#FFFFFF' : getLayoutColorRgba('search-bg-v2', '221, 224, 244', '1') }}
                         >
                             <Icon
                                 icon="ph:magnifying-glass-bold"
@@ -302,16 +302,17 @@ const TabletLayout5 = ({
                                         initial={{ opacity: 0, y: -5 }} 
                                         animate={{ opacity: 1, y: 0 }} 
                                         exit={{ opacity: 0, y: -5 }} 
-                                        className="absolute top-full mt-[1cqw] left-0 w-full bg-white rounded-[1.2cqw] shadow-[0_1cqw_3cqw_rgba(0,0,0,0.1)] border border-black z-[100] overflow-hidden pointer-events-auto"
+                                        className="absolute top-full mt-[1cqw] left-0 w-full rounded-[1.2cqw] shadow-[0_1cqw_3cqw_rgba(0,0,0,0.1)] border z-[100] overflow-hidden pointer-events-auto"
+                                        style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1'), borderColor: getLayoutColor('dropdown-text', '#575C9C') }}
                                     >
                                         <div className="flex flex-col py-[1.5cqw]">
                                             <div className="px-[2cqw] mb-[1cqw]">
-                                                <span className="text-black font-bold text-[1.5cqw]">Suggestion</span>
+                                                <span className="font-bold text-[1.5cqw]" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Suggestion</span>
                                             </div>
                                             {recommendations.map((rec, idx) => (
                                                 <button 
                                                     key={idx} 
-                                                    className="flex items-center justify-between px-[2cqw] py-[1cqw] hover:bg-[#575C9C]/5 transition-colors text-left" 
+                                                    className="flex items-center justify-between px-[2cqw] py-[1cqw] hover:bg-black/5 transition-colors text-left group" 
                                                     onClick={(e) => { 
                                                         e.stopPropagation();
                                                         onPageClick(rec.pageNumber - 1); 
@@ -320,11 +321,11 @@ const TabletLayout5 = ({
                                                         setLocalSearchQuery(rec.boldPart); 
                                                     }}
                                                 >
-                                                    <div className="flex-1 truncate mr-[1cqw]">
-                                                        <span className="text-[#575C9C] font-bold text-[1.4cqw]">{rec.boldPart}</span>
-                                                        <span className="text-[#9BA0C9] text-[1.4cqw]">{rec.greyPart}</span>
+                                                    <div className="flex-1 truncate mr-[1cqw] opacity-90 group-hover:opacity-100">
+                                                        <span className="font-bold text-[1.4cqw]" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), fontWeight: 800 }}>{rec.boldPart}</span>
+                                                        <span className="text-[1.4cqw] opacity-70" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{rec.greyPart}</span>
                                                     </div>
-                                                    <span className="text-[#575C9C] font-bold text-[1.4cqw] whitespace-nowrap">Pg {rec.pageNumber}</span>
+                                                    <span className="font-bold text-[1.4cqw] whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.5 }}>Pg {rec.pageNumber}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -450,9 +451,9 @@ const TabletLayout5 = ({
                 >
                     {/* Playback Controls */}
                     <div className="flex items-center gap-[1cqw] mr-[2cqw] shrink-0">
-                        <ToolbarBtn icon="ph:skip-back" onClick={() => onPageClick(0)} />
-                        <ToolbarBtn icon={isAutoFlipping ? 'ph:pause-fill' : 'ph:play-fill'} onClick={() => setIsPlaying?.(!isAutoFlipping)} />
-                        <ToolbarBtn icon="ph:skip-forward" onClick={() => onPageClick(pagesCount - 1)} />
+                        <ToolbarBtn icon="ph:skip-back" onClick={() => onPageClick(0)} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                        <ToolbarBtn icon={isAutoFlipping ? 'ph:pause-fill' : 'ph:play-fill'} onClick={() => setIsPlaying?.(!isAutoFlipping)} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                        <ToolbarBtn icon="ph:skip-forward" onClick={() => onPageClick(pagesCount - 1)} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                     </div>
 
                     {/* Progress Bar */}
@@ -464,27 +465,27 @@ const TabletLayout5 = ({
                         onPageClick(targetPage);
                     }}>
                         <div
-                            className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-300"
-                            style={{ width: `${progressPercentage}%` }}
+                            className="absolute left-0 top-0 h-full rounded-full transition-all duration-300 z-10"
+                            style={{ width: `${progressPercentage}%`, backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                         />
                     </div>
 
                     {/* Tools Icons */}
                     <div className="flex items-center gap-[1cqw] shrink-0">
                         {(settings?.navigation?.tableOfContents ?? true) && (
-                            <ToolbarBtn icon="fluent:text-bullet-list-24-filled" onClick={() => setShowTOCMemo(!showTOC)} />
+                            <ToolbarBtn icon="fluent:text-bullet-list-24-filled" onClick={() => setShowTOCMemo(!showTOC)} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                         )}
                         {(settings?.navigation?.pageThumbnails ?? true) && (
-                            <ToolbarBtn icon="ph:squares-four-fill" onClick={() => setShowThumbnailBarMemo(!showThumbnailBar)} />
+                            <ToolbarBtn icon="ph:squares-four-fill" onClick={() => setShowThumbnailBarMemo(!showThumbnailBar)} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                         )}
                         {(settings?.interaction?.gallery ?? true) && (
-                            <ToolbarBtn icon="clarity:image-gallery-solid" onClick={() => setShowGalleryPopupMemo(!showGalleryPopup)} />
+                            <ToolbarBtn icon="clarity:image-gallery-solid" onClick={() => setShowGalleryPopupMemo(!showGalleryPopup)} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                         )}
                         {(settings?.media?.backgroundAudio ?? true) && (
-                            <ToolbarBtn icon={isMuted ? "solar:music-notes-bold-duotone" : "solar:music-notes-bold"} onClick={(e) => { e.stopPropagation(); setShowSoundPopupMemo?.(!showSoundPopup); }} />
+                            <ToolbarBtn icon={isMuted ? "solar:music-notes-bold-duotone" : "solar:music-notes-bold"} onClick={(e) => { e.stopPropagation(); setShowSoundPopupMemo?.(!showSoundPopup); }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                         )}
                         {(settings?.brandingProfile?.profile ?? true) && (
-                            <ToolbarBtn icon="fluent:person-24-filled" onClick={() => setShowProfilePopup(!showProfilePopup)} />
+                            <ToolbarBtn icon="fluent:person-24-filled" onClick={() => setShowProfilePopup(!showProfilePopup)} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                         )}
                         {(settings?.shareExport?.share ?? true) && (
                             <ToolbarBtn icon="mage:share-fill" onClick={() => {
@@ -495,13 +496,13 @@ const TabletLayout5 = ({
                                 setShowProfilePopup?.(false);
                                 setShowExportPopupMemo?.(false);
                                 setIsShareOpen(true);
-                            }} />
+                            }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                         )}
                         {(settings?.shareExport?.download ?? true) && (
-                            <ToolbarBtn icon="meteor-icons:download" onClick={() => setShowExportPopupMemo?.(true)} />
+                            <ToolbarBtn icon="meteor-icons:download" onClick={() => setShowExportPopupMemo?.(true)} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                         )}
                         {(settings?.viewing?.fullScreen ?? true) && (
-                            <ToolbarBtn icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} onClick={handleFullScreen} />
+                            <ToolbarBtn icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} onClick={handleFullScreen} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                         )}
                     </div>
                 </div>
@@ -544,14 +545,14 @@ const TabletLayout5 = ({
                     <div
                         className={`absolute z-[150] bottom-[11cqh] left-1/2 -translate-x-1/2 w-fit max-w-[75cqw] ${spreads.length === 1 ? 'rounded-[1.2cqw]' : 'rounded-full'} shadow-lg flex items-center border overflow-hidden`}
                         style={{
-                            backgroundColor: '#FFFFFF',
+                            backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1'),
                             borderColor: getLayoutColor('dropdown-text', '#575C9C')
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div
                             className={`w-full h-full flex items-center ${canScrollLeft ? 'pl-[1cqw]' : 'pl-[2cqw]'} ${canScrollRight ? 'pr-[1cqw]' : 'pr-[2cqw]'}`}
-                            style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1') }}
+                            style={{ backgroundColor: 'transparent' }}
                         >
                             {/* Left Navigation */}
                             {canScrollLeft && (
