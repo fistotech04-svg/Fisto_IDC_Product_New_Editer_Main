@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Pencil, Info, Phone, User, Building, MapPin, BarChart2, MoreVertical, Globe } from 'lucide-react';
 import { Icon } from '@iconify/react';
@@ -46,6 +46,8 @@ const Profile = () => {
     value: 'linear-gradient(to bottom right, #c1e8d7, #85d8c3, #60bba3)'
   });
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimeout = useRef(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -54,46 +56,23 @@ const Profile = () => {
       const maxScroll = window.innerWidth * 0.15; // 15vw scroll distance for full effect
       const progress = Math.min(Math.max(scrollTop / maxScroll, 0), 1);
       setScrollProgress(progress);
-    };
 
-    const handleWheel = (e) => {
-      if (e.deltaY < 0) {
-        const profileContainer = document.getElementById('profile-container');
-        if (!profileContainer || profileContainer.scrollTop <= 0) return;
-        
-        let target = e.target;
-        let isChildScrolling = false;
-        
-        while (target && target !== profileContainer) {
-          if (target.scrollHeight > target.clientHeight) {
-            const overflowY = window.getComputedStyle(target).overflowY;
-            if (overflowY === 'auto' || overflowY === 'scroll') {
-              if (target.scrollTop > 0) {
-                isChildScrolling = true;
-                break;
-              }
-            }
-          }
-          target = target.parentElement;
-        }
-        
-        if (!isChildScrolling) {
-          profileContainer.scrollTop += e.deltaY;
-        }
-      }
+      setIsScrolling(true);
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+      scrollTimeout.current = setTimeout(() => {
+        setIsScrolling(false);
+      }, 150);
     };
 
     const container = document.getElementById('profile-container');
     if (container) {
       container.addEventListener('scroll', handleScroll, { passive: true });
-      container.addEventListener('wheel', handleWheel, { passive: true });
     }
     handleScroll();
 
     return () => {
       if (container) {
         container.removeEventListener('scroll', handleScroll);
-        container.removeEventListener('wheel', handleWheel);
       }
     };
   }, []);
@@ -107,6 +86,14 @@ const Profile = () => {
     { id: 6, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
     { id: 7, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
     { id: 8, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
+    { id: 9, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
+    { id: 10, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
+    { id: 11, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
+    { id: 12, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
+    { id: 13, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
+    { id: 14, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
+    { id: 15, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
+    { id: 16, name: 'Name of the Flipbook', pages: 28, image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=800' },
   ];
 
   return (
@@ -278,7 +265,7 @@ const Profile = () => {
             </div>
 
             {/* Info Cards Container */}
-            <div id="left-scroll-container" className={`w-full mt-[2vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar ${scrollProgress >= 0.99 ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+            <div id="left-scroll-container" className={`w-full mt-[2vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar ${(scrollProgress >= 0.99 || isScrolling) ? 'overflow-y-auto' : 'overflow-hidden'}`}>
 
               <div className="p-[1vw] border-b border-gray-100">
                 <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
@@ -385,7 +372,7 @@ const Profile = () => {
           </div>
 
           {/* Content Area */}
-          <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] custom-scrollbar ${scrollProgress >= 0.99 ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+          <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] custom-scrollbar ${(scrollProgress >= 0.99 || isScrolling) ? 'overflow-y-auto' : 'overflow-hidden'}`}>
             {activeTab === 'Edit Profile' && <EditProfile user={user} setUser={setUser} />}
 
             {activeTab === 'Your IDC' && (
