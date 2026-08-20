@@ -56,15 +56,44 @@ const Profile = () => {
       setScrollProgress(progress);
     };
 
+    const handleWheel = (e) => {
+      if (e.deltaY < 0) {
+        const profileContainer = document.getElementById('profile-container');
+        if (!profileContainer || profileContainer.scrollTop <= 0) return;
+        
+        let target = e.target;
+        let isChildScrolling = false;
+        
+        while (target && target !== profileContainer) {
+          if (target.scrollHeight > target.clientHeight) {
+            const overflowY = window.getComputedStyle(target).overflowY;
+            if (overflowY === 'auto' || overflowY === 'scroll') {
+              if (target.scrollTop > 0) {
+                isChildScrolling = true;
+                break;
+              }
+            }
+          }
+          target = target.parentElement;
+        }
+        
+        if (!isChildScrolling) {
+          profileContainer.scrollTop += e.deltaY;
+        }
+      }
+    };
+
     const container = document.getElementById('profile-container');
     if (container) {
       container.addEventListener('scroll', handleScroll, { passive: true });
+      container.addEventListener('wheel', handleWheel, { passive: true });
     }
     handleScroll();
 
     return () => {
       if (container) {
         container.removeEventListener('scroll', handleScroll);
+        container.removeEventListener('wheel', handleWheel);
       }
     };
   }, []);
@@ -89,6 +118,16 @@ const Profile = () => {
         .hide-scrollbar {
           -ms-overflow-style: none;
           scrollbar-width: none;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 0.3vw;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+          border-radius: 1vw;
         }
       `}</style>
 
@@ -210,13 +249,13 @@ const Profile = () => {
               </div>
 
               {/* Pencil Edit Icon with merged white ring */}
-              <div className="absolute top-[2vw] right-[0vw] w-[2vw] h-[2vw] bg-white rounded-[0.4vw] flex items-center justify-center z-20">
+              <div className="absolute top-[1vw] right-[1.3vw] w-[2vw] h-[2vw] bg-white rounded-[0.4vw] flex items-center justify-center z-20">
                 <button
                   onClick={() => {
                     setIsAvatarPopupOpen(!isAvatarPopupOpen);
                     if (!isAvatarPopupOpen) setIsColorPickerOpen(false);
                   }}
-                  className="w-[2vw] h-[2vw] bg-white rounded-[0.4vw] border border-gray-100 hover:bg-gray-50 text-gray-700 flex items-center justify-center transition-colors"
+                  className="w-[1.5vw] h-[1.5vw] bg-white rounded-[0.4vw] hover:bg-gray-50 text-gray-700 flex items-center justify-center transition-colors"
                 >
                   <Icon icon="mdi:edit-outline" className="w-[1.2vw] h-[1.2vw]" />
                 </button>
@@ -316,11 +355,11 @@ const Profile = () => {
         <div className="flex-1 relative h-full min-w-0">
           <div className="flex flex-col h-full w-full z-[45]">
             {/* Header Area */}
-            <div className="pt-[1vw] pl-[1vw] pr-[1vw] pb-[1vw] relative flex-shrink-0">
+            <div className="pt-[1vw] pl-[1vw] pr-[1vw] pb-0 relative flex-shrink-0 z-[60]">
 
 
             {/* Buttons Row & Save Actions Portal */}
-            <div className="flex justify-between items-center w-full relative z-10">
+            <div className="flex justify-between items-center w-full relative z-[60]">
               <div className="flex gap-[0.5vw]">
                 <button
                   onClick={() => setActiveTab('Your IDC')}
@@ -346,16 +385,13 @@ const Profile = () => {
           </div>
 
           {/* Content Area */}
-          <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] hide-scrollbar ${scrollProgress >= 0.99 ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+          <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] custom-scrollbar ${scrollProgress >= 0.99 ? 'overflow-y-auto' : 'overflow-hidden'}`}>
             {activeTab === 'Edit Profile' && <EditProfile user={user} setUser={setUser} />}
 
             {activeTab === 'Your IDC' && (
-              <div className="flex-1 flex flex-col relative">
+              <div className="flex-1 flex flex-col relative mt-[1.5vw]">
                 {/* Catalog Section */}
-                <h2 className="text-[1.25vw] font-semibold text-gray-900 mb-[1.5vw]">
-                  Your Interactive Digital catalog
-                </h2>
-
+              
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[1vw]">
                   {mockFlipbooks.map((book) => (
                     <div key={book.id} className="border border-gray-100 rounded-[0.6vw] overflow-visible group hover:shadow-md transition-shadow bg-white flex flex-col shadow-sm relative">

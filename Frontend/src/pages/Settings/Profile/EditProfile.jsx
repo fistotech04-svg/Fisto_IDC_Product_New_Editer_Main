@@ -101,10 +101,6 @@ const EditProfile = ({ user, setUser }) => {
     <div className="flex flex-col flex-1 w-full relative h-full ">
       {/* Header section */}
       <div className="flex justify-between items-start mb-[1.5vw]">
-        <div>
-          <h2 className="text-[1.25vw] font-semibold text-gray-900">Edit Profile</h2>
-          <p className="text-[0.75vw] text-gray-500 mt-[0.2vw]">Only your actions and activities will appear here.</p>
-        </div>
         {portalTarget ? createPortal(saveActions, portalTarget) : saveActions}
       </div>
 

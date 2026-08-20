@@ -28,45 +28,78 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[40] flex items-center justify-center bg-black/30 backdrop-blur-[2px] px-[2vw] pb-[2vw] pt-[10vh]">
+                <div className="fixed inset-0 z-[40] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] px-[2vw] pb-[2vw] pt-[10vh]">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.2vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
+                        className="bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
                     >
                         {/* Close Button */}
                         <button
                             onClick={onClose}
-                            className="absolute top-[1.5vw] right-[1.5vw] z-50 bg-white/50 hover:bg-white rounded-[0.4vw] p-[0.4vw] shadow-sm transition-colors border border-black/10"
+                            className="absolute top-[1.5vw] right-[1.5vw] z-50 bg-white/50 hover:bg-white rounded-[0.4vw] p-[0.4vw] shadow-sm transition-colors border border-gray-900/10"
                         >
                             <Icon icon="mingcute:close-fill" className="w-[1vw] h-[1vw] text-gray-600" />
                         </button>
 
                         {/* Banner */}
-                        <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0 h-[8vw]">
-                            <div className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden h-[14vw]" style={{ backgroundImage: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' }}>
+                        <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0 h-[10vw]">
+                            <div className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden h-[10vw]" style={{ backgroundImage: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' }}>
                                 <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(ellipse at top left, rgba(255,255,255,0.6) 0%, transparent 70%), radial-gradient(ellipse at bottom right, rgba(255,255,255,0.4) 0%, transparent 60%)' }}></div>
                                 <div className="absolute inset-0 opacity-20 bg-white" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 40%, 0 80%)' }}></div>
                             </div>
                         </div>
 
                         {/* Main Content Area */}
-                        <div className="flex flex-col md:flex-row relative mt-[1vw] bg-white border-2 border-gray-200 rounded-[1vw] shadow-sm flex-1 min-h-0 min-w-0 w-full z-[40]">
+                        <div className="flex flex-col md:flex-row relative mt-[1vw] gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]">
 
                             {/* Left Column (Avatar + Info) */}
-                            <div className="w-[22vw] flex-shrink-0 border-r-2 border-gray-200 relative flex flex-col min-h-0">
+                            <div className="w-[22vw] flex-shrink-0 bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
+                                {/* Bottom Fade Shadow */}
+                                <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50 rounded-b-[1vw]"></div>
+                                
                                 <div className="flex flex-col items-center flex-1 min-h-0 z-[50] w-full">
 
+                                    {/* Top border eraser for container */}
+                                    <div
+                                        className="absolute top-[-0.2vw] left-[calc(50%-6vw)] w-[12vw] h-[0.4vw] bg-white z-10 pointer-events-none"
+                                    ></div>
+
                                     {/* Avatar Wrapper */}
-                                    <div className="relative flex justify-center items-center z-30 w-full px-[2vw] mt-[-5vw]">
-                                        <div className="flex justify-between items-end w-full">
-                                            <div className="w-[11.5vw] h-[11.5vw] rounded-full overflow-hidden relative bg-white border-[0.4vw] border-white flex items-center justify-center shadow-sm">
+                                    <div className="relative flex justify-center items-center z-30 w-[9.6vw] h-[9.6vw] mt-[-4.8vw]">
+                                        {/* Left Smooth Corner */}
+                                        <svg className="absolute top-[2.55vw] -left-[0.8vw] w-[1.2vw] h-[1.6vw] z-10 pointer-events-none" viewBox="0 0 10 10">
+                                            <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
+                                        </svg>
+                                        {/* Right Smooth Corner */}
+                                        <svg className="absolute top-[2.55vw] -right-[0.8vw] w-[1.2vw] h-[1.6vw] z-10 pointer-events-none" viewBox="0 0 10 10">
+                                            <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
+                                        </svg>
+
+                                        <div className="w-full h-full rounded-full bg-white p-[0.64vw] relative flex items-center justify-center">
+                                            {/* Semi-circle border for the bottom half */}
+                                            <div
+                                                className="absolute bottom-0 left-0 w-full h-[50%] border-b-2 border-l-2 border-r-2 border-gray-200 rounded-b-full pointer-events-none z-20"
+                                                style={{ clipPath: 'polygon(0 16%, 100% 16%, 100% 100%, 0 100%)' }}
+                                            ></div>
+
+                                            <svg className="absolute bottom-[41.5%] -left-[0.88vw] w-[1.12vw] h-[0.88vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
+                                                <path d="M -7 0 L 0 0 A 10 10 0 0 1 10 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+                                            </svg>
+                                            <svg className="absolute bottom-[41.5%] -right-[0.92vw] w-[1.12vw] h-[0.88vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
+                                                <path d="M 17 0 L 10 0 A 10 10 0 0 0 0 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+                                            </svg>
+
+                                            <div className="w-[8.56vw] h-[8.56vw] rounded-full overflow-hidden relative shadow-inner z-10 bg-white flex items-center justify-center">
                                                 <img src={creator?.profileImg || p1} alt="Profile Avatar" className="w-full h-full object-cover" />
                                             </div>
-                                            {/* Share Button */}
-                                            <button className="flex items-center gap-[0.4vw] mb-[2vw] px-[1vw] py-[0.5vw] bg-white rounded-full border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors text-[0.8vw] font-medium text-gray-700">
-                                                <Icon icon="ph:share-network-fill" className="w-[1.2vw] h-[1.2vw]" /> Share
+                                        </div>
+
+                                        {/* Share Button */}
+                                        <div className="absolute top-[6.5vw] -right-[5.5vw] z-40">
+                                            <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[1vw] font-semibold text-gray-700 ">
+                                                <Icon icon="ic:round-share" className="w-[1.2vw] h-[1.2vw]" /> Share
                                             </button>
                                         </div>
                                     </div>
@@ -109,7 +142,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
                                         </div>
 
                                         {/* Address */}
-                                        <div className="px-[2vw] py-[1vw] bg-[#FAFAFA] rounded-bl-[1vw]">
+                                        <div className="px-[2vw] py-[1vw] bg-[#FAFAFA] rounded-b-[1vw]">
                                             <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
                                                 <Icon icon="carbon:location-filled" className="w-[1vw] h-[1vw]" /> Address
                                             </h3>
@@ -123,36 +156,39 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
                             </div>
 
                             {/* Right Content Area */}
-                            <div className="flex-1 flex flex-col h-full overflow-hidden pb-[1vw]">
+                            <div className="flex-1 flex flex-col h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative overflow-hidden">
+                                {/* Bottom Fade Shadow */}
+                                <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50"></div>
+                                
                                 {/* Header */}
-                                <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.8vw] px-[1.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1.5vw] mr-[1.5vw] ml-[1.5vw]">
-                                    <h3 className="text-[1.1vw] font-bold text-gray-900">Published Flipbooks (8)</h3>
+                                <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.5vw] px-[0.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
+                                    <h3 className="text-[1vw] font-semibold text-gray-900">Published Flipbooks (8)</h3>
                                     
                                     <div className="flex items-center gap-[2vw]">
                                         {/* Stats */}
                                         <div className="flex items-center gap-[1.5vw] text-[0.75vw] text-gray-600">
                                             <div className="flex flex-col items-center">
                                                 <div className="flex items-center gap-[0.4vw]">
-                                                    <Icon icon="ph:book-open" className="w-[1.1vw] h-[1.1vw] text-gray-700" />
-                                                    <span className="font-bold text-[0.9vw] text-gray-900">8</span>
+                                                    <Icon icon="ph:book-open" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                    <span className="font-semibold text-[0.9vw] text-gray-500">8</span>
                                                 </div>
-                                                <span className="text-[0.6vw] text-gray-400 mt-[0.2vh]">Total Books</span>
+                                                <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Total Books</span>
                                             </div>
                                             <div className="w-[1px] h-[3vh] bg-gray-200"></div>
                                             <div className="flex flex-col items-center">
                                                 <div className="flex items-center gap-[0.4vw]">
-                                                    <Icon icon="ph:star-fill" className="w-[1.1vw] h-[1.1vw] text-yellow-400" />
-                                                    <span className="font-bold text-[0.9vw] text-gray-900">4.5</span>
+                                                    <Icon icon="ph:star-fill" className="w-[1vw] h-[1vw] text-yellow-400" />
+                                                    <span className="font-semibold text-[0.9vw] text-gray-500">4.5</span>
                                                 </div>
-                                                <span className="text-[0.6vw] text-gray-400 mt-[0.2vh]">Overall Ratings</span>
+                                                <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Overall Ratings</span>
                                             </div>
                                             <div className="w-[1px] h-[3vh] bg-gray-200"></div>
                                             <div className="flex flex-col items-center">
                                                 <div className="flex items-center gap-[0.4vw]">
-                                                    <Icon icon="ph:eye" className="w-[1.2vw] h-[1.2vw] text-gray-700" />
-                                                    <span className="font-bold text-[0.9vw] text-gray-900">2.5K</span>
+                                                    <Icon icon="ph:eye" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                    <span className="font-semibold text-[0.9vw] text-gray-500">2.5K</span>
                                                 </div>
-                                                <span className="text-[0.6vw] text-gray-400 mt-[0.2vh]">Total Views</span>
+                                                <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Total Views</span>
                                             </div>
                                         </div>
 
@@ -197,7 +233,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
                                                                 <button className="bg-white rounded-full p-[0.3vw] shadow-md hover:bg-gray-100 flex items-center justify-center">
                                                                     <Icon icon="ph:dots-three-vertical-bold" className="w-[1vw] h-[1vw] text-gray-700" />
                                                                 </button>
-                                                                <button className="bg-black rounded-full p-[0.3vw] shadow-md mt-[0.5vw] hover:bg-gray-800 flex items-center justify-center">
+                                                                <button className="bg-gray-900 rounded-full p-[0.3vw] shadow-md mt-[0.5vw] hover:bg-gray-800 flex items-center justify-center">
                                                                     <Icon icon="mdi:information-variant" className="w-[1vw] h-[1vw] text-white" />
                                                                 </button>
                                                             </div>
@@ -223,7 +259,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
                                                             alt={book.title}
                                                             className="w-[85%] h-[90%] object-contain transform group-hover:scale-105 transition-transform duration-300 drop-shadow-lg"
                                                         />
-                                                        <div className="absolute top-[0.5vw] left-[0.5vw] bg-black/40 backdrop-blur-md text-white text-[0.6vw] font-medium px-[0.6vw] py-[0.2vw] rounded-[0.2vw]">
+                                                        <div className="absolute top-[0.5vw] left-[0.5vw] bg-gray-900/40 backdrop-blur-md text-white text-[0.6vw] font-medium px-[0.6vw] py-[0.2vw] rounded-[0.2vw]">
                                                             28 Pages
                                                         </div>
                                                     </div>
@@ -250,14 +286,14 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
                                                     {/* Details Section */}
                                                     <div className="flex items-start justify-between mt-[1vw]">
                                                         <div className="flex-1 min-w-0 pr-[1vw]">
-                                                            <h4 className="text-[0.85vw] font-bold text-gray-900 truncate">
+                                                            <h4 className="text-[0.85vw] font-semibold text-gray-900 truncate">
                                                                 Name of the Flipbook
                                                             </h4>
                                                             <p className="text-[0.65vw] text-gray-500 mt-[0.3vw] leading-tight line-clamp-2">
                                                                 Bring your content to life with a real, interactive experience.
                                                             </p>
                                                         </div>
-                                                        <button className="bg-black text-white p-[0.4vw] rounded-full hover:bg-gray-800 transition-colors flex-shrink-0 shadow-md">
+                                                        <button className="bg-gray-900 text-white p-[0.4vw] rounded-full hover:bg-gray-800 transition-colors flex-shrink-0 shadow-md">
                                                             <Icon icon="mingcute:arrow-right-up-line" className="w-[1vw] h-[1vw]" />
                                                         </button>
                                                     </div>
