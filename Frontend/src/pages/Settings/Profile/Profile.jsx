@@ -246,23 +246,26 @@ const Profile = () => {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex flex-col md:flex-row relative mt-[1vw] bg-white border-2 border-gray-200 rounded-[1vw] shadow-sm flex-1 min-h-0 min-w-0 w-full z-[40]">
+        <div 
+          className="flex flex-col md:flex-row relative bg-white border-2 border-gray-200 rounded-[1vw] shadow-sm flex-1 min-h-0 min-w-0 w-full z-[40]"
+          style={{ marginTop: `${1 - 0.35 * scrollProgress}vw` }}
+        >
 
           {/* Left Column (Avatar + Info) */}
           <div className="w-[22vw] flex-shrink-0 border-r-2 border-gray-200 relative flex flex-col min-h-0">
-            <div className="flex flex-col items-center flex-1 min-h-0 z-[50] w-full">
+            <div className="flex flex-col items-center flex-1 min-h-0 z-[70] w-full">
 
 
               {/* Top border eraser for container */}
               <div
                 className="absolute top-[-0.2vw] left-[calc(50%-7.5vw)] w-[15vw] h-[0.4vw] bg-white z-10 pointer-events-none"
-                style={{ transform: `scaleX(${1 - (0.25 * scrollProgress)})`, transformOrigin: 'center' }}
+                style={{ transform: `scaleX(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center' }}
               ></div>
 
               {/* Avatar Wrapper */}
               <div
-                className="relative flex justify-center items-center z-30 w-[12vw] h-[12vw] mt-[-6vw]"
-                style={{ transform: `scale(${1 - (0.25 * scrollProgress)})`, transformOrigin: 'center' }}
+                className="relative flex justify-center items-center z-[70] w-[12vw] h-[12vw] mt-[-6vw]"
+                style={{ transform: `scale(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center' }}
               >
                 {/* Left Smooth Corner */}
                 <svg className="absolute top-[3.19vw] -left-[1vw] w-[1.5vw] h-[2vw] z-10 pointer-events-none" viewBox="0 0 10 10">
