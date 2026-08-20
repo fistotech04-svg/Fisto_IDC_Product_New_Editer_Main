@@ -800,11 +800,104 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
           </div>
         </div>
 
-        {/* Info Row */}
-        <div className="flex items-center gap-[0.4vw]">
+        {/* 1. Images Grid */}
+        <div className="grid grid-cols-4 gap-[0.75vw] px-[0.05vw] mt-[0.5vw]">
+          {Array.from({ length: Math.min(MAX_GALLERY_IMAGES, slideshowImages.length + 1) }).map((_, i) => (
+            <div key={i} className="relative group/slot">
+              <div
+                className={`aspect-[1/1] w-full rounded-[0.4vw] cursor-pointer border-[0.1vw] transition-all duration-300 relative flex items-center justify-center group/card hover:scale-[1.05] hover:-translate-y-[0.25vw] hover:z-20 ${activeSlideIndex === i
+                  ? 'border-gray-500 bg-gray-100 shadow-[0_0.65vw_1.25vw_-0.4vw_rgba(99,102,241,0.3)]'
+                  : (slideshowImages[i] ? 'border-gray-200 hover:border-gray-400 hover:shadow-[0_0.75vw_1.5vw_-0.5vw_rgba(0,0,0,0.15)]' : 'border-gray-400 hover:border-indigo-400 shadow-sm')
+                  } ${!slideshowImages[i] ? 'bg-gray-50/50 border-dashed' : 'bg-white shadow-sm'}`}
+                onClick={() => {
+                  if (activeSlideIndex === i) {
+                    const current = gallery.imageFitType || 'Fill All';
+                    updateGallery('imageFitType', current === 'Fit All' ? 'Fill All' : 'Fit All');
+                  } else {
+                    setActiveSlideIndex(i);
+                  }
+                }}
+              >
+                {slideshowImages[i]?.isUploading ? (
+                  <div className="flex flex-col items-center justify-center gap-[0.375vw] w-full h-full">
+                    <div className="w-[1.2vw] h-[1.2vw] border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : slideshowImages[i] ? (
+                  <img src={slideshowImages[i].url} className="w-full h-full rounded-[0.3vw] transition-all duration-300" style={{ objectFit: (gallery.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain' }} alt="" />
+                ) : (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveSlideIndex(i);
+                      fileInputRef.current?.click();
+                    }}
+                    className="flex flex-col items-center justify-center gap-[0.375vw] opacity-30 group-hover/card:opacity-70 transition-all duration-300 w-full h-full"
+                  >
+                    <Upload size="0.95vw" strokeWidth={1.5} className="text-gray-900" />
+                    <span className="text-[0.6vw] font-semibold text-gray-900">Upload</span>
+                  </div>
+                )}
+
+                {slideshowImages[i] && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenContextMenu(openContextMenu === i ? null : i);
+                    }}
+                    className={`absolute -top-[0.375vw] -right-[0.375vw] w-[1.75vw] h-[1.75vw] rounded-full bg-white shadow-[0_0.1vw_0.5vw_rgba(0,0,0,0.15)] border-[0.1vw] border-gray-200 flex items-center justify-center transition-all duration-200 z-30 ${openContextMenu === i ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover/card:opacity-100 group-hover/card:scale-100'
+                      } hover:bg-gray-50 active:scale-125`}
+                  >
+                    <MoreVertical size="0.7vw" className="text-gray-600" strokeWidth={2.5} />
+                  </button>
+                )}
+              </div>
+
+              {openContextMenu === i && (
+                <>
+                  <div className="fixed inset-0 z-[105]" onClick={() => setOpenContextMenu(null)} />
+                  <div className={`absolute top-[1.5vw] w-[9.5vw] z-[110] animate-in fade-in zoom-in-95 duration-150 ${(i % 4) >= 2 ? '-right-[0.375vw] origin-top-right' : 'left-[calc(100%-1.375vw)] origin-top-left'}`}>
+                    <div className="bg-white rounded-[0.5vw] shadow-[0_0.3vw_1vw_rgba(0,0,0,0.15)] border border-gray-100 p-[0.75vw]">
+                      <h3 className="text-[0.85vw] font-medium text-gray-700 truncate mb-[0.2vw]">Slide {i + 1}.jpg</h3>
+                      <p className="text-[0.7vw] text-gray-400 mb-[0.75vw]">1920 X 1080 • 1256KB</p>
+                      <div className="flex items-center gap-[0.4vw]">
+                        <button 
+                          onClick={() => { 
+                            if (slideshowImages[i]) { 
+                              setReplaceTargetIndex(i); 
+                              replaceInputRef.current?.click(); 
+                              setOpenContextMenu(null); 
+                            } else { 
+                              setActiveSlideIndex(i); 
+                              fileInputRef.current?.click(); 
+                              setOpenContextMenu(null); 
+                            } 
+                          }}
+                          className="flex-1 px-[0.3vw] py-[0.35vw] text-[0.7vw] font-medium text-gray-600 bg-[#f9fafb] border border-gray-200 rounded-[0.3vw] hover:bg-gray-100 transition-colors"
+                        >
+                          {slideshowImages[i] ? 'Replace Image' : 'Add Image'}
+                        </button>
+                        <button 
+                          onClick={() => confirmDeleteImage(i)}
+                          className="w-[1.9vw] h-[1.9vw] flex items-center justify-center bg-[#f9fafb] border border-gray-200 rounded-[0.3vw] hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors text-gray-400 shrink-0"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="0.9vw" height="0.9vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+        <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="image/png, image/jpeg, image/jpg, .png, .jpg, .jpeg" className="hidden" />
+        <input type="file" ref={replaceInputRef} onChange={handleReplaceFileChange} accept="image/png, image/jpeg, image/jpg, .png, .jpg, .jpeg" className="hidden" />
+
+        {/* 2. Info Row */}
+        <div className="flex items-center gap-[0.4vw] px-[0.25vw] mt-[0.5vw]">
           <div className="relative">
             <button
-              className="w-[1.1vw] h-[1.1vw] rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-[0.6vw] font-semibold hover:bg-gray-100 transition-colors"
+              className="w-[1vw] h-[1vw] rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-[0.6vw] font-semibold hover:bg-gray-100 transition-colors"
               onMouseEnter={() => setShowInfoTooltip(true)}
               onMouseLeave={() => setShowInfoTooltip(false)}
             >
@@ -816,146 +909,22 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
               </div>
             )}
           </div>
-          <span className="text-[0.7vw] text-gray-500">You can add up to 12 images in Gallery *</span>
+          <span className="text-[0.6vw] text-gray-400 italic">You can add up to 12 images in Gallery</span><span className="text-[0.95vw] text-red-500 "> *</span>
         </div>
 
-        {/* Upload & Gallery Buttons Area */}
-        <div className={slideshowImages.length > 0 ? "flex items-center gap-[0.8vw] w-full" : "flex flex-col items-center gap-[0.5vw] w-full"}>
-          {/* Upload Box */}
-          <div
-            onClick={() => {
-              if (fileInputRef.current) fileInputRef.current.value = '';
-              fileInputRef.current?.click();
-            }}
-            className={`border-2 border-dashed border-gray-400 rounded-[0.5vw] flex flex-col items-center justify-center cursor-pointer transition-all px-[0.5vw] hover:border-gray-500 hover:bg-gray-50/50 ${slideshowImages.length > 0 ? 'flex-1 h-[4.5vw] gap-[0vw] w-[90%]' : 'w-full h-[5.5vw] gap-[0.5vw] w-[100%]'}`}
-          >
-            <span className={`text-gray-500 font-medium text-center leading-snug ${slideshowImages.length > 0 ? 'text-[0.55vw]' : 'text-[0.65vw]'}`}>Drag & drop or <br className={slideshowImages.length > 0 ? 'block' : 'hidden'} /><span className="text-[#4A3AFF]">Upload</span></span>
-            <Upload size={slideshowImages.length > 0 ? "0.9vw" : "1vw"} className="text-gray-400 my-[0.2vw]" />
-            <span className={`text-gray-400 font-medium text-center leading-snug ${slideshowImages.length > 0 ? 'text-[0.45vw]' : 'text-[0.55vw]'}`}>Supported File Format : <br className={slideshowImages.length > 0 ? 'block' : 'hidden'} />JPG, PNG</span>
-          </div>
-
-          <span className="text-[0.7vw] font-semibold text-gray-400 shrink-0">OR</span>
-
-          {/* Image Gallery Button */}
-          <button
-            onClick={() => setShowLibrary(true)}
-            className={`relative bg-black rounded-[0.5vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5 ${slideshowImages.length > 0 ? 'flex-1 h-[4.5vw] w-[10%]' : 'w-[100%] h-[3vw]'}`}
-          >
-            <div className="absolute inset-0 flex opacity-30 group-hover:opacity-40 transition-opacity">
-              <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1493612276216-ee3925520721?q=80&w=300&auto=format&fit=crop')" }}></div>
-              <div className="flex-1 bg-cover bg-center border-x border-white/10" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=300&auto=format&fit=crop')" }}></div>
-              <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=300&auto=format&fit=crop')" }}></div>
+        {/* 3. Library Access Button */}
+        <div className="mt-[1vw]">
+          <button onClick={() => setShowLibrary(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5">
+            <div className="absolute inset-0 flex gap-[0.5vw] opacity-20 group-hover:opacity-40 transition-opacity">
+              {[1, 2, 3].map(j => <div key={j} className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1493612276216-ee3925520721?q=80&w=300&auto=format&fit=crop')" }} />)}
             </div>
             <div className="absolute inset-0 bg-gradient-to-r from-gray/10 via-gray/20 to-gray/40 group-hover:via-gray/20 transition-all"></div>
-            <div className={`relative z-10 flex ${slideshowImages.length > 0 ? 'flex-col gap-[0.2vw]' : 'flex-row gap-[0.5vw]'} items-center justify-center px-[0.5vw] text-center w-full`}>
-              <Icon icon="clarity:image-gallery-solid" className={`${slideshowImages.length > 0 ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1vw] h-[1.2vw]'} text-white shrink-0`} />
-              <div className={`font-semibold text-white leading-tight ${slideshowImages.length > 0 ? 'text-[0.65vw]' : 'text-[0.85vw]'}`}>Image Gallery
-              </div>
+            <div className="relative z-10 flex items-center gap-[0.75vw]">
+              <Icon icon="clarity:image-gallery-solid" className="w-[1vw] h-[1.2vw] text-white" />
+              <span className="text-[0.95vw] font-semibold text-white ">Image Gallery</span>
             </div>
           </button>
         </div>
-
-        <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="image/png, image/jpeg, image/jpg, .png, .jpg, .jpeg" className="hidden" />
-        <input type="file" ref={replaceInputRef} onChange={handleReplaceFileChange} accept="image/png, image/jpeg, image/jpg, .png, .jpg, .jpeg" className="hidden" />
-
-        {/* Uploaded Images Grid */}
-        {slideshowImages.length > 0 && (
-          <div className="mt-[1vw]">
-            <SectionHeader title="Uploaded Images" />
-            <div className="grid grid-cols-4 gap-[0.65vw] px-[0.125vw]">
-              {slideshowImages.map((img, i) => (
-                <div key={img.id || i} className="relative group/slot">
-                  <div
-                    className={`aspect-[1/1] w-full rounded-[0.3vw] cursor-pointer border-[0.1vw] transition-all duration-300 relative flex items-center justify-center group/card hover:scale-[1.05] hover:-translate-y-[0.25vw] hover:z-20 ${activeSlideIndex === i
-                      ? 'border-gray-500 bg-gray-100 shadow-[0_0.65vw_1.25vw_-0.4vw_rgba(99,102,241,0.3)]'
-                      : 'border-gray-200 hover:border-gray-400 hover:shadow-[0_0.75vw_1.5vw_-0.5vw_rgba(0,0,0,0.15)] bg-white shadow-sm'
-                      }`}
-                    onClick={() => {
-                      setActiveSlideIndex(i);
-                      if (img && !img.isUploading) {
-                        const current = gallery.imageFitType || 'Fill All';
-                        updateGallery('imageFitType', current === 'Fit All' ? 'Fill All' : 'Fit All');
-                      }
-                    }}
-                  >
-                    {img.isUploading ? (
-                      <div className="flex flex-col items-center justify-center gap-[0.375vw] w-full h-full">
-                        <div className="w-[1.2vw] h-[1.2vw] border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    ) : (
-                      <img src={img.url} className="w-full h-full rounded-[0.3vw] transition-all duration-300" style={{ objectFit: (gallery.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain' }} alt="" />
-                    )}
-
-                    {/* Actions Menu Trigger */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenContextMenu(openContextMenu === i ? null : i);
-                      }}
-                      className={`absolute -top-[0.375vw] -right-[0.375vw] w-[1.75vw] h-[1.75vw] rounded-full bg-white shadow-[0_0.1vw_0.5vw_rgba(0,0,0,0.15)] border-[0.1vw] border-gray-200 flex items-center justify-center transition-all duration-200 z-30 ${openContextMenu === i ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover/card:opacity-100 group-hover/card:scale-100'
-                        } hover:bg-gray-50 active:scale-125`}
-                    >
-                      <MoreVertical size="0.7vw" className="text-gray-600" strokeWidth={2.5} />
-                    </button>
-                  </div>
-
-                  {/* Context Menu */}
-                  {openContextMenu === i && (
-                    <>
-                      <div className="fixed inset-0 z-[105]" onClick={() => setOpenContextMenu(null)} />
-                      <div className={`absolute top-[40%] mt-[0.25vw] w-[7.5vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-2xl z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${(i % 4) >= 2 ? 'right-0' : 'left-0'
-                        }`}>
-                        <button
-                          onClick={() => {
-                            if (img) {
-                              setReplaceTargetIndex(i);
-                              if (replaceInputRef.current) replaceInputRef.current.value = '';
-                              replaceInputRef.current?.click();
-                              setOpenContextMenu(null);
-                            }
-                          }}
-                          className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-gray-700 hover:bg-gray-50 text-left border-b border-gray-50 transition-colors flex items-center gap-[0.5vw]"
-                        >
-                          Replace Image
-                        </button>
-                        <button
-                          onClick={() => {
-                            setLibraryTargetIndex(i);
-                            setShowLibrary(true);
-                            setOpenContextMenu(null);
-                          }}
-                          className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-gray-700 hover:bg-gray-50 text-left border-b border-gray-50 transition-colors flex items-center gap-[0.5vw]"
-                        >
-                          Image Gallery
-                        </button>
-                        {img && (
-                          <button
-                            onClick={() => {
-                              setCropTargetIndex(i);
-                              setIsCropping(true);
-                              setOpenContextMenu(null);
-                            }}
-                            className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-gray-700 hover:bg-gray-50 text-left border-b border-gray-50 transition-colors flex items-center gap-[0.5vw]"
-                          >
-                            Crop Image
-                          </button>
-                        )}
-                        {img && (
-                          <button
-                            onClick={() => confirmDeleteImage(i)}
-                            className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-red-500 hover:bg-red-50 text-left transition-colors flex items-center gap-[0.5vw]"
-                          >
-                            Delete Image
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ── GALLERY CONTROLS ────────────────────────────────── */}
         <div className="space-y-[0.5vw] mb-[0.5vw]">

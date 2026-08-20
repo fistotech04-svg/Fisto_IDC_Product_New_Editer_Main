@@ -12,7 +12,7 @@ import TableOfContentsPopup from './popups/TableOfContentsPopup';
 import MobileFrame from './MobileFrame';
 import MobileLayoutRenderer from './Mobile/MobileLayoutRenderer';
 import FlipbookSharePopup from './popups/FlipbookSharePopup';
-import ProfilePopup from './popups/ProfilePopup';
+import CreatorProfileModal from '../../pages/CreatorProfileModal';
 import ShareModal from '../ShareModal';
 import Sound from './popups/Sound';
 import Export from './popups/Export';
@@ -4409,18 +4409,14 @@ const PreviewArea = React.memo(({
             )}
 
             {showProfilePopup && ![4, 5, '4', '5'].includes(activeLayout) && (
-                <ProfilePopup
+                <CreatorProfileModal
+                    isOpen={showProfilePopup}
                     onClose={() => setShowProfilePopup(false)}
-                    profileSettings={profileSettings}
-                    addTextBelowIcons={settings?.toolbar?.addTextBelowIcons}
-                    activeLayout={activeLayout}
-                    isTablet={isTablet}
-                    isMobile={isMobile}
-                    isLandscape={isLandscape}
-                    isMobileLandscape={isMobileLandscape}
-                    isEditor={!onClose}
-                    isFullscreen={isFullscreen}
-                    isSidebarOpen={isSidebarOpen}
+                    creator={{
+                        name: profileSettings?.name,
+                        profileImg: profileSettings?.picture
+                    }}
+                    isPreview={true}
                 />
             )}
 
