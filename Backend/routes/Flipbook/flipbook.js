@@ -25,7 +25,8 @@ import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase, getSupabasePublicUrl } from "../../config/supabase.js";
+import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase, getFolderSizeFromSupabase, getSupabasePublicUrl } from "../../config/supabase.js";
+import { calculateActiveUserStorage } from "../User_Details/usersetting.js";
 
 // Helper to get Gmail Transporter
 const getTransporter = () => {
@@ -561,14 +562,33 @@ router.post("/save", async (req, res) => {
       savedPages.push(fileName);
       savedFileNames.add(fileName);
 
-      newPageIds.add(pageVId);
+      const existingPage = existingDoc?.pages?.find((p) => p.name === pageName || (pageVId && p.v_id === pageVId));
+      const existingPageSize = existingPage?.size || 0;
+      const pageSize = (isContentProvided && processedContent)
+        ? Buffer.byteLength(processedContent, 'utf8')
+        : (page.size || existingPageSize);
 
       dbPages.push({
         pageNumber: i + 1,
         name: pageName,
         fileName: fileName,
         v_id: pageVId,
+        size: pageSize,
       });
+    }
+
+    const incomingFlipbookInfo = req.body.FlipbookInfo || req.body.Customized_Settings?.FlipbookInfo || req.body.meta || {};
+    const totalPagesSize = dbPages.reduce((sum, p) => sum + (p.size || 0), 0);
+    const existingTotalSize = existingDoc?.fileSize || 0;
+    const requestedFileSize = req.body.fileSize || incomingFlipbookInfo.fileSize || incomingFlipbookInfo.pdfSize;
+
+    let calculatedFileSize = 0;
+    if (requestedFileSize && requestedFileSize > 0) {
+      calculatedFileSize = requestedFileSize;
+    } else if (totalPagesSize > 0) {
+      calculatedFileSize = totalPagesSize;
+    } else if (existingTotalSize > 0) {
+      calculatedFileSize = existingTotalSize;
     }
 
     // Upsert base64 assets into DB (prevents duplicate DB rows for identical asset filenames)
@@ -700,7 +720,6 @@ router.post("/save", async (req, res) => {
             folderName: physicalFolderName,
           };
 
-    const incomingFlipbookInfo = req.body.FlipbookInfo || req.body.Customized_Settings?.FlipbookInfo || req.body.meta || {};
     let templateIdVal = req.body.templateId || incomingFlipbookInfo.templateId || req.body.settings?.templateId;
     let orientationVal = req.body.orientation || incomingFlipbookInfo.orientation || req.body.settings?.orientation;
     const isSquare = (templateIdVal && templateIdVal.toLowerCase() === 'square') || (orientationVal && orientationVal.toLowerCase() === 'square');
@@ -732,6 +751,7 @@ router.post("/save", async (req, res) => {
     const updateSet = {
       flipbookName: flipbookName, // Ensure name is updated if it changed
       pages: dbPages,
+      ...(calculatedFileSize ? { fileSize: calculatedFileSize } : {}),
       lastUpdated: new Date(),
       folderName: uniqueFolders, // Update tags
       Customized_Settings: {
@@ -899,11 +919,13 @@ router.post("/save-page", async (req, res) => {
     }
 
     // Update or insert this page in the DB pages array
+    const pageSize = pageBuffer.length;
     const existingPageIdx = doc.pages ? doc.pages.findIndex((p) => p.name === pageName) : -1;
     if (existingPageIdx >= 0) {
       // Update existing page record
       doc.pages[existingPageIdx].fileName = fileName;
       if (pageNumber !== undefined) doc.pages[existingPageIdx].pageNumber = pageNumber;
+      doc.pages[existingPageIdx].size = pageSize;
     } else {
       // Append new page record
       const newPageVId = `page_${Math.random().toString(36).substr(2, 9)}`;
@@ -913,9 +935,11 @@ router.post("/save-page", async (req, res) => {
         name: pageName,
         fileName,
         v_id: newPageVId,
+        size: pageSize,
       });
     }
 
+    doc.fileSize = (doc.pages || []).reduce((sum, p) => sum + (p.size || 0), 0);
     doc.lastUpdated = new Date();
     doc.markModified("pages");
     await doc.save();
@@ -976,17 +1000,20 @@ router.post("/save-pages-batch", async (req, res) => {
       const pageBuffer = Buffer.from(processedContent, "utf8");
       await uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err));
 
+      const pageSize = pageBuffer.length;
       // Update or insert into DB pages array
       const existingPageIdx = doc.pages.findIndex((p) => p.name === pageName);
       if (existingPageIdx >= 0) {
         doc.pages[existingPageIdx].fileName = fileName;
         if (pageNumber !== undefined) doc.pages[existingPageIdx].pageNumber = pageNumber;
+        doc.pages[existingPageIdx].size = pageSize;
       } else {
         doc.pages.push({
           pageNumber: pageNumber || doc.pages.length + 1,
           name: pageName,
           fileName,
           v_id: pageVId || `page_${Math.random().toString(36).substr(2, 9)}`,
+          size: pageSize,
         });
       }
     }
@@ -999,6 +1026,14 @@ router.post("/save-pages-batch", async (req, res) => {
       }
     }
 
+    if (req.body.fileSize && req.body.fileSize > 0) {
+      doc.fileSize = req.body.fileSize;
+    } else {
+      const calculatedPagesSize = (doc.pages || []).reduce((sum, p) => sum + (p.size || 0), 0);
+      if (calculatedPagesSize > 0) {
+        doc.fileSize = calculatedPagesSize;
+      }
+    }
 
     doc.lastUpdated = new Date();
     doc.markModified("pages");
@@ -1086,6 +1121,46 @@ router.get("/list", async (req, res) => {
       }
     });
 
+    const getFlipbookPhysicalSize = async (doc, realFolder) => {
+      try {
+        // 1. Check local disk first
+        const bookPath = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, realFolder, doc.flipbookName);
+        const diskSize = getDirSize(bookPath);
+        if (diskSize > 0) return diskSize;
+
+        // 2. Query physical size directly from Supabase Storage
+        const supabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolder}/${doc.flipbookName}`;
+        const supabaseSize = await getFolderSizeFromSupabase(supabasePath);
+        if (supabaseSize > 0) return supabaseSize;
+
+        // 3. Fallback to asset and page buffers if storage query was empty
+        const assetSize = (doc.v_id && bookSizeMap.get(doc.v_id)) || 0;
+        if (doc.pages && doc.pages.length > 0) {
+          const pagesSize = doc.pages.reduce((acc, p) => acc + (p.size || 0), 0);
+          if (pagesSize > 0) return pagesSize + assetSize;
+        }
+        if (assetSize > 0) return assetSize;
+      } catch (e) {
+        console.warn("Error getting physical size for book:", doc.flipbookName, e);
+      }
+      return 0;
+    };
+
+    // Calculate physical sizes in parallel for all user books
+    const bookSizesList = await Promise.all(userDbBooks.map(async (doc) => {
+      const realFolders = Array.isArray(doc.folderName)
+        ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
+        : [doc.folderName];
+      const folder = realFolders[0] || "My_Flipbooks";
+      const size = await getFlipbookPhysicalSize(doc, folder);
+      return { v_id: doc.v_id, size };
+    }));
+
+    const bookPhysicalSizeMap = new Map();
+    bookSizesList.forEach(({ v_id, size }) => {
+      if (v_id) bookPhysicalSizeMap.set(v_id, size);
+    });
+
     let books = [];
     const processedVIds = new Set();
 
@@ -1104,9 +1179,16 @@ router.get("/list", async (req, res) => {
         ? new Date(doc.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-") + " " + new Date(doc.createdAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' })
         : "";
 
-      const totalSize = bookSizeMap.get(doc.v_id) || 0;
+      const rawSize = (doc.v_id && bookPhysicalSizeMap.get(doc.v_id)) || 0;
 
       processedVIds.add(doc.v_id);
+
+      const flipbookInfo = doc.Customized_Settings?.FlipbookInfo || doc.meta || {};
+      const quotes = flipbookInfo.quotes || doc.quotes || "";
+      const about = flipbookInfo.about || doc.about || "";
+      const category = flipbookInfo.category || doc.category || "Product Based";
+      const language = flipbookInfo.language || doc.language || "English";
+      const tags = flipbookInfo.tags || doc.tags || [];
 
       books.push({
         id: `${folder}_${doc.flipbookName}`,
@@ -1117,12 +1199,20 @@ router.get("/list", async (req, res) => {
         pages: doc.pages ? doc.pages.length : 0,
         created: createdDate,
         views: 0,
-        size: formatSize(totalSize),
+        size: formatSize(rawSize),
+        sizeBytes: rawSize,
         image: firstImageAssetMap.get(doc.v_id) || null,
         mtime: doc.lastUpdated || doc.createdAt,
         share: doc.Customized_Settings?.Visibility || doc.share || null,
         Visibility: doc.Customized_Settings?.Visibility || doc.share || null,
         isPublished: Boolean(doc.isPublished),
+        quotes: quotes,
+        about: about,
+        category: category,
+        language: language,
+        tags: tags,
+        FlipbookInfo: flipbookInfo,
+        Customized_Settings: doc.Customized_Settings || null,
       });
     }
 
@@ -1141,6 +1231,15 @@ router.get("/list", async (req, res) => {
         ? new Date(doc.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-") + " " + new Date(doc.createdAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' })
         : "";
 
+      const rawSize = (doc.v_id && bookPhysicalSizeMap.get(doc.v_id)) || 0;
+
+      const flipbookInfo = doc.Customized_Settings?.FlipbookInfo || doc.meta || {};
+      const quotes = flipbookInfo.quotes || doc.quotes || "";
+      const about = flipbookInfo.about || doc.about || "";
+      const category = flipbookInfo.category || doc.category || "Product Based";
+      const language = flipbookInfo.language || doc.language || "English";
+      const tags = flipbookInfo.tags || doc.tags || [];
+
       return {
         id: `Recent_${doc.v_id || doc.flipbookName}`,
         realName: doc.flipbookName,
@@ -1151,12 +1250,20 @@ router.get("/list", async (req, res) => {
         pages: doc.pages ? doc.pages.length : 0,
         created: createdDate,
         views: 0,
-        size: formatSize(bookSizeMap.get(doc.v_id) || 0),
+        size: formatSize(rawSize),
+        sizeBytes: rawSize,
         image: firstImageAssetMap.get(doc.v_id) || null,
         mtime: doc.lastUpdated || doc.createdAt,
         share: doc.Customized_Settings?.Visibility || doc.share || null,
         Visibility: doc.Customized_Settings?.Visibility || doc.share || null,
         isPublished: Boolean(doc.isPublished),
+        quotes: quotes,
+        about: about,
+        category: category,
+        language: language,
+        tags: tags,
+        FlipbookInfo: flipbookInfo,
+        Customized_Settings: doc.Customized_Settings || null,
       };
     });
 
@@ -1414,6 +1521,7 @@ router.post("/folder/duplicate", async (req, res) => {
           name: page.name,
           fileName: page.fileName,
           v_id: newPageVId,
+          size: page.size || 0,
         };
       });
 
@@ -1422,6 +1530,7 @@ router.post("/folder/duplicate", async (req, res) => {
         folderName: [copyName],
         flipbookName: newBookName,
         pages: newPages,
+        fileSize: doc.fileSize || 0,
         v_id: newVId,
         Customized_Settings: {
           ...(doc.Customized_Settings || doc.settings || {}),
@@ -1539,6 +1648,7 @@ router.post("/duplicate", async (req, res) => {
           name: page.name,
           fileName: page.fileName,
           v_id: newPageVId,
+          size: page.size || 0,
         };
       });
 
@@ -1547,6 +1657,7 @@ router.post("/duplicate", async (req, res) => {
         folderName: Array.isArray(sourceDoc.folderName) ? sourceDoc.folderName : [folderName],
         flipbookName: copyName,
         pages: newPages,
+        fileSize: sourceDoc.fileSize || 0,
         v_id: newFlipbookVId,
         Customized_Settings: {
           ...(sourceDoc.Customized_Settings || sourceDoc.settings || {}),
@@ -3017,8 +3128,7 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
       const userSettings = await UserSettings.findOne({ emailId });
       const maxStorage = userSettings?.maxStorage || 300 * 1024 * 1024;
       
-      const sanitizedEmailForStorage = emailId.replace(/[@.]/g, "_");
-      const currentUsedStorage = await getUserStorageSizeFromSupabase(sanitizedEmailForStorage);
+      const currentUsedStorage = await calculateActiveUserStorage(emailId);
 
       if (currentUsedStorage + file.size > maxStorage) {
         if (fs.existsSync(file.path)) fs.unlinkSync(file.path);

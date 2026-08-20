@@ -92,7 +92,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
     if (!bytes || bytes <= 0) return '0 MB';
     const mb = bytes / (1024 * 1024);
     if (mb < 0.1) return '0.1 MB';
-    if (mb < 10) return `${mb.toFixed(1)} MB`;
+    if (mb < 100) return `${parseFloat(mb.toFixed(1))} MB`;
     return `${Math.round(mb)} MB`;
   };
 

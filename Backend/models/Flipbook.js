@@ -18,8 +18,13 @@ const flipbookSchema = new mongoose.Schema({
         pageNumber: { type: Number, required: true },
         name: { type: String, required: true }, // Display Name
         fileName: { type: String, required: true }, // Actual file name
-        v_id: { type: String, required: true } // Unique ID for finding assets
+        v_id: { type: String, required: true }, // Unique ID for finding assets
+        size: { type: Number, default: 0 } // Size in bytes
     }],
+    fileSize: {
+        type: Number,
+        default: 0
+    },
     createdAt: {
         type: Date,
         default: Date.now

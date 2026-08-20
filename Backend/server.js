@@ -12,6 +12,7 @@ import flipbookRoutes from "./routes/Flipbook/flipbook.js";
 import threedModelRoutes from "./routes/User_Details/threed_models.js";
 import textureRoutes from "./routes/Texture/texture.js";
 import exploreRoutes from "./routes/Explore/explore.js";
+import profileRoutes from "./routes/User_Details/profile.js";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
@@ -104,6 +105,7 @@ app.use("/api/usersetting", usersettingRoutes);
 app.use("/api/3d-models", threedModelRoutes);
 app.use("/api/textures", textureRoutes);
 app.use("/api/explore", exploreRoutes);
+app.use("/api/profile", profileRoutes);
 
 const PORT = process.env.PORT || 5000;
 
