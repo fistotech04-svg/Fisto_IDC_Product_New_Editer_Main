@@ -144,13 +144,13 @@ const Activity = () => {
   return (
     <div className="flex flex-col flex-1 w-full relative h-full">
       {/* Header */}
-      <div className="flex justify-between items-start mb-[1.5vw]">
+      <div className="flex justify-between items-start mb-[1.5vw] custom-scrollbar pr-[1vw]">
         {portalTarget ? createPortal(filterSearchBar, portalTarget) : filterSearchBar}
       </div>
 
       {/* Activity Timeline Container */}
-      <div className="p-[2vw] pt-0 flex-1 overflow-y-auto custom-scrollbar pr-[1vw]">
-        <div className="flex flex-col relative pl-[2.5vw]">
+      <div className="p-[2vw] pt-0 flex-1 ">
+        <div className="flex flex-col relative pl-[2.5vw] overflow-y-auto">
           {/* Continuous left line */}
           <div className="absolute left-[0.4vw] top-[1.5vw] bottom-[2vw] w-[2px] bg-gray-200 z-0"></div>
 
