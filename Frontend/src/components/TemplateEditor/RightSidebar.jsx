@@ -121,18 +121,28 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
       className={className}
       value={displayValue}
       readOnly={readOnly}
+      disabled={readOnly}
+      tabIndex={readOnly ? -1 : 0}
       onFocus={() => {
+        if (readOnly) return;
         setIsEditing(true);
         setLocalVal(displayValue);
       }}
       onBlur={() => {
+        if (readOnly) return;
         setIsEditing(false);
         if (localVal !== '' && localVal !== (liveVal !== null ? liveVal : value).toString()) {
            onChange(localVal);
         }
       }}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
+      onChange={(e) => {
+        if (readOnly) return;
+        handleChange(e);
+      }}
+      onKeyDown={(e) => {
+        if (readOnly) return;
+        handleKeyDown(e);
+      }}
     />
   );
 };
@@ -250,6 +260,7 @@ const RightSidebar = ({
   const interactionMenuRef = useRef(null);
 
   const updatePosition = (val, targetAttr) => {
+     if (activeTopTool === 'interaction' || activeTopTool === 'animation') return;
      if (!selectedElementProps) return;
      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
      const el = editorDoc.getElementById(selectedLayerId);
@@ -320,6 +331,7 @@ const RightSidebar = ({
   };
 
   const updateDimensionWithScale = (val, targetAttr) => {
+     if (activeTopTool === 'interaction' || activeTopTool === 'animation') return;
      if (!selectedElementProps) return;
      let scale = 1;
      let m = [1, 0, 0, 1, 0, 0];
@@ -793,6 +805,8 @@ const RightSidebar = ({
     return null;
   })();
 
+  const isDimensionDisabled = !selectedElementProps || selectedElementProps.isPdfBackground || activeTopTool === 'interaction' || activeTopTool === 'animation';
+
   return (
     <div 
       className="bg-white border-l border-[#EEEEEE] flex flex-col overflow-hidden select-none flex-shrink-0 h-[92vh]"
@@ -853,35 +867,35 @@ const RightSidebar = ({
                   <div className="flex items-center gap-[1.5vw]">
                       {/* X Input */}
                       <div className="flex items-center gap-[0.2vw]">
-                          {selectedElementProps && !selectedElementProps.isPdfBackground ? (
+                          {!isDimensionDisabled ? (
                              <ChevronLeft 
                                 size="0.85vw" 
                                 className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
                                 onClick={() => {
-                                   const val = parseFloat(selectedElementProps.x || 0) - 1;
+                                   const val = parseFloat(selectedElementProps?.x || 0) - 1;
                                    updatePosition(val.toString(), 'x');
                                 }}
                              />
                           ) : (
                              <ChevronLeft size="0.85vw" className="text-transparent" />
                           )}
-                          <div className="w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm bg-white">
+                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">X</span>
                              <DimensionInput 
                                 targetId={selectedLayerId}
                                 targetAttr="x"
-                                className={`w-full text-center bg-white outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
+                                className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
                                 value={convertValue(selectedElementProps?.x || 0)}
-                                readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
+                                readOnly={isDimensionDisabled}
                                 onChange={(val) => updatePosition(val, 'x')}
                              />
                           </div>
-                          {selectedElementProps && !selectedElementProps.isPdfBackground ? (
+                          {!isDimensionDisabled ? (
                              <ChevronRight 
                                 size="0.85vw" 
                                 className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
                                 onClick={() => {
-                                   const val = parseFloat(selectedElementProps.x || 0) + 1;
+                                   const val = parseFloat(selectedElementProps?.x || 0) + 1;
                                    updatePosition(val.toString(), 'x');
                                 }}
                              />
@@ -892,35 +906,35 @@ const RightSidebar = ({
 
                       {/* Y Input */}
                       <div className="flex items-center gap-[0.2vw]">
-                          {selectedElementProps && !selectedElementProps.isPdfBackground ? (
+                          {!isDimensionDisabled ? (
                              <ChevronLeft 
                                 size="0.85vw" 
                                 className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
                                 onClick={() => {
-                                   const val = parseFloat(selectedElementProps.y || 0) - 1;
+                                   const val = parseFloat(selectedElementProps?.y || 0) - 1;
                                    updatePosition(val.toString(), 'y');
                                 }}
                              />
                           ) : (
                              <ChevronLeft size="0.85vw" className="text-transparent" />
                           )}
-                          <div className="w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm bg-white">
-                             <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">Y</span>
+                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
+                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">Y</span>
                              <DimensionInput 
                                 targetId={selectedLayerId}
                                 targetAttr="y"
-                                className={`w-full text-center bg-white outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
+                                className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
                                 value={convertValue(selectedElementProps?.y || 0)}
-                                readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
+                                readOnly={isDimensionDisabled}
                                 onChange={(val) => updatePosition(val, 'y')}
                              />
                           </div>
-                          {selectedElementProps && !selectedElementProps.isPdfBackground ? (
+                          {!isDimensionDisabled ? (
                              <ChevronRight 
                                 size="0.85vw" 
                                 className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
                                 onClick={() => {
-                                   const val = parseFloat(selectedElementProps.y || 0) + 1;
+                                   const val = parseFloat(selectedElementProps?.y || 0) + 1;
                                    updatePosition(val.toString(), 'y');
                                 }}
                              />
@@ -937,35 +951,35 @@ const RightSidebar = ({
                   <div className="flex items-center gap-[1.5vw]">
                       {/* W Input */}
                       <div className="flex items-center gap-[0.2vw]">
-                          {selectedElementProps && !selectedElementProps.isPdfBackground ? (
+                          {!isDimensionDisabled ? (
                              <ChevronLeft 
                                 size="0.85vw" 
                                 className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
                                 onClick={() => {
-                                   const val = parseFloat(selectedElementProps.w || 0) - 1;
+                                   const val = parseFloat(selectedElementProps?.w || 0) - 1;
                                    updateDimensionWithScale(val.toString(), 'width');
                                 }}
                              />
                           ) : (
                              <ChevronLeft size="0.85vw" className="text-transparent" />
                           )}
-                          <div className="w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm bg-white">
+                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">W</span>
                              <DimensionInput 
                                 targetId={selectedLayerId}
                                 targetAttr="width"
-                                className={`w-full text-center bg-white outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
+                                className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
                                 value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
-                                readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
+                                readOnly={isDimensionDisabled}
                                 onChange={(val) => updateDimensionWithScale(val, 'width')}
                              />
                           </div>
-                          {selectedElementProps && !selectedElementProps.isPdfBackground ? (
+                          {!isDimensionDisabled ? (
                              <ChevronRight 
                                 size="0.85vw" 
                                 className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
                                 onClick={() => {
-                                   const val = parseFloat(selectedElementProps.w || 0) + 1;
+                                   const val = parseFloat(selectedElementProps?.w || 0) + 1;
                                    updateDimensionWithScale(val.toString(), 'width');
                                 }}
                              />
@@ -976,35 +990,35 @@ const RightSidebar = ({
 
                       {/* H Input */}
                       <div className="flex items-center gap-[0.2vw]">
-                          {selectedElementProps && !selectedElementProps.isPdfBackground ? (
+                          {!isDimensionDisabled ? (
                              <ChevronLeft 
                                 size="0.85vw" 
                                 className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
                                 onClick={() => {
-                                   const val = parseFloat(selectedElementProps.h || 0) - 1;
+                                   const val = parseFloat(selectedElementProps?.h || 0) - 1;
                                    updateDimensionWithScale(val.toString(), 'height');
                                 }}
                              />
                           ) : (
                              <ChevronLeft size="0.85vw" className="text-transparent" />
                           )}
-                          <div className="w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm bg-white">
+                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">H</span>
                              <DimensionInput 
                                 targetId={selectedLayerId}
                                 targetAttr="height"
-                                className={`w-full text-center bg-white outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
+                                className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
                                 value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
-                                readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
+                                readOnly={isDimensionDisabled}
                                 onChange={(val) => updateDimensionWithScale(val, 'height')}
                              />
                           </div>
-                          {selectedElementProps && !selectedElementProps.isPdfBackground ? (
+                          {!isDimensionDisabled ? (
                              <ChevronRight 
                                 size="0.85vw" 
                                 className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
                                 onClick={() => {
-                                   const val = parseFloat(selectedElementProps.h || 0) + 1;
+                                   const val = parseFloat(selectedElementProps?.h || 0) + 1;
                                    updateDimensionWithScale(val.toString(), 'height');
                                 }}
                              />

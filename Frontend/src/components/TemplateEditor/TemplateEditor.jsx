@@ -236,8 +236,14 @@ const TemplateEditor = () => {
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isDoublePage, setIsDoublePage] = useState(false);
-  const [isRulerEnabled, setIsRulerEnabled] = useState(true);
-  const [isTrimView, setIsTrimView] = useState(false);
+  const [isRulerEnabled, setIsRulerEnabled] = useState(() => {
+    const saved = localStorage.getItem('isRulerEnabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  const [isTrimView, setIsTrimView] = useState(() => {
+    const saved = localStorage.getItem('isTrimViewEnabled');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
@@ -268,9 +274,6 @@ const TemplateEditor = () => {
 
   // Global Settings Sync
   useEffect(() => {
-    const handleToggleDoublePage = (e) => {
-      setIsDoublePage(prev => e.detail !== undefined ? e.detail : !prev);
-    };
     const handleToggleRuler = (e) => {
       setIsRulerEnabled(prev => e.detail !== undefined ? e.detail : !prev);
     };
@@ -278,12 +281,10 @@ const TemplateEditor = () => {
       setIsTrimView(prev => e.detail !== undefined ? e.detail : !prev);
     };
 
-    window.addEventListener('editor_toggleDoublePage', handleToggleDoublePage);
     window.addEventListener('editor_toggleRuler', handleToggleRuler);
     window.addEventListener('editor_toggleTrimView', handleToggleTrimView);
 
     return () => {
-      window.removeEventListener('editor_toggleDoublePage', handleToggleDoublePage);
       window.removeEventListener('editor_toggleRuler', handleToggleRuler);
       window.removeEventListener('editor_toggleTrimView', handleToggleTrimView);
     };
@@ -291,9 +292,9 @@ const TemplateEditor = () => {
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('editor_settings_changed', {
-      detail: { isDoublePage, isRulerEnabled, isTrimView }
+      detail: { isRulerEnabled, isTrimView }
     }));
-  }, [isDoublePage, isRulerEnabled, isTrimView]);
+  }, [isRulerEnabled, isTrimView]);
 
   // Automatically switch to the Properties panel ('select' tool) when an element 
   // is selected while the Uploads panel is active.
@@ -4392,7 +4393,6 @@ const TemplateEditor = () => {
 
         <MainEditor
           isPdfProject={isPdfProject}
-          isDoublePage={isDoublePage}
           isRulerEnabled={isRulerEnabled}
           isTrimView={isTrimView}
           pages={pages}
