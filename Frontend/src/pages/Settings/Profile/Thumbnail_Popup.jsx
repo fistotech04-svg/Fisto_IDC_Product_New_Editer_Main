@@ -15,11 +15,11 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
   ];
   
   const gradients = [
-    'linear-gradient(to right, #ffecd2 0%, #fcb69f 100%)',
-    'linear-gradient(to right, #a1c4fd 0%, #c2e9fb 100%)',
-    'linear-gradient(to right, #ff9a9e 0%, #fecfef 99%, #fecfef 100%)',
+    'linear-gradient(to right, #597810ff  0%, #e6f0d0ff 100%)',
+    'linear-gradient(to right, #cee7f3 0%, #20509cff 100%)',
+    'linear-gradient(to right, #81163dff 0%, #a75573ff 50%, #F0D0DC 100%)',
     'linear-gradient(to top, #fff1eb 0%, #ace0f9 100%)',
-    'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%)'
+    'linear-gradient(120deg, #e0c3fc 0%, #531b88ff 100%)'
   ];
 
   const handleUpload = () => {
