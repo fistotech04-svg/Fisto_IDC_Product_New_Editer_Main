@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 
 
-import ProfilePopup from '../../popups/ProfilePopup';
+
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
 import FlipbookSharePopup from '../../popups/FlipbookSharePopup';

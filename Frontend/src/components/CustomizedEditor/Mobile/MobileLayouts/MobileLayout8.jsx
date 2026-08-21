@@ -7,7 +7,7 @@ import TableOfContentsPopup from '../../popups/TableOfContentsPopup';
 
 
 
-import ProfilePopup from '../../popups/ProfilePopup';
+
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
 

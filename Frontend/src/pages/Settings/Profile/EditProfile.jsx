@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { User, Building, MapPin, Globe, Check, X, Upload } from 'lucide-react';
+import { User, Building, MapPin, Globe, Check, X, Upload, Trash2 } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
 const EditProfile = ({ user, setUser }) => {
@@ -215,11 +215,110 @@ const EditProfile = ({ user, setUser }) => {
             <div>
               <label className="block text-[0.75vw] font-semibold text-gray-700 mb-[0.2vw]">Add Your Company Logo</label>
               <p className="text-[0.65vw] text-gray-400 mb-[0.5vw]">PNG format keeps your logo clean and background-free</p>
-              <div className="w-[12vw] border border-dashed border-gray-300 rounded-[0.4vw] flex flex-col items-center justify-center py-[1vw] bg-white hover:bg-gray-50 transition-colors cursor-pointer">
-                <Upload className="text-gray-400 w-[1.2vw] h-[1.2vw] mb-[0.3vw]" />
-                <p className="text-[0.65vw] text-gray-500">Drag & Drop or <span className="text-blue-500 font-medium">Upload</span></p>
-                <p className="text-[0.5vw] text-gray-400 mt-[0.2vw]">Supported file: PNG, JPG, JPEG</p>
-              </div>
+              
+              {editedUser?.companyLogo ? (
+                <div className="flex flex-col gap-[0.75vw]">
+                  <div
+                    className="flex items-center gap-[1vw]"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files[0];
+                      if (file && file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setEditedUser({ ...editedUser, companyLogo: reader.result });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative w-[8vw] h-[5vw] rounded-[0.4vw] overflow-hidden bg-White flex-shrink-0 flex items-center justify-center border border-gray-200">
+                      <img
+                        src={editedUser.companyLogo}
+                        alt="Company Logo Thumbnail"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+
+                    {/* Info & Actions */}
+                    <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw]">
+                      <div className="flex flex-col gap-[0.1vw]">
+                        <span className="text-[0.9vw] font-medium text-gray-700 truncate w-[10vw]">
+                          Logo
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-[0.5vw]">
+                        <button
+                          onClick={() => document.getElementById('company-logo-upload')?.click()}
+                          type="button"
+                          className="px-[0.75vw] py-[0.4vw] bg-[#f3f4f6] hover:bg-[#e5e7eb] text-gray-700 text-[0.75vw] font-semibold rounded-[0.4vw] border border-gray-200 cursor-pointer transition-colors"
+                        >
+                          Replace image
+                        </button>
+                        <button
+                          onClick={() => setEditedUser({ ...editedUser, companyLogo: '' })}
+                          type="button"
+                          className="p-[0.45vw] bg-[#f3f4f6] hover:bg-[#fee2e2] text-gray-500 hover:text-red-500 rounded-[0.4vw] border border-gray-200 cursor-pointer transition-colors"
+                        >
+                          <Trash2 size="0.95vw" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-[0.75vw] mb-[1vw] w-[14vw]">
+                  {/* Drag & Drop Box */}
+                  <div
+                    onClick={() => document.getElementById('company-logo-upload')?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files[0];
+                      if (file && file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setEditedUser({ ...editedUser, companyLogo: reader.result });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="w-full h-[5vw] border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-[#4c5add] hover:bg-gray-50/50 group shadow-sm"
+                  >
+                    <div className="flex items-center">
+                      <span className="text-gray-500 text-[0.8vw] font-semibold">+ Add Logo</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <input
+                type="file"
+                id="company-logo-upload"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      setEditedUser({ ...editedUser, companyLogo: reader.result });
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                  e.target.value = '';
+                }}
+                className="hidden"
+                accept="image/*"
+              />
             </div>
             <div>
               <label className="block text-[0.75vw] font-semibold text-gray-700 mb-[0.3vw]">Company / Organization Name</label>

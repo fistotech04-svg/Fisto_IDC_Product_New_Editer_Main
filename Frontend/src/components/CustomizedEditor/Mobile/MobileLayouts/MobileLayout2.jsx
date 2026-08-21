@@ -8,7 +8,7 @@ const Grid2Layout = lazy(() => import('../../Layouts/Grid2Layout'));
 
 
 
-import ProfilePopup from '../../popups/ProfilePopup';
+
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
 import FlipbookSharePopup from '../../popups/FlipbookSharePopup';
