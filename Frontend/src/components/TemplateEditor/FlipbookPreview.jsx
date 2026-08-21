@@ -88,9 +88,9 @@ const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
   };
 };
 
-const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage, v_id: propVId, isPublishedPreview, isLoadingParent = false }) => {
+const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage, v_id: propVId, isPublishedPreview, isLoadingParent = false, currentBook }) => {
   const params = useParams();
-  const v_id = propVId || params.v_id;
+  const v_id = propVId || params.v_id || params.shareId || settings?.shareId || settings?.v_id;
   const [localSettings, setLocalSettings] = useState(() => parseInitialSettings(settings, v_id, isPublishedPreview));
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -552,6 +552,9 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         useNativeFullscreen={true}
         disableAutoGallery={true}
         isPublishedPreview={isPublishedPreview}
+        currentBook={currentBook || settings}
+        v_id={v_id}
+        shareId={propVId || v_id || params?.shareId || settings?.shareId}
       />
 
       {/* Draggable Device Settings - Tablet/Mobile: outside device frame */}
