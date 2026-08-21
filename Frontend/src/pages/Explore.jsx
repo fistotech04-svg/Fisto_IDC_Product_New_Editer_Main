@@ -26,6 +26,14 @@ const defaultColors = [
   '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
 ];
 
+const defaultGradients = [
+  'linear-gradient(to bottom right, #059669, #a7f3d0)',
+  'linear-gradient(to bottom right, #d97706, #fde68a)',
+  'linear-gradient(to bottom right, #2563eb, #bfdbfe)',
+  'linear-gradient(to bottom right, #dc2626, #fecaca)',
+  'linear-gradient(to bottom right, #0d9488, #99f6e4)'
+];
+
 const getAvatarColor = (identifier, customColor) => {
   if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
     return customColor;
@@ -269,6 +277,85 @@ const Explore = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const currentUserEmail = React.useMemo(() => {
+        try {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                const u = JSON.parse(storedUser);
+                if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
+            }
+            const storedProfile = localStorage.getItem('user_profile');
+            if (storedProfile) {
+                const p = JSON.parse(storedProfile);
+                if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
+            }
+        } catch (e) {}
+        return '';
+    }, []);
+
+    const [topCreators, setTopCreators] = useState([]);
+    const [isCreatorsLoading, setIsCreatorsLoading] = useState(true);
+    const [followingLoadingMap, setFollowingLoadingMap] = useState({});
+
+    const handleToggleFollow = async (targetEmail) => {
+        if (!currentUserEmail) {
+            alert("Please log in to follow creators.");
+            return;
+        }
+        if (!targetEmail) return;
+
+        const normTarget = targetEmail.trim().toLowerCase();
+        if (normTarget === currentUserEmail) return;
+
+        // Optimistic UI update
+        const prevCreators = [...topCreators];
+        const targetCreator = topCreators.find(c => (c.emailId || c.email)?.toLowerCase() === normTarget);
+        const wasFollowing = targetCreator?.isFollowing || false;
+
+        setTopCreators(prev => prev.map(c => {
+            if ((c.emailId || c.email)?.toLowerCase() === normTarget) {
+                const newCount = wasFollowing ? Math.max(0, (c.followersCount || 1) - 1) : (c.followersCount || 0) + 1;
+                return {
+                    ...c,
+                    isFollowing: !wasFollowing,
+                    followersCount: newCount
+                };
+            }
+            return c;
+        }));
+
+        setFollowingLoadingMap(prev => ({ ...prev, [normTarget]: true }));
+
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const res = await axios.post(`${backendUrl}/api/explore/toggle-follow`, {
+                currentEmail: currentUserEmail,
+                targetEmail: normTarget
+            });
+
+            if (res.data?.success) {
+                setTopCreators(prev => prev.map(c => {
+                    if ((c.emailId || c.email)?.toLowerCase() === normTarget) {
+                        return {
+                            ...c,
+                            isFollowing: res.data.isFollowing,
+                            followersCount: res.data.followersCount,
+                            followers: res.data.followers
+                        };
+                    }
+                    return c;
+                }));
+            } else {
+                setTopCreators(prevCreators);
+            }
+        } catch (err) {
+            console.error("Error toggling follow status:", err);
+            setTopCreators(prevCreators);
+        } finally {
+            setFollowingLoadingMap(prev => ({ ...prev, [normTarget]: false }));
+        }
+    };
+
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [selectedBookForModal, setSelectedBookForModal] = useState(null);
@@ -296,11 +383,11 @@ const Explore = () => {
     const [showMoreRatings, setShowMoreRatings] = useState(false);
 
     useEffect(() => {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
         const fetchPublishedBooks = async () => {
             try {
                 setIsLoading(true);
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                
                 // Fetch all published flipbooks across all users from /api/explore/published
                 const response = await axios.get(`${backendUrl}/api/explore/published`);
                 
@@ -363,7 +450,41 @@ const Explore = () => {
             }
         };
 
+        const currentUserEmail = (() => {
+            try {
+                const storedUser = localStorage.getItem('user');
+                if (storedUser) {
+                    const u = JSON.parse(storedUser);
+                    if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
+                }
+                const storedProfile = localStorage.getItem('user_profile');
+                if (storedProfile) {
+                    const p = JSON.parse(storedProfile);
+                    if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
+                }
+            } catch (e) {}
+            return '';
+        })();
+
+        const fetchTopCreators = async () => {
+            try {
+                setIsCreatorsLoading(true);
+                const params = {};
+                if (currentUserEmail) params.excludeEmail = currentUserEmail;
+
+                const res = await axios.get(`${backendUrl}/api/explore/top-creators`, { params });
+                if (res.data && res.data.creators) {
+                    setTopCreators(res.data.creators);
+                }
+            } catch (err) {
+                console.error("Error fetching top creators from backend API:", err);
+            } finally {
+                setIsCreatorsLoading(false);
+            }
+        };
+
         fetchPublishedBooks();
+        fetchTopCreators();
     }, []);
     
     // Sidebar Filters State
@@ -736,80 +857,146 @@ const Explore = () => {
                         <div className="w-full pt-[6vh]">
                             <h2 className="text-[1.5vw] font-semibold text-black mb-[3vh]">Top Creators</h2>
                             <div className="ml-[1vw] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                {[
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-emerald-600 to-emerald-100', profileImg: p1 },
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-yellow-600 to-yellow-100', profileImg: p2 },
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-blue-600 to-blue-100', profileImg: p3 },
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-red-600 to-red-100', profileImg: p4 },
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-teal-600 to-teal-100', profileImg: p5 }
-                                ].map((creator, idx) => (
-                                    <div key={idx} className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col hover:shadow-xl transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
-                                        {/* Banner */}
-                                        <div className={`h-[14vh] w-full ${creator.banner}`}></div>
-
-                                        {/* Body */}
-                                        <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
-                                            {/* Avatar & Follow Button */}
-                                            <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
-                                                <div 
-                                                    className="relative shrink-0 z-10 cursor-pointer hover:opacity-90 transition-opacity"
-                                                    onClick={() => handleProfileClick(creator)}
-                                                >
-                                                    <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10 flex items-center justify-center">
-                                                        {creator.profileImg && creator.profileImg !== 'color_only' ? (
-                                                            <img src={creator.profileImg} alt={creator.name} className="w-full h-full object-cover bg-gray-50" />
-                                                        ) : (
-                                                            <div 
-                                                                className="w-full h-full flex items-center justify-center text-white text-[2.2vw] font-bold"
-                                                                style={{ backgroundColor: getAvatarColor(creator.name || creator.email, creator.avatarBgColor) }}
-                                                            >
-                                                                {creator.name ? creator.name.charAt(0).toUpperCase() : 'U'}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {/* Left Smooth Corner */}
-                                                    <svg className="absolute top-[1.8vw] -left-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
-                                                        <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
-                                                    </svg>
-                                                    {/* Right Smooth Corner */}
-                                                    <svg className="absolute top-[1.8vw] -right-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
-                                                        <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
-                                                    </svg>
+                                {isCreatorsLoading ? (
+                                    Array.from({ length: 5 }).map((_, idx) => (
+                                        <div key={idx} className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col shadow-[0_2px_10px_rgba(0,0,0,0.06)] animate-pulse">
+                                            <div className="h-[14vh] w-full bg-gray-200"></div>
+                                            <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
+                                                <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
+                                                    <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white bg-gray-300"></div>
+                                                    <div className="h-[1.5vw] w-[4vw] bg-gray-200 rounded-full mb-[1vw]"></div>
                                                 </div>
-                                                <button className="bg-black text-white px-[1.2vw] py-[0.3vh] rounded-full text-[0.85vw] font-medium hover:bg-gray-800 transition-colors z-10 mb-[1vw] ">
-                                                    Follow
-                                                </button>
-                                            </div>
-
-                                            {/* Info */}
-                                            <h4 className="text-[1vw] font-bold text-gray-900 mt-[0.5vh]">{creator.name}</h4>
-                                            <p className="text-[0.7vw] text-gray-400">{creator.role}</p>
-                                            <p className="text-[0.7vw] text-gray-500 mt-[1vh] leading-relaxed line-clamp-3 flex-1">“Bring your content to life with a real, interactive experience”</p>
-
-                                            {/* Divider */}
-                                            <div className="w-full h-[1px] mt-[1.5vh] mb-[1vh]"></div>
-
-                                            {/* Stats */}
-                                            <div className="flex items-center justify-between px-[0.5vw]">
-                                                <div className="flex flex-col items-center">
-                                                    <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
-                                                        <Icon icon="boxicons:book" className="w-[1.1vw] h-[1.1vw]" />
-                                                        <span>8</span>
-                                                    </div>
-                                                    <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Total Books</span>
-                                                </div>
-                                                <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
-                                                <div className="flex flex-col items-center">
-                                                    <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
-                                                        <Icon icon="lucide:user" className="w-[1vw] h-[1vw]" />
-                                                        <span>451</span>
-                                                    </div>
-                                                    <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Followers</span>
+                                                <div className="h-[1vw] bg-gray-200 rounded w-3/4 mt-[0.5vh]"></div>
+                                                <div className="h-[0.7vw] bg-gray-100 rounded w-1/2 mt-[0.5vh]"></div>
+                                                <div className="h-[0.7vw] bg-gray-100 rounded w-full mt-[1vh]"></div>
+                                                <div className="w-full h-[1px] bg-gray-100 my-[1.5vh]"></div>
+                                                <div className="flex items-center justify-between px-[0.5vw]">
+                                                    <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
+                                                    <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
+                                                    <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                ) : (
+                                    topCreators
+                                        .filter(creator => !currentUserEmail || (creator.emailId?.toLowerCase() !== currentUserEmail && creator.email?.toLowerCase() !== currentUserEmail))
+                                        .slice(0, 10)
+                                        .map((creator, idx) => {
+                                        const bannerStyle = {
+                                            background: creator.bannerBg?.type === 'solid' ? creator.bannerBg?.value : undefined,
+                                            backgroundImage: (creator.bannerBg?.type === 'gradient' || creator.bannerBg?.type === 'media')
+                                                ? creator.bannerBg?.value
+                                                : (creator.bannerBg?.value || defaultGradients[idx % defaultGradients.length]),
+                                            backgroundSize: 'cover',
+                                            backgroundPosition: 'center'
+                                        };
+                                        const displayAvatar = (creator.picture && creator.picture !== 'color_only') ? creator.picture : null;
+                                        const avatarColor = getAvatarColor(creator.name || creator.email, creator.avatarBgColor);
+
+                                        return (
+                                            <div 
+                                                key={creator.emailId || idx} 
+                                                className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col hover:shadow-xl transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)]"
+                                            >
+                                                {/* Banner */}
+                                                <div className="h-[14vh] w-full relative" style={bannerStyle}>
+                                                    <div className="absolute inset-0 opacity-20 bg-white" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 40%, 0 80%)' }}></div>
+                                                </div>
+
+                                                {/* Body */}
+                                                <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
+                                                    {/* Avatar & Follow Button */}
+                                                    <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
+                                                        <div 
+                                                            className="relative shrink-0 z-10 cursor-pointer hover:opacity-90 transition-opacity"
+                                                            onClick={() => handleProfileClick(creator)}
+                                                        >
+                                                            <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10 flex items-center justify-center shadow-sm">
+                                                                {displayAvatar ? (
+                                                                    <img src={displayAvatar} alt={creator.name} className="w-full h-full object-cover bg-gray-50" />
+                                                                ) : (
+                                                                    <div 
+                                                                        className="w-full h-full flex items-center justify-center text-white text-[2.2vw] font-bold"
+                                                                        style={{ backgroundColor: avatarColor }}
+                                                                    >
+                                                                        {creator.name ? creator.name.charAt(0).toUpperCase() : 'U'}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {/* Left Smooth Corner */}
+                                                            <svg className="absolute top-[1.8vw] -left-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
+                                                                <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
+                                                            </svg>
+                                                            {/* Right Smooth Corner */}
+                                                            <svg className="absolute top-[1.8vw] -right-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
+                                                                <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
+                                                            </svg>
+                                                        </div>
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleToggleFollow(creator.emailId || creator.email);
+                                                            }}
+                                                            disabled={followingLoadingMap[(creator.emailId || creator.email)?.toLowerCase()]}
+                                                            className={`w-[5.2vw] h-[1.7vw] rounded-full text-[0.85vw] font-medium transition-colors z-10 mb-[1vw] cursor-pointer flex items-center justify-center gap-[0.3vw] ${
+                                                                creator.isFollowing
+                                                                    ? 'bg-white text-black border border-gray-200 shadow-inner hover:bg-gray-50'
+                                                                    : 'bg-black text-white hover:bg-gray-800 shadow-sm'
+                                                            }`}
+                                                        >
+                                                            {followingLoadingMap[(creator.emailId || creator.email)?.toLowerCase()] ? (
+                                                                <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
+                                                            ) : creator.isFollowing ? (
+                                                                <>
+                                                                    <span>Unfollow</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <span>Follow</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Info */}
+                                                    <h4 
+                                                        className="text-[1vw] font-semibold text-gray-900 mt-[0.5vh] truncate cursor-pointer hover:text-indigo-600 transition-colors"
+                                                        onClick={() => handleProfileClick(creator)}
+                                                    >
+                                                        {creator.name || 'Creator'}
+                                                    </h4>
+                                                    <p className="text-[0.7vw] text-gray-400 truncate">{creator.industryType || creator.companyName || 'Product Designer'}</p>
+                                                    <p className="text-[0.7vw] text-gray-500 mt-[1vh] leading-relaxed line-clamp-3 flex-1">
+                                                        {creator.about || '“Bring your content to life with a real, interactive experience”'}
+                                                    </p>
+
+                                                    {/* Divider */}
+                                                    <div className="w-full h-[1px] bg-gray-100 mt-[1.5vh] mb-[1vh]"></div>
+
+                                                    {/* Stats */}
+                                                    <div className="flex items-center justify-between px-[0.5vw]">
+                                                        <div className="flex flex-col items-center">
+                                                            <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
+                                                                <Icon icon="boxicons:book" className="w-[1.1vw] h-[1.1vw]" />
+                                                                <span>{creator.totalBooks || 0}</span>
+                                                            </div>
+                                                            <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Total Books</span>
+                                                        </div>
+                                                        <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
+                                                        <div className="flex flex-col items-center">
+                                                            <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
+                                                                <Icon icon="lucide:user" className="w-[1vw] h-[1vw]" />
+                                                                <span>{creator.followersCount || (creator.followers?.length || 0)}</span>
+                                                            </div>
+                                                            <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Followers</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
                             </div>
                         </div>
                     </div>
