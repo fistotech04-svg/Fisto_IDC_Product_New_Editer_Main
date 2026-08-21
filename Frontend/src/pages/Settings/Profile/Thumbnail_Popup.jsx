@@ -51,7 +51,7 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
   };
 
   return (
-    <div className="absolute top-[1.5vw] right-[1vw] w-[16vw] bg-white rounded-[0.8vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-[1.2vw] z-[100]">
+    <div className="absolute top-[1.5vw] right-[1vw] w-[17vw] bg-white rounded-[0.8vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-[1.2vw] z-[100]">
       <div className="flex justify-between items-center mb-[1vw]">
         <h3 className="text-[1vw] font-semibold text-gray-800">Edit Thumbnail</h3>
         <button onClick={onClose} className="text-gray-400 hover:text-red-600 transition-colors">
@@ -142,13 +142,16 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
              </div>
           </div>
         ) : (
-          <button 
-            onClick={handleUpload}
-            className="w-full py-[0.6vw] border border-gray-200 rounded-[0.4vw] flex items-center justify-center gap-[0.5vw] text-[0.85vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
-          >
-            <Icon icon="mdi:upload" className="w-[1vw] h-[1vw]" />
-            Upload Image
-          </button>
+          <div className="flex flex-col gap-[0.4vw]">
+            <button 
+              onClick={handleUpload}
+              className="w-full py-[0.6vw] border border-gray-200 rounded-[0.4vw] flex items-center justify-center gap-[0.5vw] text-[0.85vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              <Icon icon="mdi:upload" className="w-[1vw] h-[1vw]" />
+              Upload Image
+            </button>
+            <p className="text-center text-[0.65vw] text-gray-400">Recommended size: 300 × 250 px</p>
+          </div>
         )}
       </div>
     </div>

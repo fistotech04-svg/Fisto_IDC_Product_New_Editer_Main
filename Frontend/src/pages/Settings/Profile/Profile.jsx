@@ -462,9 +462,9 @@ const Profile = () => {
             style={{
               height: `${14 - (8 * scrollProgress)}vw`,
               background: bannerBg.type === 'solid' ? bannerBg.value : undefined,
-              backgroundImage: (bannerBg.type === 'gradient' || bannerBg.type === 'media') ? bannerBg.value : undefined,
-              backgroundSize: bannerBg.type === 'media' ? 'cover' : undefined,
-              backgroundPosition: bannerBg.type === 'image' ? 'center' : undefined
+              backgroundImage: (bannerBg.type === 'gradient' || bannerBg.type === 'media' || bannerBg.type === 'image') ? bannerBg.value : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
             }}
           >
             {/* Faint wavy overlay could go here, using a CSS radial gradient as a placeholder for the texture */}

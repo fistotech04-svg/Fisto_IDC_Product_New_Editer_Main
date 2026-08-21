@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import p1 from '../assets/Explore/p1.png';
@@ -10,6 +10,112 @@ import cover5 from '../assets/Explore/c-bg5.png';
 
 export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false }) {
     const [viewMode, setViewMode] = useState('shelf');
+    const [scrollProgress, setScrollProgress] = useState(0);
+    const [isScrolling, setIsScrolling] = useState(false);
+    const scrollTimeout = useRef(null);
+    const [isChildScrollable, setIsChildScrollable] = useState(false);
+
+    useEffect(() => {
+        if (scrollProgress >= 0.99) {
+            setIsChildScrollable(true);
+        } else if (!isScrolling) {
+            setIsChildScrollable(false);
+        }
+    }, [scrollProgress, isScrolling]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleScroll = () => {
+            const container = document.getElementById('creator-profile-container');
+            const scrollTop = container?.scrollTop || 0;
+            const maxScroll = window.innerWidth * 0.12; // 12vw scroll distance
+            const progress = Math.min(Math.max(scrollTop / maxScroll, 0), 1);
+            setScrollProgress(progress);
+
+            setIsScrolling(true);
+            if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+            scrollTimeout.current = setTimeout(() => {
+                setIsScrolling(false);
+            }, 150);
+        };
+
+        let scrollAnimation = null;
+        let targetScroll = null;
+
+        const handleWheel = (e) => {
+            if (e.deltaY < 0) {
+                const profileContainer = document.getElementById('creator-profile-container');
+                if (!profileContainer || profileContainer.scrollTop <= 0) return;
+                
+                let target = e.target;
+                let isChildScrolling = false;
+                
+                while (target && target !== profileContainer) {
+                    if (target.scrollHeight > target.clientHeight) {
+                        const overflowY = window.getComputedStyle(target).overflowY;
+                        if (overflowY === 'auto' || overflowY === 'scroll') {
+                            if (target.scrollTop > 0) {
+                                isChildScrolling = true;
+                                break;
+                            }
+                        }
+                    }
+                    target = target.parentElement;
+                }
+                
+                if (!isChildScrolling) {
+                    e.preventDefault(); 
+                    
+                    if (Math.abs(e.deltaY) < 40) {
+                        profileContainer.scrollTop += e.deltaY;
+                        targetScroll = profileContainer.scrollTop;
+                    } else {
+                        if (targetScroll === null) targetScroll = profileContainer.scrollTop;
+                        targetScroll += (e.deltaY * 1.5); 
+                        targetScroll = Math.max(0, Math.min(targetScroll, profileContainer.scrollHeight - profileContainer.clientHeight));
+                        
+                        if (scrollAnimation) cancelAnimationFrame(scrollAnimation);
+                        
+                        const startScroll = profileContainer.scrollTop;
+                        const distance = targetScroll - startScroll;
+                        const startTime = performance.now();
+                        const duration = 250; 
+                        
+                        const animate = (currentTime) => {
+                            const elapsed = currentTime - startTime;
+                            const progress = Math.min(elapsed / duration, 1);
+                            
+                            const easeOut = 1 - Math.pow(1 - progress, 3);
+                            profileContainer.scrollTop = startScroll + (distance * easeOut);
+                            
+                            if (progress < 1) {
+                                scrollAnimation = requestAnimationFrame(animate);
+                            } else {
+                                targetScroll = null;
+                            }
+                        };
+                        scrollAnimation = requestAnimationFrame(animate);
+                    }
+                }
+            }
+        };
+
+        const container = document.getElementById('creator-profile-container');
+        if (container) {
+            container.addEventListener('scroll', handleScroll, { passive: true });
+            container.addEventListener('wheel', handleWheel, { passive: false });
+        }
+        setTimeout(handleScroll, 100);
+
+        return () => {
+            if (container) {
+                container.removeEventListener('scroll', handleScroll);
+                container.removeEventListener('wheel', handleWheel);
+            }
+            if (scrollAnimation) cancelAnimationFrame(scrollAnimation);
+        };
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -31,7 +137,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                 <div className={
                     isPreview
                         ? "absolute inset-0 z-[160] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pt-[9vh] pb-[8vh] px-[5vw]"
-                        : "fixed inset-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] px-[2vw] pb-[2vw] pt-[8vh]"
+                        : "fixed inset-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pb-[2vw] pt-[8vh]"
                 }>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -39,8 +145,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                         exit={{ opacity: 0, scale: 0.95 }}
                         className={
                             isPreview
-                                ? "bg-[#f8f9fa] w-full h-full p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
-                                : "bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
+                                ? "bg-[#f8f9fa] w-full h-full p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
+                                : "bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
                         }
                         style={isPreview ? { zoom: 0.8 } : {}}
                     >
@@ -52,16 +158,33 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                             <Icon icon="mingcute:close-fill" className="w-[1vw] h-[1vw] text-gray-600" />
                         </button>
 
-                        {/* Banner */}
-                        <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0 h-[10vw]">
-                            <div className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden h-[10vw]" style={{ backgroundImage: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' }}>
-                                <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(ellipse at top left, rgba(255,255,255,0.6) 0%, transparent 70%), radial-gradient(ellipse at bottom right, rgba(255,255,255,0.4) 0%, transparent 60%)' }}></div>
-                                <div className="absolute inset-0 opacity-20 bg-white" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 40%, 0 80%)' }}></div>
-                            </div>
-                        </div>
+                        <div id="creator-profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative overflow-y-auto hide-scrollbar w-full">
+                            <style>{`
+                                .hide-scrollbar::-webkit-scrollbar {
+                                    display: none;
+                                }
+                                .hide-scrollbar {
+                                    -ms-overflow-style: none;
+                                    scrollbar-width: none;
+                                }
+                            `}</style>
+                            
+                            {/* Dummy spacer to create 12vw scroll area */}
+                            <div style={{ height: `calc(100% + 12vw)` }} className="w-full absolute top-0 left-0 pointer-events-none z-[-1]"></div>
 
-                        {/* Main Content Area */}
-                        <div className="flex flex-col md:flex-row relative mt-[1vw] gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]">
+                            {/* Sticky wrapper for actual content */}
+                            <div className="sticky top-0 h-full flex flex-col w-full min-h-0 pointer-events-auto">
+
+                                {/* Banner */}
+                                <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0" style={{ height: `${12 - (6 * scrollProgress)}vw` }}>
+                                    <div className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden" style={{ height: `${12 - (6 * scrollProgress)}vw`, backgroundImage: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' }}>
+                                        <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(ellipse at top left, rgba(255,255,255,0.6) 0%, transparent 70%), radial-gradient(ellipse at bottom right, rgba(255,255,255,0.4) 0%, transparent 60%)' }}></div>
+                                        <div className="absolute inset-0 opacity-20 bg-white" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 40%, 0 80%)' }}></div>
+                                    </div>
+                                </div>
+
+                                {/* Main Content Area */}
+                                <div className="flex flex-col md:flex-row relative gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]" style={{ marginTop: `${1 - 0.35 * scrollProgress}vw` }}>
 
                             {/* Left Column (Avatar + Info) */}
                             <div className="w-[22vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
@@ -73,10 +196,14 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                     {/* Top border eraser for container */}
                                     <div
                                         className="absolute top-[-0.2vw] left-[calc(50%-6vw)] w-[12vw] h-[0.4vw] bg-white z-10 pointer-events-none"
+                                        style={{ transform: `scaleX(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center' }}
                                     ></div>
 
                                     {/* Avatar Wrapper */}
-                                    <div className="relative flex justify-center items-center z-30 w-[9.6vw] h-[9.6vw] mt-[-4.8vw]">
+                                    <div 
+                                        className="relative flex justify-center items-center z-30 w-[9.6vw] h-[9.6vw] mt-[-4.8vw]"
+                                        style={{ transform: `scale(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center' }}
+                                    >
                                         {/* Left Smooth Corner */}
                                         <svg className="absolute top-[2.55vw] -left-[0.8vw] w-[1.2vw] h-[1.6vw] z-10 pointer-events-none" viewBox="0 0 10 10">
                                             <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
@@ -106,7 +233,10 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                         </div>
 
                                         {/* Share Button */}
-                                        <div className="absolute top-[6.5vw] -right-[5.5vw] z-40">
+                                        <div 
+                                            className="absolute top-[6.5vw] -right-[5.5vw] z-40"
+                                            style={{ transform: `scale(${1 / (1 - (0.30 * scrollProgress))})`, transformOrigin: 'left center' }}
+                                        >
                                             <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[1vw] font-semibold text-gray-700 ">
                                                 <Icon icon="ic:round-share" className="w-[1.2vw] h-[1.2vw]" /> Share
                                             </button>
@@ -117,7 +247,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                     <h2 className="text-[1.5vw] font-semibold text-gray-900 mt-[1vw] w-full px-[2vw] text-center truncate">{creator?.name || 'Luffy'}</h2>
 
                                     {/* Info Sections */}
-                                    <div id="left-scroll-container" className="w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 overflow-y-auto min-h-0 no-scrollbar text-left">
+                                    <div id="left-scroll-container" className={`w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar text-left ${isChildScrollable ? 'overflow-y-scroll' : 'overflow-hidden'}`}>
                                         {/* About */}
                                         <div className="px-[2vw] py-[1vw]">
                                             <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
@@ -222,7 +352,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                 </div>
 
                                 {/* Catalog Section */}
-                                <div id="main-scroll-container" className="flex-1 overflow-y-auto px-[1.5vw] pb-[2vw] no-scrollbar">
+                                <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] hide-scrollbar ${isChildScrollable ? 'overflow-y-scroll' : 'overflow-hidden'}`}>
                                     {viewMode === 'shelf' ? (
                                         <div className="flex flex-col gap-[3vw] pt-[1vw] bg-[#d5e0d8] rounded-[0.8vw] px-[2vw] pb-[3vw] border border-gray-200 inset-shadow-sm">
                                             {Array.from({ length: Math.ceil(books.length / 4) }).map((_, rowIndex) => (
@@ -312,6 +442,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                     )}
                                 </div>
                             </div>
+                        </div>
+                        </div>
                         </div>
                     </motion.div>
                 </div>
