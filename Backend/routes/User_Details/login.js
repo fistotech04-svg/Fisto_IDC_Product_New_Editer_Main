@@ -13,11 +13,13 @@ const router = express.Router();
 
 // Helper to get Gmail Transporter (ensures env vars are loaded)
 const getTransporter = () => {
+  const user = (process.env.EMAIL_USER || '').trim();
+  const pass = (process.env.EMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_APP_PASSWORD,
+      user: user,
+      pass: pass,
     },
   });
 };
@@ -173,7 +175,7 @@ router.post('/google-login', async (req, res) => {
 // @access  Public
 router.post('/signup', async (req, res) => {
   try {
-    const { emailId, password } = req.body;
+    const { emailId, password, name } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ emailId });
@@ -197,10 +199,31 @@ router.post('/signup', async (req, res) => {
     // Save user to database
     await newUser.save();
 
+    // Automatically create profile with basic details (email and name only)
+    const normalizedEmail = emailId.trim().toLowerCase();
+    const safeRegex = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    let profile = await Profile.findOne({ emailId: safeRegex });
+
+    if (!profile) {
+      const defaultName = (name && typeof name === 'string' && name.trim()) ? name.trim() : normalizedEmail.split('@')[0];
+      const formattedName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
+
+      profile = new Profile({
+        emailId: normalizedEmail,
+        name: formattedName,
+        picture: null,
+        avatarBgColor: '#E8D4C8'
+      });
+      await profile.save();
+    }
+
     res.status(201).json({ 
       message: 'User registered successfully', 
       user: {
         emailId: newUser.emailId,
+        name: profile?.name || newUser.emailId.split('@')[0],
+        picture: profile?.picture || null,
+        avatarBgColor: profile?.avatarBgColor || '#E8D4C8',
         userFolder: sanitizedEmail,
         createdAt: newUser.createdAt
       }

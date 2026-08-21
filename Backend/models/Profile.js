@@ -104,6 +104,14 @@ const profileSchema = new mongoose.Schema({
       default: ''
     }
   },
+  followers: {
+    type: [String],
+    default: []
+  },
+  following: {
+    type: [String],
+    default: []
+  },
   createdAt: {
     type: Date,
     default: Date.now
