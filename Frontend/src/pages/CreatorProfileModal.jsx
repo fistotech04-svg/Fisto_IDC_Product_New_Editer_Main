@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { resolveUploadsPath } from '../utils/supabaseUtils';
 import p1 from '../assets/Explore/p1.png';
 import cover1 from '../assets/Explore/c-bg1.png';
 import cover2 from '../assets/Explore/c-bg2.png';
@@ -186,6 +187,47 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
     const [profileData, setProfileData] = useState(null);
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [scrollProgress, setScrollProgress] = useState(0);
+    const [isScrolling, setIsScrolling] = useState(false);
+    const scrollTimeout = useRef(null);
+    const [isChildScrollable, setIsChildScrollable] = useState(false);
+
+    useEffect(() => {
+        if (scrollProgress >= 0.99) {
+            setIsChildScrollable(true);
+        } else if (!isScrolling) {
+            setIsChildScrollable(false);
+        }
+    }, [scrollProgress, isScrolling]);
+
+    useEffect(() => {
+        const handleScroll = (e) => {
+            const container = document.getElementById('creator-profile-container');
+            const scrollTop = container?.scrollTop || 0;
+            // 12vw is roughly the distance to shrink the banner
+            const maxScroll = window.innerWidth * 0.12;
+            const progress = Math.min(Math.max(scrollTop / maxScroll, 0), 1);
+            setScrollProgress(progress);
+
+            setIsScrolling(true);
+            if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+            scrollTimeout.current = setTimeout(() => {
+                setIsScrolling(false);
+            }, 150);
+        };
+
+        const container = document.getElementById('creator-profile-container');
+        if (container) {
+            container.addEventListener('scroll', handleScroll, { passive: true });
+        }
+        handleScroll();
+        
+        return () => {
+            if (container) {
+                container.removeEventListener('scroll', handleScroll);
+            }
+        };
+    }, [isOpen]);
 
     const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
     const targetEmail = creator?.emailId || creator?.email || creator?.userEmail || '';
@@ -289,16 +331,16 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                 <div className={
                     isPreview
                         ? "absolute inset-0 z-[160] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pt-[9vh] pb-[8vh] px-[5vw]"
-                        : "fixed inset-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] px-[2vw] pb-[2vw] pt-[8vh]"
+                        : "fixed top-[8vh] inset-x-0 bottom-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pb-[2vw]"
                 }>
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         className={
                             isPreview
-                                ? "bg-[#f8f9fa] w-full h-full p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
-                                : "bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
+                                ? "bg-[#f8f9fa] w-full h-full p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
+                                : "bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
                         }
                         style={isPreview ? { zoom: 0.8 } : {}}
                     >
@@ -310,30 +352,39 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                             <Icon icon="mingcute:close-fill" className="w-[1vw] h-[1vw] text-gray-600" />
                         </button>
 
-                        {/* Banner */}
-                        <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0 h-[10vw]">
-                            {isLoading ? (
-                                <div className="absolute inset-0 rounded-[1vw] bg-gray-200 animate-pulse"></div>
-                            ) : (
-                                <div
-                                    className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden h-[10vw]"
-                                    style={{
-                                        background: profileUser?.bannerBg?.type === 'solid' ? profileUser?.bannerBg?.value : undefined,
-                                        backgroundImage: (profileUser?.bannerBg?.type === 'gradient' || profileUser?.bannerBg?.type === 'media')
-                                            ? profileUser?.bannerBg?.value
-                                            : (profileUser?.bannerBg?.value || 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)'),
-                                        backgroundSize: profileUser?.bannerBg?.type === 'media' ? 'cover' : undefined,
-                                        backgroundPosition: 'center'
-                                    }}
-                                >
-                                    <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(ellipse at top left, rgba(255,255,255,0.6) 0%, transparent 70%), radial-gradient(ellipse at bottom right, rgba(255,255,255,0.4) 0%, transparent 60%)' }}></div>
-                                    <div className="absolute inset-0 opacity-20 bg-white" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 40%, 0 80%)' }}></div>
-                                </div>
-                            )}
-                        </div>
+                            {/* Overall Scroll Container */}
+                            <div id="creator-profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative overflow-y-auto no-scrollbar">
+                                {/* Dummy spacer to create 12vw scroll area */}
+                                <div style={{ height: `calc(100% + 12vw)` }} className="w-full absolute top-0 left-0 pointer-events-none z-[-1]"></div>
 
-                        {/* Main Content Area */}
-                        <div className="flex flex-col md:flex-row relative mt-[1vw] gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]">
+                                {/* Sticky wrapper for actual content */}
+                                <div className="sticky top-0 h-full flex flex-col w-full min-h-0 pointer-events-auto">
+
+                                {/* Banner */}
+                                <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0" style={{ height: `${12 - (6 * scrollProgress)}vw`, willChange: 'height' }}>
+                                    {isLoading ? (
+                                        <div className="absolute inset-0 rounded-[1vw] bg-gray-200 animate-pulse"></div>
+                                    ) : (
+                                        <div 
+                                            className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden" 
+                                            style={{ 
+                                                height: `${12 - (6 * scrollProgress)}vw`, 
+                                                willChange: 'height',
+                                                background: profileUser?.bannerBg?.type === 'solid' ? profileUser?.bannerBg?.value : undefined,
+                                                backgroundImage: (profileUser?.bannerBg?.type === 'gradient' || profileUser?.bannerBg?.type === 'media')
+                                                    ? profileUser?.bannerBg?.value
+                                                    : (profileUser?.bannerBg?.value || 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)'),
+                                                backgroundSize: profileUser?.bannerBg?.type === 'media' ? 'cover' : undefined,
+                                                backgroundPosition: 'center'
+                                            }}
+                                        >
+                                            <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 30% 150%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 70% -50%, rgba(255,255,255,0.4) 0%, transparent 50%)' }}></div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Main Content Area */}
+                                <div className="flex flex-col md:flex-row relative gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]" style={{ marginTop: `${1 - 0.35 * scrollProgress}vw`, willChange: 'margin-top' }}>
 
                             {/* Left Column (Avatar + Info) */}
                             <div className="w-[22vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
@@ -345,10 +396,14 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                     {/* Top border eraser for container */}
                                     <div
                                         className="absolute top-[-0.2vw] left-[calc(50%-6vw)] w-[12vw] h-[0.4vw] bg-white z-10 pointer-events-none"
+                                        style={{ transform: `scaleX(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center', willChange: 'transform' }}
                                     ></div>
 
                                     {/* Avatar Wrapper */}
-                                    <div className="relative flex justify-center items-center z-30 w-[9.6vw] h-[9.6vw] mt-[-4.8vw]">
+                                    <div 
+                                        className="relative flex justify-center items-center z-30 w-[9.6vw] h-[9.6vw] mt-[-4.8vw]"
+                                        style={{ transform: `scale(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center', willChange: 'transform' }}
+                                    >
                                         {/* Left Smooth Corner */}
                                         <svg className="absolute top-[2.55vw] -left-[0.8vw] w-[1.2vw] h-[1.6vw] z-10 pointer-events-none" viewBox="0 0 10 10">
                                             <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
@@ -380,7 +435,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                     style={{ backgroundColor: (profileUser?.picture && profileUser?.picture !== 'color_only') ? '#ffffff' : getAvatarColor(profileUser?.name || profileUser?.email, profileUser?.avatarBgColor) }}
                                                 >
                                                     {(profileUser?.picture && profileUser?.picture !== 'color_only') ? (
-                                                        <img src={profileUser?.picture} alt={profileUser?.name || "Profile Avatar"} className="w-full h-full object-cover" />
+                                                        <img src={profileUser?.picture.startsWith('blob:') || profileUser?.picture.startsWith('data:') ? profileUser?.picture : resolveUploadsPath(profileUser?.picture)} alt={profileUser?.name || "Profile Avatar"} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <span className="text-white text-[3.2vw] font-bold drop-shadow-md">
                                                             {profileUser?.name ? profileUser?.name.charAt(0).toUpperCase() : 'U'}
@@ -392,7 +447,10 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
 
                                         {/* Share Button */}
                                         {!isLoading && (
-                                            <div className="absolute top-[6.5vw] -right-[5.5vw] z-40">
+                                            <div 
+                                                className="absolute top-[6.5vw] -right-[5.5vw] z-40"
+                                                style={{ transform: `scale(${1 / (1 - (0.30 * scrollProgress))})`, transformOrigin: 'left center', willChange: 'transform' }}
+                                            >
                                                 <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[1vw] font-semibold text-gray-700 cursor-pointer">
                                                     <Icon icon="ic:round-share" className="w-[1.2vw] h-[1.2vw]" /> Share
                                                 </button>
@@ -436,7 +494,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             </div>
                                         </div>
                                     ) : (
-                                        <div id="left-scroll-container" className="w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 overflow-y-auto min-h-0 no-scrollbar text-left">
+                                        <div id="left-scroll-container" className={`w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 min-h-0 no-scrollbar text-left ${isChildScrollable ? 'overflow-y-auto' : 'overflow-hidden'}`}>
                                             {/* About */}
                                             <div className="px-[1.5vw] py-[0.8vw]">
                                                 <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.4vw]">
@@ -563,7 +621,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                 )}
 
                                 {/* Catalog Section */}
-                                <div id="main-scroll-container" className="flex-1 overflow-y-auto px-[1.5vw] pb-[2vw] no-scrollbar">
+                                <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] no-scrollbar ${isChildScrollable ? 'overflow-y-auto' : 'overflow-hidden'}`}>
                                     {isLoading ? (
                                         viewMode === 'shelf' ? (
                                             <div className="flex flex-col gap-[3vw] pt-[1vw] bg-[#d5e0d8] rounded-[0.8vw] px-[2vw] pb-[3vw] border border-gray-200 inset-shadow-sm">
@@ -655,6 +713,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                     )}
                                 </div>
                             </div>
+                            </div>
+                        </div>
                         </div>
                     </motion.div>
                 </div>
