@@ -56,7 +56,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
 
     const authorName = creator?.name || 'Creator';
     const authorAvatar = (creator?.profileImg && creator?.profileImg !== 'color_only') ? creator?.profileImg : ((creator?.picture && creator?.picture !== 'color_only') ? creator?.picture : null);
-    const authorLocation = creator?.city ? `${creator?.city} 📍` : (creator?.location || 'Coimbatore 📍');
+    const authorLocation = creator?.city || creator?.location || 'Coimbatore';
     const avatarColor = getAvatarColor(authorName || creator?.email, creator?.avatarBgColor);
 
     const handleOpen = () => {
@@ -139,7 +139,10 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
                     )}
                     <div className="flex flex-col min-w-0 pr-[0.4vw]">
                         <span className="text-[0.75vw] font-semibold text-gray-900 leading-tight truncate">{authorName}</span>
-                        <span className="text-[0.62vw] text-gray-400 mt-[0.1vh] truncate">{authorLocation}</span>
+                        <span className="flex items-center gap-[0.2vw] text-[0.62vw] text-gray-400 mt-[0.1vh] truncate">
+                            <Icon icon="lucide:map-pin" className="w-[0.65vw] h-[0.65vw] text-gray-400 shrink-0" />
+                            <span className="truncate">{String(authorLocation).replace(/📍/g, '').trim()}</span>
+                        </span>
                     </div>
                 </div>
 

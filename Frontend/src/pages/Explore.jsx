@@ -192,7 +192,10 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
                         onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
                     >
                         <span className="text-[0.85vw] font-semibold text-gray-900 leading-tight truncate hover:text-indigo-600 transition-colors">{authorName || 'Alex Johnson'}</span>
-                        <span className="text-[0.7vw] text-gray-400 mt-[0.2vh] truncate">{location || 'Coimbatore 📍'}</span>
+                        <span className="flex items-center gap-[0.2vw] text-[0.7vw] text-gray-400 mt-[0.2vh] truncate">
+                            <Icon icon="lucide:map-pin" className="w-[0.75vw] h-[0.75vw] text-gray-400 shrink-0" />
+                            <span className="truncate">{location ? String(location).replace(/📍/g, '').trim() : 'Coimbatore'}</span>
+                        </span>
                     </div>
                 </div>
 
@@ -427,7 +430,7 @@ const Explore = () => {
                             userEmail: book.userEmail,
                             bookName: book.flipbookName,
                             authorName: book.authorName || (book.userEmail ? book.userEmail.split('@')[0] : "Creator"),
-                            location: book.city ? `${book.city} 📍` : (book.location ? `${book.location} 📍` : "Coimbatore 📍"),
+                            location: book.city || book.location || "Coimbatore",
                             authorPicture: book.authorPicture || null,
                             authorBgColor: book.authorBgColor || '#E8D4C8',
                             pages: book.pages?.length,
