@@ -347,3 +347,5 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
 };
 
 export default GalleryPopup;
+
+

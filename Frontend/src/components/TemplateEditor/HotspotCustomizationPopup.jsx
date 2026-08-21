@@ -299,7 +299,7 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
             setFetchedSvgDoc(svgDoc);
 
             // Extract dominant color from the SVG to update the color palette
-            if (!isInitialMount.current || !initialData?.bgColor || initialData.bgColor === '#359CFD') {
+            if (selectedIconStyle === 'default' && (isInitialMount.current || !initialData?.bgColor || initialData.bgColor === '#359CFD')) {
               const bgElements = Array.from(svgDoc.querySelectorAll('rect, circle, path, ellipse, polygon')).filter(el => {
                 const f = el.getAttribute('fill');
                 if (!f) return false;
@@ -310,16 +310,33 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
               if (bgElements.length > 0) {
                 let colorToSet = bgElements[0].getAttribute('fill');
                 
-                // If it's a gradient, fetch the first stop-color
+                // If it's a gradient, convert it to a CSS gradient string
                 if (colorToSet.startsWith('url(')) {
                   const match = colorToSet.match(/url\(#([^)]+)\)/);
                   if (match && match[1]) {
                     const gradientEl = svgDoc.getElementById(match[1]);
                     if (gradientEl) {
-                      const stop = gradientEl.querySelector('stop');
-                      if (stop) {
-                        const stopColor = stop.getAttribute('stop-color');
-                        if (stopColor) colorToSet = stopColor;
+                      const stops = Array.from(gradientEl.querySelectorAll('stop'));
+                      if (stops.length > 0) {
+                        const hexToRgbStr = (hex) => {
+                          if (!hex) return 'rgb(255, 255, 255)';
+                          let c = hex.replace('#', '');
+                          if (c.length === 3) c = c.split('').map(x => x + x).join('');
+                          const r = parseInt(c.substring(0,2), 16) || 0;
+                          const g = parseInt(c.substring(2,4), 16) || 0;
+                          const b = parseInt(c.substring(4,6), 16) || 0;
+                          return `rgb(${r}, ${g}, ${b})`;
+                        };
+                        const stopStrings = stops.map((stop, i) => {
+                          const stopColor = stop.getAttribute('stop-color') || '#FFFFFF';
+                          let offset = stop.getAttribute('offset');
+                          if (offset === null) offset = i === 0 ? '0%' : '100%';
+                          if (!offset.includes('%')) offset = Math.round(parseFloat(offset) * 100) + '%';
+                          const rgbStr = hexToRgbStr(stopColor);
+                          return `${rgbStr} ${offset}`;
+                        });
+                        const type = gradientEl.tagName.toLowerCase() === 'lineargradient' ? 'linear-gradient(90deg' : 'radial-gradient(circle at center';
+                        colorToSet = `${type}, ${stopStrings.join(', ')})`;
                       }
                     }
                   }

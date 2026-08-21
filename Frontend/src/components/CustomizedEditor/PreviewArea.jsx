@@ -1075,6 +1075,61 @@ const getInteractionScript = (pageNumber) => `
                 handleHover(e, true);
             });
             document.addEventListener('mouseout', (e) => handleHover(e, false));
+
+            const playHighlightBlink = (el) => {
+                if (el.__isBlinking) return;
+                el.__isBlinking = true;
+                
+                const rect = el.getBoundingClientRect();
+                const overlay = document.createElement('div');
+                overlay.style.position = 'absolute';
+                overlay.style.left = (rect.left + window.scrollX) + 'px';
+                overlay.style.top = (rect.top + window.scrollY) + 'px';
+                overlay.style.width = rect.width + 'px';
+                overlay.style.height = rect.height + 'px';
+                // Same style as template editor highlight box
+                overlay.style.backgroundColor = 'rgba(81, 69, 246, 0.4)'; 
+                overlay.style.pointerEvents = 'none';
+                overlay.style.zIndex = '999999';
+                overlay.style.opacity = '0';
+                
+                document.body.appendChild(overlay);
+                
+                const keyframes = [
+                    { opacity: 0 },
+                    { opacity: 1, offset: 0.25 },
+                    { opacity: 0, offset: 0.5 },
+                    { opacity: 1, offset: 0.75 },
+                    { opacity: 0, offset: 1 }
+                ];
+                
+                const anim = overlay.animate(keyframes, {
+                    duration: 1200,
+                    easing: 'ease-in-out',
+                    fill: 'forwards'
+                });
+                
+                anim.onfinish = () => {
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                    el.__isBlinking = false;
+                };
+            };
+
+            window.addEventListener('message', function(e) {
+                if (!e.data) return;
+                if (e.data.type === 'PAGE_TURNED') {
+                    const visiblePages = e.data.visiblePages || [];
+                    if (visiblePages.includes(window._pageNumber)) {
+                        const interactionEls = document.querySelectorAll('[data-interaction]');
+                        interactionEls.forEach(el => {
+                            const showHighlight = el.getAttribute('data-show-highlight');
+                            if (showHighlight !== 'false') {
+                                playHighlightBlink(el);
+                            }
+                        });
+                    }
+                }
+            });
         };
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
         else init();
@@ -4667,7 +4722,7 @@ const PreviewArea = React.memo(({
             }}
         >
 
-            {backgroundLayers}
+            {(!['Tablet', 'Mobile'].includes(activeDevice) || isPublishedPreview || (activeDevice === 'Tablet' && isPhysicalTablet) || (activeDevice === 'Mobile' && isPhysicalMobile)) && backgroundLayers}
 
             {activeDevice === 'Mobile' ? (
                 (() => {
@@ -4710,18 +4765,7 @@ const PreviewArea = React.memo(({
                 })()
             ) : (
                 <>
-                    {/* Tablet Outer Background Layer */}
-                    {activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet && (
-                        <div
-                            className="absolute inset-0 z-0 pointer-events-none"
-                            style={{ ...backgroundStyle, opacity: 0.4 }}
-                        />
-                    )}
-                    {activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
-                        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-50">
-                            {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
-                        </div>
-                    )}
+                    {/* Outer background explicitly removed for tablet mockup as per requirement to not show background outside */}
 
                     <div style={{ ...((activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet) ? deviceStyles.Tablet : deviceStyles.Desktop), zIndex: 10 }} className="relative">
                         {/* Floor shadow effect for Tablet bottom (using the style of the SVG) */}
@@ -6089,3 +6133,5 @@ const PreviewArea = React.memo(({
 });
 
 export default PreviewArea;
+
+

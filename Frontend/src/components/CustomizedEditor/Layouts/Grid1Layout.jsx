@@ -1456,8 +1456,8 @@ const Grid1Layout = React.memo((props) => {
                                             padding: isMobileLandscape ? '3px 4px' : isTablet ? '3px 5px' : '6px 10px',
                                             gap: isMobileLandscape ? '2px' : isTablet ? '0.1vw' : '4px',
                                             backgroundColor: isSelected
-                                                ? 'rgba(87, 92, 156, 0.6)'
-                                                : 'rgba(87, 92, 156, 0.2)',
+                                                ? getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.6)
+                                                : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
                                             border: 'none',
                                             opacity: 1,
                                             transition: 'all 0.3s ease'

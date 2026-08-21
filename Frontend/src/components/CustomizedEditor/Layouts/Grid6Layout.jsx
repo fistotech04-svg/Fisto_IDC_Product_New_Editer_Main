@@ -427,7 +427,7 @@ const Grid6Layout = ({
             {/* Top Header */}
             {!isTablet && (
             <div
-                className={`${isTablet ? 'h-[6vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center justify-between pl-[1.5vw] ${isTablet ? 'pr-[4.5vw]' : (isFullscreen ? 'pr-[6vw]' : 'pr-[4.5vw]')} shrink-0 w-full z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
+                className={`${isTablet ? 'h-[6vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center justify-between pl-[1.5vw] ${isTablet ? 'pr-[4.5vw]' : (isFullscreen ? 'pr-[6vw]' : 'pr-[4.5vw]')} shrink-0 w-full z-[100] transition-all duration-500 ease-in-out shadow-[0_2px_10px_rgba(0,0,0,0.08)] ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
                 style={{
                     backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
                     opacity: isFullscreen && isCanvasHovered ? 0 : getLayoutOpacity('toolbar-bg', 1)
@@ -548,7 +548,10 @@ const Grid6Layout = ({
                 ) : <div className="flex items-center" />}
 
                 {/* Center: Book Name */}
-                <div className={`absolute left-1/2 -translate-x-1/2 text-white ${isTablet ? 'text-[0.85vw]' : 'text-[1.0vw]'} font-normal tracking-wide opacity-90`}>
+                <div 
+                    className={`absolute left-1/2 -translate-x-1/2 ${isTablet ? 'text-[0.85vw]' : 'text-[1.0vw]'} font-normal tracking-wide opacity-90`}
+                    style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                >
                     {bookName || "Name of the book"}
                 </div>
 
@@ -747,7 +750,7 @@ const Grid6Layout = ({
             {/* Bottom Footer */}
             {!isTablet && (
             <div
-                className={`${isTablet ? 'h-[5vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center px-[1vw] shrink-0 w-full z-[100] border-t transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
+                className={`${isTablet ? 'h-[5vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center px-[1vw] shrink-0 w-full z-[100] border-t transition-all duration-500 ease-in-out shadow-[0_-2px_10px_rgba(0,0,0,0.08)] ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
                 style={{
                     backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C'),
                     opacity: isFullscreen && isCanvasHovered ? 0 : getLayoutOpacity('bottom-toolbar-bg', 1),
@@ -954,7 +957,7 @@ const Grid6Layout = ({
             <div
                 onMouseMove={(e) => setSidebarMousePos({ x: e.clientX, y: e.clientY })}
                 onMouseLeave={() => setSidebarMousePos(null)}
-                className={`absolute right-0 top-0 bottom-0 ${isTablet ? 'w-[3.5vw]' : (isFullscreen ? 'w-[5vw]' : 'w-[3.5vw]')} flex flex-col items-center ${addTextBelowIcons ? 'justify-start pt-[12vh] gap-[2.5vh]' : 'justify-evenly py-[6vh]'} z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-100 pointer-events-auto'}`}
+                className={`absolute right-0 top-0 bottom-0 ${isTablet ? 'w-[3.5vw]' : (isFullscreen ? 'w-[5vw]' : 'w-[3.5vw]')} flex flex-col items-center ${addTextBelowIcons ? 'justify-start pt-[12vh] gap-[2.5vh]' : 'justify-evenly py-[6vh]'} z-[100] transition-all duration-500 ease-in-out shadow-[-2px_0_10px_rgba(0,0,0,0.08)] ${isFullscreen ? (!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-100 pointer-events-auto'}`}
                 style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}
             >
                 {(()  => {
@@ -977,7 +980,7 @@ const Grid6Layout = ({
                                         closeOtherPopups('TOC');
                                         setShowTOCMemo?.(!showTOC);
                                     }}
-                                    extraStyle={{ color: '#FFFFFF', backgroundColor: showTOC ? 'rgba(255,255,255,0.2)' : 'transparent' }}
+                                    extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), backgroundColor: showTOC ? 'rgba(255,255,255,0.2)' : 'transparent' }}
                                     iconEl={<Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[0.95vw] h-[0.95vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                                 />
                             )}
@@ -990,7 +993,7 @@ const Grid6Layout = ({
                                         closeOtherPopups('Thumbnails');
                                         setShowRadialThumbnails(!showRadialThumbnails);
                                     }}
-                                    extraStyle={{ color: '#FFFFFF', backgroundColor: showRadialThumbnails ? 'rgba(255,255,255,0.2)' : 'transparent' }}
+                                    extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), backgroundColor: showRadialThumbnails ? 'rgba(255,255,255,0.2)' : 'transparent' }}
                                     iconEl={<Icon icon="ph:squares-four-fill" className={`${isTablet ? 'w-[0.95vw] h-[0.95vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                                 />
                             )}
@@ -1002,7 +1005,7 @@ const Grid6Layout = ({
                                         closeOtherPopups('Gallery');
                                         setShowGalleryPopupMemo?.(true);
                                     }}
-                                    extraStyle={{ color: '#FFFFFF' }}
+                                    extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                                     iconEl={<Icon icon="clarity:image-gallery-solid" className={`${isTablet ? 'w-[0.95vw] h-[0.95vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                                 />
                             )}
@@ -1014,7 +1017,7 @@ const Grid6Layout = ({
                                         closeOtherPopups('Sound');
                                         setShowSoundPopupMemo?.(!showSoundPopup); 
                                     }}
-                                    extraStyle={{ color: '#FFFFFF' }}
+                                    extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                                     iconEl={<Icon icon="solar:music-notes-bold" className={`${isTablet ? 'w-[0.95vw] h-[0.95vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                                 />
                             )}
@@ -1027,7 +1030,7 @@ const Grid6Layout = ({
                                         closeOtherPopups('Profile');
                                         setShowProfilePopup?.(true); 
                                     }}
-                                    extraStyle={{ color: '#FFFFFF' }}
+                                    extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                                     iconEl={<Icon icon="fluent:person-24-filled" className={`${isTablet ? 'w-[0.95vw] h-[0.95vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                                 />
                             )}
@@ -1039,7 +1042,7 @@ const Grid6Layout = ({
                                         closeOtherPopups('Share');
                                         if (handleShare) handleShare(e);
                                     }}
-                                    extraStyle={{ color: '#FFFFFF' }}
+                                    extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                                     iconEl={<Icon icon="mage:share-fill" className={`${isTablet ? 'w-[0.95vw] h-[0.95vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                                 />
                             )}
@@ -1051,7 +1054,7 @@ const Grid6Layout = ({
                                         closeOtherPopups('Download');
                                         if (handleDownload) handleDownload(e);
                                     }}
-                                    extraStyle={{ color: '#FFFFFF' }}
+                                    extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                                     iconEl={<Icon icon="meteor-icons:download" className={`${isTablet ? 'w-[0.95vw] h-[0.95vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                                 />
                             )}
@@ -1059,7 +1062,7 @@ const Grid6Layout = ({
                                 {...sidebarBtnProps}
                                 label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
                                 onClick={handleFullScreen}
-                                extraStyle={{ color: '#FFFFFF' }}
+                                extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                                 iconEl={<Icon icon={isFullscreen ? 'mingcute:fullscreen-exit-fill' : 'lucide:fullscreen'} className={`${isTablet ? 'w-[0.95vw] h-[0.95vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                             />}
                         </>

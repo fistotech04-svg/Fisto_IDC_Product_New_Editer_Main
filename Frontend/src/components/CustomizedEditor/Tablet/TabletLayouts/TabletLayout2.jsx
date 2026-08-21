@@ -13,6 +13,14 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
     setInputPage(currentPage === 0 ? 1 : (currentPage || 1));
   }, [currentPage]);
 
+  const getLayoutColor = (id, defaultColor) => {
+    return `var(--${id}, ${defaultColor})`;
+  };
+
+  const getLayoutColorAlpha = (id, defaultRgb, alpha) => {
+    return `rgba(var(--${id}-rgb, ${defaultRgb}), ${alpha})`;
+  };
+
   const handlePageInputSubmit = (e) => {
     if (e.key === 'Enter' || e.type === 'blur') {
        let targetPage = parseInt(inputPage);
@@ -44,21 +52,22 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
 
   return (
     <div
-      className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-[#E3E4EF]"
+      className="relative w-full h-full flex flex-col font-sans overflow-hidden "
       style={{ containerType: 'inline-size' }}
     >
       <div id="tablet-download-portal" className="absolute inset-0 z-[60] pointer-events-none"></div>
       {/* Top Bar */}
-      <div className="w-full h-[7.5%] bg-[#625FA2] flex items-center px-[2cqw] flex-shrink-0 z-20 shadow-sm relative">
+      <div className="w-full h-[7.5%] flex items-center px-[2cqw] flex-shrink-0 z-20 shadow-sm relative" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#625FA2') }}>
         
         {/* Left: Search Bar */}
         <div className="flex-1 flex justify-start h-full items-center">
-          <div className="relative w-[22cqw] h-[55%] bg-[#F0F0F5] rounded-[1.5cqw] flex items-center px-[1cqw]">
-            <Icon icon="lucide:search" className="text-[#625FA2] w-[1.4cqw] h-[1.4cqw]" />
+          <div className="relative w-[22cqw] h-[55%] rounded-[1.5cqw] flex items-center px-[1cqw]" style={{ backgroundColor: getLayoutColor('search-bg-v2', '#F0F0F5') }}>
+            <Icon icon="lucide:search" className="w-[1.4cqw] h-[1.4cqw]" style={{ color: getLayoutColor('search-text-v1', '#625FA2') }} />
             <input
               type="text"
               placeholder="Quick Search..."
-              className="bg-transparent border-none outline-none w-full h-full text-[1.2cqw] ml-[0.8cqw] text-gray-700 placeholder-[#625FA2]/70 font-medium"
+              className="bg-transparent border-none outline-none w-full h-full text-[1.2cqw] ml-[0.8cqw] font-medium"
+              style={{ color: getLayoutColor('search-text-v1', '#333333') }}
             />
           </div>
         </div>
@@ -162,9 +171,10 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
           onClick={() => bookRef?.current?.pageFlip()?.flipPrev()}
           className={`absolute left-[3cqw] flex items-center justify-center transition-colors z-10 ${
             (!currentPage || currentPage === 0) 
-              ? 'text-[#625FA2]/30' 
-              : 'text-[#625FA2] hover:text-[#4F4A95]'
+              ? 'opacity-30' 
+              : 'hover:opacity-80'
           }`}
+          style={{ color: getLayoutColor('search-text-v1', '#625FA2') }}
         >
           <Icon icon="lucide:chevron-left" className="w-[4cqw] h-[4cqw]" strokeWidth={1.5} />
         </button>
@@ -191,15 +201,16 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
           onClick={() => bookRef?.current?.pageFlip()?.flipNext()}
           className={`absolute right-[3cqw] flex items-center justify-center transition-colors z-10 ${
             (currentPage >= totalPages - 1)
-              ? 'text-[#625FA2]/30'
-              : 'text-[#625FA2] hover:text-[#4F4A95]'
+              ? 'opacity-30'
+              : 'hover:opacity-80'
           }`}
+          style={{ color: getLayoutColor('search-text-v1', '#625FA2') }}
         >
           <Icon icon="lucide:chevron-right" className="w-[4cqw] h-[4cqw]" strokeWidth={1.5} />
         </button>
 
         {/* Page Indicator Pill (Bottom Right) */}
-        <div className="absolute bottom-[3cqw] right-[3cqw] bg-white px-[2cqw] py-[0.8cqw] rounded-[0.8cqw] shadow-sm text-[#625FA2] font-bold text-[1.2cqw] flex items-center justify-center z-10">
+        <div className="absolute bottom-[3cqw] right-[3cqw] px-[2cqw] py-[0.8cqw] rounded-[0.8cqw] shadow-sm font-bold text-[1.2cqw] flex items-center justify-center z-10" style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), color: getLayoutColor('toolbar-bg', '#625FA2') }}>
           Page 
           <input 
             type="text" 
@@ -214,7 +225,7 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
       </div>
 
       {/* Bottom Bar */}
-      <div className="w-full h-[6%] bg-[#625FA2] flex items-center justify-between px-[2cqw] flex-shrink-0 z-20">
+      <div className="w-full h-[6%] flex items-center justify-between px-[2cqw] flex-shrink-0 z-20" style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', getLayoutColor('toolbar-bg', '#625FA2')) }}>
         
         {/* Left Text */}
         <div className="text-white text-[1.2cqw] font-semibold tracking-wide">

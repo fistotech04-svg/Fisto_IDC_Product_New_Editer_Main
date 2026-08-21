@@ -8,8 +8,8 @@ import { parsePhoneNumberFromString, isValidPhoneNumber } from 'libphonenumber-j
 import PopupTemplateSelection, { TEMPLATES } from './PopupTemplateSelection';
 import ModelGalleryModal from '../ThreedEditor/Components/ModelGalleryModal';
 import AlertModal from '../AlertModal';
-import { Canvas } from '@react-three/fiber';
-import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { Stage, OrbitControls, useGLTF, Environment, Center, Bounds } from '@react-three/drei';
 import * as THREE from 'three';
 import axios from 'axios';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
@@ -18,14 +18,52 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ColorPicker from './ColorPicker';
 import HotspotCustomizationPopup, { generateHotspotSVG } from './HotspotCustomizationPopup';
 
-const GlbModel = ({ url }) => {
+const GlbModelScene = ({ url }) => {
   const { scene } = useGLTF(url);
+  const { camera, size } = useThree();
+  const controls = useThree(state => state.controls);
+
+  useEffect(() => {
+    if (!scene) return;
+    const box = new THREE.Box3().setFromObject(scene);
+    const sizeVec = new THREE.Vector3();
+    box.getSize(sizeVec);
+    const radius = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) / 2;
+    const fovRad = ((camera.fov || 50) * Math.PI) / 360;
+    const dist = (radius / Math.sin(fovRad)) * 1.1; // 1.1 for 70-80% coverage
+
+    // Do NOT use Math.max(dist, 0.1) here, it forces small models to be viewed from far away!
+    camera.position.set(0, 0, dist);
+    camera.near = dist / 100;
+    camera.far = dist * 100;
+    camera.updateProjectionMatrix();
+
+    if (controls) {
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+  }, [scene, camera, controls]);
+
   return (
-    <Canvas camera={{ fov: 50 }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
-      <Stage environment="city" adjustCamera intensity={1}>
+    <>
+      <Environment preset="city" />
+      <ambientLight intensity={0.7} />
+      <directionalLight position={[10, 10, 10]} intensity={1} />
+      <directionalLight position={[-10, -10, -10]} intensity={0.3} />
+      <Center>
         <primitive object={scene} />
-      </Stage>
-      <OrbitControls enableZoom={false} enablePan={false} autoRotate={false} />
+      </Center>
+    </>
+  );
+};
+
+const GlbModel = ({ url }) => {
+  return (
+    <Canvas camera={{ fov: 50, position: [0, 0, 5] }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
+      <React.Suspense fallback={null}>
+        <GlbModelScene url={url} />
+      </React.Suspense>
+      <OrbitControls makeDefault enableZoom={false} enablePan={false} autoRotate={false} />
     </Canvas>
   );
 };
@@ -689,6 +727,7 @@ const InteractionPanel = ({
   const [tooltipSettingsOverrides, setTooltipSettingsOverrides] = useState({});
   const [linkBehaviorOverrides, setLinkBehaviorOverrides] = useState({});
   const [whatsappMessageOverrides, setWhatsappMessageOverrides] = useState({});
+  const [highlightOverrides, setHighlightOverrides] = useState({});
   const activeAudioRef = useRef(null);
 
   // Clean up audio on unmount
@@ -1413,73 +1452,6 @@ const InteractionPanel = ({
                               setTooltipSettingsOverrides={setTooltipSettingsOverrides}
                             />
 
-                            {/* Trigger Pill Custom Dropdown */}
-                            {(() => {
-                              const triggerDropId = `trigger-drop-${item.id}`;
-                              const isTriggerDropOpen = openDropdownId === triggerDropId;
-                              const canHover = resolvedActionId === 'tooltip';
-
-                              return (
-                                <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                  <div
-                                    data-dropdown-trigger="true"
-                                    className={`h-[3.5vh] pl-[0.8vw] ${canHover ? 'pr-[1.6vw] cursor-pointer hover:bg-gray-200' : 'pr-[0.8vw] cursor-default'} bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center select-none transition-colors`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (canHover) {
-                                        setOpenDropdownId(isTriggerDropOpen ? null : triggerDropId);
-                                      }
-                                    }}
-                                  >
-                                    <span className="text-[0.9vw] text-gray-700 font-normal font-sans capitalize">{canHover ? resolvedTrigger : 'Click'}</span>
-                                    {canHover && (
-                                      <Icon icon="lucide:chevron-down" className={`text-gray-500 text-[0.8vw] absolute right-[0.4vw] transition-transform duration-200 ${isTriggerDropOpen ? 'rotate-180' : ''}`} />
-                                    )}
-                                  </div>
-
-                                  {isTriggerDropOpen && canHover && (
-                                    <div data-dropdown-menu="true" className="absolute right-0 top-[calc(100%+0.4vh)] z-[99999] w-full bg-white border border-gray-200 rounded-[0.5vw] shadow-xl py-[0.5vh] flex flex-col">
-                                      <div
-                                        className={`px-[0.8vw] py-[0.6vh] text-[0.85vw] font-sans cursor-pointer transition-colors ${resolvedTrigger === 'click' ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setItemTriggerOverrides(prev => ({ ...prev, [item.id]: 'click' }));
-                                          setOpenDropdownId(null);
-                                          setTimeout(() => {
-                                            if (updateElementAttribute) {
-                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                              updateElementAttribute(targetIdx, item.id, {
-                                                'data-interaction-trigger': 'click'
-                                              });
-                                            }
-                                          }, 50);
-                                        }}
-                                      >
-                                        Click
-                                      </div>
-                                      <div
-                                        className={`px-[0.8vw] py-[0.6vh] text-[0.85vw] font-sans cursor-pointer transition-colors ${resolvedTrigger === 'hover' ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setItemTriggerOverrides(prev => ({ ...prev, [item.id]: 'hover' }));
-                                          setOpenDropdownId(null);
-                                          setTimeout(() => {
-                                            if (updateElementAttribute) {
-                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                              updateElementAttribute(targetIdx, item.id, {
-                                                'data-interaction-trigger': 'hover'
-                                              });
-                                            }
-                                          }, 50);
-                                        }}
-                                      >
-                                        Hover
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
                           </div>
                         ) : (
                           <span className="text-[0.95vw] font-medium text-gray-800 select-none">{currentAction.label}</span>
@@ -1562,14 +1534,14 @@ const InteractionPanel = ({
                           </div>
                         )}
                         
-                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
+                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup', '3d-viewer'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
                           <div className="flex items-start gap-[0.5vw] w-full">
                             {(() => {
                               if (item.isHotspot) return null;
-                              if (['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup'].includes(resolvedActionId)) return null;
+                              if (['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup', '3d-viewer'].includes(resolvedActionId)) return null;
 
                               const labelMarginClass =
-                                ['audio', '3d-viewer', 'zoom'].includes(resolvedActionId) ? 'mt-[3.5vh]' :
+                                ['audio', 'zoom'].includes(resolvedActionId) ? 'mt-[3.5vh]' :
                                   resolvedActionId === 'tooltip' ? 'mt-[1.6vh]' :
                                     resolvedActionId === 'call' ? 'mt-[0.1vh]' : 'mt-0';
 
@@ -2374,27 +2346,118 @@ const InteractionPanel = ({
                                               }}
                                             >
                                               <span className="text-[0.75vw] text-gray-600 truncate">{currentEffectLabel}</span>
-                                              <Icon icon="lucide:chevron-down" className={`text-gray-600 text-[0.9vw] transition-transform duration-200 ${isEffectDropOpen ? 'rotate-180' : ''}`} />
+                                              <Icon icon="lucide:arrow-right-left" className={`text-gray-600 text-[0.9vw] transition-transform duration-200 ${isEffectDropOpen ? 'rotate-180' : ''}`} />
                                             </div>
-                                            {isEffectDropOpen && (
-                                              <div data-dropdown-menu="true" className={`absolute right-0 w-[8.5vw] z-[99999] bg-white border border-gray-200 rounded-[0.5vw] shadow-[0_4px_20px_rgba(0,0,0,0.08)] py-[0.5vh] ${dropdownDirectionOverrides[effectDropId] === 'up' ? 'bottom-[calc(100%+0.5vh)] origin-bottom' : 'top-[calc(100%+0.5vh)] origin-top'}`}>
-                                                {slideshowEffects.map(eff => (
-                                                  <div
-                                                    key={eff.value}
-                                                    className={`px-[1vw] py-[1vh] text-[0.85vw] cursor-pointer transition-colors ${eff.value === currentEffect ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setItemValueOverrides(prev => ({ ...prev, [effectDropId]: eff.value }));
-                                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                      if (updateElementAttribute) updateElementAttribute(targetIdx, item.id, { 'data-interaction-slideshow-effect': eff.value });
-                                                      setOpenDropdownId(null);
-                                                    }}
+                                            {isEffectDropOpen && createPortal(
+                                              <div data-dropdown-menu="true" className="fixed right-[15.5vw] top-1/2 -translate-y-1/2 w-[22vw] z-[999999] bg-white border border-gray-200 rounded-[0.8vw] shadow-[0_4px_24px_rgba(0,0,0,0.15)] p-[1vw]">
+                                                <div className="flex items-center justify-between mb-[1vw]">
+                                                  <span className="text-[0.9vw] font-semibold text-gray-900">Effects</span>
+                                                  <div className="flex-1 h-[1px] bg-gray-200 mx-[0.8vw]"></div>
+                                                  <button 
+                                                    className="w-[1.6vw] h-[1.6vw] flex items-center justify-center border border-red-500 rounded-[0.4vw] text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                                    onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); }}
                                                   >
-                                                    {eff.label}
-                                                  </div>
-                                                ))}
+                                                    <Icon icon="lucide:x" className="text-[0.9vw]" />
+                                                  </button>
+                                                </div>                                                <style>{`
+                                                  @keyframes anim-spring-bounce {
+                                                    0%, 100% { transform: translateY(0) scale(1); }
+                                                    50% { transform: translateY(-30%) scale(1.1); }
+                                                  }
+                                                  .preview-anim-spring-bounce > div { animation: anim-spring-bounce 1.5s infinite ease-in-out; }
+                                                  .preview-anim-spring-bounce > div:nth-child(1) { animation-delay: 0s; }
+                                                  .preview-anim-spring-bounce > div:nth-child(2) { animation-delay: 0.15s; }
+                                                  .preview-anim-spring-bounce > div:nth-child(3) { animation-delay: 0.3s; }
+                                                
+                                                  @keyframes anim-cover-flow {
+                                                    0% { transform: perspective(100px) rotateY(0deg); }
+                                                    50% { transform: perspective(100px) rotateY(45deg); }
+                                                    100% { transform: perspective(100px) rotateY(0deg); }
+                                                  }
+                                                  .preview-anim-cover-flow > div { animation: anim-cover-flow 2s infinite ease-in-out; }
+                                                  .preview-anim-cover-flow > div:nth-child(1) { animation-delay: 0s; }
+                                                  .preview-anim-cover-flow > div:nth-child(2) { animation-delay: 0.2s; }
+                                                  .preview-anim-cover-flow > div:nth-child(3) { animation-delay: 0.4s; }
+                                                
+                                                  @keyframes anim-play-cards {
+                                                    0% { transform: translateX(0) rotate(0deg); z-index: 1; }
+                                                    50% { transform: translateX(30%) rotate(10deg) scale(1.1); z-index: 10; }
+                                                    100% { transform: translateX(0) rotate(0deg); z-index: 1; }
+                                                  }
+                                                  .preview-anim-play-cards > div { animation: anim-play-cards 1.5s infinite ease-in-out; }
+                                                  .preview-anim-play-cards > div:nth-child(1) { animation-delay: 0s; }
+                                                  .preview-anim-play-cards > div:nth-child(2) { animation-delay: 0.2s; }
+                                                  .preview-anim-play-cards > div:nth-child(3) { animation-delay: 0.4s; }
+                                                
+                                                  @keyframes anim-3d-flip {
+                                                    0% { transform: perspective(200px) rotateY(0deg); }
+                                                    100% { transform: perspective(200px) rotateY(360deg); }
+                                                  }
+                                                  .preview-anim-3d-flip > div { animation: anim-3d-flip 2s infinite linear; }
+                                                  .preview-anim-3d-flip > div:nth-child(1) { animation-delay: 0s; }
+                                                  .preview-anim-3d-flip > div:nth-child(2) { animation-delay: 0.3s; }
+                                                  .preview-anim-3d-flip > div:nth-child(3) { animation-delay: 0.6s; }
+                                                
+                                                  @keyframes anim-zoom {
+                                                    0%, 100% { transform: scale(1); }
+                                                    50% { transform: scale(1.3); }
+                                                  }
+                                                  .preview-anim-zoom > div { animation: anim-zoom 1.5s infinite ease-in-out; }
+                                                  .preview-anim-zoom > div:nth-child(1) { animation-delay: 0s; }
+                                                  .preview-anim-zoom > div:nth-child(2) { animation-delay: 0.2s; }
+                                                  .preview-anim-zoom > div:nth-child(3) { animation-delay: 0.4s; }
+                                                
+                                                  @keyframes anim-drop {
+                                                    0% { transform: translateY(-100%); opacity: 0; }
+                                                    20%, 80% { transform: translateY(0); opacity: 1; }
+                                                    100% { transform: translateY(100%); opacity: 0; }
+                                                  }
+                                                  .preview-anim-drop > div { animation: anim-drop 2s infinite ease-in; }
+                                                  .preview-anim-drop > div:nth-child(1) { animation-delay: 0s; }
+                                                  .preview-anim-drop > div:nth-child(2) { animation-delay: 0.3s; }
+                                                  .preview-anim-drop > div:nth-child(3) { animation-delay: 0.6s; }
+                                                `}</style>
+                                                <div className="grid grid-cols-3 gap-[0.8vw]">
+                                                  {slideshowEffects.map(eff => (
+                                                    <div
+                                                      key={eff.value}
+                                                      className={`flex flex-col items-center gap-[0.8vh] p-[0.6vw] cursor-pointer rounded-[0.6vw] transition-all border ${eff.value === currentEffect ? 'border-[#5145F6] bg-[#F1F5F9] shadow-sm' : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'}`}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setItemValueOverrides(prev => ({ ...prev, [effectDropId]: eff.value }));
+                                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                        if (updateElementAttribute) updateElementAttribute(targetIdx, item.id, { 'data-interaction-slideshow-effect': eff.value });
+                                                      }}
+                                                    >
+                                                      <div className="w-[4vw] h-[4vw] bg-white rounded-[0.4vw] flex items-center justify-center overflow-hidden border border-gray-200 relative shadow-sm">
+                                                        <div className={`flex gap-[0.2vw] preview-anim-${eff.value.replace(/\s+/g, '-').toLowerCase()}`}>
+                                                          <div className="w-[0.6vw] h-[2vw] bg-[#f3f4f6] rounded-[0.1vw]"></div>
+                                                          <div className="w-[0.6vw] h-[2vw] bg-[#d1d5db] rounded-[0.1vw]"></div>
+                                                          <div className="w-[0.6vw] h-[2vw] bg-[#9ca3af] rounded-[0.1vw]"></div>
+                                                        </div>
+                                                      </div>
+                                                      <span className={`text-[0.75vw] text-center ${eff.value === currentEffect ? 'text-[#5145F6] font-semibold' : 'text-gray-600 font-medium'}`}>{eff.label}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                                <div className="flex justify-center gap-[1vw] mt-[1.5vh] pt-[1.5vh] border-t border-gray-100">
+                                                  <button 
+                                                    className="px-[2vw] py-[0.8vh] border border-gray-300 rounded-[0.4vw] text-[0.8vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-[0.4vw]"
+                                                    onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); }}
+                                                  >
+                                                    <Icon icon="lucide:x" className="text-[0.9vw]" />
+                                                    Close
+                                                  </button>
+                                                  <button 
+                                                    className="px-[2vw] py-[0.8vh] bg-black text-white rounded-[0.4vw] text-[0.8vw] font-medium hover:bg-gray-800 transition-colors flex items-center gap-[0.4vw]"
+                                                    onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); }}
+                                                  >
+                                                    <Icon icon="lucide:refresh-cw" className="text-[0.9vw]" />
+                                                    Replace
+                                                  </button>
+                                                </div>
                                               </div>
-                                            )}
+                                            , document.body)}
                                           </div>
                                         );
                                       })()}
@@ -2423,7 +2486,7 @@ const InteractionPanel = ({
                                               }}
                                             >
                                               <span className="text-[0.75vw] text-gray-600 truncate">{currentSpeed}</span>
-                                              <Icon icon="lucide:chevron-down" className={`text-gray-600 text-[0.9vw] transition-transform duration-200 ${isSpeedDropOpen ? 'rotate-180' : ''}`} />
+                                              <Icon icon="lucide:chevron-down" className={`text-gray-600 text-[1vw] transition-transform duration-200 ${isSpeedDropOpen ? 'rotate-180' : ''}`} />
                                             </div>
                                             {isSpeedDropOpen && (
                                               <div data-dropdown-menu="true" className={`absolute right-0 w-[8.5vw] z-[99999] bg-white border border-gray-200 rounded-[0.5vw] shadow-[0_4px_20px_rgba(0,0,0,0.08)] py-[0.5vh] ${dropdownDirectionOverrides[speedDropId] === 'up' ? 'bottom-[calc(100%+0.5vh)] origin-bottom' : 'top-[calc(100%+0.5vh)] origin-top'}`}>
@@ -2573,15 +2636,13 @@ const InteractionPanel = ({
                                 } catch (e) { }
 
                                 return (
-                                  <div className="flex-1 min-w-0 flex flex-col items-center justify-center gap-[1.2vh]" onClick={(e) => e.stopPropagation()}>
-                                    {/* Hidden file input */}
-                                    <input
-                                      type="file"
-                                      id={`3d-upload-${item.id}`}
-                                      className="hidden"
-                                      accept=".glb,.gltf"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
+                                  <div className="flex-1 min-w-0 flex flex-col gap-[1vh]" onClick={(e) => e.stopPropagation()}>
+                                    <span className="text-[0.8vw] text-gray-900 font-medium tracking-wide">
+                                      {fileMeta ? '3D Model Preview' : 'Upload 3D Model'}
+                                    </span>
+                                  
+                                    {(() => {
+                                      const handle3DFileSelect = (file) => {
                                         if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) && updateElementAttribute) {
                                           const objectUrl = URL.createObjectURL(file);
                                           const storedVal = JSON.stringify({
@@ -2601,210 +2662,211 @@ const InteractionPanel = ({
                                             'data-interaction-config': defaultConfig
                                           });
                                         }
-                                      }}
-                                    />
+                                      };
 
-                                    <CommonDropBox
-                                      id={`3d-upload-${item.id}`}
-                                      accept=".glb,.gltf"
-                                      onFileSelect={(file) => {
-                                        if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) && updateElementAttribute) {
-                                          const objectUrl = URL.createObjectURL(file);
-                                          const storedVal = JSON.stringify({
-                                            name: file.name,
-                                            type: 'model/gltf-binary',
-                                            size: file.size,
-                                            data: objectUrl
-                                          });
-                                          setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
-                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                          const defaultConfig = JSON.stringify({
-                                            shadowStrength: 35, shadowSoftness: 35, autoRotate: true, autoRotateSpeed: 1.5, lockMaxZoom: true, maxZoom: 4.5, bgType: 'Solid', bgColor: '#ffffffff', customBg: true, enableAR: true, qrText: 'Scan Me', qrColor: '#000000', qrBgType: 'Solid', qrBgColor: '#ffffff', qrLevel: 'L', qrDotType: 'square', qrCornerSquareType: 'square', qrCornerDotType: 'square', qrLogo: null, topText: 'You can Rotate 3D Model', bottomText: file.name || '3D Model'
-                                          });
-                                          updateElementAttribute(targetIdx, item.id, {
-                                            'data-interaction': '3d-viewer',
-                                            'data-interaction-value': storedVal,
-                                            'data-interaction-config': defaultConfig
-                                          });
-                                        }
-                                      }}
-                                      fileMeta={fileMeta}
-                                      boxClassName="w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all p-[0.3vw]"
-                                      renderPreview={(meta) => (
-                                        <div className="w-full h-full relative group rounded-[0.5vw]">
-                                          <div className="absolute inset-0 overflow-hidden rounded-[0.5vw] flex items-center justify-center pointer-events-none">
-                                            <div className="absolute inset-0 bg-[#F4F5F7] z-0" />
-                                            {meta.data ? (
-                                              <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
-                                                <GlbThumbnail dataUrl={meta.data} />
+                                      return (
+                                        <>
+                                          {/* Hidden file input */}
+                                          <input
+                                            type="file"
+                                            id={`3d-upload-${item.id}`}
+                                            className="hidden"
+                                            accept=".glb,.gltf"
+                                            onChange={(e) => handle3DFileSelect(e.target.files?.[0])}
+                                          />
+
+                                          {!fileMeta ? (
+                                            <div className="flex flex-row w-full gap-[0.5vw] items-stretch">
+                                              <div className="flex-1 h-[11vh]">
+                                                <CommonDropBox
+                                                  id={`3d-upload-${item.id}`}
+                                                  accept=".glb,.gltf"
+                                                  onFileSelect={handle3DFileSelect}
+                                                  fileMeta={fileMeta}
+                                                  boxClassName="w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all p-[0.3vw]"
+                                                  emptyIcon="prime:upload"
+                                                  subText="File Format : GLB"
+                                                />
                                               </div>
-                                            ) : (
-                                              <Icon icon="gis:cube-3d" className="text-[#5145F6] text-[2vw] relative z-10" />
-                                            )}
-                                          </div>
-
-                                          {/* Hover Menu Overlay */}
-                                          <div className={`absolute inset-0 transition-opacity z-20 pointer-events-none ${openDropdownId === '3d-menu-' + item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-
-                                            {/* Edit Button (Center) */}
-                                            <div
-                                              className="absolute inset-0 m-auto w-[4.5vw] h-[2.2vw] bg-black/40 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] cursor-pointer hover:bg-black/60 transition-all shadow-md pointer-events-auto"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (fileMeta && fileMeta.data) {
-                                                  setCurrent3DItem(item);
-                                                  setIs3DModalOpen(true);
-                                                }
-                                              }}
-                                              title="Edit 3D Model"
-                                            >
-                                              <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.1vw]" />
-                                              <span className="text-white text-[0.75vw] font-medium drop-shadow-sm">Edit</span>
-                                            </div>
-
-                                            {/* 3 dots menu */}
-                                            <div className="absolute top-[0.4vh] right-[0.2vw] pointer-events-auto">
-                                              <div
-                                                className="p-[0.2vw] cursor-pointer bg-black/20 rounded-full hover:bg-black/40 transition-colors backdrop-blur-[2px]"
-                                                data-dropdown-trigger="true"
+                                              <div 
+                                                className="w-[6vw] h-[11vh] rounded-[0.6vw] flex flex-col items-center justify-center relative overflow-hidden shadow-sm flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity" 
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  setOpenDropdownId(openDropdownId === `3d-menu-${item.id}` ? null : `3d-menu-${item.id}`);
+                                                  setActive3DGalleryItem(item);
                                                 }}
                                               >
-                                                <Icon icon="bi:three-dots-vertical" className="text-white drop-shadow-md text-[1.2vw]" />
-                                              </div>
-
-                                              {openDropdownId === `3d-menu-${item.id}` && (
-                                                <div
-                                                  data-dropdown-menu="true"
-                                                  className="absolute top-[100%] right-0 mt-[0.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-50"
-                                                >
-                                                  <div
-                                                    className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setOpenDropdownId(null);
-                                                      document.getElementById(`3d-upload-${item.id}`)?.click();
-                                                    }}
-                                                  >
-                                                    <Icon icon="lucide:replace" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
-                                                    <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Replace</span>
-                                                  </div>
-                                                  <div
-                                                    className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setOpenDropdownId(null);
-                                                      if (!fileMeta) {
-                                                        setAlertState({
-                                                          isOpen: true,
-                                                          title: 'Action Required',
-                                                          message: 'Please Place Interaction Before Edit Your Model',
-                                                          type: 'warning'
-                                                        });
-                                                        return;
-                                                      }
-                                                      if (fileMeta.data && fileMeta.data.startsWith('blob:')) {
-                                                        setAlertState({
-                                                          isOpen: true,
-                                                          title: 'Save Required',
-                                                          message: 'Please save your flipbook to continue editing the 3D model.',
-                                                          type: 'warning',
-                                                          showCancel: true,
-                                                          confirmText: 'Save and Go',
-                                                          cancelText: 'Cancel',
-                                                          onConfirm: () => {
-                                                            setAlertState(prev => ({ ...prev, isOpen: false }));
-                                                            window.dispatchEvent(new CustomEvent('trigger-manual-save'));
-                                                            const handleSaved = () => {
-                                                              window.removeEventListener('flipbook-saved', handleSaved);
-                                                              setTimeout(() => {
-                                                                const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-                                                                const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                                                                const liveEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(item.id)}"]`) : editorDoc.getElementById(item.id);
-                                                                if (liveEl) {
-                                                                  const newVal = liveEl.getAttribute('data-interaction-value');
-                                                                  try {
-                                                                    const newMeta = JSON.parse(newVal);
-                                                                    localStorage.setItem('tempThreedEditModel', JSON.stringify({ url: newMeta.data, name: newMeta.name, type: newMeta.type || 'glb' }));
-                                                                    const editUrl = newMeta.v_id ? `/editor/threed_editor/${newMeta.v_id}` : '/editor/threed_editor';
-                                                                    window.open(editUrl, '_blank');
-                                                                  } catch (e) { }
-                                                                }
-                                                              }, 200);
-                                                            };
-                                                            window.addEventListener('flipbook-saved', handleSaved);
-                                                          }
-                                                        });
-                                                        return;
-                                                      }
-                                                      localStorage.setItem('tempThreedEditModel', JSON.stringify({ url: fileMeta.data, name: fileMeta.name, type: fileMeta.type || 'glb' }));
-                                                      const editUrl = fileMeta.v_id ? `/editor/threed_editor/${fileMeta.v_id}` : '/editor/threed_editor';
-                                                      window.open(editUrl, '_blank');
-                                                    }}
-                                                  >
-                                                    <Icon icon="lucide:settings-2" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
-                                                    <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">3D Edit</span>
-                                                  </div>
-                                                  <div
-                                                    className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setOpenDropdownId(null);
-                                                      setActive3DGalleryItem(item);
-                                                    }}
-                                                  >
-                                                    <Icon icon="clarity:image-gallery-solid" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
-                                                    <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">3D Gallery</span>
-                                                  </div>
-                                                  <div
-                                                    className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setOpenDropdownId(null);
-                                                      setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
-                                                      if (updateElementAttribute) {
-                                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                        updateElementAttribute(targetIdx, item.id, {
-                                                          'data-interaction': '3d-viewer',
-                                                          'data-interaction-value': ''
-                                                        });
-                                                      }
-                                                    }}
-                                                  >
-                                                    <Icon icon="ic:round-clear" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
-                                                    <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Clear</span>
-                                                  </div>
+                                                <div className="absolute inset-0 bg-cover bg-center opacity-60" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=400&q=80')" }} />
+                                                <div className="absolute inset-0 bg-[#0A0F1C] opacity-60 mix-blend-multiply" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-[#0A0F1C] to-transparent opacity-80" />
+                                                <div className="z-10 flex flex-col items-center gap-[0.5vh]">
+                                                  <Icon icon="clarity:image-gallery-solid" className="text-white text-[1.4vw]" />
+                                                  <span className="text-[0.8vw] font-medium text-white tracking-wide">Gallery</span>
                                                 </div>
-                                              )}
+                                              </div>
                                             </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                      emptyIcon="prime:upload"
-                                      subText="File Format : GLB"
-                                    />
+                                          ) : (
+                                            <div className="flex flex-col w-full gap-[1.2vh]">
+                                              <CommonDropBox
+                                                id={`3d-upload-${item.id}`}
+                                                accept=".glb,.gltf"
+                                                onFileSelect={handle3DFileSelect}
+                                                fileMeta={fileMeta}
+                                                boxClassName="w-full h-[18vh] border border-gray-200 rounded-[0.5vw] shadow-sm relative group bg-white flex items-center justify-center cursor-pointer"
+                                                renderPreview={(meta) => (
+                                                  <div className="w-full h-full relative group rounded-[0.5vw]">
+                                                    <div className="absolute inset-0 overflow-hidden rounded-[0.5vw] flex items-center justify-center pointer-events-none">
+                                                      <div className="absolute inset-0 bg-white z-0" />
+                                                      {meta.data ? (
+                                                        <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
+                                                          <GlbThumbnail dataUrl={meta.data} />
+                                                        </div>
+                                                      ) : (
+                                                        <Icon icon="gis:cube-3d" className="text-[#5145F6] text-[2vw] relative z-10" />
+                                                      )}
+                                                    </div>
 
-                                    {!fileMeta && (
-                                      <>
-                                        <span className="text-[0.65vw] text-gray-400 font-medium uppercase select-none">OR</span>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActive3DGalleryItem(item);
-                                          }}
-                                          className="w-full h-[6vh] bg-[#0A0F1C] rounded-[0.6vw] shadow-md flex items-center justify-center gap-[0.5vw] hover:bg-[#111827] transition-all relative overflow-hidden group cursor-pointer"
-                                        >
-                                          <div className="absolute inset-0 bg-cover bg-center opacity-40 group-hover:opacity-60 transition-opacity" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=400&q=80')" }} />
-                                          <div className="absolute inset-0 bg-gradient-to-r from-[#000000] to-transparent opacity-80" />
-                                          <div className="z-10 flex items-center gap-[0.6vw] px-[1vw]">
-                                            <Icon icon="clarity:image-gallery-solid" className="text-white text-[1.1vw]" />
-                                            <span className="text-[0.9vw] font-semibold text-white tracking-wide whitespace-nowrap">3D Gallery</span>
-                                          </div>
-                                        </button>
-                                      </>
-                                    )}
+                                                    {/* Hover Menu Overlay */}
+                                                    <div className={`absolute inset-0 transition-opacity z-20 pointer-events-none ${openDropdownId === '3d-menu-' + item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                      {/* 3 dots menu */}
+                                                      <div className="absolute top-[0.4vh] right-[0.2vw] pointer-events-auto">
+                                                        <div
+                                                          className="p-[0.2vw] cursor-pointer bg-white/50 rounded-full hover:bg-white/80 transition-colors backdrop-blur-sm"
+                                                          data-dropdown-trigger="true"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setOpenDropdownId(openDropdownId === `3d-menu-${item.id}` ? null : `3d-menu-${item.id}`);
+                                                          }}
+                                                        >
+                                                          <Icon icon="bi:three-dots-vertical" className="text-gray-800 drop-shadow-sm text-[1.2vw]" />
+                                                        </div>
+
+                                                        {openDropdownId === `3d-menu-${item.id}` && (
+                                                          <div
+                                                            data-dropdown-menu="true"
+                                                            className="absolute top-[100%] right-0 mt-[0.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-50"
+                                                          >
+                                                            <div
+                                                              className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                                              onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setOpenDropdownId(null);
+                                                                document.getElementById(`3d-upload-${item.id}`)?.click();
+                                                              }}
+                                                            >
+                                                              <Icon icon="lucide:replace" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                                              <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Replace</span>
+                                                            </div>
+                                                            <div
+                                                              className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                                              onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setOpenDropdownId(null);
+                                                                if (!fileMeta) {
+                                                                  setAlertState({
+                                                                    isOpen: true,
+                                                                    title: 'Action Required',
+                                                                    message: 'Please Place Interaction Before Edit Your Model',
+                                                                    type: 'warning'
+                                                                  });
+                                                                  return;
+                                                                }
+                                                                if (fileMeta.data && fileMeta.data.startsWith('blob:')) {
+                                                                  setAlertState({
+                                                                    isOpen: true,
+                                                                    title: 'Save Required',
+                                                                    message: 'Please save your flipbook to continue editing the 3D model.',
+                                                                    type: 'warning',
+                                                                    showCancel: true,
+                                                                    confirmText: 'Save and Go',
+                                                                    cancelText: 'Cancel',
+                                                                    onConfirm: () => {
+                                                                      setAlertState(prev => ({ ...prev, isOpen: false }));
+                                                                      window.dispatchEvent(new CustomEvent('trigger-manual-save'));
+                                                                      const handleSaved = () => {
+                                                                        window.removeEventListener('flipbook-saved', handleSaved);
+                                                                        setTimeout(() => {
+                                                                          const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                                                                          const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                                                                          const liveEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(item.id)}"]`) : editorDoc.getElementById(item.id);
+                                                                          if (liveEl) {
+                                                                            const newVal = liveEl.getAttribute('data-interaction-value');
+                                                                            try {
+                                                                              const newMeta = JSON.parse(newVal);
+                                                                              localStorage.setItem('tempThreedEditModel', JSON.stringify({ url: newMeta.data, name: newMeta.name, type: newMeta.type || 'glb' }));
+                                                                              const editUrl = newMeta.v_id ? `/editor/threed_editor/${newMeta.v_id}` : '/editor/threed_editor';
+                                                                              window.open(editUrl, '_blank');
+                                                                            } catch (e) { }
+                                                                          }
+                                                                        }, 200);
+                                                                      };
+                                                                      window.addEventListener('flipbook-saved', handleSaved);
+                                                                    }
+                                                                  });
+                                                                  return;
+                                                                }
+                                                                localStorage.setItem('tempThreedEditModel', JSON.stringify({ url: fileMeta.data, name: fileMeta.name, type: fileMeta.type || 'glb' }));
+                                                                const editUrl = fileMeta.v_id ? `/editor/threed_editor/${fileMeta.v_id}` : '/editor/threed_editor';
+                                                                window.open(editUrl, '_blank');
+                                                              }}
+                                                            >
+                                                              <Icon icon="lucide:settings-2" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                                              <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">3D Edit</span>
+                                                            </div>
+                                                            <div
+                                                              className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                                              onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setOpenDropdownId(null);
+                                                                setActive3DGalleryItem(item);
+                                                              }}
+                                                            >
+                                                              <Icon icon="clarity:image-gallery-solid" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                                              <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">3D Gallery</span>
+                                                            </div>
+                                                            <div
+                                                              className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
+                                                              onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setOpenDropdownId(null);
+                                                                setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                                                if (updateElementAttribute) {
+                                                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                                  updateElementAttribute(targetIdx, item.id, {
+                                                                    'data-interaction': '3d-viewer',
+                                                                    'data-interaction-value': ''
+                                                                  });
+                                                                }
+                                                              }}
+                                                            >
+                                                              <Icon icon="ic:round-clear" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
+                                                              <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Clear</span>
+                                                            </div>
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              />
+                                              
+                                              <button
+                                                className="w-full h-[4.5vh] border border-gray-200 rounded-[0.5vw] shadow-sm bg-white flex items-center justify-center gap-[0.6vw] hover:bg-gray-50 transition-colors cursor-pointer"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (fileMeta && fileMeta.data) {
+                                                    setCurrent3DItem(item);
+                                                    setIs3DModalOpen(true);
+                                                  }
+                                                }}
+                                              >
+                                                <Icon icon="bx:edit" className="text-black text-[1.3vw]" />
+                                                <span className="text-[0.9vw] font-medium text-black tracking-wide">Edit Popup View</span>
+                                              </button>
+                                            </div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })()
@@ -3235,23 +3297,40 @@ const InteractionPanel = ({
 
                         {/* Card Footer (Highlight Component) */}
                         <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw]`}>
-                          <div className="flex items-center gap-[0.6vw]">
-                            {['open-link', 'whatsapp', 'email'].includes(resolvedActionId) ? (
-                              <>
-                                <div className="w-[1.1vw] h-[1.1vw] flex-shrink-0 rounded-[0.25vw] bg-[#5145F6] flex items-center justify-center cursor-pointer shadow-sm">
-                                  <Icon icon="mdi:check" className="text-white text-[0.85vw]" />
-                                </div>
-                                <span className="text-[0.8vw] text-gray-600 font-normal">Highlight interaction in preview</span>
-                              </>
-                            ) : (
-                              <>
-                                {/* Custom Checkbox */}
-                                <div className="w-[1.2vw] h-[1.2vw] flex-shrink-0 rounded-[0.25vw] bg-[#5145F6] flex items-center justify-center">
-                                  <Icon icon="lucide:check" className="text-white text-[0.9vw]" strokeWidth="3" />
-                                </div>
-                                <span className="text-[0.85vw] text-gray-600 font-medium">Highlight interaction in preview</span>
-                              </>
-                            )}
+                          <div 
+                            className="flex items-center gap-[0.6vw] cursor-pointer group"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const isCurrentlyOn = highlightOverrides[item.id] !== undefined 
+                                ? highlightOverrides[item.id] 
+                                : (item['data-show-highlight'] !== 'false'); // Default to true
+                              
+                              setHighlightOverrides(prev => ({ ...prev, [item.id]: !isCurrentlyOn }));
+                              
+                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                              if (updateElementAttribute) {
+                                updateElementAttribute(targetIdx, item.id, {
+                                  'data-show-highlight': (!isCurrentlyOn).toString()
+                                });
+                              }
+                            }}
+                          >
+                            <div className={`w-[1.2vw] h-[1.2vw] flex-shrink-0 rounded-[0.25vw] flex items-center justify-center transition-colors ${
+                              (highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false')
+                                ? 'bg-[#5145F6]'
+                                : 'border border-gray-300 bg-white group-hover:border-[#5145F6]'
+                            }`}>
+                              {(highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false') && (
+                                <Icon icon="lucide:check" className="text-white text-[0.9vw]" strokeWidth="3" />
+                              )}
+                            </div>
+                            <span className={`text-[0.85vw] font-medium transition-colors ${
+                              (highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false')
+                                ? 'text-gray-600'
+                                : 'text-gray-400 group-hover:text-gray-600'
+                            }`}>
+                              Highlight interaction in preview
+                            </span>
                           </div>
 
                           {/* Trash Icon */}

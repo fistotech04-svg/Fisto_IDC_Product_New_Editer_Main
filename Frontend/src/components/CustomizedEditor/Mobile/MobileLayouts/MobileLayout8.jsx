@@ -351,7 +351,7 @@ const MobileLayout8 = (props) => {
             {/* Footer */}
             <footer
                 className="z-50 px-4 pt-6 pb-8 flex flex-col gap-6 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] shrink-0"
-                style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                style={{ backgroundColor: "transparent" }}
             >
                 {/* Icon Row */}
                 <div className="flex items-center justify-between px-2">
@@ -452,7 +452,7 @@ const MobileLayout8 = (props) => {
                     >
                         <div
                             className="flex items-center justify-between px-4 py-2.5 shrink-0 relative"
-                            style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                            style={{ backgroundColor: "transparent" }}
                         >
                             <span className="text-[12px] font-bold text-white tracking-wide">Thumbnails</span>
                             {/* Drag handle line in center */}

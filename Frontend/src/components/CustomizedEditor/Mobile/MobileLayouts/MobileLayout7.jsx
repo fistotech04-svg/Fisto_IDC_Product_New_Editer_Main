@@ -242,7 +242,7 @@ const MobileLayout7 = (props) => {
             {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header */}
-            <header className="z-50 px-4 pt-2 pb-4 flex flex-col gap-4 shadow-sm relative shrink-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <header className="z-50 px-4 pt-2 pb-4 flex flex-col gap-4 shadow-sm relative shrink-0" style={{ backgroundColor: "transparent" }}>
                 <div className="flex items-center justify-between px-1 mt-1">
                     <span className="text-white text-[13px] font-medium opacity-90 truncate flex-1">{bookName}</span>
                     <div className="flex items-center">
@@ -347,7 +347,7 @@ const MobileLayout7 = (props) => {
                 {isMenuOpen && (
                     <div
                         className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-[80%] flex flex-col items-center justify-evenly py-6 shadow-2xl z-40 rounded-xl"
-                        style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        style={{ backgroundColor: "transparent" }}
                     >
                         <button onClick={() => {
                             const willShow = !showThumbnails;
@@ -503,7 +503,7 @@ const MobileLayout7 = (props) => {
             </div>
 
             {/* Footer */}
-            <footer className="z-50 shrink-0 flex flex-col pt-3 pb-8 relative" style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
+            <footer className="z-50 shrink-0 flex flex-col pt-3 pb-8 relative" style={{ backgroundColor: "transparent" }}>
                 {/* Row 1: Page info and Zoom */}
                 <div className="flex items-center justify-between px-6 mb-5">
                     <div />

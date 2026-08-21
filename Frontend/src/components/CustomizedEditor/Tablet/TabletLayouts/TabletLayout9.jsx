@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import TabletTableOfContentsPopup9 from './TabletTableOfContentsPopup9';
+import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
 import TabletProfilePopup from './TabletProfilePopup';
 import ShareModal from '../../../ShareModal';
 
@@ -217,7 +217,7 @@ const TabletLayout9 = ({
     const secondaryColor = '#FFFFFF';
 
     return (
-        <div className="flex flex-col w-full h-full min-h-0 overflow-hidden font-sans relative" style={{ ...backgroundStyle, backgroundColor: '#e2e4ed', containerType: 'size' }}>
+        <div className="flex flex-col w-full h-full min-h-0 overflow-hidden font-sans relative" style={{ ...backgroundStyle, backgroundColor: 'transparent', containerType: 'size' }}>
 
             {/* Click-away Overlay for Search Suggestions */}
             {showSuggestions && recommendations.length > 0 && (
@@ -418,9 +418,10 @@ const TabletLayout9 = ({
 
                 {/* Popups */}
                 {showTOC && (
-                    <TabletTableOfContentsPopup9
-                        onClose={() => setShowTOCMemo(false)}
-                        onNavigate={onPageClick}
+                    <TabletTableOfContentsPopup
+                        variant="layout9"
+                        onClose={() => setShowTOCMemo?.(false)} 
+                        onNavigate={onPageClick} 
                         settings={settings}
                         layoutColors={settings?.layoutColors}
                     />

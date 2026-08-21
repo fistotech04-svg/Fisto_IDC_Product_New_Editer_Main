@@ -693,6 +693,7 @@ const MainEditor = ({
   const currentFrameIdRef = useRef(null);
   const marqueeRef = useRef(null);
   const marqueeOverlayRef1 = useRef(null);
+  const marqueeOverlayRef2 = useRef(null);
   const marqueeCandidatesRef = useRef([]);
   const marqueeDataRef = useRef({ startX: 0, startY: 0, containerRect: null, scale: 1 });
   const multiSelectedIdsRef = useRef(new Set());

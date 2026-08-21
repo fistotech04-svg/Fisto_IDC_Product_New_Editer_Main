@@ -56,6 +56,55 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
+
+const ToolbarBtn = ({ icon, label, onClick, isActive, className = '', id, toolbarProps }) => {
+    const { primaryColor, getLayoutColor, isSidebarOpen, isTablet, addTextBelowIcons, textFont } = toolbarProps;
+    const bgColor = isActive ? getLayoutColor('toolbar-text-main', '#FFFFFF') : getLayoutColor('toolbar-bg', primaryColor);
+    const iconColor = isActive ? getLayoutColor('toolbar-bg', primaryColor) : getLayoutColor('toolbar-text-main', '#FFFFFF');
+
+    return (
+        <div className="flex flex-col items-center gap-[0.2vh] group relative">
+            <button
+                id={id}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (onClick) onClick(e);
+                }}
+                className={`rounded-full flex items-center justify-center transition-all duration-300 ${isActive ? 'shadow-[0_4px_12px_rgba(0,0,0,0.15)] z-[101]' : 'z-10'} ${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : (isTablet ? 'w-[2.1vw] h-[2.1vw]' : 'w-[2.3vw] h-[2.3vw]')} ${className}`}
+                style={{ backgroundColor: bgColor }}
+            >
+                <Icon icon={icon} color={iconColor} style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : (isTablet ? '1.0vw' : '1.1vw'), height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : (isTablet ? '1.0vw' : '1.1vw') }} />
+            </button>
+            {addTextBelowIcons && label && (
+                <span
+                    className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.5vw]'} font-semibold leading-tight text-center whitespace-nowrap transition-opacity ${isActive ? 'opacity-0' : 'opacity-100'}`}
+                    style={{ color: getLayoutColor('toolbar-bg', primaryColor), fontFamily: textFont }}
+                >{label}</span>
+            )}
+            {!addTextBelowIcons && label && (
+                <div className="absolute top-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                    style={{
+                        background: 'rgba(10, 10, 12, 0.55)',
+                        backdropFilter: 'blur(30px)',
+                        WebkitBackdropFilter: 'blur(30px)',
+                        transform: 'translateZ(0)',
+                        isolation: 'isolate',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        color: '#ffffff',
+                        padding: '0.25vw 0.5vw',
+                        borderRadius: '0.3vw',
+                        fontSize: isTablet ? '0.55vw' : '0.65vw',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                    }}>
+                    {label}
+                    <div className="absolute bottom-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-b-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
 const Grid9Layout = ({
     children,
     settings,
@@ -373,52 +422,7 @@ const Grid9Layout = ({
     const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons ?? false;
     const textFont = settings?.toolbar?.textProperties?.font || 'inherit';
 
-    // Toolbar icon button component
-    const ToolbarBtn = ({ icon, label, onClick, isActive, className = '', id }) => {
-        const bgColor = isActive ? getLayoutColor('toolbar-text-main', '#FFFFFF') : getLayoutColor('toolbar-bg', primaryColor);
-        const iconColor = isActive ? getLayoutColor('toolbar-bg', primaryColor) : getLayoutColor('toolbar-text-main', '#FFFFFF');
-
-        return (
-            <div className="flex flex-col items-center gap-[0.2vh] group relative">
-                <button
-                    id={id}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (onClick) onClick(e);
-                    }}
-                    className={`rounded-full flex items-center justify-center transition-all duration-300 ${isActive ? 'shadow-[0_4px_12px_rgba(0,0,0,0.15)] z-[101]' : 'z-10'} ${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : (isTablet ? 'w-[2.1vw] h-[2.1vw]' : 'w-[2.3vw] h-[2.3vw]')} ${className}`}
-                    style={{ backgroundColor: bgColor }}
-                >
-                    <Icon icon={icon} color={iconColor} className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : (isTablet ? 'w-[1.0vw] h-[1.0vw]' : 'w-[1.1vw] h-[1.1vw]')}`} />
-                </button>
-                {addTextBelowIcons && label && (
-                    <span
-                        className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.5vw]'} font-semibold leading-tight text-center whitespace-nowrap transition-opacity ${isActive ? 'opacity-0' : 'opacity-100'}`}
-                        style={{ color: getLayoutColor('toolbar-bg', primaryColor), fontFamily: textFont }}
-                    >{label}</span>
-                )}
-                {!addTextBelowIcons && label && (
-                    <div className="absolute top-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
-                        style={{
-                            background: 'rgba(10, 10, 12, 0.55)',
-                            backdropFilter: 'blur(30px)',
-                            WebkitBackdropFilter: 'blur(30px)',
-                            transform: 'translateZ(0)',
-                            isolation: 'isolate',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
-                            color: '#ffffff',
-                            padding: '0.25vw 0.5vw',
-                            borderRadius: '0.3vw',
-                            fontSize: isTablet ? '0.55vw' : '0.65vw',
-                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
-                        }}>
-                        {label}
-                        <div className="absolute bottom-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-b-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}></div>
-                    </div>
-                )}
-            </div>
-        );
-    };
+    const toolbarProps = { primaryColor, getLayoutColor, isSidebarOpen, isTablet, addTextBelowIcons, textFont };
 
     return (
         <div
@@ -504,7 +508,7 @@ const Grid9Layout = ({
                                     border: recommendations.length > 0 ? 'none' : `1px solid ${getLayoutColor('search-text-v1', primaryColor)}30`
                                 }}
                             >
-                                <Icon icon="lucide:search" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.0vw] h-[1.0vw]') : (isTablet ? 'w-[1.0vw] h-[1.0vw]' : 'w-[1.1vw] h-[1.1vw]')}`} color={getLayoutColor('search-text-v1', primaryColor)} />
+                                <Icon icon="lucide:search" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '1.0vw') : (isTablet ? '1.0vw' : '1.1vw'), height: isSidebarOpen ? (isTablet ? '0.9vw' : '1.0vw') : (isTablet ? '1.0vw' : '1.1vw') }} color={getLayoutColor('search-text-v1', primaryColor)} />
                                 <input
                                     type="text"
                                     value={localSearchQuery}
@@ -567,7 +571,7 @@ const Grid9Layout = ({
                     >
                         {/* TOC */}
                         {(settings?.navigation?.tableOfContents ?? true) && (
-                            <ToolbarBtn
+                            <ToolbarBtn toolbarProps={toolbarProps}
                                 id="layout9-toc-btn"
                                 icon="fluent:text-bullet-list-24-filled"
                                 label="TOC"
@@ -577,7 +581,7 @@ const Grid9Layout = ({
                         )}
                         {/* Thumbnails */}
                         {(settings?.navigation?.pageThumbnails ?? true) && (
-                            <ToolbarBtn
+                            <ToolbarBtn toolbarProps={toolbarProps}
                                 id="layout9-thumbnails-btn"
                                 icon="ph:squares-four-fill"
                                 label="Thumbnails"
@@ -588,7 +592,7 @@ const Grid9Layout = ({
 
                         {/* Play/Pause */}
                         {(settings?.media?.autoFlip ?? true) && (
-                            <ToolbarBtn
+                            <ToolbarBtn toolbarProps={toolbarProps}
                                 icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"}
                                 label={isAutoFlipping ? 'Pause' : 'Play'}
                                 onClick={() => setIsPlaying(!isAutoFlipping)}
@@ -597,7 +601,7 @@ const Grid9Layout = ({
                         )}
                         {/* Gallery */}
                         {(settings?.interaction?.gallery ?? true) && (
-                            <ToolbarBtn
+                            <ToolbarBtn toolbarProps={toolbarProps}
                                 icon="clarity:image-gallery-solid"
                                 label="Gallery"
                                 onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowGalleryPopupMemo, showGalleryPopup, e, 'gallery'); }}
@@ -606,7 +610,7 @@ const Grid9Layout = ({
                         )}
                         <div className="relative" id="layout9-sound-icon-anchor">
                             {(settings?.media?.backgroundAudio ?? true) && (
-                                <ToolbarBtn
+                                <ToolbarBtn toolbarProps={toolbarProps}
                                     icon="solar:music-notes-bold"
                                     label="Sound"
                                     onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowSoundPopupMemo, showSoundPopup, e, 'sound'); }}
@@ -628,7 +632,7 @@ const Grid9Layout = ({
                                         className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : (isTablet ? 'w-[2.1vw] h-[2.1vw]' : 'w-[2.3vw] h-[2.3vw]')} rounded-full flex items-center justify-center transition-all shadow-sm`}
                                         style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                                     >
-                                        <Icon icon="lucide:zoom-out" className={`${isSidebarOpen ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                                        <Icon icon="lucide:zoom-out" style={{ width: isSidebarOpen ? '0.9vw' : '1.1vw', height: isSidebarOpen ? '0.9vw' : '1.1vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                                     </button>
                                     <div className="absolute top-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
                                         style={{
@@ -657,7 +661,7 @@ const Grid9Layout = ({
                                         className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : (isTablet ? 'w-[2.1vw] h-[2.1vw]' : 'w-[2.3vw] h-[2.3vw]')} rounded-full flex items-center justify-center transition-all shadow-sm`}
                                         style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                                     >
-                                        <Icon icon="lucide:zoom-in" className={`${isSidebarOpen ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
+                                        <Icon icon="lucide:zoom-in" style={{ width: isSidebarOpen ? '0.9vw' : '1.1vw', height: isSidebarOpen ? '0.9vw' : '1.1vw' }} />
                                     </button>
                                     <div className="absolute top-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
                                         style={{
@@ -713,7 +717,7 @@ const Grid9Layout = ({
                         <div className="w-[1px] h-[2vh] bg-white mx-[0.2vw] opacity-40" />
 
                         {/* Profile */}
-                        <ToolbarBtn
+                        <ToolbarBtn toolbarProps={toolbarProps}
                             id="layout9-profile-btn"
                             icon="fluent:person-24-filled"
                             label="Profile"
@@ -722,7 +726,7 @@ const Grid9Layout = ({
                         />
                         {/* Share */}
                         {(settings?.shareExport?.share ?? true) && (
-                            <ToolbarBtn
+                            <ToolbarBtn toolbarProps={toolbarProps}
                                 icon="mage:share-fill"
                                 label="Share"
                                 onClick={handleShare}
@@ -730,14 +734,14 @@ const Grid9Layout = ({
                         )}
                         {/* Download */}
                         {(settings?.shareExport?.download ?? true) && (
-                            <ToolbarBtn
+                            <ToolbarBtn toolbarProps={toolbarProps}
                                 icon="meteor-icons:download"
                                 label="Download"
                                 onClick={handleDownload}
                             />
                         )}
                         {/* Fullscreen */}
-                        {(settings?.viewing?.fullScreen ?? true) && <ToolbarBtn
+                        {(settings?.viewing?.fullScreen ?? true) && <ToolbarBtn toolbarProps={toolbarProps}
                             icon={isFullscreen ? "lucide:minimize" : "lucide:fullscreen"}
                             label={isFullscreen ? 'Exit' : 'Fullscreen'}
                             onClick={handleFullScreen}
@@ -948,7 +952,7 @@ const Grid9Layout = ({
                                 className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
                                 style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                             >
-                                <Icon icon="ph:skip-back-fill" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : 'w-[1.1vw] h-[1.1vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                                <Icon icon="ph:skip-back-fill" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.1vw', height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.1vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                             </button>
                             <div className="absolute bottom-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
                                 style={{
@@ -978,7 +982,7 @@ const Grid9Layout = ({
                                 className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
                                 style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                             >
-                                <Icon icon="lucide:chevron-left" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : 'w-[1.2vw] h-[1.2vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                                <Icon icon="lucide:chevron-left" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.2vw', height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.2vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                             </button>
                             <div className="absolute bottom-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
                                 style={{
@@ -1054,7 +1058,7 @@ const Grid9Layout = ({
                                 className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
                                 style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                             >
-                                <Icon icon="lucide:chevron-right" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : 'w-[1.2vw] h-[1.2vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                                <Icon icon="lucide:chevron-right" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.2vw', height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.2vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                             </button>
                             <div className="absolute bottom-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
                                 style={{
@@ -1084,7 +1088,7 @@ const Grid9Layout = ({
                                 className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
                                 style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                             >
-                                <Icon icon="ph:skip-forward-fill" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : 'w-[1.1vw] h-[1.1vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                                <Icon icon="ph:skip-forward-fill" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.1vw', height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.1vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                             </button>
                             <div className="absolute bottom-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
                                 style={{

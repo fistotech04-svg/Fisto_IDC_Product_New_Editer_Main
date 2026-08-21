@@ -24,12 +24,14 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         const r = parseInt(h.substring(0, 2), 16);
         const g = parseInt(h.substring(2, 4), 16);
         const b = parseInt(h.substring(4, 6), 16);
-        const a = Math.max(0, Math.min(1, opacity / 100));
+        const a = 0.4 + (Math.max(0, Math.min(1, opacity / 100)) * 0.6);
         return a >= 1 ? hex : `rgba(${r},${g},${b},${a})`;
     };
+    const layoutColorsArray = Array.isArray(layoutColors) ? layoutColors : (layoutColors?.[activeLayout] || []);
+
     const getLayoutColor = (id, defaultColor) => {
-        if (layoutColors && Array.isArray(layoutColors)) {
-            const c = layoutColors.find(x => x && x.id === id);
+        if (layoutColorsArray && layoutColorsArray.length > 0) {
+            const c = layoutColorsArray.find(x => x && x.id === id);
             if (c) return hexToRgba(c.hex, c.opacity ?? 100);
         }
         return `var(--${id}, ${defaultColor})`;
@@ -38,9 +40,12 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
     const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) =>
         `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
 
-    const tocBgHex = layoutColors && Array.isArray(layoutColors) ? layoutColors.find(c => c && c.id === 'toc-bg')?.hex || '#575C9C' : '#575C9C';
-    const tocTextHex = layoutColors && Array.isArray(layoutColors) ? layoutColors.find(c => c && c.id === 'toc-text')?.hex || '#FFFFFF' : '#FFFFFF';
-    const bodyTextColor = isLightColor(tocBgHex) ? tocTextHex : tocBgHex;
+    const tocBgHex = layoutColorsArray.length > 0 ? layoutColorsArray.find(c => c && c.id === 'toc-bg')?.hex || '#575C9C' : '#575C9C';
+    const tocTextHex = layoutColorsArray.length > 0 ? layoutColorsArray.find(c => c && c.id === 'toc-text')?.hex || '#FFFFFF' : '#FFFFFF';
+    let bodyTextColor = isLightColor(tocBgHex) ? tocTextHex : tocBgHex;
+    if (isLightColor(bodyTextColor)) {
+        bodyTextColor = '#333333';
+    }
     const {
         searchQuery,
         setSearchQuery,
@@ -505,7 +510,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                 className="flex flex-col gap-0.5 overflow-y-auto max-h-[220px] pr-1"
                             >
                                 {filteredContent.length === 0 ? (
-                                    <div className="text-center py-6 text-gray-400 text-[11px] italic">
+                                    <div className="text-center py-6 text-[11px] italic" style={{ color: bodyTextColor, opacity: 0.6 }}>
                                         No items found
                                     </div>
                                 ) : (
@@ -637,7 +642,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                 ))}
                                 {filteredContent.length === 0 && (
                                     <div className="text-[0.8vw] text-center py-[1vw] font-medium"
-                                        style={{ color: getLayoutColor('toc-text', '#575C9C'), opacity: 0.6 }}
+                                        style={{ color: bodyTextColor, opacity: 0.6 }}
                                     >
                                         No Table Of Content Found
                                     </div>
@@ -734,7 +739,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
                                             onClick={(e) => e.stopPropagation()}
-                                            className="w-full rounded-full pl-[1.8vw] pr-[0.5vw] py-[0.2vw] text-[0.75vw] outline-none border border-white/10 transition-colors"
+                                            className="w-full rounded-full pl-[1.8vw] pr-[0.5vw] py-[0.2vw] text-[0.75vw] outline-none border border-white/10 transition-colors placeholder:text-current placeholder:opacity-60"
                                             style={{
                                                 color: getLayoutColor('toc-text', '#FFFFFF'),
                                                 backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -818,7 +823,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                     >
                         <div
                             className={`${isMobile ? 'rounded-[12px] p-[8px]' : isTablet ? 'rounded-[0.3vw] p-[0.4vw]' : 'rounded-[0.5vw] p-[0.4vw]'} w-full flex flex-col`}
-                            style={{ backgroundColor: getLayoutColorRgba('toc-bg', '87, 92, 156', '1') }}
+                            style={{ backgroundColor: `rgba(var(--toc-bg-rgb, 87, 92, 156), calc(0.2 + var(--toc-bg-opacity, 1) * 0.8))` }}
                         >
                             {/* Header */}
                             <div className={`flex items-center ${isMobile ? 'mb-[12px] px-[4px] pt-[4px]' : isTablet ? 'gap-[0.6vw] mb-[0.6vw] px-[0.4vw] pt-[0.2vw]' : 'gap-[0.8vw] mb-[0.8vw] px-[0.6vw] pt-[0.4vw]'}`}>
@@ -840,7 +845,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         placeholder="Search..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className={`w-full ${isMobile ? 'rounded-[12px] pl-[28px] pr-[8px] py-[4px] text-[10px]' : isTablet ? 'rounded-[0.4vw] pl-[1.6vw] pr-[0.6vw] py-[0.4vw] text-[0.7vw]' : 'rounded-[0.4vw] pl-[2vw] pr-[0.8vw] py-[0.5vw] text-[0.8vw]'} outline-none transition-colors`}
+                                        className={`w-full ${isMobile ? 'rounded-[12px] pl-[28px] pr-[8px] py-[4px] text-[10px]' : isTablet ? 'rounded-[0.4vw] pl-[1.6vw] pr-[0.6vw] py-[0.4vw] text-[0.7vw]' : 'rounded-[0.4vw] pl-[2vw] pr-[0.8vw] py-[0.5vw] text-[0.8vw]'} outline-none transition-colors placeholder:text-current placeholder:opacity-60`}
                                         style={{
                                             color: getLayoutColor('toc-text', '#FFFFFF'),
                                             backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -919,7 +924,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                     <div
                         className={`${isMobile ? 'rounded-2xl w-[235px]' : isTablet ? 'rounded-[8px] w-[170px]' : 'rounded-[0.7vw] w-[13vw]'} shadow-2xl overflow-hidden relative backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200`}
                         style={{
-                            backgroundColor: getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8'),
+                            backgroundColor: `rgba(var(--toc-bg-rgb, 87, 92, 156), 0.8)`,
                             border: '1px solid rgba(255, 255, 255, 0.2)'
                         }}
                         onClick={(e) => e.stopPropagation()}
@@ -1060,7 +1065,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                         ${(isMobile && !isLandscape && Number(activeLayout) === 5) ? 'w-[280px]' : ''}
                     `}
                     style={{
-                        backgroundColor: (isLayout1) ? getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8') : (isLayout2 || (isMobile && isLandscape) ? undefined : getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8')),
+                        backgroundColor: (isLayout1) ? `rgba(var(--toc-bg-rgb, 87, 92, 156), 0.8)` : (isLayout2 || (isMobile && isLandscape) ? undefined : getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8')),
                         border: isLayout1 ? '1px solid rgba(255, 255, 255, 0.2)' : undefined
                     }}
                     onClick={(e) => e.stopPropagation()}
@@ -1097,7 +1102,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         <Icon
                                             icon="lucide:search"
                                             className={`absolute ${isMobile ? (isLandscape ? 'left-[1vw]' : 'left-3') : 'left-[1.2vw]'} top-1/2 -translate-y-1/2 ${isMobile ? (isLandscape ? 'w-[0.6vw] h-[0.6vw]' : 'w-3.5 h-3.5') : 'w-[0.85vw] h-[0.85vw]'}`}
-                                            style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.7)' }}
+                                            style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}
                                         />
                                         <input
                                             type="text"
@@ -1106,7 +1111,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                             onChange={(e) => setSearchQuery(e.target.value)}
                                             onClick={(e) => e.stopPropagation()}
                                             onMouseDown={(e) => e.stopPropagation()}
-                                            className={`w-full rounded-full ${isMobile ? (isLandscape ? 'pl-[1.8vw] pr-[0.5vw] py-[0.2vw] text-[0.65vw]' : 'pl-7 pr-3 py-1 text-[10px]') : 'pl-[2.2vw] pr-[0.8vw] py-[0.35vw] text-[0.75vw]'} outline-none border border-white/10 transition-colors placeholder:opacity-50`}
+                                            className={`w-full rounded-full ${isMobile ? (isLandscape ? 'pl-[1.8vw] pr-[0.5vw] py-[0.2vw] text-[0.65vw]' : 'pl-7 pr-3 py-1 text-[10px]') : 'pl-[2.2vw] pr-[0.8vw] py-[0.35vw] text-[0.75vw]'} outline-none border border-white/10 transition-colors placeholder:text-current placeholder:opacity-70`}
                                             style={{
                                                 color: getLayoutColor('toc-text', '#FFFFFF'),
                                                 backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -1205,3 +1210,5 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 };
 
 export default TableOfContentsPopup;
+
+

@@ -5,28 +5,16 @@ import TabletTableOfContentsPopup from './TabletTableOfContentsPopup';
 import TabletProfilePopup from './TabletProfilePopup';
 import ShareModal from '../../../ShareModal';
 
-const hexToRgb = (hex) => {
-    if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return '255, 255, 255';
-    const r = parseInt(hex.slice(1, 3), 16) || 0;
-    const g = parseInt(hex.slice(3, 5), 16) || 0;
-    const b = parseInt(hex.slice(5, 7), 16) || 0;
-    return `${r}, ${g}, ${b}`;
+const getLayoutColor = (id, defaultColor) => {
+    return `var(--${id}, ${defaultColor})`;
 };
 
-const getLayoutColor = (layoutColors, id, defaultColor) => {
-    if (!layoutColors) return `var(--${id}, ${defaultColor})`;
-    if (Array.isArray(layoutColors)) {
-        const color = layoutColors.find(c => c.id === id || c.name === id);
-        if (color && color.value) {
-            return `rgba(${hexToRgb(color.value)}, ${(color.opacity ?? 100) / 100})`;
-        }
-    } else {
-        const color = layoutColors[id];
-        if (color && color.value) {
-            return `rgba(${hexToRgb(color.value)}, ${(color.opacity ?? 100) / 100})`;
-        }
-    }
-    return `var(--${id}, ${defaultColor})`;
+const getLayoutColorRgba = (id, defaultRgb, opacity) => {
+    return `rgba(var(--${id}-rgb, ${defaultRgb}), ${opacity})`;
+};
+
+const getLayoutColorAlpha = (id, defaultRgb, alpha) => {
+    return `rgba(var(--${id}-rgb, ${defaultRgb}), ${alpha})`;
 };
 
 const SidebarBtn = ({ icon, onClick, active, color }) => (
@@ -181,19 +169,19 @@ const TabletLayout6 = ({
             {/* Top Header */}
             <div 
                 className="w-full flex items-center justify-between px-[2cqw] py-[1.2cqh] shrink-0 z-50 border-b border-white/10" 
-                style={{ backgroundColor: getLayoutColor(layoutColors, 'toolbar-bg', '#575C9C') }}
+                style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
             >
                 {/* Search */}
                 <div className="w-[30cqw] relative">
                     {(settings?.interaction?.search ?? true) && (
                         <div
                             className="flex items-center px-[1cqw] py-[0.8cqh] rounded-[0.4cqw] relative"
-                            style={{ backgroundColor: getLayoutColor(layoutColors, 'search-bg-v2', '#DDE0F4') }}
+                            style={{ backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4') }}
                         >
                             <Icon
                                 icon="lucide:search"
                                 className="w-[1.6cqw] h-[1.6cqw]"
-                                style={{ color: getLayoutColor(layoutColors, 'search-text-v1', '#575C9C') }}
+                                style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
                             />
                             <input
                                 type="text"
@@ -237,7 +225,7 @@ const TabletLayout6 = ({
                                 }}
                                 placeholder="Quick Search..."
                                 className="bg-transparent border-0 outline-none w-full ml-[0.8cqw] font-medium text-[1.4cqw]"
-                                style={{ color: getLayoutColor(layoutColors, 'search-text-v1', '#575C9C') }}
+                                style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
                             />
                         </div>
                     )}
@@ -333,7 +321,7 @@ const TabletLayout6 = ({
                         <button
                             onClick={() => bookRef?.current?.pageFlip()?.flipPrev()}
                             className={`absolute left-[2cqw] flex items-center justify-center transition-all z-10 ${currentPage === 0 ? 'opacity-20 cursor-not-allowed' : 'opacity-60 hover:opacity-100 hover:scale-110 cursor-pointer'}`}
-                            style={{ color: getLayoutColor(layoutColors, 'toolbar-text-main', '#575C9C') }}
+                            style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}
                             disabled={currentPage === 0}
                         >
                             <Icon icon="ph:caret-left" className="w-[3cqw] h-[3cqw]" />
@@ -353,7 +341,7 @@ const TabletLayout6 = ({
                         <button
                             onClick={() => bookRef?.current?.pageFlip()?.flipNext()}
                             className={`absolute right-[2cqw] flex items-center justify-center transition-all z-10 ${currentPage >= pagesCount - 1 ? 'opacity-20 cursor-not-allowed' : 'opacity-60 hover:opacity-100 hover:scale-110 cursor-pointer'}`}
-                            style={{ color: getLayoutColor(layoutColors, 'toolbar-text-main', '#575C9C') }}
+                            style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}
                             disabled={currentPage >= pagesCount - 1}
                         >
                             <Icon icon="ph:caret-right" className="w-[3cqw] h-[3cqw]" />
@@ -366,7 +354,7 @@ const TabletLayout6 = ({
                             className="absolute right-[4cqw] bottom-[4cqh] px-[2cqw] py-[1cqh] rounded-[0.8cqw] shadow-md z-30 border bg-white flex items-center"
                             style={{ borderColor: 'rgba(0,0,0,0.1)' }}
                         >
-                            <span className="text-[1.4cqw] font-bold" style={{ color: getLayoutColor(layoutColors, 'toolbar-text-main', '#575C9C') }}>Page </span>
+                            <span className="text-[1.4cqw] font-bold" style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}>Page </span>
                             <input
                                 type="text"
                                 value={inputPage}
@@ -389,9 +377,9 @@ const TabletLayout6 = ({
                                     if (p - 1 !== currentPage) onPageClick(p - 1);
                                 }}
                                 className="text-[1.4cqw] font-bold bg-transparent border-none outline-none text-center mx-[0.5cqw]"
-                                style={{ width: `${String(pagesCount).length + 1}ch`, color: getLayoutColor(layoutColors, 'toolbar-text-main', '#575C9C') }}
+                                style={{ width: `${String(pagesCount).length + 1}ch`, color: getLayoutColor('toolbar-text-main', '#575C9C') }}
                             />
-                            <span className="text-[1.4cqw] font-bold" style={{ color: getLayoutColor(layoutColors, 'toolbar-text-main', '#575C9C') }}> / {pagesCount}</span>
+                            <span className="text-[1.4cqw] font-bold" style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}> / {pagesCount}</span>
                         </div>
                     )}
                 </div>
@@ -399,7 +387,7 @@ const TabletLayout6 = ({
                 {/* Right Sidebar Icons */}
                 <div 
                     className="flex flex-col items-center py-[2cqh] px-[1cqw] gap-[2cqh] shrink-0 border-l border-white/10"
-                    style={{ backgroundColor: getLayoutColor(layoutColors, 'toolbar-bg', '#575C9C') }}
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
                 >
                     <SidebarBtn icon="fluent:text-bullet-list-24-filled" active={showTOC} onClick={() => { setShowTOCMemo?.(!showTOC); setShowThumbnailBarMemo?.(false); setShowProfilePopup?.(false); }} />
                     <SidebarBtn icon="ph:squares-four-fill" active={showThumbnailBar} onClick={() => { setShowThumbnailBarMemo?.(!showThumbnailBar); setShowTOCMemo?.(false); setShowProfilePopup?.(false); }} />
@@ -431,7 +419,7 @@ const TabletLayout6 = ({
             {/* Bottom Footer */}
             <div 
                 className="w-full flex items-center justify-between px-[2cqw] py-[1.2cqh] shrink-0 z-50 border-t border-white/10"
-                style={{ backgroundColor: getLayoutColor(layoutColors, 'bottom-toolbar-bg', '#575C9C') }}
+                style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}
             >
                 {/* Playback Controls */}
                 <div className="flex items-center gap-[1.5cqw]">

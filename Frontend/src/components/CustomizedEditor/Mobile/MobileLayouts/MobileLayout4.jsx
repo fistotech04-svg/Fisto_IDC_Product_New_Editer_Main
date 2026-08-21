@@ -279,7 +279,7 @@ const MobileLayout4 = (props) => {
             {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header */}
-            <header className="z-50 px-4 pt-0 pb-3 flex flex-col gap-3 shadow-sm relative shrink-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <header className="z-50 px-4 pt-0 pb-3 flex flex-col gap-3 shadow-sm relative shrink-0" style={{ backgroundColor: "transparent" }}>
                 {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[15] bg-transparent" onClick={() => setShowSuggestions(false)} />}
 
                 {/* Top Row: Book Title & Logo */}
@@ -300,7 +300,7 @@ const MobileLayout4 = (props) => {
                 {/* Bottom Row: Search & Hamburger Container */}
                 <div className="flex items-center gap-3">
                     <div className={`flex-1 bg-[#EAEAF3] rounded-[2px] px-2.5 py-1.5 flex items-center gap-2 shadow-inner relative ${showSuggestions && recommendations.length > 0 ? 'z-20' : ''}`}
-                        style={{ backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4') }}
+                        style={{ backgroundColor: "transparent" }}
                     >
                         <Icon icon="lucide:search" className="text-[#575C9C] w-4 h-4 opacity-70" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
                         <input
@@ -403,7 +403,7 @@ const MobileLayout4 = (props) => {
                     }}
                         className={`flex items-center justify-center shrink-0 transition-all ${(showMoreMenu || showLocalThumbnails || showLocalTOC || showLocalProfile || props.showGalleryPopup || showSharePopup || showExportPopup) ? 'w-8 h-8 rounded-none border-[1.5px] shadow-sm' : 'p-1.5 border border-white/50 rounded'}`}
                         style={(showMoreMenu || showLocalThumbnails || showLocalTOC || showLocalProfile || props.showGalleryPopup || showSharePopup || showExportPopup) ? {
-                            backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4'),
+                            backgroundColor: "transparent",
                             color: getLayoutColor('search-text-v1', '#575C9C'),
                             borderColor: getLayoutColor('search-text-v1', '#575C9C')
                         } : {
@@ -440,7 +440,7 @@ const MobileLayout4 = (props) => {
             <div className="flex-1 relative flex flex-col overflow-hidden">
 
                 {/* Main Content Area */}
-                <div className="flex-1 relative overflow-hidden flex flex-col" style={{ backgroundColor: getLayoutColor('page-bg', '#BDC3D9') }}>
+                <div className="flex-1 relative overflow-hidden flex flex-col" style={{ backgroundColor: "transparent" }}>
 
                     {/* Menu Strip Overlay - Positioned between header and footer */}
                     <AnimatePresence>
@@ -465,7 +465,7 @@ const MobileLayout4 = (props) => {
                                     exit={{ opacity: 0 }}
                                     transition={{ duration: 0.2 }}
                                     className="absolute right-4 top-1/2 -translate-y-1/2 z-[160] w-[10%] max-w-[40px] flex flex-col items-center justify-center gap-7 py-7 shadow-2xl"
-                                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                                    style={{ backgroundColor: "transparent" }}
                                 >
                                     {/* Thumbnail Button with Popup (Grid Icon) */}
                                     <div className="relative flex items-center justify-center w-full">
@@ -789,7 +789,7 @@ const MobileLayout4 = (props) => {
                                 exit={{ x: '100%' }}
                                 transition={{ type: 'tween', duration: 0.3 }}
                                 className="absolute right-0 top-0 bottom-0 z-[170] w-[60%] flex flex-col shadow-2xl border-l border-white/10"
-                                style={{ backgroundColor: getLayoutColor('toc-bg', '#FFFFFF') }}
+                                style={{ backgroundColor: "transparent" }}
                             >
                                 {/* Header */}
                                 <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100 shrink-0">
@@ -878,7 +878,7 @@ const MobileLayout4 = (props) => {
                 </div>
 
                 {/* Footer */}
-                <footer className="z-50 shrink-0 flex flex-col pt-2 pb-8 relative" style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
+                <footer className="z-50 shrink-0 flex flex-col pt-2 pb-8 relative" style={{ backgroundColor: "transparent" }}>
 
                     {/* Top row: Page indicator pills (right-aligned) */}
                     <div className="flex items-center justify-end px-4 mb-2 gap-1.5">
@@ -916,7 +916,7 @@ const MobileLayout4 = (props) => {
                                 onClick={handleProgressClick}>
                                 <div
                                     className="absolute left-0 top-0 h-full transition-all duration-300 rounded-full"
-                                    style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                                    style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: "transparent" }}
                                 />
                             </div>
                         </div>
