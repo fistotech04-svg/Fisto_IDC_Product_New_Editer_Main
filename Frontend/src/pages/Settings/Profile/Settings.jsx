@@ -134,76 +134,15 @@ const SettingsLayout = () => {
     <div className="flex h-full bg-white font-sans overflow-hidden">
       
       {/* Sidebar */}
-      <aside className="w-[16vw] flex-shrink-0 border-r border-gray-100 flex flex-col">
+      <aside className="w-[16vw] mt-[1.5vw] flex-shrink-0 border-r border-gray-100 flex flex-col">
         
-        {/* User Info (Top Left of Sidebar) */}
-        <div className="p-[1.5vw] flex items-center justify-between border-b border-gray-100 mb-[0.5vw] relative group hover:bg-gray-50 transition-colors">
-          <div className="flex items-center gap-[1vw] flex-1 min-w-0">
-            <div 
-              className="w-[2.5vw] h-[2.5vw] rounded-full overflow-hidden relative shadow-sm flex items-center justify-center bg-white transition-colors duration-300 flex-shrink-0"
-              style={{ backgroundColor: user.avatarBgColor === '#E8D4C8' && user.picture === 'color_only' ? '#E8D4C8' : (user.avatarBgColor === '#E8D4C8' ? '#ffffff' : user.avatarBgColor) }}
-            >
-              {user.picture && user.picture !== 'color_only' && !user.picture.includes('unsplash') ? (
-                 <img 
-                    src={user.picture} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                 />
-              ) : (user.picture === 'color_only' ? (
-                 <span className="text-white text-[1.2vw] font-semibold drop-shadow-md">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
-              ) : (
-                 <img 
-                    src={p1} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                 />
-              ))}
-            </div>
-            <div className="flex-1 min-w-0 pr-[0.5vw]">
-              {isEditingSidebar ? (
-                <div className="flex flex-col gap-[0.2vw]">
-                  <input 
-                    type="text" 
-                    value={editName} 
-                    onChange={e => setEditName(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && handleSidebarSave()}
-                    autoFocus
-                    className="text-[1.1vw] font-semibold text-gray-900 border-b border-gray-300 focus:border-gray-500 focus:outline-none bg-transparent w-full"
-                  />
-                  <input 
-                    type="text" 
-                    value={editEmail} 
-                    onChange={e => setEditEmail(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && handleSidebarSave()}
-                    className="text-[0.75vw] text-gray-500 border-b border-gray-300 focus:border-gray-500 focus:outline-none bg-transparent w-full mt-[0.2vw]"
-                  />
-                </div>
-              ) : (
-                <div onClick={() => setIsEditingSidebar(true)} className="cursor-pointer">
-                  <h3 className="text-[1.1vw] font-semibold text-gray-900 truncate max-w-[9vw]" title={user.name}>{user.name}</h3>
-                  <p className="text-[0.75vw] text-gray-500 truncate max-w-[9vw]" title={user.email}>{user.email}</p>
-                </div>
-              )}
-            </div>
-          </div>
-          <button 
-            onClick={() => {
-              if (isEditingSidebar) handleSidebarSave();
-              else setIsEditingSidebar(true);
-            }}
-            className="text-gray-800 hover:text-gray-900 mt-[-3vw] flex-shrink-0"
-          >
-            <Icon icon={isEditingSidebar ? "mdi:check" : "fa7-regular:edit"} className="w-[1.2vw] h-[1.2vw]" />
-          </button>
-        </div>
-
         <div className="flex-1 px-[1vw] pb-[2vw] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {sidebarGroups.map((group, index) => (
             <div key={index} className="mb-[1vw]">
               
               {/* Group Title with Line */}
-              <div className="flex items-center gap-[1vw] mb-[0.4vw] px-[0.5vw]">
-                <h4 className="text-[0.9vw] font-semibold text-gray-700 whitespace-nowrap">
+              <div className="flex items-center gap-[1vw] mb-[0.8vw] px-[0.5vw]">
+                <h4 className="text-[0.95vw] font-semibold text-gray-700 whitespace-nowrap">
                   {group.title}
                 </h4>
                 <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
