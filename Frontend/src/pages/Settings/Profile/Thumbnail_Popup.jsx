@@ -50,7 +50,7 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
   };
 
   return (
-    <div className="absolute top-[1.5vw] right-[1vw] w-[17vw] bg-white rounded-[0.8vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-[1.2vw] z-[100]">
+    <div className="absolute top-[1.5vw] right-[1vw] w-[16vw] bg-white rounded-[0.8vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-[1.2vw] z-[100]">
       <div className="flex justify-between items-center mb-[1vw]">
         <h3 className="text-[1vw] font-semibold text-gray-800">Edit Thumbnail</h3>
         <button onClick={onClose} className="text-gray-400 hover:text-red-600 transition-colors">
@@ -127,7 +127,7 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
 
       <div>
         {isCustomBanner && displayBannerSrc ? (
-          <div className="flex gap-[1vw] items-center rounded-[0.4vw] p-[0.3vw] bg-gray-50/70 border border-gray-100">
+          <div className="flex gap-[1vw] items-center">
              <img src={displayBannerSrc} alt="Uploaded" className="w-[4vw] h-[4vw] object-cover rounded-[0.4vw] border border-gray-200" />
              <div className="flex-1 min-w-0">
                 <h4 className="text-[0.85vw] font-medium text-gray-800 truncate">Image</h4>
@@ -136,7 +136,7 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
                 </p>
                 <div className="flex gap-[0.4vw] mt-[0.5vw]">
                    <button onClick={handleUpload} className="px-[0.5vw] py-[0.25vw] border border-gray-200 rounded-[0.3vw] text-[0.7vw] font-medium text-gray-700 bg-white hover:bg-gray-100 transition-colors cursor-pointer shadow-sm">
-                      Replace image
+                      Replace Image
                    </button>
                    <button onClick={() => {
                       setUploadedImage(null);

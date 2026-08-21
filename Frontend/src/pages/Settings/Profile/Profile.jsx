@@ -475,82 +475,16 @@ const Profile = () => {
       }, 150);
     };
 
-    let scrollAnimation = null;
-    let targetScroll = null;
-
-    const handleWheel = (e) => {
-      if (e.deltaY < 0) {
-        const profileContainer = document.getElementById('profile-container');
-        if (!profileContainer || profileContainer.scrollTop <= 0) return;
-        
-        let target = e.target;
-        let isChildScrolling = false;
-        
-        while (target && target !== profileContainer) {
-          if (target.scrollHeight > target.clientHeight) {
-            const overflowY = window.getComputedStyle(target).overflowY;
-            if (overflowY === 'auto' || overflowY === 'scroll') {
-              if (target.scrollTop > 0) {
-                isChildScrolling = true;
-                break;
-              }
-            }
-          }
-          target = target.parentElement;
-        }
-        
-        if (!isChildScrolling) {
-          e.preventDefault(); // Stop native aborts
-          
-          if (Math.abs(e.deltaY) < 40) {
-            // Trackpad: apply tiny deltas instantly
-            profileContainer.scrollTop += e.deltaY;
-            targetScroll = profileContainer.scrollTop;
-          } else {
-            // Mouse wheel: smooth cubic ease-out animation
-            if (targetScroll === null) targetScroll = profileContainer.scrollTop;
-            targetScroll += (e.deltaY * 1.5); 
-            targetScroll = Math.max(0, Math.min(targetScroll, profileContainer.scrollHeight - profileContainer.clientHeight));
-            
-            if (scrollAnimation) cancelAnimationFrame(scrollAnimation);
-            
-            const startScroll = profileContainer.scrollTop;
-            const distance = targetScroll - startScroll;
-            const startTime = performance.now();
-            const duration = 250; 
-            
-            const animate = (currentTime) => {
-              const elapsed = currentTime - startTime;
-              const progress = Math.min(elapsed / duration, 1);
-              
-              const easeOut = 1 - Math.pow(1 - progress, 3);
-              profileContainer.scrollTop = startScroll + (distance * easeOut);
-              
-              if (progress < 1) {
-                scrollAnimation = requestAnimationFrame(animate);
-              } else {
-                targetScroll = null;
-              }
-            };
-            scrollAnimation = requestAnimationFrame(animate);
-          }
-        }
-      }
-    };
-
     const container = document.getElementById('profile-container');
     if (container) {
       container.addEventListener('scroll', handleScroll, { passive: true });
-      container.addEventListener('wheel', handleWheel, { passive: false });
     }
     handleScroll();
 
     return () => {
       if (container) {
         container.removeEventListener('scroll', handleScroll);
-        container.removeEventListener('wheel', handleWheel);
       }
-      if (scrollAnimation) cancelAnimationFrame(scrollAnimation);
     };
   }, []);
 
@@ -608,23 +542,33 @@ const Profile = () => {
 
         {/* Top Banner Wrapper */}
         <div 
-          className="relative w-full rounded-[1vw] z-[05] flex-shrink-0"
-          style={{ height: `${14 - (8 * scrollProgress)}vw` }}
+          className="relative w-full rounded-[1vw] z-[05] flex-shrink-0 overflow-hidden"
+          style={{ 
+            height: `${14 - (8 * scrollProgress)}vw`,
+            background: bannerBg.type === 'solid' ? bannerBg.value : undefined,
+            backgroundImage: bannerBg.type === 'gradient' ? bannerBg.value : undefined,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            willChange: 'height'
+          }}
         >
-          {/* Actual Shrinking Banner */}
-          <div
-            className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden"
-            style={{
-              height: `${14 - (8 * scrollProgress)}vw`,
-              background: bannerBg.type === 'solid' ? bannerBg.value : undefined,
-              backgroundImage: (bannerBg.type === 'gradient' || bannerBg.type === 'media' || bannerBg.type === 'image') ? bannerBg.value : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center'
-            }}
-          >
-            {/* Faint wavy overlay could go here, using a CSS radial gradient as a placeholder for the texture */}
-            <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 30% 150%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 70% -50%, rgba(255,255,255,0.4) 0%, transparent 50%)' }}></div>
-          </div>
+          {/* Parallax Image Banner (Only used for actual images to maintain high FPS) */}
+          {(bannerBg.type === 'image' || bannerBg.type === 'media') && (
+            <div
+              className="absolute top-0 inset-x-0 w-full"
+              style={{
+                height: `14vw`,
+                transform: `translateY(-${scrollProgress * 4}vw)`,
+                backgroundImage: bannerBg.value.startsWith('url') ? bannerBg.value : `url(${bannerBg.value})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                willChange: 'transform'
+              }}
+            ></div>
+          )}
+          
+          {/* Faint wavy overlay could go here, using a CSS radial gradient as a placeholder for the texture */}
+          <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 30% 150%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 70% -50%, rgba(255,255,255,0.4) 0%, transparent 50%)' }}></div>
         </div>
 
         {/* Main Content Area */}
@@ -646,7 +590,7 @@ const Profile = () => {
               {/* Avatar Wrapper */}
               <div
                 className="relative flex justify-center items-center z-[70] w-[12vw] h-[12vw] mt-[-6vw]"
-                style={{ transform: `scale(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center' }}
+                style={{ transform: `scale(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center', willChange: 'transform' }}
               >
                 {/* Left Smooth Corner */}
                 <svg className="absolute top-[3.19vw] -left-[1vw] w-[1.5vw] h-[2vw] z-10 pointer-events-none" viewBox="0 0 10 10">
@@ -706,13 +650,18 @@ const Profile = () => {
                   >
                     <Icon icon="mdi:edit-outline" className="w-[1.2vw] h-[1.2vw]" />
                   </button>
-                  <AvatarPopup
-                    isOpen={isAvatarPopupOpen}
-                    onClose={() => setIsAvatarPopupOpen(false)}
-                    onSelectAvatar={handleSelectAvatar}
-                    onSelectColor={handleSelectColor}
-                    currentAvatar={user.picture}
-                  />
+                  <div 
+                    className="absolute top-0 left-0"
+                    style={{ transform: `scale(${1 / (1 - (0.30 * scrollProgress))})`, transformOrigin: 'top left' }}
+                  >
+                    <AvatarPopup
+                      isOpen={isAvatarPopupOpen}
+                      onClose={() => setIsAvatarPopupOpen(false)}
+                      onSelectAvatar={handleSelectAvatar}
+                      onSelectColor={handleSelectColor}
+                      currentAvatar={user.picture}
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -130,7 +130,7 @@ const AvatarPopup = ({ isOpen, onClose, onSelectAvatar, onSelectColor, currentAv
 
       <div>
         {isCustomUploaded && displayImageSrc ? (
-          <div className="flex gap-[1vw] items-center rounded-[0.4vw] p-[0.3vw] bg-gray-50/70 border border-gray-100">
+          <div className="flex gap-[1vw] items-center">
              <img src={displayImageSrc} alt="Uploaded" className="w-[4vw] h-[4vw] object-cover rounded-[0.4vw] border border-gray-200" referrerPolicy="no-referrer" />
              <div className="flex-1 min-w-0">
                 <h4 className="text-[0.85vw] font-medium text-gray-800 truncate">Image</h4>
@@ -139,7 +139,7 @@ const AvatarPopup = ({ isOpen, onClose, onSelectAvatar, onSelectColor, currentAv
                 </p>
                 <div className="flex gap-[0.4vw] mt-[0.5vw]">
                    <button onClick={handleUpload} className="px-[0.5vw] py-[0.25vw] border border-gray-200 rounded-[0.3vw] text-[0.7vw] font-medium text-gray-700 bg-white hover:bg-gray-100 transition-colors cursor-pointer shadow-sm">
-                      Replace Img
+                      Replace Image
                    </button>
                    <button onClick={() => {
                       setUploadedImage(null);

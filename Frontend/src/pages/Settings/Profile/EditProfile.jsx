@@ -188,7 +188,7 @@ const EditProfile = ({ user, setUser }) => {
                 <div className="absolute left-[0.8vw] top-1/2 -translate-y-1/2">
                   <Icon icon="logos:google-icon" className="w-[1vw] h-[1vw]" />
                 </div>
-                <input type="email" placeholder="e.g. john@example.com" value={editedUser?.email || ''} onChange={(e) => { setEditedUser({ ...editedUser, email: e.target.value }); setErrors({ ...errors, email: null }); }} onBlur={(e) => validateField('email', e.target.value)} className={`w-full border ${errors.email ? 'border-red-500' : 'border-gray-200'} rounded-[0.4vw] pl-[2.5vw] pr-[0.8vw] py-[0.6vw] text-[0.8vw] focus:outline-none focus:border-gray-300 text-gray-600`} />
+                <input type="email" placeholder="e.g. john@example.com" value={editedUser?.email || ''} disabled className="w-full border border-gray-200 bg-gray-50 cursor-default pointer-events-none rounded-[0.4vw] pl-[2.5vw] pr-[0.8vw] py-[0.6vw] text-[0.8vw] focus:outline-none text-gray-500" />
               </div>
               {errors.email && <p className="text-red-500 text-[0.65vw] mt-[0.2vw]">{errors.email}</p>}
             </div>
