@@ -56,7 +56,9 @@ const TabletLayout7 = ({
     showThumbnailBar,
     setShowThumbnailBarMemo,
     showSoundPopup,
-    setShowSoundPopupMemo
+    setShowSoundPopupMemo,
+    showProfilePopup,
+    setShowProfilePopup
 }) => {
     const [isShareOpen, setIsShareOpen] = useState(false);
     const progressRef = useRef(null);
@@ -212,7 +214,14 @@ const TabletLayout7 = ({
                     {(settings?.media?.backgroundAudio ?? true) && (
                         <button onClick={() => { setShowSoundPopupMemo?.(!showSoundPopup); setShowTOCMemo?.(false); setShowThumbnailBarMemo?.(false); }} className={`text-white hover:text-gray-300 active:scale-95 transition-transform ${showSoundPopup ? 'text-gray-300 opacity-70' : ''}`}><Icon icon="solar:music-notes-bold" className="w-[2.4cqw] h-[2.4cqw]" /></button>
                     )}
-                    <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="fluent:person-24-filled" className="w-[2.4cqw] h-[2.4cqw]" /></button>
+                    <button onClick={() => {
+                        setShowProfilePopup(true);
+                        setShowTOCMemo?.(false);
+                        setShowThumbnailBarMemo?.(false);
+                        setShowSoundPopupMemo?.(false);
+                    }} className="text-white hover:text-gray-300 active:scale-95 transition-transform">
+                        <Icon icon="fluent:person-24-filled" className="w-[2.4cqw] h-[2.4cqw]" />
+                    </button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform" onClick={() => setIsShareOpen(true)}><Icon icon="mage:share-fill" className="w-[2.4cqw] h-[2.4cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="meteor-icons:download" className="w-[2.4cqw] h-[2.4cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="lucide:fullscreen" className="w-[2.4cqw] h-[2.4cqw]" /></button>

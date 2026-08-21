@@ -439,15 +439,7 @@ const MobileLayout3 = (props) => {
                     </>
                 )}
 
-                {showProfilePopup && !isLandscape && (
-                    <ProfilePopup
-                        onClose={() => toggleProfilePopup(false)}
-                        profileSettings={profileSettings}
-                        activeLayout={3}
-                        isMobile={true}
-                        isLandscape={false}
-                    />
-                )}
+
 
                 {showExportPopup && !isLandscape && (
                     <Export

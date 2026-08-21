@@ -1042,11 +1042,10 @@ const Grid7Layout = ({
                     {(settings?.brandingProfile?.profile ?? true) && (
                         <button
                             onClick={() => {
-                                const wasOpen = showLocalProfile;
                                 closeAll();
-                                if (!wasOpen) setShowLocalProfile(true);
+                                setShowProfilePopup?.(true);
                             }}
-                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 ${showLocalProfile ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 opacity-90 hover:opacity-100`}
                             style={{
                                 color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 opacity: getLayoutOpacity('toolbar-text-main', 1)
@@ -1238,23 +1237,7 @@ const Grid7Layout = ({
                     </div>
                 </div>
 
-                {/* Profile Popup */}
-                <AnimatePresence>
-                    {showLocalProfile && (
-                        <motion.div
-                            initial={{ y: '100%', opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: '100%', opacity: 0 }}
-                            transition={{ duration: 0.55, ease: [0.32, 0.72, 0, 1] }}
-                        >
-                            <ProfilePopup
-                                onClose={() => setShowLocalProfile(false)}
-                                profileSettings={profileSettings}
-                                activeLayout={7}
-                            />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+
             </div>
 
             <div

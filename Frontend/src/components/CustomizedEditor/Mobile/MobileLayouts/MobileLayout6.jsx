@@ -392,14 +392,7 @@ const MobileLayout6 = ({
             
             
             
-            {showProfilePopup && (
-                <ProfilePopup
-                    onClose={() => setShowProfilePopup(false)}
-                    profileSettings={profileSettings}
-                    activeLayout={activeLayout}
-                    isMobile={true}
-                />
-            )}
+
             <Sound
                 isOpen={showSoundPopup}
                 onClose={() => setShowSoundPopup(false)}

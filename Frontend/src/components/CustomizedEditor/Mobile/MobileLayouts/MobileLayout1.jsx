@@ -492,16 +492,7 @@ const MobileLayout1 = (props) => {
 
 
 
-                {showProfilePopup && !isLandscape && (
-                    <ProfilePopup
-                        onClose={() => setShowProfilePopup(false)}
-                        profileSettings={profileSettings}
-                        activeLayout={1}
-                        isMobile={true}
-                        isLandscape={false}
-                        layoutColors={layoutColors || props.layoutColors}
-                    />
-                )}
+
 
                 {showSoundPopup && !isLandscape && (
                     <Sound

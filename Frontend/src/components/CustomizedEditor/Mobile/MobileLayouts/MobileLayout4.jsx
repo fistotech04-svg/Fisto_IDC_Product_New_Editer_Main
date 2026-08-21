@@ -228,14 +228,7 @@ const MobileLayout4 = (props) => {
 
 
 
-            {showProfilePopup && (
-                <ProfilePopup
-                    onClose={() => setShowProfilePopup(false)}
-                    profileSettings={profileSettings}
-                    activeLayout={activeLayout}
-                    isMobile={true}
-                />
-            )}
+
             <Sound
                 isOpen={showLocalSound}
                 onClose={() => setShowLocalSound(false)}

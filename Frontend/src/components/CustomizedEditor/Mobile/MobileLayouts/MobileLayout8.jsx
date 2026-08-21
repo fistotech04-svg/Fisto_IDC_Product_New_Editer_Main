@@ -186,14 +186,7 @@ const MobileLayout8 = (props) => {
             
             
             
-            {localShowProfile && (
-                <ProfilePopup
-                    onClose={() => setLocalShowProfile(false)}
-                    profileSettings={settings?.profileSettings}
-                    activeLayout={8}
-                    isMobile={true}
-                />
-            )}
+
             <Sound
                 isOpen={showSoundPopup}
                 onClose={() => setShowSoundPopup(false)}
@@ -377,9 +370,8 @@ const MobileLayout8 = (props) => {
                         <Icon icon="clarity:image-gallery-solid" className="w-6 h-6" />
                     </button>
                     <button onClick={() => {
-                        const willShow = !localShowProfile;
-                        setLocalShowProfile(willShow);
-                        if (willShow) { setLocalShowTOC(false); setShowThumbnails(false); setShowSharePopup(false); setShowExportPopup(false); }
+                        setShowProfilePopup(true);
+                        setLocalShowTOC(false); setShowThumbnails(false); setShowSharePopup(false); setShowExportPopup(false);
                     }} className="text-white/80 hover:text-white transition-colors">
                         <Icon icon="ph:user-fill" className="w-6 h-6" />
                     </button>

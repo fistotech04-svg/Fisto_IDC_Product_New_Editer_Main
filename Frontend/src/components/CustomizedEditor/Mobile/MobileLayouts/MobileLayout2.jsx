@@ -469,11 +469,7 @@ const MobileLayout2 = (props) => {
                     
                 </div>
             )}
-            {showProfilePopup && (
-                <div className="absolute inset-0 z-[3000] pointer-events-auto">
-                    <ProfilePopup onClose={() => setShowProfilePopup(false)} profileSettings={profileSettings} activeLayout={2} isMobile={true} />
-                </div>
-            )}
+
 
             {showExportPopup && (
                 <div className="fixed inset-0 z-[4000] flex items-center justify-center p-4 pointer-events-auto">

@@ -380,9 +380,8 @@ const MobileLayout7 = (props) => {
                             </button>
                         )}
                         <button onClick={() => {
-                            const willShow = !localShowProfile;
-                            setLocalShowProfile(willShow);
-                            if (willShow) { setShowThumbnails(false); setLocalShowTOC(false); setShowSoundPopup(false); }
+                            setShowProfilePopup(true);
+                            setShowThumbnails(false); setLocalShowTOC(false); setShowSoundPopup(false);
                         }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="fluent:person-24-filled" className="w-[18px] h-[18px]" />
                         </button>
@@ -440,16 +439,7 @@ const MobileLayout7 = (props) => {
                         )}
                     </AnimatePresence>
 
-                    <AnimatePresence>
-                        {localShowProfile && (
-                            <ProfilePopup
-                                onClose={() => setLocalShowProfile(false)}
-                                profileSettings={settings?.profileSettings}
-                                activeLayout={7}
-                                isMobile={true}
-                            />
-                        )}
-                    </AnimatePresence>
+
 
 
                     {/* Thumbnail Popup (Floating) */}

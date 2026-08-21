@@ -471,17 +471,7 @@ const MobileLayout5 = (props) => {
                 
                 
                 
-                {showProfilePopup && (
-                    <ProfilePopup
-                        onClose={() => setShowProfilePopup(false)}
-                        profileSettings={profileSettings}
-                        activeLayout={activeLayout || 5}
-                        isTablet={false}
-                        isMobile={true}
-                        isLandscape={isLandscape}
-                        layoutColors={settings?.layoutColors}
-                    />
-                )}
+
 
                 <Export
                     isOpen={showExportPopup}

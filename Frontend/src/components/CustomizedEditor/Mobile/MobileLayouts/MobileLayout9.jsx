@@ -574,9 +574,7 @@ const MobileLayout9 = ({
                 
                 
                 
-                {showProfilePopup && (
-                    <ProfilePopup onClose={() => setShowProfilePopup(false)} profileSettings={profileSettings} activeLayout={activeLayout} isMobile={true} isLandscape={isLandscape} layoutColors={layoutColors} />
-                )}
+
                 {showExportPopup && (
                     <Export
                         isOpen={true}
