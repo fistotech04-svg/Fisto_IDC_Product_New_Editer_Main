@@ -21,6 +21,23 @@ import CreatorProfileModal from './CreatorProfileModal';
 const covers = [cover1, cover2, cover3, cover4, cover5];
 const profiles = [p1, p2, p3, p4, p5];
 
+const defaultColors = [
+  '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
+  '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
+];
+
+const getAvatarColor = (identifier, customColor) => {
+  if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
+    return customColor;
+  }
+  if (!identifier) return defaultColors[0];
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return defaultColors[Math.abs(hash) % defaultColors.length];
+};
+
 const CustomDropdown = ({ options, value, onChange, className, buttonClassName, renderButton }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -88,7 +105,8 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const displayAvatar = (authorPicture && authorPicture !== 'color_only') ? authorPicture : profileImg;
+    const displayAvatar = (authorPicture && authorPicture !== 'color_only') ? authorPicture : null;
+    const avatarColor = getAvatarColor(authorName || rawBook?.userEmail, authorBgColor);
 
     return (
         <div className="bg-white border border-gray-100 rounded-[0.8vw] overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative group">
@@ -123,7 +141,7 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
                                         if (menuItem.name === 'View Book') {
                                             handleOpenBook();
                                         } else if (menuItem.name === 'Creator Profile') {
-                                            if (onProfileClick) onProfileClick({ name: authorName, profileImg: displayAvatar, role: 'Creator' });
+                                            if (onProfileClick) onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location });
                                         } else if (menuItem.name === 'Share') {
                                             if (onShare) onShare(rawBook);
                                         } else if (menuItem.name === 'Download') {
@@ -145,23 +163,27 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
             <div className="p-[1.2vw] flex flex-col flex-1 bg-white">
                 {/* Author Info */}
                 <div className="flex items-center gap-[0.6vw]">
-                    {authorPicture && authorPicture !== 'color_only' ? (
+                    {displayAvatar ? (
                         <img
-                            src={authorPicture}
+                            src={displayAvatar}
                             alt={authorName}
-                            className="w-[2.5vw] h-[2.5vw] rounded-full border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: authorPicture, role: 'Creator' })}
+                            className="w-[2.5vw] h-[2.5vw] rounded-full border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity shrink-0"
+                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
                         />
                     ) : (
-                        <img
-                            src={profileImg}
-                            alt="Author Avatar"
-                            className="w-[2.5vw] h-[2.5vw] rounded-full bg-teal-100 border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: profileImg, role: 'Creator' })}
-                        />
+                        <div
+                            className="w-[2.5vw] h-[2.5vw] rounded-full flex items-center justify-center text-white text-[1.1vw] font-bold shrink-0 cursor-pointer hover:opacity-80 transition-opacity shadow-inner"
+                            style={{ backgroundColor: avatarColor }}
+                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: null, picture: null, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
+                        >
+                            {authorName ? authorName.charAt(0).toUpperCase() : 'U'}
+                        </div>
                     )}
-                    <div className="flex flex-col min-w-0 pr-[0.5vw]">
-                        <span className="text-[0.85vw] font-semibold text-gray-900 leading-tight truncate">{authorName || 'Alex Johnson'}</span>
+                    <div 
+                        className="flex flex-col min-w-0 pr-[0.5vw] cursor-pointer"
+                        onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
+                    >
+                        <span className="text-[0.85vw] font-semibold text-gray-900 leading-tight truncate hover:text-indigo-600 transition-colors">{authorName || 'Alex Johnson'}</span>
                         <span className="text-[0.7vw] text-gray-400 mt-[0.2vh] truncate">{location || 'Coimbatore 📍'}</span>
                     </div>
                 </div>
@@ -733,8 +755,17 @@ const Explore = () => {
                                                     className="relative shrink-0 z-10 cursor-pointer hover:opacity-90 transition-opacity"
                                                     onClick={() => handleProfileClick(creator)}
                                                 >
-                                                    <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10">
-                                                        <img src={creator.profileImg} alt="Creator" className="w-full h-full object-cover bg-gray-50" />
+                                                    <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10 flex items-center justify-center">
+                                                        {creator.profileImg && creator.profileImg !== 'color_only' ? (
+                                                            <img src={creator.profileImg} alt={creator.name} className="w-full h-full object-cover bg-gray-50" />
+                                                        ) : (
+                                                            <div 
+                                                                className="w-full h-full flex items-center justify-center text-white text-[2.2vw] font-bold"
+                                                                style={{ backgroundColor: getAvatarColor(creator.name || creator.email, creator.avatarBgColor) }}
+                                                            >
+                                                                {creator.name ? creator.name.charAt(0).toUpperCase() : 'U'}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     {/* Left Smooth Corner */}
                                                     <svg className="absolute top-[1.8vw] -left-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">

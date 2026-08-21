@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import p1 from '../assets/Explore/p1.png';
@@ -8,128 +9,279 @@ import cover3 from '../assets/Explore/c-bg3.png';
 import cover4 from '../assets/Explore/c-bg4.png';
 import cover5 from '../assets/Explore/c-bg5.png';
 
-export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false }) {
-    const [viewMode, setViewMode] = useState('shelf');
-    const [scrollProgress, setScrollProgress] = useState(0);
-    const [isScrolling, setIsScrolling] = useState(false);
-    const scrollTimeout = useRef(null);
-    const [isChildScrollable, setIsChildScrollable] = useState(false);
+const covers = [cover1, cover2, cover3, cover4, cover5];
+
+const defaultColors = [
+  '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
+  '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
+];
+
+const getAvatarColor = (identifier, customColor) => {
+  if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
+    return customColor;
+  }
+  if (!identifier) return defaultColors[0];
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return defaultColors[Math.abs(hash) % defaultColors.length];
+};
+
+const defaultMockBooks = [
+    { title: "Thinking, Fast and Slow", cover: cover1, pages: 28, views: '12.5k', rating: 4.5, description: '“Bring your content to life with a real, interactive experience”' },
+    { title: "The Art of Spending Money", cover: cover2, pages: 32, views: '8.1k', rating: 4.8, description: '“Bring your content to life with a real, interactive experience”' },
+    { title: "Games People Play", cover: cover3, pages: 24, views: '15.3k', rating: 4.6, description: '“Bring your content to life with a real, interactive experience”' },
+    { title: "The Psychology of Leadership", cover: cover4, pages: 40, views: '9.4k', rating: 4.9, description: '“Bring your content to life with a real, interactive experience”' },
+    { title: "Just Keep Buying", cover: cover5, pages: 36, views: '11.2k', rating: 4.7, description: '“Bring your content to life with a real, interactive experience”' },
+    { title: "Seduction", cover: cover1, pages: 20, views: '6.5k', rating: 4.3, description: '“Bring your content to life with a real, interactive experience”' },
+    { title: "Thinking, Fast and Slow 2", cover: cover2, pages: 28, views: '10.1k', rating: 4.5, description: '“Bring your content to life with a real, interactive experience”' },
+    { title: "The Art of Spending Money 2", cover: cover3, pages: 30, views: '7.8k', rating: 4.6, description: '“Bring your content to life with a real, interactive experience”' },
+];
+
+const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const menuRef = useRef(null);
 
     useEffect(() => {
-        if (scrollProgress >= 0.99) {
-            setIsChildScrollable(true);
-        } else if (!isScrolling) {
-            setIsChildScrollable(false);
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setIsMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const authorName = creator?.name || 'Creator';
+    const authorAvatar = (creator?.profileImg && creator?.profileImg !== 'color_only') ? creator?.profileImg : ((creator?.picture && creator?.picture !== 'color_only') ? creator?.picture : null);
+    const authorLocation = creator?.city ? `${creator?.city} 📍` : (creator?.location || 'Coimbatore 📍');
+    const avatarColor = getAvatarColor(authorName || creator?.email, creator?.avatarBgColor);
+
+    const handleOpen = () => {
+        if (onOpenBook) {
+            onOpenBook(book);
+        } else {
+            const targetShareId = book.shareId || book.v_id;
+            const rawAcc = String(book.access || 'public').toLowerCase();
+            if (targetShareId) {
+                window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+            }
         }
-    }, [scrollProgress, isScrolling]);
+    };
+
+    return (
+        <div className="bg-white border border-gray-100 rounded-[0.7vw] overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300 shadow-[0_2px_8px_rgba(0,0,0,0.05)] relative group">
+            {/* Thumbnail Container */}
+            <div className="relative w-full aspect-[4/4] flex items-center justify-center cursor-pointer" onClick={handleOpen}>
+                <img src={book.cover} alt={book.title || "Flipbook Cover"} className="w-full h-full object-cover" />
+
+                {/* Menu Button */}
+                <div 
+                    className={`absolute top-[0.5vw] right-[0.5vw] transition-opacity duration-200 ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} 
+                    ref={menuRef}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <button
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        className="bg-white/80 backdrop-blur-sm p-[0.15vw] rounded-[0.3vw] hover:bg-white text-gray-800 focus:outline-none transition-colors shadow-sm cursor-pointer"
+                    >
+                        <svg className="w-[1vw] h-[1vw]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {isMenuOpen && (
+                        <div className="absolute top-[110%] right-0 w-[8.5vw] bg-white rounded-[0.5vw] shadow-[0_8px_25px_rgb(0,0,0,0.12)] py-[0.8vh] z-20 border border-gray-100">
+                            {[
+                                { name: 'View Book', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> },
+                                { name: 'Add to Shelf', icon: <Icon icon="ri:book-shelf-line" className="w-[0.9vw] h-[0.9vw]" /> },
+                                { name: 'Share', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> },
+                                { name: 'Download', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> },
+                                { name: 'Report', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> }
+                            ].map((menuItem, mIdx) => (
+                                <button
+                                    key={mIdx}
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        if (menuItem.name === 'View Book') {
+                                            handleOpen();
+                                        }
+                                    }}
+                                    className="w-[7.8vw] flex items-center mx-[0.35vw] gap-[0.6vw] px-[0.6vw] py-[0.6vh] transition-colors text-left rounded-md text-gray-600 hover:text-black hover:bg-gray-50 cursor-pointer"
+                                >
+                                    <span className="transition-colors flex items-center justify-center">{menuItem.icon}</span>
+                                    <span className="text-[0.68vw] font-medium transition-colors">{menuItem.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Card Details */}
+            <div className="p-[0.8vw] flex flex-col flex-1 bg-white">
+                {/* Author Info */}
+                <div className="flex items-center gap-[0.5vw]">
+                    {authorAvatar ? (
+                        <img
+                            src={authorAvatar}
+                            alt={authorName}
+                            className="w-[2vw] h-[2vw] rounded-full border border-gray-200 object-cover shrink-0"
+                        />
+                    ) : (
+                        <div 
+                            className="w-[2vw] h-[2vw] rounded-full flex items-center justify-center text-white text-[0.9vw] font-bold shrink-0 shadow-inner"
+                            style={{ backgroundColor: avatarColor }}
+                        >
+                            {authorName ? authorName.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                    )}
+                    <div className="flex flex-col min-w-0 pr-[0.4vw]">
+                        <span className="text-[0.75vw] font-semibold text-gray-900 leading-tight truncate">{authorName}</span>
+                        <span className="text-[0.62vw] text-gray-400 mt-[0.1vh] truncate">{authorLocation}</span>
+                    </div>
+                </div>
+
+                {/* Stats */}
+                <div className="flex items-center gap-[0.25vw] justify-start text-[0.65vw] text-gray-700 font-medium mt-[1vh] whitespace-nowrap">
+                    <div className="flex items-center gap-[0.25vw]">
+                        <span className="text-black font-semibold">{book.pages || 28}</span>
+                        <span className="font-normal text-gray-500">Pages</span>
+                    </div>
+                    <span className="text-gray-200">|</span>
+                    <span className="flex items-center gap-[0.25vw]">
+                        <svg className="w-[0.75vw] text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        {book.views || '12.5k'}
+                    </span>
+                    <span className="text-gray-200">|</span>
+                    <span className="flex items-center gap-[0.25vw]">
+                        <svg className="w-[0.75vw] text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path></svg>
+                        {book.rating || 4.5}
+                    </span>
+                </div>
+
+                {/* Title & Desc & Button */}
+                <div className="relative flex-1 mt-[0.8vh]">
+                    <h4 className="text-[0.78vw] font-semibold text-black truncate tracking-tight">{book.title || 'Name of the Flipbook'}</h4>
+                    <p className="text-[0.62vw] text-gray-500 leading-relaxed mt-[0.3vh] pr-[1.8vw] line-clamp-2">{book.description || '“Bring your content to life with a real, interactive experience”'}</p>
+
+                    {/* Action Button */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpen();
+                        }}
+                        className="absolute bottom-[0.2vw] right-[-0.2vw] bg-black text-white w-[1.6vw] h-[1.6vw] rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                    >
+                        <svg className="w-[1.2vw] h-[1.2vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 7l-10 10M17 7H8M17 7v9"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false }) {
+    const [viewMode, setViewMode] = useState('shelf');
+    const [profileData, setProfileData] = useState(null);
+    const [booksData, setBooksData] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const targetEmail = creator?.emailId || creator?.email || creator?.userEmail || '';
 
     useEffect(() => {
         if (!isOpen) return;
 
-        const handleScroll = () => {
-            const container = document.getElementById('creator-profile-container');
-            const scrollTop = container?.scrollTop || 0;
-            const maxScroll = window.innerWidth * 0.12; // 12vw scroll distance
-            const progress = Math.min(Math.max(scrollTop / maxScroll, 0), 1);
-            setScrollProgress(progress);
-
-            setIsScrolling(true);
-            if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
-            scrollTimeout.current = setTimeout(() => {
-                setIsScrolling(false);
-            }, 150);
+        const initialProfile = {
+            name: creator?.name || '',
+            email: targetEmail,
+            emailId: targetEmail,
+            picture: creator?.picture || null,
+            avatarBgColor: creator?.avatarBgColor || '#E8D4C8',
+            about: creator?.about || '',
+            mobile: creator?.mobile || '',
+            companyName: creator?.companyName || '',
+            industryType: creator?.industryType || '',
+            companyEmail: creator?.companyEmail || '',
+            website: creator?.website || '',
+            services: creator?.services || [],
+            address1: creator?.address1 || '',
+            address2: creator?.address2 || '',
+            city: creator?.city || '',
+            pincode: creator?.pincode || '',
+            state: creator?.state || '',
+            country: creator?.country || 'INDIA',
+            socials: creator?.socials || {},
+            bannerBg: creator?.bannerBg || { type: 'gradient', value: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' }
         };
 
-        let scrollAnimation = null;
-        let targetScroll = null;
+        setProfileData(initialProfile);
 
-        const handleWheel = (e) => {
-            if (e.deltaY < 0) {
-                const profileContainer = document.getElementById('creator-profile-container');
-                if (!profileContainer || profileContainer.scrollTop <= 0) return;
-                
-                let target = e.target;
-                let isChildScrolling = false;
-                
-                while (target && target !== profileContainer) {
-                    if (target.scrollHeight > target.clientHeight) {
-                        const overflowY = window.getComputedStyle(target).overflowY;
-                        if (overflowY === 'auto' || overflowY === 'scroll') {
-                            if (target.scrollTop > 0) {
-                                isChildScrolling = true;
-                                break;
-                            }
-                        }
-                    }
-                    target = target.parentElement;
+        const fetchCreatorData = async () => {
+            setIsLoading(true);
+            try {
+                const params = {};
+                if (targetEmail) {
+                    params.emailId = targetEmail;
+                } else if (creator?.shareId) {
+                    params.shareId = creator.shareId;
+                } else if (creator?.v_id) {
+                    params.v_id = creator.v_id;
+                } else if (typeof window !== 'undefined') {
+                    const match = window.location.pathname.match(/\/share=[^/]+\/([^/?#]+)/);
+                    if (match && match[1]) params.shareId = match[1];
                 }
-                
-                if (!isChildScrolling) {
-                    e.preventDefault(); 
-                    
-                    if (Math.abs(e.deltaY) < 40) {
-                        profileContainer.scrollTop += e.deltaY;
-                        targetScroll = profileContainer.scrollTop;
-                    } else {
-                        if (targetScroll === null) targetScroll = profileContainer.scrollTop;
-                        targetScroll += (e.deltaY * 1.5); 
-                        targetScroll = Math.max(0, Math.min(targetScroll, profileContainer.scrollHeight - profileContainer.clientHeight));
-                        
-                        if (scrollAnimation) cancelAnimationFrame(scrollAnimation);
-                        
-                        const startScroll = profileContainer.scrollTop;
-                        const distance = targetScroll - startScroll;
-                        const startTime = performance.now();
-                        const duration = 250; 
-                        
-                        const animate = (currentTime) => {
-                            const elapsed = currentTime - startTime;
-                            const progress = Math.min(elapsed / duration, 1);
-                            
-                            const easeOut = 1 - Math.pow(1 - progress, 3);
-                            profileContainer.scrollTop = startScroll + (distance * easeOut);
-                            
-                            if (progress < 1) {
-                                scrollAnimation = requestAnimationFrame(animate);
-                            } else {
-                                targetScroll = null;
-                            }
-                        };
-                        scrollAnimation = requestAnimationFrame(animate);
-                    }
+
+                if (!params.emailId && !params.shareId && !params.v_id) {
+                    setIsLoading(false);
+                    return;
                 }
+
+                const res = await axios.get(`${backendUrl}/api/explore/creator`, {
+                    params
+                });
+                if (res.data?.success) {
+                    if (res.data.profile) {
+                        setProfileData(res.data.profile);
+                    }
+                    const rawBooks = res.data.books || [];
+                    const formatted = rawBooks.map((b, idx) => ({
+                        rawBook: b,
+                        v_id: b.v_id,
+                        shareId: b.Customized_Settings?.Visibility?.shareId || b.Visibility?.shareId || b.v_id,
+                        access: b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public',
+                        title: b.flipbookName || `Flipbook ${idx + 1}`,
+                        cover: covers[idx % covers.length],
+                        pages: b.pages?.length || 0,
+                        views: b.views || '1.2k',
+                        rating: b.rating || 4.5,
+                        description: b.Customized_Settings?.FlipbookInfo?.quotes || '“Bring your content to life with a real, interactive experience”'
+                    }));
+                    setBooksData(formatted);
+                }
+            } catch (err) {
+                console.error("[CreatorProfileModal] Error fetching creator details from backend:", err);
+            } finally {
+                setIsLoading(false);
             }
         };
 
-        const container = document.getElementById('creator-profile-container');
-        if (container) {
-            container.addEventListener('scroll', handleScroll, { passive: true });
-            container.addEventListener('wheel', handleWheel, { passive: false });
-        }
-        setTimeout(handleScroll, 100);
-
-        return () => {
-            if (container) {
-                container.removeEventListener('scroll', handleScroll);
-                container.removeEventListener('wheel', handleWheel);
-            }
-            if (scrollAnimation) cancelAnimationFrame(scrollAnimation);
-        };
-    }, [isOpen]);
+        fetchCreatorData();
+    }, [isOpen, targetEmail, backendUrl, creator]);
 
     if (!isOpen) return null;
 
-    // Mock books data for the shelf
-    const books = [
-        { title: "Thinking, Fast and Slow", cover: cover1 },
-        { title: "The Art of Spending Money", cover: cover2 },
-        { title: "Games People Play", cover: cover3 },
-        { title: "The Psychology of Leadership", cover: cover4 },
-        { title: "Just Keep Buying", cover: cover5 },
-        { title: "Seduction", cover: cover1 },
-        { title: "Thinking, Fast and Slow 2", cover: cover2 },
-        { title: "The Art of Spending Money 2", cover: cover3 },
-    ];
+    const profileUser = profileData || creator || {};
+    const books = booksData.length > 0 ? booksData : (isPreview ? defaultMockBooks : (targetEmail ? [] : defaultMockBooks));
+
+    const handleOpenBook = (book) => {
+        const targetShareId = book.shareId || book.v_id;
+        const rawAcc = String(book.access || 'public').toLowerCase();
+        if (targetShareId) {
+            window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+        }
+    };
 
     return (
         <AnimatePresence>
@@ -153,24 +305,32 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                         {/* Close Button */}
                         <button
                             onClick={onClose}
-                            className="absolute top-[1.5vw] right-[1.5vw] z-50 bg-white/50 hover:bg-white rounded-[0.4vw] p-[0.4vw] shadow-sm transition-colors border border-gray-900/10"
+                            className="absolute top-[1.5vw] right-[1.5vw] z-50 bg-white/50 hover:bg-white rounded-[0.4vw] p-[0.4vw] shadow-sm transition-colors border border-gray-900/10 cursor-pointer"
                         >
                             <Icon icon="mingcute:close-fill" className="w-[1vw] h-[1vw] text-gray-600" />
                         </button>
 
-                        <div id="creator-profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative overflow-y-auto hide-scrollbar w-full">
-                            <style>{`
-                                .hide-scrollbar::-webkit-scrollbar {
-                                    display: none;
-                                }
-                                .hide-scrollbar {
-                                    -ms-overflow-style: none;
-                                    scrollbar-width: none;
-                                }
-                            `}</style>
-                            
-                            {/* Dummy spacer to create 12vw scroll area */}
-                            <div style={{ height: `calc(100% + 12vw)` }} className="w-full absolute top-0 left-0 pointer-events-none z-[-1]"></div>
+                        {/* Banner */}
+                        <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0 h-[10vw]">
+                            {isLoading ? (
+                                <div className="absolute inset-0 rounded-[1vw] bg-gray-200 animate-pulse"></div>
+                            ) : (
+                                <div
+                                    className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden h-[10vw]"
+                                    style={{
+                                        background: profileUser?.bannerBg?.type === 'solid' ? profileUser?.bannerBg?.value : undefined,
+                                        backgroundImage: (profileUser?.bannerBg?.type === 'gradient' || profileUser?.bannerBg?.type === 'media')
+                                            ? profileUser?.bannerBg?.value
+                                            : (profileUser?.bannerBg?.value || 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)'),
+                                        backgroundSize: profileUser?.bannerBg?.type === 'media' ? 'cover' : undefined,
+                                        backgroundPosition: 'center'
+                                    }}
+                                >
+                                    <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(ellipse at top left, rgba(255,255,255,0.6) 0%, transparent 70%), radial-gradient(ellipse at bottom right, rgba(255,255,255,0.4) 0%, transparent 60%)' }}></div>
+                                    <div className="absolute inset-0 opacity-20 bg-white" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 40%, 0 80%)' }}></div>
+                                </div>
+                            )}
+                        </div>
 
                             {/* Sticky wrapper for actual content */}
                             <div className="sticky top-0 h-full flex flex-col w-full min-h-0 pointer-events-auto">
@@ -227,70 +387,125 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                 <path d="M 17 0 L 10 0 A 10 10 0 0 0 0 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
                                             </svg>
 
-                                            <div className="w-[8.56vw] h-[8.56vw] rounded-full overflow-hidden relative shadow-inner z-10 bg-white flex items-center justify-center">
-                                                <img src={creator?.profileImg || p1} alt="Profile Avatar" className="w-full h-full object-cover" />
-                                            </div>
+                                            {isLoading ? (
+                                                <div className="w-[8.56vw] h-[8.56vw] rounded-full bg-gray-200 animate-pulse shadow-inner z-10"></div>
+                                            ) : (
+                                                <div 
+                                                    className="w-[8.56vw] h-[8.56vw] rounded-full overflow-hidden relative shadow-inner z-10 flex items-center justify-center transition-colors duration-300"
+                                                    style={{ backgroundColor: (profileUser?.picture && profileUser?.picture !== 'color_only') ? '#ffffff' : getAvatarColor(profileUser?.name || profileUser?.email, profileUser?.avatarBgColor) }}
+                                                >
+                                                    {(profileUser?.picture && profileUser?.picture !== 'color_only') ? (
+                                                        <img src={profileUser?.picture} alt={profileUser?.name || "Profile Avatar"} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-white text-[3.2vw] font-bold drop-shadow-md">
+                                                            {profileUser?.name ? profileUser?.name.charAt(0).toUpperCase() : 'U'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Share Button */}
-                                        <div 
-                                            className="absolute top-[6.5vw] -right-[5.5vw] z-40"
-                                            style={{ transform: `scale(${1 / (1 - (0.30 * scrollProgress))})`, transformOrigin: 'left center' }}
-                                        >
-                                            <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[1vw] font-semibold text-gray-700 ">
-                                                <Icon icon="ic:round-share" className="w-[1.2vw] h-[1.2vw]" /> Share
-                                            </button>
-                                        </div>
+                                        {!isLoading && (
+                                            <div className="absolute top-[6.5vw] -right-[5.5vw] z-40">
+                                                <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[1vw] font-semibold text-gray-700 cursor-pointer">
+                                                    <Icon icon="ic:round-share" className="w-[1.2vw] h-[1.2vw]" /> Share
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Name */}
-                                    <h2 className="text-[1.5vw] font-semibold text-gray-900 mt-[1vw] w-full px-[2vw] text-center truncate">{creator?.name || 'Luffy'}</h2>
+                                    {/* Name & Email */}
+                                    {isLoading ? (
+                                        <div className="flex flex-col items-center mt-[0.8vw] gap-[0.4vw] w-full px-[1.5vw]">
+                                            <div className="h-[1.3vw] w-[10vw] bg-gray-200 rounded animate-pulse"></div>
+                                            <div className="h-[0.7vw] w-[8vw] bg-gray-100 rounded animate-pulse"></div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <h2 className="text-[1.3vw] font-bold text-gray-900 mt-[0.8vw] w-full px-[1.5vw] text-center truncate">{profileUser?.name || 'Creator'}</h2>
+                                            {profileUser?.email && (
+                                                <p className="text-[0.7vw] text-gray-400 px-[1.5vw] text-center truncate">{profileUser?.email}</p>
+                                            )}
+                                        </>
+                                    )}
 
                                     {/* Info Sections */}
-                                    <div id="left-scroll-container" className={`w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar text-left ${isChildScrollable ? 'overflow-y-scroll' : 'overflow-hidden'}`}>
-                                        {/* About */}
-                                        <div className="px-[2vw] py-[1vw]">
-                                            <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                                                <Icon icon="mdi:information" className="w-[1vw] h-[1vw]" /> About
-                                            </h3>
-                                            <p className="text-[0.75vw] text-gray-500 leading-relaxed whitespace-pre-wrap">
-                                                I'm going to be the King of the Pirates — that's my dream, and I'm never giving up on it. I love adventure, freedom, and good food (especially meat). I may not be the smartest, but I always trust my instincts and fight for what I believe in.
-                                            </p>
-                                        </div>
-
-                                        {/* Contact Number */}
-                                        <div className="px-[2vw] py-[1vw] bg-[#FAFAFA]">
-                                            <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
-                                                <Icon icon="ph:phone-call-fill" className="w-[1vw] h-[1vw]" /> Contact Number
-                                            </h3>
-                                            <p className="text-[0.75vw] text-gray-500">6383319976</p>
-                                        </div>
-
-                                        {/* Company Details */}
-                                        <div className="px-[2vw] py-[1vw]">
-                                            <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                                                <Icon icon="mingcute:qrcode-2-fill" className="w-[1vw] h-[1vw]" /> Company / Organization Details
-                                            </h3>
-                                            <div className="flex flex-col gap-[0.4vw] text-[0.75vw]">
-                                                <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">Fist-o Tech Private lmt</span></p>
-                                                <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">Software Development</span></p>
-                                                <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">fistotech@gmail.com</span></p>
-                                                <p><span className="font-semibold text-gray-700">Website :</span> <a href="#" className="text-blue-500 underline">Fist-o.com</a></p>
-                                                <p><span className="font-semibold text-gray-700">Services :</span> <span className="text-gray-500">Website Development, 3D Animations, IDC</span></p>
+                                    {isLoading ? (
+                                        <div className="w-full mt-[1.2vw] px-[1.5vw] pb-[2vw] flex flex-col gap-[1vw]">
+                                            <div className="space-y-[0.4vw]">
+                                                <div className="h-[0.85vw] w-[5vw] bg-gray-200 rounded animate-pulse"></div>
+                                                <div className="h-[0.7vw] w-full bg-gray-100 rounded animate-pulse"></div>
+                                                <div className="h-[0.7vw] w-4/5 bg-gray-100 rounded animate-pulse"></div>
+                                            </div>
+                                            <div className="space-y-[0.4vw] pt-[0.5vw]">
+                                                <div className="h-[0.85vw] w-[9vw] bg-gray-200 rounded animate-pulse"></div>
+                                                <div className="h-[0.7vw] w-3/4 bg-gray-100 rounded animate-pulse"></div>
+                                                <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded animate-pulse"></div>
+                                                <div className="h-[0.7vw] w-2/3 bg-gray-100 rounded animate-pulse"></div>
+                                            </div>
+                                            <div className="space-y-[0.4vw] pt-[0.5vw]">
+                                                <div className="h-[0.85vw] w-[6vw] bg-gray-200 rounded animate-pulse"></div>
+                                                <div className="h-[0.7vw] w-full bg-gray-100 rounded animate-pulse"></div>
+                                                <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded animate-pulse"></div>
                                             </div>
                                         </div>
-
-                                        {/* Address */}
-                                        <div className="px-[2vw] py-[1vw] bg-[#FAFAFA] rounded-b-[1vw]">
-                                            <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
-                                                <Icon icon="carbon:location-filled" className="w-[1vw] h-[1vw]" /> Address
-                                            </h3>
-                                            <div className="text-[0.75vw] text-gray-500">
-                                                <div>No. 45, Lake View Street, Near Central Bus Stand,</div>
-                                                <div>Gandhipuram , Coimbatore,</div>
+                                    ) : (
+                                        <div id="left-scroll-container" className="w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 overflow-y-auto min-h-0 no-scrollbar text-left">
+                                            {/* About */}
+                                            <div className="px-[1.5vw] py-[0.8vw]">
+                                                <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.4vw]">
+                                                    <Icon icon="mdi:information" className="w-[1vw] h-[1vw] text-gray-600" /> About
+                                                </h3>
+                                                <p className="text-[0.75vw] text-gray-500 leading-relaxed whitespace-pre-wrap">
+                                                    {profileUser?.about || "“Bring your content to life with a real, interactive experience”"}
+                                                </p>
                                             </div>
+
+                                            {/* Contact Number */}
+                                            {profileUser?.mobile ? (
+                                                <div className="px-[1.5vw] py-[0.8vw] bg-[#FAFAFA]">
+                                                    <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
+                                                        <Icon icon="ph:phone-call-fill" className="w-[1vw] h-[1vw] text-gray-600" /> Contact Number
+                                                    </h3>
+                                                    <p className="text-[0.75vw] text-gray-500">{profileUser?.mobile}</p>
+                                                </div>
+                                            ) : null}
+
+                                            {/* Company Details */}
+                                            <div className="px-[1.5vw] py-[0.8vw]">
+                                                <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
+                                                    <Icon icon="mingcute:qrcode-2-fill" className="w-[1vw] h-[1vw] text-gray-600" /> Company / Organization Details
+                                                </h3>
+                                                <div className="flex flex-col gap-[0.4vw] text-[0.75vw]">
+                                                    <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">{profileUser?.companyName || 'Not specified'}</span></p>
+                                                    <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">{profileUser?.industryType || 'Not specified'}</span></p>
+                                                    <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">{profileUser?.companyEmail || profileUser?.email || 'Not specified'}</span></p>
+                                                    {profileUser?.website ? (
+                                                        <p><span className="font-semibold text-gray-700">Website :</span> <a href={profileUser?.website.startsWith('http') ? profileUser?.website : `https://${profileUser?.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">{profileUser?.website}</a></p>
+                                                    ) : (
+                                                        <p><span className="font-semibold text-gray-700">Website :</span> <span className="text-gray-500">Not specified</span></p>
+                                                    )}
+                                                    <p><span className="font-semibold text-gray-700">Services :</span> <span className="text-gray-500">{Array.isArray(profileUser?.services) && profileUser?.services.length > 0 ? profileUser?.services.join(', ') : (typeof profileUser?.services === 'string' && profileUser?.services ? profileUser?.services : 'Not specified')}</span></p>
+                                                </div>
+                                            </div>
+
+                                            {/* Address */}
+                                            {(profileUser?.address1 || profileUser?.address2 || profileUser?.city || profileUser?.state) ? (
+                                                <div className="px-[1.5vw] py-[0.8vw] bg-[#FAFAFA] rounded-b-[1vw]">
+                                                    <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
+                                                        <Icon icon="carbon:location-filled" className="w-[1vw] h-[1vw] text-gray-600" /> Address
+                                                    </h3>
+                                                    <div className="text-[0.75vw] text-gray-500">
+                                                        {profileUser?.address1 && <div>{profileUser?.address1}</div>}
+                                                        {profileUser?.address2 && <div>{profileUser?.address2}</div>}
+                                                        <div>{[profileUser?.city, profileUser?.state, profileUser?.pincode].filter(Boolean).join(', ')}</div>
+                                                        {profileUser?.country && <div>{profileUser?.country}</div>}
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -300,60 +515,110 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                 <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50"></div>
                                 
                                 {/* Header */}
-                                <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.5vw] px-[0.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
-                                    <h3 className="text-[1vw] font-semibold text-gray-900">Published Flipbooks (8)</h3>
-                                    
-                                    <div className="flex items-center gap-[2vw]">
-                                        {/* Stats */}
-                                        <div className="flex items-center gap-[1.5vw] text-[0.75vw] text-gray-600">
-                                            <div className="flex flex-col items-center">
-                                                <div className="flex items-center gap-[0.4vw]">
-                                                    <Icon icon="ph:book-open" className="w-[1vw] h-[1vw] text-gray-700" />
-                                                    <span className="font-semibold text-[0.9vw] text-gray-500">8</span>
-                                                </div>
-                                                <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Total Books</span>
-                                            </div>
-                                            <div className="w-[1px] h-[3vh] bg-gray-200"></div>
-                                            <div className="flex flex-col items-center">
-                                                <div className="flex items-center gap-[0.4vw]">
-                                                    <Icon icon="ph:star-fill" className="w-[1vw] h-[1vw] text-yellow-400" />
-                                                    <span className="font-semibold text-[0.9vw] text-gray-500">4.5</span>
-                                                </div>
-                                                <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Overall Ratings</span>
-                                            </div>
-                                            <div className="w-[1px] h-[3vh] bg-gray-200"></div>
-                                            <div className="flex flex-col items-center">
-                                                <div className="flex items-center gap-[0.4vw]">
-                                                    <Icon icon="ph:eye" className="w-[1vw] h-[1vw] text-gray-700" />
-                                                    <span className="font-semibold text-[0.9vw] text-gray-500">2.5K</span>
-                                                </div>
-                                                <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Total Views</span>
-                                            </div>
-                                        </div>
-
-                                        {/* View Toggles */}
-                                        <div className="flex items-center gap-[0.5vw]">
-                                            <button 
-                                                onClick={() => setViewMode('shelf')}
-                                                className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vh] rounded-[0.4vw] border transition-colors ${viewMode === 'shelf' ? 'border-gray-300 text-gray-900 bg-white shadow-sm' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                            >
-                                                <Icon icon="mdi:bookshelf" className="w-[1vw] h-[1vw]" />
-                                                <span className="text-[0.75vw] font-medium">Shelf View</span>
-                                            </button>
-                                            <button 
-                                                onClick={() => setViewMode('list')}
-                                                className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vh] rounded-[0.4vw] border transition-colors ${viewMode === 'list' ? 'border-gray-300 text-gray-900 bg-white shadow-sm' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                            >
-                                                <Icon icon="ph:list-dashes" className="w-[1vw] h-[1vw]" />
-                                                <span className="text-[0.75vw] font-medium">List View</span>
-                                            </button>
+                                {isLoading ? (
+                                    <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.7vw] px-[1vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
+                                        <div className="h-[1.2vw] w-[14vw] bg-gray-200 rounded animate-pulse"></div>
+                                        <div className="flex items-center gap-[1.5vw]">
+                                            <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
+                                            <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
+                                            <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
                                         </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.5vw] px-[0.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
+                                        <h3 className="text-[1vw] font-semibold text-gray-900">Published Flipbooks ({books.length})</h3>
+                                        
+                                        <div className="flex items-center gap-[2vw]">
+                                            {/* Stats */}
+                                            <div className="flex items-center gap-[1.5vw] text-[0.75vw] text-gray-600">
+                                                <div className="flex flex-col items-center">
+                                                    <div className="flex items-center gap-[0.4vw]">
+                                                        <Icon icon="ph:book-open" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                        <span className="font-semibold text-[0.9vw] text-gray-500">{books.length}</span>
+                                                    </div>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Total Books</span>
+                                                </div>
+                                                <div className="w-[1px] h-[3vh] bg-gray-200"></div>
+                                                <div className="flex flex-col items-center">
+                                                    <div className="flex items-center gap-[0.4vw]">
+                                                        <Icon icon="ph:star-fill" className="w-[1vw] h-[1vw] text-yellow-400" />
+                                                        <span className="font-semibold text-[0.9vw] text-gray-500">4.5</span>
+                                                    </div>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Overall Ratings</span>
+                                                </div>
+                                                <div className="w-[1px] h-[3vh] bg-gray-200"></div>
+                                                <div className="flex flex-col items-center">
+                                                    <div className="flex items-center gap-[0.4vw]">
+                                                        <Icon icon="ph:eye" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                        <span className="font-semibold text-[0.9vw] text-gray-500">{books.length > 0 ? `${(books.length * 1.2).toFixed(1)}K` : '0'}</span>
+                                                    </div>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Total Views</span>
+                                                </div>
+                                            </div>
+
+                                            {/* View Toggles */}
+                                            <div className="flex items-center gap-[0.5vw]">
+                                                <button 
+                                                    onClick={() => setViewMode('shelf')}
+                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vh] rounded-[0.4vw] border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-900 bg-white shadow-sm' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                >
+                                                    <Icon icon="mdi:bookshelf" className="w-[1vw] h-[1vw]" />
+                                                    <span className="text-[0.75vw] font-medium">Shelf View</span>
+                                                </button>
+                                                <button 
+                                                    onClick={() => setViewMode('list')}
+                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vh] rounded-[0.4vw] border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-900 bg-white shadow-sm' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                >
+                                                    <Icon icon="ph:list-dashes" className="w-[1vw] h-[1vw]" />
+                                                    <span className="text-[0.75vw] font-medium">List View</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Catalog Section */}
-                                <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] hide-scrollbar ${isChildScrollable ? 'overflow-y-scroll' : 'overflow-hidden'}`}>
-                                    {viewMode === 'shelf' ? (
+                                <div id="main-scroll-container" className="flex-1 overflow-y-auto px-[1.5vw] pb-[2vw] no-scrollbar">
+                                    {isLoading ? (
+                                        viewMode === 'shelf' ? (
+                                            <div className="flex flex-col gap-[3vw] pt-[1vw] bg-[#d5e0d8] rounded-[0.8vw] px-[2vw] pb-[3vw] border border-gray-200 inset-shadow-sm">
+                                                {[0, 1].map((shelfIdx) => (
+                                                    <div key={shelfIdx} className="relative w-full flex justify-around items-end pt-[3vw] border-b-[0.8vw] border-[#d4a373] shadow-[0_12px_15px_-5px_rgba(0,0,0,0.3)] bg-gradient-to-t from-[#e6ccb2] to-transparent">
+                                                        <div className="absolute bottom-[-0.8vw] left-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
+                                                        <div className="absolute bottom-[-0.8vw] right-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
+                                                        {[0, 1, 2, 3].map((bIdx) => (
+                                                            <div key={bIdx} className="relative w-[18%] flex justify-center z-10">
+                                                                <div className="w-full h-[14vw] bg-gray-300/80 rounded-r-[0.3vw] animate-pulse shadow-md"></div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[0.8vw]">
+                                                {[0, 1, 2, 3, 4, 5, 6, 7].map((sIdx) => (
+                                                    <div key={sIdx} className="bg-white border border-gray-200 rounded-[0.8vw] p-[0.6vw] flex flex-col gap-[0.5vw] shadow-sm animate-pulse">
+                                                        <div className="w-full h-[12vw] bg-gray-200 rounded-[0.5vw]"></div>
+                                                        <div className="h-[0.9vw] w-3/4 bg-gray-200 rounded mt-[0.2vw]"></div>
+                                                        <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded"></div>
+                                                        <div className="flex items-center gap-[0.4vw] mt-[0.3vw] pt-[0.4vw] border-t border-gray-100">
+                                                            <div className="w-[1.6vw] h-[1.6vw] rounded-full bg-gray-200 shrink-0"></div>
+                                                            <div className="flex flex-col gap-[0.2vw] flex-1">
+                                                                <div className="h-[0.6vw] w-2/3 bg-gray-200 rounded"></div>
+                                                                <div className="h-[0.5vw] w-1/3 bg-gray-100 rounded"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )
+                                    ) : books.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-[8vh] text-gray-400">
+                                            <Icon icon="ph:book-open" className="w-[3vw] h-[3vw] text-gray-300 mb-[1vh]" />
+                                            <span className="text-[1vw] font-medium text-gray-600">No published flipbooks yet</span>
+                                            <span className="text-[0.75vw] text-gray-400 mt-[0.3vh]">This creator hasn't published any flipbooks to explore.</span>
+                                        </div>
+                                    ) : viewMode === 'shelf' ? (
                                         <div className="flex flex-col gap-[3vw] pt-[1vw] bg-[#d5e0d8] rounded-[0.8vw] px-[2vw] pb-[3vw] border border-gray-200 inset-shadow-sm">
                                             {Array.from({ length: Math.ceil(books.length / 4) }).map((_, rowIndex) => (
                                                 <div key={rowIndex} className="relative w-full flex justify-around items-end pt-[3vw] border-b-[0.8vw] border-[#d4a373] shadow-[0_12px_15px_-5px_rgba(0,0,0,0.3)] bg-gradient-to-t from-[#e6ccb2] to-transparent">
@@ -362,17 +627,27 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                     <div className="absolute bottom-[-0.8vw] right-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
                                                     
                                                     {books.slice(rowIndex * 4, rowIndex * 4 + 4).map((book, idx) => (
-                                                        <div key={idx} className="relative w-[18%] flex justify-center cursor-pointer group z-10 transition-transform duration-300 hover:translate-y-[-0.5vw]">
+                                                        <div 
+                                                            key={idx} 
+                                                            onClick={() => handleOpenBook(book)}
+                                                            className="relative w-[18%] flex justify-center cursor-pointer group z-10 transition-transform duration-300 hover:translate-y-[-0.5vw]"
+                                                        >
                                                             <img
                                                                 src={book.cover}
                                                                 alt={book.title}
                                                                 className="w-full h-auto object-contain drop-shadow-[10px_5px_10px_rgba(0,0,0,0.3)] rounded-r-[0.3vw]"
                                                             />
                                                             <div className="absolute top-[30%] right-[-1.5vw] flex-col gap-[0.3vw] opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button className="bg-white rounded-full p-[0.3vw] shadow-md hover:bg-gray-100 flex items-center justify-center">
-                                                                    <Icon icon="ph:dots-three-vertical-bold" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                                <button 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleOpenBook(book);
+                                                                    }}
+                                                                    className="bg-white rounded-full p-[0.3vw] shadow-md hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+                                                                >
+                                                                    <Icon icon="ph:book-open" className="w-[1vw] h-[1vw] text-gray-700" />
                                                                 </button>
-                                                                <button className="bg-gray-900 rounded-full p-[0.3vw] shadow-md mt-[0.5vw] hover:bg-gray-800 flex items-center justify-center">
+                                                                <button className="bg-gray-900 rounded-full p-[0.3vw] shadow-md mt-[0.5vw] hover:bg-gray-800 flex items-center justify-center cursor-pointer">
                                                                     <Icon icon="mdi:information-variant" className="w-[1vw] h-[1vw] text-white" />
                                                                 </button>
                                                             </div>
@@ -382,67 +657,19 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             ))}
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[1vw]">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[0.8vw]">
                                             {books.map((book, idx) => (
-                                                <div key={idx} className="border border-gray-200 rounded-[0.8vw] overflow-visible group hover:shadow-lg transition-shadow bg-white flex flex-col shadow-sm relative cursor-pointer p-[1vw]">
-                                                    
-                                                    {/* Top Right Menu */}
-                                                    <button className="absolute top-[1.2vw] right-[1.2vw] z-20 text-gray-400 hover:text-gray-700 bg-white/80 rounded-full p-[0.2vw]">
-                                                        <Icon icon="ph:dots-three-vertical-bold" className="w-[1.2vw] h-[1.2vw]" />
-                                                    </button>
-
-                                                    {/* Cover Section */}
-                                                    <div className="relative h-[12vw] bg-[#e4a382] flex items-center justify-center rounded-[0.4vw]">
-                                                        <img
-                                                            src={book.cover}
-                                                            alt={book.title}
-                                                            className="w-[85%] h-[90%] object-contain transform group-hover:scale-105 transition-transform duration-300 drop-shadow-lg"
-                                                        />
-                                                        <div className="absolute top-[0.5vw] left-[0.5vw] bg-gray-900/40 backdrop-blur-md text-white text-[0.6vw] font-medium px-[0.6vw] py-[0.2vw] rounded-[0.2vw]">
-                                                            28 Pages
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Stats Tags Section */}
-                                                    <div className="flex flex-wrap gap-[0.3vw] mt-[0.8vw]">
-                                                        <div className="flex items-center gap-[0.2vw] bg-gray-50 px-[0.4vw] py-[0.2vw] rounded-[0.2vw] border border-gray-100">
-                                                            <Icon icon="ph:star-fill" className="text-yellow-400 w-[0.6vw] h-[0.6vw]" />
-                                                            <span className="text-[0.55vw] text-gray-700 font-medium">4.5 <span className="text-gray-400 font-normal">(1,200) rated</span></span>
-                                                        </div>
-                                                        <div className="flex items-center gap-[0.2vw] bg-gray-50 px-[0.4vw] py-[0.2vw] rounded-[0.2vw] border border-gray-100">
-                                                            <Icon icon="mdi:bookshelf" className="text-orange-800 w-[0.6vw] h-[0.6vw]" />
-                                                            <span className="text-[0.55vw] text-gray-700 font-medium">2.5K <span className="text-gray-400 font-normal">added to shelf</span></span>
-                                                        </div>
-                                                        <div className="flex items-center gap-[0.2vw] bg-gray-50 px-[0.4vw] py-[0.2vw] rounded-[0.2vw] border border-gray-100 mt-[0.2vw]">
-                                                            <Icon icon="ph:eye-fill" className="text-gray-500 w-[0.6vw] h-[0.6vw]" />
-                                                            <span className="text-[0.55vw] text-gray-700 font-medium">12.5k <span className="text-gray-400 font-normal">reader</span></span>
-                                                        </div>
-                                                        <div className="flex items-center bg-gray-50 px-[0.4vw] py-[0.2vw] rounded-[0.2vw] border border-gray-100 mt-[0.2vw]">
-                                                            <span className="text-[0.55vw] text-gray-600 font-medium">Product Catalogue</span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Details Section */}
-                                                    <div className="flex items-start justify-between mt-[1vw]">
-                                                        <div className="flex-1 min-w-0 pr-[1vw]">
-                                                            <h4 className="text-[0.85vw] font-semibold text-gray-900 truncate">
-                                                                Name of the Flipbook
-                                                            </h4>
-                                                            <p className="text-[0.65vw] text-gray-500 mt-[0.3vw] leading-tight line-clamp-2">
-                                                                Bring your content to life with a real, interactive experience.
-                                                            </p>
-                                                        </div>
-                                                        <button className="bg-gray-900 text-white p-[0.4vw] rounded-full hover:bg-gray-800 transition-colors flex-shrink-0 shadow-md">
-                                                            <Icon icon="mingcute:arrow-right-up-line" className="w-[1vw] h-[1vw]" />
-                                                        </button>
-                                                    </div>
-                                                </div>
+                                                <CreatorFlipbookCard 
+                                                    key={idx} 
+                                                    book={book} 
+                                                    creator={profileUser} 
+                                                    onOpenBook={handleOpenBook}
+                                                />
                                             ))}
                                         </div>
                                     )}
                                 </div>
                             </div>
-                        </div>
                         </div>
                         </div>
                     </motion.div>
