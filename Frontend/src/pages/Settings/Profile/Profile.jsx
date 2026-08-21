@@ -574,7 +574,7 @@ const Profile = () => {
         {/* Main Content Area */}
         <div 
           className="flex flex-col md:flex-row relative bg-white border-2 border-gray-200 rounded-[1vw] shadow-sm flex-1 min-h-0 min-w-0 w-full z-[40]"
-          style={{ marginTop: `${1 - 0.35 * scrollProgress}vw` }}
+          style={{ marginTop: `${1 - 0.35 * scrollProgress}vw`, willChange: 'margin-top' }}
         >
 
           {/* Left Column (Avatar + Info) */}
@@ -584,7 +584,7 @@ const Profile = () => {
               {/* Top border eraser for container */}
               <div
                 className="absolute top-[-0.2vw] left-[calc(50%-7.5vw)] w-[15vw] h-[0.4vw] bg-white z-10 pointer-events-none"
-                style={{ transform: `scaleX(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center' }}
+                style={{ transform: `scaleX(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center', willChange: 'transform' }}
               ></div>
 
               {/* Avatar Wrapper */}
@@ -623,7 +623,7 @@ const Profile = () => {
                   >
                     {user.picture && user.picture !== 'color_only' ? (
                       <img
-                        src={user.picture}
+                        src={user.picture.startsWith('blob:') || user.picture.startsWith('data:') ? user.picture : resolveUploadsPath(user.picture)}
                         alt="Profile Avatar"
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
@@ -652,7 +652,7 @@ const Profile = () => {
                   </button>
                   <div 
                     className="absolute top-0 left-0"
-                    style={{ transform: `scale(${1 / (1 - (0.30 * scrollProgress))})`, transformOrigin: 'top left' }}
+                    style={{ transform: `scale(${1 / (1 - (0.30 * scrollProgress))})`, transformOrigin: 'top left', willChange: 'transform' }}
                   >
                     <AvatarPopup
                       isOpen={isAvatarPopupOpen}
