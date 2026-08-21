@@ -66,7 +66,7 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
     );
 };
 
-const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick }) => {
+const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, authorPicture, authorBgColor, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -87,6 +87,8 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bo
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    const displayAvatar = (authorPicture && authorPicture !== 'color_only') ? authorPicture : profileImg;
 
     return (
         <div className="bg-white border border-gray-100 rounded-[0.8vw] overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative group">
@@ -121,7 +123,7 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bo
                                         if (menuItem.name === 'View Book') {
                                             handleOpenBook();
                                         } else if (menuItem.name === 'Creator Profile') {
-                                            if (onProfileClick) onProfileClick({ name: authorName, profileImg: profileImg, role: 'Creator' });
+                                            if (onProfileClick) onProfileClick({ name: authorName, profileImg: displayAvatar, role: 'Creator' });
                                         } else if (menuItem.name === 'Share') {
                                             if (onShare) onShare(rawBook);
                                         } else if (menuItem.name === 'Download') {
@@ -143,15 +145,24 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, bo
             <div className="p-[1.2vw] flex flex-col flex-1 bg-white">
                 {/* Author Info */}
                 <div className="flex items-center gap-[0.6vw]">
-                    <img
-                        src={profileImg}
-                        alt="Author Avatar"
-                        className="w-[2.5vw] h-[2.5vw] rounded-full bg-teal-100 border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: profileImg, role: 'Creator' })}
-                    />
-                    <div className="flex flex-col">
-                        <span className="text-[0.85vw] font-medium text-gray-900 leading-tight">{authorName || 'Alex Johnson'}</span>
-                        <span className="text-[0.7vw] text-gray-400 mt-[0.2vh]">{location || 'Coimbatore 📍'}</span>
+                    {authorPicture && authorPicture !== 'color_only' ? (
+                        <img
+                            src={authorPicture}
+                            alt={authorName}
+                            className="w-[2.5vw] h-[2.5vw] rounded-full border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: authorPicture, role: 'Creator' })}
+                        />
+                    ) : (
+                        <img
+                            src={profileImg}
+                            alt="Author Avatar"
+                            className="w-[2.5vw] h-[2.5vw] rounded-full bg-teal-100 border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: profileImg, role: 'Creator' })}
+                        />
+                    )}
+                    <div className="flex flex-col min-w-0 pr-[0.5vw]">
+                        <span className="text-[0.85vw] font-semibold text-gray-900 leading-tight truncate">{authorName || 'Alex Johnson'}</span>
+                        <span className="text-[0.7vw] text-gray-400 mt-[0.2vh] truncate">{location || 'Coimbatore 📍'}</span>
                     </div>
                 </div>
 
@@ -306,8 +317,10 @@ const Explore = () => {
                             access: access,
                             userEmail: book.userEmail,
                             bookName: book.flipbookName,
-                            authorName: book.userEmail ? book.userEmail.split('@')[0] : "Creator",
-                            location: "Online 📍",
+                            authorName: book.authorName || (book.userEmail ? book.userEmail.split('@')[0] : "Creator"),
+                            location: book.city ? `${book.city} 📍` : (book.location ? `${book.location} 📍` : "Coimbatore 📍"),
+                            authorPicture: book.authorPicture || null,
+                            authorBgColor: book.authorBgColor || '#E8D4C8',
                             pages: book.pages?.length,
                             views: "1.2k",
                             rating: 4.5,
@@ -499,7 +512,7 @@ const Explore = () => {
                 {/* Main Layout Grid */}
                 <div className="flex flex-col md:flex-row gap-[2vw] items-start">
 
-                    {/* Left Sidebar */}
+                    {/* Left Sidebar Filter */}
                     <div className="w-full md:w-[16vw] flex-shrink-0 space-y-[1.5vh]">
                         {/* Title */}
                         <div className="flex items-center gap-[0.5vw] px-[0.5vw]">
@@ -675,6 +688,8 @@ const Explore = () => {
                                         rawBook={book.rawBook}
                                         coverImg={covers[index % 5]} 
                                         profileImg={profiles[index % 5]}
+                                        authorPicture={book.authorPicture}
+                                        authorBgColor={book.authorBgColor}
                                         bookName={book.bookName}
                                         authorName={book.authorName}
                                         location={book.location}

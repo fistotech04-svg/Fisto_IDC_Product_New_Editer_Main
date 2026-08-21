@@ -4,6 +4,23 @@ import { Icon } from '@iconify/react';
 import CrownImg from '../../../assets/settings/Crown img.svg';
 import p1 from '../../../assets/settings/p1.png';
 
+const defaultColors = [
+  '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
+  '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
+];
+
+export const getAvatarColor = (identifier, customColor) => {
+  if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
+    return customColor;
+  }
+  if (!identifier) return defaultColors[0];
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return defaultColors[Math.abs(hash) % defaultColors.length];
+};
+
 const defaultProfile = {
   name: 'User',
   email: '',
@@ -36,18 +53,38 @@ const defaultProfile = {
   }
 };
 
+const getInitialProfile = () => {
+  try {
+    const cached = localStorage.getItem('user_profile') || localStorage.getItem('user');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      const email = parsed.emailId || parsed.email || '';
+      return {
+        ...defaultProfile,
+        ...parsed,
+        email,
+        emailId: email,
+        name: parsed.name || (email ? email.split('@')[0] : 'User')
+      };
+    }
+  } catch (e) {}
+  return defaultProfile;
+};
+
 const SettingsLayout = () => {
-  const [user, setUser] = useState(defaultProfile);
+  const [user, setUser] = useState(getInitialProfile);
 
   useEffect(() => {
     let targetEmail = '';
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem('user_profile') || localStorage.getItem('user');
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         targetEmail = parsedUser.emailId || parsedUser.email || '';
         setUser(prev => ({
+          ...defaultProfile,
           ...prev,
+          ...parsedUser,
           name: parsedUser.name || (targetEmail ? targetEmail.split('@')[0] : 'User'),
           email: targetEmail || '',
           emailId: targetEmail || '',
@@ -66,20 +103,28 @@ const SettingsLayout = () => {
         .then(data => {
           if (data?.success && data?.profile) {
             const p = data.profile;
-            setUser(prev => ({
-              ...defaultProfile,
-              ...prev,
-              ...p,
-              email: p.emailId || prev.email || targetEmail,
-              emailId: p.emailId || prev.emailId || targetEmail,
-              name: p.name || prev.name,
-              services: p.services || prev.services || [],
-              socials: {
-                ...defaultProfile.socials,
-                ...(prev.socials || {}),
-                ...(p.socials || {})
-              }
-            }));
+            setUser(prev => {
+              const updated = {
+                ...defaultProfile,
+                ...prev,
+                ...p,
+                email: p.emailId || prev.email || targetEmail,
+                emailId: p.emailId || prev.emailId || targetEmail,
+                name: p.name || prev.name,
+                picture: p.picture || prev.picture || null,
+                avatarBgColor: p.avatarBgColor || prev.avatarBgColor || '#E8D4C8',
+                services: p.services || prev.services || [],
+                socials: {
+                  ...defaultProfile.socials,
+                  ...(prev.socials || {}),
+                  ...(p.socials || {})
+                }
+              };
+              try {
+                localStorage.setItem('user_profile', JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            });
           }
         })
         .catch(err => console.error("Error loading profile in settings:", err));
@@ -140,24 +185,24 @@ const SettingsLayout = () => {
         <div className="p-[1.5vw] flex items-center justify-between border-b border-gray-100 mb-[0.5vw] relative group hover:bg-gray-50 transition-colors">
           <div className="flex items-center gap-[1vw] flex-1 min-w-0">
             <div 
-              className="w-[2.5vw] h-[2.5vw] rounded-full overflow-hidden relative shadow-sm flex items-center justify-center bg-white transition-colors duration-300 flex-shrink-0"
-              style={{ backgroundColor: user.avatarBgColor === '#E8D4C8' && user.picture === 'color_only' ? '#E8D4C8' : (user.avatarBgColor === '#E8D4C8' ? '#ffffff' : user.avatarBgColor) }}
+              className="w-[2.5vw] h-[2.5vw] rounded-full overflow-hidden relative shadow-sm flex items-center justify-center transition-colors duration-300 flex-shrink-0"
+              style={{ backgroundColor: (user.picture && user.picture !== 'color_only') ? '#ffffff' : ((user.avatarBgColor && user.avatarBgColor !== '#E8D4C8' && user.avatarBgColor !== '#ffffff') ? user.avatarBgColor : getAvatarColor(user.name || user.email || 'User')) }}
             >
               {user.picture && user.picture !== 'color_only' && !user.picture.includes('unsplash') ? (
                  <img 
                     src={user.picture} 
                     alt="Profile" 
                     className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
                  />
-              ) : (user.picture === 'color_only' ? (
-                 <span className="text-white text-[1.2vw] font-semibold drop-shadow-md">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
               ) : (
-                 <img 
-                    src={p1} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                 />
-              ))}
+                 <span className="text-white text-[1.1vw] font-semibold drop-shadow-md">
+                   {user.name ? user.name.charAt(0).toUpperCase() : (user.email ? user.email.charAt(0).toUpperCase() : 'U')}
+                 </span>
+              )}
             </div>
             <div className="flex-1 min-w-0 pr-[0.5vw]">
               {isEditingSidebar ? (
