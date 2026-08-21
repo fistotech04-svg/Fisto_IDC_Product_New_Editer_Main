@@ -115,9 +115,8 @@ const profileSchema = new mongoose.Schema({
 });
 
 // Update the updatedAt field before saving
-profileSchema.pre('save', function(next) {
+profileSchema.pre('save', function() {
   this.updatedAt = Date.now();
-  if (next) next();
 });
 
 const Profile = mongoose.model('Profile', profileSchema, 'Profiles');

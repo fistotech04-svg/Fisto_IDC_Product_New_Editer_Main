@@ -212,14 +212,14 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
 
     return (
         <div
-            className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-[#E6E8ED]"
+            className="relative w-full h-full flex flex-col font-sans overflow-hidden "
             style={{ containerType: 'inline-size' }}
         >
             <div id="tablet-download-portal" className="absolute inset-0 z-[60] pointer-events-none"></div>
             {/* Top Bar */}
-            <div className="w-full h-[8%] bg-[#5C5898] flex items-center justify-between px-[2cqw] flex-shrink-0 z-10 shadow-md">
+            <div className="w-full h-[8%] flex items-center justify-between px-[2cqw] flex-shrink-0 z-10 shadow-md" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#5C5898') }}>
                 {/* Search Bar */}
-                <div className="relative w-[25cqw] h-[60%] bg-[#E6E8ED]/90 rounded-full flex items-center px-[1cqw]">
+                <div className="relative w-[25cqw] h-[60%] /90 rounded-full flex items-center px-[1cqw]">
                     <Icon icon="lucide:search" className="text-gray-500 w-[1.8cqw] h-[1.8cqw]" />
                     <input
                         type="text"
@@ -244,9 +244,10 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                 <button
                     onClick={() => bookRef?.current?.pageFlip()?.flipPrev()}
                     className={`absolute left-[2cqw] w-[3cqw] h-[4cqw] rounded-[0.3cqw] flex items-center justify-center transition-colors z-10 ${(!currentPage || currentPage === 0)
-                        ? 'bg-[#8986B3] opacity-70'
-                        : 'bg-[#5C5898] hover:bg-[#4F4A95] shadow-md'
+                        ? 'opacity-70'
+                        : 'shadow-md hover:brightness-90'
                         }`}
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#5C5898') }}
                 >
                     <Icon icon="lucide:chevron-left" className="text-white w-[2cqw] h-[2cqw]" />
                 </button>
@@ -283,15 +284,16 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                 <button
                     onClick={() => bookRef?.current?.pageFlip()?.flipNext()}
                     className={`absolute right-[2cqw] w-[3cqw] h-[4cqw] rounded-[0.3cqw] flex items-center justify-center transition-colors z-10 ${(pages && currentPage >= (Array.isArray(pages) ? pages.length - 1 : pages - 1))
-                        ? 'bg-[#8986B3] opacity-70'
-                        : 'bg-[#5C5898] hover:bg-[#4F4A95] shadow-md'
+                        ? 'opacity-70'
+                        : 'shadow-md hover:brightness-90'
                         }`}
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#5C5898') }}
                 >
                     <Icon icon="lucide:chevron-right" className="text-white w-[2cqw] h-[2cqw]" />
                 </button>
 
                 {/* Page Indicator Pill */}
-                <div className="absolute bottom-[2cqw] left-[2cqw] bg-white px-[2cqw] py-[0.8cqw] rounded-full shadow-sm text-[#5C5898] font-semibold text-[1.4cqw] flex items-center justify-center z-10">
+                <div className="absolute bottom-[2cqw] left-[2cqw] px-[2cqw] py-[0.8cqw] rounded-full shadow-sm font-semibold text-[1.4cqw] flex items-center justify-center z-10" style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), color: getLayoutColor('toolbar-bg', '#5C5898') }}>
                     Page
                     <input
                         type="text"
@@ -315,7 +317,8 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                             minWidth: '40cqw',
                             maxWidth: '90cqw',
                             height: '14cqw',
-                            backgroundColor: 'rgba(87, 92, 156, 0.8)',
+                            backgroundColor: getLayoutColorAlpha('thumbnail-outer-v2', '87, 92, 156', 0.8),
+                            backdropFilter: 'blur(8px)',
                             borderRadius: '1.5cqw',
                             border: '1px solid rgba(255,255,255,0.2)',
                         }}
@@ -356,7 +359,8 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                                         style={{
                                             padding: '0.6cqw 1cqw',
                                             gap: '0.4cqw',
-                                            backgroundColor: isActive ? 'rgba(87, 92, 156, 0.6)' : 'rgba(87, 92, 156, 0.2)',
+                                            backgroundColor: isActive ? getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.6) : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
+                                            border: 'none',
                                             opacity: 1,
                                             transition: 'all 0.3s ease'
                                         }}
@@ -392,9 +396,9 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                                                 ))}
                                             </div>
                                         </div>
-                                        <span
-                                            className={`text-[1.2cqw] transition-colors ${isActive ? 'font-bold' : 'font-medium'}`}
-                                            style={{ color: '#FFFFFF' }}
+                                        <span 
+                                            className={`text-[1.2cqw] transition-colors ${isActive ? 'font-bold' : 'font-medium'} px-[0.6cqw] py-[0.2cqw] rounded bg-black/20`}
+                                            style={{ color: '#FFFFFF', textShadow: '0px 1px 2px rgba(0,0,0,0.5)' }}
                                         >
                                             {spread.label}
                                         </span>
@@ -433,7 +437,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
             <div id="tablet-profile-portal" className="absolute inset-0 z-50 pointer-events-none"></div>
 
             {/* Bottom Bar */}
-            <div className="w-full h-[8%] bg-[#5C5898] flex items-center justify-between px-[2cqw] flex-shrink-0 z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+            <div className="w-full h-[8%] flex items-center justify-between px-[2cqw] flex-shrink-0 z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.1)]" style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', 'var(--toolbar-bg, #5C5898)') }}>
 
                 {/* Left Icons */}
                 <div className="flex items-center gap-[1.5cqw]">

@@ -326,7 +326,7 @@ const MobileLayout5 = (props) => {
                                                     <div
                                                         className="absolute inset-0 z-0"
                                                         style={{
-                                                            backgroundColor: getLayoutColor('toc-bg', '#FFFFFF').toLowerCase() === getLayoutColor('toc-text', '#575C9C').toLowerCase()
+                                                            backgroundColor: "transparent".toLowerCase() === getLayoutColor('toc-text', '#575C9C').toLowerCase()
                                                                 ? getLayoutColor('toc-bg', '#FFFFFF')
                                                                 : getLayoutColor('toc-text', '#575C9C'),
                                                             opacity: getLayoutColor('toc-bg', '#FFFFFF').toLowerCase() === getLayoutColor('toc-text', '#575C9C').toLowerCase()

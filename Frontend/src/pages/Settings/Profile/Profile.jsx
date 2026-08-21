@@ -109,6 +109,23 @@ const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl
   );
 };
 
+const defaultColors = [
+  '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
+  '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
+];
+
+export const getAvatarColor = (identifier, customColor) => {
+  if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
+    return customColor;
+  }
+  if (!identifier) return defaultColors[0];
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return defaultColors[Math.abs(hash) % defaultColors.length];
+};
+
 const defaultProfile = {
   name: 'User',
   email: '',
@@ -141,10 +158,28 @@ const defaultProfile = {
   }
 };
 
+const getInitialUserProfile = () => {
+  try {
+    const cached = localStorage.getItem('user_profile') || localStorage.getItem('user');
+    if (cached) {
+      const p = JSON.parse(cached);
+      const email = p.emailId || p.email || '';
+      return {
+        ...defaultProfile,
+        ...p,
+        email,
+        emailId: email,
+        name: p.name || (email ? email.split('@')[0] : 'User')
+      };
+    }
+  } catch (e) {}
+  return defaultProfile;
+};
+
 const Profile = () => {
   const context = useOutletContext();
   const navigate = useNavigate();
-  const [localUser, setLocalUser] = useState(defaultProfile);
+  const [localUser, setLocalUser] = useState(getInitialUserProfile);
   const user = context?.user ? { ...defaultProfile, ...context.user } : localUser;
   const setUser = context?.setUser || setLocalUser;
 
@@ -152,9 +187,18 @@ const Profile = () => {
   const [activeStatsBookId, setActiveStatsBookId] = useState(null);
   const [isAvatarPopupOpen, setIsAvatarPopupOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Your IDC');
-  const [bannerBg, setBannerBg] = useState({
-    type: 'gradient',
-    value: 'linear-gradient(to bottom right, #c1e8d7, #85d8c3, #60bba3)'
+  const [bannerBg, setBannerBg] = useState(() => {
+    try {
+      const cached = localStorage.getItem('user_profile');
+      if (cached) {
+        const p = JSON.parse(cached);
+        if (p.bannerBg) return p.bannerBg;
+      }
+    } catch (e) {}
+    return {
+      type: 'gradient',
+      value: 'linear-gradient(to bottom right, #c1e8d7, #85d8c3, #60bba3)'
+    };
   });
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
@@ -170,13 +214,13 @@ const Profile = () => {
   }, [scrollProgress, isScrolling]);
 
   const [flipbooks, setFlipbooks] = useState([]);
-  const [isLoadingBooks, setIsLoadingBooks] = useState(false);
+  const [isLoadingBooks, setIsLoadingBooks] = useState(true);
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
 
   const effectiveEmail = user?.emailId || user?.email || (() => {
     try {
-      const stored = localStorage.getItem('user');
+      const stored = localStorage.getItem('user_profile') || localStorage.getItem('user');
       if (stored) {
         const parsed = JSON.parse(stored);
         return parsed.emailId || parsed.email || '';
@@ -196,20 +240,29 @@ const Profile = () => {
         });
         if (res.data?.success && res.data?.profile) {
           const p = res.data.profile;
-          setUser(prev => ({
-            ...defaultProfile,
-            ...prev,
-            ...p,
-            email: p.emailId || prev.email || effectiveEmail,
-            emailId: p.emailId || prev.emailId || effectiveEmail,
-            name: p.name || prev.name || (effectiveEmail.split('@')[0]),
-            services: p.services || prev.services || [],
-            socials: {
-              ...defaultProfile.socials,
-              ...(prev.socials || {}),
-              ...(p.socials || {})
-            }
-          }));
+          setUser(prev => {
+            const updated = {
+              ...defaultProfile,
+              ...prev,
+              ...p,
+              email: p.emailId || prev.email || effectiveEmail,
+              emailId: p.emailId || prev.emailId || effectiveEmail,
+              name: p.name || prev.name || (effectiveEmail.split('@')[0]),
+              picture: p.picture || prev.picture || null,
+              avatarBgColor: p.avatarBgColor || prev.avatarBgColor || '#E8D4C8',
+              services: p.services || prev.services || [],
+              socials: {
+                ...defaultProfile.socials,
+                ...(prev.socials || {}),
+                ...(p.socials || {})
+              }
+            };
+            try {
+              localStorage.setItem('user_profile', JSON.stringify(updated));
+              window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
+            } catch (e) {}
+            return updated;
+          });
           if (p.bannerBg) {
             setBannerBg(p.bannerBg);
           }
@@ -224,34 +277,136 @@ const Profile = () => {
 
   // 2. Banner update handler connected to backend
   const handleBannerBgChange = async (newBanner) => {
-    setBannerBg(newBanner);
-    if (!effectiveEmail) return;
-    try {
-      await axios.post(`${backendUrl}/api/profile/banner`, {
-        emailId: effectiveEmail,
-        bannerBg: newBanner
-      });
-    } catch (err) {
-      console.error("Error updating banner in backend:", err);
+    if (newBanner?.file instanceof File) {
+      // Local preview immediately
+      setBannerBg(newBanner);
+      if (!effectiveEmail) return;
+      try {
+        const formData = new FormData();
+        formData.append('emailId', effectiveEmail);
+        formData.append('banner', newBanner.file);
+        const res = await axios.post(`${backendUrl}/api/profile/banner`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (res.data?.success && res.data?.bannerBg) {
+          setBannerBg(res.data.bannerBg);
+          try {
+            const cached = localStorage.getItem('user_profile');
+            if (cached) {
+              const p = JSON.parse(cached);
+              p.bannerBg = res.data.bannerBg;
+              localStorage.setItem('user_profile', JSON.stringify(p));
+            }
+          } catch (e) {}
+        }
+      } catch (err) {
+        console.error("Error uploading banner to Profile folder:", err);
+      }
+    } else {
+      setBannerBg(newBanner);
+      if (!effectiveEmail) return;
+      try {
+        const res = await axios.post(`${backendUrl}/api/profile/banner`, {
+          emailId: effectiveEmail,
+          bannerBg: newBanner
+        });
+        if (res.data?.success && res.data?.bannerBg) {
+          setBannerBg(res.data.bannerBg);
+          try {
+            const cached = localStorage.getItem('user_profile');
+            if (cached) {
+              const p = JSON.parse(cached);
+              p.bannerBg = res.data.bannerBg;
+              localStorage.setItem('user_profile', JSON.stringify(p));
+            }
+          } catch (e) {}
+        }
+      } catch (err) {
+        console.error("Error updating banner in backend:", err);
+      }
     }
   };
 
   // 3. Avatar update handlers connected to backend
-  const handleSelectAvatar = async (avatar) => {
-    setUser(prev => ({ ...prev, picture: avatar }));
-    if (!effectiveEmail) return;
-    try {
-      await axios.post(`${backendUrl}/api/profile/avatar`, {
-        emailId: effectiveEmail,
-        picture: avatar
+  const handleSelectAvatar = async (avatarOrFile) => {
+    if (avatarOrFile instanceof File) {
+      // Local preview immediately
+      const objectUrl = URL.createObjectURL(avatarOrFile);
+      setUser(prev => {
+        const updated = { ...prev, picture: objectUrl };
+        try {
+          localStorage.setItem('user_profile', JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
+        } catch (e) {}
+        return updated;
       });
-    } catch (err) {
-      console.error("Error saving avatar in backend:", err);
+      if (!effectiveEmail) return;
+      try {
+        const formData = new FormData();
+        formData.append('emailId', effectiveEmail);
+        formData.append('avatar', avatarOrFile);
+        const res = await axios.post(`${backendUrl}/api/profile/avatar`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (res.data?.success) {
+          setUser(prev => {
+            const updated = { ...prev, picture: res.data.picture || null };
+            try {
+              localStorage.setItem('user_profile', JSON.stringify(updated));
+              window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
+            } catch (e) {}
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error("Error uploading avatar to Profile folder:", err);
+      }
+    } else {
+      const isDeleting = !avatarOrFile;
+      const targetColor = isDeleting
+        ? ((user.avatarBgColor && user.avatarBgColor !== '#E8D4C8' && user.avatarBgColor !== '#ffffff') ? user.avatarBgColor : getAvatarColor(user.name || effectiveEmail))
+        : (user.avatarBgColor || '#E8D4C8');
+
+      setUser(prev => {
+        const updated = { ...prev, picture: isDeleting ? null : avatarOrFile, avatarBgColor: targetColor };
+        try {
+          localStorage.setItem('user_profile', JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
+        } catch (e) {}
+        return updated;
+      });
+      if (!effectiveEmail) return;
+      try {
+        const res = await axios.post(`${backendUrl}/api/profile/avatar`, {
+          emailId: effectiveEmail,
+          picture: isDeleting ? null : avatarOrFile,
+          avatarBgColor: targetColor
+        });
+        if (res.data?.success) {
+          setUser(prev => {
+            const updated = { ...prev, picture: isDeleting ? null : (res.data.picture || null), avatarBgColor: res.data.avatarBgColor || targetColor };
+            try {
+              localStorage.setItem('user_profile', JSON.stringify(updated));
+              window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
+            } catch (e) {}
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error("Error saving avatar in backend:", err);
+      }
     }
   };
 
   const handleSelectColor = async (color) => {
-    setUser(prev => ({ ...prev, picture: 'color_only', avatarBgColor: color }));
+    setUser(prev => {
+      const updated = { ...prev, picture: 'color_only', avatarBgColor: color };
+      try {
+        localStorage.setItem('user_profile', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
+      } catch (e) {}
+      return updated;
+    });
     if (!effectiveEmail) return;
     try {
       await axios.post(`${backendUrl}/api/profile/avatar`, {
@@ -520,23 +675,23 @@ const Profile = () => {
 
                   <div
                     className="w-[10.7vw] h-[10.7vw] rounded-full overflow-hidden relative shadow-inner z-10 bg-white transition-colors duration-300 flex items-center justify-center"
-                    style={{ backgroundColor: user.avatarBgColor === '#E8D4C8' && user.picture === 'color_only' ? '#E8D4C8' : (user.avatarBgColor === '#E8D4C8' ? '#ffffff' : user.avatarBgColor) }}
+                    style={{ backgroundColor: (user.picture && user.picture !== 'color_only') ? '#ffffff' : ((user.avatarBgColor && user.avatarBgColor !== '#E8D4C8' && user.avatarBgColor !== '#ffffff') ? user.avatarBgColor : getAvatarColor(user.name || user.email || 'User')) }}
                   >
-                    {user.picture && user.picture !== 'color_only' && !user.picture.includes('unsplash') ? (
+                    {user.picture && user.picture !== 'color_only' ? (
                       <img
                         src={user.picture}
                         alt="Profile Avatar"
                         className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
                       />
-                    ) : (user.picture === 'color_only' ? (
-                      <span className="text-white text-[4.5vw] font-semibold drop-shadow-md">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
                     ) : (
-                      <img
-                        src={p1}
-                        alt="Profile Avatar"
-                        className="w-full h-full object-cover"
-                      />
-                    ))}
+                      <span className="text-white text-[4.5vw] font-semibold drop-shadow-md">
+                        {user.name ? user.name.charAt(0).toUpperCase() : (user.email ? user.email.charAt(0).toUpperCase() : 'U')}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -556,15 +711,16 @@ const Profile = () => {
                     onClose={() => setIsAvatarPopupOpen(false)}
                     onSelectAvatar={handleSelectAvatar}
                     onSelectColor={handleSelectColor}
+                    currentAvatar={user.picture}
                   />
                 </div>
               </div>
 
               {/* Name and Email */}
               <h1 className="text-[1.5vw] font-semibold text-gray-900 mt-[1vw] truncate max-w-[18vw]">{user.name}</h1>
-              <div className="flex items-center gap-[0.4vw] text-[1vw] text-gray-500 mt-[0.2vw] truncate max-w-[18vw]">
-                <Icon icon="mdi:check-decagram" className="w-[1.2vw] h-[1.2vw] text-[#22c55e] flex-shrink-0" />
-                <span className="truncate">{user.email}</span>
+              <div className="flex items-center gap-[0.4vw] text-[0.8vw] text-gray-500 mt-[0.2vw] truncate max-w-[18vw]">
+                <Icon icon="mdi:check-decagram" className="w-[1vw] h-[1vw] text-[#22c55e] flex-shrink-0" />
+                <span className="truncate font-medium">{user.email}</span>
               </div>
 
               {/* Info Cards Container */}
@@ -685,85 +841,108 @@ const Profile = () => {
                     </h2>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[1vw]">
-                      {flipbooks.map((book) => {
-                        const bookId = book.v_id || book.id;
-                        return (
-                          <div key={bookId} className="border border-gray-100 rounded-[0.6vw] overflow-visible group hover:shadow-md transition-shadow bg-white flex flex-col shadow-sm relative">
-
-                            <div className="relative h-[12vw] bg-gray-50 overflow-hidden flex items-center justify-center p-[0.6vw] rounded-t-[0.6vw]">
-                              <div className="w-full h-full overflow-hidden transform group-hover:scale-105 transition-transform duration-300 drop-shadow-sm rounded-[0.2vw] flex items-center justify-center bg-white">
-                                <LazyPreview
-                                  v_id={book.v_id}
-                                  emailId={effectiveEmail}
-                                  backendUrl={backendUrl}
-                                  iframeBaseUrl={getSupabaseBaseUrl(
-                                    (effectiveEmail || '').replace(/[@.]/g, "_"),
-                                    book.folder === 'Recent Book' || book.folder === 'Recent book' ? 'My_Flipbooks' : (book.folder || 'My_Flipbooks'),
-                                    book.realName || book.title
-                                  )}
-                                  title={book.title || book.name}
-                                  imageUrl={book.image || null}
-                                />
-                              </div>
-                              <div className="absolute bottom-[0.5vw] right-[0.5vw] bg-black/60 backdrop-blur-sm text-white text-[0.55vw] font-medium px-[0.6vw] py-[0.2vw] rounded-full z-10 pointer-events-none">
-                                {book.pages || 0} Pages
-                              </div>
+                      {isLoadingBooks ? (
+                        [1, 2, 3, 4].map((i) => (
+                          <div key={i} className="border border-gray-100 rounded-[0.6vw] overflow-hidden bg-white flex flex-col shadow-sm animate-pulse">
+                            <div className="relative h-[12vw] bg-gray-100 flex items-center justify-center p-[0.6vw] rounded-t-[0.6vw]">
+                              <div className="w-[80%] h-[85%] bg-gray-200/80 rounded-[0.3vw]"></div>
+                              <div className="absolute bottom-[0.5vw] right-[0.5vw] w-[3.5vw] h-[1vw] bg-gray-300/80 rounded-full"></div>
                             </div>
-
                             <div className="p-[0.8vw] flex items-center justify-between border-t border-gray-50 bg-white rounded-b-[0.6vw]">
-                              <div className="flex-1 min-w-0 pr-[0.5vw]">
-                                <h4 className="text-[0.75vw] font-semibold text-gray-900 truncate">
-                                  {book.title || book.name}
-                                </h4>
-                                <p className="text-[0.6vw] text-gray-500 mt-[0.1vw] truncate">
-                                  {book.quotes || 'No description available'}
-                                </p>
+                              <div className="flex-1 min-w-0 pr-[0.5vw] flex flex-col gap-[0.35vw]">
+                                <div className="h-[0.75vw] w-[70%] bg-gray-200 rounded-[0.2vw]"></div>
+                                <div className="h-[0.55vw] w-[45%] bg-gray-100 rounded-[0.2vw]"></div>
                               </div>
-                              <div
-                                onMouseEnter={() => setActiveStatsBookId(bookId)}
-                                onMouseLeave={() => setActiveStatsBookId(null)}
-                              >
-                                <button
-                                  className="bg-black text-white p-[0.35vw] rounded-full hover:bg-gray-800 transition-colors flex-shrink-0 shadow-sm relative z-20"
-                                >
-                                  <BarChart2 size="0.8vw" />
-                                </button>
-
-                                {/* Stats Tooltip */}
-                                {activeStatsBookId === bookId && (
-                                  <div className="absolute bottom-[3vw] right-[0.5vw] w-[10vw] bg-[#424242]/95 backdrop-blur-md border border-gray-600/30 rounded-[0.6vw] p-[0.5vw] shadow-2xl z-30 text-white animate-in fade-in zoom-in-95 duration-200">
-                                    <div className="flex flex-col gap-[0.4vw] text-[0.65vw] font-medium text-gray-300">
-                                      <div>Views : <span className="text-white font-semibold">{book.views || '528k'}</span></div>
-                                      <div>No of Pages : <span className="text-white font-semibold">{book.pages || 0}</span></div>
-                                      <div>Added to Shelf : <span className="text-white font-semibold">250k</span></div>
-                                      <div className="flex items-center gap-[0.2vw]">
-                                        Ratings :
-                                        <div className="flex items-center text-yellow-400">
-                                          <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
-                                          <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
-                                          <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
-                                          <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
-                                          <Icon icon="lucide:star" className="w-[0.65vw] h-[0.65vw]" />
-                                        </div>
-                                        <span className="text-gray-400">(4.5)</span>
-                                      </div>
-                                      <div>No of Ratings : <span className="text-white font-semibold">1528</span></div>
-                                    </div>
-
-                                    <div className="mt-[0.5vw] flex justify-start">
-                                      <a href="#" className="flex items-center gap-[0.2vw] text-[0.75vw] text-white hover:text-gray-200 underline underline-offset-2 transition-colors">
-                                        View More details
-                                        <Icon icon="lucide:arrow-up-right" className="w-[1vw] h-[1vw]" />
-                                      </a>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
+                              <div className="w-[1.6vw] h-[1.6vw] rounded-full bg-gray-200 flex-shrink-0"></div>
                             </div>
-
                           </div>
-                        );
-                      })}
+                        ))
+                      ) : flipbooks.length > 0 ? (
+                        flipbooks.map((book) => {
+                          const bookId = book.v_id || book.id;
+                          return (
+                            <div key={bookId} className="border border-gray-100 rounded-[0.6vw] overflow-visible group hover:shadow-md transition-shadow bg-white flex flex-col shadow-sm relative">
+
+                              <div className="relative h-[12vw] bg-gray-50 overflow-hidden flex items-center justify-center p-[0.6vw] rounded-t-[0.6vw]">
+                                <div className="w-full h-full overflow-hidden transform group-hover:scale-105 transition-transform duration-300 drop-shadow-sm rounded-[0.2vw] flex items-center justify-center bg-white">
+                                  <LazyPreview
+                                    v_id={book.v_id}
+                                    emailId={effectiveEmail}
+                                    backendUrl={backendUrl}
+                                    iframeBaseUrl={getSupabaseBaseUrl(
+                                      (effectiveEmail || '').replace(/[@.]/g, "_"),
+                                      book.folder === 'Recent Book' || book.folder === 'Recent book' ? 'My_Flipbooks' : (book.folder || 'My_Flipbooks'),
+                                      book.realName || book.title
+                                    )}
+                                    title={book.title || book.name}
+                                    imageUrl={book.image || null}
+                                  />
+                                </div>
+                                <div className="absolute bottom-[0.5vw] right-[0.5vw] bg-black/60 backdrop-blur-sm text-white text-[0.55vw] font-medium px-[0.6vw] py-[0.2vw] rounded-full z-10 pointer-events-none">
+                                  {book.pages || 0} Pages
+                                </div>
+                              </div>
+
+                              <div className="p-[0.8vw] flex items-center justify-between border-t border-gray-50 bg-white rounded-b-[0.6vw]">
+                                <div className="flex-1 min-w-0 pr-[0.5vw]">
+                                  <h4 className="text-[0.75vw] font-semibold text-gray-900 truncate">
+                                    {book.title || book.name}
+                                  </h4>
+                                  <p className="text-[0.6vw] text-gray-500 mt-[0.1vw] truncate">
+                                    {book.quotes || 'No description available'}
+                                  </p>
+                                </div>
+                                <div
+                                  onMouseEnter={() => setActiveStatsBookId(bookId)}
+                                  onMouseLeave={() => setActiveStatsBookId(null)}
+                                >
+                                  <button
+                                    className="bg-black text-white p-[0.35vw] rounded-full hover:bg-gray-800 transition-colors flex-shrink-0 shadow-sm relative z-20"
+                                  >
+                                    <BarChart2 size="0.8vw" />
+                                  </button>
+
+                                  {/* Stats Tooltip */}
+                                  {activeStatsBookId === bookId && (
+                                    <div className="absolute bottom-[3vw] right-[0.5vw] w-[10vw] bg-[#424242]/95 backdrop-blur-md border border-gray-600/30 rounded-[0.6vw] p-[0.5vw] shadow-2xl z-30 text-white animate-in fade-in zoom-in-95 duration-200">
+                                      <div className="flex flex-col gap-[0.4vw] text-[0.65vw] font-medium text-gray-300">
+                                        <div>Views : <span className="text-white font-semibold">{book.views || '528k'}</span></div>
+                                        <div>No of Pages : <span className="text-white font-semibold">{book.pages || 0}</span></div>
+                                        <div>Added to Shelf : <span className="text-white font-semibold">250k</span></div>
+                                        <div className="flex items-center gap-[0.2vw]">
+                                          Ratings :
+                                          <div className="flex items-center text-yellow-400">
+                                            <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
+                                            <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
+                                            <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
+                                            <Icon icon="lucide:star" className="fill-current w-[0.65vw] h-[0.65vw]" />
+                                            <Icon icon="lucide:star" className="w-[0.65vw] h-[0.65vw]" />
+                                          </div>
+                                          <span className="text-gray-400">(4.5)</span>
+                                        </div>
+                                        <div>No of Ratings : <span className="text-white font-semibold">1528</span></div>
+                                      </div>
+
+                                      <div className="mt-[0.5vw] flex justify-start">
+                                        <a href="#" className="flex items-center gap-[0.2vw] text-[0.75vw] text-white hover:text-gray-200 underline underline-offset-2 transition-colors">
+                                          View More details
+                                          <Icon icon="lucide:arrow-up-right" className="w-[1vw] h-[1vw]" />
+                                        </a>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="col-span-full py-[3vw] flex flex-col items-center justify-center text-gray-400">
+                          <BookOpen className="w-[2.5vw] h-[2.5vw] text-gray-300 mb-[0.5vw]" />
+                          <p className="text-[0.9vw] font-medium text-gray-500">No Interactive Digital Catalogs Found</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

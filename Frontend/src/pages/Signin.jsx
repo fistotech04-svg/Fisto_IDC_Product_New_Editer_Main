@@ -80,7 +80,19 @@ export default function Signin() {
         });
 
         if (res.data.user) {
-          localStorage.setItem('user', JSON.stringify({ ...res.data.user, isLoggedIn: true }));
+          const userData = { ...res.data.user, isLoggedIn: true };
+          localStorage.setItem('user', JSON.stringify(userData));
+          
+          const profileData = {
+            emailId: res.data.user.emailId,
+            email: res.data.user.emailId,
+            name: res.data.user.name || res.data.user.emailId.split('@')[0],
+            picture: res.data.user.picture || null,
+            avatarBgColor: res.data.user.avatarBgColor || '#E8D4C8'
+          };
+          localStorage.setItem('user_profile', JSON.stringify(profileData));
+          window.dispatchEvent(new CustomEvent('profileUpdate', { detail: profileData }));
+
           toast.success('Login successful with Google!');
           const searchParams = new URLSearchParams(location.search);
           const redirectUrl = searchParams.get('redirect') || '/home';
@@ -109,7 +121,19 @@ export default function Signin() {
         });
 
         if (res.data.user) {
-          localStorage.setItem('user', JSON.stringify({ ...res.data.user, isLoggedIn: true }));
+          const userData = { ...res.data.user, isLoggedIn: true };
+          localStorage.setItem('user', JSON.stringify(userData));
+
+          const profileData = {
+            emailId: res.data.user.emailId,
+            email: res.data.user.emailId,
+            name: res.data.user.name || res.data.user.emailId.split('@')[0],
+            picture: res.data.user.picture || null,
+            avatarBgColor: res.data.user.avatarBgColor || '#E8D4C8'
+          };
+          localStorage.setItem('user_profile', JSON.stringify(profileData));
+          window.dispatchEvent(new CustomEvent('profileUpdate', { detail: profileData }));
+
           toast.success('Welcome back!');
           const searchParams = new URLSearchParams(location.search);
           const redirectUrl = searchParams.get('redirect') || '/home';
@@ -136,10 +160,21 @@ export default function Signin() {
       });
       
       if (res.data.user) {
-        localStorage.setItem('user', JSON.stringify({
+        const userData = {
           ...res.data.user,
           isLoggedIn: true
-        }));
+        };
+        localStorage.setItem('user', JSON.stringify(userData));
+
+        const profileData = {
+          emailId: res.data.user.emailId,
+          email: res.data.user.emailId,
+          name: res.data.user.name || res.data.user.emailId.split('@')[0],
+          picture: res.data.user.picture || null,
+          avatarBgColor: res.data.user.avatarBgColor || '#E8D4C8'
+        };
+        localStorage.setItem('user_profile', JSON.stringify(profileData));
+        window.dispatchEvent(new CustomEvent('profileUpdate', { detail: profileData }));
       }
 
       toast.success('Login successful!');

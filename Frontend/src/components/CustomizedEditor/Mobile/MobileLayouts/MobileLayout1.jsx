@@ -546,11 +546,11 @@ const MobileLayout1 = (props) => {
     const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: getLayoutColor('page-bg', '#DADBE8') }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: "transparent" }}>
             {/* Notch Spacer - fills the area near the hardware notch with a status bar color */}
             {!isPhysicalMobile && <div className="h-10 w-full shrink-0 z-50 bg-[#0B0F4E]" />}
             {/* Search Area */}
-            <div className="flex flex-col z-50 pt-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <div className="flex flex-col z-50 pt-0" style={{ backgroundColor: "transparent" }}>
                 {/* Row 1: Book Name & Logo (Only when search is visible) */}
                 {settings?.interaction?.search !== false && !isPdfProject && (
                     <div className="flex items-center justify-between px-6 pt-6 pb-1">
@@ -582,7 +582,7 @@ const MobileLayout1 = (props) => {
                         </>
                     )}
                     {settings?.interaction?.search !== false && !isPdfProject && (
-                    <div className="flex-1 rounded-full h-9 px-4 flex items-center gap-2 relative" style={{ backgroundColor: getLayoutColor('search-bg-v1', '#DADBE8') }}>
+                    <div className="flex-1 rounded-full h-9 px-4 flex items-center gap-2 relative" style={{ backgroundColor: "transparent" }}>
                         <Icon icon="ph:magnifying-glass" className="w-4.5 h-4.5" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
                         <input
                             type="text"
@@ -666,7 +666,7 @@ const MobileLayout1 = (props) => {
             <div className="flex-1 relative flex flex-col overflow-hidden">
 
                 {/* Main Content Area */}
-                <div className="flex-1 relative overflow-hidden flex flex-col" style={{ backgroundColor: getLayoutColor('page-bg-v2', '#BDC3D9') }}>
+                <div className="flex-1 relative overflow-hidden flex flex-col" style={{ backgroundColor: "transparent" }}>
                     {/* Zoom/Reset Box */}
                     <div className="absolute top-3 right-2.5 z-[70] flex items-center gap-2 px-2 py-1.5 rounded-lg backdrop-blur-md border border-white/10"
                         style={{ backgroundColor: getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.45) }}>
@@ -722,7 +722,7 @@ const MobileLayout1 = (props) => {
             </div>
 
             {/* Footer Navigation */}
-            <footer className="z-[60] flex flex-col pt-8 pb-10 relative mb-[-20px]" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <footer className="z-[60] flex flex-col pt-8 pb-10 relative mb-[-20px]" style={{ backgroundColor: "transparent" }}>
                 <div className="flex items-center justify-center gap-6 mb-3" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                     <button onClick={() => { closeAllPopups(); onPageClick(0); }} className="active:scale-90 transition-transform">
                         <Icon icon="ph:skip-back-bold" className="w-4 h-4" />
@@ -748,7 +748,7 @@ const MobileLayout1 = (props) => {
                     <div ref={progressRef} className="h-[3px] w-full bg-white/20 rounded-full cursor-pointer relative overflow-hidden" onClick={handleProgressClick}>
                         <div
                             className="absolute left-0 top-0 h-full rounded-full transition-all duration-300"
-                            style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                            style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: "transparent" }}
                         />
                     </div>
                 </div>

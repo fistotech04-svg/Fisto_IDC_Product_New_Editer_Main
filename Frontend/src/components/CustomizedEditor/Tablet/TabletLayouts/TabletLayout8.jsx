@@ -38,7 +38,7 @@ const TabletLayout8 = ({
     };
 
     return (
-        <div className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-[#E6E8ED]" style={{ containerType: 'inline-size' }}>
+        <div className="relative w-full h-full flex flex-col font-sans overflow-hidden " style={{ containerType: 'inline-size' }}>
       <div id="tablet-download-portal" className="absolute inset-0 z-[60] pointer-events-none"></div>
             
             {/* Top Bar - Floating/Transparent */}

@@ -24,23 +24,23 @@ import infoSvg from '../../assets/hotspot preset icon/icons/info.svg';
 
 export const presets = [
   { id: 'open-link', label: 'Open Link', src: openLinkSvg },
-  { id: 'whatsapp', label: 'WhatsApp', src: whatsappSvg },
-  { id: 'navigate-to', label: 'Navigate Page', src: navigationSvg },
-  { id: '3d-viewer', label: '3D Viewer', src: threeDSvg },
-  { id: 'call', label: 'Call', src: callSvg },
   { id: 'email', label: 'Email', src: emailSvg },
   { id: 'location', label: 'Location', src: locationSvg },
-  { id: 'youtube', label: 'You tube', src: youtubeSvg },
-  { id: 'instagram', label: 'Instagram', src: instagramSvg },
-  { id: 'x', label: 'X', src: xSvg },
-  { id: 'facebook', label: 'Facebook', src: facebookSvg },
-  { id: 'linkedin', label: 'Linked in', src: linkedinSvg },
+  { id: 'call', label: 'Call', src: callSvg },
+  { id: '3d-viewer', label: '3D Viewer', src: threeDSvg },
+  { id: 'navigate-to', label: 'Navigate Page', src: navigationSvg },
   { id: 'video', label: 'Video', src: videoSvg },
   { id: 'popup', label: 'Popup', src: popupSvg },
   { id: 'slideshow', label: 'Slideshow', src: slideshowSvg },
   { id: 'zoom', label: 'Zoom', src: zoomSvg },
   { id: 'download', label: 'Download', src: downloadSvg },
-  { id: 'info-box', label: 'Info Popup', src: infoSvg }
+  { id: 'info-box', label: 'Info Popup', src: infoSvg },
+  { id: 'whatsapp', label: 'WhatsApp', src: whatsappSvg },
+  { id: 'youtube', label: 'You tube', src: youtubeSvg },
+  { id: 'instagram', label: 'Instagram', src: instagramSvg },
+  { id: 'x', label: 'X', src: xSvg },
+  { id: 'facebook', label: 'Facebook', src: facebookSvg },
+  { id: 'linkedin', label: 'Linked in', src: linkedinSvg }
 ];
 
 const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
@@ -104,8 +104,8 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
           <div className="h-px bg-gray-200 flex-1"></div>
         </div>
 
-        <div className="grid grid-cols-4 gap-y-[0.5vh] gap-x-[0.5vw] mb-[1vh]">
-          {filteredPresets.map((preset) => (
+        <div className="grid grid-cols-4 gap-y-[0.5vh] gap-x-[0.5vw] mb-[2vh]">
+          {filteredPresets.filter(p => !['whatsapp', 'youtube', 'instagram', 'x', 'facebook', 'linkedin'].includes(p.id)).map((preset) => (
             <div 
               key={preset.id}
               className="group flex flex-col items-center cursor-grab active:cursor-grabbing hover:bg-gray-50 rounded-[0.5vw] p-[0.4vw] transition-colors"
@@ -118,14 +118,39 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
                 e.dataTransfer.setData('application/json', JSON.stringify(data));
                 e.dataTransfer.effectAllowed = 'copy';
               }}
-              onClick={() => {
-                if (window.editorActiveTopTool !== 'interaction') {
-                  // Fallback if global isn't set perfectly
-                }
-                window.dispatchEvent(new CustomEvent('add-hotspot-to-editor', {
-                  detail: { icon: { presetId: preset.id, src: preset.src } }
-                }));
+
+            >
+              <div className="w-[2.8vw] h-[2.8vw] flex items-center justify-center rounded-full pointer-events-none">
+                <img src={preset.src} alt={preset.label} className="w-full h-full object-contain pointer-events-none" />
+              </div>
+              <span className="text-[0.6vw] text-gray-600 font-medium text-center leading-tight mt-[0.3vh]">
+                {preset.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Social Media Icons Section */}
+        <div className="flex items-center gap-[0.5vw] mb-[1vh]">
+          <h3 className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Social Media Icons</h3>
+          <div className="h-px bg-gray-200 flex-1"></div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-y-[0.5vh] gap-x-[0.5vw] mb-[2vh]">
+          {filteredPresets.filter(p => ['whatsapp', 'youtube', 'instagram', 'x', 'facebook', 'linkedin'].includes(p.id)).map((preset) => (
+            <div 
+              key={preset.id}
+              className="group flex flex-col items-center cursor-grab active:cursor-grabbing hover:bg-gray-50 rounded-[0.5vw] p-[0.4vw] transition-colors"
+              draggable="true"
+              onDragStart={(e) => {
+                const data = {
+                  type: 'hotspot',
+                  icon: { presetId: preset.id, src: preset.src }
+                };
+                e.dataTransfer.setData('application/json', JSON.stringify(data));
+                e.dataTransfer.effectAllowed = 'copy';
               }}
+
             >
               <div className="w-[2.8vw] h-[2.8vw] flex items-center justify-center rounded-full pointer-events-none">
                 <img src={preset.src} alt={preset.label} className="w-full h-full object-contain pointer-events-none" />
@@ -196,7 +221,6 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
                 }}
                 draggable="true"
                 onDragStart={handleDragStart}
-                onClick={handleClick}
               >
                 {btn.icon && <Icon icon="lucide:check" className="text-white text-[0.7vw] mr-[0.3vw]" />}
                 <span className="text-white text-[0.7vw] font-semibold">{btn.text}</span>
