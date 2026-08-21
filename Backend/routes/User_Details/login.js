@@ -1,12 +1,13 @@
 import express from 'express';
 import User from '../../models/auth.js';
+import Profile from '../../models/Profile.js';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { OAuth2Client } from 'google-auth-library';
 import nodemailer from 'nodemailer';
-import { ensureUserFoldersInSupabase } from '../../config/supabase.js';
+import { ensureUserFoldersInSupabase, uploadBufferToSupabase } from '../../config/supabase.js';
 
 const router = express.Router();
 
@@ -42,7 +43,25 @@ const ensureUserFolders = (sanitizedEmail) => {
   }
 };
 
-
+/**
+ * Helper to download Google profile image and store in user's Supabase Storage Profile folder using native fetch.
+ */
+const saveGooglePictureToSupabase = async (sanitizedEmail, googlePictureUrl) => {
+  try {
+    if (!googlePictureUrl || !sanitizedEmail) return null;
+    const response = await fetch(googlePictureUrl);
+    if (!response.ok) return googlePictureUrl;
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const contentType = response.headers.get('content-type') || 'image/png';
+    const destinationPath = `${sanitizedEmail}/Profile/avatar_google.png`;
+    const supabaseUrl = await uploadBufferToSupabase(buffer, destinationPath, contentType);
+    return supabaseUrl || googlePictureUrl;
+  } catch (err) {
+    console.warn('[Google Picture] Error uploading Google picture to Supabase, fallback to URL:', err.message);
+    return googlePictureUrl;
+  }
+};
 
 // @route   POST /api/auth/google-login
 // @desc    Login or Signup with Google
@@ -80,7 +99,7 @@ router.post('/google-login', async (req, res) => {
       return res.status(400).json({ message: 'Google authentication failed: Email not found' });
     }
 
-    // Check if user exists
+    // Check if user exists in auth collection
     let user = await User.findOne({ emailId: email });
     const sanitizedEmail = email.replace(/[@.]/g, '_');
 
@@ -94,6 +113,41 @@ router.post('/google-login', async (req, res) => {
       await user.save();
     }
 
+    // Save/Upload Google avatar to user's Supabase Storage folder
+    let finalPictureUrl = picture;
+    if (picture) {
+      finalPictureUrl = await saveGooglePictureToSupabase(sanitizedEmail, picture);
+    }
+
+    // Ensure Profile exists and is populated with Google details
+    const normalizedEmail = email.trim().toLowerCase();
+    const safeRegex = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    let profile = await Profile.findOne({ emailId: safeRegex });
+
+    if (!profile) {
+      profile = new Profile({
+        emailId: normalizedEmail,
+        name: name || (normalizedEmail.split('@')[0]),
+        picture: finalPictureUrl || picture || null,
+        avatarBgColor: '#E8D4C8'
+      });
+      await profile.save();
+    } else {
+      let isUpdated = false;
+      // Always update picture if user logs in with Google and finalPictureUrl is available
+      if (finalPictureUrl && (!profile.picture || profile.picture === 'color_only' || profile.picture.includes('googleusercontent') || profile.picture.includes('avatar_google'))) {
+        profile.picture = finalPictureUrl;
+        isUpdated = true;
+      }
+      if ((!profile.name || profile.name === 'User') && name) {
+        profile.name = name;
+        isUpdated = true;
+      }
+      if (isUpdated) {
+        await profile.save();
+      }
+    }
+
     // Ensure folders exist for both new and returning Google users
     ensureUserFolders(user.userFolder || sanitizedEmail);
 
@@ -103,8 +157,9 @@ router.post('/google-login', async (req, res) => {
         emailId: user.emailId,
         userFolder: user.userFolder,
         createdAt: user.createdAt,
-        picture: picture,
-        name: name
+        picture: profile?.picture || finalPictureUrl || picture || null,
+        name: profile?.name || name || user.emailId.split('@')[0],
+        avatarBgColor: profile?.avatarBgColor || '#E8D4C8'
       }
     });
   } catch (error) {
@@ -179,12 +234,19 @@ router.post('/login', async (req, res) => {
     const sanitizedEmail = user.emailId.replace(/[@.]/g, '_');
     ensureUserFolders(user.userFolder || sanitizedEmail);
 
+    const normalizedEmail = user.emailId.trim().toLowerCase();
+    const safeRegex = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    const profile = await Profile.findOne({ emailId: safeRegex });
+
     res.status(200).json({ 
       message: 'Login successful', 
       user: {
         emailId: user.emailId,
         userFolder: user.userFolder,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
+        picture: profile?.picture || null,
+        name: profile?.name || user.emailId.split('@')[0],
+        avatarBgColor: profile?.avatarBgColor || '#E8D4C8'
       }
     });
   } catch (error) {

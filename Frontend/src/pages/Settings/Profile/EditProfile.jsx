@@ -99,6 +99,7 @@ const EditProfile = ({ user, setUser }) => {
         if (setUser) setUser(merged);
 
         try {
+          localStorage.setItem('user_profile', JSON.stringify(merged));
           const stored = localStorage.getItem('user');
           const parsed = stored ? JSON.parse(stored) : {};
           localStorage.setItem('user', JSON.stringify({
@@ -108,9 +109,14 @@ const EditProfile = ({ user, setUser }) => {
             picture: merged.picture,
             avatarBgColor: merged.avatarBgColor
           }));
+          window.dispatchEvent(new CustomEvent('profileUpdate', { detail: merged }));
         } catch (e) {}
       } else {
         if (setUser) setUser(editedUser);
+        try {
+          localStorage.setItem('user_profile', JSON.stringify(editedUser));
+          window.dispatchEvent(new CustomEvent('profileUpdate', { detail: editedUser }));
+        } catch (e) {}
       }
     } catch (err) {
       console.error("Error saving profile:", err);
