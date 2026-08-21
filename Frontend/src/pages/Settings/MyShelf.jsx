@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
-import textureScreen1 from '../../assets/Book Shelf/texture screen1.svg';
-import bookShelf1 from '../../assets/Book Shelf/Book shelf1.svg';
-import textureScreen2 from '../../assets/Book Shelf/texture screen2.png';
-import bookShelf2 from '../../assets/Book Shelf/Book shelf2.svg';
-import textureScreen3 from '../../assets/Book Shelf/texture screen3.svg';
-import bookShelf3 from '../../assets/Book Shelf/Book shelf3.svg';
-import book1 from '../../assets/Book Shelf/Book cover/book1.svg';
-import book2 from '../../assets/Book Shelf/Book cover/book2.svg';
-import book3 from '../../assets/Book Shelf/Book cover/book3.svg';
-import book4 from '../../assets/Book Shelf/Book cover/book4.svg';
-import book5 from '../../assets/Book Shelf/Book cover/book5.svg';
-import book6 from '../../assets/Book Shelf/Book cover/book6.svg';
+import textureScreen1 from '../../assets/Bookshelf/texture_screen1.svg';
+import bookShelf1 from '../../assets/Bookshelf/Book_shelf1.svg';
+import textureScreen2 from '../../assets/Bookshelf/texture_screen2.png';
+import bookShelf2 from '../../assets/Bookshelf/Book_shelf2.svg';
+import textureScreen3 from '../../assets/Bookshelf/texture_screen3.svg';
+import bookShelf3 from '../../assets/Bookshelf/Book_shelf3.svg';
+import book1 from '../../assets/Bookshelf/Bookcover/book1.svg';
+import book2 from '../../assets/Bookshelf/Bookcover/book2.svg';
+import book3 from '../../assets/Bookshelf/Bookcover/book3.svg';
+import book4 from '../../assets/Bookshelf/Bookcover/book4.svg';
+import book5 from '../../assets/Bookshelf/Bookcover/book5.svg';
+import book6 from '../../assets/Bookshelf/Bookcover/book6.svg';
 
 const books = [book1, book2, book3, book4, book5, book6];
-import customize1 from '../../assets/Book shelf/customize shelf/customize1.svg';
-import customize2 from '../../assets/Book shelf/customize shelf/customize2.svg';
-import customize3 from '../../assets/Book shelf/customize shelf/customize3.svg';
-import listFrame from '../../assets/Book shelf/list_frame.svg';
+import customize1 from '../../assets/Bookshelf/customize_shelf/customize1.svg';
+import customize2 from '../../assets/Bookshelf/customize_shelf/customize2.svg';
+import customize3 from '../../assets/Bookshelf/customize_shelf/customize3.svg';
+import listFrame from '../../assets/Bookshelf/list_frame.svg';
 
 const shelfOptions = [
   { id: 'customize1', name: 'Modern White', img: customize1 },
