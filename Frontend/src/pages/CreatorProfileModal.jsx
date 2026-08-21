@@ -8,7 +8,7 @@ import cover3 from '../assets/Explore/c-bg3.png';
 import cover4 from '../assets/Explore/c-bg4.png';
 import cover5 from '../assets/Explore/c-bg5.png';
 
-export default function CreatorProfileModal({ isOpen, onClose, creator }) {
+export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false }) {
     const [viewMode, setViewMode] = useState('shelf');
 
     if (!isOpen) return null;
@@ -28,12 +28,21 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[40] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] px-[2vw] pb-[2vw] pt-[10vh]">
+                <div className={
+                    isPreview
+                        ? "absolute inset-0 z-[160] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pt-[9vh] pb-[8vh] px-[5vw]"
+                        : "fixed inset-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] px-[2vw] pb-[2vw] pt-[8vh]"
+                }>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
+                        className={
+                            isPreview
+                                ? "bg-[#f8f9fa] w-full h-full p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
+                                : "bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-y-auto overflow-x-hidden no-scrollbar"
+                        }
+                        style={isPreview ? { zoom: 0.8 } : {}}
                     >
                         {/* Close Button */}
                         <button
@@ -55,7 +64,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
                         <div className="flex flex-col md:flex-row relative mt-[1vw] gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]">
 
                             {/* Left Column (Avatar + Info) */}
-                            <div className="w-[22vw] flex-shrink-0 bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
+                            <div className="w-[22vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
                                 {/* Bottom Fade Shadow */}
                                 <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50 rounded-b-[1vw]"></div>
                                 
@@ -105,7 +114,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator }) {
                                     </div>
 
                                     {/* Name */}
-                                    <h2 className="text-[1.5vw] font-semibold text-gray-900 mt-[1vw] w-full px-[2vw] text-left truncate">{creator?.name || 'Luffy'}</h2>
+                                    <h2 className="text-[1.5vw] font-semibold text-gray-900 mt-[1vw] w-full px-[2vw] text-center truncate">{creator?.name || 'Luffy'}</h2>
 
                                     {/* Info Sections */}
                                     <div id="left-scroll-container" className="w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 overflow-y-auto min-h-0 no-scrollbar text-left">

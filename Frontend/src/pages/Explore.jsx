@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
-import exploreHeroImg from '../assets/Explore/explore-hero-section.svg';
+import exploreHeroImg from '../assets/Explore/explore-hero-section.png';
 import cover1 from '../assets/Explore/c-bg1.png';
 import cover2 from '../assets/Explore/c-bg2.png';
 import cover3 from '../assets/Explore/c-bg3.png';
@@ -444,7 +444,7 @@ const Explore = () => {
                         <img
                             src={exploreHeroImg}
                             alt="Explore IDC Hero Graphic"
-                            className="h-[42vh] max-h-[460px] w-auto object-contain object-bottom shrink-0 block"
+                            className="h-[35vh] max-h-[400px] w-auto object-contain object-bottom shrink-0 block"
                         />
                     </div>
                 </div>
