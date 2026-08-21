@@ -179,7 +179,7 @@ const SettingsLayout = () => {
     <div className="flex h-full bg-white font-sans overflow-hidden">
       
       {/* Sidebar */}
-      <aside className="w-[16vw] flex-shrink-0 border-r border-gray-100 flex flex-col">
+      <aside className="w-[16vw] mt-[1.5vw] flex-shrink-0 border-r border-gray-100 flex flex-col">
         
         {/* User Info (Top Left of Sidebar) */}
         <div className="p-[1.5vw] flex items-center justify-between border-b border-gray-100 mb-[0.5vw] relative group hover:bg-gray-50 transition-colors">
@@ -247,8 +247,8 @@ const SettingsLayout = () => {
             <div key={index} className="mb-[1vw]">
               
               {/* Group Title with Line */}
-              <div className="flex items-center gap-[1vw] mb-[0.4vw] px-[0.5vw]">
-                <h4 className="text-[0.9vw] font-semibold text-gray-700 whitespace-nowrap">
+              <div className="flex items-center gap-[1vw] mb-[0.8vw] px-[0.5vw]">
+                <h4 className="text-[0.95vw] font-semibold text-gray-700 whitespace-nowrap">
                   {group.title}
                 </h4>
                 <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
