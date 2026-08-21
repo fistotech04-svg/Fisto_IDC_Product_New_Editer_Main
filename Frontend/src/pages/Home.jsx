@@ -773,6 +773,10 @@ export default function Home() {
 
     try {
       const MAX_TOTAL_PAGES = 12;
+      let totalPdfSize = 0;
+      for (const file of files) {
+        totalPdfSize += file.size || 0;
+      }
       let allImages = [];
 
       // Step 1 — Extract pages from all PDFs (up to 12 pages)
@@ -830,7 +834,8 @@ export default function Home() {
         flipbookName: uniqueName,
         pages: placeholderPages,
         overwrite: true,
-        folderName: targetFolder
+        folderName: targetFolder,
+        fileSize: totalPdfSize || allImages.reduce((sum, img) => sum + (img.blob?.size || 0), 0)
       });
       const v_id = createRes.data.v_id;
       createdFlipbookVIdRef.current = v_id;
@@ -872,7 +877,8 @@ export default function Home() {
           emailId,
           v_id,
           pages: batchPages,
-          keepBase64: true
+          keepBase64: true,
+          fileSize: totalPdfSize
         });
       }
 

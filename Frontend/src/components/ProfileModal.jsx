@@ -2,8 +2,40 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Save, BookOpen, Library, Settings, ChevronRight, ArrowRight, LogOut } from 'lucide-react';
 
+const defaultColors = [
+  '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
+  '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
+];
+
+const getAvatarColor = (identifier, customColor) => {
+  if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
+    return customColor;
+  }
+  if (!identifier) return defaultColors[0];
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return defaultColors[Math.abs(hash) % defaultColors.length];
+};
+
 export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onToggleAutoSave }) {
-  const [user, setUser] = useState({ name: 'User', email: '', picture: null });
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('user_profile') || localStorage.getItem('user');
+      if (stored) {
+        const p = JSON.parse(stored);
+        const email = p.emailId || p.email || '';
+        return {
+          name: p.name || (email ? email.split('@')[0] : 'User'),
+          email: email || 'No Email',
+          picture: p.picture || null,
+          avatarBgColor: p.avatarBgColor || '#E8D4C8'
+        };
+      }
+    } catch (e) {}
+    return { name: 'User', email: '', picture: null, avatarBgColor: '#E8D4C8' };
+  });
   const [storage, setStorage] = useState({ used: 0, total: 300 * 1024 * 1024 });
   const [isLoadingStorage, setIsLoadingStorage] = useState(false);
   const [autoSave, setAutoSave] = useState(() => {
@@ -30,6 +62,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
 
   const handleLogout = () => {
     localStorage.removeItem('user');
+    localStorage.removeItem('user_profile');
     localStorage.removeItem('last_active_folder');
     if (window.google?.accounts?.id) {
       window.google.accounts.id.disableAutoSelect();
@@ -42,7 +75,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
     if (!isOpen) return;
 
     let targetEmail = '';
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem('user_profile') || localStorage.getItem('user');
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
@@ -50,19 +83,46 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
         setUser({
           name: parsedUser.name || (targetEmail ? targetEmail.split('@')[0] : 'User'),
           email: targetEmail || 'No Email',
-          picture: parsedUser.picture || null
+          picture: parsedUser.picture || null,
+          avatarBgColor: parsedUser.avatarBgColor || '#E8D4C8'
         });
       } catch (e) {
         console.error("Failed to parse user data", e);
       }
     }
 
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+
+    // Fetch latest profile info (name, picture, avatarBgColor)
+    const fetchLatestProfile = async (emailToFetch) => {
+      if (!emailToFetch || emailToFetch === 'No Email' || emailToFetch === 'guest@example.com') return;
+      try {
+        const res = await fetch(`${backendUrl}/api/profile?emailId=${encodeURIComponent(emailToFetch)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.success && data?.profile) {
+            const p = data.profile;
+            setUser({
+              name: p.name || (emailToFetch ? emailToFetch.split('@')[0] : 'User'),
+              email: p.emailId || emailToFetch,
+              picture: p.picture || null,
+              avatarBgColor: p.avatarBgColor || '#E8D4C8'
+            });
+            try {
+              localStorage.setItem('user_profile', JSON.stringify(p));
+            } catch (e) {}
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching live profile in ProfileModal:", err);
+      }
+    };
+
     const fetchLiveStorageSettings = async (emailToFetch) => {
       if (!emailToFetch || emailToFetch === 'No Email' || emailToFetch === 'guest@example.com') return;
 
       setIsLoadingStorage(true);
       try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
         const response = await fetch(`${backendUrl}/api/usersetting/get-settings?emailId=${encodeURIComponent(emailToFetch)}`);
         if (response.ok) {
           const data = await response.json();
@@ -84,6 +144,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
     };
 
     if (targetEmail) {
+      fetchLatestProfile(targetEmail);
       fetchLiveStorageSettings(targetEmail);
     }
   }, [isOpen]);
@@ -92,7 +153,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
     if (!bytes || bytes <= 0) return '0 MB';
     const mb = bytes / (1024 * 1024);
     if (mb < 0.1) return '0.1 MB';
-    if (mb < 10) return `${mb.toFixed(1)} MB`;
+    if (mb < 100) return `${parseFloat(mb.toFixed(1))} MB`;
     return `${Math.round(mb)} MB`;
   };
 
@@ -133,11 +194,24 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
           </div>
 
           {/* Avatar */}
-          <div className="w-[3.2vw] h-[3.2vw] rounded-full overflow-hidden border border-gray-100 shadow-sm flex-shrink-0 flex items-center justify-center bg-gray-100">
-            {user.picture ? (
-              <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
+          <div
+            className="w-[3.2vw] h-[3.2vw] rounded-full overflow-hidden border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center transition-colors"
+            style={{ backgroundColor: (user.picture && user.picture !== 'color_only') ? '#ffffff' : ((user.avatarBgColor && user.avatarBgColor !== '#E8D4C8' && user.avatarBgColor !== '#ffffff') ? user.avatarBgColor : getAvatarColor(user.name || user.email || 'User')) }}
+          >
+            {user.picture && user.picture !== 'color_only' ? (
+              <img 
+                src={user.picture} 
+                alt={user.name} 
+                className="w-full h-full object-cover" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
             ) : (
-              <span className="text-[1.2vw] font-bold text-[#383e93]">{user.name.charAt(0).toUpperCase()}</span>
+              <span className="text-[1.2vw] font-bold text-white drop-shadow-sm">
+                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+              </span>
             )}
           </div>
 

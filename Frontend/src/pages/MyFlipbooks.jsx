@@ -356,6 +356,10 @@ export default function MyFlipbooks() {
         createdFlipbookVIdRef.current = null;
 
         try {
+            let totalPdfSize = 0;
+            for (const file of files) {
+                totalPdfSize += file.size || 0;
+            }
             let allImages = [];
 
             // Step 1 — Extract all PDF pages into SVG blobs
@@ -409,7 +413,8 @@ export default function MyFlipbooks() {
                 flipbookName: uniqueName,
                 pages: placeholderPages,
                 overwrite: true,
-                folderName: targetFolder
+                folderName: targetFolder,
+                fileSize: totalPdfSize || allImages.reduce((sum, img) => sum + (img.blob?.size || 0), 0)
             });
             const v_id = createRes.data.v_id;
             createdFlipbookVIdRef.current = v_id;
@@ -451,7 +456,8 @@ export default function MyFlipbooks() {
                     emailId,
                     v_id,
                     pages: batchPages,
-                    keepBase64: true
+                    keepBase64: true,
+                    fileSize: totalPdfSize
                 });
             }
 
@@ -1135,10 +1141,32 @@ export default function MyFlipbooks() {
             return (b.views || 0) - (a.views || 0);
         }
         if (sortOption === 'Largest File Size') {
-            return (parseInt(b.size) || 0) - (parseInt(a.size) || 0);
+            const getBytes = (b) => {
+                if (b.sizeBytes && b.sizeBytes > 0) return b.sizeBytes;
+                if (typeof b.size === 'string' && b.size !== '0 B' && b.size !== '0B') {
+                    const num = parseFloat(b.size) || 0;
+                    if (b.size.toUpperCase().includes('GB')) return num * 1024 * 1024 * 1024;
+                    if (b.size.toUpperCase().includes('MB')) return num * 1024 * 1024;
+                    if (b.size.toUpperCase().includes('KB')) return num * 1024;
+                    return num;
+                }
+                return (b.pages || 1) * 450 * 1024;
+            };
+            return getBytes(b) - getBytes(a);
         }
         if (sortOption === 'Smallest File Size') {
-            return (parseInt(a.size) || 0) - (parseInt(b.size) || 0);
+            const getBytes = (b) => {
+                if (b.sizeBytes && b.sizeBytes > 0) return b.sizeBytes;
+                if (typeof b.size === 'string' && b.size !== '0 B' && b.size !== '0B') {
+                    const num = parseFloat(b.size) || 0;
+                    if (b.size.toUpperCase().includes('GB')) return num * 1024 * 1024 * 1024;
+                    if (b.size.toUpperCase().includes('MB')) return num * 1024 * 1024;
+                    if (b.size.toUpperCase().includes('KB')) return num * 1024;
+                    return num;
+                }
+                return (b.pages || 1) * 450 * 1024;
+            };
+            return getBytes(a) - getBytes(b);
         }
         if (sortOption === 'Total Pages (High → Low)') {
             return (parseInt(b.pages) || 0) - (parseInt(a.pages) || 0);
@@ -1171,6 +1199,25 @@ export default function MyFlipbooks() {
         hours = hours ? hours : 12;
         
         return `${day}-${month}-${year} ${pad(hours)}:${minutes} ${ampm}`;
+    };
+
+    const formatDisplaySize = (book) => {
+        if (book.size && book.size !== '0 B' && book.size !== '0B' && book.size !== '0 Bytes') {
+            return book.size;
+        }
+        if (book.sizeBytes && book.sizeBytes > 0) {
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(book.sizeBytes) / Math.log(k));
+            return `${parseFloat((book.sizeBytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+        }
+        if (book.fileSize && book.fileSize > 0) {
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(book.fileSize) / Math.log(k));
+            return `${parseFloat((book.fileSize / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+        }
+        return '0 B';
     };
 
     const isAllSelected = filteredBooks.length > 0 && selectedBooks.length === filteredBooks.length;
@@ -1782,7 +1829,7 @@ export default function MyFlipbooks() {
                                                             {activeFolder === 'Recent Book' ? 'Last Updated on' : 'Created on'} : {activeFolder === 'Recent Book' ? formatDisplayDate(book.mtime || book.updatedAt || book.updated || book.createdAt || book.created) : book.created}
                                                         </span>
                                                         <span>Views : {book.views || 245}</span>
-                                                        <span>Size : {book.size || '24MB'}</span>
+                                                        <span>Size : {formatDisplaySize(book)}</span>
                                                     </div>
                                                 </div>
 
