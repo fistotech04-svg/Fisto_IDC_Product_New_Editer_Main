@@ -6,6 +6,7 @@ import p2 from '../../../assets/settings/p2.png';
 import p3 from '../../../assets/settings/p3.png';
 import p4 from '../../../assets/settings/p4.png';
 import p5 from '../../../assets/settings/p5.png';
+import { resolveUploadsPath } from '../../../utils/supabaseUtils';
 
 const AvatarPopup = ({ isOpen, onClose, onSelectAvatar, onSelectColor, currentAvatar }) => {
   const [isColorPalletOpen, setIsColorPalletOpen] = useState(false);
@@ -130,8 +131,8 @@ const AvatarPopup = ({ isOpen, onClose, onSelectAvatar, onSelectColor, currentAv
 
       <div>
         {isCustomUploaded && displayImageSrc ? (
-          <div className="flex gap-[1vw] items-center rounded-[0.4vw] p-[0.3vw] bg-gray-50/70 border border-gray-100">
-             <img src={displayImageSrc} alt="Uploaded" className="w-[4vw] h-[4vw] object-cover rounded-[0.4vw] border border-gray-200" referrerPolicy="no-referrer" />
+          <div className="flex gap-[1vw] items-center">
+             <img src={displayImageSrc.startsWith('blob:') || displayImageSrc.startsWith('data:') ? displayImageSrc : resolveUploadsPath(displayImageSrc)} alt="Uploaded" className="w-[4vw] h-[4vw] object-cover rounded-[0.4vw] border border-gray-200" referrerPolicy="no-referrer" />
              <div className="flex-1 min-w-0">
                 <h4 className="text-[0.85vw] font-medium text-gray-800 truncate">Image</h4>
                 <p className="text-[0.6vw] text-gray-500 mt-[0.1vw]">
@@ -139,7 +140,7 @@ const AvatarPopup = ({ isOpen, onClose, onSelectAvatar, onSelectColor, currentAv
                 </p>
                 <div className="flex gap-[0.4vw] mt-[0.5vw]">
                    <button onClick={handleUpload} className="px-[0.5vw] py-[0.25vw] border border-gray-200 rounded-[0.3vw] text-[0.7vw] font-medium text-gray-700 bg-white hover:bg-gray-100 transition-colors cursor-pointer shadow-sm">
-                      Replace Img
+                      Replace Image
                    </button>
                    <button onClick={() => {
                       setUploadedImage(null);
