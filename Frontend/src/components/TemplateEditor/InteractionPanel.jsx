@@ -8,8 +8,8 @@ import { parsePhoneNumberFromString, isValidPhoneNumber } from 'libphonenumber-j
 import PopupTemplateSelection, { TEMPLATES } from './PopupTemplateSelection';
 import ModelGalleryModal from '../ThreedEditor/Components/ModelGalleryModal';
 import AlertModal from '../AlertModal';
-import { Canvas } from '@react-three/fiber';
-import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { Stage, OrbitControls, useGLTF, Environment, Center, Bounds } from '@react-three/drei';
 import * as THREE from 'three';
 import axios from 'axios';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
@@ -18,14 +18,52 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ColorPicker from './ColorPicker';
 import HotspotCustomizationPopup, { generateHotspotSVG } from './HotspotCustomizationPopup';
 
-const GlbModel = ({ url }) => {
+const GlbModelScene = ({ url }) => {
   const { scene } = useGLTF(url);
+  const { camera, size } = useThree();
+  const controls = useThree(state => state.controls);
+
+  useEffect(() => {
+    if (!scene) return;
+    const box = new THREE.Box3().setFromObject(scene);
+    const sizeVec = new THREE.Vector3();
+    box.getSize(sizeVec);
+    const radius = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) / 2;
+    const fovRad = ((camera.fov || 50) * Math.PI) / 360;
+    const dist = (radius / Math.sin(fovRad)) * 1.1; // 1.1 for 70-80% coverage
+
+    // Do NOT use Math.max(dist, 0.1) here, it forces small models to be viewed from far away!
+    camera.position.set(0, 0, dist);
+    camera.near = dist / 100;
+    camera.far = dist * 100;
+    camera.updateProjectionMatrix();
+
+    if (controls) {
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+  }, [scene, camera, controls]);
+
   return (
-    <Canvas camera={{ fov: 50 }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
-      <Stage environment="city" adjustCamera intensity={1}>
+    <>
+      <Environment preset="city" />
+      <ambientLight intensity={0.7} />
+      <directionalLight position={[10, 10, 10]} intensity={1} />
+      <directionalLight position={[-10, -10, -10]} intensity={0.3} />
+      <Center>
         <primitive object={scene} />
-      </Stage>
-      <OrbitControls enableZoom={false} enablePan={false} autoRotate={false} />
+      </Center>
+    </>
+  );
+};
+
+const GlbModel = ({ url }) => {
+  return (
+    <Canvas camera={{ fov: 50, position: [0, 0, 5] }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
+      <React.Suspense fallback={null}>
+        <GlbModelScene url={url} />
+      </React.Suspense>
+      <OrbitControls makeDefault enableZoom={false} enablePan={false} autoRotate={false} />
     </Canvas>
   );
 };
@@ -689,6 +727,7 @@ const InteractionPanel = ({
   const [tooltipSettingsOverrides, setTooltipSettingsOverrides] = useState({});
   const [linkBehaviorOverrides, setLinkBehaviorOverrides] = useState({});
   const [whatsappMessageOverrides, setWhatsappMessageOverrides] = useState({});
+  const [highlightOverrides, setHighlightOverrides] = useState({});
   const activeAudioRef = useRef(null);
 
   // Clean up audio on unmount
@@ -2598,10 +2637,10 @@ const InteractionPanel = ({
 
                                 return (
                                   <div className="flex-1 min-w-0 flex flex-col gap-[1vh]" onClick={(e) => e.stopPropagation()}>
-                                    <span className="text-[0.9vw] text-gray-900 font-medium tracking-wide">
+                                    <span className="text-[0.8vw] text-gray-900 font-medium tracking-wide">
                                       {fileMeta ? '3D Model Preview' : 'Upload 3D Model'}
                                     </span>
-                                    
+                                  
                                     {(() => {
                                       const handle3DFileSelect = (file) => {
                                         if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) && updateElementAttribute) {
@@ -2672,7 +2711,7 @@ const InteractionPanel = ({
                                                 accept=".glb,.gltf"
                                                 onFileSelect={handle3DFileSelect}
                                                 fileMeta={fileMeta}
-                                                boxClassName="w-full h-[18vh] border border-gray-200 rounded-[0.5vw] shadow-sm relative group overflow-hidden bg-white flex items-center justify-center cursor-pointer"
+                                                boxClassName="w-full h-[18vh] border border-gray-200 rounded-[0.5vw] shadow-sm relative group bg-white flex items-center justify-center cursor-pointer"
                                                 renderPreview={(meta) => (
                                                   <div className="w-full h-full relative group rounded-[0.5vw]">
                                                     <div className="absolute inset-0 overflow-hidden rounded-[0.5vw] flex items-center justify-center pointer-events-none">
@@ -3258,23 +3297,40 @@ const InteractionPanel = ({
 
                         {/* Card Footer (Highlight Component) */}
                         <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw]`}>
-                          <div className="flex items-center gap-[0.6vw]">
-                            {['open-link', 'whatsapp', 'email'].includes(resolvedActionId) ? (
-                              <>
-                                <div className="w-[1.1vw] h-[1.1vw] flex-shrink-0 rounded-[0.25vw] bg-[#5145F6] flex items-center justify-center cursor-pointer shadow-sm">
-                                  <Icon icon="mdi:check" className="text-white text-[0.85vw]" />
-                                </div>
-                                <span className="text-[0.8vw] text-gray-600 font-normal">Highlight interaction in preview</span>
-                              </>
-                            ) : (
-                              <>
-                                {/* Custom Checkbox */}
-                                <div className="w-[1.2vw] h-[1.2vw] flex-shrink-0 rounded-[0.25vw] bg-[#5145F6] flex items-center justify-center">
-                                  <Icon icon="lucide:check" className="text-white text-[0.9vw]" strokeWidth="3" />
-                                </div>
-                                <span className="text-[0.85vw] text-gray-600 font-medium">Highlight interaction in preview</span>
-                              </>
-                            )}
+                          <div 
+                            className="flex items-center gap-[0.6vw] cursor-pointer group"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const isCurrentlyOn = highlightOverrides[item.id] !== undefined 
+                                ? highlightOverrides[item.id] 
+                                : (item['data-show-highlight'] !== 'false'); // Default to true
+                              
+                              setHighlightOverrides(prev => ({ ...prev, [item.id]: !isCurrentlyOn }));
+                              
+                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                              if (updateElementAttribute) {
+                                updateElementAttribute(targetIdx, item.id, {
+                                  'data-show-highlight': (!isCurrentlyOn).toString()
+                                });
+                              }
+                            }}
+                          >
+                            <div className={`w-[1.2vw] h-[1.2vw] flex-shrink-0 rounded-[0.25vw] flex items-center justify-center transition-colors ${
+                              (highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false')
+                                ? 'bg-[#5145F6]'
+                                : 'border border-gray-300 bg-white group-hover:border-[#5145F6]'
+                            }`}>
+                              {(highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false') && (
+                                <Icon icon="lucide:check" className="text-white text-[0.9vw]" strokeWidth="3" />
+                              )}
+                            </div>
+                            <span className={`text-[0.85vw] font-medium transition-colors ${
+                              (highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false')
+                                ? 'text-gray-600'
+                                : 'text-gray-400 group-hover:text-gray-600'
+                            }`}>
+                              Highlight interaction in preview
+                            </span>
                           </div>
 
                           {/* Trash Icon */}
