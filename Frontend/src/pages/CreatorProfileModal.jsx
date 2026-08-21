@@ -187,6 +187,23 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
     const [profileData, setProfileData] = useState(null);
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFollowLoading, setIsFollowLoading] = useState(false);
+
+    const currentUserEmail = (() => {
+        try {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                const u = JSON.parse(storedUser);
+                if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
+            }
+            const storedProfile = localStorage.getItem('user_profile');
+            if (storedProfile) {
+                const p = JSON.parse(storedProfile);
+                if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
+            }
+        } catch (e) {}
+        return '';
+    })();
     const [scrollProgress, setScrollProgress] = useState(0);
     const [isScrolling, setIsScrolling] = useState(false);
     const scrollTimeout = useRef(null);
@@ -255,6 +272,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
             state: creator?.state || '',
             country: creator?.country || 'INDIA',
             socials: creator?.socials || {},
+            followers: creator?.followers || [],
+            following: creator?.following || [],
             bannerBg: creator?.bannerBg || { type: 'gradient', value: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' }
         };
 
@@ -264,6 +283,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
             setIsLoading(true);
             try {
                 const params = {};
+                if (currentUserEmail) params.currentEmail = currentUserEmail;
                 if (targetEmail) {
                     params.emailId = targetEmail;
                 } else if (creator?.shareId) {
@@ -310,12 +330,53 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
         };
 
         fetchCreatorData();
-    }, [isOpen, targetEmail, backendUrl, creator]);
-
-    if (!isOpen) return null;
+    }, [isOpen, targetEmail, backendUrl, creator, currentUserEmail]);
 
     const profileUser = profileData || creator || {};
     const books = booksData.length > 0 ? booksData : (isPreview ? defaultMockBooks : (targetEmail ? [] : defaultMockBooks));
+
+    const handleToggleFollowModal = async () => {
+        if (!currentUserEmail) {
+            alert("Please log in to follow creators.");
+            return;
+        }
+        const targetEmail = profileUser?.emailId || profileUser?.email;
+        if (!targetEmail || targetEmail.toLowerCase() === currentUserEmail.toLowerCase()) return;
+
+        const wasFollowing = profileUser?.isFollowing || (profileUser?.followers && profileUser.followers.some(f => f.toLowerCase() === currentUserEmail.toLowerCase()));
+
+        // Optimistic update
+        setProfileData(prev => {
+            if (!prev) return prev;
+            const newFollowers = wasFollowing
+                ? (prev.followers || []).filter(f => f.toLowerCase() !== currentUserEmail.toLowerCase())
+                : [...(prev.followers || []), currentUserEmail];
+            return {
+                ...prev,
+                isFollowing: !wasFollowing,
+                followers: newFollowers
+            };
+        });
+
+        setIsFollowLoading(true);
+        try {
+            const res = await axios.post(`${backendUrl}/api/explore/toggle-follow`, {
+                currentEmail: currentUserEmail,
+                targetEmail
+            });
+            if (res.data?.success) {
+                setProfileData(prev => ({
+                    ...prev,
+                    isFollowing: res.data.isFollowing,
+                    followers: res.data.followers
+                }));
+            }
+        } catch (err) {
+            console.error("Error toggling follow in modal:", err);
+        } finally {
+            setIsFollowLoading(false);
+        }
+    };
 
     const handleOpenBook = (book) => {
         const targetShareId = book.shareId || book.v_id;
@@ -445,7 +506,30 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             )}
                                         </div>
 
-                                        {/* Share Button */}
+                                        {/* Left Action Button (Follow) */}
+                                        {!isLoading && currentUserEmail && (profileUser?.emailId || profileUser?.email) && (profileUser.emailId || profileUser.email).toLowerCase() !== currentUserEmail.toLowerCase() && (
+                                            <div className="absolute top-[6.5vw] -left-[5vw] z-40 flex items-center">
+                                                <button 
+                                                    onClick={handleToggleFollowModal}
+                                                    disabled={isFollowLoading}
+                                                    className={`w-[5.2vw] h-[1.7vw] rounded-full text-[0.85vw] font-medium transition-all cursor-pointer flex items-center justify-center gap-[0.3vw] ${
+                                                        profileUser?.isFollowing
+                                                            ? 'bg-white text-black border border-gray-200 shadow-inner hover:bg-gray-50'
+                                                            : 'bg-black text-white hover:bg-gray-800 shadow-sm'
+                                                    }`}
+                                                >
+                                                    {isFollowLoading ? (
+                                                        <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
+                                                    ) : profileUser?.isFollowing ? (
+                                                        <span>Unfollow</span>
+                                                    ) : (
+                                                        <span>Follow</span>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Right Action Button (Share) */}
                                         {!isLoading && (
                                             <div 
                                                 className="absolute top-[6.5vw] -right-[5.5vw] z-40"
@@ -463,6 +547,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                         <div className="flex flex-col items-center mt-[0.8vw] gap-[0.4vw] w-full px-[1.5vw]">
                                             <div className="h-[1.3vw] w-[10vw] bg-gray-200 rounded animate-pulse"></div>
                                             <div className="h-[0.7vw] w-[8vw] bg-gray-100 rounded animate-pulse"></div>
+                                            <div className="h-[0.8vw] w-[9vw] bg-gray-100 rounded animate-pulse mt-[0.3vw]"></div>
                                         </div>
                                     ) : (
                                         <>
@@ -470,6 +555,22 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             {profileUser?.email && (
                                                 <p className="text-[0.7vw] text-gray-400 px-[1.5vw] text-center truncate">{profileUser?.email}</p>
                                             )}
+                                            {/* Followers & Following Stats */}
+                                            <div className="flex items-center justify-center gap-[1.2vw] mt-[0.6vw] w-full px-[1.5vw]">
+                                                <div className="flex items-center gap-[0.3vw]">
+                                                    <span className="text-[0.85vw] font-bold text-gray-900 leading-none">
+                                                        {profileUser?.followers?.length || 0}
+                                                    </span>
+                                                    <span className="text-[0.7vw] text-gray-500 font-medium leading-none">Followers</span>
+                                                </div>
+                                                <div className="w-[1px] h-[0.8vw] bg-gray-300"></div>
+                                                <div className="flex items-center gap-[0.3vw]">
+                                                    <span className="text-[0.85vw] font-bold text-gray-900 leading-none">
+                                                        {profileUser?.following?.length || 0}
+                                                    </span>
+                                                    <span className="text-[0.7vw] text-gray-500 font-medium leading-none">Following</span>
+                                                </div>
+                                            </div>
                                         </>
                                     )}
 

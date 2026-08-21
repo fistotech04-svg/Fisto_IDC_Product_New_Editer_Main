@@ -152,6 +152,8 @@ const defaultProfile = {
     facebook: '',
     whatsapp: ''
   },
+  followers: [],
+  following: [],
   bannerBg: {
     type: 'gradient',
     value: 'linear-gradient(to bottom right, #c1e8d7, #85d8c3, #60bba3)'
@@ -251,6 +253,8 @@ const Profile = () => {
               picture: p.picture || prev.picture || null,
               avatarBgColor: p.avatarBgColor || prev.avatarBgColor || '#E8D4C8',
               services: p.services || prev.services || [],
+              followers: p.followers || prev.followers || [],
+              following: p.following || prev.following || [],
               socials: {
                 ...defaultProfile.socials,
                 ...(prev.socials || {}),
@@ -672,8 +676,25 @@ const Profile = () => {
                 <span className="truncate font-medium">{user.email}</span>
               </div>
 
+              {/* Followers & Following Count */}
+              <div className="flex items-center justify-center gap-[1.2vw] mt-[0.8vw] w-full px-[1vw]">
+                <div className="flex items-center gap-[0.35vw]">
+                  <span className="text-[0.9vw] font-bold text-gray-900 leading-none">
+                    {user.followers?.length || 0}
+                  </span>
+                  <span className="text-[0.75vw] text-gray-500 font-medium leading-none">Followers</span>
+                </div>
+                <div className="w-[1px] h-[0.9vw] bg-gray-300"></div>
+                <div className="flex items-center gap-[0.35vw]">
+                  <span className="text-[0.9vw] font-bold text-gray-900 leading-none">
+                    {user.following?.length || 0}
+                  </span>
+                  <span className="text-[0.75vw] text-gray-500 font-medium leading-none">Following</span>
+                </div>
+              </div>
+
               {/* Info Cards Container */}
-              <div id="left-scroll-container" className={`w-full mt-[2vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar ${isChildScrollable ? 'overflow-y-scroll' : 'overflow-hidden'}`}>
+              <div id="left-scroll-container" className={`w-full mt-[1.2vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar ${isChildScrollable ? 'overflow-y-scroll' : 'overflow-hidden'}`}>
 
                 <div className="p-[1vw] border-b border-gray-100">
                   <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">

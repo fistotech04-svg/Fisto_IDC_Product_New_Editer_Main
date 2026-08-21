@@ -158,7 +158,7 @@ const EditProfile = ({ user, setUser }) => {
         ) : (
           <Check size="0.9vw" />
         )}
-        {isSaving ? 'Saving...' : 'Save Changes'}
+        {isSaving ? 'Updating...' : 'Update Changes'}
       </button>
     </div>
   );
