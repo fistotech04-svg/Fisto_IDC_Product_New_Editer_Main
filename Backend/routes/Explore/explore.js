@@ -73,4 +73,85 @@ router.get("/published", async (req, res) => {
     }
 });
 
+/**
+ * @route   GET /api/explore/creator
+ * @desc    Get a specific creator's profile info and all their published flipbooks
+ * @access  Public
+ */
+router.get("/creator", async (req, res) => {
+    try {
+        let rawEmail = req.query.emailId || req.query.email;
+        const shareId = req.query.shareId;
+        const v_id = req.query.v_id || req.query.vId;
+
+        // If email is not directly provided, resolve creator email via flipbook shareId or v_id from DB
+        if (!rawEmail && (shareId || v_id)) {
+            const query = [];
+            if (shareId) {
+                query.push({ "Customized_Settings.Visibility.shareId": shareId });
+                query.push({ "Visibility.shareId": shareId });
+                query.push({ "share.shareId": shareId });
+                query.push({ v_id: shareId });
+            }
+            if (v_id) {
+                query.push({ v_id: v_id });
+            }
+            const foundBook = await Flipbook.findOne({ $or: query }).lean();
+            if (foundBook && foundBook.userEmail) {
+                rawEmail = foundBook.userEmail;
+            }
+        }
+
+        if (!rawEmail) {
+            return res.status(400).json({ success: false, message: "emailId, shareId, or v_id query parameter is required" });
+        }
+
+        const normalizedEmail = rawEmail.trim().toLowerCase();
+        const safeRegex = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+        // Fetch user profile, user auth, and published flipbooks in parallel
+        const [profile, user, publishedBooks] = await Promise.all([
+            Profile.findOne({ emailId: safeRegex }).lean(),
+            User.findOne({ emailId: safeRegex }).lean(),
+            Flipbook.find({ userEmail: safeRegex, isPublished: true }).sort({ createdAt: -1 }).lean()
+        ]);
+
+        const mergedProfile = {
+            name: profile?.name || user?.name || normalizedEmail.split('@')[0],
+            email: normalizedEmail,
+            emailId: normalizedEmail,
+            picture: profile?.picture || user?.picture || null,
+            avatarBgColor: profile?.avatarBgColor || '#E8D4C8',
+            bannerBg: profile?.bannerBg || { type: 'gradient', value: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' },
+            about: profile?.about || '',
+            mobile: profile?.mobile || '',
+            companyName: profile?.companyName || '',
+            industryType: profile?.industryType || '',
+            companyEmail: profile?.companyEmail || '',
+            website: profile?.website || '',
+            services: profile?.services || [],
+            address1: profile?.address1 || '',
+            address2: profile?.address2 || '',
+            city: profile?.city || '',
+            pincode: profile?.pincode || '',
+            state: profile?.state || '',
+            country: profile?.country || 'INDIA',
+            socials: profile?.socials || {}
+        };
+
+        return res.status(200).json({
+            success: true,
+            profile: mergedProfile,
+            books: publishedBooks || []
+        });
+    } catch (error) {
+        console.error("[Explore Creator API Error]:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error while fetching creator profile",
+            error: error.message
+        });
+    }
+});
+
 export default router;

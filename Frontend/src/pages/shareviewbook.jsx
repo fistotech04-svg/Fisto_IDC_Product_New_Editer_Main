@@ -784,13 +784,14 @@ const ShareViewBook = () => {
             <FlipbookPreview
                 pages={bookData.pages}
                 pageName={bookData.meta?.flipbookName || 'Untitled Flipbook'}
-                settings={{ ...(bookData.meta || {}), ...settings }}
+                settings={{ ...(bookData.meta || {}), ...(bookData.Customized_Settings || {}), ...(bookData.settings || {}), ...settings, userEmail: bookData.userEmail, shareId: shareId || bookData?.v_id }}
                 isMobile={isMobileDevice}
                 onClose={null}
                 baseUrl={bookData.meta?.baseUrl ? `${getBackendUrl()}${bookData.meta.baseUrl}` : null}
                 v_id={shareId || bookData?.v_id}
                 isPublishedPreview={true}
                 isLoadingParent={false}
+                currentBook={bookData}
             />
         </div>
     );
