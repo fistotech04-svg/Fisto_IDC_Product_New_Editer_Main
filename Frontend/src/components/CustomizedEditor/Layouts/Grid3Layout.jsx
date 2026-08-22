@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import ProfilePopup from '../popups/ProfilePopup';
+
 
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {

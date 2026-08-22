@@ -277,7 +277,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
             socials: creator?.socials || {},
             followers: creator?.followers || [],
             following: creator?.following || [],
-            bannerBg: creator?.bannerBg || { type: 'gradient', value: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' }
+            bannerBg: creator?.bannerBg || { type: 'gradient', value: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' },
+            companyLogo: creator?.companyLogo || ''
         };
 
         setProfileData(initialProfile);
@@ -394,7 +395,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
             {isOpen && (
                 <div className={
                     isPreview
-                        ? "absolute inset-0 z-[160] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pt-[9vh] pb-[8vh] px-[5vw]"
+                        ? "absolute inset-0 z-[160] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pt-[3%] pb-[3%] px-[3%]"
                         : "fixed top-[8vh] inset-x-0 bottom-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pb-[2vw]"
                 }>
                     <motion.div
@@ -406,7 +407,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                 ? "bg-[#f8f9fa] w-full h-full p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
                                 : "bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
                         }
-                        style={isPreview ? { zoom: 0.8 } : {}}
+                        style={isPreview ? { zoom: 0.95 } : {}}
                     >
                         {/* Close Button */}
                         <button
@@ -451,7 +452,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                 <div className="flex flex-col md:flex-row relative gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]" style={{ marginTop: `${1 - 0.35 * scrollProgress}vw`, willChange: 'margin-top' }}>
 
                             {/* Left Column (Avatar + Info) */}
-                            <div className="w-[22vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
+                            <div className="w-[19vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
                                 {/* Bottom Fade Shadow */}
                                 <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50 rounded-b-[1vw]"></div>
                                 
@@ -508,42 +509,40 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                 </div>
                                             )}
                                         </div>
-
-                                        {/* Left Action Button (Follow) */}
-                                        {!isLoading && currentUserEmail && (profileUser?.emailId || profileUser?.email) && (profileUser.emailId || profileUser.email).toLowerCase() !== currentUserEmail.toLowerCase() && (
-                                            <div className="absolute top-[6.5vw] -left-[5vw] z-40 flex items-center">
-                                                <button 
-                                                    onClick={handleToggleFollowModal}
-                                                    disabled={isFollowLoading}
-                                                    className={`w-[5.2vw] h-[1.7vw] rounded-full text-[0.85vw] font-medium transition-all cursor-pointer flex items-center justify-center gap-[0.3vw] ${
-                                                        profileUser?.isFollowing
-                                                            ? 'bg-white text-black border border-gray-200 shadow-inner hover:bg-gray-50'
-                                                            : 'bg-black text-white hover:bg-gray-800 shadow-sm'
-                                                    }`}
-                                                >
-                                                    {isFollowLoading ? (
-                                                        <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
-                                                    ) : profileUser?.isFollowing ? (
-                                                        <span>Unfollow</span>
-                                                    ) : (
-                                                        <span>Follow</span>
-                                                    )}
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {/* Right Action Button (Share) */}
-                                        {!isLoading && (
-                                            <div 
-                                                className="absolute top-[6.5vw] -right-[5.5vw] z-40"
-                                                style={{ transform: `scale(${1 / (1 - (0.30 * scrollProgress))})`, transformOrigin: 'left center', willChange: 'transform' }}
-                                            >
-                                                <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[1vw] font-semibold text-gray-700 cursor-pointer">
-                                                    <Icon icon="ic:round-share" className="w-[1.2vw] h-[1.2vw]" /> Share
-                                                </button>
-                                            </div>
-                                        )}
                                     </div>
+
+                                    {/* Action Buttons Container (Outside scaling avatar) */}
+                                    {/* Left Action Button (Follow) */}
+                                    {!isLoading && currentUserEmail && (profileUser?.emailId || profileUser?.email) && (profileUser.emailId || profileUser.email).toLowerCase() !== currentUserEmail.toLowerCase() && (
+                                        <div className="absolute top-[2.6vw] left-[0.4vw] z-40 flex items-center">
+                                            <button 
+                                                onClick={handleToggleFollowModal}
+                                                disabled={isFollowLoading}
+                                                className={`px-[0.3vw] py-[0.1vw] min-w-[5vw] rounded-full text-[0.85vw] font-medium transition-all cursor-pointer flex items-center justify-center gap-[0.2vw] ${
+                                                    profileUser?.isFollowing
+                                                        ? 'bg-white text-black border border-gray-200 shadow-sm hover:bg-gray-50'
+                                                        : 'bg-black text-white hover:bg-gray-800 shadow-sm'
+                                                }`}
+                                            >
+                                                {isFollowLoading ? (
+                                                    <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
+                                                ) : profileUser?.isFollowing ? (
+                                                    <span>Unfollow</span>
+                                                ) : (
+                                                    <span>Follow</span>
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Right Action Button (Share) */}
+                                    {!isLoading && (
+                                        <div className="absolute top-[2.2vw] right-[0.4vw] z-40">
+                                            <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[0.9vw] font-semibold text-gray-700 cursor-pointer">
+                                                <Icon icon="ic:round-share" className="w-[1.1vw] h-[1.1vw]" /> Share
+                                            </button>
+                                        </div>
+                                    )}
 
                                     {/* Name & Email */}
                                     {isLoading ? (
@@ -598,10 +597,10 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             </div>
                                         </div>
                                     ) : (
-                                        <div id="left-scroll-container" className={`w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 min-h-0 no-scrollbar text-left ${isChildScrollable ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+                                        <div id="left-scroll-container" className={`w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 min-h-0 no-scrollbar text-left rounded-b-[1vw] ${isChildScrollable ? 'overflow-y-auto' : 'overflow-hidden'}`}>
                                             {/* About */}
                                             <div className="px-[1.5vw] py-[0.8vw]">
-                                                <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.4vw]">
+                                                <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
                                                     <Icon icon="mdi:information" className="w-[1vw] h-[1vw] text-gray-600" /> About
                                                 </h3>
                                                 <p className="text-[0.75vw] text-gray-500 leading-relaxed whitespace-pre-wrap">
@@ -612,7 +611,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             {/* Contact Number */}
                                             {profileUser?.mobile ? (
                                                 <div className="px-[1.5vw] py-[0.8vw] bg-[#FAFAFA]">
-                                                    <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
+                                                    <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
                                                         <Icon icon="ph:phone-call-fill" className="w-[1vw] h-[1vw] text-gray-600" /> Contact Number
                                                     </h3>
                                                     <p className="text-[0.75vw] text-gray-500">{profileUser?.mobile}</p>
@@ -622,9 +621,14 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             {/* Company Details */}
                                             <div className="px-[1.5vw] py-[0.8vw]">
                                                 <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                                                    <Icon icon="mingcute:qrcode-2-fill" className="w-[1vw] h-[1vw] text-gray-600" /> Company / Organization Details
+                                                    {profileUser?.companyLogo ? (
+                                                        <img src={profileUser.companyLogo} alt="Company Logo" className="w-[1.2vw] h-[1.2vw] object-contain rounded-[0.2vw]" />
+                                                    ) : (
+                                                        <Icon icon="mingcute:qrcode-2-fill" className="w-[1vw] h-[1vw] text-gray-600" />
+                                                    )}
+                                                    Company / Organization Details
                                                 </h3>
-                                                <div className="flex flex-col gap-[0.4vw] text-[0.75vw]">
+                                                <div className="flex flex-col gap-[0.4vw]  gap-[0.3vw] text-[0.75vw]">
                                                     <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">{profileUser?.companyName || 'Not specified'}</span></p>
                                                     <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">{profileUser?.industryType || 'Not specified'}</span></p>
                                                     <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">{profileUser?.companyEmail || profileUser?.email || 'Not specified'}</span></p>
@@ -640,10 +644,10 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             {/* Address */}
                                             {(profileUser?.address1 || profileUser?.address2 || profileUser?.city || profileUser?.state) ? (
                                                 <div className="px-[1.5vw] py-[0.8vw] bg-[#FAFAFA] rounded-b-[1vw]">
-                                                    <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
+                                                    <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
                                                         <Icon icon="carbon:location-filled" className="w-[1vw] h-[1vw] text-gray-600" /> Address
                                                     </h3>
-                                                    <div className="text-[0.75vw] text-gray-500">
+                                                    <div className="text-[0.75vw] flex flex-col gap-[0.3vw] text-gray-500">
                                                         {profileUser?.address1 && <div>{profileUser?.address1}</div>}
                                                         {profileUser?.address2 && <div>{profileUser?.address2}</div>}
                                                         <div>{[profileUser?.city, profileUser?.state, profileUser?.pincode].filter(Boolean).join(', ')}</div>
@@ -672,34 +676,34 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.5vw] px-[0.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
-                                        <h3 className="text-[1vw] font-semibold text-gray-900">Published Flipbooks ({books.length})</h3>
+                                    <div className="border border-gray-200 rounded-xl shadow-sm py-[0.8vw] px-[1.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
+                                        <h3 className="text-[0.95vw] font-semibold text-gray-900 whitespace-nowrap shrink-0">Published Flipbooks ({books.length})</h3>
                                         
                                         <div className="flex items-center gap-[2vw]">
                                             {/* Stats */}
-                                            <div className="flex items-center gap-[1.5vw] text-[0.75vw] text-gray-600">
-                                                <div className="flex flex-col items-center">
+                                            <div className="flex items-center gap-[1.5vw] text-[0.8vw] text-gray-500">
+                                                <div className="flex flex-col items-center justify-center">
                                                     <div className="flex items-center gap-[0.4vw]">
-                                                        <Icon icon="ph:book-open" className="w-[1vw] h-[1vw] text-gray-700" />
-                                                        <span className="font-semibold text-[0.9vw] text-gray-500">{books.length}</span>
+                                                        <Icon icon="bxs:book" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                        <span className="font-semibold text-[0.9vw] text-gray-700">{books.length}</span>
                                                     </div>
-                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Total Books</span>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Books</span>
                                                 </div>
-                                                <div className="w-[1px] h-[3vh] bg-gray-200"></div>
-                                                <div className="flex flex-col items-center">
+                                                <div className="w-[1px] h-[1.5vw] bg-gray-200"></div>
+                                                <div className="flex flex-col items-center justify-center">
                                                     <div className="flex items-center gap-[0.4vw]">
                                                         <Icon icon="ph:star-fill" className="w-[1vw] h-[1vw] text-yellow-400" />
-                                                        <span className="font-semibold text-[0.9vw] text-gray-500">4.5</span>
+                                                        <span className="font-semibold text-[0.9vw] text-gray-700">4.5</span>
                                                     </div>
-                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Overall Ratings</span>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Overall Ratings</span>
                                                 </div>
-                                                <div className="w-[1px] h-[3vh] bg-gray-200"></div>
-                                                <div className="flex flex-col items-center">
+                                                <div className="w-[1px] h-[1.5vw] bg-gray-200"></div>
+                                                <div className="flex flex-col items-center justify-center">
                                                     <div className="flex items-center gap-[0.4vw]">
-                                                        <Icon icon="ph:eye" className="w-[1vw] h-[1vw] text-gray-700" />
-                                                        <span className="font-semibold text-[0.9vw] text-gray-500">{books.length > 0 ? `${(books.length * 1.2).toFixed(1)}K` : '0'}</span>
+                                                        <Icon icon="ph:eye-bold" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                        <span className="font-semibold text-[0.9vw] text-gray-700">{books.length > 0 ? `${(books.length * 1.2).toFixed(1)}K` : '0'}</span>
                                                     </div>
-                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh]">Total Views</span>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Views</span>
                                                 </div>
                                             </div>
 
@@ -707,16 +711,16 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                             <div className="flex items-center gap-[0.5vw]">
                                                 <button 
                                                     onClick={() => setViewMode('shelf')}
-                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vh] rounded-[0.4vw] border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-900 bg-white shadow-sm' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
                                                 >
-                                                    <Icon icon="mdi:bookshelf" className="w-[1vw] h-[1vw]" />
+                                                    <Icon icon="ph:books" className="w-[1vw] h-[1vw]" />
                                                     <span className="text-[0.75vw] font-medium">Shelf View</span>
                                                 </button>
                                                 <button 
                                                     onClick={() => setViewMode('list')}
-                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vh] rounded-[0.4vw] border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-900 bg-white shadow-sm' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
                                                 >
-                                                    <Icon icon="ph:list-dashes" className="w-[1vw] h-[1vw]" />
+                                                    <Icon icon="ph:list-dashes-bold" className="w-[1vw] h-[1vw]" />
                                                     <span className="text-[0.75vw] font-medium">List View</span>
                                                 </button>
                                             </div>

@@ -139,6 +139,7 @@ const defaultProfile = {
   companyEmail: '',
   website: '',
   services: [],
+  companyLogo: '',
   address1: '',
   address2: '',
   city: '',
@@ -251,6 +252,7 @@ const Profile = () => {
               emailId: p.emailId || prev.emailId || effectiveEmail,
               name: p.name || prev.name || (effectiveEmail.split('@')[0]),
               picture: p.picture || prev.picture || null,
+              companyLogo: p.companyLogo || prev.companyLogo || '',
               avatarBgColor: p.avatarBgColor || prev.avatarBgColor || '#E8D4C8',
               services: p.services || prev.services || [],
               followers: p.followers || prev.followers || [],
@@ -694,7 +696,7 @@ const Profile = () => {
               </div>
 
               {/* Info Cards Container */}
-              <div id="left-scroll-container" className={`w-full mt-[1.2vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar ${isChildScrollable ? 'overflow-y-scroll' : 'overflow-hidden'}`}>
+              <div id="left-scroll-container" className={`w-full mt-[1.2vw] pb-[2vw] flex flex-col flex-1 min-h-0 hide-scrollbar rounded-b-[1vw] ${isChildScrollable ? 'overflow-y-scroll' : 'overflow-hidden'}`}>
 
                 <div className="p-[1vw] border-b border-gray-100">
                   <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
@@ -706,7 +708,7 @@ const Profile = () => {
                 </div>
 
                 <div className="p-[1vw] border-b border-gray-100 bg-[#FAFAFA]">
-                  <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
+                  <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
                     <Phone size="1vw" /> Contact Number
                   </h3>
                   <p className="text-[0.75vw] text-gray-500">{user.mobile}</p>
@@ -714,9 +716,14 @@ const Profile = () => {
 
                 <div className="p-[1vw] border-b border-gray-100">
                   <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                    <Building size="1vw" /> Company / Organization Details
+                    {user.companyLogo ? (
+                      <img src={user.companyLogo} alt="Company Logo" className="w-[1.2vw] h-[1.2vw] object-contain rounded-[0.2vw]" />
+                    ) : (
+                      <Building size="1vw" />
+                    )}
+                    Company / Organization Details
                   </h3>
-                  <div className="flex flex-col gap-[0.4vw] text-[0.75vw]">
+                  <div className="flex flex-col gap-[0.3vw] text-[0.75vw]">
                     {user.companyName && <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">{user.companyName}</span></p>}
                     {user.industryType && <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">{user.industryType}</span></p>}
                     {user.companyEmail && <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">{user.companyEmail}</span></p>}
@@ -726,10 +733,10 @@ const Profile = () => {
                 </div>
 
                 <div className="p-[1vw] border-b border-gray-100 bg-[#FAFAFA]">
-                  <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.3vw]">
+                  <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
                     <MapPin size="1vw" /> Address
                   </h3>
-                  <div className="text-[0.75vw] text-gray-500">
+                  <div className="text-[0.75vw] flex flex-col gap-[0.3vw]  text-gray-500">
                     {user.address1 || user.address2 ? <div>{[user.address1, user.address2].filter(Boolean).join(', ')}</div> : null}
                     {user.city || user.state ? <div>{[user.city, user.state].filter(Boolean).join(', ')}</div> : null}
                     {user.country || user.pincode ? <div>{[user.country, user.pincode].filter(Boolean).join(' - ')}</div> : null}
