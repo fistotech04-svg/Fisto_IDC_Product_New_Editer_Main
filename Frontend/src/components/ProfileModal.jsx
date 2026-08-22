@@ -187,7 +187,10 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
         </div>
 
         {/* User Info Card with Free Ribbon */}
-        <div className="relative border border-gray-100 rounded-[0.8vw] p-[0.85vw] shadow-sm bg-white flex items-center gap-[0.85vw] mb-[1vw]">
+        <div 
+          onClick={() => { navigate('/settings/profile'); onClose(); }}
+          className="relative border border-gray-100 rounded-[0.8vw] p-[0.85vw] shadow-sm bg-white flex items-center gap-[0.85vw] mb-[1vw] cursor-pointer hover:bg-gray-50/80 hover:border-gray-200 hover:shadow transition-all group"
+        >
           {/* Free Badge Ribbon */}
           <div className="absolute top-0 right-0 bg-[#0066ff] text-white text-[0.62vw] font-bold px-[0.75vw] py-[0.2vw] rounded-bl-[0.4vw] rounded-tr-[0.8vw] shadow-sm">
             Free
@@ -195,7 +198,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
 
           {/* Avatar */}
           <div
-            className="w-[3.2vw] h-[3.2vw] rounded-full overflow-hidden border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center transition-colors"
+            className="w-[3.2vw] h-[3.2vw] rounded-full overflow-hidden border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center transition-colors group-hover:border-indigo-300"
             style={{ backgroundColor: (user.picture && user.picture !== 'color_only') ? '#ffffff' : ((user.avatarBgColor && user.avatarBgColor !== '#E8D4C8' && user.avatarBgColor !== '#ffffff') ? user.avatarBgColor : getAvatarColor(user.name || user.email || 'User')) }}
           >
             {user.picture && user.picture !== 'color_only' ? (
@@ -277,7 +280,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
 
           {/* Settings */}
           <div
-            onClick={() => { navigate('/settings'); onClose(); }}
+            onClick={() => { navigate('/settings/profile'); onClose(); }}
             className="flex items-center justify-between py-[0.65vw] px-[0.25vw] hover:bg-gray-50 rounded-[0.4vw] cursor-pointer transition-colors group"
           >
             <div className="flex items-center gap-[0.75vw]">
@@ -293,7 +296,10 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
         </div>
 
         {/* Upgrade Profile Button */}
-        <button className="w-full bg-[#18181b] hover:bg-black text-white py-[0.65vw] px-[1vw] rounded-[0.75vw] text-[0.8vw] font-bold flex items-center justify-center gap-[0.4vw] shadow-md transition-all cursor-pointer mb-[0.4vw]">
+        <button 
+          onClick={() => { navigate('/settings/billing'); onClose(); }}
+          className="w-full bg-[#18181b] hover:bg-black text-white py-[0.65vw] px-[1vw] rounded-[0.75vw] text-[0.8vw] font-bold flex items-center justify-center gap-[0.4vw] shadow-md transition-all cursor-pointer mb-[0.4vw]"
+        >
           Upgrade Profile <ArrowRight size="0.9vw" />
         </button>
 

@@ -2,6 +2,7 @@ import express from "express";
 import Flipbook from "../../models/Flipbook.js";
 import Profile from "../../models/Profile.js";
 import User from "../../models/auth.js";
+import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 
 const router = express.Router();
 
@@ -20,12 +21,16 @@ router.get("/published", async (req, res) => {
         // Extract distinct user emails
         const userEmails = [...new Set(books.map(b => b.userEmail).filter(Boolean))];
 
-        // Fetch corresponding profiles and users to enrich author information
+        // Fetch corresponding profiles, users, and 3D models to enrich author information and 3D status
         const safeRegexList = userEmails.map(e => new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
-        const [profiles, users] = await Promise.all([
+        const [profiles, users, interaction3DModels] = await Promise.all([
             Profile.find({ emailId: { $in: safeRegexList } }).lean(),
-            User.find({ emailId: { $in: safeRegexList } }).lean()
+            User.find({ emailId: { $in: safeRegexList } }).lean(),
+            InteractionThreedModel.find({}).lean()
         ]);
+
+        const threedFlipbookVIds = new Set(interaction3DModels.map(m => m.flipbook_v_id).filter(Boolean));
+        const threedFlipbookNames = new Set(interaction3DModels.map(m => `${(m.userEmail || '').toLowerCase()}:::${(m.flipbookName || '').toLowerCase()}`));
 
         const profileMap = {};
         profiles.forEach(p => {
@@ -49,8 +54,19 @@ router.get("/published", async (req, res) => {
             const authorPicture = p.picture || null;
             const authorBgColor = p.avatarBgColor || '#E8D4C8';
 
+            const has3D = Boolean(
+                (book.v_id && threedFlipbookVIds.has(book.v_id)) ||
+                (book.userEmail && book.flipbookName && threedFlipbookNames.has(`${book.userEmail.toLowerCase()}:::${book.flipbookName.toLowerCase()}`)) ||
+                book.has3D ||
+                book.is3D ||
+                book.has3DModels ||
+                (book.Customized_Settings?.InteractionThreedModel && Object.keys(book.Customized_Settings.InteractionThreedModel).length > 0)
+            );
+
             return {
                 ...book,
+                has3D,
+                is3D: has3D,
                 authorName,
                 city,
                 authorPicture,
@@ -109,12 +125,32 @@ router.get("/creator", async (req, res) => {
         const normalizedEmail = rawEmail.trim().toLowerCase();
         const safeRegex = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
 
-        // Fetch user profile, user auth, and published flipbooks in parallel
-        const [profile, user, publishedBooks] = await Promise.all([
+        // Fetch user profile, user auth, published flipbooks, and 3D models in parallel
+        const [profile, user, publishedBooks, creator3DModels] = await Promise.all([
             Profile.findOne({ emailId: safeRegex }).lean(),
             User.findOne({ emailId: safeRegex }).lean(),
-            Flipbook.find({ userEmail: safeRegex, isPublished: true }).sort({ createdAt: -1 }).lean()
+            Flipbook.find({ userEmail: safeRegex, isPublished: true }).sort({ createdAt: -1 }).lean(),
+            InteractionThreedModel.find({ userEmail: safeRegex }).lean()
         ]);
+
+        const creatorThreedVIds = new Set(creator3DModels.map(m => m.flipbook_v_id).filter(Boolean));
+        const creatorThreedNames = new Set(creator3DModels.map(m => (m.flipbookName || '').toLowerCase()));
+
+        const enrichedPublishedBooks = publishedBooks.map(book => {
+            const has3D = Boolean(
+                (book.v_id && creatorThreedVIds.has(book.v_id)) ||
+                (book.flipbookName && creatorThreedNames.has(book.flipbookName.toLowerCase())) ||
+                book.has3D ||
+                book.is3D ||
+                book.has3DModels ||
+                (book.Customized_Settings?.InteractionThreedModel && Object.keys(book.Customized_Settings.InteractionThreedModel).length > 0)
+            );
+            return {
+                ...book,
+                has3D,
+                is3D: has3D
+            };
+        });
 
         const currentEmailParam = (req.query.currentEmail || req.query.followerEmail || req.query.userEmail || '').trim().toLowerCase();
         let isFollowingCreator = false;
@@ -151,7 +187,7 @@ router.get("/creator", async (req, res) => {
         return res.status(200).json({
             success: true,
             profile: mergedProfile,
-            books: publishedBooks || []
+            books: enrichedPublishedBooks || []
         });
     } catch (error) {
         console.error("[Explore Creator API Error]:", error);
