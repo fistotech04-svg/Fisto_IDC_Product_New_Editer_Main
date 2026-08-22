@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const Grid3Layout = lazy(() => import('../../Layouts/Grid3Layout'));
 
-import ProfilePopup from '../../popups/ProfilePopup';
+
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
 import FlipbookSharePopup from '../../popups/FlipbookSharePopup';
@@ -439,15 +439,7 @@ const MobileLayout3 = (props) => {
                     </>
                 )}
 
-                {showProfilePopup && !isLandscape && (
-                    <ProfilePopup
-                        onClose={() => toggleProfilePopup(false)}
-                        profileSettings={profileSettings}
-                        activeLayout={3}
-                        isMobile={true}
-                        isLandscape={false}
-                    />
-                )}
+
 
                 {showExportPopup && !isLandscape && (
                     <Export

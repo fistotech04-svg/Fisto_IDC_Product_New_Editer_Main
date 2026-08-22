@@ -13,7 +13,11 @@ const TabletLayout8 = ({
     zoom = 1,
     currentBook,
     activeLayout,
-    settings
+    settings,
+    setShowProfilePopup,
+    setShowTOCMemo,
+    setShowThumbnailBarMemo,
+    setShowSoundPopupMemo
 }) => {
     const [isShareOpen, setIsShareOpen] = useState(false);
     const progressRef = useRef(null);
@@ -121,7 +125,14 @@ const TabletLayout8 = ({
                         {(settings?.media?.backgroundAudio ?? true) && (
                             <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                         )}
-                        <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" /></button>
+                        <button className="text-white hover:text-gray-200 active:scale-95 transition-transform" onClick={() => {
+                            setShowProfilePopup?.(true);
+                            setShowTOCMemo?.(false);
+                            setShowThumbnailBarMemo?.(false);
+                            setShowSoundPopupMemo?.(false);
+                        }}>
+                            <Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" />
+                        </button>
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform" onClick={() => setIsShareOpen(true)}><Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" /></button>
                         <button className="text-white hover:text-gray-200 active:scale-95 transition-transform"><Icon icon="lucide:fullscreen" className="w-[1.6cqw] h-[1.6cqw]" /></button>

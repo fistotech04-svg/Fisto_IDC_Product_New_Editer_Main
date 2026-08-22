@@ -4492,7 +4492,7 @@ const PreviewArea = React.memo(({
 
             )}
 
-            {showProfilePopup && ![4, 5, '4', '5'].includes(activeLayout) && (
+            {showProfilePopup && (
                 <CreatorProfileModal
                     isOpen={showProfilePopup}
                     onClose={() => setShowProfilePopup(false)}
