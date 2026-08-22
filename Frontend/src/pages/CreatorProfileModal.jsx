@@ -676,51 +676,51 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.5vw] px-[1vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
-                                        <h3 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap shrink-0">Published Flipbooks ({books.length})</h3>
+                                    <div className="border border-gray-200 rounded-xl shadow-sm py-[0.8vw] px-[1.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
+                                        <h3 className="text-[0.95vw] font-semibold text-gray-900 whitespace-nowrap shrink-0">Published Flipbooks ({books.length})</h3>
                                         
-                                        <div className="flex items-center gap-[1vw]">
+                                        <div className="flex items-center gap-[2vw]">
                                             {/* Stats */}
-                                            <div className="flex items-center gap-[0.8vw] text-[0.75vw] text-gray-600">
+                                            <div className="flex items-center gap-[1.5vw] text-[0.8vw] text-gray-500">
                                                 <div className="flex flex-col items-center justify-center">
-                                                    <div className="flex items-center gap-[0.2vw]">
-                                                        <Icon icon="ph:book-open" className="w-[0.85vw] h-[0.85vw] text-gray-700" />
-                                                        <span className="font-semibold text-[0.8vw] text-gray-500">{books.length}</span>
+                                                    <div className="flex items-center gap-[0.4vw]">
+                                                        <Icon icon="bxs:book" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                        <span className="font-semibold text-[0.9vw] text-gray-700">{books.length}</span>
                                                     </div>
-                                                    <span className="text-[0.55vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Books</span>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Books</span>
                                                 </div>
                                                 <div className="w-[1px] h-[1.5vw] bg-gray-200"></div>
                                                 <div className="flex flex-col items-center justify-center">
-                                                    <div className="flex items-center gap-[0.2vw]">
-                                                        <Icon icon="ph:star-fill" className="w-[0.85vw] h-[0.85vw] text-yellow-400" />
-                                                        <span className="font-semibold text-[0.8vw] text-gray-500">4.5</span>
+                                                    <div className="flex items-center gap-[0.4vw]">
+                                                        <Icon icon="ph:star-fill" className="w-[1vw] h-[1vw] text-yellow-400" />
+                                                        <span className="font-semibold text-[0.9vw] text-gray-700">4.5</span>
                                                     </div>
-                                                    <span className="text-[0.55vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Overall Ratings</span>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Overall Ratings</span>
                                                 </div>
                                                 <div className="w-[1px] h-[1.5vw] bg-gray-200"></div>
                                                 <div className="flex flex-col items-center justify-center">
-                                                    <div className="flex items-center gap-[0.2vw]">
-                                                        <Icon icon="ph:eye" className="w-[0.85vw] h-[0.85vw] text-gray-700" />
-                                                        <span className="font-semibold text-[0.8vw] text-gray-500">{books.length > 0 ? `${(books.length * 1.2).toFixed(1)}K` : '0'}</span>
+                                                    <div className="flex items-center gap-[0.4vw]">
+                                                        <Icon icon="ph:eye-bold" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                        <span className="font-semibold text-[0.9vw] text-gray-700">{books.length > 0 ? `${(books.length * 1.2).toFixed(1)}K` : '0'}</span>
                                                     </div>
-                                                    <span className="text-[0.55vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Views</span>
+                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Views</span>
                                                 </div>
                                             </div>
 
                                             {/* View Toggles */}
-                                            <div className="flex items-center gap-[0.3vw]">
+                                            <div className="flex items-center gap-[0.5vw]">
                                                 <button 
                                                     onClick={() => setViewMode('shelf')}
-                                                    className={`flex items-center gap-[0.2vw] px-[0.5vw] py-[0.5vh] rounded-[0.4vw] border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-900 bg-white shadow-sm' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
                                                 >
-                                                    <Icon icon="mdi:bookshelf" className="w-[1vw] h-[1vw]" />
+                                                    <Icon icon="ph:books" className="w-[1vw] h-[1vw]" />
                                                     <span className="text-[0.75vw] font-medium">Shelf View</span>
                                                 </button>
                                                 <button 
                                                     onClick={() => setViewMode('list')}
-                                                    className={`flex items-center gap-[0.2vw] px-[0.5vw] py-[0.5vh] rounded-[0.4vw] border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-900 bg-white shadow-sm' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
                                                 >
-                                                    <Icon icon="ph:list-dashes" className="w-[1vw] h-[1vw]" />
+                                                    <Icon icon="ph:list-dashes-bold" className="w-[1vw] h-[1vw]" />
                                                     <span className="text-[0.75vw] font-medium">List View</span>
                                                 </button>
                                             </div>
