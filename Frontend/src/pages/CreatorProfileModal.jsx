@@ -71,6 +71,41 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
         }
     };
 
+    const isShareEnabled = (b) => {
+        if (!b) return true;
+        const target = b.rawBook || b;
+        const cs = target.Customized_Settings || target.settings || {};
+        if (cs.MenuBar?.shareExport?.share !== undefined) return Boolean(cs.MenuBar.shareExport.share);
+        if (cs.shareExport?.share !== undefined) return Boolean(cs.shareExport.share);
+        if (cs.Other_Setup?.shareExport?.share !== undefined) return Boolean(cs.Other_Setup.shareExport.share);
+        if (cs.ShareExport?.share !== undefined) return Boolean(cs.ShareExport.share);
+        if (target.shareExport?.share !== undefined) return Boolean(target.shareExport.share);
+        return true;
+    };
+
+    const isDownloadEnabled = (b) => {
+        if (!b) return true;
+        const target = b.rawBook || b;
+        const cs = target.Customized_Settings || target.settings || {};
+        if (cs.MenuBar?.shareExport?.download !== undefined) return Boolean(cs.MenuBar.shareExport.download);
+        if (cs.shareExport?.download !== undefined) return Boolean(cs.shareExport.download);
+        if (cs.Other_Setup?.shareExport?.download !== undefined) return Boolean(cs.Other_Setup.shareExport.download);
+        if (cs.ShareExport?.download !== undefined) return Boolean(cs.ShareExport.download);
+        if (target.shareExport?.download !== undefined) return Boolean(target.shareExport.download);
+        return true;
+    };
+
+    const canShare = isShareEnabled(book);
+    const canDownload = isDownloadEnabled(book);
+
+    const menuItems = [
+        { name: 'View Book', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> },
+        { name: 'Add to Shelf', icon: <Icon icon="ri:book-shelf-line" className="w-[0.9vw] h-[0.9vw]" /> },
+        ...(canShare ? [{ name: 'Share', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> }] : []),
+        ...(canDownload ? [{ name: 'Download', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> }] : []),
+        { name: 'Report', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> }
+    ];
+
     return (
         <div className="bg-white border border-gray-100 rounded-[0.7vw] overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300 shadow-[0_2px_8px_rgba(0,0,0,0.05)] relative group">
             {/* Thumbnail Container */}
@@ -93,13 +128,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
                     {/* Dropdown Menu */}
                     {isMenuOpen && (
                         <div className="absolute top-[110%] right-0 w-[8.5vw] bg-white rounded-[0.5vw] shadow-[0_8px_25px_rgb(0,0,0,0.12)] py-[0.8vh] z-20 border border-gray-100">
-                            {[
-                                { name: 'View Book', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> },
-                                { name: 'Add to Shelf', icon: <Icon icon="ri:book-shelf-line" className="w-[0.9vw] h-[0.9vw]" /> },
-                                { name: 'Share', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> },
-                                { name: 'Download', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> },
-                                { name: 'Report', icon: <svg className="w-[0.9vw] h-[0.9vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> }
-                            ].map((menuItem, mIdx) => (
+                            {menuItems.map((menuItem, mIdx) => (
                                 <button
                                     key={mIdx}
                                     onClick={() => {
@@ -166,7 +195,18 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
 
                 {/* Title & Desc & Button */}
                 <div className="relative flex-1 mt-[0.8vh]">
-                    <h4 className="text-[0.78vw] font-semibold text-black truncate tracking-tight">{book.title || 'Name of the Flipbook'}</h4>
+                    <div className="relative group/tt block max-w-full">
+                        <h4 className="text-[0.78vw] font-semibold text-black truncate tracking-tight pr-[1.8vw] cursor-default">
+                            {book.title || 'Name of the Flipbook'}
+                        </h4>
+                        {/* Hover Tooltip (TopToolbar style) */}
+                        <div className="absolute left-0 bottom-full mb-[0.35vw] hidden group-hover/tt:flex flex-col items-start pointer-events-none z-50 whitespace-nowrap max-w-[15vw]">
+                            <div className="bg-gray-900 text-white text-[0.62vw] font-medium px-[0.45vw] py-[0.2vw] rounded-[0.3vw] shadow-lg truncate max-w-full">
+                                {book.title || 'Name of the Flipbook'}
+                            </div>
+                            <div className="w-0 h-0 ml-[0.6vw] -mt-[0.2px] border-x-[0.25vw] border-x-transparent border-t-[0.25vw] border-t-gray-900" />
+                        </div>
+                    </div>
                     <p className="text-[0.62vw] text-gray-500 leading-relaxed mt-[0.3vh] pr-[1.8vw] line-clamp-2">{book.description || '“Bring your content to life with a real, interactive experience”'}</p>
 
                     {/* Action Button */}

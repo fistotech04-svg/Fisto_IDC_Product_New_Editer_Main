@@ -761,6 +761,39 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
   // currentPage is 1-indexed; initialized from the editor's active page
   const [currentPage, setCurrentPage] = useState(() => currentPageIndex + 1);
 
+  // Calculate dynamic aspect ratio from loaded page SVG viewBox or book metadata
+  const pageAspectRatio = React.useMemo(() => {
+    // 1. Check if any loaded page SVG has viewBox or width/height
+    for (const p of modalPages) {
+      if (p?.html) {
+        const vbMatch = p.html.match(/viewBox\s*=\s*['"]\s*([-\d.]+)\s+([-\d.]+)\s+([\d.]+)\s+([\d.]+)\s*['"]/i);
+        if (vbMatch) {
+          const w = parseFloat(vbMatch[3]);
+          const h = parseFloat(vbMatch[4]);
+          if (w > 0 && h > 0) return `${w} / ${h}`;
+        }
+        const wMatch = p.html.match(/width\s*=\s*['"](\d+(?:\.\d+)?)(?:px)?['"]/i);
+        const hMatch = p.html.match(/height\s*=\s*['"](\d+(?:\.\d+)?)(?:px)?['"]/i);
+        if (wMatch && hMatch) {
+          const w = parseFloat(wMatch[1]);
+          const h = parseFloat(hMatch[1]);
+          if (w > 0 && h > 0) return `${w} / ${h}`;
+        }
+      }
+    }
+    // 2. Check props / currentBook dimensions
+    if (currentBook?.width && currentBook?.height) {
+      return `${currentBook.width} / ${currentBook.height}`;
+    }
+    if (currentBook?.meta?.width && currentBook?.meta?.height) {
+      return `${currentBook.meta.width} / ${currentBook.meta.height}`;
+    }
+    if (currentBook?.Customized_Settings?.FlipbookInfo?.width && currentBook?.Customized_Settings?.FlipbookInfo?.height) {
+      return `${currentBook.Customized_Settings.FlipbookInfo.width} / ${currentBook.Customized_Settings.FlipbookInfo.height}`;
+    }
+    return '3 / 4';
+  }, [modalPages, currentBook]);
+
   // Sync / Fetch pages when modal opens
   React.useEffect(() => {
     if (!isOpen) {
@@ -774,11 +807,12 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     const user = storedUser ? JSON.parse(storedUser) : null;
     const emailId = currentBook?.userEmail || currentBook?.emailId || user?.emailId || user?.email;
 
+    let pBaseUrl = '';
     if (emailId && currentBook) {
       const folderName = Array.isArray(currentBook.folderName) ? currentBook.folderName[0] : (currentBook.folderName || currentBook.folder || 'My_Flipbooks');
       const bookName = currentBook.flipbookName || currentBook.title;
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-      let pBaseUrl = getSupabaseBaseUrl(
+      pBaseUrl = getSupabaseBaseUrl(
         sanitizedEmail,
         currentBook.meta ? currentBook.meta.folderName : folderName,
         currentBook.meta ? currentBook.meta.flipbookName : bookName
@@ -787,7 +821,6 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
         pBaseUrl += '/';
       }
       setProjectBaseUrl(pBaseUrl);
-
     }
 
     const normalizePages = (pagesList) => {
@@ -800,79 +833,112 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       }));
     };
 
+    const fetchAllFromBackend = () => {
+      if (!emailId) {
+        setIsLoadingPages(false);
+        return;
+      }
+      const folderName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || currentBook?.folder);
+      const bookName = currentBook?.flipbookName || currentBook?.title;
+      const v_id = currentBook?.v_id;
+
+      if (v_id || (folderName && bookName)) {
+        setIsLoadingPages(true);
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+        axios.get(`${backendUrl}/api/flipbook/get`, {
+          params: {
+            emailId,
+            v_id,
+            folderName,
+            bookName,
+            metadataOnly: true
+          }
+        })
+        .then(async res => {
+          if (res.data) {
+            const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+            let resolvedBaseUrl = getSupabaseBaseUrl(
+              sanitizedEmail,
+              res.data.meta ? res.data.meta.folderName : folderName,
+              res.data.meta ? res.data.meta.flipbookName : bookName
+            );
+            if (resolvedBaseUrl && !resolvedBaseUrl.endsWith('/')) {
+              resolvedBaseUrl += '/';
+            }
+            setProjectBaseUrl(resolvedBaseUrl);
+
+            if (res.data.pages) {
+              const fetchedPages = await Promise.all(res.data.pages.map(async (p, i) => {
+                 let rawHTML = (pages && pages[i]?.html) || p.html || p.content || '';
+                 if (!rawHTML && p.fileName && resolvedBaseUrl) {
+                    try {
+                       const htmlRes = await axios.get(`${resolvedBaseUrl}${p.fileName}?t=${Date.now()}`);
+                       rawHTML = htmlRes.data;
+                    } catch(e) {
+                       console.error(`Failed to fetch HTML for ${p.fileName}`, e);
+                    }
+                 }
+                 return {
+                    ...p,
+                    name: (pages && pages[i]?.name) || p.name || p.pageName || `Page ${i + 1}`,
+                    html: rawHTML,
+                    content: rawHTML
+                 };
+              }));
+              setModalPages(normalizePages(fetchedPages));
+            }
+          }
+        })
+        .catch(err => {
+          console.error("Failed to fetch pages in ExportModal:", err);
+          if (pages && pages.length > 0) {
+            setModalPages(normalizePages(pages));
+          }
+        })
+        .finally(() => {
+          setIsLoadingPages(false);
+        });
+      }
+    };
+
     if (pages && pages.length > 0) {
-      setModalPages(prev => {
-        const normalized = normalizePages(pages);
-        if (prev.length === normalized.length && 
-            (normalized.length === 0 || (prev[0]?.html === normalized[0]?.html && prev[prev.length - 1]?.html === normalized[normalized.length - 1]?.html))) {
-          return prev;
-        }
-        return normalized;
-      });
-      setIsLoadingPages(prev => !prev ? prev : false);
-    } else if (currentBook && !isLoadingPages && modalPages.length === 0) {
-      if (emailId) {
-        const folderName = Array.isArray(currentBook.folderName) ? currentBook.folderName[0] : (currentBook.folderName || currentBook.folder);
-        const bookName = currentBook.flipbookName || currentBook.title;
-        const v_id = currentBook.v_id;
-
-        if (v_id || (folderName && bookName)) {
+      const hasMissingHtml = pages.some(p => (!p.html && !p.content));
+      if (hasMissingHtml) {
+        if (pBaseUrl && pages.some(p => p.fileName)) {
           setIsLoadingPages(true);
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-          axios.get(`${backendUrl}/api/flipbook/get`, {
-            params: {
-              emailId,
-              v_id,
-              folderName,
-              bookName,
-              metadataOnly: true
-            }
-          })
-          .then(async res => {
-            if (res.data) {
-              const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-              let pBaseUrl = getSupabaseBaseUrl(
-                sanitizedEmail,
-                res.data.meta ? res.data.meta.folderName : folderName,
-                res.data.meta ? res.data.meta.flipbookName : bookName
-              );
-              if (pBaseUrl && !pBaseUrl.endsWith('/')) {
-                pBaseUrl += '/';
-              }
-              setProjectBaseUrl(pBaseUrl);
-
-
-              if (res.data.pages) {
-                const fetchedPages = await Promise.all(res.data.pages.map(async (p, i) => {
-                   let rawHTML = p.html || p.content || '';
-                   if (!rawHTML && p.fileName) {
-                      try {
-                         const htmlRes = await axios.get(`${pBaseUrl}${p.fileName}?t=${Date.now()}`);
-                         rawHTML = htmlRes.data;
-                      } catch(e) {
-                         console.error(`Failed to fetch HTML for ${p.fileName}`, e);
-                      }
-                   }
-                   return {
-                      ...p,
-                      html: rawHTML,
-                      content: rawHTML
-                   };
-                }));
-                setModalPages(normalizePages(fetchedPages));
+          Promise.all(pages.map(async (p, i) => {
+            let rawHTML = p.html || p.content || '';
+            if (!rawHTML && p.fileName) {
+              try {
+                const htmlRes = await axios.get(`${pBaseUrl}${p.fileName}?t=${Date.now()}`);
+                rawHTML = htmlRes.data;
+              } catch(e) {
+                console.error(`Failed to fetch HTML for ${p.fileName}`, e);
               }
             }
-          })
-          .catch(err => {
-            console.error("Failed to fetch pages in ExportModal:", err);
-          })
-          .finally(() => {
+            return {
+              ...p,
+              html: rawHTML,
+              content: rawHTML
+            };
+          })).then(fetchedPages => {
+            setModalPages(normalizePages(fetchedPages));
+          }).catch(() => {
+            setModalPages(normalizePages(pages));
+          }).finally(() => {
             setIsLoadingPages(false);
           });
+        } else {
+          fetchAllFromBackend();
         }
+      } else {
+        setModalPages(normalizePages(pages));
+        setIsLoadingPages(false);
       }
+    } else if (currentBook && modalPages.length === 0) {
+      fetchAllFromBackend();
     }
-  }, [isOpen, pages, currentBook, isLoadingPages, modalPages.length]);
+  }, [isOpen, pages, currentBook]);
 
   // Keep currentPage in sync when modalPages updates and initialize selectedPages on open
   React.useEffect(() => {
@@ -915,6 +981,8 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       processed = processed.replace(/href="assets\//g, `href="${projectBaseUrl}assets/`);
       processed = processed.replace(/href='\.\/assets\//g, `href='${projectBaseUrl}assets/`);
       processed = processed.replace(/href='assets\//g, `href='${projectBaseUrl}assets/`);
+      processed = processed.replace(/src="\.\/assets\//g, `src="${projectBaseUrl}assets/`);
+      processed = processed.replace(/src="assets\//g, `src="${projectBaseUrl}assets/`);
     }
 
     // Find the opening <svg> tag to normalize sizes
@@ -923,24 +991,41 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     
     let svgTag = svgTagMatch[0];
     
-    // Replace width attribute with width="100%" if it exists, otherwise add it
+    // If viewBox is missing, but width & height exist in the SVG, add viewBox
+    if (!/viewBox\s*=/i.test(svgTag)) {
+      const wMatch = svgTag.match(/width\s*=\s*['"]?(\d+(?:\.\d+)?)/i);
+      const hMatch = svgTag.match(/height\s*=\s*['"]?(\d+(?:\.\d+)?)/i);
+      if (wMatch && hMatch) {
+        svgTag = svgTag.replace('<svg', `<svg viewBox="0 0 ${wMatch[1]} ${hMatch[1]}"`);
+      }
+    }
+
+    // Replace width attribute with width="100%"
     if (/width\s*=\s*['"][^'"]*['"]/i.test(svgTag)) {
       svgTag = svgTag.replace(/width\s*=\s*['"][^'"]*['"]/i, 'width="100%"');
-    } else if (/width\s*=\s*['][^']*[']/i.test(svgTag)) {
-      svgTag = svgTag.replace(/width\s*=\s*['][^']*[']/i, 'width="100%"');
     } else {
       svgTag = svgTag.replace('<svg', '<svg width="100%"');
     }
     
-    // Replace height attribute with height="100%" if it exists, otherwise add it
+    // Replace height attribute with height="100%"
     if (/height\s*=\s*['"][^'"]*['"]/i.test(svgTag)) {
       svgTag = svgTag.replace(/height\s*=\s*['"][^'"]*['"]/i, 'height="100%"');
-    } else if (/height\s*=\s*['][^']*[']/i.test(svgTag)) {
-      svgTag = svgTag.replace(/height\s*=\s*['][^']*[']/i, 'height="100%"');
     } else {
       svgTag = svgTag.replace('<svg', '<svg height="100%"');
     }
     
+    // Ensure preserveAspectRatio="xMidYMid meet"
+    if (!/preserveAspectRatio\s*=/i.test(svgTag)) {
+      svgTag = svgTag.replace('<svg', '<svg preserveAspectRatio="xMidYMid meet"');
+    }
+
+    // Ensure style display
+    if (!/style\s*=/i.test(svgTag)) {
+      svgTag = svgTag.replace('<svg', '<svg style="display:block; width:100%; height:100%;"');
+    } else {
+      svgTag = svgTag.replace(/style\s*=\s*['"]([^'"]*)['"]/i, 'style="$1; display:block; width:100%; height:100%;"');
+    }
+
     processed = processed.replace(svgTagMatch[0], svgTag);
     
     // Hide interaction frames in the preview
@@ -1707,23 +1792,26 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                       /* Current Page Only View */
                       <div className="p-[1vw] flex flex-col flex-1 overflow-y-auto custom-scrollbar">
                         {modalPages.length > 0 ? (
-                          <div className="flex flex-col gap-[0.5vw] w-[33%]">
-                            <div className={`bg-gray-50 rounded-[0.5vw] border-2 border-[#4A3AFF] shadow-md relative overflow-hidden`}>
+                          <div className="flex flex-col gap-[0.5vw] w-[45%] max-w-[16vw]">
+                            <div 
+                              style={{ aspectRatio: pageAspectRatio }}
+                              className={`bg-gray-50 rounded-[0.5vw] border-2 border-[#4A3AFF] shadow-md relative overflow-hidden flex items-center justify-center`}
+                            >
                               <div className="absolute top-[0.5vw] right-[0.5vw] w-[1.2vw] h-[1.2vw] rounded-[0.3vw] border-2 bg-[#4A3AFF] border-[#4A3AFF] text-white flex items-center justify-center z-10 shadow-sm">
                                 <Check size="0.8vw" strokeWidth={4} />
                               </div>
-                              {/* Actual Page Preview – natural size */}
+                              {/* Actual Page Preview */}
                               {modalPages[currentPage - 1]?.html ? (
                                 <div
-                                  className="w-full overflow-hidden"
+                                  className="w-full h-full overflow-hidden flex items-center justify-center"
                                   style={{ pointerEvents: 'none' }}
                                   dangerouslySetInnerHTML={{ __html: getPageSvgHtml(modalPages[currentPage - 1].html) }}
                                 />
                               ) : (
-                                <div className="aspect-[3/4] p-[0.6vw] flex flex-col gap-[0.4vw]">
+                                <div className="w-full h-full p-[0.6vw] flex flex-col gap-[0.4vw] justify-between">
                                   <div className="w-[60%] h-[0.6vw] bg-gray-200 rounded-full"></div>
                                   <div className="w-[40%] h-[0.4vw] bg-gray-100 rounded-full"></div>
-                                  <div className="flex-1 flex flex-col justify-end"><div className="w-full aspect-[4/3] bg-gray-200 rounded-[0.4vw]"></div></div>
+                                  <div className="flex-1 flex flex-col justify-end"><div className="w-full h-[60%] bg-gray-200 rounded-[0.4vw]"></div></div>
                                 </div>
                               )}
                             </div>
@@ -1742,21 +1830,25 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                             const isSelected = selectedPages.has(pageId);
                             return (
                               <div key={pageId} className="flex flex-col gap-[0.5vw] group">
-                                <div onClick={() => togglePage(pageId)} className={`bg-gray-50 rounded-[0.5vw] border-2 transition-all cursor-pointer relative overflow-hidden ${isSelected ? 'border-[#4A3AFF] shadow-md' : 'border-gray-200 group-hover:border-gray-300'}`}>
+                                <div 
+                                  onClick={() => togglePage(pageId)} 
+                                  style={{ aspectRatio: pageAspectRatio }}
+                                  className={`bg-gray-50 rounded-[0.5vw] border-2 transition-all cursor-pointer relative overflow-hidden flex items-center justify-center ${isSelected ? 'border-[#4A3AFF] shadow-md' : 'border-gray-200 group-hover:border-gray-300'}`}
+                                >
                                   {/* Checkbox */}
                                   <div className={`absolute top-[0.5vw] right-[0.5vw] w-[1.2vw] h-[1.2vw] rounded-[0.3vw] border-2 flex items-center justify-center z-10 transition-all ${isSelected ? 'bg-[#4A3AFF] border-[#4A3AFF] text-white shadow-sm' : 'bg-white/80 border-gray-300 text-transparent'}`}><Check size="0.8vw" strokeWidth={4} /></div>
-                                  {/* Actual Page SVG – natural intrinsic size */}
+                                  {/* Actual Page SVG */}
                                   {modalPages[i]?.html ? (
                                     <div
-                                      className={`w-full overflow-hidden transition-opacity ${isSelected ? 'opacity-100' : 'opacity-50'}`}
+                                      className={`w-full h-full overflow-hidden transition-opacity flex items-center justify-center ${isSelected ? 'opacity-100' : 'opacity-50'}`}
                                       style={{ pointerEvents: 'none' }}
                                       dangerouslySetInnerHTML={{ __html: getPageSvgHtml(modalPages[i].html) }}
                                     />
                                   ) : (
-                                    <div className={`aspect-[3/4] p-[0.6vw] flex flex-col gap-[0.4vw] transition-opacity ${isSelected ? 'opacity-100' : 'opacity-60'}`}>
+                                    <div className={`w-full h-full p-[0.6vw] flex flex-col gap-[0.4vw] transition-opacity justify-between ${isSelected ? 'opacity-100' : 'opacity-60'}`}>
                                       <div className="w-[60%] h-[0.6vw] bg-gray-200 rounded-full"></div>
                                       <div className="w-[40%] h-[0.4vw] bg-gray-100 rounded-full"></div>
-                                      <div className="flex-1 flex flex-col justify-end"><div className="w-full aspect-[4/3] bg-gray-200 rounded-[0.4vw]"></div></div>
+                                      <div className="flex-1 flex flex-col justify-end"><div className="w-full h-[60%] bg-gray-200 rounded-[0.4vw]"></div></div>
                                     </div>
                                   )}
                                 </div>
@@ -1965,9 +2057,15 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                         </div>
                     )}
                     {activeTab === 'flipbook' && (
-                        <div className="bg-[#EEF2FF] rounded-[0.6vw] border border-indigo-100 overflow-hidden flex shadow-sm">
-                            <div className="flex-1 flex items-center gap-[0.5vw] p-[0.4vw] border-r border-indigo-100"><div className="w-[1.4vw] h-[1.4vw] bg-white rounded-[0.3vw] flex items-center justify-center text-[#4A3AFF] shadow-sm"><FileText size="0.8vw" /></div><div className="flex flex-col"><span className="text-[0.65vw] font-bold text-[#373d8a]">Total Content - {selectedPages.size + (includeCover ? 1 : 0) + (includePoster ? 1 : 0)}</span></div></div>
-                            <div className="flex-1 flex flex-col items-end p-[0.4vw] bg-white/40"><span className="text-[0.4vw] text-gray-400 font-medium">Estimated Size</span><span className="text-[0.65vw] font-bold text-[#4A3AFF]">{(selectedPages.size * 1.1 + (includeCover ? 1.5 : 0)).toFixed(2)} MB</span></div>
+                        <div className="bg-[#EEF2FF] rounded-[0.6vw] border border-indigo-100 overflow-hidden flex items-center shadow-sm p-[0.45vw] px-[0.6vw]">
+                            <div className="flex items-center gap-[0.5vw]">
+                                <div className="w-[1.4vw] h-[1.4vw] bg-white rounded-[0.3vw] flex items-center justify-center text-[#4A3AFF] shadow-sm">
+                                    <FileText size="0.8vw" />
+                                </div>
+                                <span className="text-[0.68vw] font-bold text-[#373d8a]">
+                                    Total Pages - {exportType === 'selected' ? 1 : selectedPages.size}
+                                </span>
+                            </div>
                         </div>
                     )}
                     <div className="flex gap-[0.6vw]">

@@ -298,8 +298,19 @@ router.post("/upload-3d-model", (req, res) => {
         console.warn("[Supabase] 3D Model flipbook asset upload warning:", err)
       );
 
+      // ── Resolve flipbook_v_id ──────────────────────────────────────────────
+      let flipbook_v_id = req.body.flipbook_v_id || req.body.v_id || null;
+      if (!flipbook_v_id) {
+        try {
+          const existingFb = await Flipbook.findOne({ userEmail: emailId, folderName, flipbookName });
+          if (existingFb) flipbook_v_id = existingFb.v_id;
+        } catch (e) {}
+      }
+
       // ── Save to InteractionThreedModel for flipbook-specific record ────────
       const newInteractionModel = await InteractionThreedModel.create({
+        v_id: nanoid(20),
+        flipbook_v_id: flipbook_v_id || null,
         userEmail: emailId,
         flipbookName,
         folderName,
@@ -785,18 +796,25 @@ router.post("/save", async (req, res) => {
       await savedDoc.save();
     }
 
-    // UPDATE ASSET URLs IF FLIPBOOK WAS RENAMED
-    if (oldFlipbookName && oldFlipbookName !== flipbookName) {
-      try {
+    // UPDATE InteractionThreedModel and ASSET URLs IF FLIPBOOK WAS RENAMED OR SAVED
+    try {
+      if (oldFlipbookName && oldFlipbookName !== flipbookName) {
         console.log(`Updating InteractionThreedModel for renamed flipbook...`);
         await InteractionThreedModel.updateMany(
           { userEmail: emailId, flipbookName: oldFlipbookName },
-          { $set: { flipbookName: flipbookName } }
+          { $set: { flipbookName: flipbookName, flipbook_v_id: savedDoc.v_id } }
         );
-      } catch (err) {
-        console.error("Error updating InteractionThreedModel after rename:", err);
+      } else {
+        await InteractionThreedModel.updateMany(
+          { userEmail: emailId, flipbookName: flipbookName, $or: [{ flipbook_v_id: null }, { flipbook_v_id: "" }, { flipbook_v_id: { $exists: false } }] },
+          { $set: { flipbook_v_id: savedDoc.v_id } }
+        );
       }
+    } catch (err) {
+      console.error("Error updating InteractionThreedModel flipbook_v_id:", err);
+    }
 
+    if (oldFlipbookName && oldFlipbookName !== flipbookName) {
       try {
         console.log(`Updating assets for renamed flipbook...`);
 
@@ -1578,6 +1596,8 @@ router.post("/folder/duplicate", async (req, res) => {
         const newModels = sourceModels.map(model => {
           const modelObj = model.toObject();
           delete modelObj._id;
+          modelObj.v_id = nanoid(20);
+          modelObj.flipbook_v_id = newVId;
           modelObj.flipbookName = newBookName;
           modelObj.folderName = copyName;
           if (modelObj.page_v_id && pageIdMap.has(modelObj.page_v_id)) {
@@ -1713,6 +1733,8 @@ router.post("/duplicate", async (req, res) => {
           const newModels = sourceModels.map(model => {
             const modelObj = model.toObject();
             delete modelObj._id;
+            modelObj.v_id = nanoid(20);
+            modelObj.flipbook_v_id = newFlipbookVId;
             modelObj.flipbookName = copyName;
             modelObj.folderName = folderName;
             if (modelObj.page_v_id && pageIdMap.has(modelObj.page_v_id)) {

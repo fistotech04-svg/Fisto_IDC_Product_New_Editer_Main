@@ -617,6 +617,9 @@ const TemplateEditor = () => {
               formData.append('emailId', user?.emailId);
               formData.append('folderName', fNameFor3D);
               formData.append('flipbookName', bNameFor3D);
+              if (currentBook?.v_id || v_id) {
+                formData.append('flipbook_v_id', currentBook?.v_id || v_id);
+              }
 
               let isFromGallery = false;
               let fileName = `model_${Date.now()}.glb`;
