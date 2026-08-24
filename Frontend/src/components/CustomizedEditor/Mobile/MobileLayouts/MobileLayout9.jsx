@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 
 
-import ProfilePopup from '../../popups/ProfilePopup';
+
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
 import FlipbookSharePopup from '../../popups/FlipbookSharePopup';
@@ -574,9 +574,7 @@ const MobileLayout9 = ({
                 
                 
                 
-                {showProfilePopup && (
-                    <ProfilePopup onClose={() => setShowProfilePopup(false)} profileSettings={profileSettings} activeLayout={activeLayout} isMobile={true} isLandscape={isLandscape} layoutColors={layoutColors} />
-                )}
+
                 {showExportPopup && (
                     <Export
                         isOpen={true}

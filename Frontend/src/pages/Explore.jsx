@@ -21,6 +21,31 @@ import CreatorProfileModal from './CreatorProfileModal';
 const covers = [cover1, cover2, cover3, cover4, cover5];
 const profiles = [p1, p2, p3, p4, p5];
 
+const defaultColors = [
+    '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626',
+    '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
+];
+
+const defaultGradients = [
+    'linear-gradient(to bottom right, #059669, #a7f3d0)',
+    'linear-gradient(to bottom right, #d97706, #fde68a)',
+    'linear-gradient(to bottom right, #2563eb, #bfdbfe)',
+    'linear-gradient(to bottom right, #dc2626, #fecaca)',
+    'linear-gradient(to bottom right, #0d9488, #99f6e4)'
+];
+
+const getAvatarColor = (identifier, customColor) => {
+    if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
+        return customColor;
+    }
+    if (!identifier) return defaultColors[0];
+    let hash = 0;
+    for (let i = 0; i < identifier.length; i++) {
+        hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return defaultColors[Math.abs(hash) % defaultColors.length];
+};
+
 const CustomDropdown = ({ options, value, onChange, className, buttonClassName, renderButton }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -88,7 +113,44 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const displayAvatar = (authorPicture && authorPicture !== 'color_only') ? authorPicture : profileImg;
+    const displayAvatar = (authorPicture && authorPicture !== 'color_only') ? authorPicture : null;
+    const avatarColor = getAvatarColor(authorName || rawBook?.userEmail, authorBgColor);
+
+    const isShareEnabled = (book) => {
+        if (!book) return true;
+        const target = book.rawBook || book;
+        const cs = target.Customized_Settings || target.settings || {};
+        if (cs.MenuBar?.shareExport?.share !== undefined) return Boolean(cs.MenuBar.shareExport.share);
+        if (cs.shareExport?.share !== undefined) return Boolean(cs.shareExport.share);
+        if (cs.Other_Setup?.shareExport?.share !== undefined) return Boolean(cs.Other_Setup.shareExport.share);
+        if (cs.ShareExport?.share !== undefined) return Boolean(cs.ShareExport.share);
+        if (target.shareExport?.share !== undefined) return Boolean(target.shareExport.share);
+        return true;
+    };
+
+    const isDownloadEnabled = (book) => {
+        if (!book) return true;
+        const target = book.rawBook || book;
+        const cs = target.Customized_Settings || target.settings || {};
+        if (cs.MenuBar?.shareExport?.download !== undefined) return Boolean(cs.MenuBar.shareExport.download);
+        if (cs.shareExport?.download !== undefined) return Boolean(cs.shareExport.download);
+        if (cs.Other_Setup?.shareExport?.download !== undefined) return Boolean(cs.Other_Setup.shareExport.download);
+        if (cs.ShareExport?.download !== undefined) return Boolean(cs.ShareExport.download);
+        if (target.shareExport?.download !== undefined) return Boolean(target.shareExport.download);
+        return true;
+    };
+
+    const canShare = isShareEnabled(rawBook);
+    const canDownload = isDownloadEnabled(rawBook);
+
+    const menuItems = [
+        { name: 'View Book', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> },
+        { name: 'Creator Profile', icon: <Icon icon="solar:user-bold" className="w-[1vw] h-[1vw]" /> },
+        { name: 'Add to Shelf', icon: <Icon icon="ri:book-shelf-line" className="w-[1vw] h-[1vw]" /> },
+        ...(canShare ? [{ name: 'Share', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> }] : []),
+        ...(canDownload ? [{ name: 'Download', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> }] : []),
+        { name: 'Report', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> }
+    ];
 
     return (
         <div className="bg-white border border-gray-100 rounded-[0.8vw] overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative group">
@@ -108,14 +170,7 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
                     {/* Dropdown Menu */}
                     {isMenuOpen && (
                         <div className="absolute top-[110%] right-0 w-[9.5vw] bg-white rounded-[0.6vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] py-[1.2vh] z-20 border border-gray-100">
-                            {[
-                                { name: 'View Book', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> },
-                                { name: 'Creator Profile', icon: <Icon icon="solar:user-bold" className="w-[1vw] h-[1vw]" /> },
-                                { name: 'Add to Shelf', icon: <Icon icon="ri:book-shelf-line" className="w-[1vw] h-[1vw]" /> },
-                                { name: 'Share', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> },
-                                { name: 'Download', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> },
-                                { name: 'Report', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> }
-                            ].map((menuItem, idx) => (
+                            {menuItems.map((menuItem, idx) => (
                                 <button
                                     key={idx}
                                     onClick={() => {
@@ -123,7 +178,7 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
                                         if (menuItem.name === 'View Book') {
                                             handleOpenBook();
                                         } else if (menuItem.name === 'Creator Profile') {
-                                            if (onProfileClick) onProfileClick({ name: authorName, profileImg: displayAvatar, role: 'Creator' });
+                                            if (onProfileClick) onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location });
                                         } else if (menuItem.name === 'Share') {
                                             if (onShare) onShare(rawBook);
                                         } else if (menuItem.name === 'Download') {
@@ -145,24 +200,31 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
             <div className="p-[1.2vw] flex flex-col flex-1 bg-white">
                 {/* Author Info */}
                 <div className="flex items-center gap-[0.6vw]">
-                    {authorPicture && authorPicture !== 'color_only' ? (
+                    {displayAvatar ? (
                         <img
-                            src={authorPicture}
+                            src={displayAvatar}
                             alt={authorName}
-                            className="w-[2.5vw] h-[2.5vw] rounded-full border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: authorPicture, role: 'Creator' })}
+                            className="w-[2.5vw] h-[2.5vw] rounded-full border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity shrink-0"
+                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
                         />
                     ) : (
-                        <img
-                            src={profileImg}
-                            alt="Author Avatar"
-                            className="w-[2.5vw] h-[2.5vw] rounded-full bg-teal-100 border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: profileImg, role: 'Creator' })}
-                        />
+                        <div
+                            className="w-[2.5vw] h-[2.5vw] rounded-full flex items-center justify-center text-white text-[1.1vw] font-bold shrink-0 cursor-pointer hover:opacity-80 transition-opacity shadow-inner"
+                            style={{ backgroundColor: avatarColor }}
+                            onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: null, picture: null, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
+                        >
+                            {authorName ? authorName.charAt(0).toUpperCase() : 'U'}
+                        </div>
                     )}
-                    <div className="flex flex-col min-w-0 pr-[0.5vw]">
-                        <span className="text-[0.85vw] font-semibold text-gray-900 leading-tight truncate">{authorName || 'Alex Johnson'}</span>
-                        <span className="text-[0.7vw] text-gray-400 mt-[0.2vh] truncate">{location || 'Coimbatore 📍'}</span>
+                    <div
+                        className="flex flex-col min-w-0 pr-[0.5vw] cursor-pointer"
+                        onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
+                    >
+                        <span className="text-[0.85vw] font-semibold text-gray-900 leading-tight truncate hover:text-indigo-600 transition-colors">{authorName || 'Alex Johnson'}</span>
+                        <span className="flex items-center gap-[0.2vw] text-[0.7vw] text-gray-400 mt-[0.2vh] truncate">
+                            <Icon icon="lucide:map-pin" className="w-[0.75vw] h-[0.75vw] text-gray-400 shrink-0" />
+                            <span className="truncate">{location ? String(location).replace(/📍/g, '').trim() : 'Coimbatore'}</span>
+                        </span>
                     </div>
                 </div>
 
@@ -186,8 +248,21 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
 
                 {/* Title & Desc & Button */}
                 <div className="relative flex-1 mt-[1.2vh]">
-                    <h4 className="text-[0.9vw] font-semibold text-black truncate tracking-tight">{bookName || 'Name of the Flipbook'}</h4>
-                    <p className="text-[0.7vw] text-gray-500 leading-relaxed mt-[0.5vh] pr-[2vw]">{description || '“Bring your content to life with a real, interactive experience”'}</p>
+                    <div className="relative group/tt block max-w-full">
+                        <h4 className="text-[0.9vw] font-semibold text-black truncate tracking-tight pr-[2.2vw] cursor-default">
+                            {bookName || 'Name of the Flipbook'}
+                        </h4>
+                        {/* Hover Tooltip (TopToolbar style) */}
+                        <div className="absolute left-0 bottom-full mb-[0.35vw] hidden group-hover/tt:flex flex-col items-start pointer-events-none z-50 whitespace-nowrap max-w-[18vw]">
+                            <div className="bg-gray-900 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-lg truncate max-w-full">
+                                {bookName || 'Name of the Flipbook'}
+                            </div>
+                            <div className="w-0 h-0 ml-[0.8vw] -mt-[0.2px] border-x-[0.3vw] border-x-transparent border-t-[0.3vw] border-t-gray-900" />
+                        </div>
+                    </div>
+                    <p className="text-[0.7vw] text-gray-500 leading-relaxed mt-[0.5vh] pr-[2.2vw] line-clamp-2">
+                        {description || '“Bring your content to life with a real, interactive experience”'}
+                    </p>
 
                     {/* Action Button */}
                     <button
@@ -247,6 +322,85 @@ const Explore = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const currentUserEmail = React.useMemo(() => {
+        try {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                const u = JSON.parse(storedUser);
+                if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
+            }
+            const storedProfile = localStorage.getItem('user_profile');
+            if (storedProfile) {
+                const p = JSON.parse(storedProfile);
+                if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
+            }
+        } catch (e) { }
+        return '';
+    }, []);
+
+    const [topCreators, setTopCreators] = useState([]);
+    const [isCreatorsLoading, setIsCreatorsLoading] = useState(true);
+    const [followingLoadingMap, setFollowingLoadingMap] = useState({});
+
+    const handleToggleFollow = async (targetEmail) => {
+        if (!currentUserEmail) {
+            alert("Please log in to follow creators.");
+            return;
+        }
+        if (!targetEmail) return;
+
+        const normTarget = targetEmail.trim().toLowerCase();
+        if (normTarget === currentUserEmail) return;
+
+        // Optimistic UI update
+        const prevCreators = [...topCreators];
+        const targetCreator = topCreators.find(c => (c.emailId || c.email)?.toLowerCase() === normTarget);
+        const wasFollowing = targetCreator?.isFollowing || false;
+
+        setTopCreators(prev => prev.map(c => {
+            if ((c.emailId || c.email)?.toLowerCase() === normTarget) {
+                const newCount = wasFollowing ? Math.max(0, (c.followersCount || 1) - 1) : (c.followersCount || 0) + 1;
+                return {
+                    ...c,
+                    isFollowing: !wasFollowing,
+                    followersCount: newCount
+                };
+            }
+            return c;
+        }));
+
+        setFollowingLoadingMap(prev => ({ ...prev, [normTarget]: true }));
+
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const res = await axios.post(`${backendUrl}/api/explore/toggle-follow`, {
+                currentEmail: currentUserEmail,
+                targetEmail: normTarget
+            });
+
+            if (res.data?.success) {
+                setTopCreators(prev => prev.map(c => {
+                    if ((c.emailId || c.email)?.toLowerCase() === normTarget) {
+                        return {
+                            ...c,
+                            isFollowing: res.data.isFollowing,
+                            followersCount: res.data.followersCount,
+                            followers: res.data.followers
+                        };
+                    }
+                    return c;
+                }));
+            } else {
+                setTopCreators(prevCreators);
+            }
+        } catch (err) {
+            console.error("Error toggling follow status:", err);
+            setTopCreators(prevCreators);
+        } finally {
+            setFollowingLoadingMap(prev => ({ ...prev, [normTarget]: false }));
+        }
+    };
+
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [selectedBookForModal, setSelectedBookForModal] = useState(null);
@@ -274,14 +428,14 @@ const Explore = () => {
     const [showMoreRatings, setShowMoreRatings] = useState(false);
 
     useEffect(() => {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
         const fetchPublishedBooks = async () => {
             try {
                 setIsLoading(true);
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                
                 // Fetch all published flipbooks across all users from /api/explore/published
                 const response = await axios.get(`${backendUrl}/api/explore/published`);
-                
+
                 if (response.data && response.data.books) {
                     const formattedBooks = response.data.books.map(book => {
                         let rawOrient = (book.Customized_Settings?.FlipbookInfo?.orientation || '').toLowerCase();
@@ -301,6 +455,7 @@ const Explore = () => {
                         else if (rawOrient.includes('portrait')) typeName = 'Portrait';
 
                         const has3D = Boolean(
+                            book.has3D || 
                             book.is3D || 
                             book.has3DModels || 
                             (book.Customized_Settings?.InteractionThreedModel && Object.keys(book.Customized_Settings.InteractionThreedModel).length > 0)
@@ -318,7 +473,7 @@ const Explore = () => {
                             userEmail: book.userEmail,
                             bookName: book.flipbookName,
                             authorName: book.authorName || (book.userEmail ? book.userEmail.split('@')[0] : "Creator"),
-                            location: book.city ? `${book.city} 📍` : (book.location ? `${book.location} 📍` : "Coimbatore 📍"),
+                            location: book.city || book.location || "Coimbatore",
                             authorPicture: book.authorPicture || null,
                             authorBgColor: book.authorBgColor || '#E8D4C8',
                             pages: book.pages?.length,
@@ -327,6 +482,7 @@ const Explore = () => {
                             description: book.Customized_Settings?.FlipbookInfo?.quotes,
                             type: typeName,
                             has3D: has3D,
+                            is3D: has3D,
                             category: book.Customized_Settings?.FlipbookInfo?.category
                         };
                     });
@@ -341,9 +497,43 @@ const Explore = () => {
             }
         };
 
+        const currentUserEmail = (() => {
+            try {
+                const storedUser = localStorage.getItem('user');
+                if (storedUser) {
+                    const u = JSON.parse(storedUser);
+                    if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
+                }
+                const storedProfile = localStorage.getItem('user_profile');
+                if (storedProfile) {
+                    const p = JSON.parse(storedProfile);
+                    if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
+                }
+            } catch (e) { }
+            return '';
+        })();
+
+        const fetchTopCreators = async () => {
+            try {
+                setIsCreatorsLoading(true);
+                const params = {};
+                if (currentUserEmail) params.excludeEmail = currentUserEmail;
+
+                const res = await axios.get(`${backendUrl}/api/explore/top-creators`, { params });
+                if (res.data && res.data.creators) {
+                    setTopCreators(res.data.creators);
+                }
+            } catch (err) {
+                console.error("Error fetching top creators from backend API:", err);
+            } finally {
+                setIsCreatorsLoading(false);
+            }
+        };
+
         fetchPublishedBooks();
+        fetchTopCreators();
     }, []);
-    
+
     // Sidebar Filters State
     const [selectedTypes, setSelectedTypes] = useState([]);
     const [selectedCategories, setSelectedCategories] = useState([]);
@@ -355,7 +545,7 @@ const Explore = () => {
     const filteredBooks = booksData.filter(book => {
         // Top category filter
         if (category !== "All Category" && book.category?.toLowerCase() !== category.toLowerCase()) return false;
-        
+
         // Search filter
         if (searchQuery && !book.bookName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
 
@@ -372,7 +562,7 @@ const Explore = () => {
 
         // Sidebar Category filter
         if (selectedCategories.length > 0) {
-            const isCatMatched = selectedCategories.some(catOpt => 
+            const isCatMatched = selectedCategories.some(catOpt =>
                 book.category?.toLowerCase() === catOpt.toLowerCase()
             );
             if (!isCatMatched) return false;
@@ -522,7 +712,7 @@ const Explore = () => {
 
                         {/* Filter Container */}
                         <div className="bg-white border border-gray-200 rounded-[0.5vw] flex flex-col">
-                            
+
                             {/* Flipbook Type */}
                             <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh]">
                                 <h3 className="font-semibold text-[0.95vw] text-black">Flipbook Type</h3>
@@ -531,9 +721,9 @@ const Explore = () => {
                                         <label key={i} className="flex items-center justify-between cursor-pointer group">
                                             <span className="text-[0.85vw] text-gray-800">{type}</span>
                                             <div className="relative flex items-center justify-center">
-                                                <input 
-                                                    type="checkbox" 
-                                                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors" 
+                                                <input
+                                                    type="checkbox"
+                                                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors"
                                                     checked={selectedTypes.includes(type)}
                                                     onChange={(e) => {
                                                         if (e.target.checked) setSelectedTypes([...selectedTypes, type]);
@@ -555,9 +745,9 @@ const Explore = () => {
                                         <label key={i} className="flex items-center justify-between cursor-pointer group">
                                             <span className="text-[0.85vw] text-gray-800">{cat}</span>
                                             <div className="relative flex items-center justify-center">
-                                                <input 
-                                                    type="checkbox" 
-                                                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors" 
+                                                <input
+                                                    type="checkbox"
+                                                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors"
                                                     checked={selectedCategories.includes(cat)}
                                                     onChange={(e) => {
                                                         if (e.target.checked) setSelectedCategories([...selectedCategories, cat]);
@@ -605,17 +795,17 @@ const Explore = () => {
                                         <label key={i} className="flex items-center justify-between cursor-pointer group">
                                             <div className="flex items-center gap-[0.8vw]">
                                                 <div className="relative flex items-center justify-center shrink-0 w-[1.1vw] h-[1.1vw] min-w-[18px] min-h-[18px]">
-                                                    <input 
-                                                        type="radio" 
-                                                        name="rating" 
-                                                        className="sr-only" 
+                                                    <input
+                                                        type="radio"
+                                                        name="rating"
+                                                        className="sr-only"
                                                         checked={selectedRating === rate.val}
                                                         onChange={() => setSelectedRating(rate.val)}
                                                     />
-                                                    <svg 
+                                                    <svg
                                                         onClick={() => setSelectedRating(rate.val)}
-                                                        className="w-full h-full cursor-pointer overflow-visible" 
-                                                        viewBox="0 0 24 24" 
+                                                        className="w-full h-full cursor-pointer overflow-visible"
+                                                        viewBox="0 0 24 24"
                                                         fill="none"
                                                     >
                                                         {selectedRating === rate.val ? (
@@ -680,13 +870,13 @@ const Explore = () => {
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
                                 {filteredBooks.map((book, index) => (
-                                    <FlipbookCard 
-                                        key={index} 
+                                    <FlipbookCard
+                                        key={index}
                                         v_id={book.v_id}
                                         shareId={book.shareId}
                                         access={book.access}
                                         rawBook={book.rawBook}
-                                        coverImg={covers[index % 5]} 
+                                        coverImg={covers[index % 5]}
                                         profileImg={profiles[index % 5]}
                                         authorPicture={book.authorPicture}
                                         authorBgColor={book.authorBgColor}
@@ -703,7 +893,7 @@ const Explore = () => {
                                     />
                                 ))}
                                 {filteredBooks.length === 0 && (
-                                    <div className="col-span-full py-[5vh] text-center text-gray-500 text-[1vw]">
+                                    <div className="col-span-full py-[5vh] text-center font-semibold text-gray-700 text-[1vw]">
                                         No flipbooks found matching your filters.
                                     </div>
                                 )}
@@ -714,71 +904,144 @@ const Explore = () => {
                         <div className="w-full pt-[6vh]">
                             <h2 className="text-[1.5vw] font-semibold text-black mb-[3vh]">Top Creators</h2>
                             <div className="ml-[1vw] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                {[
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-emerald-600 to-emerald-100', profileImg: p1 },
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-yellow-600 to-yellow-100', profileImg: p2 },
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-blue-600 to-blue-100', profileImg: p3 },
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-red-600 to-red-100', profileImg: p4 },
-                                    { name: 'Monkey D. Luffy', role: 'Product Designer', banner: 'bg-gradient-to-br from-teal-600 to-teal-100', profileImg: p5 }
-                                ].map((creator, idx) => (
-                                    <div key={idx} className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col hover:shadow-xl transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
-                                        {/* Banner */}
-                                        <div className={`h-[14vh] w-full ${creator.banner}`}></div>
-
-                                        {/* Body */}
-                                        <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
-                                            {/* Avatar & Follow Button */}
-                                            <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
-                                                <div 
-                                                    className="relative shrink-0 z-10 cursor-pointer hover:opacity-90 transition-opacity"
-                                                    onClick={() => handleProfileClick(creator)}
-                                                >
-                                                    <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10">
-                                                        <img src={creator.profileImg} alt="Creator" className="w-full h-full object-cover bg-gray-50" />
-                                                    </div>
-                                                    {/* Left Smooth Corner */}
-                                                    <svg className="absolute top-[1.8vw] -left-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
-                                                        <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
-                                                    </svg>
-                                                    {/* Right Smooth Corner */}
-                                                    <svg className="absolute top-[1.8vw] -right-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
-                                                        <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
-                                                    </svg>
+                                {isCreatorsLoading ? (
+                                    Array.from({ length: 5 }).map((_, idx) => (
+                                        <div key={idx} className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col shadow-[0_2px_10px_rgba(0,0,0,0.06)] animate-pulse">
+                                            <div className="h-[14vh] w-full bg-gray-200"></div>
+                                            <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
+                                                <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
+                                                    <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white bg-gray-300"></div>
+                                                    <div className="h-[1.5vw] w-[4vw] bg-gray-200 rounded-full mb-[1vw]"></div>
                                                 </div>
-                                                <button className="bg-black text-white px-[1.2vw] py-[0.3vh] rounded-full text-[0.85vw] font-medium hover:bg-gray-800 transition-colors z-10 mb-[1vw] ">
-                                                    Follow
-                                                </button>
-                                            </div>
-
-                                            {/* Info */}
-                                            <h4 className="text-[1vw] font-bold text-gray-900 mt-[0.5vh]">{creator.name}</h4>
-                                            <p className="text-[0.7vw] text-gray-400">{creator.role}</p>
-                                            <p className="text-[0.7vw] text-gray-500 mt-[1vh] leading-relaxed line-clamp-3 flex-1">“Bring your content to life with a real, interactive experience”</p>
-
-                                            {/* Divider */}
-                                            <div className="w-full h-[1px] mt-[1.5vh] mb-[1vh]"></div>
-
-                                            {/* Stats */}
-                                            <div className="flex items-center justify-between px-[0.5vw]">
-                                                <div className="flex flex-col items-center">
-                                                    <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
-                                                        <Icon icon="boxicons:book" className="w-[1.1vw] h-[1.1vw]" />
-                                                        <span>8</span>
-                                                    </div>
-                                                    <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Total Books</span>
-                                                </div>
-                                                <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
-                                                <div className="flex flex-col items-center">
-                                                    <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
-                                                        <Icon icon="lucide:user" className="w-[1vw] h-[1vw]" />
-                                                        <span>451</span>
-                                                    </div>
-                                                    <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Followers</span>
+                                                <div className="h-[1vw] bg-gray-200 rounded w-3/4 mt-[0.5vh]"></div>
+                                                <div className="h-[0.7vw] bg-gray-100 rounded w-1/2 mt-[0.5vh]"></div>
+                                                <div className="h-[0.7vw] bg-gray-100 rounded w-full mt-[1vh]"></div>
+                                                <div className="w-full h-[1px] bg-gray-100 my-[1.5vh]"></div>
+                                                <div className="flex items-center justify-between px-[0.5vw]">
+                                                    <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
+                                                    <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
+                                                    <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                ) : (
+                                    topCreators
+                                        .filter(creator => !currentUserEmail || (creator.emailId?.toLowerCase() !== currentUserEmail && creator.email?.toLowerCase() !== currentUserEmail))
+                                        .slice(0, 10)
+                                        .map((creator, idx) => {
+                                            const bannerStyle = {
+                                                background: creator.bannerBg?.type === 'solid' ? creator.bannerBg?.value : undefined,
+                                                backgroundImage: (creator.bannerBg?.type === 'gradient' || creator.bannerBg?.type === 'media')
+                                                    ? creator.bannerBg?.value
+                                                    : (creator.bannerBg?.value || defaultGradients[idx % defaultGradients.length]),
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center'
+                                            };
+                                            const displayAvatar = (creator.picture && creator.picture !== 'color_only') ? creator.picture : null;
+                                            const avatarColor = getAvatarColor(creator.name || creator.email, creator.avatarBgColor);
+
+                                            return (
+                                                <div
+                                                    key={creator.emailId || idx}
+                                                    className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col hover:shadow-xl transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)]"
+                                                >
+                                                    {/* Banner */}
+                                                    <div className="h-[14vh] w-full relative" style={bannerStyle}>
+                                                    </div>
+
+                                                    {/* Body */}
+                                                    <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
+                                                        {/* Avatar & Follow Button */}
+                                                        <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
+                                                            <div
+                                                                className="relative shrink-0 z-10 cursor-pointer hover:opacity-90 transition-opacity"
+                                                                onClick={() => handleProfileClick(creator)}
+                                                            >
+                                                                <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10 flex items-center justify-center shadow-sm">
+                                                                    {displayAvatar ? (
+                                                                        <img src={displayAvatar} alt={creator.name} className="w-full h-full object-cover bg-gray-50" />
+                                                                    ) : (
+                                                                        <div
+                                                                            className="w-full h-full flex items-center justify-center text-white text-[2.2vw] font-bold"
+                                                                            style={{ backgroundColor: avatarColor }}
+                                                                        >
+                                                                            {creator.name ? creator.name.charAt(0).toUpperCase() : 'U'}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {/* Left Smooth Corner */}
+                                                                <svg className="absolute top-[1.8vw] -left-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
+                                                                    <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
+                                                                </svg>
+                                                                {/* Right Smooth Corner */}
+                                                                <svg className="absolute top-[1.8vw] -right-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
+                                                                    <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
+                                                                </svg>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleToggleFollow(creator.emailId || creator.email);
+                                                                }}
+                                                                disabled={followingLoadingMap[(creator.emailId || creator.email)?.toLowerCase()]}
+                                                                className={`w-[5.2vw] h-[1.7vw] rounded-full text-[0.85vw] font-medium transition-colors z-10 mb-[1vw] cursor-pointer flex items-center justify-center gap-[0.3vw] ${creator.isFollowing
+                                                                        ? 'bg-white text-black border border-gray-200 shadow-inner hover:bg-gray-50'
+                                                                        : 'bg-black text-white hover:bg-gray-800 shadow-sm'
+                                                                    }`}
+                                                            >
+                                                                {followingLoadingMap[(creator.emailId || creator.email)?.toLowerCase()] ? (
+                                                                    <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
+                                                                ) : creator.isFollowing ? (
+                                                                    <>
+                                                                        <span>Unfollow</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <span>Follow</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Info */}
+                                                        <h4
+                                                            className="text-[1vw] font-semibold text-gray-900 mt-[0.5vh] truncate cursor-pointer hover:text-indigo-600 transition-colors"
+                                                            onClick={() => handleProfileClick(creator)}
+                                                        >
+                                                            {creator.name || 'Creator'}
+                                                        </h4>
+                                                        <p className="text-[0.7vw] text-gray-400 truncate">{creator.industryType || creator.companyName || 'Product Designer'}</p>
+                                                        <p className="text-[0.7vw] text-gray-500 mt-[1vh] leading-relaxed line-clamp-3 flex-1">
+                                                            {creator.about || '“Bring your content to life with a real, interactive experience”'}
+                                                        </p>
+
+                                                        {/* Divider */}
+                                                        <div className="w-full h-[1px] bg-gray-100 mt-[1.5vh] mb-[1vh]"></div>
+
+                                                        {/* Stats */}
+                                                        <div className="flex items-center justify-between px-[0.5vw]">
+                                                            <div className="flex flex-col items-center">
+                                                                <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
+                                                                    <Icon icon="boxicons:book" className="w-[1.1vw] h-[1.1vw]" />
+                                                                    <span>{creator.totalBooks || 0}</span>
+                                                                </div>
+                                                                <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Total Books</span>
+                                                            </div>
+                                                            <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
+                                                            <div className="flex flex-col items-center">
+                                                                <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
+                                                                    <Icon icon="lucide:user" className="w-[1vw] h-[1vw]" />
+                                                                    <span>{creator.followersCount || (creator.followers?.length || 0)}</span>
+                                                                </div>
+                                                                <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Followers</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                )}
                             </div>
                         </div>
                     </div>
@@ -804,10 +1067,10 @@ const Explore = () => {
             />
 
             {/* Profile Modal */}
-            <CreatorProfileModal 
-                isOpen={isProfileModalOpen} 
-                onClose={() => setIsProfileModalOpen(false)} 
-                creator={selectedCreator} 
+            <CreatorProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setIsProfileModalOpen(false)}
+                creator={selectedCreator}
             />
         </div>
     );

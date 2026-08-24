@@ -134,7 +134,9 @@ router.get('/', async (req, res) => {
           linkedin: '',
           facebook: '',
           whatsapp: ''
-        }
+        },
+        followers: [],
+        following: []
       };
     }
 

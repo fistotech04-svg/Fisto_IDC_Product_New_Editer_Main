@@ -127,7 +127,7 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
 
       <div>
         {isCustomBanner && displayBannerSrc ? (
-          <div className="flex gap-[1vw] items-center rounded-[0.4vw] p-[0.3vw] bg-gray-50/70 border border-gray-100">
+          <div className="flex gap-[1vw] items-center">
              <img src={displayBannerSrc} alt="Uploaded" className="w-[4vw] h-[4vw] object-cover rounded-[0.4vw] border border-gray-200" />
              <div className="flex-1 min-w-0">
                 <h4 className="text-[0.85vw] font-medium text-gray-800 truncate">Image</h4>
@@ -136,7 +136,7 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
                 </p>
                 <div className="flex gap-[0.4vw] mt-[0.5vw]">
                    <button onClick={handleUpload} className="px-[0.5vw] py-[0.25vw] border border-gray-200 rounded-[0.3vw] text-[0.7vw] font-medium text-gray-700 bg-white hover:bg-gray-100 transition-colors cursor-pointer shadow-sm">
-                      Replace image
+                      Replace Image
                    </button>
                    <button onClick={() => {
                       setUploadedImage(null);
@@ -148,13 +148,16 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
              </div>
           </div>
         ) : (
-          <button 
-            onClick={handleUpload}
-            className="w-full py-[0.6vw] border border-gray-200 rounded-[0.4vw] flex items-center justify-center gap-[0.5vw] text-[0.85vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-          >
-            <Icon icon="mdi:upload" className="w-[1vw] h-[1vw]" />
-            Upload Image
-          </button>
+          <div className="flex flex-col gap-[0.4vw]">
+            <button 
+              onClick={handleUpload}
+              className="w-full py-[0.6vw] border border-gray-200 rounded-[0.4vw] flex items-center justify-center gap-[0.5vw] text-[0.85vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              <Icon icon="mdi:upload" className="w-[1vw] h-[1vw]" />
+              Upload Image
+            </button>
+            <p className="text-center text-[0.65vw] text-gray-400">Recommended size: 300 × 250 px</p>
+          </div>
         )}
       </div>
     </div>

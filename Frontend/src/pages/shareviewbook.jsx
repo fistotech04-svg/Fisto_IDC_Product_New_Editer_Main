@@ -1,43 +1,75 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import FlipbookPreview from '../components/TemplateEditor/FlipbookPreview';
 import { LAYOUT_DEFAULT_COLORS } from '../components/CustomizedEditor/Layout';
 import { Icon } from '@iconify/react';
-import { Ghost, ArrowLeft, Home, BookOpen, Clock } from 'lucide-react';
+import { Ghost, ArrowLeft, Home, BookOpen, Clock, X, Star, Info, BookMarked, LogOut, Search, MapPin } from 'lucide-react';
 import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
 
 const checkInviteAutoExpired = (autoExpire, fallbackDate) => {
-  if (!autoExpire || !autoExpire.enabled) return false;
+    if (!autoExpire || !autoExpire.enabled) return false;
 
-  const rawGranted = autoExpire.grantedAt || autoExpire.createdAt || fallbackDate;
-  if (!rawGranted) return false;
-  const grantedAt = new Date(rawGranted).getTime();
+    const rawGranted = autoExpire.grantedAt || autoExpire.createdAt || fallbackDate;
+    if (!rawGranted) return false;
+    const grantedAt = new Date(rawGranted).getTime();
 
-  const daysStr = String(autoExpire.days || '0');
-  const daysMatch = daysStr.match(/(\d+)/);
-  const daysNum = daysMatch ? parseInt(daysMatch[1], 10) : 0;
+    const daysStr = String(autoExpire.days || '0');
+    const daysMatch = daysStr.match(/(\d+)/);
+    const daysNum = daysMatch ? parseInt(daysMatch[1], 10) : 0;
 
-  const timeStr = String(autoExpire.time || '0');
-  const timeMatch = timeStr.match(/(\d+)/);
-  const timeNum = timeMatch ? parseInt(timeMatch[1], 10) : 0;
+    const timeStr = String(autoExpire.time || '0');
+    const timeMatch = timeStr.match(/(\d+)/);
+    const timeNum = timeMatch ? parseInt(timeMatch[1], 10) : 0;
 
-  let timeInMs = 0;
-  if (timeStr.toLowerCase().includes('hour')) {
-    timeInMs = timeNum * 60 * 60 * 1000;
-  } else {
-    timeInMs = timeNum * 60 * 1000;
-  }
+    let timeInMs = 0;
+    if (timeStr.toLowerCase().includes('hour')) {
+        timeInMs = timeNum * 60 * 60 * 1000;
+    } else {
+        timeInMs = timeNum * 60 * 1000;
+    }
 
-  const daysInMs = daysNum * 24 * 60 * 60 * 1000;
-  const totalAllowedMs = daysInMs + timeInMs;
+    const daysInMs = daysNum * 24 * 60 * 60 * 1000;
+    const totalAllowedMs = daysInMs + timeInMs;
 
-  if (totalAllowedMs <= 0) return false;
+    if (totalAllowedMs <= 0) return false;
 
-  const now = Date.now();
-  const elapsed = now - grantedAt;
+    const now = Date.now();
+    const elapsed = now - grantedAt;
 
-  return elapsed > totalAllowedMs;
+    return elapsed > totalAllowedMs;
+};
+
+const WhiteAttachedCurve = ({ position }) => {
+  const isTop = position.includes('top');
+  const isLeft = position.includes('left');
+  
+  const containerStyle = {
+    position: 'absolute',
+    width: '1vw',
+    height: '1.5vw',
+    pointerEvents: 'none',
+    overflow: 'hidden',
+    zIndex: -1,
+    ...(isTop ? { top: '-0.8vw' } : { bottom: '-0.8vw' }),
+    ...(isLeft ? { left: '0' } : { right: '0' }),
+  };
+
+  const circleStyle = {
+    position: 'absolute',
+    width: '1.5vw',
+    height: '1.6vw',
+    borderRadius: '60%',
+    boxShadow: '0 0 0 2vw white',
+    ...(isTop ? { top: '-0.8vw' } : { bottom: '-0.8vw' }),
+    ...(isLeft ? { right: '-0.8vw' } : { left: '-0.8vw' }),
+  };
+
+  return (
+    <div style={containerStyle}>
+      <div style={circleStyle} />
+    </div>
+  );
 };
 
 const ShareViewBook = () => {
@@ -56,6 +88,74 @@ const ShareViewBook = () => {
     const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
     const [tempSettings, setTempSettings] = useState(null);
 
+    // Sidebar Modals & Panels State
+    const [isBookInfoOpen, setIsBookInfoOpen] = useState(false);
+    const [isAddToShelfOpen, setIsAddToShelfOpen] = useState(false);
+    const [isRatingsOpen, setIsRatingsOpen] = useState(false);
+    const [ratingForm, setRatingForm] = useState({ name: '', rating: 0, review: '' });
+
+    // Draggable Sidebar State
+    const [draggerTop, setDraggerTop] = useState(-1);
+    const [draggerLeft, setDraggerLeft] = useState(-1);
+    const [isDragging, setIsDragging] = useState(false);
+    const draggerHasMovedRef = useRef(false);
+    const draggerOffsetRef = useRef({ x: 0, y: 0 });
+
+    useEffect(() => {
+        if (draggerTop === -1) {
+            // roughly center it initially
+            setDraggerTop((window.innerHeight / 2) - 150);
+            setDraggerLeft(window.innerWidth - (window.innerWidth * 4 / 100)); // 4vw default right
+        }
+    }, [draggerTop, draggerLeft]);
+
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (!isDragging) return;
+            draggerHasMovedRef.current = true;
+            const newTop = e.clientY - draggerOffsetRef.current.y;
+            const newLeft = e.clientX - draggerOffsetRef.current.x;
+            // Bound to window dimensions
+            const draggerWidth = (window.innerWidth * 4) / 100;
+            const maxTop = window.innerHeight - 300;
+            setDraggerTop(Math.max(0, Math.min(newTop, maxTop)));
+            setDraggerLeft(Math.max(0, Math.min(newLeft, window.innerWidth - draggerWidth)));
+        };
+        const handleMouseUp = () => {
+            if (isDragging) {
+                setIsDragging(false);
+                if (draggerHasMovedRef.current) {
+                    const draggerWidth = (window.innerWidth * 4) / 100;
+                    const midpoint = window.innerWidth / 2;
+                    if (draggerLeft + draggerWidth / 2 < midpoint) {
+                        setDraggerLeft(0);
+                    } else {
+                        setDraggerLeft(window.innerWidth - draggerWidth);
+                    }
+                }
+            }
+        };
+
+        if (isDragging) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging, draggerLeft]);
+
+    const handleMouseDown = (e) => {
+        setIsDragging(true);
+        draggerHasMovedRef.current = false;
+        draggerOffsetRef.current = {
+            x: e.clientX - draggerLeft,
+            y: e.clientY - draggerTop
+        };
+        e.preventDefault();
+    };
+
     // Get current logged-in user email
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
@@ -73,7 +173,7 @@ const ShareViewBook = () => {
         try {
             const u = storedUser ? JSON.parse(storedUser) : null;
             email = (u?.emailId || u?.email || (typeof storedUser === 'string' && !storedUser.startsWith('{') ? storedUser : '')).toLowerCase();
-        } catch (e) {}
+        } catch (e) { }
 
         const isOwner = email && email.toLowerCase() === (bookData.userEmail || '').toLowerCase();
 
@@ -263,7 +363,7 @@ const ShareViewBook = () => {
                     if (processedData.settings.otherSetup && !processedData.settings.othersetup) {
                         processedData.settings.othersetup = processedData.settings.otherSetup;
                     }
-                    
+
                     // Fix gallery image URLs if they are relative
                     if (processedData.settings.othersetup?.gallery?.images) {
                         processedData.settings.othersetup.gallery.images = processedData.settings.othersetup.gallery.images.map(imgUrl => {
@@ -299,7 +399,7 @@ const ShareViewBook = () => {
                         if (html.includes('nullassets/') && bUrl) {
                             html = html.split('nullassets/').join(`${bUrl}assets/`);
                         }
-                        
+
                         // Fix relative image paths generated by PDF uploads
                         if (html.includes('./assets/') && bUrl) {
                             html = html.split('./assets/').join(`${bUrl}assets/`);
@@ -321,7 +421,7 @@ const ShareViewBook = () => {
 
                         return { ...p, html };
                     });
-                    
+
                     // Preload all extracted images before showing the book
                     if (imageUrls.length > 0) {
                         imageUrls = [...new Set(imageUrls)]; // unique urls
@@ -333,7 +433,7 @@ const ShareViewBook = () => {
                                 img.src = url;
                             });
                         });
-                        
+
                         // Wait for images up to 10 seconds (failsafe for slow network)
                         await Promise.race([
                             Promise.all(loadPromises),
@@ -530,7 +630,7 @@ const ShareViewBook = () => {
                     <div className="w-[3.2vw] h-[3.2vw] min-w-[44px] min-h-[44px] rounded-[0.8vw] bg-[#EEEDFF] border border-[#5551FF]/15 flex items-center justify-center mx-auto mb-[1vw]">
                         <Icon icon="lucide:lock" className="w-[1.6vw] h-[1.6vw] min-w-[22px] min-h-[22px] text-[#5551FF]" />
                     </div>
-                    
+
                     {/* Title & Subtitle */}
                     <div className="text-center space-y-[0.2vw] mb-[1.2vw]">
                         <h1 className="text-[1.2vw] min-text-[18px] font-extrabold text-slate-900 tracking-tight">Protected Flipbook</h1>
@@ -664,33 +764,33 @@ const ShareViewBook = () => {
                 <div className="space-y-[1.5vw]">
                     <div className="space-y-[0.5vw]">
                         <p className="text-[0.875vw] font-bold tracking-[0.2em] uppercase text-slate-400">
-                            {error && error.toLowerCase().includes('time expired') 
-                              ? "Access Expired" 
-                              : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
-                              ? "Access Denied" 
-                              : error && error.toLowerCase().includes('published')
-                              ? "Unpublished"
-                              : "Error 404"}
+                            {error && error.toLowerCase().includes('time expired')
+                                ? "Access Expired"
+                                : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
+                                    ? "Access Denied"
+                                    : error && error.toLowerCase().includes('published')
+                                        ? "Unpublished"
+                                        : "Error 404"}
                         </p>
                         <h1 className="text-[3.5vw] font-extrabold tracking-tight text-slate-900 leading-tight">
                             {error && error.toLowerCase().includes('time expired')
-                              ? "Access Expired" 
-                              : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
-                              ? "This Flipbook is Private" 
-                              : error && error.toLowerCase().includes('published')
-                              ? "This Flipbook is Not Yet Published"
-                              : error || "Flipbook Not Found"}
+                                ? "Access Expired"
+                                : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
+                                    ? "This Flipbook is Private"
+                                    : error && error.toLowerCase().includes('published')
+                                        ? "This Flipbook is Not Yet Published"
+                                        : error || "Flipbook Not Found"}
                         </h1>
                     </div>
 
                     <p className="text-[1.125vw] text-slate-500 leading-relaxed max-w-[30vw] mx-auto">
                         {error && error.toLowerCase().includes('time expired')
-                          ? "The access time granted for this flipbook has expired. Please ask the owner to grant you a new invitation."
-                          : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
-                          ? "This flipbook has been set to private by its owner and is not accessible to public readers."
-                          : error && error.toLowerCase().includes('published')
-                          ? "This flipbook has not been published by its creator yet. Please check back later."
-                          : "Sorry, we couldn't find the flipbook you're looking for. It might have been deleted or the link is invalid."}
+                            ? "The access time granted for this flipbook has expired. Please ask the owner to grant you a new invitation."
+                            : error && (error === "This flipbook is private." || error.toLowerCase().includes('private'))
+                                ? "This flipbook has been set to private by its owner and is not accessible to public readers."
+                                : error && error.toLowerCase().includes('published')
+                                    ? "This flipbook has not been published by its creator yet. Please check back later."
+                                    : "Sorry, we couldn't find the flipbook you're looking for. It might have been deleted or the link is invalid."}
                     </p>
                 </div>
 
@@ -777,21 +877,282 @@ const ShareViewBook = () => {
 
     return (
         <div
-            className="h-screen w-screen overflow-hidden bg-white flex flex-col"
+            className="relative h-screen w-screen overflow-hidden bg-white flex flex-col"
             style={varsObject}
         >
             <style>{`:root { ${layoutColorVars} }`}</style>
             <FlipbookPreview
                 pages={bookData.pages}
                 pageName={bookData.meta?.flipbookName || 'Untitled Flipbook'}
-                settings={{ ...(bookData.meta || {}), ...settings }}
+                settings={{ ...(bookData.meta || {}), ...(bookData.Customized_Settings || {}), ...(bookData.settings || {}), ...settings, userEmail: bookData.userEmail, shareId: shareId || bookData?.v_id }}
                 isMobile={isMobileDevice}
                 onClose={null}
                 baseUrl={bookData.meta?.baseUrl ? `${getBackendUrl()}${bookData.meta.baseUrl}` : null}
                 v_id={shareId || bookData?.v_id}
                 isPublishedPreview={true}
                 isLoadingParent={false}
+                currentBook={bookData}
             />
+
+            {/* Persistent vertical line on the stuck edge */}
+            {!isDragging && (draggerLeft < 5 || draggerLeft > 10) && (
+              <div
+                className="fixed top-0 w-[0.25vw] h-full bg-white z-[1499] pointer-events-none transition-all duration-300"
+                style={{
+                  left: draggerLeft < 5 ? '0' : 'auto',
+                  right: draggerLeft > 10 ? '0' : 'auto',
+                }}
+              />
+            )}
+
+            {/* Right Sidebar UI Overlay */}
+            <div 
+                className="fixed bg-white shadow-[0_10px_30px_rgba(0,0,0,0.3)] py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between z-[1500] cursor-grab active:cursor-grabbing transition-all duration-300 rounded-[0.8vw]"
+                style={{ 
+                    top: draggerTop !== -1 ? `${draggerTop}px` : '50%', 
+                    left: isDragging ? `${draggerLeft}px` : (draggerLeft < 5 ? '0' : 'auto'),
+                    right: isDragging ? 'auto' : (draggerLeft < 5 ? 'auto' : '0'),
+                    transform: draggerTop === -1 ? 'translateY(-50%)' : 'none', 
+                    width: '4vw' 
+                }}
+                onMouseDown={handleMouseDown}
+            >
+                {!isDragging && draggerLeft < 10 && (
+                    <>
+                        <WhiteAttachedCurve position="top-left" />
+                        <WhiteAttachedCurve position="bottom-left" />
+                    </>
+                )}
+                {!isDragging && draggerLeft >= 10 && (
+                    <>
+                        <WhiteAttachedCurve position="top-right" />
+                        <WhiteAttachedCurve position="bottom-right" />
+                    </>
+                )}
+
+                <div className="flex flex-col gap-[0.2vw] w-full items-center">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsBookInfoOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                        <div className="w-[1vw] h-[1vw] rounded-full border border-[#2F296D] flex items-center justify-center group-hover:bg-indigo-50">
+                            <Info className="w-[1vw] h-[1w] text-[#2F296D]" />
+                        </div>
+                        <span className="text-[0.7vw] font-medium text-[#2F296D] text-center leading-tight">Book<br />Info</span>
+                    </button>
+                    <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsRatingsOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                        <div className="relative">
+                            <Icon icon="twemoji:star" className="w-[1vw] h-[1vw]" />
+                            <div className="absolute top-0 right-[-0.2vw] bg-[#34A853] rounded-full w-[0.8vw] h-[0.8vw] flex items-center justify-center border border-white">
+                                <Icon icon="lucide:check" className="w-[0.3vw] h-[0.3vw] text-white" strokeWidth={4} />
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-center mt-[0.1vw]">
+                            <span className="text-[0.8vw] text-[#2F296D] font-medium leading-none">4.5/5</span>
+                            <span className="text-[0.7vw] text-[#2F296D] font-medium leading-tight">ratings</span>
+                        </div>
+                    </button>
+                    <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsAddToShelfOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                        <Icon icon="lucide:library" className="w-[1vw] h-[1vw] text-[#2F296D] group-hover:scale-110 transition-transform" />
+                        <span className="text-[0.7vw] font-medium text-[#2F296D] text-center leading-tight">Add to<br />Shelf</span>
+                    </button>
+                    <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => window.history.back()} className="flex flex-col items-center gap-[0.2vw] hover:bg-red-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer mt-[0.2vw] w-full text-red-600">
+                        <Icon icon="lucide:log-out" className="w-[1vw] h-[1vw] transition-transform group-hover:scale-110" />
+                        <span className="text-[0.7vw] font-medium text-center leading-tight">Exit<br />Book</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Book Information Modal */}
+            {isBookInfoOpen && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-[2vw]">
+                    <div className="bg-white rounded-3xl p-[2.5vw] shadow-2xl w-[90vw] max-w-[50vw] max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200 relative">
+                        <button onClick={() => setIsBookInfoOpen(false)} className="absolute top-[2vw] right-[2vw] p-[0.5vw] border border-red-500 rounded-xl text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
+                            <X className="w-[1.2vw] h-[1.2vw]" />
+                        </button>
+
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-[1vw]">
+                                <h2 className="text-[1.8vw] font-bold text-gray-900">Book Information</h2>
+                                <div className="h-px bg-gray-300 flex-1 mt-[0.5vw]"></div>
+                            </div>
+                            <span className="text-[0.9vw] text-gray-500 mt-[0.3vw]">Detailed information about this book</span>
+
+                            <div className="flex gap-[3vw] mt-[3vw]">
+                                <div className="w-[15vw] shrink-0">
+                                    <img src={bookData?.meta?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} alt="Book cover" className="w-full shadow-lg rounded-md object-cover aspect-[3/4]" />
+                                </div>
+                                <div className="flex flex-col gap-[1vw] flex-1">
+                                    <h3 className="text-[1.8vw] font-bold text-gray-900 leading-tight">{bookData?.meta?.flipbookName || 'Name of the book'}</h3>
+                                    <p className="text-[1vw] text-gray-600 italic leading-relaxed">" Bring your content to life with a real, interactive experience "</p>
+
+                                    <h4 className="text-[1.2vw] font-bold text-gray-900 mt-[1vw]">About</h4>
+                                    <p className="text-[0.95vw] text-gray-500 leading-relaxed">
+                                        {bookData?.meta?.description || 'Explore beautiful travel destinations, travel tips, and inspiring journeys from around the world. This flipbook is designed for quick reading and visual browsing.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="h-px bg-gray-200 w-full my-[2vw]"></div>
+
+                            <div className="flex gap-[1vw]">
+                                <div className="flex-1 bg-gray-50 rounded-2xl p-[1.5vw] flex items-center gap-[1vw]">
+                                    <div className="w-[2.5vw] h-[2.5vw] bg-white rounded-full flex items-center justify-center shadow-sm">
+                                        <Icon icon="lucide:eye" className="w-[1.2vw] h-[1.2vw] text-gray-700" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[1vw] text-gray-500">Views</span>
+                                        <div className="flex items-end gap-[0.5vw]">
+                                            <span className="text-[1.8vw] font-medium text-gray-800 leading-none">4,586</span>
+                                            <span className="text-[0.7vw] text-gray-400 mb-[0.2vw]">Readers have opened this book</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex-1 bg-gray-50 rounded-2xl p-[1.5vw] flex items-center gap-[1vw]">
+                                    <div className="w-[2.5vw] h-[2.5vw] bg-white rounded-full flex items-center justify-center shadow-sm">
+                                        <Icon icon="lucide:library" className="w-[1.2vw] h-[1.2vw] text-gray-700" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[1vw] text-gray-500">Added To Shelf</span>
+                                        <div className="flex items-end gap-[0.5vw]">
+                                            <span className="text-[1.8vw] font-medium text-gray-800 leading-none">4,586</span>
+                                            <span className="text-[0.7vw] text-gray-400 mb-[0.2vw]">Readers have added this book</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-[2vw] flex flex-col">
+                                {[
+                                    { label: 'Category :', value: bookData?.meta?.category || 'Travel' },
+                                    { label: 'Language :', value: bookData?.meta?.language || 'English' },
+                                    { label: 'Pages :', value: `${bookData?.pages?.length || 12} Pages` },
+                                    {
+                                        label: 'Ratings :', value: (
+                                            <div className="flex items-center gap-[0.5vw]">
+                                                <div className="flex items-center gap-[0.2vw]">
+                                                    {[1, 2, 3, 4].map(i => <Star key={i} className="w-[1.2vw] h-[1.2vw] fill-yellow-400 text-yellow-400" />)}
+                                                    <Star className="w-[1.2vw] h-[1.2vw] text-yellow-400" />
+                                                </div>
+                                                <span className="text-[1vw] text-gray-500">- 4/5</span>
+                                            </div>
+                                        )
+                                    },
+                                    { label: 'Published :', value: 'Jun 2026' },
+                                    { label: 'Publisher :', value: <span className="text-gray-500 underline decoration-gray-400 underline-offset-4 cursor-pointer hover:text-gray-800">FIST-O Tech Pvt Ltd</span> }
+                                ].map((item, index) => (
+                                    <div key={index} className="flex items-center py-[1.2vw] border-b border-gray-100 last:border-0">
+                                        <span className="w-[15vw] text-[1.05vw] text-gray-600">{item.label}</span>
+                                        <span className="flex-1 text-[1.05vw] text-gray-500">{item.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add to Shelf Modal */}
+            {isAddToShelfOpen && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-[2vw]">
+                    <div className="bg-white rounded-3xl p-[2.5vw] shadow-2xl w-[90vw] max-w-[40vw] animate-in zoom-in-95 duration-200 relative flex flex-col items-center">
+                        <div className="w-full flex items-center justify-between mb-[0.5vw]">
+                            <h2 className="text-[1.8vw] font-bold text-gray-900 shrink-0">Add to Shelf</h2>
+                            <div className="h-px bg-gray-300 flex-1 mx-[1vw]"></div>
+                            <button onClick={() => setIsAddToShelfOpen(false)} className="p-[0.5vw] border border-red-500 rounded-xl text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0">
+                                <X className="w-[1.2vw] h-[1.2vw]" />
+                            </button>
+                        </div>
+                        <div className="w-full flex items-center justify-start mb-[2vw]">
+                            <span className="text-[0.85vw] text-gray-500">You can find this book in Profile {'>'} My Shelf {'>'} External Books</span>
+                        </div>
+
+                        <img src={bookData?.meta?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} alt="Book cover" className="w-[14vw] shadow-lg rounded-md object-cover aspect-[3/4]" />
+
+                        <h3 className="text-[1.8vw] font-medium text-gray-900 mt-[1.5vw]">{bookData?.meta?.flipbookName || 'Name of the book'}</h3>
+
+                        <div className="w-full h-px bg-gray-200 my-[1.5vw]"></div>
+
+                        <p className="text-[1vw] text-gray-500 self-start">Do you like to add this Book <strong>"{bookData?.meta?.flipbookName || 'One Piece'}"</strong> in your Book Shelf ?</p>
+
+                        <div className="flex items-center gap-[1.5vw] w-full mt-[2vw]">
+                            <button onClick={() => setIsAddToShelfOpen(false)} className="flex-1 py-[1vw] rounded-2xl border border-gray-200 text-[1.1vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-[0.5vw] shadow-sm cursor-pointer">
+                                <X className="w-[1.2vw] h-[1.2vw]" /> Cancel
+                            </button>
+                            <button onClick={() => setIsAddToShelfOpen(false)} className="flex-1 py-[1vw] rounded-2xl bg-black text-[1.1vw] font-medium text-white hover:bg-gray-900 transition-colors flex items-center justify-center gap-[0.5vw] shadow-md cursor-pointer">
+                                <Icon icon="lucide:library" className="w-[1.2vw] h-[1.2vw]" /> Add to Shelf
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Ratings & Reviews Sliding Panel */}
+            {isRatingsOpen && (
+                <div className="fixed inset-0 z-[2000] pointer-events-none">
+                    {/* Optional overlay background */}
+                    <div className="absolute inset-0 pointer-events-auto" onClick={() => setIsRatingsOpen(false)}></div>
+
+                    <div className={`absolute top-0 right-0 h-full w-[25vw] bg-white shadow-[-10px_0px_30px_rgba(0,0,0,0.15)] z-[2001] transform transition-transform duration-500 ease-in-out flex flex-col pointer-events-auto ${isRatingsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                        <div className="p-[1.5vw] border-b border-gray-100 flex items-center justify-between shrink-0">
+                            <h2 className="text-[1.2vw] font-bold text-gray-900">Rate this book</h2>
+                            <button onClick={() => setIsRatingsOpen(false)} className="p-[0.4vw] border border-red-500 rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
+                                <X className="w-[1vw] h-[1vw]" />
+                            </button>
+                        </div>
+
+                        <div className="p-[1.5vw] flex flex-col gap-[1.2vw] shrink-0">
+                            <div className="flex flex-col gap-[0.4vw]">
+                                <label className="text-[0.9vw] font-medium text-gray-700">Your Name</label>
+                                <input type="text" placeholder="Luffy" className="w-full border border-gray-200 rounded-xl px-[1vw] py-[0.8vw] text-[0.95vw] focus:outline-none focus:border-gray-400" />
+                            </div>
+                            <div className="flex flex-col gap-[0.4vw]">
+                                <label className="text-[0.9vw] font-medium text-gray-700">Your ratings</label>
+                                <div className="flex items-center gap-[0.5vw]">
+                                    {[1, 2, 3, 4, 5].map(i => (
+                                        <Star key={i} className="w-[1.5vw] h-[1.5vw] text-yellow-400 cursor-pointer hover:fill-yellow-400 transition-colors" />
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-[0.4vw]">
+                                <label className="text-[0.9vw] font-medium text-gray-700">Your Review</label>
+                                <textarea placeholder="Enter your Reviews" rows={3} className="w-full border border-gray-200 rounded-xl px-[1vw] py-[0.8vw] text-[0.95vw] focus:outline-none focus:border-gray-400 resize-none"></textarea>
+                            </div>
+                            <button className="w-full bg-black text-white rounded-xl py-[1vw] text-[1vw] font-medium hover:bg-gray-900 transition-colors mt-[0.5vw] cursor-pointer">
+                                Submit Rating
+                            </button>
+                        </div>
+
+                        <div className="h-[0.5vw] bg-gray-50 shrink-0 border-y border-gray-100"></div>
+
+                        <div className="p-[1.5vw] pb-[0.5vw] shrink-0">
+                            <h3 className="text-[1.2vw] font-bold text-gray-900">Ratings & Reviews</h3>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-[1.5vw] pt-[0.5vw] flex flex-col gap-[1vw]">
+                            {/* Mock Reviews */}
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className="border border-gray-100 rounded-2xl p-[1.2vw] flex flex-col gap-[0.8vw] shadow-sm bg-white">
+                                    <div className="flex items-center gap-[0.8vw]">
+                                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=Luffy${i}`} alt="User avatar" className="w-[2vw] h-[2vw] rounded-full bg-teal-100" />
+                                        <span className="text-[1vw] font-bold text-gray-900">Luffy</span>
+                                    </div>
+                                    <p className="text-[0.85vw] text-gray-500 leading-relaxed">
+                                        The flipbook feels just like a real book. Smooth page transitions, easy navigation, and a professional look made reading enjoyable from start to finish.
+                                    </p>
+                                    <div className="flex items-center gap-[0.8vw] mt-[0.2vw]">
+                                        <span className="text-[0.85vw] font-medium text-gray-600">Ratings : 4 / 5</span>
+                                        <div className="flex items-center gap-[0.2vw]">
+                                            {[1, 2, 3, 4].map(s => <Star key={s} className="w-[1vw] h-[1vw] fill-yellow-400 text-yellow-400" />)}
+                                            <Star className="w-[1vw] h-[1vw] text-yellow-400" />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 

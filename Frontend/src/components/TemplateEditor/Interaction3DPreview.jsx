@@ -213,7 +213,17 @@ const Model3DPreviewModal = ({
       return "AR View unavailable for local/unsaved models.";
     }
 
-    const resolvedUrl = new URL(dataUrl, window.location.href).href;
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    let resolvedUrl = dataUrl;
+    if (typeof dataUrl === 'string' && dataUrl.startsWith('/')) {
+      resolvedUrl = `${backendUrl}${dataUrl}`;
+    } else {
+      try {
+        resolvedUrl = new URL(dataUrl, window.location.href).href;
+      } catch (e) {
+        resolvedUrl = dataUrl;
+      }
+    }
     return `${window.location.origin}/ar-view?url=${encodeURIComponent(resolvedUrl)}`;
   }, [dataUrl, qrText, vId]);
 

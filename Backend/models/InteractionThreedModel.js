@@ -8,6 +8,11 @@ const InteractionThreedModelSchema = new mongoose.Schema({
     unique: true,
     index: true
   },
+  flipbook_v_id: {
+    type: String,
+    default: null,
+    index: true
+  },
   userEmail: {
     type: String,
     required: true,

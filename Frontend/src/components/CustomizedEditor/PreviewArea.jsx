@@ -2628,15 +2628,44 @@ const PreviewArea = React.memo(({
         if (currentBook?.userEmail) return currentBook.userEmail;
         if (incomingSettings?.userEmail) return incomingSettings.userEmail;
         if (incomingSettings?.FlipbookInfo?.userEmail) return incomingSettings.FlipbookInfo.userEmail;
-        try {
-            const stored = localStorage.getItem('user');
-            if (stored) {
-                const u = JSON.parse(stored);
-                return u?.emailId || u?.email || '';
-            }
-        } catch (e) {}
+        if (profileSettings?.emailId || profileSettings?.email) return profileSettings.emailId || profileSettings.email;
         return '';
-    }, [currentBook, incomingSettings]);
+    }, [currentBook, incomingSettings, profileSettings]);
+
+    const creatorProfileData = React.useMemo(() => {
+        const email = resolvedUserEmail || '';
+        const name = profileSettings?.name || currentBook?.authorName || (email ? email.split('@')[0] : 'Creator');
+        const picture = profileSettings?.picture || currentBook?.authorPicture || null;
+        const avatarBgColor = profileSettings?.avatarBgColor || currentBook?.authorBgColor || '#E8D4C8';
+        const bannerBg = profileSettings?.bannerBg || { type: 'gradient', value: 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)' };
+
+        return {
+            name,
+            email,
+            emailId: email,
+            userEmail: email,
+            shareId: resolvedShareId,
+            v_id: resolvedVId,
+            profileImg: picture,
+            picture,
+            avatarBgColor,
+            bannerBg,
+            about: profileSettings?.about || '',
+            mobile: profileSettings?.mobile || '',
+            companyName: profileSettings?.companyName || '',
+            industryType: profileSettings?.industryType || '',
+            companyEmail: profileSettings?.companyEmail || '',
+            website: profileSettings?.website || '',
+            services: profileSettings?.services || [],
+            address1: profileSettings?.address1 || '',
+            address2: profileSettings?.address2 || '',
+            city: profileSettings?.city || '',
+            pincode: profileSettings?.pincode || '',
+            state: profileSettings?.state || '',
+            country: profileSettings?.country || 'INDIA',
+            socials: profileSettings?.socials || {}
+        };
+    }, [resolvedUserEmail, profileSettings, currentBook, resolvedShareId, resolvedVId]);
 
     const galleryPopupSettings = React.useMemo(() => {
         const galleryFromOther = otherSetupSettings?.gallery || {};
@@ -4463,14 +4492,11 @@ const PreviewArea = React.memo(({
 
             )}
 
-            {showProfilePopup && ![4, 5, '4', '5'].includes(activeLayout) && (
+            {showProfilePopup && (
                 <CreatorProfileModal
                     isOpen={showProfilePopup}
                     onClose={() => setShowProfilePopup(false)}
-                    creator={{
-                        name: profileSettings?.name,
-                        profileImg: profileSettings?.picture
-                    }}
+                    creator={creatorProfileData}
                     isPreview={true}
                 />
             )}
