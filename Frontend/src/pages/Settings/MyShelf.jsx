@@ -1,19 +1,29 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
-import textureScreen1 from '../../assets/Bookshelf/texture_screen1.svg';
-import bookShelf1 from '../../assets/Bookshelf/Book_shelf1.svg';
-import textureScreen2 from '../../assets/Bookshelf/texture_screen2.png';
-import bookShelf2 from '../../assets/Bookshelf/Book_shelf2.svg';
-import textureScreen3 from '../../assets/Bookshelf/texture_screen3.svg';
-import bookShelf3 from '../../assets/Bookshelf/Book_shelf3.svg';
-import book1 from '../../assets/Bookshelf/Bookcover/book1.svg';
-import book2 from '../../assets/Bookshelf/Bookcover/book2.svg';
-import book3 from '../../assets/Bookshelf/Bookcover/book3.svg';
-import book4 from '../../assets/Bookshelf/Bookcover/book4.svg';
-import book5 from '../../assets/Bookshelf/Bookcover/book5.svg';
-import book6 from '../../assets/Bookshelf/Bookcover/book6.svg';
 
-const books = [book1, book2, book3, book4, book5, book6];
+import bookShelf1 from '../../assets/Bookshelf/Book_shelf1.webp';
+import textureScreen2 from '../../assets/Bookshelf/classicwood/classic woodtexture.webp';
+import bookShelf2 from '../../assets/Bookshelf/classicwood/classicwoodshelf.webp';
+import darkOakTex1 from '../../assets/Bookshelf/Darkoak/texture_screen1.webp';
+import darkOakTex2 from '../../assets/Bookshelf/Darkoak/texture_screen2.webp';
+import darkOakTex3 from '../../assets/Bookshelf/Darkoak/texture_screen3.webp';
+import darkOakShelf from '../../assets/Bookshelf/Darkoak/darkoakshelf.webp';
+
+import mwWall1 from '../../assets/Bookshelf/modernwhite/wall1.webp';
+import book1 from '../../assets/Bookshelf/Bookcover/book1.webp';
+import book2 from '../../assets/Bookshelf/Bookcover/book2.webp';
+import book3 from '../../assets/Bookshelf/Bookcover/book3.webp';
+import book4 from '../../assets/Bookshelf/Bookcover/book4.webp';
+import book5 from '../../assets/Bookshelf/Bookcover/book5.webp';
+import book6 from '../../assets/Bookshelf/Bookcover/book6.webp';
+
+const initialBooks = [
+  book1, book2, book3, book4, book5, book6,
+  book1, book2, book3, book4, book5, book6,
+  book1, book2, book3, book4, book5, book6,
+  book1
+];
+
 import customize1 from '../../assets/Bookshelf/customize_shelf/customize1.svg';
 import customize2 from '../../assets/Bookshelf/customize_shelf/customize2.svg';
 import customize3 from '../../assets/Bookshelf/customize_shelf/customize3.svg';
@@ -29,9 +39,19 @@ const MyShelf = () => {
   const [view, setView] = useState('shelf');
   const [showShelfModal, setShowShelfModal] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
-  
-  const [shelfRowCount, setShelfRowCount] = useState(3);
-  const [flipbookSelect, setFlipbookSelect] = useState('my_flipbooks');
+  const [hoveredInfoId, setHoveredInfoId] = useState(null);
+  const [folders, setFolders] = useState([
+    { name: 'My Flipbooks', books: [...initialBooks] }
+  ]);
+  const [selectedFolder, setSelectedFolder] = useState('My Flipbooks');
+  const [showAddShelfModal, setShowAddShelfModal] = useState(false);
+  const [newShelfName, setNewShelfName] = useState('');
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [selectedStatus, setSelectedStatus] = useState('All Status');
+  const [draggedBookIndex, setDraggedBookIndex] = useState(null);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [bookToMoveIndex, setBookToMoveIndex] = useState(null);
+  const [targetMoveFolder, setTargetMoveFolder] = useState('');
 
   // State for the currently applied shelf and the draft shelf in the modal
   const [activeShelfStyle, setActiveShelfStyle] = useState(shelfOptions[0].id);
@@ -39,10 +59,9 @@ const MyShelf = () => {
 
   const handleFlipbookSelect = (e) => {
     if (e.target.value === 'add_shelf') {
-      setShelfRowCount(prev => prev + 1);
-      setFlipbookSelect('my_flipbooks');
+      setShowAddShelfModal(true);
     } else {
-      setFlipbookSelect(e.target.value);
+      setSelectedFolder(e.target.value);
     }
   };
 
@@ -56,43 +75,136 @@ const MyShelf = () => {
     setShowShelfModal(false);
   };
 
+  const handleMoveSubmit = () => {
+    if (targetMoveFolder === '__add_shelf__') {
+      if (!newShelfName.trim()) return;
+      const newFolderName = newShelfName.trim();
+      setFolders(prev => {
+        const sourceFolderIdx = prev.findIndex(f => f.name === selectedFolder);
+        if (sourceFolderIdx === -1) return prev;
+        
+        const newSourceBooks = [...prev[sourceFolderIdx].books];
+        const [movedBook] = newSourceBooks.splice(bookToMoveIndex, 1);
+        
+        const updatedFolders = prev.map((f, idx) => 
+          idx === sourceFolderIdx ? { ...f, books: newSourceBooks } : f
+        );
+        
+        return [{ name: newFolderName, books: [movedBook] }, ...updatedFolders];
+      });
+      setNewShelfName('');
+      setShowMoveModal(false);
+      setBookToMoveIndex(null);
+      return;
+    }
+    if (!targetMoveFolder || targetMoveFolder === selectedFolder) {
+      setShowMoveModal(false);
+      return;
+    }
+    setFolders(prev => {
+      const sourceFolderIdx = prev.findIndex(f => f.name === selectedFolder);
+      const targetFolderIdx = prev.findIndex(f => f.name === targetMoveFolder);
+      if (sourceFolderIdx === -1 || targetFolderIdx === -1) return prev;
+
+      const newFolders = [...prev];
+      const newSourceBooks = [...newFolders[sourceFolderIdx].books];
+      const [movedBook] = newSourceBooks.splice(bookToMoveIndex, 1);
+      
+      const newTargetBooks = [...newFolders[targetFolderIdx].books];
+      newTargetBooks.push(movedBook);
+
+      newFolders[sourceFolderIdx] = { ...newFolders[sourceFolderIdx], books: newSourceBooks };
+      newFolders[targetFolderIdx] = { ...newFolders[targetFolderIdx], books: newTargetBooks };
+      return newFolders;
+    });
+    setShowMoveModal(false);
+    setBookToMoveIndex(null);
+  };
+
+  const handleRemoveBook = (bookIndex) => {
+    setFolders(prev => prev.map(folder => {
+      if (folder.name === selectedFolder) {
+        const newBooks = [...folder.books];
+        newBooks.splice(bookIndex, 1);
+        return { ...folder, books: newBooks };
+      }
+      return folder;
+    }));
+    setOpenMenuId(null);
+  };
+
+  const handleDragStart = (e, index) => {
+    setDraggedBookIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedBookIndex === null || draggedBookIndex === targetIndex) return;
+
+    setFolders(prev => prev.map(folder => {
+      if (folder.name === selectedFolder) {
+        const newBooks = [...folder.books];
+        const [draggedBook] = newBooks.splice(draggedBookIndex, 1);
+        newBooks.splice(targetIndex, 0, draggedBook);
+        return { ...folder, books: newBooks };
+      }
+      return folder;
+    }));
+    setDraggedBookIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedBookIndex(null);
+  };
+
   const getShelfAssets = (style) => {
+    const activeFolder = folders.find(f => f.name === selectedFolder);
+    const bookCount = activeFolder ? activeFolder.books.length : 0;
+    const calculatedRowCount = Math.max(3, Math.ceil(bookCount / 6));
+
     switch (style) {
       case 'customize1':
         return {
           type: 'rows',
-          bg: textureScreen1,
+          bg: mwWall1,
           rowAsset: bookShelf1,
-          rowCount: shelfRowCount,
-          bgStretch: true,
+          rowCount: calculatedRowCount,
+          bgStretch: false,
           noZone: true,
           padding: 'px-6',
           topOffset: 6,
           spacing: 32,
           bookWidth: '15%',
-          bookStyle: { bottom: '42%', padding: '0 14%' }
+          bookStyle: { bottom: '21%', padding: '0 14%' }
         };
       case 'customize2':
         return {
           type: 'rows',
           bg: textureScreen2,
           rowAsset: bookShelf2,
-          rowCount: shelfRowCount,
+          rowCount: calculatedRowCount,
           bgStretch: true,
           noZone: true,
           padding: 'px-0',
+          rowPadding: '0 1.5%',
           topOffset: 29.7,
           spacing: 32.15,
           bookWidth: '14%',
-          bookStyle: { bottom: '84.4%', padding: '0 10%' }
+          bookStyle: { bottom: '76%', padding: '0 10%' }
         };
       case 'customize3':
         return {
           type: 'rows',
-          bg: textureScreen3,
-          rowAsset: bookShelf3,
-          rowCount: shelfRowCount,
-          bgStretch: true,
+          bg: [darkOakTex1, darkOakTex2, darkOakTex3],
+          rowAsset: darkOakShelf,
+          rowCount: calculatedRowCount,
+          bgStretch: false,
           noZone: true,
           padding: 'px-0',
           rowPadding: '0 4%',
@@ -104,29 +216,32 @@ const MyShelf = () => {
       default:
         return {
           type: 'rows',
-          bg: textureScreen1,
+          bg: mwWall1,
           rowAsset: bookShelf1,
-          rowCount: shelfRowCount,
-          bgStretch: true,
+          rowCount: calculatedRowCount,
+          bgStretch: false,
           noZone: true,
           padding: 'px-6',
           topOffset: 6,
           spacing: 32,
           bookWidth: '15%',
-          bookStyle: { bottom: '42%', padding: '0 14%' }
+          bookStyle: { bottom: '21%', padding: '0 14%' }
         };
     }
   };
 
   const activeAssets = getShelfAssets(activeShelfStyle);
 
+  // Global variables for height and scroll calculation
+  const activeFolderGlobal = folders.find(f => f.name === selectedFolder);
+  const globalBookCount = activeFolderGlobal ? activeFolderGlobal.books.length : 0;
+  const globalRowCount = Math.max(3, Math.ceil(globalBookCount / 6));
+
   // Calculate dynamic shelf positioning to perfectly preserve physical pixels
   const spacing = activeAssets.spacing ?? 32;
   const topOffset = activeAssets.topOffset ?? 6;
-  const originalLast = topOffset + 2 * spacing;
-  
-  // Container grows such that the last shelf always lands exactly on the original visual bottom (originalLast)
-  const heightRatio = shelfRowCount <= 3 ? 1 : (topOffset + (shelfRowCount - 1) * spacing) / originalLast;
+  // Container grows exactly by 'spacing' for each new shelf, plus a tiny 3% extra for breathing room
+  const heightRatio = globalRowCount <= 3 ? 1 : (100 + (globalRowCount - 3) * spacing + 3) / 100;
   
   // Scale percentages inversely so physical positions remain identical
   const newTopOffset = topOffset / heightRatio;
@@ -139,59 +254,145 @@ const MyShelf = () => {
       <div className="flex justify-between items-start mb-3 -mt-2">
         <div>
           <h1 className="text-2xl font-bold mb-1">My Shelf</h1>
-          <p className="text-sm text-gray-500">PNG format keeps your logo clean and background-free</p>
+          <p className="text-[11px] mt-0.5 text-[#94a3b8]">PNG format keeps your logo clean and background-free</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button
             onClick={() => setView('shelf')}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-md text-sm font-medium ${view === 'shelf' ? 'bg-gray-100' : 'bg-white'}`}
+            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border ${view === 'shelf' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
-            Shelf View
+            <svg viewBox="0 0 24 24" fill="currentColor" className={`w-5 h-5 ${view === 'shelf' ? 'text-gray-500' : 'text-[#94a3b8]'}`}>
+              <path fillRule="evenodd" clipRule="evenodd" d="M 2 3 h 20 v 5 H 2 Z M 13.5 4 h 1.2 v 4 h -1.2 Z M 15.1 4 h 1.2 v 4 h -1.2 Z M 16.7 4 h 1.2 v 4 h -1.2 Z M 18.3 4 h 1.2 v 4 h -1.2 Z M 2 9.5 h 20 v 5 H 2 Z M 3.5 10.5 h 1.2 v 4 h -1.2 Z M 5.1 10.5 h 1.2 v 4 h -1.2 Z M 6.7 10.5 h 1.2 v 4 h -1.2 Z M 8.5 14.5 L 9.7 10.5 h 1.2 L 9.7 14.5 Z M 2 16 h 20 v 5 H 2 Z M 3.5 17 h 1.2 v 4 h -1.2 Z M 5.1 17 h 1.2 v 4 h -1.2 Z M 13.5 18.4 h 4 v 1.2 h -4 Z M 14.5 19.8 h 4 v 1.2 h -4 Z" />
+            </svg>
+            <span>Shelf View</span>
           </button>
           <button
             onClick={() => setView('list')}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-md text-sm font-medium ${view === 'list' ? 'bg-gray-100' : 'bg-white'}`}
+            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border ${view === 'list' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-            List View
+            <Icon icon="circum:box-list" className={`w-5 h-5 ${view === 'list' ? 'text-gray-500' : 'text-[#94a3b8]'}`} />
+            <span>List View</span>
           </button>
         </div>
       </div>
 
       {/* Toolbar */}
-      <div className="flex gap-4 mb-4">
+      {openDropdown && (
+        <div
+          className="fixed inset-0 z-10"
+          onClick={() => setOpenDropdown(null)}
+        />
+      )}
+      <div className="flex gap-4 mb-4 relative z-20">
         <div className="relative flex-1 max-w-xs">
-          <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input type="text" placeholder="Search..." className="w-full pl-9 pr-4 py-2 border rounded-md text-sm focus:outline-none focus:border-blue-500" />
+          <svg className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" placeholder="Search Flipbook..." className="w-full pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
         </div>
-        <select 
-          className="px-4 py-2 border rounded-md text-sm bg-white focus:outline-none focus:border-blue-500"
-          value={flipbookSelect}
-          onChange={handleFlipbookSelect}
-        >
-          <option value="my_flipbooks">My Flipbooks</option>
-          <option value="add_shelf">Add Shelf</option>
-        </select>
-        <select className="px-4 py-2 border rounded-md text-sm bg-white focus:outline-none focus:border-blue-500">
-          <option>All Status</option>
-        </select>
+        
+        {/* Flipbook Dropdown */}
+        <div className="relative">
+          <button 
+            onClick={() => setOpenDropdown(openDropdown === 'flipbooks' ? null : 'flipbooks')}
+            className="flex items-center justify-between w-40 px-4 py-1.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none"
+          >
+            <span className="text-[#5B738B]">{selectedFolder === 'add_shelf' ? 'Add Shelf' : selectedFolder}</span>
+            <Icon icon={openDropdown === 'flipbooks' ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-[#8BA3BA]" />
+          </button>
+          
+          {openDropdown === 'flipbooks' && (
+            <div className="absolute z-50 w-full mt-1.5 bg-white border border-gray-100 rounded-lg shadow-[0_4px_20px_rgb(0,0,0,0.08)] py-1 overflow-hidden">
+              {folders.map(folder => (
+                <div
+                  key={folder.name}
+                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${selectedFolder === folder.name ? 'bg-gray-50 text-[#334155]' : 'text-[#475569]'}`}
+                  onClick={() => {
+                    handleFlipbookSelect({ target: { value: folder.name } });
+                    setOpenDropdown(null);
+                  }}
+                >
+                  {folder.name}
+                </div>
+              ))}
+              <div
+                className={`px-4 py-2 text-sm cursor-pointer border-t border-gray-100 hover:bg-gray-50 transition-colors ${selectedFolder === 'add_shelf' ? 'bg-gray-50 text-[#334155]' : 'text-[#475569]'}`}
+                onClick={() => {
+                  handleFlipbookSelect({ target: { value: 'add_shelf' } });
+                  setOpenDropdown(null);
+                }}
+              >
+                + Add Shelf
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Status Dropdown */}
+        <div className="relative">
+          <button 
+            onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
+            className="flex items-center justify-between w-40 px-4 py-1.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none"
+          >
+            <span className="text-[#5B738B]">{selectedStatus}</span>
+            <Icon icon={openDropdown === 'status' ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-[#8BA3BA]" />
+          </button>
+          
+          {openDropdown === 'status' && (
+            <div className="absolute z-50 w-full mt-1.5 bg-white border border-gray-100 rounded-lg shadow-[0_4px_20px_rgb(0,0,0,0.08)] py-1 overflow-hidden">
+              {['All Status', 'Private', 'Public'].map((status) => (
+                <div
+                  key={status}
+                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${selectedStatus === status ? 'bg-gray-50 text-[#334155]' : 'text-[#475569]'}`}
+                  onClick={() => {
+                    setSelectedStatus(status);
+                    setOpenDropdown(null);
+                  }}
+                >
+                  {status}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Content */}
       <div className="flex gap-6 h-[calc(100vh-40px)] relative">
         {view === 'shelf' ? (
-          /* Shelf Area */
-          <div className="flex-1 overflow-y-auto overflow-x-hidden rounded-xl bg-white shadow-inner h-full">
-            <div
-              className={`relative w-full bg-center bg-no-repeat ${activeAssets.noZone ? '' : 'rounded-xl'}`}
+          /* Outer Scrollable Container */
+          <div className={`flex-1 h-full overflow-x-hidden ${globalRowCount <= 3 ? 'overflow-y-hidden' : 'overflow-y-auto pr-2'}`}>
+            {/* The White Rounded Box (Grows in height) */}
+            <div 
+              className="w-full rounded-xl bg-white shadow-inner overflow-hidden flex flex-col"
               style={{
                 minHeight: '100%',
-                height: `${heightRatio * 100}%`,
-                backgroundImage: activeAssets.bg ? `url('${activeAssets.bg}')` : 'none',
-                backgroundSize: activeAssets.bgStretch ? '100% 100%' : 'cover'
+                height: `${heightRatio * 100}%`
               }}
             >
+              <div
+                className={`relative flex-1 w-full bg-top rounded-xl`}
+              style={{
+                backgroundImage: (!Array.isArray(activeAssets.bg) && activeAssets.bg) ? `url('${activeAssets.bg}')` : 'none',
+                backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
+                backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
+              }}
+            >
+              {/* If bg is an array, map over it to render wall blocks */}
+              {Array.isArray(activeAssets.bg) && (
+                 <div className="absolute inset-0 flex flex-col rounded-xl overflow-hidden pointer-events-none">
+                   {Array.from({ length: activeAssets.rowCount }, (_, i) => (
+                      <div 
+                         key={i} 
+                         className="w-full flex-1 bg-center"
+                         style={{ 
+                           backgroundImage: `url('${activeAssets.bg[i % activeAssets.bg.length]}')`,
+                           backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
+                           backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
+                           backgroundPosition: 'center',
+                         }}
+                      />
+                   ))}
+                 </div>
+              )}
               {openMenuId && (
                 <div
                   className="fixed inset-0 z-20"
@@ -215,55 +416,116 @@ const MyShelf = () => {
                       key={i}
                       className={`absolute left-0 w-full ${activeAssets.rowPadding ? '' : (activeAssets.padding || 'px-12')}`}
                       style={{
-                        top: `${newTopOffset + (i * newSpacing)}%`,
+                        top: `${newTopOffset + (i * newSpacing) - (activeShelfStyle === 'customize2' && i !== activeAssets.rowCount - 1 ? 3.5 : 0)}%`,
                         padding: activeAssets.rowPadding || undefined
                       }}
                     >
-                    <img src={activeAssets.rowAsset} alt="Shelf" className="w-full h-auto drop-shadow-lg" />
+                    {!(activeShelfStyle === 'customize2' && i === activeAssets.rowCount - 1) && (
+                      <img src={activeAssets.rowAsset} alt="Shelf" className="w-full h-auto drop-shadow-lg" />
+                    )}
                     {/* Books Container */}
-                    <div
-                      className="absolute inset-0 flex justify-between items-end"
-                      style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
-                    >
-                      {i < 3 && books.map((book, bIdx) => (
-                        <div key={bIdx} className={`relative group cursor-pointer flex items-end ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-3' : bIdx === 1 ? 'translate-x-3' : bIdx === 2 ? 'translate-x-4' : ''}`} style={{ width: activeAssets.bookWidth || '12%' }}>
-                          <img src={book} alt={`Book ${bIdx}`} className={`w-full h-auto drop-shadow-md transition-transform origin-bottom ${bIdx === 2 ? 'scale-[1.16] group-hover:scale-[1.22]' : 'group-hover:scale-105'}`} />
+                    {!activeAssets.hideBooks && (
+                      <div
+                        className="absolute inset-0 flex justify-between items-end"
+                        style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
+                      >
+                      {(activeFolderGlobal?.books.slice(i * 6, (i + 1) * 6) || []).map((book, bIdx) => (
+                        <div 
+                          key={bIdx} 
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, i * 6 + bIdx)}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, i * 6 + bIdx)}
+                          onDragEnd={handleDragEnd}
+                          className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-4' : 'translate-y-0') : 'translate-y-2'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-3' : bIdx === 1 ? 'translate-x-3' : bIdx === 2 ? 'translate-x-4' : ''} ${draggedBookIndex === (i * 6 + bIdx) ? 'opacity-50' : ''}`} 
+                          style={{ width: activeAssets.bookWidth || '12%' }}
+                        >
+                          <img src={book} alt={`Book ${bIdx}`} className="w-[135%] aspect-[1/0.88] max-w-none object-fill rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105" />
 
                           {/* Hover Menu Pill */}
-                          <div className={`absolute ${bIdx === 2 ? '-top-2 right-5' : 'top-[2%] right-1'} w-5 h-[46px] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto`}>
+                          <div className="absolute top-[2%] right-4 w-5 h-[46px] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto">
                             <button
                               onClick={() => setOpenMenuId(openMenuId === `${i}-${bIdx}` ? null : `${i}-${bIdx}`)}
                               className="text-black hover:bg-gray-300 rounded-full w-4 h-4 flex items-center justify-center mt-0.5 transition-colors"
                             >
                               <Icon icon="mdi:dots-vertical" className="text-[14px]" />
                             </button>
-                            <button className="bg-[#3C3C3C] text-white rounded-full w-3.5 h-3.5 flex items-center justify-center mb-0.5 hover:bg-black transition-colors">
-                              <Icon icon="mdi:information-variant" className="text-[8px] font-bold" />
-                            </button>
+                            <div 
+                              className="text-[#4A4A4A] hover:text-black flex items-center justify-center mb-0.5 transition-colors relative cursor-pointer"
+                              onMouseEnter={() => setHoveredInfoId(`${i}-${bIdx}`)}
+                              onMouseLeave={() => setHoveredInfoId(null)}
+                            >
+                              <Icon icon="si:info-fill" className="w-4 h-4" />
+                              
+                              {/* Info Tooltip Bridge & Container */}
+                              <div className={`absolute top-1/2 right-full pr-3 -translate-y-1/2 ${hoveredInfoId === `${i}-${bIdx}` ? 'block' : 'hidden'} z-[60]`}>
+                                <div className="w-[130px] bg-[#3B3B3C] rounded-md p-2 text-[#D8D8D8] text-[9px] font-normal shadow-xl flex flex-col gap-1 cursor-default text-left tracking-wide leading-tight">
+                                  <div>Views : 528k</div>
+                                  <div>No of Pages : 26</div>
+                                  <div>Added to Shelf : 250k</div>
+                                  <div className="flex items-center gap-0.5">
+                                    Ratings : 
+                                    <div className="flex text-[#F5C518] text-[10px] ml-0.5">
+                                      <Icon icon="mdi:star" />
+                                      <Icon icon="mdi:star" />
+                                      <Icon icon="mdi:star" />
+                                      <Icon icon="mdi:star-half-full" />
+                                      <Icon icon="mdi:star-outline" />
+                                    </div>
+                                    <span className="text-[#D8D8D8] text-[8px]">(4.5)</span>
+                                  </div>
+                                  <div>No of Ratings : 1528</div>
+                                  <div className="mt-1 text-center">
+                                    <button className="inline-flex items-center gap-0.5 text-[#E8E8E8] hover:text-white transition-colors group/btn">
+                                      <span className="underline underline-offset-2 decoration-1">View More details</span>
+                                      <Icon icon="mdi:arrow-top-right" className="text-[12px] group-hover/btn:-translate-y-0.5 group-hover/btn:translate-x-0.5 transition-transform" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Dropdown Menu */}
                           {openMenuId === `${i}-${bIdx}` && (
-                            <div className={`absolute ${bIdx === 2 ? '-top-2 right-10' : 'top-[2%] -right-2'} bg-white rounded-md shadow-xl border border-gray-100 py-1 w-28 z-50`}>
-                              <button className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                                <Icon icon="mdi:book-open-outline" className="w-3.5 h-3.5 text-gray-400" />
+                            <div className="absolute top-[2%] -right-2 bg-white rounded-md shadow-xl border border-gray-100 py-1 w-28 z-50">
+                              <button className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
                                 Open Book
                               </button>
-                              <button className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5 transition-colors">
-                                <Icon icon="mdi:trash-can-outline" className="w-3.5 h-3.5 text-red-400" />
-                                Delete
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBookToMoveIndex(i * 6 + bIdx);
+                                  setTargetMoveFolder(selectedFolder);
+                                  setShowMoveModal(true);
+                                  setOpenMenuId(null);
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                              >
+                                Move Folder
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveBook(i * 6 + bIdx);
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                              >
+                                Remove Book
                               </button>
                             </div>
                           )}
                         </div>
                       ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
+            </div>
           </div>
-          </div>
+        </div>
         ) : (
           /* List View Grid */
           <div className="flex-1 overflow-y-auto pr-2 pb-4">
@@ -275,11 +537,10 @@ const MyShelf = () => {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (
-                <div key={item} className="bg-[#FFFBF6] border border-gray-100 rounded-2xl overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                <div key={item} className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100">
                   {/* Image Area Wrapper */}
-                  <div className="p-2 pb-0">
-                    <div className="relative w-full aspect-square bg-[#e2b58d] rounded-xl overflow-hidden">
-                      <img src={listFrame} alt="Flipbook" className="w-full h-full object-cover" />
+                  <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden">
+                    <img src={listFrame} alt="Flipbook" className="w-full h-full object-cover" />
 
                       <button
                         onClick={() => setOpenMenuId(openMenuId === item ? null : item)}
@@ -289,14 +550,30 @@ const MyShelf = () => {
                       </button>
 
                       {openMenuId === item && (
-                        <div className="absolute top-10 right-3 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-36 z-40">
-                          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors">
-                            <Icon icon="mdi:book-open-outline" className="w-4 h-4 text-gray-400" />
+                        <div className="absolute top-10 right-3 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-32 z-40">
+                          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                             Open Book
                           </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
-                            <Icon icon="mdi:trash-can-outline" className="w-4 h-4 text-red-400" />
-                            Delete
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setBookToMoveIndex(item - 1);
+                              setTargetMoveFolder(selectedFolder);
+                              setShowMoveModal(true);
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            Move Folder
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveBook(item - 1);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            Remove Book
                           </button>
                         </div>
                       )}
@@ -305,7 +582,6 @@ const MyShelf = () => {
                         28 Pages
                       </div>
                     </div>
-                  </div>
 
                   {/* Content Area */}
                   <div className="p-4 flex flex-col gap-2.5 flex-1">
@@ -365,12 +641,12 @@ const MyShelf = () => {
         <div className="w-64 flex flex-col justify-end gap-6 h-full pb-4">
 
           {/* Shelf Usage */}
-          <div className="bg-white border rounded-xl p-5 shadow-sm">
-            <h3 className="font-semibold mb-4 text-sm">Shelf Usage</h3>
-            <div className="h-2 w-full bg-gray-200 rounded-full mb-3">
-              <div className="h-2 bg-blue-600 rounded-full w-1/2"></div>
+          <div className="bg-white border border-gray-200 rounded-[14px] p-5">
+            <h3 className="font-medium text-[#475569] mb-4 text-[15px]">Shelf Usage</h3>
+            <div className="h-1.5 w-full bg-[#E2E8F0] rounded-full mb-4">
+              <div className="h-1.5 bg-[#4F46E5] rounded-full w-1/2"></div>
             </div>
-            <div className="flex justify-between text-xs text-gray-500 font-medium">
+            <div className="flex justify-between text-[13.5px] text-[#475569]">
               <span>25 of 50 Flipbooks Used</span>
               <span>50%</span>
             </div>
@@ -463,6 +739,122 @@ const MyShelf = () => {
                 className="px-5 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow transition-all"
               >
                 Apply Shelf
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Shelf/Folder Modal */}
+      {showAddShelfModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowAddShelfModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-100 w-[400px] max-w-[90vw] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-800">Create New Shelf</h2>
+              <button onClick={() => setShowAddShelfModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 hover:bg-gray-100 rounded-full p-2">
+                <Icon icon="mdi:close" className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Shelf Name</label>
+              <input 
+                type="text" 
+                value={newShelfName} 
+                onChange={(e) => setNewShelfName(e.target.value)} 
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" 
+                placeholder="Enter shelf name"
+                autoFocus
+              />
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
+              <button onClick={() => setShowAddShelfModal(false)} className="px-5 py-2 border border-gray-200 rounded-md text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 hover:text-gray-800 transition-colors">Cancel</button>
+              <button 
+                onClick={() => {
+                  if(newShelfName.trim()) {
+                    setFolders(prev => [{ name: newShelfName.trim(), books: [] }, ...prev]);
+                    setSelectedFolder(newShelfName.trim());
+                    setNewShelfName('');
+                    setShowAddShelfModal(false);
+                  }
+                }} 
+                className="px-5 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move Folder Modal */}
+      {showMoveModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setShowMoveModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-100 w-[400px] max-w-[90vw] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-800">Move to Folder</h2>
+              <button onClick={() => setShowMoveModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 hover:bg-gray-100 rounded-full p-2">
+                <Icon icon="mdi:close" className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Destination Folder</label>
+              <div className="relative">
+                <button 
+                  onClick={() => setOpenDropdown(openDropdown === 'move_folder' ? null : 'move_folder')}
+                  className="flex items-center justify-between w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none"
+                >
+                  <span className="text-[#5B738B]">{targetMoveFolder === '__add_shelf__' ? '+ Add Shelf' : targetMoveFolder}</span>
+                  <Icon icon={openDropdown === 'move_folder' ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-[#8BA3BA]" />
+                </button>
+                
+                {openDropdown === 'move_folder' && (
+                  <div className="absolute z-50 w-full mt-1.5 bg-white border border-gray-100 rounded-lg shadow-[0_4px_20px_rgb(0,0,0,0.08)] py-1 overflow-hidden">
+                    {folders.map(folder => (
+                      <div
+                        key={folder.name}
+                        className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${targetMoveFolder === folder.name ? 'bg-gray-50 text-[#334155]' : 'text-[#475569]'}`}
+                        onClick={() => {
+                          setTargetMoveFolder(folder.name);
+                          setOpenDropdown(null);
+                        }}
+                      >
+                        {folder.name}
+                      </div>
+                    ))}
+                    <div
+                      className={`px-4 py-2 text-sm cursor-pointer border-t border-gray-100 hover:bg-gray-50 transition-colors ${targetMoveFolder === '__add_shelf__' ? 'bg-gray-50 text-[#334155]' : 'text-[#475569]'}`}
+                      onClick={() => {
+                        setTargetMoveFolder('__add_shelf__');
+                        setOpenDropdown(null);
+                      }}
+                    >
+                      + Add Shelf
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {targetMoveFolder === '__add_shelf__' && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">New Folder Name</label>
+                  <input
+                    type="text"
+                    value={newShelfName}
+                    onChange={(e) => setNewShelfName(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="Enter new folder name"
+                    autoFocus
+                  />
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
+              <button onClick={() => setShowMoveModal(false)} className="px-5 py-2 border border-gray-200 rounded-md text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 hover:text-gray-800 transition-colors">Cancel</button>
+              <button 
+                onClick={handleMoveSubmit}
+                className="px-5 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors"
+              >
+                {targetMoveFolder === '__add_shelf__' ? 'Create & Move' : 'Move'}
               </button>
             </div>
           </div>
