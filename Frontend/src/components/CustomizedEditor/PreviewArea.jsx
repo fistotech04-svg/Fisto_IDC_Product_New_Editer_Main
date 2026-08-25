@@ -1011,16 +1011,21 @@ const getInteractionScript = (pageNumber) => `
                             }
                         }
                     }
-               } else {
+                } else {
                     // Forward mousedown to parent for dragging (only for mouse/touch down, not click)
                     if (e.type === 'mousedown' || e.type === 'touchstart') {
+                        window._isIframeDragging = true;
                         try {
                         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                        const screenX = e.touches ? e.touches[0].screenX : e.screenX;
+                        const screenY = e.touches ? e.touches[0].screenY : e.screenY;
                         window.parent.postMessage({
                             type: 'IFRAME_MOUSEDOWN',
                             originalClientX: clientX,
                             originalClientY: clientY,
+                            screenX: screenX,
+                            screenY: screenY,
                             pageNumber: window._pageNumber
                         }, '*');
                     } catch (err) {}
@@ -1031,6 +1036,40 @@ const getInteractionScript = (pageNumber) => `
             document.addEventListener('mousedown', handleStart);
             document.addEventListener('touchstart', handleStart, { passive: true });
             document.addEventListener('click', handleStart);
+
+            const handleMove = (e) => {
+                if (!window._isIframeDragging) return;
+                try {
+                    const screenX = e.touches ? e.touches[0].screenX : e.screenX;
+                    const screenY = e.touches ? e.touches[0].screenY : e.screenY;
+                    window.parent.postMessage({
+                        type: 'IFRAME_MOUSEMOVE',
+                        screenX: screenX,
+                        screenY: screenY
+                    }, '*');
+                } catch(err) {}
+            };
+
+            const handleEnd = (e) => {
+                if (!window._isIframeDragging) return;
+                window._isIframeDragging = false;
+                try {
+                    const touch = (e.changedTouches && e.changedTouches.length > 0) ? e.changedTouches[0] : null;
+                    const screenX = touch ? touch.screenX : e.screenX;
+                    const screenY = touch ? touch.screenY : e.screenY;
+                    window.parent.postMessage({
+                        type: 'IFRAME_MOUSEUP',
+                        screenX: screenX,
+                        screenY: screenY
+                    }, '*');
+                } catch(err) {}
+            };
+
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('touchmove', handleMove, { passive: true });
+            document.addEventListener('mouseup', handleEnd);
+            document.addEventListener('touchend', handleEnd);
+
  
             // Hover logic for tooltips
             const handleHover = (e, isEnter) => {

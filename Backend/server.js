@@ -1,11 +1,14 @@
 import dotenv from "dotenv";
+import dns from "node:dns";
+
 dotenv.config();
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 import express from "express";
-
 import cors from "cors";
 import bodyParser from "body-parser";
 import connectDB from "./config/db.js";
+
 import usersettingRoutes from "./routes/User_Details/usersetting.js";
 import authRoutes from "./routes/User_Details/login.js";
 import flipbookRoutes from "./routes/Flipbook/flipbook.js";
@@ -18,9 +21,9 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-
 // Connect to database
 connectDB();
+
 
 import { SUPABASE_BUCKET, getSupabasePublicUrl, downloadFileFromSupabase } from "./config/supabase.js";
 

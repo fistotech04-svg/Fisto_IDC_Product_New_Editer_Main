@@ -511,15 +511,12 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                 </div>
               
                 <button
-                  className="mt-auto mr-[0.9vw] flex items-start justify-start text-[#ff3333]"
+                  className="mt-auto mr-[0.9vw] mb-[0.2vw] flex flex-col items-center justify-center text-[#ff3333] group"
                   title="Exit Preview"
                   onClick={onClose}
                 >
-                  <Icon
-                    icon="lucide:log-out"
-                    className={`w-[1.7vw] h-[1.7vw] transition-transform duration-300 ${draggerTabLeft < 10 ? 'rotate-0' : 'rotate-180'}`}
-                  />
-                </button>
+                  <Icon icon="lucide:log-out" className="w-[1.4vw] h-[1.4vw] transition-transform group-hover:scale-110" />
+                  </button>
               </div>
             </div>
           </>
@@ -635,14 +632,12 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                 </div>
 
                 <button
-                  className="mt-auto mr-[0.9vw] flex items-start justify-start text-[#ff3333]"
+                  className="mt-auto mr-[0.9vw] mb-[0.2vw] flex flex-col items-center justify-center text-[#ff3333] group"
                   title="Exit Preview"
                   onClick={(e) => { e.stopPropagation(); onClose(); }}
                 >
-                  <Icon
-                    icon="lucide:log-out"
-                    className={`w-[1.7vw] h-[1.7vw] transition-transform duration-300 ${draggerTabLeft < 10 ? 'rotate-0' : 'rotate-180'}`}
-                  />
+                  <Icon icon="lucide:log-out" className="w-[1vw] h-[1vw] transition-transform group-hover:scale-110" />
+                  <span className="text-[0.7vw] font-medium text-center leading-tight">Exit</span>
                 </button>
               </div>
             </div>
