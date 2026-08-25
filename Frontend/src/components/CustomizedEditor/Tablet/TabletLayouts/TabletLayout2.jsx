@@ -13,11 +13,32 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
     setInputPage(currentPage === 0 ? 1 : (currentPage || 1));
   }, [currentPage]);
 
+  const layoutColors = settings?.Layouts?.layoutColors || settings?.layoutColors;
+  const layoutColorsArray = Array.isArray(layoutColors) ? layoutColors : (layoutColors?.[activeLayout] || []);
+
   const getLayoutColor = (id, defaultColor) => {
+    if (layoutColorsArray && layoutColorsArray.length > 0) {
+        const colorObj = layoutColorsArray.find(c => c && c.id === id);
+        if (colorObj && colorObj.hex) {
+            return colorObj.hex;
+        }
+    }
     return `var(--${id}, ${defaultColor})`;
   };
 
   const getLayoutColorAlpha = (id, defaultRgb, alpha) => {
+    if (layoutColorsArray && layoutColorsArray.length > 0) {
+        const colorObj = layoutColorsArray.find(c => c && c.id === id);
+        if (colorObj && colorObj.hex) {
+            const hex = colorObj.hex.replace('#', '');
+            const r = parseInt(hex.length === 3 ? hex.charAt(0) + hex.charAt(0) : hex.substring(0, 2), 16);
+            const g = parseInt(hex.length === 3 ? hex.charAt(1) + hex.charAt(1) : hex.substring(2, 4), 16);
+            const b = parseInt(hex.length === 3 ? hex.charAt(2) + hex.charAt(2) : hex.substring(4, 6), 16);
+            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            }
+        }
+    }
     return `rgba(var(--${id}-rgb, ${defaultRgb}), ${alpha})`;
   };
 
@@ -73,7 +94,7 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
         </div>
 
         {/* Center: Icons */}
-        <div className="flex-none flex items-center gap-[2cqw] text-white absolute left-1/2 -translate-x-1/2">
+        <div className="flex-none flex items-center gap-[2cqw] absolute left-1/2 -translate-x-1/2" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
             <button 
               className="hover:text-gray-200 transition-colors"
               onClick={() => {
@@ -174,7 +195,7 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
               ? 'opacity-30' 
               : 'hover:opacity-80'
           }`}
-          style={{ color: getLayoutColor('search-text-v1', '#625FA2') }}
+          style={{ color: getLayoutColor('toolbar-bg', '#625FA2') }}
         >
           <Icon icon="lucide:chevron-left" className="w-[4cqw] h-[4cqw]" strokeWidth={1.5} />
         </button>
@@ -204,7 +225,7 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
               ? 'opacity-30'
               : 'hover:opacity-80'
           }`}
-          style={{ color: getLayoutColor('search-text-v1', '#625FA2') }}
+          style={{ color: getLayoutColor('toolbar-bg', '#625FA2') }}
         >
           <Icon icon="lucide:chevron-right" className="w-[4cqw] h-[4cqw]" strokeWidth={1.5} />
         </button>
@@ -228,7 +249,7 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
       <div className="w-full h-[6%] flex items-center justify-between px-[2cqw] flex-shrink-0 z-20" style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', getLayoutColor('toolbar-bg', '#625FA2')) }}>
         
         {/* Left Text */}
-        <div className="text-white text-[1.2cqw] font-semibold tracking-wide">
+        <div className="text-[1.2cqw] font-semibold tracking-wide" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
           {bookName}
         </div>
 
@@ -238,24 +259,25 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
              <div 
                 key={i} 
                 className={`h-[0.6cqw] rounded-full transition-all duration-300 ${
-                  i === activeDotIndex ? 'w-[2cqw] bg-white' : 'w-[0.6cqw] bg-white/40'
+                  i === activeDotIndex ? 'w-[2cqw]' : 'w-[0.6cqw]'
                 }`}
+                style={{ backgroundColor: i === activeDotIndex ? getLayoutColor('toolbar-text-main', '#FFFFFF') : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.4) }}
              ></div>
           ))}
         </div>
 
         {/* Right Zoom Controls */}
         <div className="flex items-center gap-[1cqw]">
-            <div className="flex items-center gap-[1.2cqw] bg-white/10 px-[1.2cqw] py-[0.5cqw] rounded-[0.5cqw]">
-                <button className="text-white/80 hover:text-white transition-colors">
+            <div className="flex items-center gap-[1.2cqw] px-[1.2cqw] py-[0.5cqw] rounded-[0.5cqw]" style={{ backgroundColor: getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.1) }}>
+                <button className="transition-colors hover:opacity-80" style={{ color: getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.8) }}>
                     <Icon icon="ph:magnifying-glass-minus-bold" className="w-[1.2cqw] h-[1.2cqw]" />
                 </button>
-                <span className="text-white text-[1.1cqw] font-bold">100%</span>
-                <button className="text-white/80 hover:text-white transition-colors">
+                <span className="text-[1.1cqw] font-bold" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>100%</span>
+                <button className="transition-colors hover:opacity-80" style={{ color: getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.8) }}>
                     <Icon icon="ph:magnifying-glass-plus-bold" className="w-[1.2cqw] h-[1.2cqw]" />
                 </button>
             </div>
-            <button className="text-white hover:text-gray-200 transition-colors bg-white/20 px-[1.5cqw] py-[0.5cqw] rounded-[0.5cqw] text-[1.1cqw] font-bold">
+            <button className="transition-colors hover:opacity-80 px-[1.5cqw] py-[0.5cqw] rounded-[0.5cqw] text-[1.1cqw] font-bold" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), backgroundColor: getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.2) }}>
                 Reset
             </button>
         </div>

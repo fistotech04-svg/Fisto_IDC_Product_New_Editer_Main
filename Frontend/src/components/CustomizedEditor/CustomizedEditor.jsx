@@ -1038,42 +1038,49 @@ const CustomizedEditor = () => {
   const stableSaveHandler = useCallback((...args) => handleSaveRef.current?.(...args), []);
   const stableExportHandler = useCallback((...args) => handleExportRef.current?.(...args), []);
 
-  const handlePreview = useCallback(async () => {
-    // Save to backend first so the shareId link has the latest data
-    if (handleSaveRef.current) {
-        await handleSaveRef.current();
-    }
+  const handlePreview = useCallback(() => {
+    const shareId = shareSettings?.shareId || currentBook?.shareId || v_id;
+    const previewUrl = shareId ? `/preview?shareId=${shareId}` : (v_id ? `/preview?v_id=${v_id}` : '/preview');
     
-    await saveToDB('editor_autosave', {
-      v_id: v_id,
-      pages: pages,
-      activePageIndex: targetPage || 0,
-      pageName: bookName,
-      timestamp: Date.now(),
-      isDoublePage: false,
-      projectBaseUrl: projectBaseUrl,
-      settings: {
-        logo: logoSettings,
-        watermark: watermarkSettings,
-        preloader: preloaderSettings,
-        profile: profileSettings,
-        background: backgroundSettings,
-        appearance: bookAppearanceSettings,
-        layout: layoutSettings,
-        layoutColors: layoutColors,
-        menubar: menuBarSettings,
-        othersetup: otherSetupSettings,
-        leadform: leadFormSettings,
-        visibility: visibilitySettings
-      }
-    });
-    const shareId = shareSettings?.shareId;
-    if (shareId) {
-      window.open(`/preview?shareId=${shareId}`, '_blank');
-    } else {
-      window.open('/preview', '_blank');
+    // 1. Open preview immediately in new tab for instant response
+    window.open(previewUrl, '_blank');
+
+    // 2. Cache editor state to IndexedDB
+    try {
+      saveToDB('editor_autosave', {
+        v_id: v_id,
+        pages: pages,
+        activePageIndex: targetPage || 0,
+        pageName: bookName,
+        timestamp: Date.now(),
+        isDoublePage: false,
+        projectBaseUrl: projectBaseUrl,
+        settings: {
+          logo: logoSettings,
+          watermark: watermarkSettings,
+          preloader: preloaderSettings,
+          profile: profileSettings,
+          background: backgroundSettings,
+          appearance: bookAppearanceSettings,
+          layout: layoutSettings,
+          layoutColors: layoutColors,
+          menubar: menuBarSettings,
+          othersetup: otherSetupSettings,
+          leadform: leadFormSettings,
+          visibility: visibilitySettings
+        }
+      });
+    } catch (e) {
+      console.warn("Failed to autosave preview to IndexedDB:", e);
     }
-  }, [v_id, pages, bookName, projectBaseUrl, targetPage, logoSettings, profileSettings, backgroundSettings, bookAppearanceSettings, layoutSettings, layoutColors, menuBarSettings, otherSetupSettings, leadFormSettings, visibilitySettings, shareSettings]);
+
+    // 3. Trigger backend save asynchronously in the background without blocking the UI
+    if (handleSaveRef.current) {
+      handleSaveRef.current().catch(err => {
+        console.error("Background save on preview failed:", err);
+      });
+    }
+  }, [shareSettings, currentBook, v_id, pages, targetPage, bookName, projectBaseUrl, logoSettings, watermarkSettings, preloaderSettings, profileSettings, backgroundSettings, bookAppearanceSettings, layoutSettings, layoutColors, menuBarSettings, otherSetupSettings, leadFormSettings, visibilitySettings]);
 
   const handlePreviewRef = useRef(handlePreview);
   handlePreviewRef.current = handlePreview;

@@ -924,7 +924,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                     <div
                         className={`${isMobile ? 'rounded-2xl w-[235px]' : isTablet ? 'rounded-[8px] w-[170px]' : 'rounded-[0.7vw] w-[13vw]'} shadow-2xl overflow-hidden relative backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200`}
                         style={{
-                            backgroundColor: `rgba(var(--toc-bg-rgb, 87, 92, 156), 0.8)`,
+                            backgroundColor: `rgba(var(--toc-bg-rgb, 87, 92, 156), calc(var(--toc-bg-opacity, 1) * 0.8))`,
                             border: '1px solid rgba(255, 255, 255, 0.2)'
                         }}
                         onClick={(e) => e.stopPropagation()}
@@ -1065,7 +1065,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                         ${(isMobile && !isLandscape && Number(activeLayout) === 5) ? 'w-[280px]' : ''}
                     `}
                     style={{
-                        backgroundColor: (isLayout1) ? `rgba(var(--toc-bg-rgb, 87, 92, 156), 0.8)` : (isLayout2 || (isMobile && isLandscape) ? undefined : getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8')),
+                        backgroundColor: (isLayout1) ? `rgba(var(--toc-bg-rgb, 87, 92, 156), calc(var(--toc-bg-opacity, 1) * 0.8))` : (isLayout2 || (isMobile && isLandscape) ? undefined : getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8')),
                         border: isLayout1 ? '1px solid rgba(255, 255, 255, 0.2)' : undefined
                     }}
                     onClick={(e) => e.stopPropagation()}

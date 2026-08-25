@@ -258,7 +258,7 @@ const Layout1 = ({
         className="animate-in fade-in slide-in-from-bottom-4 duration-300"
         onClick={(e) => e.stopPropagation()}
         style={{
-            backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), 0.8)`,
+            backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(var(--dropdown-bg-opacity, 1) * 0.8))`,
             width: isTablet ? '144px' : '11vw',
             borderRadius: '0.7vw',
             boxShadow: '0 0.5vw 2vw rgba(0,0,0,0.15)',
@@ -1454,7 +1454,7 @@ const Sound = ({
                                 border: '1px solid rgba(255,255,255,0.2)',
                                 overflow: 'hidden',
                                 backdropFilter: 'blur(12px)',
-                                backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), 0.8)`,
+                                backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(var(--dropdown-bg-opacity, 1) * 0.8))`,
                                 padding: '10px 16px 16px'
                             }}>
                                 <div className="flex flex-col gap-3">

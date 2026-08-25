@@ -4821,8 +4821,6 @@ const PreviewArea = React.memo(({
                         </div>
                     );
 
-
-
                     return isPhysicalMobile ? mobileContent : (
                         <MobileFrame isLandscape={isLandscape} hideHomeIndicator={Number(activeLayout) === 1 || Number(activeLayout) === 2 || Number(activeLayout) === 7 || Number(activeLayout) === 8 || (Number(activeLayout) === 3 && !isLandscape)}>
                             {mobileContent}
