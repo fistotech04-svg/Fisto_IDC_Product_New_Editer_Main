@@ -501,13 +501,13 @@ const Grid5Layout = ({
                     {settings?.interaction?.search !== false && !isPdfProject && (
                         <div className="relative" onClick={(e) => e.stopPropagation()}>
                             <div
-                                className={`flex items-center rounded-[0.5vw] ${isTablet ? 'px-[0.8vw] py-[0.35vw]' : 'px-[1vw] py-[0.45vw]'} shadow-inner group transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[9.5vw]' : 'w-[11.5vw]') : (isTablet ? 'w-[11.5vw]' : 'w-[15vw]')}`}
-                                style={{ backgroundColor: currentPage === 0 ? '#FFFFFF' : getLayoutColorRgba('search-bg-v2', '221, 224, 244', '1') }}
+                                className={`flex items-center rounded-[0.5vw] ${isTablet ? 'px-[0.8vw] py-[0.35vw]' : 'px-[1vw] py-[0.45vw]'} shadow-sm border border-black/10 group transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[9.5vw]' : 'w-[11.5vw]') : (isTablet ? 'w-[11.5vw]' : 'w-[15vw]')}`}
+                                style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                             >
                                 <Icon
                                     icon="ph:magnifying-glass-bold"
                                     className={`${isMobileLandscape ? 'w-[0.6vw] h-[0.6vw]' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]'}`}
-                                    style={{ color: getLayoutColor('search-text-v1', '#9BA0C9') }}
+                                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                                 />
                                 <input
                                     type="text"
@@ -557,7 +557,7 @@ const Grid5Layout = ({
                                     }}
                                     placeholder="Quick Search..."
                                     className={`bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-medium`}
-                                    style={{ color: getLayoutColorRgba('search-text-v1', '87, 92, 156', '1') }}
+                                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                                 />
                             </div>
 
@@ -612,7 +612,7 @@ const Grid5Layout = ({
                 <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
                     <span
                         className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-semibold tracking-tight`}
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        style={{ color: getLayoutColor('search-text-v1', '#9BA0C9') }}
                     >{bookName}</span>
                 </div>
 
