@@ -411,6 +411,9 @@ const TabletLayout9 = ({
                     </div>
 
                 </div>
+
+                {/* Right spacer for balance (optional, or just logo area if needed) */}
+                <div className="flex-1 pointer-events-none"></div>
             </div>
 
             {/* Main Content Area */}
@@ -447,9 +450,18 @@ const TabletLayout9 = ({
                 </div>
             </div>
 
-            {/* Bottom Bar: Page Controls */}
-            <div className="absolute bottom-[3cqh] left-0 right-0 flex items-center justify-center z-50 pointer-events-none">
-                <div className="flex items-center gap-[1.5cqw] pointer-events-auto">
+            {/* Bottom Bar: Page Controls & Book Name */}
+            <div className="absolute bottom-[3cqh] left-[2cqw] right-[2cqw] flex items-center justify-between z-50 pointer-events-none">
+                
+                {/* Left: Book Name */}
+                <div className="flex-1 flex justify-start pointer-events-auto">
+                    <span className="text-[1.5cqw] font-bold tracking-wide" style={{ color: primaryColor }}>
+                        {bookName || "Name of the Book"}
+                    </span>
+                </div>
+
+                {/* Center: Page Controls */}
+                <div className="flex items-center justify-center gap-[1.5cqw] pointer-events-auto shrink-0">
                     
                     {/* First Page */}
                     <ToolbarBtn 
@@ -513,6 +525,9 @@ const TabletLayout9 = ({
                     />
                     
                 </div>
+
+                {/* Right Spacer for balance */}
+                <div className="flex-1 pointer-events-none"></div>
             </div>
 
             {/* Thumbnail Bar */}

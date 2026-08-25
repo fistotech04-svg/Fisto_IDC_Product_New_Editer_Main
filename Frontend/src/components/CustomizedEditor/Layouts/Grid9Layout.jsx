@@ -751,7 +751,7 @@ const Grid9Layout = ({
                 </div>
 
                 {/* Right: Logo */}
-                <div className="flex-1 flex justify-end pointer-events-auto">
+                <div className="flex-1 flex justify-end items-center gap-[1vw] pointer-events-auto pr-[1vw]">
                     {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
                         logoSettings.url ? (
                             <a
@@ -940,10 +940,27 @@ const Grid9Layout = ({
             {/* ═══════════ Bottom Navigation Bar ═══════════ */}
             {!isTablet && (
             <div
-                className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex flex-col justify-center items-center z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex items-center z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
                 style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
             >
-                <div className="flex items-center gap-[1.2vw]">
+                <div className="w-full flex items-center justify-between px-[2vw]">
+                    {/* Left: Book Name */}
+                    <div className="flex-1 flex justify-start pointer-events-auto">
+                        <span className="font-bold tracking-wide truncate max-w-[80%]" style={{ 
+                            color: (() => {
+                                const c1 = getLayoutColor('toolbar-bg', primaryColor);
+                                const c2 = getLayoutColor('toolbar-text-main', '#575C9C');
+                                const isWhite = (c) => typeof c === 'string' && (c.toLowerCase() === '#ffffff' || c.replace(/\s/g, '') === 'rgb(255,255,255)' || c.replace(/\s/g, '') === 'rgba(255,255,255,1)');
+                                return isWhite(c1) ? c2 : c1;
+                            })(), 
+                            fontSize: isTablet ? '1vw' : '1.2vw' 
+                        }}>
+                            {bookName || "Name of the Book"}
+                        </span>
+                    </div>
+
+                    {/* Center: Controls */}
+                    <div className="flex items-center gap-[1.2vw] shrink-0 pointer-events-auto">
                     {/* First Page */}
                     {(settings?.navigation?.startEndNav ?? true) && (
                         <div className="group relative">
@@ -1109,6 +1126,10 @@ const Grid9Layout = ({
                             </div>
                         </div>
                     )}
+                    </div>
+
+                    {/* Right: Spacer for balance */}
+                    <div className="flex-1 pointer-events-none"></div>
                 </div>
             </div>
             )}

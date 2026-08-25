@@ -4732,6 +4732,8 @@ const PreviewArea = React.memo(({
         );
     };
 
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     return (
         <div
             ref={containerRef}
@@ -4780,8 +4782,6 @@ const PreviewArea = React.memo(({
 
                         </div>
                     );
-
-                    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
                     return isPhysicalMobile ? mobileContent : (
                         <MobileFrame isLandscape={isLandscape} hideHomeIndicator={Number(activeLayout) === 1 || Number(activeLayout) === 2 || Number(activeLayout) === 7 || Number(activeLayout) === 8 || (Number(activeLayout) === 3 && !isLandscape)}>
