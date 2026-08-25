@@ -90,6 +90,8 @@ const EditProfile = ({ user, setUser }) => {
           ...p,
           email: p.emailId || email,
           emailId: p.emailId || email,
+          company_logo_url: p.company_logo_url || p.companyLogo || editedUser.company_logo_url || editedUser.companyLogo || '',
+          companyLogo: p.company_logo_url || p.companyLogo || editedUser.company_logo_url || editedUser.companyLogo || '',
           services: p.services || editedUser.services || [],
           socials: {
             ...(editedUser.socials || {}),
@@ -216,7 +218,7 @@ const EditProfile = ({ user, setUser }) => {
               <label className="block text-[0.75vw] font-semibold text-gray-700 mb-[0.2vw]">Add Your Company Logo</label>
               <p className="text-[0.65vw] text-gray-400 mb-[0.5vw]">PNG format keeps your logo clean and background-free</p>
               
-              {editedUser?.companyLogo ? (
+              {(editedUser?.company_logo_url || editedUser?.companyLogo) ? (
                 <div className="flex flex-col gap-[0.75vw]">
                   <div
                     className="flex items-center gap-[1vw]"
@@ -231,7 +233,7 @@ const EditProfile = ({ user, setUser }) => {
                       if (file && file.type.startsWith('image/')) {
                         const reader = new FileReader();
                         reader.onloadend = () => {
-                          setEditedUser({ ...editedUser, companyLogo: reader.result });
+                          setEditedUser({ ...editedUser, company_logo_url: reader.result, companyLogo: reader.result });
                         };
                         reader.readAsDataURL(file);
                       }
@@ -240,7 +242,7 @@ const EditProfile = ({ user, setUser }) => {
                     {/* Thumbnail */}
                     <div className="relative w-[8vw] h-[5vw] rounded-[0.4vw] overflow-hidden bg-White flex-shrink-0 flex items-center justify-center border border-gray-200">
                       <img
-                        src={editedUser.companyLogo}
+                        src={editedUser.company_logo_url || editedUser.companyLogo}
                         alt="Company Logo Thumbnail"
                         className="w-full h-full object-contain"
                       />
@@ -263,7 +265,7 @@ const EditProfile = ({ user, setUser }) => {
                           Replace image
                         </button>
                         <button
-                          onClick={() => setEditedUser({ ...editedUser, companyLogo: '' })}
+                          onClick={() => setEditedUser({ ...editedUser, company_logo_url: '', companyLogo: '' })}
                           type="button"
                           className="p-[0.45vw] bg-[#f3f4f6] hover:bg-[#fee2e2] text-gray-500 hover:text-red-500 rounded-[0.4vw] border border-gray-200 cursor-pointer transition-colors"
                         >
@@ -289,7 +291,7 @@ const EditProfile = ({ user, setUser }) => {
                       if (file && file.type.startsWith('image/')) {
                         const reader = new FileReader();
                         reader.onloadend = () => {
-                          setEditedUser({ ...editedUser, companyLogo: reader.result });
+                          setEditedUser({ ...editedUser, company_logo_url: reader.result, companyLogo: reader.result });
                         };
                         reader.readAsDataURL(file);
                       }
@@ -310,7 +312,7 @@ const EditProfile = ({ user, setUser }) => {
                   if (file) {
                     const reader = new FileReader();
                     reader.onloadend = () => {
-                      setEditedUser({ ...editedUser, companyLogo: reader.result });
+                      setEditedUser({ ...editedUser, company_logo_url: reader.result, companyLogo: reader.result });
                     };
                     reader.readAsDataURL(file);
                   }

@@ -139,6 +139,7 @@ const defaultProfile = {
   companyEmail: '',
   website: '',
   services: [],
+  company_logo_url: '',
   companyLogo: '',
   address1: '',
   address2: '',
@@ -252,7 +253,8 @@ const Profile = () => {
               emailId: p.emailId || prev.emailId || effectiveEmail,
               name: p.name || prev.name || (effectiveEmail.split('@')[0]),
               picture: p.picture || prev.picture || null,
-              companyLogo: p.companyLogo || prev.companyLogo || '',
+              company_logo_url: p.company_logo_url || p.companyLogo || prev.company_logo_url || prev.companyLogo || '',
+              companyLogo: p.company_logo_url || p.companyLogo || prev.company_logo_url || prev.companyLogo || '',
               avatarBgColor: p.avatarBgColor || prev.avatarBgColor || '#E8D4C8',
               services: p.services || prev.services || [],
               followers: p.followers || prev.followers || [],
@@ -716,8 +718,8 @@ const Profile = () => {
 
                 <div className="p-[1vw] border-b border-gray-100">
                   <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                    {user.companyLogo ? (
-                      <img src={user.companyLogo} alt="Company Logo" className="w-[1.2vw] h-[1.2vw] object-contain rounded-[0.2vw]" />
+                    {(user.company_logo_url || user.companyLogo) ? (
+                      <img src={user.company_logo_url || user.companyLogo} alt="Company Logo" className="w-[1.2vw] h-[1.2vw] object-contain rounded-[0.2vw]" />
                     ) : (
                       <Building size="1vw" />
                     )}
@@ -807,7 +809,7 @@ const Profile = () => {
               </div>
 
               {/* Content Area */}
-              <div id="main-scroll-container" className={`flex-1 pl-[1.5vw] pb-[2vw] custom-scrollbar ${isChildScrollable ? 'overflow-y-scroll pr-[1.5vw]' : 'overflow-hidden pr-[1.8vw]'}`}>
+              <div id="main-scroll-container" className={`flex-1 pl-[1.5vw] pb-[2vw] custom-scrollbar ${isChildScrollable ? 'overflow-y-auto pr-[1.5vw]' : 'overflow-hidden pr-[1.8vw]'}`}>
                 {activeTab === 'Edit Profile' && <EditProfile user={user} setUser={setUser} />}
 
                 {activeTab === 'Your IDC' && (
@@ -883,7 +885,7 @@ const Profile = () => {
                                   {activeStatsBookId === bookId && (
                                     <div className="absolute bottom-[3vw] right-[0.5vw] w-[10vw] bg-[#424242]/95 backdrop-blur-md border border-gray-600/30 rounded-[0.6vw] p-[0.5vw] shadow-2xl z-30 text-white animate-in fade-in zoom-in-95 duration-200">
                                       <div className="flex flex-col gap-[0.4vw] text-[0.65vw] font-medium text-gray-300">
-                                        <div>Views : <span className="text-white font-semibold">{book.views || '528k'}</span></div>
+                                        <div>Views : <span className="text-white font-semibold">{book.viewsCount !== undefined ? book.viewsCount : (book.views !== undefined ? book.views : 0)}</span></div>
                                         <div>No of Pages : <span className="text-white font-semibold">{book.pages || 0}</span></div>
                                         <div>Added to Shelf : <span className="text-white font-semibold">250k</span></div>
                                         <div className="flex items-center gap-[0.2vw]">
@@ -924,7 +926,7 @@ const Profile = () => {
                   </div>
                 )}
 
-                {activeTab === 'Activity' && <Activity />}
+                {activeTab === 'Activity' && <Activity userEmail={effectiveEmail} />}
               </div>
             </div>
           </div>
