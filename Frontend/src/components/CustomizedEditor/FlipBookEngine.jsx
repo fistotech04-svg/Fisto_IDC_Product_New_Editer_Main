@@ -290,7 +290,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             <div
                                 className="fbe-static-bg"
                                 style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#fff', borderRadius: 'inherit', pointerEvents: 'none' }}
-                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '') }}
+                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '') }}
                             />
                             <iframe
                                 title={`Page ${i + 1}`}
@@ -486,7 +486,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 const staticBg = document.createElement('div');
                 staticBg.className = 'fbe-static-bg';
                 staticBg.style.cssText = 'position:absolute;inset:0;overflow:hidden;background:#fff;pointer-events:none;border-radius:inherit;';
-                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '');
+                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '');
                 inner.appendChild(staticBg);
 
                 const iframe = document.createElement('iframe');
