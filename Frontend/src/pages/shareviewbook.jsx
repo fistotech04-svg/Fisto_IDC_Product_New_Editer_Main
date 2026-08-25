@@ -6,7 +6,13 @@ import { LAYOUT_DEFAULT_COLORS } from '../components/CustomizedEditor/Layout';
 import { Icon } from '@iconify/react';
 import { Ghost, ArrowLeft, Home, BookOpen, Clock, X, Star, Info, BookMarked, LogOut, Search, MapPin } from 'lucide-react';
 import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
+import p1 from '../assets/Explore/p1.png';
+import p2 from '../assets/Explore/p2.png';
+import p3 from '../assets/Explore/p3.png';
+import p4 from '../assets/Explore/p4.png';
+import p5 from '../assets/Explore/p5.png';
 
+const avatars = [p1, p2, p3, p4, p5];
 const checkInviteAutoExpired = (autoExpire, fallbackDate) => {
     if (!autoExpire || !autoExpire.enabled) return false;
 
@@ -41,35 +47,34 @@ const checkInviteAutoExpired = (autoExpire, fallbackDate) => {
 };
 
 const WhiteAttachedCurve = ({ position }) => {
-  const isTop = position.includes('top');
-  const isLeft = position.includes('left');
-  
-  const containerStyle = {
-    position: 'absolute',
-    width: '1vw',
-    height: '1.5vw',
-    pointerEvents: 'none',
-    overflow: 'hidden',
-    zIndex: -1,
-    ...(isTop ? { top: '-0.8vw' } : { bottom: '-0.8vw' }),
-    ...(isLeft ? { left: '0' } : { right: '0' }),
-  };
+    const isTop = position.includes('top');
+    const isLeft = position.includes('left');
 
-  const circleStyle = {
-    position: 'absolute',
-    width: '1.5vw',
-    height: '1.6vw',
-    borderRadius: '60%',
-    boxShadow: '0 0 0 2vw white',
-    ...(isTop ? { top: '-0.8vw' } : { bottom: '-0.8vw' }),
-    ...(isLeft ? { right: '-0.8vw' } : { left: '-0.8vw' }),
-  };
+    const containerStyle = {
+        position: 'absolute',
+        width: '1vw',
+        height: '1vw',
+        pointerEvents: 'none',
+        overflow: 'hidden',
+        ...(isTop ? { top: '-1vw' } : { bottom: '-1vw' }),
+        ...(isLeft ? { left: '0vw' } : { right: '0.25vw' }),
+    };
 
-  return (
-    <div style={containerStyle}>
-      <div style={circleStyle} />
-    </div>
-  );
+    const circleStyle = {
+        position: 'absolute',
+        width: '2vw',
+        height: '2vw',
+        borderRadius: '50%',
+        boxShadow: '0 0 0 2vw rgba(255, 255, 255, 0.90)',
+        ...(isTop ? { top: '-1vw' } : { bottom: '-1vw' }),
+        ...(isLeft ? { right: '-1vw' } : { left: '-1vw' }),
+    };
+
+    return (
+        <div style={containerStyle}>
+            <div style={circleStyle} />
+        </div>
+    );
 };
 
 const ShareViewBook = () => {
@@ -93,6 +98,20 @@ const ShareViewBook = () => {
     const [isAddToShelfOpen, setIsAddToShelfOpen] = useState(false);
     const [isRatingsOpen, setIsRatingsOpen] = useState(false);
     const [ratingForm, setRatingForm] = useState({ name: '', rating: 0, review: '' });
+    const [ratingFormError, setRatingFormError] = useState({ show: false });
+    const [reviewsList, setReviewsList] = useState([]);
+    const [showRatingForm, setShowRatingForm] = useState(true);
+
+    const handleRatingSubmit = () => {
+        if (!ratingForm.name || !ratingForm.rating) {
+            setRatingFormError({ show: true });
+            return;
+        }
+        setReviewsList([{ ...ratingForm }, ...reviewsList]);
+        setShowRatingForm(false);
+        setRatingForm({ name: '', rating: 0, review: '' });
+        setRatingFormError({ show: false });
+    };
 
     // Draggable Sidebar State
     const [draggerTop, setDraggerTop] = useState(-1);
@@ -881,6 +900,22 @@ const ShareViewBook = () => {
             style={varsObject}
         >
             <style>{`:root { ${layoutColorVars} }`}</style>
+            <svg width="0" height="0" className="absolute">
+                <defs>
+                    <linearGradient id="star-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#FFCA44" />
+                        <stop offset="50%" stopColor="#FFE091" />
+                        <stop offset="100%" stopColor="#FFCA44" />
+                    </linearGradient>
+                    <linearGradient id="half-star" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#FFCA44" />
+                        <stop offset="25%" stopColor="#FFE091" />
+                        <stop offset="50%" stopColor="#FFCA44" />
+                        <stop offset="50%" stopColor="#ffffff" />
+                        <stop offset="100%" stopColor="#ffffff" />
+                    </linearGradient>
+                </defs>
+            </svg>
             <FlipbookPreview
                 pages={bookData.pages}
                 pageName={bookData.meta?.flipbookName || 'Untitled Flipbook'}
@@ -896,24 +931,26 @@ const ShareViewBook = () => {
 
             {/* Persistent vertical line on the stuck edge */}
             {!isDragging && (draggerLeft < 5 || draggerLeft > 10) && (
-              <div
-                className="fixed top-0 w-[0.25vw] h-full bg-white z-[1499] pointer-events-none transition-all duration-300"
-                style={{
-                  left: draggerLeft < 5 ? '0' : 'auto',
-                  right: draggerLeft > 10 ? '0' : 'auto',
-                }}
-              />
+                <div
+                    className="fixed top-0 w-[0.25vw] h-full bg-white/90 backdrop-blur-md z-[1499] pointer-events-none transition-all duration-500 ease-in-out"
+                    style={{
+                        left: draggerLeft < 5 ? '0' : 'auto',
+                        right: draggerLeft > 10 ? (isRatingsOpen ? '22vw' : '0') : 'auto',
+                    }}
+                />
             )}
 
             {/* Right Sidebar UI Overlay */}
-            <div 
-                className="fixed bg-white shadow-[0_10px_30px_rgba(0,0,0,0.3)] py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between z-[1500] cursor-grab active:cursor-grabbing transition-all duration-300 rounded-[0.8vw]"
-                style={{ 
-                    top: draggerTop !== -1 ? `${draggerTop}px` : '50%', 
+            <div
+                className={`fixed bg-white/90 backdrop-blur-md py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between z-[1500] cursor-grab active:cursor-grabbing ${
+                    isDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerLeft < 5 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
+                }`}
+                style={{
+                    top: draggerTop !== -1 ? `${draggerTop}px` : '50%',
                     left: isDragging ? `${draggerLeft}px` : (draggerLeft < 5 ? '0' : 'auto'),
-                    right: isDragging ? 'auto' : (draggerLeft < 5 ? 'auto' : '0'),
-                    transform: draggerTop === -1 ? 'translateY(-50%)' : 'none', 
-                    width: '4vw' 
+                    right: isDragging ? 'auto' : (draggerLeft < 5 ? 'auto' : (isRatingsOpen ? '22vw' : '0')),
+                    transform: draggerTop === -1 ? 'translateY(-50%)' : 'none',
+                    width: '4vw'
                 }}
                 onMouseDown={handleMouseDown}
             >
@@ -930,17 +967,15 @@ const ShareViewBook = () => {
                     </>
                 )}
 
-                <div className="flex flex-col gap-[0.2vw] w-full items-center">
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsBookInfoOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
-                        <div className="w-[1vw] h-[1vw] rounded-full border border-[#2F296D] flex items-center justify-center group-hover:bg-indigo-50">
-                            <Info className="w-[1vw] h-[1w] text-[#2F296D]" />
-                        </div>
+                <div className="flex flex-col gap-[0.2vw] mt-[0.2vw] mb-[0.2vw] w-full items-center">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => { setIsRatingsOpen(false); setIsBookInfoOpen(true); }} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                        <Icon icon="weui:info-outlined" className="w-[1.2vw] h-[1.2vw] text-[#2F296D]" />
                         <span className="text-[0.7vw] font-medium text-[#2F296D] text-center leading-tight">Book<br />Info</span>
                     </button>
                     <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsRatingsOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsRatingsOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
                         <div className="relative">
-                            <Icon icon="twemoji:star" className="w-[1vw] h-[1vw]" />
+                            <Icon icon="iconamoon:star-light" className="w-[1.2vw] h-[1.2vw] text-yellow-500" />
                             <div className="absolute top-0 right-[-0.2vw] bg-[#34A853] rounded-full w-[0.8vw] h-[0.8vw] flex items-center justify-center border border-white">
                                 <Icon icon="lucide:check" className="w-[0.3vw] h-[0.3vw] text-white" strokeWidth={4} />
                             </div>
@@ -951,14 +986,14 @@ const ShareViewBook = () => {
                         </div>
                     </button>
                     <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsAddToShelfOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
-                        <Icon icon="lucide:library" className="w-[1vw] h-[1vw] text-[#2F296D] group-hover:scale-110 transition-transform" />
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => { setIsRatingsOpen(false); setIsAddToShelfOpen(true); }} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                        <Icon icon="ri:book-shelf-line" className="w-[1.2vw] h-[1.2vw] text-[#2F296D] group-hover:scale-110 transition-transform" />
                         <span className="text-[0.7vw] font-medium text-[#2F296D] text-center leading-tight">Add to<br />Shelf</span>
                     </button>
                     <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => window.history.back()} className="flex flex-col items-center gap-[0.2vw] hover:bg-red-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer mt-[0.2vw] w-full text-red-600">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => window.history.back()} className="flex flex-col items-center gap-[0.2vw] hover:bg-red-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer mt-[0.2vw] w-full text-red-600">
                         <Icon icon="lucide:log-out" className="w-[1vw] h-[1vw] transition-transform group-hover:scale-110" />
-                        <span className="text-[0.7vw] font-medium text-center leading-tight">Exit<br />Book</span>
+                        <span className="text-[0.7vw] font-medium text-center leading-tight">Exit</span>
                     </button>
                 </div>
             </div>
@@ -966,87 +1001,88 @@ const ShareViewBook = () => {
             {/* Book Information Modal */}
             {isBookInfoOpen && (
                 <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-[2vw]">
-                    <div className="bg-white rounded-3xl p-[2.5vw] shadow-2xl w-[90vw] max-w-[50vw] max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setIsBookInfoOpen(false)} className="absolute top-[2vw] right-[2vw] p-[0.5vw] border border-red-500 rounded-xl text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
-                            <X className="w-[1.2vw] h-[1.2vw]" />
-                        </button>
-
-                        <div className="flex flex-col">
-                            <div className="flex items-center gap-[1vw]">
-                                <h2 className="text-[1.8vw] font-bold text-gray-900">Book Information</h2>
-                                <div className="h-px bg-gray-300 flex-1 mt-[0.5vw]"></div>
+                    <div className="bg-white rounded-2xl p-[2vw] shadow-2xl w-[90vw] max-w-[42vw] max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200 relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                        <div className="w-full flex flex-col mb-[1vw]">
+                            <div className="flex items-center justify-between w-full mb-[0.2vw]">
+                                <h2 className="text-[1.3vw] font-semibold text-gray-900 shrink-0 mr-[1vw]">Book Information</h2>
+                                <div className="h-px bg-gray-300 flex-1 mr-[1vw]"></div>
+                                <button onClick={() => setIsBookInfoOpen(false)} className="p-[0.3vw] border border-red-500 rounded-md text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0">
+                                    <X className="w-[1vw] h-[1vw]" />
+                                </button>
                             </div>
-                            <span className="text-[0.9vw] text-gray-500 mt-[0.3vw]">Detailed information about this book</span>
+                            <span className="text-[0.75vw] text-gray-400">Detailed information about this book</span>
+                        </div>
 
-                            <div className="flex gap-[3vw] mt-[3vw]">
-                                <div className="w-[15vw] shrink-0">
-                                    <img src={bookData?.meta?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} alt="Book cover" className="w-full shadow-lg rounded-md object-cover aspect-[3/4]" />
-                                </div>
-                                <div className="flex flex-col gap-[1vw] flex-1">
-                                    <h3 className="text-[1.8vw] font-bold text-gray-900 leading-tight">{bookData?.meta?.flipbookName || 'Name of the book'}</h3>
-                                    <p className="text-[1vw] text-gray-600 italic leading-relaxed">" Bring your content to life with a real, interactive experience "</p>
-
-                                    <h4 className="text-[1.2vw] font-bold text-gray-900 mt-[1vw]">About</h4>
-                                    <p className="text-[0.95vw] text-gray-500 leading-relaxed">
-                                        {bookData?.meta?.description || 'Explore beautiful travel destinations, travel tips, and inspiring journeys from around the world. This flipbook is designed for quick reading and visual browsing.'}
-                                    </p>
-                                </div>
+                        <div className="flex gap-[2vw] mt-[0.5vw]">
+                            <div className="shrink-0">
+                                <img src={bookData?.meta?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} alt="Book cover" className="w-[12vw] h-[12vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)] rounded-sm object-cover aspect-[3/4]" />
                             </div>
+                            <div className="flex flex-col gap-[0.5vw] flex-1">
+                                <h3 className="text-[1.2vw] font-semibold text-gray-900 leading-tight">{bookData?.meta?.flipbookName || 'Name of the book'}</h3>
+                                <p className="text-[0.8vw] text-gray-500 italic leading-relaxed">" Bring your content to life with a real, interactive experience "</p>
 
-                            <div className="h-px bg-gray-200 w-full my-[2vw]"></div>
+                                <h4 className="text-[1vw] font-semibold text-gray-900 mt-[1vw]">About</h4>
+                                <p className="text-[0.8vw] text-gray-500 leading-relaxed">
+                                    {bookData?.meta?.description || 'Explore beautiful travel destinations, travel tips, and inspiring journeys from around the world. This flipbook is designed for quick reading and visual browsing.'}
+                                </p>
+                            </div>
+                        </div>
 
-                            <div className="flex gap-[1vw]">
-                                <div className="flex-1 bg-gray-50 rounded-2xl p-[1.5vw] flex items-center gap-[1vw]">
-                                    <div className="w-[2.5vw] h-[2.5vw] bg-white rounded-full flex items-center justify-center shadow-sm">
-                                        <Icon icon="lucide:eye" className="w-[1.2vw] h-[1.2vw] text-gray-700" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[1vw] text-gray-500">Views</span>
-                                        <div className="flex items-end gap-[0.5vw]">
-                                            <span className="text-[1.8vw] font-medium text-gray-800 leading-none">4,586</span>
-                                            <span className="text-[0.7vw] text-gray-400 mb-[0.2vw]">Readers have opened this book</span>
-                                        </div>
-                                    </div>
+                        <div className="h-px bg-gray-200 w-full my-[1vw]"></div>
+
+                        <div className="flex gap-[1vw]">
+                            <div className="flex-1 bg-gray-50 rounded-xl p-[1vw] flex flex-col gap-[0.5vw]">
+                                <div className="flex items-center gap-[0.5vw]">
+                                    <Icon icon="si:eye-line" className="w-[1vw] h-[1vw] text-gray-600" />
+                                    <span className="text-[0.85vw] text-gray-600">Views</span>
                                 </div>
-                                <div className="flex-1 bg-gray-50 rounded-2xl p-[1.5vw] flex items-center gap-[1vw]">
-                                    <div className="w-[2.5vw] h-[2.5vw] bg-white rounded-full flex items-center justify-center shadow-sm">
-                                        <Icon icon="lucide:library" className="w-[1.2vw] h-[1.2vw] text-gray-700" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[1vw] text-gray-500">Added To Shelf</span>
-                                        <div className="flex items-end gap-[0.5vw]">
-                                            <span className="text-[1.8vw] font-medium text-gray-800 leading-none">4,586</span>
-                                            <span className="text-[0.7vw] text-gray-400 mb-[0.2vw]">Readers have added this book</span>
-                                        </div>
-                                    </div>
+                                <div className="flex items-baseline gap-[0.5vw]">
+                                    <span className="text-[1.2vw] font-medium text-gray-800 leading-none">4,586</span>
+                                    <span className="text-[0.65vw] text-gray-400">Readers have opened this book</span>
                                 </div>
                             </div>
+                            <div className="flex-1 bg-gray-50 rounded-xl p-[1vw] flex flex-col gap-[0.5vw]">
+                                <div className="flex items-center gap-[0.5vw]">
+                                    <Icon icon="ri:book-shelf-line" className="w-[1vw] h-[1vw] text-gray-600" />
+                                    <span className="text-[0.85vw] text-gray-600">Added To Shelf</span>
+                                </div>
+                                <div className="flex items-baseline gap-[0.5vw]">
+                                    <span className="text-[1.2vw] font-medium text-gray-800 leading-none">4,586</span>
+                                    <span className="text-[0.65vw] text-gray-400">Readers have added this book</span>
+                                </div>
+                            </div>
+                        </div>
 
-                            <div className="mt-[2vw] flex flex-col">
-                                {[
-                                    { label: 'Category :', value: bookData?.meta?.category || 'Travel' },
-                                    { label: 'Language :', value: bookData?.meta?.language || 'English' },
-                                    { label: 'Pages :', value: `${bookData?.pages?.length || 12} Pages` },
-                                    {
-                                        label: 'Ratings :', value: (
-                                            <div className="flex items-center gap-[0.5vw]">
-                                                <div className="flex items-center gap-[0.2vw]">
-                                                    {[1, 2, 3, 4].map(i => <Star key={i} className="w-[1.2vw] h-[1.2vw] fill-yellow-400 text-yellow-400" />)}
-                                                    <Star className="w-[1.2vw] h-[1.2vw] text-yellow-400" />
-                                                </div>
-                                                <span className="text-[1vw] text-gray-500">- 4/5</span>
+                        <div className="mt-[1vw] flex flex-col">
+                            {[
+                                { label: 'Category :', value: bookData?.meta?.category || 'Travel' },
+                                { label: 'Language :', value: bookData?.meta?.language || 'English' },
+                                { label: 'Pages :', value: `${bookData?.pages?.length || 12} Pages` },
+                                {
+                                    label: 'Ratings :', value: (
+                                        <div className="flex items-center gap-[0.5vw]">
+                                            <div className="flex items-center gap-[0.2vw]">
+                                                {[1, 2, 3, 4].map(i => (
+                                                    <svg key={i} className="w-[1.2vw] h-[1.2vw] overflow-visible drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)]" fill="url(#star-gradient)" stroke="url(#star-gradient)" strokeWidth="1" strokeLinejoin="round" viewBox="0 0 20 20">
+                                                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                                                    </svg>
+                                                ))}
+                                                <svg className="w-[1.2vw] h-[1.2vw] overflow-visible drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)]" fill="white" stroke="url(#star-gradient)" strokeWidth="1" strokeLinejoin="round" viewBox="0 0 20 20">
+                                                    <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                                                </svg>
                                             </div>
-                                        )
-                                    },
-                                    { label: 'Published :', value: 'Jun 2026' },
-                                    { label: 'Publisher :', value: <span className="text-gray-500 underline decoration-gray-400 underline-offset-4 cursor-pointer hover:text-gray-800">FIST-O Tech Pvt Ltd</span> }
-                                ].map((item, index) => (
-                                    <div key={index} className="flex items-center py-[1.2vw] border-b border-gray-100 last:border-0">
-                                        <span className="w-[15vw] text-[1.05vw] text-gray-600">{item.label}</span>
-                                        <span className="flex-1 text-[1.05vw] text-gray-500">{item.value}</span>
-                                    </div>
-                                ))}
-                            </div>
+                                            <span className="text-[0.85vw] text-gray-500">- 4/5</span>
+                                        </div>
+                                    )
+                                },
+                                { label: 'Published :', value: 'Jun 2026' },
+                                { label: 'Publisher :', value: <span className="text-gray-500 underline decoration-gray-300 underline-offset-4 cursor-pointer hover:text-gray-800">FIST-O Tech Pvt Ltd</span> }
+                            ].map((item, index) => (
+                                <div key={index} className="flex items-center py-[0.6vw] border-b border-gray-100 last:border-0">
+                                    <span className="w-[12vw] text-[0.85vw] text-gray-600">{item.label}</span>
+                                    <span className="flex-1 text-[0.85vw] text-gray-500">{item.value}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -1055,105 +1091,143 @@ const ShareViewBook = () => {
             {/* Add to Shelf Modal */}
             {isAddToShelfOpen && (
                 <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-[2vw]">
-                    <div className="bg-white rounded-3xl p-[2.5vw] shadow-2xl w-[90vw] max-w-[40vw] animate-in zoom-in-95 duration-200 relative flex flex-col items-center">
-                        <div className="w-full flex items-center justify-between mb-[0.5vw]">
-                            <h2 className="text-[1.8vw] font-bold text-gray-900 shrink-0">Add to Shelf</h2>
-                            <div className="h-px bg-gray-300 flex-1 mx-[1vw]"></div>
-                            <button onClick={() => setIsAddToShelfOpen(false)} className="p-[0.5vw] border border-red-500 rounded-xl text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0">
-                                <X className="w-[1.2vw] h-[1.2vw]" />
-                            </button>
+                    <div className="bg-white rounded-2xl p-[2vw] shadow-2xl w-[90vw] max-w-[38vw] animate-in zoom-in-95 duration-200 relative flex flex-col items-center">
+                        <div className="w-full flex flex-col mb-[1.5vw]">
+                            <div className="flex items-center justify-between w-full mb-[0.2vw]">
+                                <h2 className="text-[1.3vw] font-semibold text-gray-900 shrink-0 mr-[0.5vw]">Add to Shelf</h2>
+                                <div className="h-px bg-gray-300 flex-1 mr-[1vw]"></div>
+                                <button onClick={() => setIsAddToShelfOpen(false)} className="p-[0.3vw] border border-red-500 rounded-md text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0">
+                                    <X className="w-[1vw] h-[1vw]" />
+                                </button>
+                            </div>
+                            <span className="text-[0.75vw] text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">You can find this book in Profile {'>'} My Shelf {'>'} External Books</span>
                         </div>
-                        <div className="w-full flex items-center justify-start mb-[2vw]">
-                            <span className="text-[0.85vw] text-gray-500">You can find this book in Profile {'>'} My Shelf {'>'} External Books</span>
+
+                        <img src={bookData?.meta?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} alt="Book cover" className="w-[12vw] h-[12vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)] rounded-sm object-cover aspect-[3/4]" />
+
+                        <h3 className="text-[1.1vw] font-medium text-gray-900 mt-[1.5vw]">{bookData?.meta?.flipbookName || 'Name of the book'}</h3>
+
+                        <div className="w-full h-px bg-gray-200 mt-[1.5vw] mb-[1.5vw]"></div>
+
+                        <div className="w-full">
+                            <p className="text-[0.8vw] text-gray-500 text-left">Do you like to add this Book <strong className="text-gray-700">"{bookData?.meta?.flipbookName || 'One Piece'}"</strong> in your Book Shelf ?</p>
                         </div>
 
-                        <img src={bookData?.meta?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} alt="Book cover" className="w-[14vw] shadow-lg rounded-md object-cover aspect-[3/4]" />
-
-                        <h3 className="text-[1.8vw] font-medium text-gray-900 mt-[1.5vw]">{bookData?.meta?.flipbookName || 'Name of the book'}</h3>
-
-                        <div className="w-full h-px bg-gray-200 my-[1.5vw]"></div>
-
-                        <p className="text-[1vw] text-gray-500 self-start">Do you like to add this Book <strong>"{bookData?.meta?.flipbookName || 'One Piece'}"</strong> in your Book Shelf ?</p>
-
-                        <div className="flex items-center gap-[1.5vw] w-full mt-[2vw]">
-                            <button onClick={() => setIsAddToShelfOpen(false)} className="flex-1 py-[1vw] rounded-2xl border border-gray-200 text-[1.1vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-[0.5vw] shadow-sm cursor-pointer">
-                                <X className="w-[1.2vw] h-[1.2vw]" /> Cancel
+                        <div className="flex items-center gap-[1vw] w-full mt-[1.5vw]">
+                            <button onClick={() => setIsAddToShelfOpen(false)} className="flex-1 py-[0.8vw] rounded-xl border border-gray-200 text-[0.95vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-[0.5vw] shadow-sm cursor-pointer">
+                                <X className="w-[1vw] h-[1vw]" /> Cancel
                             </button>
-                            <button onClick={() => setIsAddToShelfOpen(false)} className="flex-1 py-[1vw] rounded-2xl bg-black text-[1.1vw] font-medium text-white hover:bg-gray-900 transition-colors flex items-center justify-center gap-[0.5vw] shadow-md cursor-pointer">
-                                <Icon icon="lucide:library" className="w-[1.2vw] h-[1.2vw]" /> Add to Shelf
+                            <button onClick={() => setIsAddToShelfOpen(false)} className="flex-1 py-[0.8vw] rounded-xl bg-black text-[0.95vw] font-medium text-white hover:bg-gray-900 transition-colors flex items-center justify-center gap-[0.5vw] shadow-md cursor-pointer">
+                                <Icon icon="ri:book-shelf-line" className="w-[1vw] h-[1vw]" /> Add to Shelf
                             </button>
                         </div>
                     </div>
                 </div>
             )}
-
             {/* Ratings & Reviews Sliding Panel */}
-            {isRatingsOpen && (
-                <div className="fixed inset-0 z-[2000] pointer-events-none">
-                    {/* Optional overlay background */}
-                    <div className="absolute inset-0 pointer-events-auto" onClick={() => setIsRatingsOpen(false)}></div>
+            <div className={`fixed inset-0 z-[1490] ${isRatingsOpen ? '' : 'pointer-events-none'}`}>
+                {/* Optional overlay background */}
+                <div className={`absolute inset-0 transition-opacity duration-500 ${isRatingsOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`} onClick={() => setIsRatingsOpen(false)}></div>
 
-                    <div className={`absolute top-0 right-0 h-full w-[25vw] bg-white shadow-[-10px_0px_30px_rgba(0,0,0,0.15)] z-[2001] transform transition-transform duration-500 ease-in-out flex flex-col pointer-events-auto ${isRatingsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                        <div className="p-[1.5vw] border-b border-gray-100 flex items-center justify-between shrink-0">
-                            <h2 className="text-[1.2vw] font-bold text-gray-900">Rate this book</h2>
-                            <button onClick={() => setIsRatingsOpen(false)} className="p-[0.4vw] border border-red-500 rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
-                                <X className="w-[1vw] h-[1vw]" />
-                            </button>
-                        </div>
+                <div className={`absolute top-0 right-0 h-full w-[22vw] bg-white/90 backdrop-blur-md z-[1491] transform transition-transform duration-500 ease-in-out flex flex-col pointer-events-auto ${isRatingsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                    <div className="p-[1vw] px-[1.2vw] mt-[0.5vw] border-b border-gray-100 flex items-center justify-between shrink-0">
+                        <h2 className="text-[1.1vw] font-semibold text-gray-900 whitespace-nowrap">
+                            {showRatingForm ? 'Rate this book' : 'Ratings & Reviews'}
+                        </h2>
+                        <button onClick={() => setIsRatingsOpen(false)} className="p-[0.3vw] border border-red-500 rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
+                            <X className="w-[0.9vw] h-[0.9vw]" />
+                        </button>
+                    </div>
 
-                        <div className="p-[1.5vw] flex flex-col gap-[1.2vw] shrink-0">
-                            <div className="flex flex-col gap-[0.4vw]">
-                                <label className="text-[0.9vw] font-medium text-gray-700">Your Name</label>
-                                <input type="text" placeholder="Luffy" className="w-full border border-gray-200 rounded-xl px-[1vw] py-[0.8vw] text-[0.95vw] focus:outline-none focus:border-gray-400" />
-                            </div>
-                            <div className="flex flex-col gap-[0.4vw]">
-                                <label className="text-[0.9vw] font-medium text-gray-700">Your ratings</label>
-                                <div className="flex items-center gap-[0.5vw]">
-                                    {[1, 2, 3, 4, 5].map(i => (
-                                        <Star key={i} className="w-[1.5vw] h-[1.5vw] text-yellow-400 cursor-pointer hover:fill-yellow-400 transition-colors" />
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="flex flex-col gap-[0.4vw]">
-                                <label className="text-[0.9vw] font-medium text-gray-700">Your Review</label>
-                                <textarea placeholder="Enter your Reviews" rows={3} className="w-full border border-gray-200 rounded-xl px-[1vw] py-[0.8vw] text-[0.95vw] focus:outline-none focus:border-gray-400 resize-none"></textarea>
-                            </div>
-                            <button className="w-full bg-black text-white rounded-xl py-[1vw] text-[1vw] font-medium hover:bg-gray-900 transition-colors mt-[0.5vw] cursor-pointer">
-                                Submit Rating
-                            </button>
-                        </div>
-
-                        <div className="h-[0.5vw] bg-gray-50 shrink-0 border-y border-gray-100"></div>
-
-                        <div className="p-[1.5vw] pb-[0.5vw] shrink-0">
-                            <h3 className="text-[1.2vw] font-bold text-gray-900">Ratings & Reviews</h3>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-[1.5vw] pt-[0.5vw] flex flex-col gap-[1vw]">
-                            {/* Mock Reviews */}
-                            {[1, 2, 3, 4].map(i => (
-                                <div key={i} className="border border-gray-100 rounded-2xl p-[1.2vw] flex flex-col gap-[0.8vw] shadow-sm bg-white">
-                                    <div className="flex items-center gap-[0.8vw]">
-                                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=Luffy${i}`} alt="User avatar" className="w-[2vw] h-[2vw] rounded-full bg-teal-100" />
-                                        <span className="text-[1vw] font-bold text-gray-900">Luffy</span>
+                        {showRatingForm && (
+                            <div className="p-[1.2vw] flex flex-col gap-[0.8vw] mt-[-1vw] shrink-0">
+                                <div className="bg-white border border-gray-200 rounded-xl p-[1vw] flex flex-col gap-[0.8vw]">
+                                    <div className="flex flex-col gap-[0.3vw]">
+                                        <label className="text-[0.9vw] font-semibold text-gray-900">Your Name <span className="text-red-500">*</span></label>
+                                        <input type="text" placeholder="Luffy" value={ratingForm.name} onChange={(e) => {
+                                            setRatingForm({ ...ratingForm, name: e.target.value });
+                                            if (e.target.value) setRatingFormError({ show: false });
+                                        }} className={`w-full border ${ratingFormError.show && !ratingForm.name ? 'border-red-500' : 'border-gray-200'} rounded-xl px-[0.8vw] py-[0.6vw] text-[0.85vw] focus:outline-none focus:border-gray-400`} />
                                     </div>
-                                    <p className="text-[0.85vw] text-gray-500 leading-relaxed">
-                                        The flipbook feels just like a real book. Smooth page transitions, easy navigation, and a professional look made reading enjoyable from start to finish.
-                                    </p>
-                                    <div className="flex items-center gap-[0.8vw] mt-[0.2vw]">
-                                        <span className="text-[0.85vw] font-medium text-gray-600">Ratings : 4 / 5</span>
-                                        <div className="flex items-center gap-[0.2vw]">
-                                            {[1, 2, 3, 4].map(s => <Star key={s} className="w-[1vw] h-[1vw] fill-yellow-400 text-yellow-400" />)}
-                                            <Star className="w-[1vw] h-[1vw] text-yellow-400" />
+                                    <div className="flex flex-col gap-[0.3vw]">
+                                        <label className="text-[0.9vw] font-semibold text-gray-900">Your ratings <span className="text-red-500">*</span></label>
+                                        <div className={`flex items-center justify-between pl-[1vw] pr-[1vw] gap-[1vw] ${ratingFormError.show && !ratingForm.rating ? 'ring-1 ring-red-500 rounded-xl p-[0.5vw]' : ''}`}>
+                                            {[1, 2, 3, 4, 5].map(i => (
+                                                <svg key={i} onClick={() => {
+                                                    setRatingForm({ ...ratingForm, rating: i });
+                                                    setRatingFormError({ show: false });
+                                                }} className="w-[2.2vw] h-[2.2vw] overflow-visible cursor-pointer drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)] hover:scale-110 transition-transform" fill={i <= ratingForm.rating ? "url(#star-gradient)" : "white"} stroke="url(#star-gradient)" strokeWidth="1" viewBox="0 0 20 20">
+                                                    <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                                                </svg>
+                                            ))}
                                         </div>
                                     </div>
+                                    <div className="flex flex-col gap-[0.3vw]">
+                                        <label className="text-[0.9vw] font-semibold text-gray-900">Your Review</label>
+                                        <textarea placeholder="Enter your Reviews" rows={3} value={ratingForm.review} onChange={(e) => setRatingForm({ ...ratingForm, review: e.target.value })} className="w-full border border-gray-200 rounded-xl px-[0.8vw] py-[0.6vw] text-[0.85vw] focus:outline-none focus:border-gray-400 resize-none"></textarea>
+                                    </div>
                                 </div>
-                            ))}
+                                <button onClick={handleRatingSubmit} className="w-full bg-black text-white rounded-xl py-[0.7vw] text-[0.9vw] font-medium hover:bg-gray-900 transition-colors mt-[0.3vw] cursor-pointer">
+                                    Submit Rating
+                                </button>
+                            </div>
+                        )}
+
+                        {showRatingForm && (
+                            <>
+                                <div className="h-[0.3vw] bg-gray-50 shrink-0 border-y border-gray-100"></div>
+
+                                <div className="p-[1.2vw] pb-[0.3vw] shrink-0">
+                                    <h3 className="text-[1.1vw] font-semibold text-gray-900 whitespace-nowrap">Ratings & Reviews</h3>
+                                </div>
+                            </>
+                        )}
+
+                        <div className="flex-1 overflow-y-auto p-[1.2vw] pt-[0.3vw] flex flex-col gap-[0.8vw] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                            {reviewsList.length === 0 ? (
+                                <p className="text-[0.85vw] text-gray-500 text-center py-[2vw]">No reviews yet.</p>
+                            ) : (
+                                reviewsList.map((review, index) => (
+                                    <div key={index} className="border border-gray-100 rounded-xl p-[1.2vw] flex flex-col gap-[0.8vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] bg-white">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-[0.8vw]">
+                                                <img src={avatars[index % avatars.length]} alt="User avatar" className="w-[2.2vw] h-[2.2vw] rounded-full bg-gray-100 object-cover" />
+                                                <span className="text-[1vw] font-semibold text-gray-900 tracking-nowrap">{review.name}</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    setReviewsList(reviewsList.filter((_, i) => i !== index));
+                                                    setShowRatingForm(true);
+                                                }} 
+                                                className="text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
+                                                title="Remove review"
+                                            >
+                                                <Icon icon="lucide:trash-2" className="w-[1vw] h-[1vw]" />
+                                            </button>
+                                        </div>
+                                        <p className="text-[0.85vw] text-gray-500 leading-relaxed">
+                                            {review.review}
+                                        </p>
+                                        
+                                        <div className="w-full h-[1px] bg-gray-100 my-[0.2vw]"></div>
+                                        
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[0.85vw] font-medium text-gray-600">Ratings : {review.rating} / 5</span>
+                                            <div className="flex items-center gap-[0.4vw]">
+                                                {[1, 2, 3, 4, 5].map(s => (
+                                                    <svg key={s} className="w-[1.2vw] h-[1.2vw] overflow-visible" fill={s <= review.rating ? "url(#star-gradient)" : "white"} stroke="url(#star-gradient)" strokeWidth="1" viewBox="0 0 20 20">
+                                                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                                                    </svg>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
+            </div>
     );
 
 };

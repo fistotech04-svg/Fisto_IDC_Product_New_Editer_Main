@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Icon } from '@iconify/react';
 
 import bookShelf1 from '../../assets/Bookshelf/Book_shelf1.webp';
@@ -29,6 +30,14 @@ import customize2 from '../../assets/Bookshelf/customize_shelf/customize2.svg';
 import customize3 from '../../assets/Bookshelf/customize_shelf/customize3.svg';
 import listFrame from '../../assets/Bookshelf/list_frame.svg';
 
+import cover1 from '../../assets/Explore/c-bg1.png';
+import cover2 from '../../assets/Explore/c-bg2.png';
+import cover3 from '../../assets/Explore/c-bg3.png';
+import cover4 from '../../assets/Explore/c-bg4.png';
+import cover5 from '../../assets/Explore/c-bg5.png';
+
+const covers = [cover1, cover2, cover3, cover4, cover5];
+
 const shelfOptions = [
   { id: 'customize1', name: 'Modern White', img: customize1 },
   { id: 'customize2', name: 'Classic Wood', img: customize2 },
@@ -56,6 +65,67 @@ const MyShelf = () => {
   // State for the currently applied shelf and the draft shelf in the modal
   const [activeShelfStyle, setActiveShelfStyle] = useState(shelfOptions[0].id);
   const [draftShelfStyle, setDraftShelfStyle] = useState(shelfOptions[0].id);
+
+  const [booksData, setBooksData] = useState([]);
+  const [profileData, setProfileData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const currentUserEmail = (() => {
+      try {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+              const u = JSON.parse(storedUser);
+              if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
+          }
+          const storedProfile = localStorage.getItem('user_profile');
+          if (storedProfile) {
+              const p = JSON.parse(storedProfile);
+              if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
+          }
+      } catch (e) {}
+      return '';
+  })();
+
+  useEffect(() => {
+    const fetchMyBooks = async () => {
+        setIsLoading(true);
+        try {
+            if (!currentUserEmail) {
+                setIsLoading(false);
+                return;
+            }
+            const res = await axios.get(`${backendUrl}/api/explore/creator`, {
+                params: { emailId: currentUserEmail }
+            });
+            if (res.data?.success) {
+                if (res.data.profile) {
+                    setProfileData(res.data.profile);
+                }
+                const rawBooks = res.data.books || [];
+                const formatted = rawBooks.map((b, idx) => ({
+                    rawBook: b,
+                    v_id: b.v_id,
+                    shareId: b.Customized_Settings?.Visibility?.shareId || b.Visibility?.shareId || b.v_id,
+                    access: b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public',
+                    title: b.flipbookName || `Flipbook ${idx + 1}`,
+                    cover: covers[idx % covers.length],
+                    pages: b.pages?.length || 0,
+                    views: b.views || '1.2k',
+                    rating: b.rating || 4.5,
+                    description: b.Customized_Settings?.FlipbookInfo?.quotes || '“Bring your content to life with a real, interactive experience”',
+                    category: b.Customized_Settings?.FlipbookInfo?.category || 'Product Catalogue'
+                }));
+                setBooksData(formatted);
+            }
+        } catch (err) {
+            console.error("Error fetching my shelf books:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    fetchMyBooks();
+  }, [backendUrl, currentUserEmail]);
 
   const handleFlipbookSelect = (e) => {
     if (e.target.value === 'add_shelf') {
@@ -536,103 +606,135 @@ const MyShelf = () => {
               />
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (
-                <div key={item} className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100">
+              {isLoading ? (
+                  <div className="col-span-full py-10 flex justify-center text-gray-500">Loading...</div>
+              ) : booksData.length === 0 ? (
+                  <div className="col-span-full py-10 flex justify-center text-gray-500">No flipbooks found.</div>
+              ) : (
+                booksData.map((book, idx) => (
+                <div key={book.v_id || idx} className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100">
                   {/* Image Area Wrapper */}
                   <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden">
-                    <img src={listFrame} alt="Flipbook" className="w-full h-full object-cover" />
+                    <img src={book.cover || listFrame} alt={book.title || "Flipbook"} className="w-full h-full object-cover" />
 
                       <button
-                        onClick={() => setOpenMenuId(openMenuId === item ? null : item)}
+                        onClick={() => setOpenMenuId(openMenuId === book.v_id ? null : book.v_id)}
                         className="absolute top-3 right-3 text-white hover:text-gray-200 bg-black/20 rounded-md p-0.5 transition-colors z-30"
                       >
                         <Icon icon="mdi:dots-vertical" className="w-5 h-5" />
                       </button>
 
-                      {openMenuId === item && (
-                        <div className="absolute top-10 right-3 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-32 z-40">
-                          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      {openMenuId === book.v_id && (
+                        <div className="absolute top-10 right-3 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-36 z-40">
+                          <button 
+                            onClick={() => {
+                                const targetShareId = book.shareId || book.v_id;
+                                const rawAcc = String(book.access || 'public').toLowerCase();
+                                if (targetShareId) {
+                                    window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+                                }
+                                setOpenMenuId(null);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                          >
+                            <Icon icon="mdi:book-open-outline" className="w-4 h-4 text-gray-400" />
                             Open Book
                           </button>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              setBookToMoveIndex(item - 1);
+                              setBookToMoveIndex(idx);
                               setTargetMoveFolder(selectedFolder);
                               setShowMoveModal(true);
                               setOpenMenuId(null);
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                           >
+                            <Icon icon="mdi:folder-move-outline" className="w-4 h-4 text-gray-400" />
                             Move Folder
                           </button>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRemoveBook(item - 1);
+                              // handleRemoveBook(idx); or delete api call
+                              setOpenMenuId(null);
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
                           >
-                            Remove Book
+                            <Icon icon="mdi:trash-can-outline" className="w-4 h-4 text-red-400" />
+                            Delete
                           </button>
                         </div>
                       )}
-
-                      <div className="absolute top-3 left-3 bg-black/20 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
-                        28 Pages
-                      </div>
                     </div>
 
-                  {/* Content Area */}
-                  <div className="p-4 flex flex-col gap-2.5 flex-1">
-                    {/* Stats */}
-                    <div className="flex flex-col gap-1 text-[7px] 2xl:text-[8px] text-gray-800 w-full">
-                      {/* Row 1 */}
-                      <div className="flex items-center gap-1 w-full">
-                        {/* Box 1: Rated */}
-                        <div className="flex items-center gap-0.5 bg-[#EFE9E2] px-1 py-0.5 rounded-[4px] whitespace-nowrap">
-                          <Icon icon="material-symbols-light:star-rounded" className="w-3 h-3 text-orange-500 shrink-0" />
-                          <span><span className="font-semibold">4.5</span> <span className="text-gray-500">(1,255)</span> rated</span>
-                        </div>
-
-                        {/* Box 2: Added to shelf */}
-                        <div className="flex items-center gap-0.5 bg-[#EFE9E2] px-1 py-0.5 rounded-[4px] whitespace-nowrap">
-                          <Icon icon="ri:book-shelf-line" className="w-2.5 h-2.5 text-[#8C4A20] shrink-0" />
-                          <span><span className="font-semibold">2.56k</span> added to shelf</span>
-                        </div>
+                  {/* Card Details */}
+                  <div className="p-4 flex flex-col flex-1 bg-white">
+                      {/* Author Info */}
+                      <div className="flex items-center gap-3">
+                          {profileData?.picture && profileData.picture !== 'color_only' ? (
+                              <img
+                                  src={profileData.picture}
+                                  alt={profileData.name}
+                                  className="w-9 h-9 rounded-full border border-gray-200 object-cover shrink-0"
+                              />
+                          ) : (
+                              <div 
+                                  className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-inner"
+                                  style={{ backgroundColor: profileData?.avatarBgColor || '#4c5add' }}
+                              >
+                                  {(profileData?.name || 'U').charAt(0).toUpperCase()}
+                              </div>
+                          )}
+                          <div className="flex flex-col min-w-0 pr-1">
+                              <span className="text-sm font-semibold text-gray-900 leading-tight truncate">{profileData?.name || 'Creator'}</span>
+                              <span className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5 truncate">
+                                  <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
+                                  <span className="truncate">{(profileData?.city || profileData?.state || 'Coimbatore').replace(/📍/g, '').trim()}</span>
+                              </span>
+                          </div>
                       </div>
 
-                      {/* Row 2 */}
-                      <div className="flex items-center gap-1 w-full">
-                        {/* Box 3: Reader */}
-                        <div className="flex items-center gap-0.5 bg-[#EFE9E2] px-1 py-0.5 rounded-[4px] whitespace-nowrap">
-                          <Icon icon="si:eye-line" className="w-2.5 h-2.5 text-gray-800 shrink-0" />
-                          <span><span className="font-semibold">12.5k</span> reader</span>
-                        </div>
-
-                        {/* Box 4: Category */}
-                        <div className="flex items-center bg-[#EFE9E2] px-1 py-0.5 rounded-[4px] whitespace-nowrap">
-                          <span>Product Catalogue</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Title, Desc & Action Button */}
-                    <div className="mt-2 pt-3 border-t border-gray-100 flex items-end justify-between gap-2">
-                      <div className="flex-1 pr-1">
-                        <h3 className="font-bold text-gray-900 text-[14px] mb-1.5 leading-tight">Name of the Flipbook</h3>
-                        <p className="text-[11px] text-gray-500 leading-snug">
-                          Bring your content to life with a real, interactive experience.
-                        </p>
+                      {/* Stats */}
+                      <div className="flex items-center gap-2 justify-start text-xs text-gray-700 font-medium mt-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                              <span className="text-black font-semibold">{book.pages || 0}</span>
+                              <span className="font-normal text-gray-500">Pages</span>
+                          </div>
+                          <span className="text-gray-300">|</span>
+                          <span className="flex items-center gap-1">
+                              <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
+                              {book.views || '1.2k'}
+                          </span>
+                          <span className="text-gray-300">|</span>
+                          <span className="flex items-center gap-1">
+                              <Icon icon="material-symbols:star" className="w-4 h-4 text-yellow-400" />
+                              {book.rating || 4.5}
+                          </span>
                       </div>
 
-                      <button className="bg-black text-white rounded-full p-2.5 hover:bg-gray-800 transition-colors shadow-sm shrink-0 mb-0.5">
-                        <Icon icon="mdi:arrow-top-right" className="w-5 h-5" />
-                      </button>
-                    </div>
+                      {/* Title & Desc & Button */}
+                      <div className="relative flex-1 mt-3">
+                          <h4 className="text-[15px] font-semibold text-black truncate tracking-tight mb-1">{book.title}</h4>
+                          <p className="text-[12px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
+
+                          {/* Action Button */}
+                          <button
+                              onClick={() => {
+                                  const targetShareId = book.shareId || book.v_id;
+                                  const rawAcc = String(book.access || 'public').toLowerCase();
+                                  if (targetShareId) {
+                                      window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+                                  }
+                              }}
+                              className="absolute bottom-0 right-0 bg-black text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                          >
+                              <Icon icon="mdi:arrow-top-right" className="w-5 h-5" />
+                          </button>
+                      </div>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         )}

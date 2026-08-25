@@ -119,6 +119,29 @@ const profileSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  myShelf: {
+    folders: [{ 
+      f_id: {
+        type: String,
+        required: true
+      },
+      f_name: {
+        type: String,
+        required: true
+      },
+      books: [{
+        v_id: {
+          type: String,
+          required: true
+        },
+        position: {
+          type: Number,
+          required: true,
+          default: 0
+        }
+    }]
+    }]
   }
 });
 
