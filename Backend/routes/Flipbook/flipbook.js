@@ -23,10 +23,12 @@ import FlipbookAsset from "../../models/FlipbookAsset.js";
 import UserSettings from "../../models/UserSettings.js";
 import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
+import Profile from "../../models/Profile.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase, getFolderSizeFromSupabase, getSupabasePublicUrl } from "../../config/supabase.js";
 import { calculateActiveUserStorage } from "../User_Details/usersetting.js";
+import { logActivity } from "../../utils/activityLogger.js";
 
 // Helper to get Gmail Transporter
 const getTransporter = () => {
@@ -873,6 +875,16 @@ router.post("/save", async (req, res) => {
 
     const supabaseLocation = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}`;
 
+    // Log user activity
+    logActivity({
+      userEmail: emailId,
+      type: existingDoc ? 'edit_flip' : 'create',
+      title: existingDoc ? 'You edited a flipbook' : 'You created a new flipbook',
+      desc: existingDoc ? `Flipbook: ${flipbookName}` : `Flipbook name: ${flipbookName}`,
+      entityId: savedDoc?.v_id,
+      entityName: flipbookName
+    });
+
     res.status(200).json({
       message: "Flipbook saved successfully",
       flipbookName,
@@ -1210,6 +1222,10 @@ router.get("/list", async (req, res) => {
       const language = flipbookInfo.language || doc.language || "English";
       const tags = flipbookInfo.tags || doc.tags || [];
 
+      const actualViews = (Array.isArray(doc.viewers) && doc.viewers.length > 0)
+        ? doc.viewers.length
+        : (typeof doc.viewsCount === 'number' ? doc.viewsCount : 0);
+
       books.push({
         id: `${folder}_${doc.flipbookName}`,
         v_id: doc.v_id,
@@ -1218,7 +1234,9 @@ router.get("/list", async (req, res) => {
         folder: folder,
         pages: doc.pages ? doc.pages.length : 0,
         created: createdDate,
-        views: 0,
+        views: actualViews,
+        viewsCount: actualViews,
+        viewersCount: Array.isArray(doc.viewers) ? doc.viewers.length : 0,
         size: formatSize(rawSize),
         sizeBytes: rawSize,
         image: firstImageAssetMap.get(doc.v_id) || null,
@@ -1260,6 +1278,10 @@ router.get("/list", async (req, res) => {
       const language = flipbookInfo.language || doc.language || "English";
       const tags = flipbookInfo.tags || doc.tags || [];
 
+      const actualViews = (Array.isArray(doc.viewers) && doc.viewers.length > 0)
+        ? doc.viewers.length
+        : (typeof doc.viewsCount === 'number' ? doc.viewsCount : 0);
+
       return {
         id: `Recent_${doc.v_id || doc.flipbookName}`,
         realName: doc.flipbookName,
@@ -1269,7 +1291,9 @@ router.get("/list", async (req, res) => {
         actualFolder: realFolder,
         pages: doc.pages ? doc.pages.length : 0,
         created: createdDate,
-        views: 0,
+        views: actualViews,
+        viewsCount: actualViews,
+        viewersCount: Array.isArray(doc.viewers) ? doc.viewers.length : 0,
         size: formatSize(rawSize),
         sizeBytes: rawSize,
         image: firstImageAssetMap.get(doc.v_id) || null,
@@ -2112,6 +2136,16 @@ router.post('/publish', async (req, res) => {
       return res.status(404).json({ message: "Flipbook not found" });
     }
 
+    // Log user activity
+    logActivity({
+      userEmail: emailId,
+      type: 'publish',
+      title: 'You published a flipbook',
+      desc: `Flipbook: ${updatedDoc.flipbookName || bookName || 'Flipbook'}`,
+      entityId: v_id,
+      entityName: updatedDoc.flipbookName || bookName || ''
+    });
+
     res.json({ message: "Flipbook published successfully", flipbook: updatedDoc });
   } catch (err) {
     console.error("Error publishing flipbook:", err);
@@ -2140,6 +2174,16 @@ router.post('/unpublish', async (req, res) => {
     if (!updatedDoc) {
       return res.status(404).json({ message: "Flipbook not found" });
     }
+
+    // Log user activity
+    logActivity({
+      userEmail: emailId,
+      type: 'unpublish',
+      title: 'You un-published a flipbook',
+      desc: `Flipbook: ${updatedDoc.flipbookName || 'Flipbook'}`,
+      entityId: v_id,
+      entityName: updatedDoc.flipbookName || ''
+    });
 
     res.json({ message: "Flipbook unpublished successfully", flipbook: updatedDoc });
   } catch (err) {
@@ -2398,12 +2442,41 @@ router.get("/public/get/:shareId", async (req, res) => {
     delete docSettings.FlipbookInfo;
     delete docSettings.visibility;
 
+    // Fetch author profile info if available
+    let authorProfile = null;
+    try {
+      if (dbDoc.userEmail) {
+        authorProfile = await Profile.findOne({ emailId: new RegExp(`^${dbDoc.userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }).lean();
+      }
+    } catch(e) {}
+
+    const ratings = dbDoc.bookRating || [];
+    const totalRatings = ratings.length;
+    const avgRating = totalRatings > 0
+      ? Number((ratings.reduce((sum, r) => sum + (r.ratingValue || 0), 0) / totalRatings).toFixed(1))
+      : 0;
+
+    const publisherName = docFlipbookInfo.publisher || authorProfile?.companyName || authorProfile?.name || (dbDoc.userEmail ? dbDoc.userEmail.split('@')[0] : 'FIST-O Tech Pvt Ltd');
+
+    const accurateViews = (Array.isArray(dbDoc.viewers) && dbDoc.viewers.length > 0)
+      ? dbDoc.viewers.length
+      : (typeof dbDoc.viewsCount === 'number' ? dbDoc.viewsCount : 0);
+
     const flipbookInfoObj = {
       ...docFlipbookInfo,
       flipbookName: effectiveBookName,
       folderName: effectiveFolderName,
       v_id: dbDoc.v_id,
-      baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
+      baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`,
+      publisher: publisherName,
+      category: docFlipbookInfo.category || 'General',
+      language: docFlipbookInfo.language || 'English',
+      quotes: docFlipbookInfo.quotes || '',
+      about: docFlipbookInfo.about || '',
+      viewsCount: accurateViews,
+      addedToShelfCount: dbDoc.addedToShelfCount || 0,
+      createdAt: dbDoc.createdAt,
+      publishedAt: docFlipbookInfo.publishedAt || dbDoc.lastUpdated || dbDoc.createdAt
     };
 
     res.json({
@@ -2419,10 +2492,328 @@ router.get("/public/get/:shareId", async (req, res) => {
       isPublished: Boolean(dbDoc.isPublished),
       FlipbookInfo: flipbookInfoObj,
       meta: flipbookInfoObj,
+      viewsCount: accurateViews,
+      addedToShelfCount: dbDoc.addedToShelfCount || 0,
+      bookRating: ratings,
+      averageRating: avgRating,
+      totalRatings: totalRatings,
+      publisher: publisherName,
+      createdAt: dbDoc.createdAt,
+      publishedAt: docFlipbookInfo.publishedAt || dbDoc.lastUpdated || dbDoc.createdAt,
+      authorProfile: authorProfile ? {
+        name: authorProfile.name,
+        picture: authorProfile.picture,
+        companyName: authorProfile.companyName,
+        city: authorProfile.city,
+        state: authorProfile.state,
+        country: authorProfile.country
+      } : null
     });
   } catch (err) {
     console.error("Error in /public/get:", err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   POST /api/flipbook/public/view/:shareId
+// @desc    Increment the view count for a flipbook only for unique users
+router.post("/public/view/:shareId", async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    if (!shareId) return res.status(400).json({ message: "Missing shareId" });
+
+    const rawEmail = (req.body.userEmail || req.body.emailId || req.query.emailId || '').trim().toLowerCase();
+    const rawViewerId = (req.body.viewerId || req.query.viewerId || '').trim();
+    const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    const viewerKey = rawEmail || rawViewerId || (clientIp ? `ip_${clientIp}` : 'anonymous');
+
+    const query = {
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId },
+        { v_id: shareId }
+      ]
+    };
+
+    const existingDoc = await Flipbook.findOne(query);
+    if (!existingDoc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    const viewersList = Array.isArray(existingDoc.viewers) ? existingDoc.viewers : [];
+
+    // Check if viewer has already viewed
+    const isAlreadyRecorded = viewersList.includes(viewerKey) ||
+      (rawEmail && viewersList.includes(rawEmail)) ||
+      (rawViewerId && viewersList.includes(rawViewerId));
+
+    if (isAlreadyRecorded) {
+      const accurateCount = viewersList.length > 0 ? viewersList.length : (existingDoc.viewsCount || 0);
+      return res.status(200).json({
+        success: true,
+        message: "View already recorded for this user",
+        viewsCount: accurateCount,
+        alreadyViewed: true
+      });
+    }
+
+    // First time view: add to viewers set and synchronize viewsCount
+    const updatedDoc = await Flipbook.findOneAndUpdate(
+      query,
+      {
+        $addToSet: { viewers: viewerKey }
+      },
+      { new: true }
+    );
+
+    const accurateViewsCount = updatedDoc.viewers ? updatedDoc.viewers.length : 1;
+    await Flipbook.updateOne(query, { $set: { viewsCount: accurateViewsCount } });
+
+    return res.status(200).json({
+      success: true,
+      message: "View recorded",
+      viewsCount: accurateViewsCount,
+      alreadyViewed: false
+    });
+  } catch (err) {
+    console.error("Error recording view:", err);
+    return res.status(500).json({ success: false, message: "Server error while recording view" });
+  }
+});
+
+// @route   GET /api/flipbook/public/ratings/:shareId
+// @desc    Get all reviews and rating breakdown for a flipbook
+router.get("/public/ratings/:shareId", async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    if (!shareId) return res.status(400).json({ message: "Missing shareId" });
+
+    const dbDoc = await Flipbook.findOne({
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId },
+        { v_id: shareId }
+      ]
+    }).lean();
+
+    if (!dbDoc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    const ratings = (dbDoc.bookRating || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const totalRatings = ratings.length;
+    const avgRating = totalRatings > 0
+      ? Number((ratings.reduce((sum, r) => sum + (r.ratingValue || 0), 0) / totalRatings).toFixed(1))
+      : 0;
+
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    ratings.forEach(r => {
+      const val = Math.min(5, Math.max(1, Math.round(r.ratingValue || 0)));
+      if (distribution[val] !== undefined) distribution[val]++;
+    });
+
+    return res.status(200).json({
+      success: true,
+      ratings,
+      averageRating: avgRating,
+      totalRatings,
+      distribution
+    });
+  } catch (err) {
+    console.error("Error fetching ratings:", err);
+    return res.status(500).json({ success: false, message: "Server error while fetching ratings" });
+  }
+});
+
+// @route   POST /api/flipbook/public/rate/:shareId
+// @route   POST /api/flipbook/public/rate/:shareId
+// @desc    Submit or edit a rating and review for a flipbook
+router.post("/public/rate/:shareId", async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    const { ratingId, name, ratingValue, review, userEmail, profileImgUrl } = req.body;
+
+    if (!shareId) return res.status(400).json({ message: "Missing shareId" });
+    if (!name || !name.trim()) return res.status(400).json({ message: "Name is required" });
+    if (!ratingValue || Number(ratingValue) < 1 || Number(ratingValue) > 5) {
+      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
+
+    const dbDoc = await Flipbook.findOne({
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId },
+        { v_id: shareId }
+      ]
+    });
+
+    if (!dbDoc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    if (!Array.isArray(dbDoc.bookRating)) {
+      dbDoc.bookRating = [];
+    }
+
+    let existingRating = null;
+    if (ratingId) {
+      existingRating = dbDoc.bookRating.find(r => String(r._id) === String(ratingId));
+    }
+
+    if (existingRating) {
+      // Update existing review
+      existingRating.name = name.trim();
+      if (userEmail) existingRating.userEmail = userEmail.trim().toLowerCase();
+      existingRating.ratingValue = Number(ratingValue);
+      existingRating.review = review ? review.trim() : "";
+      if (profileImgUrl) existingRating.profileImgUrl = profileImgUrl;
+    } else {
+      // Create new review
+      const newRating = {
+        name: name.trim(),
+        userEmail: userEmail ? userEmail.trim().toLowerCase() : "",
+        ratingValue: Number(ratingValue),
+        review: review ? review.trim() : "",
+        profileImgUrl: profileImgUrl || "",
+        createdAt: new Date()
+      };
+      dbDoc.bookRating.unshift(newRating);
+    }
+
+    const totalRatings = dbDoc.bookRating.length;
+    const avgRating = totalRatings > 0
+      ? Number((dbDoc.bookRating.reduce((sum, r) => sum + (r.ratingValue || 0), 0) / totalRatings).toFixed(1))
+      : 0;
+
+    dbDoc.averageRating = avgRating;
+    dbDoc.totalRatings = totalRatings;
+
+    await dbDoc.save();
+
+    return res.status(200).json({
+      success: true,
+      message: existingRating ? "Rating updated successfully" : "Rating submitted successfully",
+      bookRating: dbDoc.bookRating,
+      averageRating: avgRating,
+      totalRatings
+    });
+  } catch (err) {
+    console.error("Error submitting rating:", err);
+    return res.status(500).json({ success: false, message: "Server error while submitting rating" });
+  }
+});
+
+// @route   PUT /api/flipbook/public/rate/:shareId/:ratingId
+// @desc    Edit an existing rating and review
+router.put("/public/rate/:shareId/:ratingId", async (req, res) => {
+  try {
+    const { shareId, ratingId } = req.params;
+    const { name, ratingValue, review, userEmail, profileImgUrl } = req.body;
+
+    if (!shareId || !ratingId) return res.status(400).json({ message: "Missing shareId or ratingId" });
+    if (!name || !name.trim()) return res.status(400).json({ message: "Name is required" });
+    if (!ratingValue || Number(ratingValue) < 1 || Number(ratingValue) > 5) {
+      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
+
+    const dbDoc = await Flipbook.findOne({
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId },
+        { v_id: shareId }
+      ]
+    });
+
+    if (!dbDoc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    if (!Array.isArray(dbDoc.bookRating)) {
+      dbDoc.bookRating = [];
+    }
+
+    const existingRating = dbDoc.bookRating.find(r => String(r._id) === String(ratingId));
+    if (!existingRating) {
+      return res.status(404).json({ message: "Rating not found" });
+    }
+
+    existingRating.name = name.trim();
+    if (userEmail) existingRating.userEmail = userEmail.trim().toLowerCase();
+    existingRating.ratingValue = Number(ratingValue);
+    existingRating.review = review ? review.trim() : "";
+    if (profileImgUrl) existingRating.profileImgUrl = profileImgUrl;
+
+    const totalRatings = dbDoc.bookRating.length;
+    const avgRating = totalRatings > 0
+      ? Number((dbDoc.bookRating.reduce((sum, r) => sum + (r.ratingValue || 0), 0) / totalRatings).toFixed(1))
+      : 0;
+
+    dbDoc.averageRating = avgRating;
+    dbDoc.totalRatings = totalRatings;
+
+    await dbDoc.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Rating updated successfully",
+      bookRating: dbDoc.bookRating,
+      averageRating: avgRating,
+      totalRatings
+    });
+  } catch (err) {
+    console.error("Error updating rating:", err);
+    return res.status(500).json({ success: false, message: "Server error while updating rating" });
+  }
+});
+
+// @route   DELETE /api/flipbook/public/rate/:shareId/:ratingId
+// @desc    Delete a rating and review from a flipbook
+router.delete("/public/rate/:shareId/:ratingId", async (req, res) => {
+  try {
+    const { shareId, ratingId } = req.params;
+
+    if (!shareId || !ratingId) {
+      return res.status(400).json({ message: "Missing shareId or ratingId" });
+    }
+
+    const dbDoc = await Flipbook.findOne({
+      $or: [
+        { "Customized_Settings.Visibility.shareId": shareId },
+        { "share.shareId": shareId },
+        { v_id: shareId }
+      ]
+    });
+
+    if (!dbDoc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    if (!Array.isArray(dbDoc.bookRating)) {
+      dbDoc.bookRating = [];
+    }
+
+    dbDoc.bookRating = dbDoc.bookRating.filter(r => String(r._id) !== String(ratingId));
+
+    const totalRatings = dbDoc.bookRating.length;
+    const avgRating = totalRatings > 0
+      ? Number((dbDoc.bookRating.reduce((sum, r) => sum + (r.ratingValue || 0), 0) / totalRatings).toFixed(1))
+      : 0;
+
+    dbDoc.averageRating = avgRating;
+    dbDoc.totalRatings = totalRatings;
+
+    await dbDoc.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Rating deleted successfully",
+      bookRating: dbDoc.bookRating,
+      averageRating: avgRating,
+      totalRatings
+    });
+  } catch (err) {
+    console.error("Error deleting rating:", err);
+    return res.status(500).json({ success: false, message: "Server error while deleting rating" });
   }
 });
 
@@ -3024,6 +3415,16 @@ router.delete("/delete", async (req, res) => {
         console.error("Error cleaning up 3D model records:", modelErr);
       }
     }
+
+    // Log user activity
+    logActivity({
+      userEmail: emailId,
+      type: 'delete_flip',
+      title: 'You deleted a flipbook',
+      desc: `Flipbook: ${bookName}`,
+      entityId: deletedBook?.v_id || '',
+      entityName: bookName
+    });
 
     res.json({ message: "Deleted" });
   } catch (err) {
