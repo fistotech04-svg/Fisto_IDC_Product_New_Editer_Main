@@ -519,13 +519,13 @@ const Grid4Layout = ({
                 </div>
 
                 <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none ${isMobileLandscape ? 'mt-[1.5vh]' : ''}`}>
-                    <span className={`text-white ${isMobileLandscape ? 'text-[2.2vw]' : 'text-[1.25vw]'} font-medium tracking-tight whitespace-nowrap`}>{bookName}</span>
+                    <span className={`${isMobileLandscape ? 'text-[2.2vw]' : 'text-[1.25vw]'} font-medium tracking-tight whitespace-nowrap`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>{bookName}</span>
                 </div>
 
                 {/* Search Wrapper */}
                 {(settings?.interaction?.search ?? true) && !isPdfProject && (
                     <div className={`relative ${isMobileLandscape ? 'mr-[5vw]' : ''}`} onClick={(e) => e.stopPropagation()}>
-                        <div className={`flex items-center ${isMobileLandscape ? 'px-[1.5vw] py-[1vh] w-[22vw]' : 'px-[1vw] py-[0.5vh] w-[16vw]'} shadow-inner border border-gray-100/30 transition-all relative z-[101]`}
+                        <div className={`flex items-center ${isMobileLandscape ? 'px-[1.5vw] py-[1vh] w-[22vw]' : 'px-[1vw] py-[0.5vh] w-[16vw]'} shadow-sm border border-black/10 transition-all relative z-[101]`}
                             style={{ backgroundColor: getLayoutColor('search-bg-v2', '#E0E3F5') }}>
                             <Icon icon="lucide:search" className={`${'w-[1.2vw] h-[1.2vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
                             <input
@@ -762,7 +762,7 @@ const Grid4Layout = ({
                                         <Icon icon="lucide:x" className={`${'w-[1.2vw] h-[1.2vw]'}`} />
                                     </button>
                                 </div>
-                                <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: '#3E4491', margin: '0' }} />
+                                <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: getLayoutColor('dropdown-text', '#3E4491'), opacity: 0.5, margin: '0' }} />
                             </div>
 
                             {/* Vertically Scrollable List */}
@@ -842,7 +842,7 @@ const Grid4Layout = ({
                                         <Icon icon="lucide:x" className={`${'w-[1.2vw] h-[1.2vw]'}`} />
                                     </button>
                                 </div>
-                                <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: '#3E4491', margin: '0' }} />
+                                <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: getLayoutColor('toc-text', '#575C9C'), opacity: 0.5, margin: '0' }} />
                             </div>
 
                             {/* Search Bar */}

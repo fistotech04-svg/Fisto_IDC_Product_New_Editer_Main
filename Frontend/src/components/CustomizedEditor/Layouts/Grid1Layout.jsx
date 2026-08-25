@@ -1140,7 +1140,7 @@ const Grid1Layout = React.memo((props) => {
                                         <div
                                             className={`absolute bottom-0 flex flex-col items-center ${isTablet ? 'p-[0.4vw] rounded-[0.5vw]' : 'p-[0.5vw] rounded-[0.6vw]'} shadow-2xl`}
                                             style={{
-                                                backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'),
+                                                backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(var(--dropdown-bg-opacity, 1) * 0.8))`,
                                                 backdropFilter: 'blur(8px)',
                                                 border: `1px solid ${getLayoutColorAlpha('dropdown-text', '#FFFFFF', 0.2)}`,
                                                 transform: 'translateX(-50%)'
@@ -1188,7 +1188,7 @@ const Grid1Layout = React.memo((props) => {
                                             <div
                                                 className={`absolute top-full w-0 h-0 border-solid border-l-transparent border-r-transparent ${isTablet ? 'border-l-[0.4vw] border-r-[0.4vw] border-t-[1.2vw]' : 'border-l-[0.5vw] border-r-[0.5vw] border-t-[1.5vw]'}`}
                                                 style={{
-                                                    borderTopColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'),
+                                                    borderTopColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(var(--dropdown-bg-opacity, 1) * 0.8))`,
                                                     left: '50%',
                                                     transform: 'translateX(-50%)',
                                                     filter: 'drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.16))'
@@ -1343,7 +1343,7 @@ const Grid1Layout = React.memo((props) => {
                             bottom: isMobileLandscape ? '45px' : isTablet ? '3.2vw' : '8vh',
                             right: isMobileLandscape ? '28%' : isTablet ? '20vw' : '23.8vw',
                             width: isMobileLandscape ? '150px' : isTablet ? '10vw' : '12vw',
-                            backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'),
+                            backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(var(--dropdown-bg-opacity, 1) * 0.8))`,
                             backdropFilter: 'blur(10px)',
                             border: 'none'
                         }}
@@ -1407,7 +1407,7 @@ const Grid1Layout = React.memo((props) => {
                             bottom: isMobileLandscape ? '50px' : isTablet ? '50px' : '8vh',
                             left: '50%',
                             transform: 'translateX(-50%)',
-                            backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.8),
+                            backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(var(--dropdown-bg-opacity, 1) * 0.8))`,
                             backdropFilter: 'blur(10px)',
                             borderRadius: isTablet ? '0.7vw' : '0.7vw',
                             border: '1px solid rgba(255,255,255,0.2)',

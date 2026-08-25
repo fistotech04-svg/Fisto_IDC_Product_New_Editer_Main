@@ -429,8 +429,8 @@ const Grid6Layout = ({
             <div
                 className={`${isTablet ? 'h-[6vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center justify-between pl-[1.5vw] ${isTablet ? 'pr-[4.5vw]' : (isFullscreen ? 'pr-[6vw]' : 'pr-[4.5vw]')} shrink-0 w-full z-[100] transition-all duration-500 ease-in-out shadow-[0_2px_10px_rgba(0,0,0,0.08)] ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
                 style={{
-                    backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
-                    opacity: isFullscreen && isCanvasHovered ? 0 : getLayoutOpacity('toolbar-bg', 1)
+                    backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1'),
+                    opacity: isFullscreen && isCanvasHovered ? 0 : 1
                 }}
             >
                 {/* Search Bar */}
@@ -439,12 +439,12 @@ const Grid6Layout = ({
                         <div className="relative">
                             <div
                                 className={`flex items-center rounded-[0.2vw] ${isTablet ? 'px-[0.5vw] py-[0.4vw] w-[12vw]' : 'px-[0.6vw] py-[0.5vw] w-[16vw]'} shadow-inner`}
-                                style={{ backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4'), opacity: getLayoutOpacity('search-bg-v2', 1) }}
+                                style={{ backgroundColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }}
                             >
                                 <Icon
                                     icon="lucide:search"
                                     className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`}
-                                    style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
+                                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                                 />
                                 <input
                                     type="text"
@@ -497,7 +497,8 @@ const Grid6Layout = ({
                                     placeholder="Quick Search..."
                                     className={`bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ${isTablet ? 'text-[0.7vw]' : 'text-[0.9vw]'} ml-[0.6vw] w-full font-medium`}
                                     style={{
-                                        color: getLayoutColor('search-text-v1', '#575C9C'),
+                                        color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                        opacity: getLayoutOpacity('toolbar-text-main', 1)
                                     }}
                                 />
                             </div>
@@ -510,18 +511,18 @@ const Grid6Layout = ({
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: -10 }}
                                         className={`absolute ${isTablet ? 'top-[2.5vw] w-[12vw]' : 'top-[3.2vw] w-[16vw]'} left-0 bg-white rounded-b-[0.4vw] shadow-2xl z-[100] border-x border-b overflow-hidden`}
-                                        style={{ borderColor: getLayoutColor('search-bg-v2', '#DDE0F4') }}
+                                        style={{ borderColor: getLayoutColor('toolbar-text-main', '#DDE0F4') }}
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         <div className="px-[1vw] py-[0.8vw] border-b border-gray-50">
-                                            <span className={`font-bold ${isTablet ? 'text-[0.7vw]' : 'text-[0.9vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Suggestion</span>
+                                            <span className={`font-bold ${isTablet ? 'text-[0.7vw]' : 'text-[0.9vw]'}`} style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>Suggestion</span>
                                         </div>
                                         <div className="flex flex-col py-[0.4vw]">
                                             {recommendations.map((rec, idx) => (
                                                 <button
                                                     key={`${rec.word}-${rec.pageNumber}-${idx}`}
                                                     className="flex items-center justify-between px-[1vw] py-[0.6vw] transition-colors group"
-                                                    style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
+                                                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                                                     onClick={() => {
                                                         onPageClick(rec.pageNumber - 1);
                                                         const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
@@ -752,8 +753,8 @@ const Grid6Layout = ({
             <div
                 className={`${isTablet ? 'h-[5vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center px-[1vw] shrink-0 w-full z-[100] border-t transition-all duration-500 ease-in-out shadow-[0_-2px_10px_rgba(0,0,0,0.08)] ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
                 style={{
-                    backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C'),
-                    opacity: isFullscreen && isCanvasHovered ? 0 : getLayoutOpacity('bottom-toolbar-bg', 1),
+                    backgroundColor: getLayoutColorRgba('bottom-toolbar-bg', '87, 92, 156', '1'),
+                    opacity: isFullscreen && isCanvasHovered ? 0 : 1,
                     borderColor: 'rgba(255,255,255,0.05)'
                 }}
             >
@@ -916,18 +917,19 @@ const Grid6Layout = ({
                     <div className={`flex items-center ${isTablet ? 'mr-[4vw]' : 'mr-[5vw]'}`}>
                         <div className={`flex items-center rounded-[0.5vw] ${isTablet ? 'p-[0.2vw] pl-[0.5vw] gap-[0.6vw]' : 'p-[0.3vw] pl-[0.8vw] gap-[1vw]'} border shadow-sm`}
                             style={{
-                                backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4'),
-                                borderColor: getLayoutColorRgba('search-text-v1', '87, 92, 156', '0.1')
+                                backgroundColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1'),
+                                border: '1px solid',
+                                borderColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.1')
                             }}
                         >
                             <div className={`flex items-center ${isTablet ? 'gap-[0.4vw]' : 'gap-[0.8vw]'}`}>
-                                <button onClick={(e) => { e.stopPropagation(); zoomOut(); }} className="hover:scale-110" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                                <button onClick={(e) => { e.stopPropagation(); zoomOut(); }} className="hover:scale-110" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>
                                     <Icon icon="lucide:zoom-out" className={`${isTablet ? 'w-[0.8vw]' : 'w-[0.9vw]'} ${isTablet ? 'h-[0.8vw]' : 'h-[0.9vw]'}`} />
                                 </button>
-                                <span className={`font-bold ${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} tabular-nums min-w-[2.5vw] text-center`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                                <span className={`font-bold ${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} tabular-nums min-w-[2.5vw] text-center`} style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>
                                     {Math.round((dimWidth / initialWidth) * 100)}%
                                 </span>
-                                <button onClick={(e) => { e.stopPropagation(); zoomIn(); }} className="hover:scale-110" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                                <button onClick={(e) => { e.stopPropagation(); zoomIn(); }} className="hover:scale-110" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>
                                     <Icon icon="lucide:zoom-in" className={`${isTablet ? 'w-[0.8vw]' : 'w-[0.9vw]'} ${isTablet ? 'h-[0.8vw]' : 'h-[0.9vw]'}`} />
                                 </button>
                             </div>
@@ -937,7 +939,7 @@ const Grid6Layout = ({
                                     setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
                                 }}
                                 className={`${isTablet ? 'text-[0.65vw] px-[0.6vw] py-[0.25vw]' : 'text-[0.8vw] px-[0.8vw] py-[0.35vw]'} rounded-[0.4vw] font-bold active:scale-95 transition-all shadow-sm`}
-                                style={{ backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4'), color: getLayoutColor('search-text-v1', '#575C9C'), filter: 'brightness(0.95)' }}
+                                style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                             >
                                 Reset
                             </button>
@@ -957,7 +959,7 @@ const Grid6Layout = ({
             <div
                 onMouseMove={(e) => setSidebarMousePos({ x: e.clientX, y: e.clientY })}
                 onMouseLeave={() => setSidebarMousePos(null)}
-                className={`absolute right-0 top-0 bottom-0 ${isTablet ? 'w-[3.5vw]' : (isFullscreen ? 'w-[5vw]' : 'w-[3.5vw]')} flex flex-col items-center ${addTextBelowIcons ? 'justify-start pt-[12vh] gap-[2.5vh]' : 'justify-evenly py-[6vh]'} z-[100] transition-all duration-500 ease-in-out shadow-[-2px_0_10px_rgba(0,0,0,0.08)] ${isFullscreen ? (!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-100 pointer-events-auto'}`}
+                className={`absolute right-0 top-0 bottom-0 ${isTablet ? 'w-[3.5vw]' : (isFullscreen ? 'w-[5vw]' : 'w-[3.5vw]')} flex flex-col items-center ${addTextBelowIcons ? 'justify-start pt-[12vh] gap-[2.5vh]' : 'justify-start pt-[12vh] gap-[4.5vh]'} z-[100] transition-all duration-500 ease-in-out shadow-[-2px_0_10px_rgba(0,0,0,0.08)] ${isFullscreen ? (!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-100 pointer-events-auto'}`}
                 style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}
             >
                 {(()  => {
