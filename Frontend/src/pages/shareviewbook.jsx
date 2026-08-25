@@ -942,8 +942,8 @@ const ShareViewBook = () => {
 
             {/* Right Sidebar UI Overlay */}
             <div
-                className={`fixed bg-white/90 backdrop-blur-md py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between z-[1500] cursor-grab active:cursor-grabbing transition-all duration-500 ease-in-out ${
-                    isDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : (draggerLeft < 5 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
+                className={`fixed bg-white/90 backdrop-blur-md py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between z-[1500] cursor-grab active:cursor-grabbing ${
+                    isDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerLeft < 5 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
                 }`}
                 style={{
                     top: draggerTop !== -1 ? `${draggerTop}px` : '50%',
@@ -967,13 +967,13 @@ const ShareViewBook = () => {
                     </>
                 )}
 
-                <div className="flex flex-col gap-[0.2vw] w-full items-center">
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => { setIsRatingsOpen(false); setIsBookInfoOpen(true); }} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                <div className="flex flex-col gap-[0.2vw] mt-[0.2vw] mb-[0.2vw] w-full items-center">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => { setIsRatingsOpen(false); setIsBookInfoOpen(true); }} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
                         <Icon icon="weui:info-outlined" className="w-[1.2vw] h-[1.2vw] text-[#2F296D]" />
                         <span className="text-[0.7vw] font-medium text-[#2F296D] text-center leading-tight">Book<br />Info</span>
                     </button>
                     <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsRatingsOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsRatingsOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
                         <div className="relative">
                             <Icon icon="iconamoon:star-light" className="w-[1.2vw] h-[1.2vw] text-yellow-500" />
                             <div className="absolute top-0 right-[-0.2vw] bg-[#34A853] rounded-full w-[0.8vw] h-[0.8vw] flex items-center justify-center border border-white">
@@ -986,12 +986,12 @@ const ShareViewBook = () => {
                         </div>
                     </button>
                     <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => { setIsRatingsOpen(false); setIsAddToShelfOpen(true); }} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => { setIsRatingsOpen(false); setIsAddToShelfOpen(true); }} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
                         <Icon icon="ri:book-shelf-line" className="w-[1.2vw] h-[1.2vw] text-[#2F296D] group-hover:scale-110 transition-transform" />
                         <span className="text-[0.7vw] font-medium text-[#2F296D] text-center leading-tight">Add to<br />Shelf</span>
                     </button>
                     <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => window.history.back()} className="flex flex-col items-center gap-[0.2vw] hover:bg-red-50 p-[0.4vw] rounded-xl group transition-all cursor-pointer mt-[0.2vw] w-full text-red-600">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => window.history.back()} className="flex flex-col items-center gap-[0.2vw] hover:bg-red-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer mt-[0.2vw] w-full text-red-600">
                         <Icon icon="lucide:log-out" className="w-[1vw] h-[1vw] transition-transform group-hover:scale-110" />
                         <span className="text-[0.7vw] font-medium text-center leading-tight">Exit</span>
                     </button>
