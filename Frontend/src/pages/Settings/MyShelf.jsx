@@ -177,16 +177,25 @@ const MyShelf = () => {
         // First, initialize folderMap with any existing folders from the profile
         const actualMyShelf = shelfRes.data?.myShelf || (fetchedProfile && fetchedProfile.myShelf);
         const folderDesignMap = {};
+        const bookToFolderMap = new Map();
+        
         if (actualMyShelf && actualMyShelf.folders) {
           actualMyShelf.folders.forEach(f => {
             const fName = f.folderName === 'My_Flipbooks' ? 'My Flipbooks' : (f.folderName || 'My Flipbooks');
             if (!folderMap[fName]) folderMap[fName] = [];
             folderDesignMap[fName] = f.shelf_design || 1;
+            
+            if (f.books && Array.isArray(f.books)) {
+              f.books.forEach(b => {
+                const v_id = typeof b === 'string' ? b : b.v_id;
+                if (v_id) bookToFolderMap.set(v_id, fName);
+              });
+            }
           });
         }
 
         formatted.forEach(b => {
-          let folderName = b.rawBook.folder || 'My Flipbooks';
+          let folderName = bookToFolderMap.get(b.v_id) || b.rawBook.folder || 'My Flipbooks';
           if (folderName === 'My_Flipbooks') {
             folderName = 'My Flipbooks';
           }
