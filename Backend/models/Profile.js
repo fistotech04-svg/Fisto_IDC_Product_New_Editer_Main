@@ -169,6 +169,21 @@ profileSchema.pre('save', function () {
   this.updatedAt = Date.now();
 });
 
+// Enforce order of properties in myShelf when converting to JSON
+profileSchema.set('toJSON', {
+  transform: (doc, ret) => {
+    if (ret.myShelf) {
+      // Create a new object with the desired order
+      const orderedMyShelf = {
+        shelfCount: ret.myShelf.shelfCount,
+        folders: ret.myShelf.folders
+      };
+      ret.myShelf = orderedMyShelf;
+    }
+    return ret;
+  }
+});
+
 const Profile = mongoose.model('Profile', profileSchema, 'Profiles');
 
 export default Profile;

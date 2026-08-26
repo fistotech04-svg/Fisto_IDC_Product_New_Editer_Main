@@ -317,7 +317,8 @@ router.post('/update-shelf-order', async (req, res) => {
     let targetFolder = folderName || 'My Flipbooks';
     let folder = profile.myShelf.folders.find(f => f.folderName === targetFolder);
     if (!folder) {
-      return res.status(404).json({ success: false, message: 'Folder not found' });
+      profile.myShelf.folders.push({ folderName: targetFolder, shelf_design: 1, books: [] });
+      folder = profile.myShelf.folders.find(f => f.folderName === targetFolder);
     }
 
     folder.books = bookIds.map((v_id, index) => ({
