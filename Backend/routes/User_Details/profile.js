@@ -1,9 +1,11 @@
 import express from 'express';
 import Profile from '../../models/Profile.js';
 import User from '../../models/auth.js';
+import Flipbook from '../../models/Flipbook.js';
 import { uploadBufferToSupabase, deleteFileFromSupabase, ensureUserFoldersInSupabase } from '../../config/supabase.js';
 import { logActivity } from '../../utils/activityLogger.js';
-
+import multer from 'multer';
+import path from 'path';
 const router = express.Router();
 
 const upload = multer({
@@ -124,6 +126,58 @@ router.get('/my-shelf-books', async (req, res) => {
       });
     }
 
+    const allBooks = await Flipbook.find({ v_id: { $in: bookIds } }).lean();
+    // Only show books on the shelf that are actually published, UNLESS they are owned by the current user
+    const userEmailNorm = emailId.trim().toLowerCase();
+    const books = allBooks.filter(b => (b.isPublished === true || b.isPublished === 'true') || (b.userEmail && b.userEmail.toLowerCase() === userEmailNorm));
+    
+    
+    const userEmails = [...new Set(books.map(b => b.userEmail?.toLowerCase()).filter(Boolean))];
+    const profiles = await Profile.find({ emailId: { $in: userEmails } }).lean();
+    const profileMap = {};
+    profiles.forEach(p => { profileMap[p.emailId.toLowerCase()] = p; });
+
+    const booksWithFlag = books.map(book => {
+      const p = profileMap[book.userEmail?.toLowerCase()] || {};
+      const authorName = p.name || (book.userEmail ? book.userEmail.split('@')[0] : 'Creator');
+      const city = p.city || p.state || (p.country && p.country !== 'INDIA' ? p.country : '') || 'Coimbatore';
+      const authorPicture = p.picture || null;
+      const authorBgColor = p.avatarBgColor || '#E8D4C8';
+      
+      return {
+        ...book,
+        isAddedToShelf: true,
+        authorName,
+        city,
+        authorPicture,
+        authorBgColor
+      };
+    });
+
+    res.json({
+      books: booksWithFlag,
+      myShelf: profile.myShelf || { folders: [] }
+    });
+  } catch (error) {
+    console.error('Error fetching my-shelf-books:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+// POST /api/profile
+// @desc    Create or update user profile
+router.post('/', async (req, res) => {
+  try {
+    const { emailId } = req.body;
+    if (!emailId) return res.status(400).json({ message: 'emailId is required' });
+    
+    const normalizedEmail = emailId.trim().toLowerCase();
+    const sanitizedEmail = normalizedEmail.replace(/[@.]/g, '_');
+    
+    let existingProfile = await Profile.findOne({ emailId: normalizedEmail });
+    let updateFields = { ...req.body };
+    delete updateFields._id;
+    
     // Convert and save banner to Profile folder in Supabase if base64, and delete old file if replaced
     if (req.body.bannerBg !== undefined) {
       let bBg = req.body.bannerBg;
@@ -186,30 +240,8 @@ router.get('/my-shelf-books', async (req, res) => {
       message: 'Profile saved successfully',
       profile: updatedProfile
     });
-
-    const booksWithFlag = books.map(book => {
-      const p = profileMap[book.userEmail?.toLowerCase()] || {};
-      const authorName = p.name || (book.userEmail ? book.userEmail.split('@')[0] : 'Creator');
-      const city = p.city || p.state || (p.country && p.country !== 'INDIA' ? p.country : '') || 'Coimbatore';
-      const authorPicture = p.picture || null;
-      const authorBgColor = p.avatarBgColor || '#E8D4C8';
-      
-      return {
-        ...book,
-        isAddedToShelf: true,
-        authorName,
-        city,
-        authorPicture,
-        authorBgColor
-      };
-    });
-
-    res.json({
-      books: booksWithFlag,
-      myShelf: profile.myShelf || { folders: [] }
-    });
   } catch (error) {
-    console.error('Error fetching my-shelf-books:', error);
+    console.error('Error saving profile:', error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });

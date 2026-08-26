@@ -129,7 +129,10 @@ const profileSchema = new mongoose.Schema({
     default: Date.now
   },
   myShelf: {
-    shelfCount: Number,
+    shelfCount: {
+      type: Number,
+      default: 1
+    },
     folders: [
       {
         _id:false,

@@ -24,7 +24,7 @@ import FlipbookAsset from "../../models/FlipbookAsset.js";
 import UserSettings from "../../models/UserSettings.js";
 import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
-import Profile from "../../models/Profile.js";
+
 import { exec } from "child_process";
 import { promisify } from "util";
 import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase, getFolderSizeFromSupabase, getSupabasePublicUrl } from "../../config/supabase.js";
@@ -2216,6 +2216,16 @@ router.post('/unpublish', async (req, res) => {
       return res.status(404).json({ message: "Flipbook not found" });
     }
 
+    // Remove from everyone's shelf
+    try {
+      await Profile.updateMany(
+        {},
+        { $pull: { "myShelf.folders.$[].books": { v_id: v_id } } }
+      );
+    } catch (shelfErr) {
+      console.error("Error removing unpublished flipbook from shelves:", shelfErr);
+    }
+
     // Log user activity
     logActivity({
       userEmail: emailId,
@@ -3197,6 +3207,18 @@ router.delete("/folder", async (req, res) => {
       userEmail: emailId,
       $or: [{ folderName: folderName }, { folderName: { $in: [folderName] } }]
     });
+
+    // Remove deleted books from everyone's shelf
+    if (bookVIds && bookVIds.length > 0) {
+      try {
+        await Profile.updateMany(
+          {},
+          { $pull: { "myShelf.folders.$[].books": { v_id: { $in: bookVIds } } } }
+        );
+      } catch (shelfErr) {
+        console.error("Error removing deleted folder books from shelves:", shelfErr);
+      }
+    }
 
     res.json({ message: "Deleted successfully" });
   } catch (err) {
