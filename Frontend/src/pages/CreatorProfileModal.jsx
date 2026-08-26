@@ -2,31 +2,39 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { resolveUploadsPath } from '../utils/supabaseUtils';
+import { resolveUploadsPath, getSupabaseBaseUrl } from '../utils/supabaseUtils';
 import p1 from '../assets/Explore/p1.png';
 import cover1 from '../assets/Explore/c-bg1.png';
 import cover2 from '../assets/Explore/c-bg2.png';
 import cover3 from '../assets/Explore/c-bg3.png';
 import cover4 from '../assets/Explore/c-bg4.png';
 import cover5 from '../assets/Explore/c-bg5.png';
+import bookShelf1 from '../assets/Bookshelf/Book_shelf1.webp';
+import textureScreen2 from '../assets/Bookshelf/classicwood/classic woodtexture.webp';
+import bookShelf2 from '../assets/Bookshelf/classicwood/classicwoodshelf.webp';
+import darkOakTex1 from '../assets/Bookshelf/Darkoak/texture_screen1.webp';
+import darkOakTex2 from '../assets/Bookshelf/Darkoak/texture_screen2.webp';
+import darkOakTex3 from '../assets/Bookshelf/Darkoak/texture_screen3.webp';
+import darkOakShelf from '../assets/Bookshelf/Darkoak/darkoakshelf.webp';
+import mwWall1 from '../assets/Bookshelf/modernwhite/wall1.webp';
 
 const covers = [cover1, cover2, cover3, cover4, cover5];
 
 const defaultColors = [
-  '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
-  '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
+    '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626',
+    '#7c3aed', '#db2777', '#0891b2', '#8a4419', '#597810'
 ];
 
 const getAvatarColor = (identifier, customColor) => {
-  if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
-    return customColor;
-  }
-  if (!identifier) return defaultColors[0];
-  let hash = 0;
-  for (let i = 0; i < identifier.length; i++) {
-    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return defaultColors[Math.abs(hash) % defaultColors.length];
+    if (customColor && customColor !== '#E8D4C8' && customColor !== '#ffffff' && customColor !== 'transparent') {
+        return customColor;
+    }
+    if (!identifier) return defaultColors[0];
+    let hash = 0;
+    for (let i = 0; i < identifier.length; i++) {
+        hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return defaultColors[Math.abs(hash) % defaultColors.length];
 };
 
 const defaultMockBooks = [
@@ -39,6 +47,87 @@ const defaultMockBooks = [
     { title: "Thinking, Fast and Slow 2", cover: cover2, pages: 28, views: '10.1k', rating: 4.5, description: '“Bring your content to life with a real, interactive experience”' },
     { title: "The Art of Spending Money 2", cover: cover3, pages: 30, views: '7.8k', rating: 4.6, description: '“Bring your content to life with a real, interactive experience”' },
 ];
+
+const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl }) => {
+    const containerRef = useRef(null);
+    const [html, setHtml] = useState(null);
+    const [loaded, setLoaded] = useState(false);
+    const [fetching, setFetching] = useState(false);
+
+    useEffect(() => {
+        if (!v_id || loaded) return;
+        const el = containerRef.current;
+        if (!el) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && !loaded && !fetching) {
+                    observer.disconnect();
+                    setFetching(true);
+                    axios
+                        .get(`${backendUrl}/api/flipbook/preview/${v_id}`, { params: { emailId } })
+                        .then((res) => {
+                            if (res.data?.html) {
+                                const fontsToLoad = new Set();
+                                const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+                                const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+                                let match;
+                                while ((match = cssRegex.exec(res.data.html)) !== null) {
+                                    let f = match[1] || match[2];
+                                    if (f) f = f.split(',')[0].replace(/['"]/g, '').trim();
+                                    if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+                                }
+                                while ((match = attrRegex.exec(res.data.html)) !== null) {
+                                    let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+                                    if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+                                }
+
+                                let fontImports = '';
+                                if (fontsToLoad.size > 0) {
+                                    const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
+                                    fontImports = `<link href="https://fonts.googleapis.com/css?family=${fontList}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`;
+                                }
+
+                                setHtml({ content: res.data.html, fontImports });
+                            }
+                        })
+                        .catch(() => { })
+                        .finally(() => { setFetching(false); setLoaded(true); });
+                }
+            },
+            { threshold: 0.1 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [v_id, loaded, fetching, backendUrl, emailId]);
+
+    const isLoading = !loaded || fetching;
+
+    return (
+        <div ref={containerRef} className="w-full h-full flex items-center justify-center relative bg-white overflow-hidden rounded-[3px]">
+            {isLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-[0.4vw] bg-[#E8E6E1] overflow-hidden border border-[#d5d2c9]">
+                    <Icon icon="eos-icons:loading" className="w-[1.5vw] h-[1.5vw] text-gray-400" />
+                </div>
+            )}
+
+            {html ? (
+                <iframe
+                    title={`Preview of ${title}`}
+                    className="w-full h-full border-none pointer-events-none object-fill"
+                    srcDoc={`<!DOCTYPE html><html><head>${html.fontImports}<base href="${iframeBaseUrl}"><style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:white;}svg{width:100%;height:100%;max-width:100%;max-height:100%;}[data-name="Free Frame"]{stroke:transparent !important;fill:transparent !important;}</style></head><body>${html.content.replace(/<svg/, '<svg preserveAspectRatio="none"')}</body></html>`}
+                />
+            ) : loaded && imageUrl ? (
+                <img src={resolveUploadsPath(imageUrl)} alt={title} className="w-full h-full object-fill bg-white" />
+            ) : loaded && !html ? (
+                <div className="flex flex-col items-center justify-center text-gray-400 w-full h-full bg-white border border-[#d5d2c9]">
+                    <Icon icon="mdi:book-open-blank-variant" className="w-[2vw] h-[2vw] text-gray-400 mb-1" />
+                    <span className="text-[0.7vw] font-medium leading-tight text-gray-500">No Preview</span>
+                </div>
+            ) : null}
+        </div>
+    );
+};
 
 const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -71,6 +160,8 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
         }
     };
 
+
+
     const isShareEnabled = (b) => {
         if (!b) return true;
         const target = b.rawBook || b;
@@ -89,10 +180,6 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
         const cs = target.Customized_Settings || target.settings || {};
         if (cs.MenuBar?.shareExport?.download !== undefined) return Boolean(cs.MenuBar.shareExport.download);
         if (cs.shareExport?.download !== undefined) return Boolean(cs.shareExport.download);
-        if (cs.Other_Setup?.shareExport?.download !== undefined) return Boolean(cs.Other_Setup.shareExport.download);
-        if (cs.ShareExport?.download !== undefined) return Boolean(cs.ShareExport.download);
-        if (target.shareExport?.download !== undefined) return Boolean(target.shareExport.download);
-        return true;
     };
 
     const canShare = isShareEnabled(book);
@@ -107,27 +194,27 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     ];
 
     return (
-        <div className="bg-white border border-gray-100 rounded-[0.7vw] overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300 shadow-[0_2px_8px_rgba(0,0,0,0.05)] relative group">
-            {/* Thumbnail Container */}
-            <div className="relative w-full aspect-[4/4] flex items-center justify-center cursor-pointer" onClick={handleOpen}>
+        <div className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100 relative group">
+            {/* Image Area Wrapper */}
+            <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden cursor-pointer" onClick={handleOpen}>
                 <img src={book.cover} alt={book.title || "Flipbook Cover"} className="w-full h-full object-cover" />
 
                 {/* Menu Button */}
-                <div 
-                    className={`absolute top-[0.5vw] right-[0.5vw] transition-opacity duration-200 ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} 
+                <div
+                    className={`absolute top-3 right-3 transition-opacity duration-200 ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                     ref={menuRef}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <button
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        className="bg-white/80 backdrop-blur-sm p-[0.15vw] rounded-[0.3vw] hover:bg-white text-gray-800 focus:outline-none transition-colors shadow-sm cursor-pointer"
+                        className="text-white hover:text-gray-200 bg-black/20 rounded-md p-0.5 transition-colors z-30 focus:outline-none"
                     >
-                        <svg className="w-[1vw] h-[1vw]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+                        <Icon icon="mdi:dots-vertical" className="w-5 h-5" />
                     </button>
 
                     {/* Dropdown Menu */}
                     {isMenuOpen && (
-                        <div className="absolute top-[110%] right-0 w-[8.5vw] bg-white rounded-[0.5vw] shadow-[0_8px_25px_rgb(0,0,0,0.12)] py-[0.8vh] z-20 border border-gray-100">
+                        <div className="absolute top-8 right-0 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-36 z-40">
                             {menuItems.map((menuItem, mIdx) => (
                                 <button
                                     key={mIdx}
@@ -137,10 +224,10 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
                                             handleOpen();
                                         }
                                     }}
-                                    className="w-[7.8vw] flex items-center mx-[0.35vw] gap-[0.6vw] px-[0.6vw] py-[0.6vh] transition-colors text-left rounded-md text-gray-600 hover:text-black hover:bg-gray-50 cursor-pointer"
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                                 >
-                                    <span className="transition-colors flex items-center justify-center">{menuItem.icon}</span>
-                                    <span className="text-[0.68vw] font-medium transition-colors">{menuItem.name}</span>
+                                    <span className="flex items-center justify-center text-gray-400 w-4 h-4">{menuItem.icon}</span>
+                                    {menuItem.name}
                                 </button>
                             ))}
                         </div>
@@ -149,65 +236,54 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
             </div>
 
             {/* Card Details */}
-            <div className="p-[0.8vw] flex flex-col flex-1 bg-white">
+            <div className="p-4 flex flex-col flex-1 bg-white">
                 {/* Author Info */}
-                <div className="flex items-center gap-[0.5vw]">
-                    {authorAvatar ? (
+                <div className="flex items-center gap-3">
+                    {book.authorPicture && book.authorPicture !== 'color_only' ? (
                         <img
-                            src={authorAvatar}
-                            alt={authorName}
-                            className="w-[2vw] h-[2vw] rounded-full border border-gray-200 object-cover shrink-0"
+                            src={book.authorPicture}
+                            alt={book.authorName}
+                            className="w-9 h-9 rounded-full border border-gray-200 object-cover shrink-0"
                         />
                     ) : (
-                        <div 
-                            className="w-[2vw] h-[2vw] rounded-full flex items-center justify-center text-white text-[0.9vw] font-bold shrink-0 shadow-inner"
-                            style={{ backgroundColor: avatarColor }}
+                        <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-inner"
+                            style={{ backgroundColor: book.authorBgColor || avatarColor }}
                         >
-                            {authorName ? authorName.charAt(0).toUpperCase() : 'U'}
+                            {(book.authorName || authorName || 'U').charAt(0).toUpperCase()}
                         </div>
                     )}
-                    <div className="flex flex-col min-w-0 pr-[0.4vw]">
-                        <span className="text-[0.75vw] font-semibold text-gray-900 leading-tight truncate">{authorName}</span>
-                        <span className="flex items-center gap-[0.2vw] text-[0.62vw] text-gray-400 mt-[0.1vh] truncate">
-                            <Icon icon="lucide:map-pin" className="w-[0.65vw] h-[0.65vw] text-gray-400 shrink-0" />
-                            <span className="truncate">{String(authorLocation).replace(/📍/g, '').trim()}</span>
+                    <div className="flex flex-col min-w-0 pr-1">
+                        <span className="text-sm font-semibold text-gray-900 leading-tight truncate">{book.authorName || authorName}</span>
+                        <span className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5 truncate">
+                            <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
+                            <span className="truncate">{String(book.location || authorLocation).replace(/📍/g, '').trim()}</span>
                         </span>
                     </div>
                 </div>
 
                 {/* Stats */}
-                <div className="flex items-center gap-[0.25vw] justify-start text-[0.65vw] text-gray-700 font-medium mt-[1vh] whitespace-nowrap">
-                    <div className="flex items-center gap-[0.25vw]">
-                        <span className="text-black font-semibold">{book.pages || 28}</span>
+                <div className="flex items-center gap-2 justify-start text-xs text-gray-700 font-medium mt-4 whitespace-nowrap">
+                    <div className="flex items-center gap-1">
+                        <span className="text-black font-semibold">{book.pages || 0}</span>
                         <span className="font-normal text-gray-500">Pages</span>
                     </div>
-                    <span className="text-gray-200">|</span>
-                    <span className="flex items-center gap-[0.25vw]">
-                        <svg className="w-[0.75vw] text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                        {book.views || '12.5k'}
+                    <span className="text-gray-300">|</span>
+                    <span className="flex items-center gap-1">
+                        <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
+                        {book.views || '1.2k'}
                     </span>
-                    <span className="text-gray-200">|</span>
-                    <span className="flex items-center gap-[0.25vw]">
-                        <svg className="w-[0.75vw] text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path></svg>
+                    <span className="text-gray-300">|</span>
+                    <span className="flex items-center gap-1">
+                        <Icon icon="material-symbols:star" className="w-4 h-4 text-yellow-400" />
                         {book.rating || 4.5}
                     </span>
                 </div>
 
                 {/* Title & Desc & Button */}
-                <div className="relative flex-1 mt-[0.8vh]">
-                    <div className="relative group/tt block max-w-full">
-                        <h4 className="text-[0.78vw] font-semibold text-black truncate tracking-tight pr-[1.8vw] cursor-default">
-                            {book.title || 'Name of the Flipbook'}
-                        </h4>
-                        {/* Hover Tooltip (TopToolbar style) */}
-                        <div className="absolute left-0 bottom-full mb-[0.35vw] hidden group-hover/tt:flex flex-col items-start pointer-events-none z-50 whitespace-nowrap max-w-[15vw]">
-                            <div className="bg-gray-900 text-white text-[0.62vw] font-medium px-[0.45vw] py-[0.2vw] rounded-[0.3vw] shadow-lg truncate max-w-full">
-                                {book.title || 'Name of the Flipbook'}
-                            </div>
-                            <div className="w-0 h-0 ml-[0.6vw] -mt-[0.2px] border-x-[0.25vw] border-x-transparent border-t-[0.25vw] border-t-gray-900" />
-                        </div>
-                    </div>
-                    <p className="text-[0.62vw] text-gray-500 leading-relaxed mt-[0.3vh] pr-[1.8vw] line-clamp-2">{book.description || '“Bring your content to life with a real, interactive experience”'}</p>
+                <div className="relative flex-1 mt-3">
+                    <h4 className="text-[15px] font-semibold text-black truncate tracking-tight mb-1" title={book.title}>{book.title || 'Flipbook'}</h4>
+                    <p className="text-[12px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
 
                     {/* Action Button */}
                     <button
@@ -215,9 +291,9 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
                             e.stopPropagation();
                             handleOpen();
                         }}
-                        className="absolute bottom-[0.2vw] right-[-0.2vw] bg-black text-white w-[1.6vw] h-[1.6vw] rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                        className="absolute bottom-0 right-0 bg-black text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
                     >
-                        <svg className="w-[1.2vw] h-[1.2vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 7l-10 10M17 7H8M17 7v9"></path></svg>
+                        <Icon icon="mdi:arrow-top-right" className="w-5 h-5" />
                     </button>
                 </div>
             </div>
@@ -244,7 +320,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                 const p = JSON.parse(storedProfile);
                 if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
             }
-        } catch (e) {}
+        } catch (e) { }
         return '';
     })();
     const [scrollProgress, setScrollProgress] = useState(0);
@@ -281,7 +357,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
             container.addEventListener('scroll', handleScroll, { passive: true });
         }
         handleScroll();
-        
+
         return () => {
             if (container) {
                 container.removeEventListener('scroll', handleScroll);
@@ -352,18 +428,42 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                         setProfileData(res.data.profile);
                     }
                     const rawBooks = res.data.books || [];
-                    const formatted = rawBooks.map((b, idx) => ({
-                        rawBook: b,
-                        v_id: b.v_id,
-                        shareId: b.Customized_Settings?.Visibility?.shareId || b.Visibility?.shareId || b.v_id,
-                        access: b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public',
-                        title: b.flipbookName || `Flipbook ${idx + 1}`,
-                        cover: covers[idx % covers.length],
-                        pages: b.pages?.length || 0,
-                        views: b.views || '1.2k',
-                        rating: b.rating || 4.5,
-                        description: b.Customized_Settings?.FlipbookInfo?.quotes || '“Bring your content to life with a real, interactive experience”'
-                    }));
+                    const formatted = rawBooks.map((b, idx) => {
+                        const isMyBook = b.userEmail && res.data.profile?.emailId && b.userEmail.toLowerCase() === res.data.profile.emailId.toLowerCase();
+
+                        let aName = b.authorName;
+                        let aPic = b.authorPicture;
+                        let aBg = b.authorBgColor;
+                        let aLoc = b.city || b.location;
+
+                        if (isMyBook && res.data.profile) {
+                            aName = aName || res.data.profile.name;
+                            aPic = aPic || (res.data.profile.picture !== 'color_only' ? res.data.profile.picture : null);
+                            aBg = aBg || res.data.profile.avatarBgColor;
+                            aLoc = aLoc || res.data.profile.city || res.data.profile.state;
+                        }
+
+                        aName = aName || (b.userEmail ? b.userEmail.split('@')[0] : 'Creator');
+                        aBg = aBg || '#4c5add';
+                        aLoc = aLoc || 'Coimbatore';
+
+                        return {
+                            rawBook: b,
+                            v_id: b.v_id,
+                            shareId: b.Customized_Settings?.Visibility?.shareId || b.Visibility?.shareId || b.v_id,
+                            access: b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public',
+                            title: b.flipbookName || b.title || `Flipbook ${idx + 1}`,
+                            cover: b.image || covers[idx % covers.length],
+                            pages: b.pages?.length || 0,
+                            views: b.views || '1.2k',
+                            rating: b.rating || 4.5,
+                            description: b.Customized_Settings?.FlipbookInfo?.quotes || b.quotes || '“Bring your content to life with a real, interactive experience”',
+                            authorName: aName,
+                            authorPicture: aPic,
+                            authorBgColor: aBg,
+                            location: aLoc
+                        };
+                    });
                     setBooksData(formatted);
                 }
             } catch (err) {
@@ -457,23 +557,23 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                             <Icon icon="mingcute:close-fill" className="w-[1vw] h-[1vw] text-gray-600" />
                         </button>
 
-                            {/* Overall Scroll Container */}
-                            <div id="creator-profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative overflow-y-auto no-scrollbar">
-                                {/* Dummy spacer to create 12vw scroll area */}
-                                <div style={{ height: `calc(100% + 12vw)` }} className="w-full absolute top-0 left-0 pointer-events-none z-[-1]"></div>
+                        {/* Overall Scroll Container */}
+                        <div id="creator-profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative overflow-y-auto no-scrollbar">
+                            {/* Dummy spacer to create 12vw scroll area */}
+                            <div style={{ height: `calc(100% + 12vw)` }} className="w-full absolute top-0 left-0 pointer-events-none z-[-1]"></div>
 
-                                {/* Sticky wrapper for actual content */}
-                                <div className="sticky top-0 h-full flex flex-col w-full min-h-0 pointer-events-auto">
+                            {/* Sticky wrapper for actual content */}
+                            <div className="sticky top-0 h-full flex flex-col w-full min-h-0 pointer-events-auto">
 
                                 {/* Banner */}
                                 <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0" style={{ height: `${12 - (6 * scrollProgress)}vw`, willChange: 'height' }}>
                                     {isLoading ? (
                                         <div className="absolute inset-0 rounded-[1vw] bg-gray-200 animate-pulse"></div>
                                     ) : (
-                                        <div 
-                                            className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden" 
-                                            style={{ 
-                                                height: `${12 - (6 * scrollProgress)}vw`, 
+                                        <div
+                                            className="absolute top-0 inset-x-0 rounded-[1vw] overflow-hidden"
+                                            style={{
+                                                height: `${12 - (6 * scrollProgress)}vw`,
                                                 willChange: 'height',
                                                 background: profileUser?.bannerBg?.type === 'solid' ? profileUser?.bannerBg?.value : undefined,
                                                 backgroundImage: (profileUser?.bannerBg?.type === 'gradient' || profileUser?.bannerBg?.type === 'media')
@@ -491,378 +591,536 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                 {/* Main Content Area */}
                                 <div className="flex flex-col md:flex-row relative gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]" style={{ marginTop: `${1 - 0.35 * scrollProgress}vw`, willChange: 'margin-top' }}>
 
-                            {/* Left Column (Avatar + Info) */}
-                            <div className="w-[19vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
-                                {/* Bottom Fade Shadow */}
-                                <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50 rounded-b-[1vw]"></div>
-                                
-                                <div className="flex flex-col items-center flex-1 min-h-0 z-[50] w-full">
+                                    {/* Left Column (Avatar + Info) */}
+                                    <div className="w-[19vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
+                                        {/* Bottom Fade Shadow */}
+                                        <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50 rounded-b-[1vw]"></div>
 
-                                    {/* Top border eraser for container */}
-                                    <div
-                                        className="absolute top-[-0.2vw] left-[calc(50%-6vw)] w-[12vw] h-[0.4vw] bg-white z-10 pointer-events-none"
-                                        style={{ transform: `scaleX(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center', willChange: 'transform' }}
-                                    ></div>
+                                        <div className="flex flex-col items-center flex-1 min-h-0 z-[50] w-full">
 
-                                    {/* Avatar Wrapper */}
-                                    <div 
-                                        className="relative flex justify-center items-center z-30 w-[9.6vw] h-[9.6vw] mt-[-4.8vw]"
-                                        style={{ transform: `scale(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center', willChange: 'transform' }}
-                                    >
-                                        {/* Left Smooth Corner */}
-                                        <svg className="absolute top-[2.55vw] -left-[0.8vw] w-[1.2vw] h-[1.6vw] z-10 pointer-events-none" viewBox="0 0 10 10">
-                                            <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
-                                        </svg>
-                                        {/* Right Smooth Corner */}
-                                        <svg className="absolute top-[2.55vw] -right-[0.8vw] w-[1.2vw] h-[1.6vw] z-10 pointer-events-none" viewBox="0 0 10 10">
-                                            <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
-                                        </svg>
-
-                                        <div className="w-full h-full rounded-full bg-white p-[0.64vw] relative flex items-center justify-center">
-                                            {/* Semi-circle border for the bottom half */}
+                                            {/* Top border eraser for container */}
                                             <div
-                                                className="absolute bottom-0 left-0 w-full h-[50%] border-b-2 border-l-2 border-r-2 border-gray-200 rounded-b-full pointer-events-none z-20"
-                                                style={{ clipPath: 'polygon(0 16%, 100% 16%, 100% 100%, 0 100%)' }}
+                                                className="absolute top-[-0.2vw] left-[calc(50%-6vw)] w-[12vw] h-[0.4vw] bg-white z-10 pointer-events-none"
+                                                style={{ transform: `scaleX(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center', willChange: 'transform' }}
                                             ></div>
 
-                                            <svg className="absolute bottom-[41.5%] -left-[0.88vw] w-[1.12vw] h-[0.88vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
-                                                <path d="M -7 0 L 0 0 A 10 10 0 0 1 10 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
-                                            </svg>
-                                            <svg className="absolute bottom-[41.5%] -right-[0.92vw] w-[1.12vw] h-[0.88vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
-                                                <path d="M 17 0 L 10 0 A 10 10 0 0 0 0 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
-                                            </svg>
-
-                                            {isLoading ? (
-                                                <div className="w-[8.56vw] h-[8.56vw] rounded-full bg-gray-200 animate-pulse shadow-inner z-10"></div>
-                                            ) : (
-                                                <div 
-                                                    className="w-[8.56vw] h-[8.56vw] rounded-full overflow-hidden relative shadow-inner z-10 flex items-center justify-center transition-colors duration-300"
-                                                    style={{ backgroundColor: (profileUser?.picture && profileUser?.picture !== 'color_only') ? '#ffffff' : getAvatarColor(profileUser?.name || profileUser?.email, profileUser?.avatarBgColor) }}
-                                                >
-                                                    {(profileUser?.picture && profileUser?.picture !== 'color_only') ? (
-                                                        <img src={profileUser?.picture.startsWith('blob:') || profileUser?.picture.startsWith('data:') ? profileUser?.picture : resolveUploadsPath(profileUser?.picture)} alt={profileUser?.name || "Profile Avatar"} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span className="text-white text-[3.2vw] font-bold drop-shadow-md">
-                                                            {profileUser?.name ? profileUser?.name.charAt(0).toUpperCase() : 'U'}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Action Buttons Container (Outside scaling avatar) */}
-                                    {/* Left Action Button (Follow) */}
-                                    {!isLoading && currentUserEmail && (profileUser?.emailId || profileUser?.email) && (profileUser.emailId || profileUser.email).toLowerCase() !== currentUserEmail.toLowerCase() && (
-                                        <div className="absolute top-[2.6vw] left-[0.4vw] z-40 flex items-center">
-                                            <button 
-                                                onClick={handleToggleFollowModal}
-                                                disabled={isFollowLoading}
-                                                className={`px-[0.3vw] py-[0.1vw] min-w-[5vw] rounded-full text-[0.85vw] font-medium transition-all cursor-pointer flex items-center justify-center gap-[0.2vw] ${
-                                                    profileUser?.isFollowing
-                                                        ? 'bg-white text-black border border-gray-200 shadow-sm hover:bg-gray-50'
-                                                        : 'bg-black text-white hover:bg-gray-800 shadow-sm'
-                                                }`}
+                                            {/* Avatar Wrapper */}
+                                            <div
+                                                className="relative flex justify-center items-center z-30 w-[9.6vw] h-[9.6vw] mt-[-4.8vw]"
+                                                style={{ transform: `scale(${1 - (0.30 * scrollProgress)})`, transformOrigin: 'center', willChange: 'transform' }}
                                             >
-                                                {isFollowLoading ? (
-                                                    <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
-                                                ) : profileUser?.isFollowing ? (
-                                                    <span>Unfollow</span>
-                                                ) : (
-                                                    <span>Follow</span>
-                                                )}
-                                            </button>
-                                        </div>
-                                    )}
+                                                {/* Left Smooth Corner */}
+                                                <svg className="absolute top-[2.55vw] -left-[0.8vw] w-[1.2vw] h-[1.6vw] z-10 pointer-events-none" viewBox="0 0 10 10">
+                                                    <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
+                                                </svg>
+                                                {/* Right Smooth Corner */}
+                                                <svg className="absolute top-[2.55vw] -right-[0.8vw] w-[1.2vw] h-[1.6vw] z-10 pointer-events-none" viewBox="0 0 10 10">
+                                                    <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
+                                                </svg>
 
-                                    {/* Right Action Button (Share) */}
-                                    {!isLoading && (
-                                        <div className="absolute top-[2.2vw] right-[0.4vw] z-40">
-                                            <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[0.9vw] font-semibold text-gray-700 cursor-pointer">
-                                                <Icon icon="ic:round-share" className="w-[1.1vw] h-[1.1vw]" /> Share
-                                            </button>
-                                        </div>
-                                    )}
+                                                <div className="w-full h-full rounded-full bg-white p-[0.64vw] relative flex items-center justify-center">
+                                                    {/* Semi-circle border for the bottom half */}
+                                                    <div
+                                                        className="absolute bottom-0 left-0 w-full h-[50%] border-b-2 border-l-2 border-r-2 border-gray-200 rounded-b-full pointer-events-none z-20"
+                                                        style={{ clipPath: 'polygon(0 16%, 100% 16%, 100% 100%, 0 100%)' }}
+                                                    ></div>
 
-                                    {/* Name & Email */}
-                                    {isLoading ? (
-                                        <div className="flex flex-col items-center mt-[0.8vw] gap-[0.4vw] w-full px-[1.5vw]">
-                                            <div className="h-[1.3vw] w-[10vw] bg-gray-200 rounded animate-pulse"></div>
-                                            <div className="h-[0.7vw] w-[8vw] bg-gray-100 rounded animate-pulse"></div>
-                                            <div className="h-[0.8vw] w-[9vw] bg-gray-100 rounded animate-pulse mt-[0.3vw]"></div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <h2 className="text-[1.3vw] font-bold text-gray-900 mt-[0.8vw] w-full px-[1.5vw] text-center truncate">{profileUser?.name || 'Creator'}</h2>
-                                            {profileUser?.email && (
-                                                <p className="text-[0.7vw] text-gray-400 px-[1.5vw] text-center truncate">{profileUser?.email}</p>
+                                                    <svg className="absolute bottom-[41.5%] -left-[0.88vw] w-[1.12vw] h-[0.88vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
+                                                        <path d="M -7 0 L 0 0 A 10 10 0 0 1 10 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+                                                    </svg>
+                                                    <svg className="absolute bottom-[41.5%] -right-[0.92vw] w-[1.12vw] h-[0.88vw] z-10 pointer-events-none overflow-visible" viewBox="0 0 10 10">
+                                                        <path d="M 17 0 L 10 0 A 10 10 0 0 0 0 10" fill="none" stroke="#e6e8ec" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+                                                    </svg>
+
+                                                    {isLoading ? (
+                                                        <div className="w-[8.56vw] h-[8.56vw] rounded-full bg-gray-200 animate-pulse shadow-inner z-10"></div>
+                                                    ) : (
+                                                        <div
+                                                            className="w-[8.56vw] h-[8.56vw] rounded-full overflow-hidden relative shadow-inner z-10 flex items-center justify-center transition-colors duration-300"
+                                                            style={{ backgroundColor: (profileUser?.picture && profileUser?.picture !== 'color_only') ? '#ffffff' : getAvatarColor(profileUser?.name || profileUser?.email, profileUser?.avatarBgColor) }}
+                                                        >
+                                                            {(profileUser?.picture && profileUser?.picture !== 'color_only') ? (
+                                                                <img src={profileUser?.picture.startsWith('blob:') || profileUser?.picture.startsWith('data:') ? profileUser?.picture : resolveUploadsPath(profileUser?.picture)} alt={profileUser?.name || "Profile Avatar"} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="text-white text-[3.2vw] font-bold drop-shadow-md">
+                                                                    {profileUser?.name ? profileUser?.name.charAt(0).toUpperCase() : 'U'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Action Buttons Container (Outside scaling avatar) */}
+                                            {/* Left Action Button (Follow) */}
+                                            {!isLoading && currentUserEmail && (profileUser?.emailId || profileUser?.email) && (profileUser.emailId || profileUser.email).toLowerCase() !== currentUserEmail.toLowerCase() && (
+                                                <div className="absolute top-[2.6vw] left-[0.4vw] z-40 flex items-center">
+                                                    <button
+                                                        onClick={handleToggleFollowModal}
+                                                        disabled={isFollowLoading}
+                                                        className={`px-[0.3vw] py-[0.1vw] min-w-[5vw] rounded-full text-[0.85vw] font-medium transition-all cursor-pointer flex items-center justify-center gap-[0.2vw] ${profileUser?.isFollowing
+                                                                ? 'bg-white text-black border border-gray-200 shadow-sm hover:bg-gray-50'
+                                                                : 'bg-black text-white hover:bg-gray-800 shadow-sm'
+                                                            }`}
+                                                    >
+                                                        {isFollowLoading ? (
+                                                            <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
+                                                        ) : profileUser?.isFollowing ? (
+                                                            <span>Unfollow</span>
+                                                        ) : (
+                                                            <span>Follow</span>
+                                                        )}
+                                                    </button>
+                                                </div>
                                             )}
-                                            {/* Followers & Following Stats */}
-                                            <div className="flex items-center justify-center gap-[1.2vw] mt-[0.6vw] w-full px-[1.5vw]">
-                                                <div className="flex items-center gap-[0.3vw]">
-                                                    <span className="text-[0.85vw] font-bold text-gray-900 leading-none">
-                                                        {profileUser?.followers?.length || 0}
-                                                    </span>
-                                                    <span className="text-[0.7vw] text-gray-500 font-medium leading-none">Followers</span>
-                                                </div>
-                                                <div className="w-[1px] h-[0.8vw] bg-gray-300"></div>
-                                                <div className="flex items-center gap-[0.3vw]">
-                                                    <span className="text-[0.85vw] font-bold text-gray-900 leading-none">
-                                                        {profileUser?.following?.length || 0}
-                                                    </span>
-                                                    <span className="text-[0.7vw] text-gray-500 font-medium leading-none">Following</span>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
 
-                                    {/* Info Sections */}
-                                    {isLoading ? (
-                                        <div className="w-full mt-[1.2vw] px-[1.5vw] pb-[2vw] flex flex-col gap-[1vw]">
-                                            <div className="space-y-[0.4vw]">
-                                                <div className="h-[0.85vw] w-[5vw] bg-gray-200 rounded animate-pulse"></div>
-                                                <div className="h-[0.7vw] w-full bg-gray-100 rounded animate-pulse"></div>
-                                                <div className="h-[0.7vw] w-4/5 bg-gray-100 rounded animate-pulse"></div>
-                                            </div>
-                                            <div className="space-y-[0.4vw] pt-[0.5vw]">
-                                                <div className="h-[0.85vw] w-[9vw] bg-gray-200 rounded animate-pulse"></div>
-                                                <div className="h-[0.7vw] w-3/4 bg-gray-100 rounded animate-pulse"></div>
-                                                <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded animate-pulse"></div>
-                                                <div className="h-[0.7vw] w-2/3 bg-gray-100 rounded animate-pulse"></div>
-                                            </div>
-                                            <div className="space-y-[0.4vw] pt-[0.5vw]">
-                                                <div className="h-[0.85vw] w-[6vw] bg-gray-200 rounded animate-pulse"></div>
-                                                <div className="h-[0.7vw] w-full bg-gray-100 rounded animate-pulse"></div>
-                                                <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded animate-pulse"></div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div id="left-scroll-container" className={`w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 min-h-0 no-scrollbar text-left rounded-b-[1vw] ${isChildScrollable ? 'overflow-y-auto' : 'overflow-hidden'}`}>
-                                            {/* About */}
-                                            <div className="px-[1.5vw] py-[0.8vw]">
-                                                <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                                                    <Icon icon="mdi:information" className="w-[1vw] h-[1vw] text-gray-600" /> About
-                                                </h3>
-                                                <p className="text-[0.75vw] text-gray-500 leading-relaxed whitespace-pre-wrap">
-                                                    {profileUser?.about || "“Bring your content to life with a real, interactive experience”"}
-                                                </p>
-                                            </div>
-
-                                            {/* Contact Number */}
-                                            {profileUser?.mobile ? (
-                                                <div className="px-[1.5vw] py-[0.8vw] bg-[#FAFAFA]">
-                                                    <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                                                        <Icon icon="ph:phone-call-fill" className="w-[1vw] h-[1vw] text-gray-600" /> Contact Number
-                                                    </h3>
-                                                    <p className="text-[0.75vw] text-gray-500">{profileUser?.mobile}</p>
+                                            {/* Right Action Button (Share) */}
+                                            {!isLoading && (
+                                                <div className="absolute top-[2.2vw] right-[0.4vw] z-40">
+                                                    <button className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vw] transition-colors text-[0.9vw] font-semibold text-gray-700 cursor-pointer">
+                                                        <Icon icon="ic:round-share" className="w-[1.1vw] h-[1.1vw]" /> Share
+                                                    </button>
                                                 </div>
-                                            ) : null}
+                                            )}
 
-                                            {/* Company Details */}
-                                            <div className="px-[1.5vw] py-[0.8vw]">
-                                                <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                                                    {profileUser?.companyLogo ? (
-                                                        <img src={profileUser.companyLogo} alt="Company Logo" className="w-[1.2vw] h-[1.2vw] object-contain rounded-[0.2vw]" />
-                                                    ) : (
-                                                        <Icon icon="mingcute:qrcode-2-fill" className="w-[1vw] h-[1vw] text-gray-600" />
+                                            {/* Name & Email */}
+                                            {isLoading ? (
+                                                <div className="flex flex-col items-center mt-[0.8vw] gap-[0.4vw] w-full px-[1.5vw]">
+                                                    <div className="h-[1.3vw] w-[10vw] bg-gray-200 rounded animate-pulse"></div>
+                                                    <div className="h-[0.7vw] w-[8vw] bg-gray-100 rounded animate-pulse"></div>
+                                                    <div className="h-[0.8vw] w-[9vw] bg-gray-100 rounded animate-pulse mt-[0.3vw]"></div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <h2 className="text-[1.3vw] font-bold text-gray-900 mt-[0.8vw] w-full px-[1.5vw] text-center truncate">{profileUser?.name || 'Creator'}</h2>
+                                                    {profileUser?.email && (
+                                                        <p className="text-[0.7vw] text-gray-400 px-[1.5vw] text-center truncate">{profileUser?.email}</p>
                                                     )}
-                                                    Company / Organization Details
-                                                </h3>
-                                                <div className="flex flex-col gap-[0.4vw]  gap-[0.3vw] text-[0.75vw]">
-                                                    <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">{profileUser?.companyName || 'Not specified'}</span></p>
-                                                    <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">{profileUser?.industryType || 'Not specified'}</span></p>
-                                                    <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">{profileUser?.companyEmail || profileUser?.email || 'Not specified'}</span></p>
-                                                    {profileUser?.website ? (
-                                                        <p><span className="font-semibold text-gray-700">Website :</span> <a href={profileUser?.website.startsWith('http') ? profileUser?.website : `https://${profileUser?.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">{profileUser?.website}</a></p>
-                                                    ) : (
-                                                        <p><span className="font-semibold text-gray-700">Website :</span> <span className="text-gray-500">Not specified</span></p>
-                                                    )}
-                                                    <p><span className="font-semibold text-gray-700">Services :</span> <span className="text-gray-500">{Array.isArray(profileUser?.services) && profileUser?.services.length > 0 ? profileUser?.services.join(', ') : (typeof profileUser?.services === 'string' && profileUser?.services ? profileUser?.services : 'Not specified')}</span></p>
-                                                </div>
-                                            </div>
+                                                    {/* Followers & Following Stats */}
+                                                    <div className="flex items-center justify-center gap-[1.2vw] mt-[0.6vw] w-full px-[1.5vw]">
+                                                        <div className="flex items-center gap-[0.3vw]">
+                                                            <span className="text-[0.85vw] font-bold text-gray-900 leading-none">
+                                                                {profileUser?.followers?.length || 0}
+                                                            </span>
+                                                            <span className="text-[0.7vw] text-gray-500 font-medium leading-none">Followers</span>
+                                                        </div>
+                                                        <div className="w-[1px] h-[0.8vw] bg-gray-300"></div>
+                                                        <div className="flex items-center gap-[0.3vw]">
+                                                            <span className="text-[0.85vw] font-bold text-gray-900 leading-none">
+                                                                {profileUser?.following?.length || 0}
+                                                            </span>
+                                                            <span className="text-[0.7vw] text-gray-500 font-medium leading-none">Following</span>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
 
-                                            {/* Address */}
-                                            {(profileUser?.address1 || profileUser?.address2 || profileUser?.city || profileUser?.state) ? (
-                                                <div className="px-[1.5vw] py-[0.8vw] bg-[#FAFAFA] rounded-b-[1vw]">
-                                                    <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
-                                                        <Icon icon="carbon:location-filled" className="w-[1vw] h-[1vw] text-gray-600" /> Address
-                                                    </h3>
-                                                    <div className="text-[0.75vw] flex flex-col gap-[0.3vw] text-gray-500">
-                                                        {profileUser?.address1 && <div>{profileUser?.address1}</div>}
-                                                        {profileUser?.address2 && <div>{profileUser?.address2}</div>}
-                                                        <div>{[profileUser?.city, profileUser?.state, profileUser?.pincode].filter(Boolean).join(', ')}</div>
-                                                        {profileUser?.country && <div>{profileUser?.country}</div>}
+                                            {/* Info Sections */}
+                                            {isLoading ? (
+                                                <div className="w-full mt-[1.2vw] px-[1.5vw] pb-[2vw] flex flex-col gap-[1vw]">
+                                                    <div className="space-y-[0.4vw]">
+                                                        <div className="h-[0.85vw] w-[5vw] bg-gray-200 rounded animate-pulse"></div>
+                                                        <div className="h-[0.7vw] w-full bg-gray-100 rounded animate-pulse"></div>
+                                                        <div className="h-[0.7vw] w-4/5 bg-gray-100 rounded animate-pulse"></div>
+                                                    </div>
+                                                    <div className="space-y-[0.4vw] pt-[0.5vw]">
+                                                        <div className="h-[0.85vw] w-[9vw] bg-gray-200 rounded animate-pulse"></div>
+                                                        <div className="h-[0.7vw] w-3/4 bg-gray-100 rounded animate-pulse"></div>
+                                                        <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded animate-pulse"></div>
+                                                        <div className="h-[0.7vw] w-2/3 bg-gray-100 rounded animate-pulse"></div>
+                                                    </div>
+                                                    <div className="space-y-[0.4vw] pt-[0.5vw]">
+                                                        <div className="h-[0.85vw] w-[6vw] bg-gray-200 rounded animate-pulse"></div>
+                                                        <div className="h-[0.7vw] w-full bg-gray-100 rounded animate-pulse"></div>
+                                                        <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded animate-pulse"></div>
                                                     </div>
                                                 </div>
-                                            ) : null}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Right Content Area */}
-                            <div className="flex-1 flex flex-col h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative overflow-hidden">
-                                {/* Bottom Fade Shadow */}
-                                <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50"></div>
-                                
-                                {/* Header */}
-                                {isLoading ? (
-                                    <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.7vw] px-[1vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
-                                        <div className="h-[1.2vw] w-[14vw] bg-gray-200 rounded animate-pulse"></div>
-                                        <div className="flex items-center gap-[1.5vw]">
-                                            <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
-                                            <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
-                                            <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="border border-gray-200 rounded-xl shadow-sm py-[0.8vw] px-[1.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
-                                        <h3 className="text-[0.95vw] font-semibold text-gray-900 whitespace-nowrap shrink-0">Published Flipbooks ({books.length})</h3>
-                                        
-                                        <div className="flex items-center gap-[2vw]">
-                                            {/* Stats */}
-                                            <div className="flex items-center gap-[1.5vw] text-[0.8vw] text-gray-500">
-                                                <div className="flex flex-col items-center justify-center">
-                                                    <div className="flex items-center gap-[0.4vw]">
-                                                        <Icon icon="bxs:book" className="w-[1vw] h-[1vw] text-gray-700" />
-                                                        <span className="font-semibold text-[0.9vw] text-gray-700">{books.length}</span>
+                                            ) : (
+                                                <div id="left-scroll-container" className={`w-full mt-[1vw] pb-[2vw] flex flex-col flex-1 min-h-0 no-scrollbar text-left rounded-b-[1vw] ${isChildScrollable ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+                                                    {/* About */}
+                                                    <div className="px-[1.5vw] py-[0.8vw]">
+                                                        <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
+                                                            <Icon icon="mdi:information" className="w-[1vw] h-[1vw] text-gray-600" /> About
+                                                        </h3>
+                                                        <p className="text-[0.75vw] text-gray-500 leading-relaxed whitespace-pre-wrap">
+                                                            {profileUser?.about || "“Bring your content to life with a real, interactive experience”"}
+                                                        </p>
                                                     </div>
-                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Books</span>
-                                                </div>
-                                                <div className="w-[1px] h-[1.5vw] bg-gray-200"></div>
-                                                <div className="flex flex-col items-center justify-center">
-                                                    <div className="flex items-center gap-[0.4vw]">
-                                                        <Icon icon="ph:star-fill" className="w-[1vw] h-[1vw] text-yellow-400" />
-                                                        <span className="font-semibold text-[0.9vw] text-gray-700">4.5</span>
-                                                    </div>
-                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Overall Ratings</span>
-                                                </div>
-                                                <div className="w-[1px] h-[1.5vw] bg-gray-200"></div>
-                                                <div className="flex flex-col items-center justify-center">
-                                                    <div className="flex items-center gap-[0.4vw]">
-                                                        <Icon icon="ph:eye-bold" className="w-[1vw] h-[1vw] text-gray-700" />
-                                                        <span className="font-semibold text-[0.9vw] text-gray-700">{books.length > 0 ? `${(books.length * 1.2).toFixed(1)}K` : '0'}</span>
-                                                    </div>
-                                                    <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Views</span>
-                                                </div>
-                                            </div>
 
-                                            {/* View Toggles */}
-                                            <div className="flex items-center gap-[0.5vw]">
-                                                <button 
-                                                    onClick={() => setViewMode('shelf')}
-                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
-                                                >
-                                                    <Icon icon="ph:books" className="w-[1vw] h-[1vw]" />
-                                                    <span className="text-[0.75vw] font-medium">Shelf View</span>
-                                                </button>
-                                                <button 
-                                                    onClick={() => setViewMode('list')}
-                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
-                                                >
-                                                    <Icon icon="ph:list-dashes-bold" className="w-[1vw] h-[1vw]" />
-                                                    <span className="text-[0.75vw] font-medium">List View</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                                    {/* Contact Number */}
+                                                    {profileUser?.mobile ? (
+                                                        <div className="px-[1.5vw] py-[0.8vw] bg-[#FAFAFA]">
+                                                            <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
+                                                                <Icon icon="ph:phone-call-fill" className="w-[1vw] h-[1vw] text-gray-600" /> Contact Number
+                                                            </h3>
+                                                            <p className="text-[0.75vw] text-gray-500">{profileUser?.mobile}</p>
+                                                        </div>
+                                                    ) : null}
 
-                                {/* Catalog Section */}
-                                <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] no-scrollbar ${isChildScrollable ? 'overflow-y-auto' : 'overflow-hidden'}`}>
-                                    {isLoading ? (
-                                        viewMode === 'shelf' ? (
-                                            <div className="flex flex-col gap-[3vw] pt-[1vw] bg-[#d5e0d8] rounded-[0.8vw] px-[2vw] pb-[3vw] border border-gray-200 inset-shadow-sm">
-                                                {[0, 1].map((shelfIdx) => (
-                                                    <div key={shelfIdx} className="relative w-full flex justify-around items-end pt-[3vw] border-b-[0.8vw] border-[#d4a373] shadow-[0_12px_15px_-5px_rgba(0,0,0,0.3)] bg-gradient-to-t from-[#e6ccb2] to-transparent">
-                                                        <div className="absolute bottom-[-0.8vw] left-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
-                                                        <div className="absolute bottom-[-0.8vw] right-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
-                                                        {[0, 1, 2, 3].map((bIdx) => (
-                                                            <div key={bIdx} className="relative w-[18%] flex justify-center z-10">
-                                                                <div className="w-full h-[14vw] bg-gray-300/80 rounded-r-[0.3vw] animate-pulse shadow-md"></div>
+                                                    {/* Company Details */}
+                                                    <div className="px-[1.5vw] py-[0.8vw]">
+                                                        <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
+                                                            {profileUser?.companyLogo ? (
+                                                                <img src={profileUser.companyLogo} alt="Company Logo" className="w-[1.2vw] h-[1.2vw] object-contain rounded-[0.2vw]" />
+                                                            ) : (
+                                                                <Icon icon="mingcute:qrcode-2-fill" className="w-[1vw] h-[1vw] text-gray-600" />
+                                                            )}
+                                                            Company / Organization Details
+                                                        </h3>
+                                                        <div className="flex flex-col gap-[0.4vw]  gap-[0.3vw] text-[0.75vw]">
+                                                            <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">{profileUser?.companyName || 'Not specified'}</span></p>
+                                                            <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">{profileUser?.industryType || 'Not specified'}</span></p>
+                                                            <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">{profileUser?.companyEmail || profileUser?.email || 'Not specified'}</span></p>
+                                                            {profileUser?.website ? (
+                                                                <p><span className="font-semibold text-gray-700">Website :</span> <a href={profileUser?.website.startsWith('http') ? profileUser?.website : `https://${profileUser?.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">{profileUser?.website}</a></p>
+                                                            ) : (
+                                                                <p><span className="font-semibold text-gray-700">Website :</span> <span className="text-gray-500">Not specified</span></p>
+                                                            )}
+                                                            <p><span className="font-semibold text-gray-700">Services :</span> <span className="text-gray-500">{Array.isArray(profileUser?.services) && profileUser?.services.length > 0 ? profileUser?.services.join(', ') : (typeof profileUser?.services === 'string' && profileUser?.services ? profileUser?.services : 'Not specified')}</span></p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Address */}
+                                                    {(profileUser?.address1 || profileUser?.address2 || profileUser?.city || profileUser?.state) ? (
+                                                        <div className="px-[1.5vw] py-[0.8vw] bg-[#FAFAFA] rounded-b-[1vw]">
+                                                            <h3 className="flex items-center gap-[0.5vw] text-[0.85vw] font-semibold text-gray-700 mb-[0.5vw]">
+                                                                <Icon icon="carbon:location-filled" className="w-[1vw] h-[1vw] text-gray-600" /> Address
+                                                            </h3>
+                                                            <div className="text-[0.75vw] flex flex-col gap-[0.3vw] text-gray-500">
+                                                                {profileUser?.address1 && <div>{profileUser?.address1}</div>}
+                                                                {profileUser?.address2 && <div>{profileUser?.address2}</div>}
+                                                                <div>{[profileUser?.city, profileUser?.state, profileUser?.pincode].filter(Boolean).join(', ')}</div>
+                                                                {profileUser?.country && <div>{profileUser?.country}</div>}
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                ))}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Right Content Area */}
+                                    <div className="flex-1 flex flex-col h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative overflow-hidden">
+                                        {/* Bottom Fade Shadow */}
+                                        <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50"></div>
+
+                                        {/* Header */}
+                                        {isLoading ? (
+                                            <div className="border border-gray-100 rounded-[0.6vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] py-[0.7vw] px-[1vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
+                                                <div className="h-[1.2vw] w-[14vw] bg-gray-200 rounded animate-pulse"></div>
+                                                <div className="flex items-center gap-[1.5vw]">
+                                                    <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
+                                                    <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
+                                                    <div className="h-[1.5vw] w-[5vw] bg-gray-100 rounded animate-pulse"></div>
+                                                </div>
                                             </div>
                                         ) : (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[0.8vw]">
-                                                {[0, 1, 2, 3, 4, 5, 6, 7].map((sIdx) => (
-                                                    <div key={sIdx} className="bg-white border border-gray-200 rounded-[0.8vw] p-[0.6vw] flex flex-col gap-[0.5vw] shadow-sm animate-pulse">
-                                                        <div className="w-full h-[12vw] bg-gray-200 rounded-[0.5vw]"></div>
-                                                        <div className="h-[0.9vw] w-3/4 bg-gray-200 rounded mt-[0.2vw]"></div>
-                                                        <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded"></div>
-                                                        <div className="flex items-center gap-[0.4vw] mt-[0.3vw] pt-[0.4vw] border-t border-gray-100">
-                                                            <div className="w-[1.6vw] h-[1.6vw] rounded-full bg-gray-200 shrink-0"></div>
-                                                            <div className="flex flex-col gap-[0.2vw] flex-1">
-                                                                <div className="h-[0.6vw] w-2/3 bg-gray-200 rounded"></div>
-                                                                <div className="h-[0.5vw] w-1/3 bg-gray-100 rounded"></div>
+                                            <div className="border border-gray-200 rounded-xl shadow-sm py-[0.8vw] px-[1.5vw] flex items-center justify-between shrink-0 mb-[1vw] bg-white mt-[1vw] mr-[1vw] ml-[1vw]">
+                                                <h3 className="text-[0.95vw] font-semibold text-gray-900 whitespace-nowrap shrink-0">Published Flipbooks ({books.length})</h3>
+
+                                                <div className="flex items-center gap-[2vw]">
+                                                    {/* Stats */}
+                                                    <div className="flex items-center gap-[1.5vw] text-[0.8vw] text-gray-500">
+                                                        <div className="flex flex-col items-center justify-center">
+                                                            <div className="flex items-center gap-[0.4vw]">
+                                                                <Icon icon="bxs:book" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                                <span className="font-semibold text-[0.9vw] text-gray-700">{books.length}</span>
+                                                            </div>
+                                                            <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Books</span>
+                                                        </div>
+                                                        <div className="w-[1px] h-[1.5vw] bg-gray-200"></div>
+                                                        <div className="flex flex-col items-center justify-center">
+                                                            <div className="flex items-center gap-[0.4vw]">
+                                                                <Icon icon="ph:star-fill" className="w-[1vw] h-[1vw] text-yellow-400" />
+                                                                <span className="font-semibold text-[0.9vw] text-gray-700">4.5</span>
+                                                            </div>
+                                                            <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Overall Ratings</span>
+                                                        </div>
+                                                        <div className="w-[1px] h-[1.5vw] bg-gray-200"></div>
+                                                        <div className="flex flex-col items-center justify-center">
+                                                            <div className="flex items-center gap-[0.4vw]">
+                                                                <Icon icon="ph:eye-bold" className="w-[1vw] h-[1vw] text-gray-700" />
+                                                                <span className="font-semibold text-[0.9vw] text-gray-700">{books.length > 0 ? `${(books.length * 1.2).toFixed(1)}K` : '0'}</span>
+                                                            </div>
+                                                            <span className="text-[0.6vw] text-gray-500 mt-[0.2vh] whitespace-nowrap">Total Views</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* View Toggles */}
+                                                    <div className="flex items-center gap-[0.5vw]">
+                                                        <button
+                                                            onClick={() => setViewMode('shelf')}
+                                                            className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                        >
+                                                            <Icon icon="ph:books" className="w-[1vw] h-[1vw]" />
+                                                            <span className="text-[0.75vw] font-medium">Shelf View</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setViewMode('list')}
+                                                            className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                        >
+                                                            <Icon icon="ph:list-dashes-bold" className="w-[1vw] h-[1vw]" />
+                                                            <span className="text-[0.75vw] font-medium">List View</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Catalog Section */}
+                                        <div id="main-scroll-container" className={`flex-1 px-[1.5vw] pb-[2vw] no-scrollbar ${isChildScrollable ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+                                            {(() => {
+                                                let displayBooks = books;
+                                                let activeShelfStyle = 'customize1';
+                                                let myFlipbooksFolder = null;
+
+                                                if (profileData?.myShelf?.folders) {
+                                                    myFlipbooksFolder = profileData.myShelf.folders.find(f => f.folderName === 'My Flipbooks' || f.folderName === 'My_Flipbooks');
+                                                    if (myFlipbooksFolder) {
+                                                        const designId = myFlipbooksFolder.shelf_design || 1;
+                                                        if (designId === 2) activeShelfStyle = 'customize2';
+                                                        else if (designId === 3) activeShelfStyle = 'customize3';
+                                                    }
+                                                }
+
+                                                if (myFlipbooksFolder && myFlipbooksFolder.books) {
+                                                    const shelfBooksOrder = new Map();
+                                                    myFlipbooksFolder.books.forEach(b => {
+                                                        const v_id = typeof b === 'string' ? b : b.v_id;
+                                                        if (v_id) shelfBooksOrder.set(v_id, b);
+                                                    });
+                                                    displayBooks = books.filter(b => shelfBooksOrder.has(b.v_id));
+                                                    displayBooks.sort((a, b) => {
+                                                        const aOrder = shelfBooksOrder.get(a.v_id);
+                                                        const bOrder = shelfBooksOrder.get(b.v_id);
+                                                        if (aOrder.row !== bOrder.row) return aOrder.row - bOrder.row;
+                                                        return aOrder.order - bOrder.order;
+                                                    });
+                                                }
+
+                                                const getShelfAssets = (style) => {
+                                                    const bookCount = displayBooks.length;
+                                                    const calculatedRowCount = Math.max(3, Math.ceil(bookCount / 6));
+
+                                                    switch (style) {
+                                                        case 'customize1':
+                                                            return {
+                                                                type: 'rows',
+                                                                bg: mwWall1,
+                                                                rowAsset: bookShelf1,
+                                                                rowCount: calculatedRowCount,
+                                                                bgStretch: false,
+                                                                noZone: true,
+                                                                padding: 'px-6',
+                                                                topOffset: 6,
+                                                                spacing: 32,
+                                                                bookWidth: '11.5%',
+                                                                bookStyle: { bottom: '21%', padding: '0 14%' }
+                                                            };
+                                                        case 'customize2':
+                                                            return {
+                                                                type: 'rows',
+                                                                bg: textureScreen2,
+                                                                rowAsset: bookShelf2,
+                                                                rowCount: calculatedRowCount,
+                                                                bgStretch: true,
+                                                                noZone: true,
+                                                                padding: 'px-0',
+                                                                rowPadding: '0 1.5%',
+                                                                topOffset: 29.7,
+                                                                spacing: 32.15,
+                                                                bookWidth: '13%',
+                                                                bookStyle: { bottom: '76%', padding: '0 10%' }
+                                                            };
+                                                        case 'customize3':
+                                                            return {
+                                                                type: 'rows',
+                                                                bg: [darkOakTex1, darkOakTex2, darkOakTex3],
+                                                                rowAsset: darkOakShelf,
+                                                                rowCount: calculatedRowCount,
+                                                                bgStretch: false,
+                                                                noZone: true,
+                                                                padding: 'px-0',
+                                                                rowPadding: '0 4%',
+                                                                topOffset: 5,
+                                                                spacing: 33,
+                                                                bookWidth: '14%',
+                                                                bookStyle: { bottom: '15%', padding: '0 7%' }
+                                                            };
+                                                        default:
+                                                            return {
+                                                                type: 'rows',
+                                                                bg: mwWall1,
+                                                                rowAsset: bookShelf1,
+                                                                rowCount: calculatedRowCount,
+                                                                bgStretch: false,
+                                                                noZone: true,
+                                                                padding: 'px-6',
+                                                                topOffset: 6,
+                                                                spacing: 32,
+                                                                bookWidth: '11.5%',
+                                                                bookStyle: { bottom: '21%', padding: '0 14%' }
+                                                            };
+                                                    }
+                                                };
+
+
+
+                                                const activeAssets = getShelfAssets(activeShelfStyle);
+                                                const bookCount = displayBooks.length;
+                                                const globalRowCount = Math.max(3, Math.ceil(bookCount / 6));
+
+                                                const BASE_VW = 48; // Base height reference to fit ~2.5 rows in view
+                                                const containerHeightVw = ((activeAssets.topOffset ?? 6) + (globalRowCount * (activeAssets.spacing ?? 32))) * BASE_VW / 100;
+
+                                                const getTopVw = (i) => {
+                                                    const spacing = activeAssets.spacing ?? 32;
+                                                    const topOffset = activeAssets.topOffset ?? 6;
+                                                    let offsetPercent = topOffset + (i * spacing);
+                                                    if (activeShelfStyle === 'customize2' && i !== activeAssets.rowCount - 1) {
+                                                        offsetPercent -= 3.5;
+                                                    }
+                                                    return (offsetPercent * BASE_VW) / 100;
+                                                };
+
+                                                return isLoading ? (
+                                                    viewMode === 'shelf' ? (
+                                                        <div className="flex flex-col gap-[3vw] pt-[1vw] bg-[#d5e0d8] rounded-[0.8vw] px-[2vw] pb-[3vw] border border-gray-200 inset-shadow-sm">
+                                                            {[0, 1].map((shelfIdx) => (
+                                                                <div key={shelfIdx} className="relative w-full flex justify-around items-end pt-[3vw] border-b-[0.8vw] border-[#d4a373] shadow-[0_12px_15px_-5px_rgba(0,0,0,0.3)] bg-gradient-to-t from-[#e6ccb2] to-transparent">
+                                                                    <div className="absolute bottom-[-0.8vw] left-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
+                                                                    <div className="absolute bottom-[-0.8vw] right-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
+                                                                    {[0, 1, 2, 3].map((bIdx) => (
+                                                                        <div key={bIdx} className="relative w-[18%] flex justify-center z-10">
+                                                                            <div className="w-full h-[14vw] bg-gray-300/80 rounded-r-[0.3vw] animate-pulse shadow-md"></div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[0.8vw]">
+                                                            {[0, 1, 2, 3, 4, 5, 6, 7].map((sIdx) => (
+                                                                <div key={sIdx} className="bg-white border border-gray-200 rounded-[0.8vw] p-[0.6vw] flex flex-col gap-[0.5vw] shadow-sm animate-pulse">
+                                                                    <div className="w-full h-[12vw] bg-gray-200 rounded-[0.5vw]"></div>
+                                                                    <div className="h-[0.9vw] w-3/4 bg-gray-200 rounded mt-[0.2vw]"></div>
+                                                                    <div className="h-[0.7vw] w-1/2 bg-gray-100 rounded"></div>
+                                                                    <div className="flex items-center gap-[0.4vw] mt-[0.3vw] pt-[0.4vw] border-t border-gray-100">
+                                                                        <div className="w-[1.6vw] h-[1.6vw] rounded-full bg-gray-200 shrink-0"></div>
+                                                                        <div className="flex flex-col gap-[0.2vw] flex-1">
+                                                                            <div className="h-[0.6vw] w-2/3 bg-gray-200 rounded"></div>
+                                                                            <div className="h-[0.5vw] w-1/3 bg-gray-100 rounded"></div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )
+                                                ) : displayBooks.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center py-[8vh] text-gray-400">
+                                                        <Icon icon="ph:book-open" className="w-[3vw] h-[3vw] text-gray-300 mb-[1vh]" />
+                                                        <span className="text-[1vw] font-medium text-gray-600">No published flipbooks in shelf yet</span>
+                                                        <span className="text-[0.75vw] text-gray-400 mt-[0.3vh]">This creator hasn't published any flipbooks to explore.</span>
+                                                    </div>
+                                                ) : viewMode === 'shelf' ? (
+                                                    <div
+                                                        className="w-full rounded-[0.8vw] bg-white shadow-inner overflow-hidden flex flex-col"
+                                                        style={{
+                                                            height: `${containerHeightVw}vw`,
+                                                            minHeight: `${containerHeightVw}vw`
+                                                        }}
+                                                    >
+                                                        <div
+                                                            className="relative flex-1 w-full bg-top rounded-[0.8vw]"
+                                                            style={{
+                                                                backgroundImage: (!Array.isArray(activeAssets.bg) && activeAssets.bg) ? `url('${activeAssets.bg}')` : 'none',
+                                                                backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
+                                                                backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
+                                                            }}
+                                                        >
+                                                            {Array.isArray(activeAssets.bg) && (
+                                                                <div className="absolute inset-0 flex flex-col rounded-[0.8vw] overflow-hidden pointer-events-none">
+                                                                    {Array.from({ length: activeAssets.rowCount }, (_, i) => (
+                                                                        <div
+                                                                            key={i}
+                                                                            className="w-full flex-1 bg-center"
+                                                                            style={{
+                                                                                backgroundImage: `url('${activeAssets.bg[i % activeAssets.bg.length]}')`,
+                                                                                backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
+                                                                                backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
+                                                                                backgroundPosition: 'center',
+                                                                            }}
+                                                                        />
+                                                                    ))}
+                                                                </div>
+                                                            )}
+
+                                                            <div className="absolute inset-0 w-full h-full">
+                                                                {Array.from({ length: activeAssets.rowCount }, (_, i) => (
+                                                                    <div
+                                                                        key={i}
+                                                                        className={`absolute left-0 w-full`}
+                                                                        style={{
+                                                                            top: `${getTopVw(i)}vw`,
+                                                                            padding: activeAssets.rowPadding || (activeAssets.padding || '0 3vw')
+                                                                        }}
+                                                                    >
+                                                                        {!(activeShelfStyle === 'customize2' && i === activeAssets.rowCount - 1) && (
+                                                                            <img src={activeAssets.rowAsset} alt="Shelf" className="w-full h-auto drop-shadow-lg" />
+                                                                        )}
+                                                                        <div
+                                                                            className="absolute inset-0 flex justify-between items-end"
+                                                                            style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
+                                                                        >
+                                                                            {(displayBooks.slice(i * 6, (i + 1) * 6) || []).map((book, bIdx) => {
+                                                                                const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
+                                                                                const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
+                                                                                const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
+                                                                                const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+
+                                                                                return (
+                                                                                    <div
+                                                                                        key={book.v_id || bIdx}
+                                                                                        className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                        style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                                        onClick={() => handleOpenBook(book)}
+                                                                                    >
+                                                                                        <div className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden">
+                                                                                            <LazyPreview
+                                                                                                v_id={book.v_id}
+                                                                                                emailId={book.rawBook?.userEmail || currentUserEmail}
+                                                                                                backendUrl={backendUrl}
+                                                                                                iframeBaseUrl={basePath}
+                                                                                                title={book.title}
+                                                                                                imageUrl={null}
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         </div>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )
-                                    ) : books.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center py-[8vh] text-gray-400">
-                                            <Icon icon="ph:book-open" className="w-[3vw] h-[3vw] text-gray-300 mb-[1vh]" />
-                                            <span className="text-[1vw] font-medium text-gray-600">No published flipbooks yet</span>
-                                            <span className="text-[0.75vw] text-gray-400 mt-[0.3vh]">This creator hasn't published any flipbooks to explore.</span>
-                                        </div>
-                                    ) : viewMode === 'shelf' ? (
-                                        <div className="flex flex-col gap-[3vw] pt-[1vw] bg-[#d5e0d8] rounded-[0.8vw] px-[2vw] pb-[3vw] border border-gray-200 inset-shadow-sm">
-                                            {Array.from({ length: Math.ceil(books.length / 4) }).map((_, rowIndex) => (
-                                                <div key={rowIndex} className="relative w-full flex justify-around items-end pt-[3vw] border-b-[0.8vw] border-[#d4a373] shadow-[0_12px_15px_-5px_rgba(0,0,0,0.3)] bg-gradient-to-t from-[#e6ccb2] to-transparent">
-                                                    {/* Shelf Supports */}
-                                                    <div className="absolute bottom-[-0.8vw] left-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
-                                                    <div className="absolute bottom-[-0.8vw] right-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
-                                                    
-                                                    {books.slice(rowIndex * 4, rowIndex * 4 + 4).map((book, idx) => (
-                                                        <div 
-                                                            key={idx} 
-                                                            onClick={() => handleOpenBook(book)}
-                                                            className="relative w-[18%] flex justify-center cursor-pointer group z-10 transition-transform duration-300 hover:translate-y-[-0.5vw]"
-                                                        >
-                                                            <img
-                                                                src={book.cover}
-                                                                alt={book.title}
-                                                                className="w-full h-auto object-contain drop-shadow-[10px_5px_10px_rgba(0,0,0,0.3)] rounded-r-[0.3vw]"
+                                                ) : (
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[1.2vw]">
+                                                        {displayBooks.map((book, idx) => (
+                                                            <CreatorFlipbookCard
+                                                                key={idx}
+                                                                book={book}
+                                                                creator={profileUser}
+                                                                onOpenBook={handleOpenBook}
                                                             />
-                                                            <div className="absolute top-[30%] right-[-1.5vw] flex-col gap-[0.3vw] opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button 
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleOpenBook(book);
-                                                                    }}
-                                                                    className="bg-white rounded-full p-[0.3vw] shadow-md hover:bg-gray-100 flex items-center justify-center cursor-pointer"
-                                                                >
-                                                                    <Icon icon="ph:book-open" className="w-[1vw] h-[1vw] text-gray-700" />
-                                                                </button>
-                                                                <button className="bg-gray-900 rounded-full p-[0.3vw] shadow-md mt-[0.5vw] hover:bg-gray-800 flex items-center justify-center cursor-pointer">
-                                                                    <Icon icon="mdi:information-variant" className="w-[1vw] h-[1vw] text-white" />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ))}
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[0.8vw]">
-                                            {books.map((book, idx) => (
-                                                <CreatorFlipbookCard 
-                                                    key={idx} 
-                                                    book={book} 
-                                                    creator={profileUser} 
-                                                    onOpenBook={handleOpenBook}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
+                                    </div>
                                 </div>
                             </div>
-                            </div>
-                        </div>
                         </div>
                     </motion.div>
                 </div>

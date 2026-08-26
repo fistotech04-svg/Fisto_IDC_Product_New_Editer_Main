@@ -19,7 +19,6 @@ const AttachedCurve = ({ position }) => {
     height: '1vw',
     pointerEvents: 'none',
     overflow: 'hidden',
-    zIndex: 1998,
     ...(isTop ? { top: '-1vw' } : { bottom: '-1vw' }),
     ...(isLeft ? { left: '0vw' } : { right: '0.25vw' }),
   };
@@ -306,20 +305,28 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
   // Initialize position relative to container once available
   useEffect(() => {
     if (containerRef.current && draggerTabLeft === -1) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const draggerWidth = (window.innerWidth * 3.2) / 100;
-      setDraggerTabLeft(rect.width - draggerWidth);
+      const draggerWidth = (window.innerWidth * 4) / 100;
+      setDraggerTabLeft(window.innerWidth - draggerWidth);
     }
   }, [draggerTabLeft]);
 
   const handleDraggerMouseDown = (e) => {
+    e.preventDefault();
     setIsDraggerDragging(true);
     draggerHasMovedRef.current = false;
+    
+    const draggerWidth = (window.innerWidth * 4) / 100;
+    let currentLeft = draggerTabLeft;
+    if (draggerTabLeft < 5) currentLeft = 0;
+    else if (draggerTabLeft >= 10) currentLeft = window.innerWidth - draggerWidth;
+    
+    setDraggerTabLeft(currentLeft);
+    
+    const rect = e.currentTarget.getBoundingClientRect();
     draggerOffsetRef.current = {
-      x: e.clientX - draggerTabLeft,
-      y: e.clientY - draggerTabTop
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     };
-    e.preventDefault();
   };
 
   useEffect(() => {
@@ -329,10 +336,10 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
       const rect = containerRef.current.getBoundingClientRect();
       const newTop = e.clientY - rect.top - draggerOffsetRef.current.y;
       const newLeft = e.clientX - rect.left - draggerOffsetRef.current.x;
-      const draggerWidth = (window.innerWidth * 3.2) / 100;
+      const draggerWidth = (window.innerWidth * 4) / 100;
       const draggerHeight = isDraggerExpanded ? (window.innerWidth * 14) / 100 : draggerWidth;
       setDraggerTabTop(Math.max(0, Math.min(newTop, rect.height - draggerHeight)));
-      setDraggerTabLeft(Math.max(0, Math.min(newLeft, rect.width - draggerWidth)));
+      setDraggerTabLeft(Math.max(0, Math.min(newLeft, window.innerWidth - draggerWidth)));
     };
 
     const handleMouseUp = () => {
@@ -341,13 +348,12 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         if (!draggerHasMovedRef.current) {
           setIsDraggerExpanded(prev => !prev);
         } else {
-          const rect = containerRef.current.getBoundingClientRect();
-          const draggerWidth = (window.innerWidth * 3.2) / 100;
-          const midpoint = rect.width / 2;
+          const draggerWidth = (window.innerWidth * 4) / 100;
+          const midpoint = window.innerWidth / 2;
           if (draggerTabLeft + draggerWidth / 2 < midpoint) {
             setDraggerTabLeft(0);
           } else {
-            setDraggerTabLeft(rect.width - draggerWidth);
+            setDraggerTabLeft(window.innerWidth - draggerWidth);
           }
         }
       }
@@ -357,8 +363,8 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       setDraggerTabLeft(prev => {
-        const draggerWidth = (window.innerWidth * 3.2) / 100;
-        if (prev > rect.width / 2) return rect.width - draggerWidth;
+        const draggerWidth = (window.innerWidth * 4) / 100;
+        if (prev > window.innerWidth / 2) return window.innerWidth - draggerWidth;
         return 0;
       });
     };
@@ -441,17 +447,17 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             {/* Persistent vertical line on the stuck edge */}
             {!isDraggerDragging && containerRef.current && (
               <div
-                className="absolute top-0 w-[0.25vw] h-full bg-black z-[1999] pointer-events-none transition-all duration-300"
+                className="fixed top-0 w-[0.25vw] h-full bg-black z-[1999] pointer-events-none transition-all duration-500 ease-in-out"
                 style={{
                   left: draggerTabLeft < 5 ? '0' : 'auto',
-                  right: draggerTabLeft > (containerRef.current.offsetWidth - (window.innerWidth * 3.2) / 100 - 5) ? '0' : 'auto',
-                  opacity: (draggerTabLeft < 5 || draggerTabLeft > (containerRef.current.offsetWidth - (window.innerWidth * 3.2) / 100 - 5)) ? 1 : 0
+                  right: draggerTabLeft >= 10 ? '0' : 'auto',
+                  opacity: (draggerTabLeft < 5 || draggerTabLeft >= 10) ? 1 : 0
                 }}
               />
             )}
 
             <div
-              className={`absolute z-[2000] bg-black text-white py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between pointer-events-auto cursor-grab active:cursor-grabbing ${
+              className={`fixed z-[2000] bg-black text-white py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between pointer-events-auto cursor-grab active:cursor-grabbing ${
                 isDraggerDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
               }`}
               style={{
@@ -477,12 +483,26 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
               )}
               
                 <div className="flex flex-col gap-[0.2vw] w-full items-center">
-                  <div className="flex items-start justify-center w-full">
-                    <div className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent h-[1.8vw]'} w-[1.8vw]`}>
+                  <div className="flex flex-col items-center justify-center w-full">
+                    <div 
+                      className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent group cursor-pointer'} w-[1.8vw]`}
+                      onMouseDown={(e) => { if (!isDraggerExpanded) e.stopPropagation(); }}
+                      onClick={(e) => {
+                        if (!isDraggerExpanded) {
+                          e.stopPropagation();
+                          setIsDraggerExpanded(true);
+                        }
+                      }}
+                    >
                       {!isDraggerExpanded ? (
-                        <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
-                          <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
-                        </div>
+                        <>
+                          <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
+                            <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
+                          </div>
+                          <div className="mt-[0.2vw]">
+                            <Icon icon="lucide:chevron-down" className="w-[1vw] h-[1vw] text-gray-400 group-hover:text-white transition-colors" />
+                          </div>
+                        </>
                       ) : (
                         <div className="flex flex-col w-full h-full justify-between items-center">
                           {['Desktop', 'Tablet', 'Mobile'].map((device) => (
@@ -503,12 +523,6 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                       )}
                     </div>
                   </div>
-                  {!isDraggerExpanded && (
-                    <div className="mt-[-0.3vw]">
-                      <Icon icon="lucide:chevron-down" className={`w-[1vw] h-[1vw] text-gray-400`} />
-                    </div>
-                  )}
-                  <div className="w-[60%] h-[1px] bg-gray-700 pointer-events-none my-[0.2vw]"></div>
                   <button
                     className="flex flex-col items-center gap-[0.2vw] py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full text-[#ff3333]"
                     title="Exit Preview"
@@ -561,17 +575,17 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
           <>
             {!isDraggerDragging && containerRef.current && (
               <div
-                className="absolute top-0 w-[0.25vw] h-full bg-black z-[1999] pointer-events-none transition-all duration-300"
+                className="fixed top-0 w-[0.25vw] h-full bg-black z-[1999] pointer-events-none transition-all duration-500 ease-in-out"
                 style={{
                   left: draggerTabLeft < 5 ? '0' : 'auto',
-                  right: draggerTabLeft > (containerRef.current.offsetWidth - (window.innerWidth * 3.2) / 100 - 5) ? '0' : 'auto',
-                  opacity: (draggerTabLeft < 5 || draggerTabLeft > (containerRef.current.offsetWidth - (window.innerWidth * 3.2) / 100 - 5)) ? 1 : 0
+                  right: draggerTabLeft >= 10 ? '0' : 'auto',
+                  opacity: (draggerTabLeft < 5 || draggerTabLeft >= 10) ? 1 : 0
                 }}
               />
             )}
 
             <div
-              className={`absolute z-[2000] bg-black text-white py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between pointer-events-auto cursor-grab active:cursor-grabbing ${
+              className={`fixed z-[2000] bg-black text-white py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between pointer-events-auto cursor-grab active:cursor-grabbing ${
                 isDraggerDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
               }`}
               style={{
@@ -597,12 +611,26 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
               )}
               
                 <div className="flex flex-col gap-[0.2vw] w-full items-center">
-                  <div className="flex items-start justify-center w-full">
-                    <div className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent h-[1.8vw]'} w-[1.8vw]`}>
+                  <div className="flex flex-col items-center justify-center w-full">
+                    <div 
+                      className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent group cursor-pointer'} w-[1.8vw]`}
+                      onMouseDown={(e) => { if (!isDraggerExpanded) e.stopPropagation(); }}
+                      onClick={(e) => {
+                        if (!isDraggerExpanded) {
+                          e.stopPropagation();
+                          setIsDraggerExpanded(true);
+                        }
+                      }}
+                    >
                       {!isDraggerExpanded ? (
-                        <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
-                          <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
-                        </div>
+                        <>
+                          <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
+                            <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
+                          </div>
+                          <div className="mt-[0.2vw]">
+                            <Icon icon="lucide:chevron-down" className="w-[1vw] h-[1vw] text-gray-400 group-hover:text-white transition-colors" />
+                          </div>
+                        </>
                       ) : (
                         <div className="flex flex-col w-full h-full justify-between items-center">
                           {['Desktop', 'Tablet', 'Mobile'].map((device) => (
@@ -623,12 +651,6 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                       )}
                     </div>
                   </div>
-                  {!isDraggerExpanded && (
-                    <div className="mt-[-0.3vw]">
-                      <Icon icon="lucide:chevron-down" className={`w-[1vw] h-[1vw] text-gray-400`} />
-                    </div>
-                  )}
-                  <div className="w-[60%] h-[1px] bg-gray-700 pointer-events-none my-[0.2vw]"></div>
                   <button
                     className="flex flex-col items-center gap-[0.2vw] py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full text-[#ff3333]"
                     title="Exit Preview"
