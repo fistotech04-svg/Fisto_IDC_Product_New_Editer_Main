@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
 import Flipbook from "../../models/Flipbook.js"; // Import Model
+import Profile from "../../models/Profile.js"; // Import Profile Model
 import { nanoid } from "nanoid";
 
 const compareKeys = async (input, stored) => {
@@ -788,6 +789,46 @@ router.post("/save", async (req, res) => {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
+
+    // Automatically add newly created book to myShelf if not already present
+    try {
+      let profile = await Profile.findOne({ emailId: emailId.trim().toLowerCase() });
+      if (!profile) {
+        profile = new Profile({ emailId: emailId.trim().toLowerCase() });
+      }
+      if (!profile.myShelf) profile.myShelf = {};
+      if (!profile.myShelf.folders) profile.myShelf.folders = [];
+      if (!profile.myShelf.shelfCount) profile.myShelf.shelfCount = 1;
+      
+      let folder = profile.myShelf.folders.find(f => f.folderName === physicalFolderName);
+      if (!folder) {
+        profile.myShelf.folders.push({ folderName: physicalFolderName, shelf_design: 1, books: [] });
+        folder = profile.myShelf.folders.find(f => f.folderName === physicalFolderName);
+      }
+      
+      if (!folder.books) folder.books = [];
+      
+      const bookExists = folder.books.some(b => {
+        const id = typeof b === 'string' ? b : b.v_id;
+        return id === savedDoc.v_id;
+      });
+      
+      if (!bookExists) {
+        const currentCount = folder.books.length;
+        folder.books.push({
+          v_id: savedDoc.v_id,
+          row: Math.floor(currentCount / 6),
+          order: currentCount % 6
+        });
+        profile.updatedAt = new Date();
+        profile.markModified('myShelf.folders');
+        profile.markModified('myShelf');
+        await profile.save();
+        console.log(`Automatically added created book ${savedDoc.v_id} to myShelf in folder ${physicalFolderName}`);
+      }
+    } catch (shelfErr) {
+      console.error("Error adding created book to myShelf:", shelfErr);
+    }
 
     // FIFO Logic for 'Recent Book' Tag
     // Ensure v_id exists (backfill for legacy docs)

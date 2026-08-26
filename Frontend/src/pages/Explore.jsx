@@ -91,7 +91,7 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
     );
 };
 
-const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, authorPicture, authorBgColor, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick }) => {
+const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, authorPicture, authorBgColor, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick, onAddToShelf }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -183,6 +183,8 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
                                             if (onShare) onShare(rawBook);
                                         } else if (menuItem.name === 'Download') {
                                             if (onDownload) onDownload(rawBook);
+                                        } else if (menuItem.name === 'Add to Shelf') {
+                                            if (onAddToShelf) onAddToShelf(rawBook);
                                         }
                                     }}
                                     className="w-[8.8vw] flex items-center mx-[0.5vw] gap-[0.8vw] px-[0.8vw] py-[0.8vh] transition-colors text-left rounded-md text-gray-600 hover:text-black hover:bg-gray-50"
@@ -421,6 +423,29 @@ const Explore = () => {
     const handleOpenExportModal = (rawBook) => {
         setSelectedBookForModal(rawBook);
         setIsExportModalOpen(true);
+    };
+
+    const handleAddToShelf = async (rawBook) => {
+        if (!currentUserEmail) {
+            alert("Please log in to add books to your shelf.");
+            return;
+        }
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const res = await axios.post(`${backendUrl}/api/profile/add-to-shelf`, {
+                emailId: currentUserEmail,
+                bookId: rawBook.v_id,
+                folderName: 'My Flipbooks'
+            });
+            if (res.data?.success) {
+                alert("Book successfully added to your shelf!");
+            } else {
+                alert(res.data?.message || "Failed to add book to shelf");
+            }
+        } catch (err) {
+            console.error("Error adding to shelf:", err);
+            alert(err.response?.data?.message || "Error adding book to shelf");
+        }
     };
 
     const [category, setCategory] = useState("All Category");
@@ -890,6 +915,7 @@ const Explore = () => {
                                         onShare={handleOpenShareModal}
                                         onDownload={handleOpenExportModal}
                                         onProfileClick={handleProfileClick}
+                                        onAddToShelf={handleAddToShelf}
                                     />
                                 ))}
                                 {filteredBooks.length === 0 && (
