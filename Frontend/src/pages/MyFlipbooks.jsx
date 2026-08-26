@@ -1138,7 +1138,8 @@ export default function MyFlipbooks() {
             return (b.title || '').localeCompare(a.title || '');
         }
         if (sortOption === 'Most Viewed' || sortOption === 'Most Shared' || sortOption === 'Most Downloaded' || sortOption === 'Most Liked') {
-            return (b.views || 0) - (a.views || 0);
+            const getViews = (item) => (item.viewsCount !== undefined ? item.viewsCount : item.views) || 0;
+            return getViews(b) - getViews(a);
         }
         if (sortOption === 'Largest File Size') {
             const getBytes = (b) => {
@@ -1828,7 +1829,7 @@ export default function MyFlipbooks() {
                                                         <span>
                                                             {activeFolder === 'Recent Book' ? 'Last Updated on' : 'Created on'} : {activeFolder === 'Recent Book' ? formatDisplayDate(book.mtime || book.updatedAt || book.updated || book.createdAt || book.created) : book.created}
                                                         </span>
-                                                        <span>Views : {book.views || 245}</span>
+                                                        <span>Views : {book.viewsCount !== undefined ? book.viewsCount : (book.views !== undefined ? book.views : 0)}</span>
                                                         <span>Size : {formatDisplaySize(book)}</span>
                                                     </div>
                                                 </div>

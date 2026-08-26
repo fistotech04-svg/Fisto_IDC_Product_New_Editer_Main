@@ -1,10 +1,89 @@
 import express from 'express';
 import Profile from '../../models/Profile.js';
-import Flipbook from '../../models/Flipbook.js';
+import User from '../../models/auth.js';
+import { uploadBufferToSupabase, deleteFileFromSupabase, ensureUserFoldersInSupabase } from '../../config/supabase.js';
+import { logActivity } from '../../utils/activityLogger.js';
 
 const router = express.Router();
 
-// GET /api/profile
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+});
+
+/**
+ * Helper to delete a previous Supabase avatar, banner, or company logo asset.
+ */
+const deletePreviousProfileAssetIfSupabase = async (assetUrlOrCss, sanitizedEmail) => {
+  try {
+    if (!assetUrlOrCss || typeof assetUrlOrCss !== 'string') return;
+    const cleanUrl = assetUrlOrCss.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '').trim();
+    if (!cleanUrl || cleanUrl.startsWith('data:') || cleanUrl === 'color_only') return;
+
+    if (
+      cleanUrl.includes('/Profile/') ||
+      cleanUrl.includes(`/${sanitizedEmail}/Profile/`) ||
+      cleanUrl.includes('Profile/avatar_') ||
+      cleanUrl.includes('Profile/banner_') ||
+      cleanUrl.includes('/Company_logo/') ||
+      cleanUrl.includes(`/${sanitizedEmail}/Company_logo/`) ||
+      cleanUrl.includes('Company_logo/logo_')
+    ) {
+      console.log(`[Profile] Deleting old asset from Supabase: ${cleanUrl}`);
+      await deleteFileFromSupabase(cleanUrl);
+    }
+  } catch (err) {
+    console.warn(`[Profile] Error deleting previous asset from Supabase:`, err);
+  }
+};
+
+/**
+ * Helper to save an uploaded file buffer or base64 data to Supabase Storage in the Profile or Company_logo folder.
+ */
+const saveProfileAsset = async (sanitizedEmail, fileOrBase64, prefix = 'avatar', folder = 'Profile') => {
+  try {
+    if (!fileOrBase64 || !sanitizedEmail) return null;
+
+    // 1. Handle Multer file object
+    if (fileOrBase64.buffer && Buffer.isBuffer(fileOrBase64.buffer)) {
+      const ext = (path.extname(fileOrBase64.originalname || '').replace('.', '') || 'png').toLowerCase();
+      const fileName = `${prefix}_${Date.now()}.${ext}`;
+      const destinationPath = `${sanitizedEmail}/${folder}/${fileName}`;
+      const contentType = fileOrBase64.mimetype || 'image/png';
+      const supabaseUrl = await uploadBufferToSupabase(fileOrBase64.buffer, destinationPath, contentType);
+      return supabaseUrl || `/uploads/${sanitizedEmail}/${folder}/${fileName}`;
+    }
+
+    // 2. Handle Base64 string
+    if (typeof fileOrBase64 === 'string' && fileOrBase64.startsWith('data:')) {
+      const match = fileOrBase64.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        const contentType = match[1];
+        const buffer = Buffer.from(match[2], 'base64');
+        let ext = 'png';
+        if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
+        else if (contentType.includes('webp')) ext = 'webp';
+        else if (contentType.includes('svg')) ext = 'svg';
+        else if (contentType.includes('gif')) ext = 'gif';
+
+        const fileName = `${prefix}_${Date.now()}.${ext}`;
+        const destinationPath = `${sanitizedEmail}/${folder}/${fileName}`;
+        const supabaseUrl = await uploadBufferToSupabase(buffer, destinationPath, contentType);
+        return supabaseUrl || `/uploads/${sanitizedEmail}/${folder}/${fileName}`;
+      }
+    }
+
+    // 3. Regular string URL or preset path
+    return fileOrBase64;
+  } catch (err) {
+    console.error(`[Profile] Error saving ${prefix} asset to Supabase ${folder} folder:`, err);
+    return typeof fileOrBase64 === 'string' ? fileOrBase64 : null;
+  }
+};
+
+// @route   GET /api/profile
+// @desc    Get user profile by emailId or email
+// @access  Public / Authenticated
 router.get('/', async (req, res) => {
   try {
     const { emailId } = req.query;
@@ -44,17 +123,68 @@ router.get('/my-shelf-books', async (req, res) => {
         }
       });
     }
-    
-    const books = await Flipbook.find({ v_id: { $in: bookIds } }).lean();
-    
-    const userEmails = [...new Set(books.map(b => b.userEmail).filter(Boolean))];
-    const safeRegexList = userEmails.map(e => new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
-    
-    const profiles = await Profile.find({ emailId: { $in: safeRegexList } }).lean();
-    
-    const profileMap = {};
-    profiles.forEach(p => {
-        if (p.emailId) profileMap[p.emailId.toLowerCase()] = p;
+
+    // Convert and save banner to Profile folder in Supabase if base64, and delete old file if replaced
+    if (req.body.bannerBg !== undefined) {
+      let bBg = req.body.bannerBg;
+      if (typeof bBg === 'string') {
+        try { bBg = JSON.parse(bBg); } catch (e) {}
+      }
+      if (bBg && typeof bBg === 'object' && bBg.value && typeof bBg.value === 'string' && bBg.value.includes('data:')) {
+        if (existingProfile?.bannerBg?.value && existingProfile.bannerBg.value !== bBg.value) {
+          await deletePreviousProfileAssetIfSupabase(existingProfile.bannerBg.value, sanitizedEmail);
+        }
+        const rawBase64 = bBg.value.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '');
+        const savedUrl = await saveProfileAsset(sanitizedEmail, rawBase64, 'banner', 'Profile');
+        bBg.value = `url(${savedUrl})`;
+      } else if (existingProfile?.bannerBg?.value && bBg?.value && existingProfile.bannerBg.value !== bBg.value) {
+        await deletePreviousProfileAssetIfSupabase(existingProfile.bannerBg.value, sanitizedEmail);
+      }
+      updateFields.bannerBg = bBg;
+    }
+
+    // Convert and save company logo to Company_logo folder in Supabase if base64, and delete old file if replaced
+    if (req.body.company_logo_url !== undefined || req.body.companyLogo !== undefined) {
+      const rawLogo = req.body.company_logo_url !== undefined ? req.body.company_logo_url : req.body.companyLogo;
+      const oldLogo = existingProfile?.company_logo_url || existingProfile?.companyLogo;
+
+      if (typeof rawLogo === 'string' && rawLogo.startsWith('data:')) {
+        if (oldLogo && oldLogo !== rawLogo) {
+          await deletePreviousProfileAssetIfSupabase(oldLogo, sanitizedEmail);
+        }
+        const savedLogo = await saveProfileAsset(sanitizedEmail, rawLogo, 'logo', 'Company_logo');
+        updateFields.company_logo_url = savedLogo;
+        updateFields.companyLogo = savedLogo;
+      } else {
+        if (oldLogo && oldLogo !== rawLogo) {
+          await deletePreviousProfileAssetIfSupabase(oldLogo, sanitizedEmail);
+        }
+        updateFields.company_logo_url = rawLogo || '';
+        updateFields.companyLogo = rawLogo || '';
+      }
+    }
+
+    updateFields.updatedAt = new Date();
+
+    const updatedProfile = await Profile.findOneAndUpdate(
+      { emailId: normalizedEmail },
+      { $set: updateFields },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    // Log user activity
+    logActivity({
+      userEmail: normalizedEmail,
+      type: existingProfile ? 'edit' : 'create_profile',
+      title: existingProfile ? 'You updated your profile' : 'You created your profile',
+      desc: existingProfile ? 'Profile information updated successfully.' : 'Profile created successfully.',
+      entityId: updatedProfile?._id?.toString()
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile saved successfully',
+      profile: updatedProfile
     });
 
     const booksWithFlag = books.map(book => {

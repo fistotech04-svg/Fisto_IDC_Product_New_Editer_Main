@@ -16,6 +16,7 @@ import threedModelRoutes from "./routes/User_Details/threed_models.js";
 import textureRoutes from "./routes/Texture/texture.js";
 import exploreRoutes from "./routes/Explore/explore.js";
 import profileRoutes from "./routes/User_Details/profile.js";
+import activityRoutes from "./routes/User_Details/activity.js";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
@@ -109,6 +110,7 @@ app.use("/api/3d-models", threedModelRoutes);
 app.use("/api/textures", textureRoutes);
 app.use("/api/explore", exploreRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/activity", activityRoutes);
 
 const PORT = process.env.PORT || 5000;
 

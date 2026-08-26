@@ -38,6 +38,14 @@ const profileSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  company_logo_url: {
+    type: String,
+    default: ''
+  },
+  companyLogo: {
+    type: String,
+    default: ''
+  },
   companyName: {
     type: String,
     default: ''

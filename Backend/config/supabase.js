@@ -279,7 +279,8 @@ export const ensureUserFoldersInSupabase = async (sanitizedEmail) => {
       "3D_Modals",
       "3D_Screenshot",
       "Texture",
-      "Profile"
+      "Profile",
+      "Company_logo"
     ];
 
     const tasks = foldersToCreate.map(folder => {

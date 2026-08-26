@@ -6,13 +6,30 @@ import { LAYOUT_DEFAULT_COLORS } from '../components/CustomizedEditor/Layout';
 import { Icon } from '@iconify/react';
 import { Ghost, ArrowLeft, Home, BookOpen, Clock, X, Star, Info, BookMarked, LogOut, Search, MapPin } from 'lucide-react';
 import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
-import p1 from '../assets/Explore/p1.png';
-import p2 from '../assets/Explore/p2.png';
-import p3 from '../assets/Explore/p3.png';
-import p4 from '../assets/Explore/p4.png';
-import p5 from '../assets/Explore/p5.png';
 
-const avatars = [p1, p2, p3, p4, p5];
+const AVATAR_COLORS = [
+    '#4F46E5', // Indigo
+    '#059669', // Emerald
+    '#D97706', // Amber
+    '#E11D48', // Rose
+    '#7C3AED', // Violet
+    '#0891B2', // Cyan
+    '#C026D3', // Fuchsia
+    '#EA580C', // Orange
+    '#2563EB', // Blue
+    '#DB2777', // Pink
+    '#0D9488', // Teal
+    '#9333EA', // Purple
+];
+
+const getAvatarBg = (name = '') => {
+    let hash = 0;
+    const str = String(name || 'User').trim();
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
 const checkInviteAutoExpired = (autoExpire, fallbackDate) => {
     if (!autoExpire || !autoExpire.enabled) return false;
 
@@ -93,24 +110,120 @@ const ShareViewBook = () => {
     const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
     const [tempSettings, setTempSettings] = useState(null);
 
+    // Current Logged-in User
+    const userStr = localStorage.getItem('user');
+    let parsedUser = null;
+    try {
+        parsedUser = userStr ? JSON.parse(userStr) : null;
+    } catch (e) {
+        if (typeof userStr === 'string' && !userStr.startsWith('{')) parsedUser = { email: userStr };
+    }
+    const profileStr = localStorage.getItem('user_profile');
+    let parsedProfile = null;
+    try {
+        parsedProfile = profileStr ? JSON.parse(profileStr) : null;
+    } catch (e) {}
+
+    const currentUserEmail = (parsedUser?.emailId || parsedUser?.email || (typeof userStr === 'string' && !userStr.startsWith('{') ? userStr : '') || '').toLowerCase();
+    const currentUserName = parsedProfile?.name || parsedUser?.name || parsedUser?.fullName || parsedUser?.username || '';
+    const currentUserAvatar = parsedProfile?.picture || parsedProfile?.profileImgUrl || parsedUser?.picture || '';
+
     // Sidebar Modals & Panels State
     const [isBookInfoOpen, setIsBookInfoOpen] = useState(false);
     const [isAddToShelfOpen, setIsAddToShelfOpen] = useState(false);
     const [isRatingsOpen, setIsRatingsOpen] = useState(false);
+    const [editingRatingId, setEditingRatingId] = useState(null);
     const [ratingForm, setRatingForm] = useState({ name: '', rating: 0, review: '' });
     const [ratingFormError, setRatingFormError] = useState({ show: false });
+    const [hoverRating, setHoverRating] = useState(0);
     const [reviewsList, setReviewsList] = useState([]);
-    const [showRatingForm, setShowRatingForm] = useState(true);
+    const [averageRating, setAverageRating] = useState(0);
+    const [totalRatings, setTotalRatings] = useState(0);
+    const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+    const [isDeletingRating, setIsDeletingRating] = useState(null);
 
-    const handleRatingSubmit = () => {
-        if (!ratingForm.name || !ratingForm.rating) {
+    // View Count State
+    const [viewsCount, setViewsCount] = useState(0);
+
+    // Auto-populate user name from localStorage
+    useEffect(() => {
+        if (currentUserName) {
+            setRatingForm(prev => ({ ...prev, name: prev.name || currentUserName }));
+        }
+    }, [currentUserName]);
+
+    const handleRatingSubmit = async () => {
+        if (!currentUserEmail) {
+            navigate(`/?redirect=${encodeURIComponent(location.pathname + location.search)}`);
+            return;
+        }
+        if (!ratingForm.name.trim() || !ratingForm.rating) {
             setRatingFormError({ show: true });
             return;
         }
-        setReviewsList([{ ...ratingForm }, ...reviewsList]);
-        setShowRatingForm(false);
-        setRatingForm({ name: '', rating: 0, review: '' });
+        setIsSubmittingRating(true);
+        try {
+            const backendUrl = getBackendUrl();
+            const res = await axios.post(`${backendUrl}/api/flipbook/public/rate/${shareId}`, {
+                ratingId: editingRatingId,
+                name: ratingForm.name.trim(),
+                ratingValue: ratingForm.rating,
+                review: ratingForm.review.trim(),
+                userEmail: currentUserEmail,
+                profileImgUrl: currentUserAvatar
+            });
+            if (res.data?.success) {
+                setReviewsList(res.data.bookRating || []);
+                setAverageRating(res.data.averageRating || 0);
+                setTotalRatings(res.data.totalRatings || 0);
+                setEditingRatingId(null);
+                setRatingForm({ name: currentUserName || '', rating: 0, review: '' });
+                setRatingFormError({ show: false });
+            }
+        } catch (err) {
+            console.error("Error submitting rating:", err);
+        } finally {
+            setIsSubmittingRating(false);
+        }
+    };
+
+    const handleStartEdit = (review) => {
+        setEditingRatingId(review._id);
+        setRatingForm({
+            name: review.name || currentUserName || '',
+            rating: review.ratingValue || review.rating || 5,
+            review: review.review || ''
+        });
+        setHoverRating(0);
         setRatingFormError({ show: false });
+    };
+
+    const handleCancelEdit = () => {
+        setEditingRatingId(null);
+        setRatingForm({ name: currentUserName || '', rating: 0, review: '' });
+        setHoverRating(0);
+        setRatingFormError({ show: false });
+    };
+
+    const handleDeleteRating = async (ratingId) => {
+        if (!ratingId) return;
+        setIsDeletingRating(ratingId);
+        try {
+            const backendUrl = getBackendUrl();
+            const res = await axios.delete(`${backendUrl}/api/flipbook/public/rate/${shareId}/${ratingId}`);
+            if (res.data?.success) {
+                setReviewsList(res.data.bookRating || []);
+                setAverageRating(res.data.averageRating || 0);
+                setTotalRatings(res.data.totalRatings || 0);
+                if (editingRatingId === ratingId) {
+                    handleCancelEdit();
+                }
+            }
+        } catch (err) {
+            console.error("Error deleting rating:", err);
+        } finally {
+            setIsDeletingRating(null);
+        }
     };
 
     // Draggable Sidebar State
@@ -175,11 +288,6 @@ const ShareViewBook = () => {
         e.preventDefault();
     };
 
-    // Get current logged-in user email
-    const userStr = localStorage.getItem('user');
-    const user = userStr ? JSON.parse(userStr) : null;
-    const currentUserEmail = user?.emailId || user?.email || '';
-
     // Live auto-expire timer check while watching book
     useEffect(() => {
         if (!bookData || error) return;
@@ -231,6 +339,73 @@ const ShareViewBook = () => {
             }
         }
         return 'http://localhost:5000';
+    };
+
+    // Auto-record page view count once per flipbook load for unique viewers
+    const hasRecordedViewRef = useRef(false);
+    useEffect(() => {
+        if (bookData && shareId && !hasRecordedViewRef.current) {
+            hasRecordedViewRef.current = true;
+            const backendUrl = getBackendUrl();
+            let viewerId = '';
+            try {
+                viewerId = localStorage.getItem('flipbook_viewer_id') || '';
+                if (!viewerId) {
+                    viewerId = 'v_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+                    localStorage.setItem('flipbook_viewer_id', viewerId);
+                }
+            } catch (e) {}
+
+            axios.post(`${backendUrl}/api/flipbook/public/view/${shareId}`, {
+                userEmail: currentUserEmail || '',
+                viewerId: viewerId
+            })
+                .then(res => {
+                    if (res.data?.viewsCount !== undefined) {
+                        setViewsCount(res.data.viewsCount);
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [bookData, shareId, currentUserEmail]);
+
+    // Helper to render dynamic star ratings
+    const renderStars = (ratingVal, starClass = "w-[1.2vw] h-[1.2vw]") => {
+        const stars = [];
+        const rounded = Math.round((ratingVal || 0) * 2) / 2;
+        for (let i = 1; i <= 5; i++) {
+            if (i <= rounded) {
+                stars.push(
+                    <svg key={i} className={`${starClass} overflow-visible drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)]`} fill="url(#star-gradient)" stroke="url(#star-gradient)" strokeWidth="1" strokeLinejoin="round" viewBox="0 0 20 20">
+                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                    </svg>
+                );
+            } else if (i - 0.5 === rounded) {
+                stars.push(
+                    <svg key={i} className={`${starClass} overflow-visible drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)]`} fill="url(#half-star)" stroke="url(#star-gradient)" strokeWidth="1" strokeLinejoin="round" viewBox="0 0 20 20">
+                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                    </svg>
+                );
+            } else {
+                stars.push(
+                    <svg key={i} className={`${starClass} overflow-visible drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)]`} fill="white" stroke="url(#star-gradient)" strokeWidth="1" strokeLinejoin="round" viewBox="0 0 20 20">
+                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                    </svg>
+                );
+            }
+        }
+        return stars;
+    };
+
+    const formatDisplayDate = (dateVal) => {
+        if (!dateVal) return 'Jun 2026';
+        try {
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return 'Jun 2026';
+            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        } catch (e) {
+            return 'Jun 2026';
+        }
     };
 
     // Prepare settings fallback & branding/appearance extraction
@@ -475,6 +650,13 @@ const ShareViewBook = () => {
 
                 // Only update state if the component is still mounted
                 setBookData(processedData);
+                setReviewsList(processedData.bookRating || []);
+                const bRatings = processedData.bookRating || [];
+                const bTotal = processedData.totalRatings !== undefined ? processedData.totalRatings : bRatings.length;
+                const bAvg = processedData.averageRating !== undefined ? processedData.averageRating : (bTotal > 0 ? Number((bRatings.reduce((sum, r) => sum + (r.ratingValue || 0), 0) / bTotal).toFixed(1)) : 0);
+                setAverageRating(bAvg);
+                setTotalRatings(bTotal);
+                if (processedData.viewsCount !== undefined) setViewsCount(processedData.viewsCount);
                 setError(null);
                 setAccessMode(null);
                 setLoading(false); // ✅ Only stop loading on SUCCESS
@@ -607,6 +789,13 @@ const ShareViewBook = () => {
             }
 
             setBookData(processedData);
+            setReviewsList(processedData.bookRating || []);
+            const bRatings = processedData.bookRating || [];
+            const bTotal = processedData.totalRatings !== undefined ? processedData.totalRatings : bRatings.length;
+            const bAvg = processedData.averageRating !== undefined ? processedData.averageRating : (bTotal > 0 ? Number((bRatings.reduce((sum, r) => sum + (r.ratingValue || 0), 0) / bTotal).toFixed(1)) : 0);
+            setAverageRating(bAvg);
+            setTotalRatings(bTotal);
+            if (processedData.viewsCount !== undefined) setViewsCount(processedData.viewsCount);
             setAccessMode(null);
             setError(null);
         } catch (err) {
@@ -942,8 +1131,10 @@ const ShareViewBook = () => {
 
             {/* Right Sidebar UI Overlay */}
             <div
-                className={`fixed bg-white/90 backdrop-blur-md py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between z-[1500] cursor-grab active:cursor-grabbing ${
-                    isDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerLeft < 5 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
+                className={`fixed bg-white/95 backdrop-blur-md py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between z-[1500] cursor-grab active:cursor-grabbing ${
+                    isDragging 
+                        ? 'rounded-[0.8vw] shadow-[0_12px_32px_rgba(0,0,0,0.25)]' 
+                        : 'transition-all duration-500 ease-in-out ' + (draggerLeft < 5 ? 'rounded-r-[0.8vw] rounded-l-none shadow-[6px_0_24px_rgba(0,0,0,0.14),2px_0_8px_rgba(0,0,0,0.06)]' : 'rounded-l-[0.8vw] rounded-r-none shadow-[-6px_0_24px_rgba(0,0,0,0.14),-2px_0_8px_rgba(0,0,0,0.06)]')
                 }`}
                 style={{
                     top: draggerTop !== -1 ? `${draggerTop}px` : '50%',
@@ -976,12 +1167,14 @@ const ShareViewBook = () => {
                     <button onMouseDown={e => e.stopPropagation()} onClick={() => setIsRatingsOpen(true)} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
                         <div className="relative">
                             <Icon icon="iconamoon:star-light" className="w-[1.2vw] h-[1.2vw] text-yellow-500" />
-                            <div className="absolute top-0 right-[-0.2vw] bg-[#34A853] rounded-full w-[0.8vw] h-[0.8vw] flex items-center justify-center border border-white">
-                                <Icon icon="lucide:check" className="w-[0.3vw] h-[0.3vw] text-white" strokeWidth={4} />
-                            </div>
+                            {totalRatings > 0 && (
+                                <div className="absolute top-0 right-[-0.2vw] bg-[#34A853] rounded-full w-[0.8vw] h-[0.8vw] flex items-center justify-center border border-white">
+                                    <Icon icon="lucide:check" className="w-[0.3vw] h-[0.3vw] text-white" strokeWidth={4} />
+                                </div>
+                            )}
                         </div>
-                        <div className="flex flex-col items-center mt-[0.1vw]">
-                            <span className="text-[0.8vw] text-[#2F296D] font-medium leading-none">4.5/5</span>
+                        <div className="flex flex-col items-center mt-[0.1vw] gap-[0.1vw]">
+                            <span className="text-[0.8vw] text-[#2F296D] font-medium leading-none">{averageRating > 0 ? `${averageRating}/5` : '0/5'}</span>
                             <span className="text-[0.7vw] text-[#2F296D] font-medium leading-tight">ratings</span>
                         </div>
                     </button>
@@ -1015,15 +1208,22 @@ const ShareViewBook = () => {
 
                         <div className="flex gap-[2vw] mt-[0.5vw]">
                             <div className="shrink-0">
-                                <img src={bookData?.meta?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} alt="Book cover" className="w-[12vw] h-[12vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)] rounded-sm object-cover aspect-[3/4]" />
+                                <img 
+                                    src={bookData?.meta?.thumbnail || bookData?.Customized_Settings?.othersetup?.coverPicture?.url || bookData?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} 
+                                    alt="Book cover" 
+                                    className="w-[12vw] h-[12vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)] rounded-sm object-cover aspect-[3/4]" 
+                                    onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"; }}
+                                />
                             </div>
                             <div className="flex flex-col gap-[0.5vw] flex-1">
-                                <h3 className="text-[1.2vw] font-semibold text-gray-900 leading-tight">{bookData?.meta?.flipbookName || 'Name of the book'}</h3>
-                                <p className="text-[0.8vw] text-gray-500 italic leading-relaxed">" Bring your content to life with a real, interactive experience "</p>
+                                <h3 className="text-[1.2vw] font-semibold text-gray-900 leading-tight">{bookData?.meta?.flipbookName || bookData?.flipbookName || 'Untitled Flipbook'}</h3>
+                                <p className="text-[0.8vw] text-gray-500 italic leading-relaxed">
+                                    {bookData?.Customized_Settings?.FlipbookInfo?.quotes || bookData?.meta?.quotes || '" Bring your content to life with a real, interactive experience "'}
+                                </p>
 
                                 <h4 className="text-[1vw] font-semibold text-gray-900 mt-[1vw]">About</h4>
                                 <p className="text-[0.8vw] text-gray-500 leading-relaxed">
-                                    {bookData?.meta?.description || 'Explore beautiful travel destinations, travel tips, and inspiring journeys from around the world. This flipbook is designed for quick reading and visual browsing.'}
+                                    {bookData?.Customized_Settings?.FlipbookInfo?.about || bookData?.meta?.about || bookData?.meta?.description || 'Explore this flipbook for an interactive reading experience.'}
                                 </p>
                             </div>
                         </div>
@@ -1037,7 +1237,7 @@ const ShareViewBook = () => {
                                     <span className="text-[0.85vw] text-gray-600">Views</span>
                                 </div>
                                 <div className="flex items-baseline gap-[0.5vw]">
-                                    <span className="text-[1.2vw] font-medium text-gray-800 leading-none">4,586</span>
+                                    <span className="text-[1.2vw] font-medium text-gray-800 leading-none">{viewsCount.toLocaleString()}</span>
                                     <span className="text-[0.65vw] text-gray-400">Readers have opened this book</span>
                                 </div>
                             </div>
@@ -1055,28 +1255,21 @@ const ShareViewBook = () => {
 
                         <div className="mt-[1vw] flex flex-col">
                             {[
-                                { label: 'Category :', value: bookData?.meta?.category || 'Travel' },
-                                { label: 'Language :', value: bookData?.meta?.language || 'English' },
-                                { label: 'Pages :', value: `${bookData?.pages?.length || 12} Pages` },
+                                { label: 'Category :', value: bookData?.Customized_Settings?.FlipbookInfo?.category || bookData?.meta?.category || 'General' },
+                                { label: 'Language :', value: bookData?.Customized_Settings?.FlipbookInfo?.language || bookData?.meta?.language || 'English' },
+                                { label: 'Pages :', value: `${bookData?.pages?.length || 0} Pages` },
                                 {
                                     label: 'Ratings :', value: (
                                         <div className="flex items-center gap-[0.5vw]">
                                             <div className="flex items-center gap-[0.2vw]">
-                                                {[1, 2, 3, 4].map(i => (
-                                                    <svg key={i} className="w-[1.2vw] h-[1.2vw] overflow-visible drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)]" fill="url(#star-gradient)" stroke="url(#star-gradient)" strokeWidth="1" strokeLinejoin="round" viewBox="0 0 20 20">
-                                                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
-                                                    </svg>
-                                                ))}
-                                                <svg className="w-[1.2vw] h-[1.2vw] overflow-visible drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)]" fill="white" stroke="url(#star-gradient)" strokeWidth="1" strokeLinejoin="round" viewBox="0 0 20 20">
-                                                    <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
-                                                </svg>
+                                                {renderStars(averageRating)}
                                             </div>
-                                            <span className="text-[0.85vw] text-gray-500">- 4/5</span>
+                                            <span className="text-[0.85vw] text-gray-500">- {averageRating > 0 ? `${averageRating}/5` : '0/5'} {totalRatings > 0 ? `(${totalRatings})` : ''}</span>
                                         </div>
                                     )
                                 },
-                                { label: 'Published :', value: 'Jun 2026' },
-                                { label: 'Publisher :', value: <span className="text-gray-500 underline decoration-gray-300 underline-offset-4 cursor-pointer hover:text-gray-800">FIST-O Tech Pvt Ltd</span> }
+                                { label: 'Published :', value: formatDisplayDate(bookData?.Customized_Settings?.FlipbookInfo?.publishedAt || bookData?.createdAt || bookData?.publishedAt) },
+                                { label: 'Publisher :', value: <span className="text-gray-500 underline decoration-gray-300 underline-offset-4 cursor-pointer hover:text-gray-800">{bookData?.publisher || bookData?.Customized_Settings?.FlipbookInfo?.publisher || bookData?.authorProfile?.companyName || bookData?.authorProfile?.name || (bookData?.userEmail ? bookData.userEmail.split('@')[0] : 'FIST-O Tech Pvt Ltd')}</span> }
                             ].map((item, index) => (
                                 <div key={index} className="flex items-center py-[0.6vw] border-b border-gray-100 last:border-0">
                                     <span className="w-[12vw] text-[0.85vw] text-gray-600">{item.label}</span>
@@ -1103,14 +1296,21 @@ const ShareViewBook = () => {
                             <span className="text-[0.75vw] text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">You can find this book in Profile {'>'} My Shelf {'>'} My Flipbooks</span>
                         </div>
 
-                        <img src={bookData?.meta?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} alt="Book cover" className="w-[12vw] h-[12vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)] rounded-sm object-cover aspect-[3/4]" />
+                        <img 
+                            src={bookData?.meta?.thumbnail || bookData?.Customized_Settings?.othersetup?.coverPicture?.url || bookData?.thumbnail || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"} 
+                            alt="Book cover" 
+                            className="w-[12vw] h-[12vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)] rounded-sm object-cover aspect-[3/4]" 
+                            onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1543002588-bfa74002ed7e"; }}
+                        />
 
-                        <h3 className="text-[1.1vw] font-medium text-gray-900 mt-[1.5vw]">{bookData?.meta?.flipbookName || 'Name of the book'}</h3>
+                        <h3 className="text-[1.1vw] font-medium text-gray-900 mt-[1.5vw]">{bookData?.meta?.flipbookName || bookData?.flipbookName || 'Untitled Flipbook'}</h3>
 
                         <div className="w-full h-px bg-gray-200 mt-[1.5vw] mb-[1.5vw]"></div>
 
                         <div className="w-full">
-                            <p className="text-[0.8vw] text-gray-500 text-left">Do you like to add this Book <strong className="text-gray-700">"{bookData?.meta?.flipbookName || 'One Piece'}"</strong> in your Book Shelf ?</p>
+                            <p className="text-[0.8vw] text-gray-500 text-left">
+                                Do you like to add this Book <strong className="text-gray-700">"{bookData?.meta?.flipbookName || bookData?.flipbookName || 'One Piece'}"</strong> in your Book Shelf ?
+                            </p>
                         </div>
 
                         <div className="flex items-center gap-[1vw] w-full mt-[1.5vw]">
@@ -1150,107 +1350,249 @@ const ShareViewBook = () => {
                 {/* Optional overlay background */}
                 <div className={`absolute inset-0 transition-opacity duration-500 ${isRatingsOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`} onClick={() => setIsRatingsOpen(false)}></div>
 
-                <div className={`absolute top-0 right-0 h-full w-[22vw] bg-white/90 backdrop-blur-md z-[1491] transform transition-transform duration-500 ease-in-out flex flex-col pointer-events-auto ${isRatingsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className={`absolute top-0 right-0 h-full w-[22vw] bg-white/95 backdrop-blur-md z-[1491] transform transition-transform duration-500 ease-in-out flex flex-col pointer-events-auto shadow-2xl ${isRatingsOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                     <div className="p-[1vw] px-[1.2vw] mt-[0.5vw] border-b border-gray-100 flex items-center justify-between shrink-0">
-                        <h2 className="text-[1.1vw] font-semibold text-gray-900 whitespace-nowrap">
-                            {showRatingForm ? 'Rate this book' : 'Ratings & Reviews'}
-                        </h2>
+                        <div className="flex items-center gap-[0.5vw]">
+                            <h2 className="text-[1.1vw] font-semibold text-gray-900 whitespace-nowrap">
+                                Ratings & Reviews ({reviewsList.length})
+                            </h2>
+                        </div>
                         <button onClick={() => setIsRatingsOpen(false)} className="p-[0.3vw] border border-red-500 rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
                             <X className="w-[0.9vw] h-[0.9vw]" />
                         </button>
                     </div>
 
-                        {showRatingForm && (
-                            <div className="p-[1.2vw] flex flex-col gap-[0.8vw] mt-[-1vw] shrink-0">
-                                <div className="bg-white border border-gray-200 rounded-xl p-[1vw] flex flex-col gap-[0.8vw]">
-                                    <div className="flex flex-col gap-[0.3vw]">
-                                        <label className="text-[0.9vw] font-semibold text-gray-900">Your Name <span className="text-red-500">*</span></label>
-                                        <input type="text" placeholder="Luffy" value={ratingForm.name} onChange={(e) => {
-                                            setRatingForm({ ...ratingForm, name: e.target.value });
-                                            if (e.target.value) setRatingFormError({ show: false });
-                                        }} className={`w-full border ${ratingFormError.show && !ratingForm.name ? 'border-red-500' : 'border-gray-200'} rounded-xl px-[0.8vw] py-[0.6vw] text-[0.85vw] focus:outline-none focus:border-gray-400`} />
-                                    </div>
-                                    <div className="flex flex-col gap-[0.3vw]">
-                                        <label className="text-[0.9vw] font-semibold text-gray-900">Your ratings <span className="text-red-500">*</span></label>
-                                        <div className={`flex items-center justify-between pl-[1vw] pr-[1vw] gap-[1vw] ${ratingFormError.show && !ratingForm.rating ? 'ring-1 ring-red-500 rounded-xl p-[0.5vw]' : ''}`}>
-                                            {[1, 2, 3, 4, 5].map(i => (
-                                                <svg key={i} onClick={() => {
-                                                    setRatingForm({ ...ratingForm, rating: i });
-                                                    setRatingFormError({ show: false });
-                                                }} className="w-[2.2vw] h-[2.2vw] overflow-visible cursor-pointer drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)] hover:scale-110 transition-transform" fill={i <= ratingForm.rating ? "url(#star-gradient)" : "white"} stroke="url(#star-gradient)" strokeWidth="1" viewBox="0 0 20 20">
-                                                    <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
-                                                </svg>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-[0.3vw]">
-                                        <label className="text-[0.9vw] font-semibold text-gray-900">Your Review</label>
-                                        <textarea placeholder="Enter your Reviews" rows={3} value={ratingForm.review} onChange={(e) => setRatingForm({ ...ratingForm, review: e.target.value })} className="w-full border border-gray-200 rounded-xl px-[0.8vw] py-[0.6vw] text-[0.85vw] focus:outline-none focus:border-gray-400 resize-none"></textarea>
-                                    </div>
+                    {!currentUserEmail ? (
+                        <div className="p-[1.2vw] pb-[0.6vw] shrink-0">
+                            <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-[1.2vw] flex flex-col items-center text-center gap-[0.5vw] shadow-sm">
+                                <div className="w-[2.4vw] h-[2.4vw] rounded-full bg-indigo-50 flex items-center justify-center text-[#4A3AFF] border border-indigo-100">
+                                    <Icon icon="lucide:lock" className="w-[1.2vw] h-[1.2vw]" />
                                 </div>
-                                <button onClick={handleRatingSubmit} className="w-full bg-black text-white rounded-xl py-[0.7vw] text-[0.9vw] font-medium hover:bg-gray-900 transition-colors mt-[0.3vw] cursor-pointer">
-                                    Submit Rating
+                                <div className="flex flex-col gap-[0.2vw]">
+                                    <span className="text-[0.95vw] font-semibold text-gray-900">Sign in to Rate & Review</span>
+                                    <p className="text-[0.75vw] text-gray-500 leading-relaxed max-w-[17vw]">
+                                        Please log in with your account to rate this book and write a review.
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => navigate(`/?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
+                                    className="w-full py-[0.65vw] bg-black text-white text-[0.85vw] font-medium rounded-xl hover:bg-gray-900 transition-colors cursor-pointer flex items-center justify-center gap-[0.4vw] shadow-sm mt-[0.2vw]"
+                                >
+                                    <Icon icon="lucide:log-in" className="w-[0.9vw] h-[0.9vw]" /> Log in to Review
                                 </button>
                             </div>
-                        )}
-
-                        {showRatingForm && (
-                            <>
-                                <div className="h-[0.3vw] bg-gray-50 shrink-0 border-y border-gray-100"></div>
-
-                                <div className="p-[1.2vw] pb-[0.3vw] shrink-0">
-                                    <h3 className="text-[1.1vw] font-semibold text-gray-900 whitespace-nowrap">Ratings & Reviews</h3>
+                        </div>
+                    ) : (editingRatingId || !reviewsList.some(r => r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase())) ? (
+                        <div className="p-[1.2vw] flex flex-col gap-[0.8vw] mt-[-0.3vw] shrink-0">
+                            <div className="bg-white border border-gray-200 rounded-xl p-[1vw] flex flex-col gap-[0.8vw] shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[0.9vw] font-bold text-gray-900">
+                                        {editingRatingId ? 'Edit your review' : 'Rate this book'}
+                                    </span>
+                                    {editingRatingId && (
+                                        <span className="text-[0.7vw] bg-amber-50 text-amber-700 px-[0.4vw] py-[0.1vw] rounded font-medium border border-amber-200">
+                                            Editing
+                                        </span>
+                                    )}
                                 </div>
-                            </>
-                        )}
 
-                        <div className="flex-1 overflow-y-auto p-[1.2vw] pt-[0.3vw] flex flex-col gap-[0.8vw] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                            {reviewsList.length === 0 ? (
-                                <p className="text-[0.85vw] text-gray-500 text-center py-[2vw]">No reviews yet.</p>
-                            ) : (
-                                reviewsList.map((review, index) => (
-                                    <div key={index} className="border border-gray-100 rounded-xl p-[1.2vw] flex flex-col gap-[0.8vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] bg-white">
+                                <div className="flex flex-col gap-[0.3vw]">
+                                    <label className="text-[0.85vw] font-semibold text-gray-800">Your Name <span className="text-red-500">*</span></label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Enter your name" 
+                                        value={ratingForm.name} 
+                                        onChange={(e) => {
+                                            setRatingForm({ ...ratingForm, name: e.target.value });
+                                            if (e.target.value) setRatingFormError({ show: false });
+                                        }} 
+                                        className={`w-full border ${ratingFormError.show && !ratingForm.name ? 'border-red-500' : 'border-gray-200'} rounded-xl px-[0.8vw] py-[0.6vw] text-[0.85vw] focus:outline-none focus:border-[#4A3AFF] transition-colors`} 
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-[0.3vw]">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[0.85vw] font-semibold text-gray-800">Your rating <span className="text-red-500">*</span></label>
+                                        {(hoverRating > 0 || ratingForm.rating > 0) && (
+                                            <span className="text-[0.8vw] font-bold text-[#2F296D]">{hoverRating || ratingForm.rating} / 5</span>
+                                        )}
+                                    </div>
+                                    <div className={`flex items-center justify-between pl-[1vw] pr-[1vw] py-[0.4vw] ${ratingFormError.show && !ratingForm.rating ? 'ring-1 ring-red-500 rounded-xl' : ''}`}>
+                                        {[1, 2, 3, 4, 5].map(i => (
+                                            <svg 
+                                                key={i} 
+                                                onMouseEnter={() => setHoverRating(i)}
+                                                onMouseLeave={() => setHoverRating(0)}
+                                                onClick={() => {
+                                                    setRatingForm({ ...ratingForm, rating: i });
+                                                    setRatingFormError({ show: false });
+                                                }} 
+                                                className="w-[2.2vw] h-[2.2vw] overflow-visible cursor-pointer drop-shadow-[0_2px_2px_rgba(0,0,0,0.2)] hover:scale-115 active:scale-95 transition-all" 
+                                                fill={i <= (hoverRating || ratingForm.rating) ? "url(#star-gradient)" : "white"} 
+                                                stroke="url(#star-gradient)" 
+                                                strokeWidth="1" 
+                                                viewBox="0 0 20 20"
+                                            >
+                                                <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                                            </svg>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-[0.3vw]">
+                                    <label className="text-[0.85vw] font-semibold text-gray-800">Your Review</label>
+                                    <textarea 
+                                        placeholder="Share your thoughts about this flipbook..." 
+                                        rows={3} 
+                                        value={ratingForm.review} 
+                                        onChange={(e) => setRatingForm({ ...ratingForm, review: e.target.value })} 
+                                        className="w-full border border-gray-200 rounded-xl px-[0.8vw] py-[0.6vw] text-[0.85vw] focus:outline-none focus:border-[#4A3AFF] resize-none transition-colors"
+                                    ></textarea>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-[0.5vw]">
+                                {editingRatingId && (
+                                    <button 
+                                        onClick={handleCancelEdit} 
+                                        className="flex-1 border border-gray-300 text-gray-700 rounded-xl py-[0.7vw] text-[0.85vw] font-medium hover:bg-gray-50 transition-colors cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={handleRatingSubmit} 
+                                    disabled={isSubmittingRating}
+                                    className="flex-1 bg-black text-white rounded-xl py-[0.7vw] text-[0.9vw] font-medium hover:bg-gray-900 transition-colors cursor-pointer flex items-center justify-center gap-[0.4vw] disabled:opacity-60 shadow-md"
+                                >
+                                    {isSubmittingRating ? (
+                                        <div className="animate-spin rounded-full h-[0.9vw] w-[0.9vw] border-2 border-white border-t-transparent" />
+                                    ) : (
+                                        <span>{editingRatingId ? 'Update Review' : 'Submit Rating'}</span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {(!currentUserEmail || editingRatingId || !reviewsList.some(r => r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase())) && (
+                        <div className="h-[0.3vw] bg-gray-50 shrink-0 border-y border-gray-100"></div>
+                    )}
+
+                    <div className="p-[1.2vw] pb-[0.3vw] shrink-0 flex items-center justify-between">
+                        <h3 className="text-[1vw] font-semibold text-gray-900 whitespace-nowrap">Recent Reviews</h3>
+                        <span className="text-[0.75vw] text-gray-400 font-normal">{reviewsList.length} total</span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-[1.2vw] pt-[0.3vw] flex flex-col gap-[0.8vw] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                        {reviewsList.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-[3vw] text-center gap-[0.5vw]">
+                                <Icon icon="iconamoon:star-light" className="w-[2.5vw] h-[2.5vw] text-gray-300" />
+                                <p className="text-[0.85vw] text-gray-500 font-medium">No reviews yet.</p>
+                                <p className="text-[0.7vw] text-gray-400">Be the first to rate and review this book!</p>
+                            </div>
+                        ) : (
+                            [...reviewsList].sort((a, b) => {
+                                const aIsMine = Boolean(currentUserEmail && a.userEmail && a.userEmail.toLowerCase() === currentUserEmail.toLowerCase());
+                                const bIsMine = Boolean(currentUserEmail && b.userEmail && b.userEmail.toLowerCase() === currentUserEmail.toLowerCase());
+                                if (aIsMine && !bIsMine) return -1;
+                                if (!aIsMine && bIsMine) return 1;
+                                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+                            }).map((review, index) => {
+                                const rId = review._id || index;
+                                const rVal = review.ratingValue || review.rating || 5;
+                                const rName = review.name || 'Anonymous Reader';
+                                const rText = review.review || '';
+                                const isAuthor = currentUserEmail && review.userEmail && currentUserEmail.toLowerCase() === review.userEmail.toLowerCase();
+                                const isEditingThis = editingRatingId && String(editingRatingId) === String(review._id);
+
+                                return (
+                                    <div key={rId} className={`border ${isEditingThis ? 'border-[#4A3AFF] bg-indigo-50/20' : 'border-gray-100 bg-white'} rounded-xl p-[1.2vw] flex flex-col gap-[0.8vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all`}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-[0.8vw]">
-                                                <img src={avatars[index % avatars.length]} alt="User avatar" className="w-[2.2vw] h-[2.2vw] rounded-full bg-gray-100 object-cover" />
-                                                <span className="text-[1vw] font-semibold text-gray-900 tracking-nowrap">{review.name}</span>
+                                                {review.profileImgUrl ? (
+                                                    <img 
+                                                        src={review.profileImgUrl} 
+                                                        alt={rName} 
+                                                        className="w-[2.2vw] h-[2.2vw] rounded-full object-cover border border-gray-100 shrink-0 shadow-sm" 
+                                                        onError={(e) => {
+                                                            e.currentTarget.style.display = 'none';
+                                                            if (e.currentTarget.nextElementSibling) {
+                                                                e.currentTarget.nextElementSibling.style.display = 'flex';
+                                                            }
+                                                        }}
+                                                    />
+                                                ) : null}
+                                                <div 
+                                                    className="w-[2.2vw] h-[2.2vw] rounded-full flex items-center justify-center text-white font-bold text-[0.95vw] shadow-sm shrink-0 uppercase select-none"
+                                                    style={{ 
+                                                        backgroundColor: getAvatarBg(rName),
+                                                        display: review.profileImgUrl ? 'none' : 'flex'
+                                                    }}
+                                                >
+                                                    {(rName.trim()[0] || 'U').toUpperCase()}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-[0.4vw]">
+                                                        <span className="text-[0.95vw] font-semibold text-gray-900 tracking-tight leading-tight">{rName}</span>
+                                                        {isAuthor && (
+                                                            <span className="text-[0.6vw] bg-indigo-50 text-[#4A3AFF] px-[0.35vw] py-[0.05vw] rounded-full font-semibold border border-indigo-100">
+                                                                You
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {review.createdAt && (
+                                                        <span className="text-[0.65vw] text-gray-400 leading-tight">
+                                                            {new Date(review.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}, {new Date(review.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <button 
-                                                onClick={() => {
-                                                    setReviewsList(reviewsList.filter((_, i) => i !== index));
-                                                    setShowRatingForm(true);
-                                                }} 
-                                                className="text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
-                                                title="Remove review"
-                                            >
-                                                <Icon icon="lucide:trash-2" className="w-[1vw] h-[1vw]" />
-                                            </button>
+                                            {review._id && (isAuthor || !review.userEmail) && (
+                                                <div className="flex items-center gap-[0.2vw]">
+                                                    <button 
+                                                        onClick={() => handleStartEdit(review)} 
+                                                        className="text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer p-[0.2vw] rounded hover:bg-indigo-50"
+                                                        title="Edit review"
+                                                    >
+                                                        <Icon icon="lucide:edit-3" className="w-[0.9vw] h-[0.9vw]" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteRating(review._id)} 
+                                                        disabled={isDeletingRating === review._id}
+                                                        className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer p-[0.2vw] rounded hover:bg-red-50"
+                                                        title="Remove review"
+                                                    >
+                                                        {isDeletingRating === review._id ? (
+                                                            <div className="animate-spin rounded-full h-[0.8vw] w-[0.8vw] border border-red-500 border-t-transparent" />
+                                                        ) : (
+                                                            <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                        <p className="text-[0.85vw] text-gray-500 leading-relaxed">
-                                            {review.review}
-                                        </p>
+
+                                        {rText && (
+                                            <p className="text-[0.85vw] text-gray-600 leading-relaxed break-words">
+                                                {rText}
+                                            </p>
+                                        )}
                                         
-                                        <div className="w-full h-[1px] bg-gray-100 my-[0.2vw]"></div>
+                                        <div className="w-full h-[1px] bg-gray-100 my-[0.1vw]"></div>
                                         
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[0.85vw] font-medium text-gray-600">Ratings : {review.rating} / 5</span>
-                                            <div className="flex items-center gap-[0.4vw]">
-                                                {[1, 2, 3, 4, 5].map(s => (
-                                                    <svg key={s} className="w-[1.2vw] h-[1.2vw] overflow-visible" fill={s <= review.rating ? "url(#star-gradient)" : "white"} stroke="url(#star-gradient)" strokeWidth="1" viewBox="0 0 20 20">
-                                                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
-                                                    </svg>
-                                                ))}
+                                            <span className="text-[0.8vw] font-medium text-gray-600">Rating : {rVal} / 5</span>
+                                            <div className="flex items-center gap-[0.2vw]">
+                                                {renderStars(rVal, 'w-[1vw] h-[1vw]')}
                                             </div>
                                         </div>
                                     </div>
-                                ))
-                            )}
-                        </div>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
             </div>
+        </div>
     );
-
 };
 
 export default ShareViewBook;
