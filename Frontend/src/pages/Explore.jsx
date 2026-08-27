@@ -984,52 +984,6 @@ const Explore = () => {
 
                     {/* Right Area (Books + Creators) */}
                     <div className="flex-1 flex flex-col">
-                        {/* Books Grid */}
-                        {isLoading ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                {[...Array(10)].map((_, idx) => (
-                                    <FlipbookCardSkeleton key={idx} />
-                                ))}
-                            </div>
-                        ) : error ? (
-                            <div className="w-full py-[10vh] flex flex-col items-center justify-center text-red-500">
-                                <svg className="w-[3vw] h-[3vw] mb-[1vh]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                <span className="text-[1.2vw] font-medium">{error}</span>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                {filteredBooks.map((book, index) => (
-                                    <FlipbookCard
-                                        key={index}
-                                        v_id={book.v_id}
-                                        shareId={book.shareId}
-                                        access={book.access}
-                                        rawBook={book.rawBook}
-                                        coverImg={covers[index % 5]}
-                                        profileImg={profiles[index % 5]}
-                                        authorPicture={book.authorPicture}
-                                        authorBgColor={book.authorBgColor}
-                                        bookName={book.bookName}
-                                        authorName={book.authorName}
-                                        location={book.location}
-                                        pages={book.pages}
-                                        views={book.views}
-                                        rating={book.rating}
-                                        description={book.description}
-                                        onShare={handleOpenShareModal}
-                                        onDownload={handleOpenExportModal}
-                                        onProfileClick={handleProfileClick}
-                                        onAddToShelf={handleAddToShelf}
-                                    />
-                                ))}
-                                {filteredBooks.length === 0 && (
-                                    <div className="col-span-full py-[5vh] text-center font-semibold text-gray-700 text-[1vw]">
-                                        No flipbooks found matching your filters.
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
                         {/* MODE 1: BOOKS GRID */}
                         {exploreMode === 'books' && (
                             <>
@@ -1067,6 +1021,7 @@ const Explore = () => {
                                                 onShare={handleOpenShareModal}
                                                 onDownload={handleOpenExportModal}
                                                 onProfileClick={handleProfileClick}
+                                                onAddToShelf={handleAddToShelf}
                                             />
                                         ))}
                                         {filteredBooks.length === 0 && (

@@ -271,16 +271,11 @@ router.post('/add-to-shelf', async (req, res) => {
       folder = profile.myShelf.folders.find(f => f.folderName === targetFolder);
     }
 
-    const updated = await Profile.findOneAndUpdate(
-      { emailId: normalizedEmail },
-      { $set: { bannerBg, updatedAt: new Date() } },
-      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: 'Banner updated successfully',
-      bannerBg: updated.bannerBg
+    if (!folder.books) folder.books = [];
+    
+    const bookExists = folder.books.some(b => {
+      const id = typeof b === 'string' ? b : b.v_id;
+      return id === bookId;
     });
     
     if (bookExists) {
@@ -332,11 +327,10 @@ router.post('/update-shelf-order', async (req, res) => {
       order: index % 6
     }));
 
-    const updated = await Profile.findOneAndUpdate(
-      { emailId: normalizedEmail },
-      { $set: updateData },
-      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
-    );
+    profile.updatedAt = new Date();
+    profile.markModified('myShelf.folders');
+    profile.markModified('myShelf');
+    await profile.save();
 
     res.json({ success: true, message: 'Shelf order updated' });
   } catch (error) {
