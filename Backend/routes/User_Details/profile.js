@@ -251,7 +251,7 @@ router.post('/save', async (req, res) => {
     const updatedProfile = await Profile.findOneAndUpdate(
       { emailId: normalizedEmail },
       { $set: updateFields },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
 
     // Log user activity
@@ -321,7 +321,7 @@ router.post('/banner', upload.single('banner'), async (req, res) => {
     const updated = await Profile.findOneAndUpdate(
       { emailId: normalizedEmail },
       { $set: { bannerBg, updatedAt: new Date() } },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
 
     return res.status(200).json({
@@ -374,7 +374,7 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
     const updated = await Profile.findOneAndUpdate(
       { emailId: normalizedEmail },
       { $set: updateData },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
 
     return res.status(200).json({

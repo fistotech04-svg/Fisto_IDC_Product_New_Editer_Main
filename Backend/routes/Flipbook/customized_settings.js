@@ -409,7 +409,7 @@ router.route("/branding")
             }
 
             if (Object.keys(updateQuery).length > 1) {
-              await Flipbook.findOneAndUpdate({ v_id }, { $set: updateQuery }, { new: true }).catch((err) =>
+              await Flipbook.findOneAndUpdate({ v_id }, { $set: updateQuery }, { returnDocument: 'after' }).catch((err) =>
                 console.warn("[Supabase Upload] Failed to auto-save asset URL to DB:", err)
               );
             }
@@ -483,7 +483,7 @@ router.route("/branding")
 
           let flipbook = null;
           if (Object.keys(updateDoc).length > 0) {
-            flipbook = await Flipbook.findOneAndUpdate({ v_id }, updateDoc, { new: true });
+            flipbook = await Flipbook.findOneAndUpdate({ v_id }, updateDoc, { returnDocument: 'after' });
           }
 
           return res.status(200).json({
@@ -542,7 +542,7 @@ router.route("/branding")
         const flipbook = await Flipbook.findOneAndUpdate(
           { v_id },
           { $set: updateFields },
-          { new: true, upsert: false }
+          { returnDocument: 'after', upsert: false }
         );
 
         if (!flipbook) {
@@ -703,7 +703,7 @@ router.route("/background")
         const flipbook = await Flipbook.findOneAndUpdate(
           { v_id },
           { $set: updateFields },
-          { new: true, upsert: false }
+          { returnDocument: 'after', upsert: false }
         );
 
         if (!flipbook) {
@@ -801,7 +801,7 @@ router.route("/menu-bar")
       const flipbook = await Flipbook.findOneAndUpdate(
         { v_id },
         { $set: updateFields },
-        { new: true, upsert: false }
+        { returnDocument: 'after', upsert: false }
       );
 
       if (!flipbook) {
@@ -1369,7 +1369,7 @@ router.post("/update-settings", async (req, res) => {
         $set: updateData,
         $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updatedDoc) {

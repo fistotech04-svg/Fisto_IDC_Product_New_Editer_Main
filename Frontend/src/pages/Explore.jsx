@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import exploreHeroImg from '../assets/Explore/explore-hero-section.png';
 import cover1 from '../assets/Explore/c-bg1.png';
@@ -280,12 +281,8 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
 const FlipbookCardSkeleton = () => {
     return (
         <div className="bg-white border border-gray-100 rounded-[0.8vw] overflow-hidden flex flex-col shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative animate-pulse">
-            {/* Thumbnail Container */}
             <div className="relative w-full aspect-[4/4] bg-gray-200"></div>
-
-            {/* Card Details */}
             <div className="p-[1.2vw] flex flex-col flex-1 bg-white">
-                {/* Author Info */}
                 <div className="flex items-center gap-[0.6vw]">
                     <div className="w-[2.5vw] h-[2.5vw] rounded-full bg-gray-200 shrink-0"></div>
                     <div className="flex flex-col gap-[0.3vh]">
@@ -293,8 +290,6 @@ const FlipbookCardSkeleton = () => {
                         <div className="h-[0.7vw] bg-gray-100 rounded w-[4vw]"></div>
                     </div>
                 </div>
-
-                {/* Stats */}
                 <div className="flex items-center gap-[0.3vw] justify-start text-[0.75vw] mt-[1.5vh]">
                     <div className="h-[0.75vw] bg-gray-200 rounded w-[3.5vw]"></div>
                     <span className="text-gray-200">|</span>
@@ -302,13 +297,9 @@ const FlipbookCardSkeleton = () => {
                     <span className="text-gray-200">|</span>
                     <div className="h-[0.75vw] bg-gray-200 rounded w-[2.5vw]"></div>
                 </div>
-
-                {/* Title & Desc & Button */}
                 <div className="relative flex-1 mt-[1.2vh] min-h-[4vw]">
                     <div className="h-[0.9vw] bg-gray-200 rounded w-[9vw]"></div>
                     <div className="h-[0.7vw] bg-gray-100 rounded w-[11vw] mt-[0.5vh]"></div>
-
-                    {/* Action Button Skeleton */}
                     <div className="absolute bottom-[0.5vw] right-[-0.5vw] bg-gray-200 w-[2vw] h-[2vw] rounded-full"></div>
                 </div>
             </div>
@@ -316,8 +307,9 @@ const FlipbookCardSkeleton = () => {
     );
 };
 
-
 const Explore = () => {
+    const [exploreMode, setExploreMode] = useState('books'); // 'books' | 'creators'
+
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -352,7 +344,6 @@ const Explore = () => {
         const normTarget = targetEmail.trim().toLowerCase();
         if (normTarget === currentUserEmail) return;
 
-        // Optimistic UI update
         const prevCreators = [...topCreators];
         const targetCreator = topCreators.find(c => (c.emailId || c.email)?.toLowerCase() === normTarget);
         const wasFollowing = targetCreator?.isFollowing || false;
@@ -405,12 +396,18 @@ const Explore = () => {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [selectedBookForModal, setSelectedBookForModal] = useState(null);
 
+    const navigate = useNavigate();
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [selectedCreator, setSelectedCreator] = useState(null);
 
     const handleProfileClick = (creator) => {
-        setSelectedCreator(creator);
-        setIsProfileModalOpen(true);
+        const creatorEmail = creator?.emailId || creator?.email || creator?.userEmail || '';
+        if (creatorEmail) {
+            navigate(`/profile/${encodeURIComponent(creatorEmail)}`);
+        } else {
+            setSelectedCreator(creator);
+            setIsProfileModalOpen(true);
+        }
     };
 
     const handleOpenShareModal = (rawBook) => {
@@ -427,13 +424,19 @@ const Explore = () => {
     const [sortBy, setSortBy] = useState("Most Popular");
     const [showMoreRatings, setShowMoreRatings] = useState(false);
 
+    // Sidebar Filters State
+    const [selectedTypes, setSelectedTypes] = useState([]);
+    const [selectedCategories, setSelectedCategories] = useState([]);
+    const [selectedRating, setSelectedRating] = useState(null);
+    const [maxPages, setMaxPages] = useState(100);
+    const [searchQuery, setSearchQuery] = useState("");
+
     useEffect(() => {
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
         const fetchPublishedBooks = async () => {
             try {
                 setIsLoading(true);
-                // Fetch all published flipbooks across all users from /api/explore/published
                 const response = await axios.get(`${backendUrl}/api/explore/published`);
 
                 if (response.data && response.data.books) {
@@ -476,8 +479,8 @@ const Explore = () => {
                             location: book.city || book.location || "Coimbatore",
                             authorPicture: book.authorPicture || null,
                             authorBgColor: book.authorBgColor || '#E8D4C8',
-                            pages: book.pages?.length,
-                            views: "1.2k",
+                            pages: book.pages?.length || 12,
+                            views: "12.5k",
                             rating: 4.5,
                             description: book.Customized_Settings?.FlipbookInfo?.quotes,
                             type: typeName,
@@ -496,22 +499,6 @@ const Explore = () => {
                 setIsLoading(false);
             }
         };
-
-        const currentUserEmail = (() => {
-            try {
-                const storedUser = localStorage.getItem('user');
-                if (storedUser) {
-                    const u = JSON.parse(storedUser);
-                    if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
-                }
-                const storedProfile = localStorage.getItem('user_profile');
-                if (storedProfile) {
-                    const p = JSON.parse(storedProfile);
-                    if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
-                }
-            } catch (e) { }
-            return '';
-        })();
 
         const fetchTopCreators = async () => {
             try {
@@ -532,35 +519,24 @@ const Explore = () => {
 
         fetchPublishedBooks();
         fetchTopCreators();
-    }, []);
-
-    // Sidebar Filters State
-    const [selectedTypes, setSelectedTypes] = useState([]);
-    const [selectedCategories, setSelectedCategories] = useState([]);
-    const [selectedRating, setSelectedRating] = useState(4);
-    const [maxPages, setMaxPages] = useState(100);
-    const [searchQuery, setSearchQuery] = useState("");
+    }, [currentUserEmail]);
 
     // Filter booksData based on all filters
     const filteredBooks = booksData.filter(book => {
-        // Top category filter
         if (category !== "All Category" && book.category?.toLowerCase() !== category.toLowerCase()) return false;
 
-        // Search filter
-        if (searchQuery && !book.bookName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        if (searchQuery && !book.bookName.toLowerCase().includes(searchQuery.toLowerCase()) && !book.authorName?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
 
-        // Sidebar Type filter (Landscape, Portrait, Square, 3D Added Flipbook)
         if (selectedTypes.length > 0) {
             const isTypeMatched = selectedTypes.some(typeOpt => {
                 if (typeOpt === "3D Added Flipbook") {
-                    return book.has3D || book.type === "3D Added Flipbook";
+                    return book.has3D || book.is3D;
                 }
                 return book.type?.toLowerCase() === typeOpt.toLowerCase();
             });
             if (!isTypeMatched) return false;
         }
 
-        // Sidebar Category filter
         if (selectedCategories.length > 0) {
             const isCatMatched = selectedCategories.some(catOpt =>
                 book.category?.toLowerCase() === catOpt.toLowerCase()
@@ -568,14 +544,87 @@ const Explore = () => {
             if (!isCatMatched) return false;
         }
 
-        // Sidebar Rating filter
         if (selectedRating && book.rating < selectedRating) return false;
 
-        // Sidebar Max Pages filter
         if (book.pages > maxPages) return false;
 
         return true;
     });
+
+    // Filter creators based on search
+    const filteredCreators = topCreators.filter(creator => {
+        if (currentUserEmail && (creator.emailId?.toLowerCase() === currentUserEmail || creator.email?.toLowerCase() === currentUserEmail)) {
+            return false;
+        }
+        if (searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            return (
+                (creator.name && creator.name.toLowerCase().includes(q)) ||
+                (creator.email && creator.email.toLowerCase().includes(q)) ||
+                (creator.emailId && creator.emailId.toLowerCase().includes(q)) ||
+                (creator.city && creator.city.toLowerCase().includes(q)) ||
+                (creator.industryType && creator.industryType.toLowerCase().includes(q)) ||
+                (creator.about && creator.about.toLowerCase().includes(q))
+            );
+        }
+        return true;
+    });
+
+    // Applied filter tags list
+    const appliedFilterChips = React.useMemo(() => {
+        const chips = [];
+
+        selectedTypes.forEach(type => {
+            chips.push({
+                id: `type-${type}`,
+                label: type,
+                onRemove: () => setSelectedTypes(prev => prev.filter(t => t !== type))
+            });
+        });
+
+        selectedCategories.forEach(cat => {
+            chips.push({
+                id: `cat-${cat}`,
+                label: cat,
+                onRemove: () => setSelectedCategories(prev => prev.filter(c => c !== cat))
+            });
+        });
+
+        if (selectedRating !== null) {
+            chips.push({
+                id: 'rating',
+                label: `${selectedRating} Star`,
+                onRemove: () => setSelectedRating(null)
+            });
+        }
+
+        if (searchQuery.trim()) {
+            chips.push({
+                id: 'search',
+                label: `"${searchQuery}"`,
+                onRemove: () => setSearchQuery("")
+            });
+        }
+
+        if (category !== "All Category") {
+            chips.push({
+                id: 'top-cat',
+                label: category,
+                onRemove: () => setCategory("All Category")
+            });
+        }
+
+        return chips;
+    }, [selectedTypes, selectedCategories, selectedRating, searchQuery, category]);
+
+    const handleClearAllFilters = () => {
+        setSelectedTypes([]);
+        setSelectedCategories([]);
+        setSelectedRating(null);
+        setSearchQuery("");
+        setCategory("All Category");
+        setMaxPages(100);
+    };
 
     return (
         <div className="w-full bg-white font-sans pb-0">
@@ -658,20 +707,56 @@ const Explore = () => {
 
                 {/* Top Control Bar */}
                 <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md py-[1.5vh] px-[2vw] -mx-[2vw] flex flex-col md:flex-row justify-between items-center gap-[2vw] border-b border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all">
-                    <div className="flex items-center gap-[1vw]">
-                        <h2 className="text-[1.8vw] font-medium text-gray-900">Explore IDC By :</h2>
-                        <CustomDropdown
-                            options={['All Category', 'Brochure', 'Catalog', 'Magazine', 'Portfolio', 'Storybook', 'Photography Book', 'Product Catalog']}
-                            value={category}
-                            onChange={setCategory}
-                            className="min-w-[12vw]"
-                        />
+                    
+                    {/* Left: Explore by Toggle */}
+                    <div className="flex items-center gap-[1.2vw]">
+                        <h2 className="text-[1.8vw] font-medium text-gray-900 tracking-tight">Explore by :</h2>
+                        
+                        {/* Books / Creators Switch Pills */}
+                        <div className="flex items-center bg-[#f3f4f6] p-[0.25vw] rounded-[0.5vw] border border-gray-200">
+                            <button
+                                onClick={() => setExploreMode('books')}
+                                className={`px-[1.2vw] py-[0.5vh] rounded-[0.35vw] text-[0.85vw] font-semibold transition-all duration-200 cursor-pointer ${
+                                    exploreMode === 'books'
+                                        ? 'bg-black text-white shadow-sm'
+                                        : 'text-gray-500 hover:text-black'
+                                }`}
+                            >
+                                Books
+                            </button>
+                            <button
+                                onClick={() => setExploreMode('creators')}
+                                className={`px-[1.2vw] py-[0.5vh] rounded-[0.35vw] text-[0.85vw] font-semibold transition-all duration-200 cursor-pointer ${
+                                    exploreMode === 'creators'
+                                        ? 'bg-black text-white shadow-sm'
+                                        : 'text-gray-500 hover:text-black'
+                                }`}
+                            >
+                                Creators
+                            </button>
+                        </div>
+
+                        {exploreMode === 'books' && (
+                            <CustomDropdown
+                                options={['All Category', 'Brochure', 'Catalog', 'Magazine', 'Portfolio', 'Storybook', 'Photography Book', 'Product Catalog']}
+                                value={category}
+                                onChange={setCategory}
+                                className="min-w-[12vw]"
+                            />
+                        )}
                     </div>
 
+                    {/* Right: Search Bar & Sort By */}
                     <div className="flex items-center gap-[1.5vw] w-full md:w-auto">
                         <div className="relative flex items-center w-full md:w-[22vw]">
                             <svg className="w-[1vw] h-[1vw] text-gray-400 absolute left-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input type="text" placeholder="Search Flipbook..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full border-[1.5px] border-gray-300 rounded-[0.5vw] pl-[2.8vw] pr-[1vw] py-[0.6vh] text-[0.9vw] text-gray-700 outline-none focus:border-gray-400 placeholder-gray-400 transition-all" />
+                            <input
+                                type="text"
+                                placeholder={exploreMode === 'books' ? "Search Flipbook..." : "Search Creator..."}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full border-[1.5px] border-gray-300 rounded-[0.5vw] pl-[2.8vw] pr-[1vw] py-[0.6vh] text-[0.9vw] text-gray-700 outline-none focus:border-gray-400 placeholder-gray-400 transition-all"
+                            />
                         </div>
 
                         <div className="flex items-center justify-between border-[1.5px] border-gray-300 rounded-[0.5vw] p-[0.3vw] pl-[1vw] bg-white">
@@ -688,7 +773,7 @@ const Explore = () => {
                                 renderButton={(val, isOpen, setIsOpen) => (
                                     <button
                                         onClick={() => setIsOpen(!isOpen)}
-                                        className="flex items-center justify-between w-full gap-[0.8vw] bg-[#f3f4f6] rounded-[0.4vw] px-[0.8vw] py-[0.3vh] focus:outline-none"
+                                        className="flex items-center justify-between w-full gap-[0.8vw] bg-[#f3f4f6] rounded-[0.4vw] px-[0.8vw] py-[0.3vh] focus:outline-none cursor-pointer"
                                     >
                                         <span className="text-[0.85vw] text-gray-700 font-medium whitespace-nowrap text-left flex-1">{val}</span>
                                         <svg className={`w-[0.9vw] h-[0.9vw] text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -705,37 +790,52 @@ const Explore = () => {
                     {/* Left Sidebar Filter */}
                     <div className="w-full md:w-[16vw] flex-shrink-0 space-y-[1.5vh]">
                         {/* Title */}
-                        <div className="flex items-center gap-[0.5vw] px-[0.5vw]">
-                            <Icon icon="flowbite:filter-outline" className="w-[1.3vw] h-[1.3vw] text-black" />
-                            <span className="font-semibold text-[1.1vw] text-black">Filter Books By</span>
+                        <div className="flex items-center justify-between px-[0.5vw]">
+                            <div className="flex items-center gap-[0.5vw]">
+                                <Icon icon="flowbite:filter-outline" className="w-[1.3vw] h-[1.3vw] text-black" />
+                                <span className="font-semibold text-[1.1vw] text-black">
+                                    {exploreMode === 'books' ? 'Filter Books By' : 'Filter Creators By'}
+                                </span>
+                            </div>
+                            {appliedFilterChips.length > 0 && (
+                                <button
+                                    onClick={handleClearAllFilters}
+                                    className="flex items-center gap-[0.2vw] text-[0.8vw] text-red-500 hover:text-red-600 font-medium transition-colors cursor-pointer"
+                                >
+                                    <span>Clear all</span>
+                                    <Icon icon="lucide:trash-2" className="w-[0.85vw] h-[0.85vw]" />
+                                </button>
+                            )}
                         </div>
 
                         {/* Filter Container */}
-                        <div className="bg-white border border-gray-200 rounded-[0.5vw] flex flex-col">
+                        <div className="bg-white border border-gray-200 rounded-[0.5vw] flex flex-col shadow-sm">
 
                             {/* Flipbook Type */}
-                            <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh]">
-                                <h3 className="font-semibold text-[0.95vw] text-black">Flipbook Type</h3>
-                                <div className="space-y-[1.2vh]">
-                                    {['Landscape', 'Portrait', 'Square', '3D Added Flipbook'].map((type, i) => (
-                                        <label key={i} className="flex items-center justify-between cursor-pointer group">
-                                            <span className="text-[0.85vw] text-gray-800">{type}</span>
-                                            <div className="relative flex items-center justify-center">
-                                                <input
-                                                    type="checkbox"
-                                                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors"
-                                                    checked={selectedTypes.includes(type)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) setSelectedTypes([...selectedTypes, type]);
-                                                        else setSelectedTypes(selectedTypes.filter(t => t !== type));
-                                                    }}
-                                                />
-                                                <svg className="absolute w-[0.75vw] h-[0.75vw] text-white pointer-events-none opacity-0 peer-checked:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
-                                            </div>
-                                        </label>
-                                    ))}
+                            {exploreMode === 'books' && (
+                                <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh]">
+                                    <h3 className="font-semibold text-[0.95vw] text-black">Flipbook Type</h3>
+                                    <div className="space-y-[1.2vh]">
+                                        {['Landscape', 'Portrait', 'Square', '3D Added Flipbook'].map((type, i) => (
+                                            <label key={i} className="flex items-center justify-between cursor-pointer group">
+                                                <span className="text-[0.85vw] text-gray-800">{type}</span>
+                                                <div className="relative flex items-center justify-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors"
+                                                        checked={selectedTypes.includes(type)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) setSelectedTypes([...selectedTypes, type]);
+                                                            else setSelectedTypes(selectedTypes.filter(t => t !== type));
+                                                        }}
+                                                    />
+                                                    <svg className="absolute w-[0.75vw] h-[0.75vw] text-white pointer-events-none opacity-0 peer-checked:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Category */}
                             <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh]">
@@ -762,174 +862,207 @@ const Explore = () => {
                             </div>
 
                             {/* Ratings */}
-                            <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh] relative">
-                                <svg width="0" height="0" className="absolute">
-                                    <defs>
-                                        <linearGradient id="star-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                            <stop offset="0%" stopColor="#FFCA44" />
-                                            <stop offset="50%" stopColor="#FFE091" />
-                                            <stop offset="100%" stopColor="#FFCA44" />
-                                        </linearGradient>
-                                        <linearGradient id="half-star" x1="0%" y1="0%" x2="100%" y2="0%">
-                                            <stop offset="0%" stopColor="#FFCA44" />
-                                            <stop offset="25%" stopColor="#FFE091" />
-                                            <stop offset="50%" stopColor="#FFCA44" />
-                                            <stop offset="50%" stopColor="#ffffff" />
-                                            <stop offset="100%" stopColor="#ffffff" />
-                                        </linearGradient>
-                                    </defs>
-                                </svg>
-                                <h3 className="font-semibold text-[0.95vw] text-black">Ratings</h3>
-                                <div className="space-y-[1.2vh]">
-                                    {[
-                                        { val: 5, stars: [1, 1, 1, 1, 1], label: "5 Star" },
-                                        { val: 4.5, stars: [1, 1, 1, 1, 0.5], label: "4.5 Star" },
-                                        { val: 4, stars: [1, 1, 1, 1, 0], label: "4 Star" },
-                                        { val: 3.5, stars: [1, 1, 1, 0.5, 0], label: "3.5 Star" },
-                                        { val: 3, stars: [1, 1, 1, 0, 0], label: "3 Star" },
-                                        { val: 2.5, stars: [1, 1, 0.5, 0, 0], label: "2.5 Star" },
-                                        { val: 2, stars: [1, 1, 0, 0, 0], label: "2 Star" },
-                                        { val: 1.5, stars: [1, 0.5, 0, 0, 0], label: "1.5 Star" },
-                                        { val: 1, stars: [1, 0, 0, 0, 0], label: "1 Star" }
-                                    ].slice(0, showMoreRatings ? 9 : 3).map((rate, i) => (
-                                        <label key={i} className="flex items-center justify-between cursor-pointer group">
-                                            <div className="flex items-center gap-[0.8vw]">
-                                                <div className="relative flex items-center justify-center shrink-0 w-[1.1vw] h-[1.1vw] min-w-[18px] min-h-[18px]">
-                                                    <input
-                                                        type="radio"
-                                                        name="rating"
-                                                        className="sr-only"
-                                                        checked={selectedRating === rate.val}
-                                                        onChange={() => setSelectedRating(rate.val)}
-                                                    />
-                                                    <svg
-                                                        onClick={() => setSelectedRating(rate.val)}
-                                                        className="w-full h-full cursor-pointer overflow-visible"
-                                                        viewBox="0 0 24 24"
-                                                        fill="none"
-                                                    >
-                                                        {selectedRating === rate.val ? (
-                                                            <>
-                                                                <circle cx="12" cy="12" r="10" stroke="#5551ff" strokeWidth="2" fill="none" />
-                                                                <circle cx="12" cy="12" r="5" fill="#5551ff" />
-                                                            </>
-                                                        ) : (
-                                                            <circle cx="12" cy="12" r="10" stroke="#374151" strokeWidth="1.8" fill="none" />
-                                                        )}
-                                                    </svg>
+                            {exploreMode === 'books' && (
+                                <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh] relative">
+                                    <svg width="0" height="0" className="absolute">
+                                        <defs>
+                                            <linearGradient id="star-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                <stop offset="0%" stopColor="#FFCA44" />
+                                                <stop offset="50%" stopColor="#FFE091" />
+                                                <stop offset="100%" stopColor="#FFCA44" />
+                                            </linearGradient>
+                                            <linearGradient id="half-star" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                <stop offset="0%" stopColor="#FFCA44" />
+                                                <stop offset="25%" stopColor="#FFE091" />
+                                                <stop offset="50%" stopColor="#FFCA44" />
+                                                <stop offset="50%" stopColor="#ffffff" />
+                                                <stop offset="100%" stopColor="#ffffff" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                    <h3 className="font-semibold text-[0.95vw] text-black">Ratings</h3>
+                                    <div className="space-y-[1.2vh]">
+                                        {[
+                                            { val: 5, stars: [1, 1, 1, 1, 1], label: "5 Star" },
+                                            { val: 4.5, stars: [1, 1, 1, 1, 0.5], label: "4.5 Star" },
+                                            { val: 4, stars: [1, 1, 1, 1, 0], label: "4 Star" },
+                                            { val: 3.5, stars: [1, 1, 1, 0.5, 0], label: "3.5 Star" },
+                                            { val: 3, stars: [1, 1, 1, 0, 0], label: "3 Star" },
+                                            { val: 2.5, stars: [1, 1, 0.5, 0, 0], label: "2.5 Star" },
+                                            { val: 2, stars: [1, 1, 0, 0, 0], label: "2 Star" },
+                                            { val: 1.5, stars: [1, 0.5, 0, 0, 0], label: "1.5 Star" },
+                                            { val: 1, stars: [1, 0, 0, 0, 0], label: "1 Star" }
+                                        ].slice(0, showMoreRatings ? 9 : 3).map((rate, i) => (
+                                            <label key={i} className="flex items-center justify-between cursor-pointer group">
+                                                <div className="flex items-center gap-[0.8vw]">
+                                                    <div className="relative flex items-center justify-center shrink-0 w-[1.1vw] h-[1.1vw] min-w-[18px] min-h-[18px]">
+                                                        <input
+                                                            type="radio"
+                                                            name="rating"
+                                                            className="sr-only"
+                                                            checked={selectedRating === rate.val}
+                                                            onChange={() => setSelectedRating(selectedRating === rate.val ? null : rate.val)}
+                                                        />
+                                                        <svg
+                                                            onClick={() => setSelectedRating(selectedRating === rate.val ? null : rate.val)}
+                                                            className="w-full h-full cursor-pointer overflow-visible"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                        >
+                                                            {selectedRating === rate.val ? (
+                                                                <>
+                                                                    <circle cx="12" cy="12" r="10" stroke="#5551ff" strokeWidth="2" fill="none" />
+                                                                    <circle cx="12" cy="12" r="5" fill="#5551ff" />
+                                                                </>
+                                                            ) : (
+                                                                <circle cx="12" cy="12" r="10" stroke="#374151" strokeWidth="1.8" fill="none" />
+                                                            )}
+                                                        </svg>
+                                                    </div>
+                                                    <span className="text-[0.85vw] text-gray-800">{rate.label}</span>
                                                 </div>
-                                                <span className="text-[0.85vw] text-gray-800">{rate.label}</span>
-                                            </div>
-                                            <div className="flex gap-[0.2vw]">
-                                                {rate.stars.map((s, idx) => (
-                                                    <svg key={idx} className="w-[1.1vw] h-[1.1vw] overflow-visible" fill={s === 1 ? "url(#star-gradient)" : s === 0.5 ? "url(#half-star)" : "white"} stroke="url(#star-gradient)" strokeWidth="1" viewBox="0 0 20 20">
-                                                        <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
-                                                    </svg>
-                                                ))}
-                                            </div>
-                                        </label>
-                                    ))}
+                                                <div className="flex gap-[0.2vw]">
+                                                    {rate.stars.map((s, idx) => (
+                                                        <svg key={idx} className="w-[1.1vw] h-[1.1vw] overflow-visible" fill={s === 1 ? "url(#star-gradient)" : s === 0.5 ? "url(#half-star)" : "white"} stroke="url(#star-gradient)" strokeWidth="1" viewBox="0 0 20 20">
+                                                            <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
+                                                        </svg>
+                                                    ))}
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => setShowMoreRatings(!showMoreRatings)}
+                                        className="text-[#5551ff] text-[0.85vw] mt-[1vh] font-medium hover:underline focus:outline-none cursor-pointer"
+                                    >
+                                        {showMoreRatings ? 'Less' : 'More'}
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setShowMoreRatings(!showMoreRatings)}
-                                    className="text-[#5551ff] text-[0.85vw] mt-[1vh] font-medium hover:underline focus:outline-none"
-                                >
-                                    {showMoreRatings ? 'Less' : 'More'}
-                                </button>
-                            </div>
+                            )}
 
                             {/* Max Pages */}
-                            <div className="p-[1.2vw] space-y-[1.5vh]">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="font-semibold text-[0.95vw] text-black">Max Pages</h3>
-                                    <span className="text-[0.8vw] text-gray-400">4 - 100</span>
+                            {exploreMode === 'books' && (
+                                <div className="p-[1.2vw] space-y-[1.5vh]">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="font-semibold text-[0.95vw] text-black">Max Pages</h3>
+                                        <span className="text-[0.8vw] text-gray-400">4 - 100</span>
+                                    </div>
+                                    <div className="flex items-center gap-[1vw] pt-[1vh] pb-[0.5vh]">
+                                        <input type="range" min="4" max="100" value={maxPages} onChange={(e) => setMaxPages(Number(e.target.value))} className="w-full cursor-pointer custom-range-slider" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${((maxPages - 4) / 96) * 100}%, #E2E8F0 ${((maxPages - 4) / 96) * 100}%, #E2E8F0 100%)` }} />
+                                        <span className="text-[0.8vw] text-black font-medium whitespace-nowrap min-w-[3.5vw]">{maxPages} pages</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-[1vw] pt-[1vh] pb-[0.5vh]">
-                                    <input type="range" min="4" max="100" value={maxPages} onChange={(e) => setMaxPages(Number(e.target.value))} className="w-full cursor-pointer custom-range-slider" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${((maxPages - 4) / 96) * 100}%, #E2E8F0 ${((maxPages - 4) / 96) * 100}%, #E2E8F0 100%)` }} />
-                                    <span className="text-[0.8vw] text-black font-medium whitespace-nowrap min-w-[3.5vw]">{maxPages} pages</span>
-                                </div>
-                            </div>
+                            )}
 
                         </div>
                     </div>
 
-                    {/* Right Area (Books + Creators) */}
-                    <div className="flex-1 flex flex-col">
-                        {/* Books Grid */}
-                        {isLoading ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                {[...Array(10)].map((_, idx) => (
-                                    <FlipbookCardSkeleton key={idx} />
-                                ))}
-                            </div>
-                        ) : error ? (
-                            <div className="w-full py-[10vh] flex flex-col items-center justify-center text-red-500">
-                                <svg className="w-[3vw] h-[3vw] mb-[1vh]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                <span className="text-[1.2vw] font-medium">{error}</span>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                {filteredBooks.map((book, index) => (
-                                    <FlipbookCard
-                                        key={index}
-                                        v_id={book.v_id}
-                                        shareId={book.shareId}
-                                        access={book.access}
-                                        rawBook={book.rawBook}
-                                        coverImg={covers[index % 5]}
-                                        profileImg={profiles[index % 5]}
-                                        authorPicture={book.authorPicture}
-                                        authorBgColor={book.authorBgColor}
-                                        bookName={book.bookName}
-                                        authorName={book.authorName}
-                                        location={book.location}
-                                        pages={book.pages}
-                                        views={book.views}
-                                        rating={book.rating}
-                                        description={book.description}
-                                        onShare={handleOpenShareModal}
-                                        onDownload={handleOpenExportModal}
-                                        onProfileClick={handleProfileClick}
-                                    />
-                                ))}
-                                {filteredBooks.length === 0 && (
-                                    <div className="col-span-full py-[5vh] text-center font-semibold text-gray-700 text-[1vw]">
-                                        No flipbooks found matching your filters.
-                                    </div>
-                                )}
+                    {/* Right Area (Books or Creators) */}
+                    <div className="flex-1 flex flex-col min-w-0">
+                        
+                        {/* Applied Filters Bar */}
+                        {appliedFilterChips.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-[0.6vw] mb-[2.5vh]">
+                                <span className="font-bold text-[0.9vw] text-black mr-[0.4vw]">Applied Filters :</span>
+                                <AnimatePresence>
+                                    {appliedFilterChips.map(chip => (
+                                        <motion.div
+                                            key={chip.id}
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="inline-flex items-center gap-[0.4vw] bg-[#f0efff] text-[#5551ff] border border-[#e0defe] px-[0.7vw] py-[0.3vh] rounded-[0.4vw] text-[0.75vw] font-medium"
+                                        >
+                                            <span>{chip.label}</span>
+                                            <button
+                                                onClick={chip.onRemove}
+                                                className="hover:bg-[#e0defe] rounded-full p-[0.1vw] transition-colors cursor-pointer text-[#5551ff] font-bold"
+                                            >
+                                                ✕
+                                            </button>
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
                             </div>
                         )}
 
-                        {/* Top Creators Section */}
-                        <div className="w-full pt-[6vh]">
-                            <h2 className="text-[1.5vw] font-semibold text-black mb-[3vh]">Top Creators</h2>
-                            <div className="ml-[1vw] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                {isCreatorsLoading ? (
-                                    Array.from({ length: 5 }).map((_, idx) => (
-                                        <div key={idx} className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col shadow-[0_2px_10px_rgba(0,0,0,0.06)] animate-pulse">
-                                            <div className="h-[14vh] w-full bg-gray-200"></div>
-                                            <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
-                                                <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
-                                                    <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white bg-gray-300"></div>
-                                                    <div className="h-[1.5vw] w-[4vw] bg-gray-200 rounded-full mb-[1vw]"></div>
-                                                </div>
-                                                <div className="h-[1vw] bg-gray-200 rounded w-3/4 mt-[0.5vh]"></div>
-                                                <div className="h-[0.7vw] bg-gray-100 rounded w-1/2 mt-[0.5vh]"></div>
-                                                <div className="h-[0.7vw] bg-gray-100 rounded w-full mt-[1vh]"></div>
-                                                <div className="w-full h-[1px] bg-gray-100 my-[1.5vh]"></div>
-                                                <div className="flex items-center justify-between px-[0.5vw]">
-                                                    <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
-                                                    <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
-                                                    <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
+                        {/* MODE 1: BOOKS GRID */}
+                        {exploreMode === 'books' && (
+                            <>
+                                {isLoading ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
+                                        {[...Array(10)].map((_, idx) => (
+                                            <FlipbookCardSkeleton key={idx} />
+                                        ))}
+                                    </div>
+                                ) : error ? (
+                                    <div className="w-full py-[10vh] flex flex-col items-center justify-center text-red-500">
+                                        <svg className="w-[3vw] h-[3vw] mb-[1vh]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        <span className="text-[1.2vw] font-medium">{error}</span>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
+                                        {filteredBooks.map((book, index) => (
+                                            <FlipbookCard
+                                                key={book.v_id || index}
+                                                v_id={book.v_id}
+                                                shareId={book.shareId}
+                                                access={book.access}
+                                                rawBook={book.rawBook}
+                                                coverImg={covers[index % 5]}
+                                                profileImg={profiles[index % 5]}
+                                                authorPicture={book.authorPicture}
+                                                authorBgColor={book.authorBgColor}
+                                                bookName={book.bookName}
+                                                authorName={book.authorName}
+                                                location={book.location}
+                                                pages={book.pages}
+                                                views={book.views}
+                                                rating={book.rating}
+                                                description={book.description}
+                                                onShare={handleOpenShareModal}
+                                                onDownload={handleOpenExportModal}
+                                                onProfileClick={handleProfileClick}
+                                            />
+                                        ))}
+                                        {filteredBooks.length === 0 && (
+                                            <div className="col-span-full py-[5vh] text-center font-semibold text-gray-700 text-[1vw]">
+                                                No flipbooks found matching your filters.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* MODE 2: CREATORS GRID */}
+                        {exploreMode === 'creators' && (
+                            <div className="w-full">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
+                                    {isCreatorsLoading ? (
+                                        Array.from({ length: 10 }).map((_, idx) => (
+                                            <div key={idx} className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col shadow-[0_2px_10px_rgba(0,0,0,0.06)] animate-pulse">
+                                                <div className="h-[14vh] w-full bg-gray-200"></div>
+                                                <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
+                                                    <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
+                                                        <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white bg-gray-300"></div>
+                                                        <div className="h-[1.5vw] w-[4vw] bg-gray-200 rounded-full mb-[1vw]"></div>
+                                                    </div>
+                                                    <div className="h-[1vw] bg-gray-200 rounded w-3/4 mt-[0.5vh]"></div>
+                                                    <div className="h-[0.7vw] bg-gray-100 rounded w-1/2 mt-[0.5vh]"></div>
+                                                    <div className="h-[0.7vw] bg-gray-100 rounded w-full mt-[1vh]"></div>
+                                                    <div className="w-full h-[1px] bg-gray-100 my-[1.5vh]"></div>
+                                                    <div className="flex items-center justify-between px-[0.5vw]">
+                                                        <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
+                                                        <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
+                                                        <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    topCreators
-                                        .filter(creator => !currentUserEmail || (creator.emailId?.toLowerCase() !== currentUserEmail && creator.email?.toLowerCase() !== currentUserEmail))
-                                        .slice(0, 10)
-                                        .map((creator, idx) => {
+                                        ))
+                                    ) : (
+                                        filteredCreators.map((creator, idx) => {
                                             const bannerStyle = {
                                                 background: creator.bannerBg?.type === 'solid' ? creator.bannerBg?.value : undefined,
                                                 backgroundImage: (creator.bannerBg?.type === 'gradient' || creator.bannerBg?.type === 'media')
@@ -947,8 +1080,7 @@ const Explore = () => {
                                                     className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col hover:shadow-xl transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)]"
                                                 >
                                                     {/* Banner */}
-                                                    <div className="h-[14vh] w-full relative" style={bannerStyle}>
-                                                    </div>
+                                                    <div className="h-[14vh] w-full relative" style={bannerStyle}></div>
 
                                                     {/* Body */}
                                                     <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
@@ -993,13 +1125,9 @@ const Explore = () => {
                                                                 {followingLoadingMap[(creator.emailId || creator.email)?.toLowerCase()] ? (
                                                                     <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
                                                                 ) : creator.isFollowing ? (
-                                                                    <>
-                                                                        <span>Unfollow</span>
-                                                                    </>
+                                                                    <span>Unfollow</span>
                                                                 ) : (
-                                                                    <>
-                                                                        <span>Follow</span>
-                                                                    </>
+                                                                    <span>Follow</span>
                                                                 )}
                                                             </button>
                                                         </div>
@@ -1041,9 +1169,10 @@ const Explore = () => {
                                                 </div>
                                             );
                                         })
-                                )}
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>

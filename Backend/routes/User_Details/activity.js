@@ -235,7 +235,7 @@ router.delete('/:id', async (req, res) => {
       const updated = await Activity.findOneAndUpdate(
         { 'activities._id': id },
         { $pull: { activities: { _id: id } } },
-        { new: true }
+        { returnDocument: 'after' }
       );
 
       if (!updated) {
@@ -256,7 +256,7 @@ router.delete('/:id', async (req, res) => {
     const updated = await Activity.findOneAndUpdate(
       { userEmail },
       { $pull: { activities: { _id: id } } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updated) {

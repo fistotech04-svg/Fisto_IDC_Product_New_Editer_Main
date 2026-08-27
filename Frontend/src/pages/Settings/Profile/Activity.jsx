@@ -15,6 +15,105 @@ const activityOptions = [
   'Un-Published Flipbook'
 ];
 
+const getActivityStyles = (type, item) => {
+  const t = type || item?.type;
+  switch (t) {
+    case 'create':
+    case 'create_flip':
+      return {
+        icon: item?.icon || 'lucide:book-open',
+        colorClass: 'text-indigo-500',
+        bgClass: 'bg-indigo-50',
+        dotClass: 'bg-indigo-500',
+        dotHex: '#6366f1',
+        bgHex: '#eef2ff',
+        colorHex: '#6366f1'
+      };
+    case 'edit_flip':
+    case 'edit':
+      return {
+        icon: item?.icon || (t === 'edit_flip' ? 'lucide:edit-3' : 'lucide:user'),
+        colorClass: 'text-yellow-500',
+        bgClass: 'bg-yellow-50',
+        dotClass: 'bg-yellow-500',
+        dotHex: '#eab308',
+        bgHex: '#fefce8',
+        colorHex: '#eab308'
+      };
+    case 'delete_flip':
+    case 'delete':
+      return {
+        icon: item?.icon || 'lucide:trash-2',
+        colorClass: 'text-red-500',
+        bgClass: 'bg-red-50',
+        dotClass: 'bg-red-500',
+        dotHex: '#ef4444',
+        bgHex: '#fef2f2',
+        colorHex: '#ef4444'
+      };
+    case 'create_profile':
+      return {
+        icon: item?.icon || 'lucide:user',
+        colorClass: 'text-blue-500',
+        bgClass: 'bg-blue-50',
+        dotClass: 'bg-blue-500',
+        dotHex: '#3b82f6',
+        bgHex: '#eff6ff',
+        colorHex: '#3b82f6'
+      };
+    case 'publish':
+      return {
+        icon: item?.icon || 'lucide:layout-template',
+        colorClass: 'text-green-500',
+        bgClass: 'bg-green-50',
+        dotClass: 'bg-green-500',
+        dotHex: '#22c55e',
+        bgHex: '#f0fdf4',
+        colorHex: '#22c55e'
+      };
+    case 'unpublish':
+      return {
+        icon: item?.icon || 'lucide:eye-off',
+        colorClass: 'text-gray-500',
+        bgClass: 'bg-gray-50',
+        dotClass: 'bg-gray-500',
+        dotHex: '#6b7280',
+        bgHex: '#f9fafb',
+        colorHex: '#6b7280'
+      };
+    case 'send':
+      return {
+        icon: item?.icon || 'lucide:send',
+        colorClass: 'text-orange-500',
+        bgClass: 'bg-orange-50',
+        dotClass: 'bg-orange-500',
+        dotHex: '#f97316',
+        bgHex: '#fff7ed',
+        colorHex: '#f97316'
+      };
+    default: {
+      let dotColor = '#6366f1';
+      if (item?.dot?.includes('yellow')) dotColor = '#eab308';
+      else if (item?.dot?.includes('red')) dotColor = '#ef4444';
+      else if (item?.dot?.includes('green')) dotColor = '#22c55e';
+      else if (item?.dot?.includes('blue')) dotColor = '#3b82f6';
+      else if (item?.dot?.includes('orange')) dotColor = '#f97316';
+      else if (item?.dot?.includes('gray')) dotColor = '#6b7280';
+      else if (item?.dot?.includes('indigo')) dotColor = '#6366f1';
+
+      return {
+        icon: item?.icon || 'lucide:activity',
+        colorClass: item?.color || 'text-gray-500',
+        bgClass: item?.bg || 'bg-gray-50',
+        dotClass: item?.dot || 'bg-indigo-500',
+        dotHex: dotColor,
+        bgHex: undefined,
+        colorHex: undefined
+      };
+    }
+  }
+};
+
 const Activity = ({ userEmail: propEmail }) => {
   const [portalTarget, setPortalTarget] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -267,17 +366,24 @@ const Activity = ({ userEmail: propEmail }) => {
                   {group.items.map((item) => {
                     const isItemMenuOpen = activeMenuId === (item.id || item._id);
                     const isDeletingThis = deletingId === (item.id || item._id);
+                    const style = getActivityStyles(item.type, item);
 
                     return (
                       <div key={item.id || item._id} className="flex items-center gap-[1.2vw] relative z-10 group">
                         {/* Timeline Dot (Mathematically centered on the vertical line) */}
                         <div className="absolute left-[-2.2vw] w-[1.4vw] flex items-center justify-center top-[1.4vw] -translate-y-1/2 z-10">
-                          <div className={`w-[0.55vw] h-[0.55vw] rounded-full ${item.dot || 'bg-indigo-500'} ring-4 ring-white shadow-xs`}></div>
+                          <div 
+                            className={`w-[0.55vw] h-[0.55vw] rounded-full ring-4 ring-white shadow-xs ${style.dotClass}`}
+                            style={{ backgroundColor: style.dotHex }}
+                          ></div>
                         </div>
 
                         {/* Icon */}
-                        <div className={`w-[2.8vw] h-[2.8vw] rounded-full flex items-center justify-center ${item.bg || 'bg-indigo-50'} ${item.color || 'text-indigo-500'} shadow-xs shrink-0 z-10 transition-transform group-hover:scale-105 border border-white`}>
-                          <Icon icon={item.icon || 'lucide:activity'} className="w-[1.25vw] h-[1.25vw]" />
+                        <div 
+                          className={`w-[2.8vw] h-[2.8vw] rounded-full flex items-center justify-center shadow-xs shrink-0 z-10 transition-transform group-hover:scale-105 border border-white ${style.bgClass} ${style.colorClass}`}
+                          style={style.bgHex ? { backgroundColor: style.bgHex, color: style.colorHex } : {}}
+                        >
+                          <Icon icon={style.icon} className="w-[1.25vw] h-[1.25vw]" />
                         </div>
 
                         {/* Content */}
