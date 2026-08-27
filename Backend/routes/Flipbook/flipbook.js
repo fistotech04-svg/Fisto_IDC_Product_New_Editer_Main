@@ -789,7 +789,7 @@ router.post("/save", async (req, res) => {
         $setOnInsert: { v_id: v_id },
         $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
     );
 
     // Automatically add newly created book to myShelf if not already present
@@ -2170,7 +2170,7 @@ router.post('/publish', async (req, res) => {
         $set: updateData,
         $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updatedDoc) {
@@ -2209,7 +2209,7 @@ router.post('/unpublish', async (req, res) => {
         $set: { isPublished: false, 'Customized_Settings.FlipbookInfo.tags': [], lastUpdated: new Date() },
         $unset: { share: 1, settings: 1, meta: 1, category: 1, language: 1, tags: 1, quotes: 1, about: 1, width: 1, height: 1, templateId: 1, orientation: 1 }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updatedDoc) {
@@ -2614,7 +2614,7 @@ router.post("/public/view/:shareId", async (req, res) => {
       {
         $addToSet: { viewers: viewerKey }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     const accurateViewsCount = updatedDoc.viewers ? updatedDoc.viewers.length : 1;

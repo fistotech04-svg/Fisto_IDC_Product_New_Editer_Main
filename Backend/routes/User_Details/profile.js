@@ -223,7 +223,7 @@ router.post('/', async (req, res) => {
     const updatedProfile = await Profile.findOneAndUpdate(
       { emailId: normalizedEmail },
       { $set: updateFields },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
 
     // Log user activity
@@ -270,7 +270,7 @@ router.post('/add-to-shelf', async (req, res) => {
       profile.myShelf.folders.push({ folderName: targetFolder, shelf_design: 1, books: [] });
       folder = profile.myShelf.folders.find(f => f.folderName === targetFolder);
     }
-    
+
     if (!folder.books) folder.books = [];
     
     const bookExists = folder.books.some(b => {

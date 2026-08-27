@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import p1 from '../../../assets/settings/p1.png';
 
@@ -72,6 +72,7 @@ const getInitialProfile = () => {
 
 const SettingsLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(getInitialProfile);
 
   const handleLogout = () => {
@@ -141,32 +142,35 @@ const SettingsLayout = () => {
     }
   }, []);
 
+  const userEmail = user?.emailId || user?.email || '';
+  const profilePath = userEmail ? `profile/${encodeURIComponent(userEmail)}` : 'profile';
+
   const sidebarGroups = [
     {
       title: 'General',
       items: [
-        { path: 'profile', label: 'Profile', icon: 'mingcute:profile-line' },
-        { path: 'account', label: 'Account', icon: 'iconamoon:profile' },
-        { path: 'notifications', label: 'Notifications', icon: 'basil:notification-on-outline' },
-        { path: 'my-shelf', label: 'My Shelf', icon: 'clarity:library-line' },
+        { path: profilePath, id: 'profile', label: 'Profile', icon: 'mingcute:profile-line' },
+        { path: 'account', id: 'account', label: 'Account', icon: 'iconamoon:profile' },
+        { path: 'notifications', id: 'notifications', label: 'Notifications', icon: 'basil:notification-on-outline' },
+        { path: 'my-shelf', id: 'my-shelf', label: 'My Shelf', icon: 'clarity:library-line' },
       ]
     },
     {
       title: 'Workspace',
       items: [
-        { path: 'editor-defaults', label: 'Editor Defaults', icon: 'vaadin:edit' },
-        { path: 'library', label: 'Library', icon: 'clarity:library-line' },
-        { path: 'integrations', label: 'Integrations', icon: 'oui:integration-general' },
+        { path: 'editor-defaults', id: 'editor-defaults', label: 'Editor Defaults', icon: 'vaadin:edit' },
+        { path: 'library', id: 'library', label: 'Library', icon: 'clarity:library-line' },
+        { path: 'integrations', id: 'integrations', label: 'Integrations', icon: 'oui:integration-general' },
       ]
     },
     {
       title: 'System & Billing',
       items: [
-        { path: 'privacy-access', label: 'Privacy & Access', icon: 'line-md:security' },
-        { path: 'analytics', label: 'Analytics', icon: 'carbon:analytics' },
-        { path: 'billing', label: 'Billing', icon: 'tdesign:bill' },
-        { path: 'advanced', label: 'Advanced', icon: 'gcp:advanced-solutions-lab' },
-        { path: 'account-management', label: 'Account Management', icon: 'material-symbols:manage-accounts-outline-rounded' },
+        { path: 'privacy-access', id: 'privacy-access', label: 'Privacy & Access', icon: 'line-md:security' },
+        { path: 'analytics', id: 'analytics', label: 'Analytics', icon: 'carbon:analytics' },
+        { path: 'billing', id: 'billing', label: 'Billing', icon: 'tdesign:bill' },
+        { path: 'advanced', id: 'advanced', label: 'Advanced', icon: 'gcp:advanced-solutions-lab' },
+        { path: 'account-management', id: 'account-management', label: 'Account Management', icon: 'material-symbols:manage-accounts-outline-rounded' },
       ]
     }
   ];
@@ -192,11 +196,16 @@ const SettingsLayout = () => {
 
               <div className="flex flex-col gap-[0.2vw]">
                 {group.items.map((item) => {
+                  const isProfile = item.id === 'profile';
+                  const isActive = isProfile 
+                    ? location.pathname.startsWith('/settings/profile')
+                    : location.pathname === `/settings/${item.path}` || location.pathname.startsWith(`/settings/${item.path}/`);
+
                   return (
-                    <NavLink
-                      key={item.path}
+                    <Link
+                      key={item.id || item.path}
                       to={item.path}
-                      className={({ isActive }) => `
+                      className={`
                         flex items-center gap-[1vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] text-[0.8125vw] font-semibold transition-colors
                         ${isActive 
                           ? 'bg-[#F2F2F2] text-gray-800' 
@@ -204,17 +213,13 @@ const SettingsLayout = () => {
                         }
                       `}
                     >
-                      {({ isActive }) => (
-                        <>
-                          <Icon 
-                            icon={item.icon} 
-                            className={`w-[1vw] h-[1vw] flex-shrink-0 text-gray-700 ${item.icon.startsWith('gcp:') ? 'grayscale brightness-0 opacity-90' : ''}`} 
-                            style={{ strokeWidth: '1.2px' }}
-                          />
-                          {item.label}
-                        </>
-                      )}
-                    </NavLink>
+                      <Icon 
+                        icon={item.icon} 
+                        className={`w-[1vw] h-[1vw] flex-shrink-0 text-gray-700 ${item.icon.startsWith('gcp:') ? 'grayscale brightness-0 opacity-90' : ''}`} 
+                        style={{ strokeWidth: '1.2px' }}
+                      />
+                      {item.label}
+                    </Link>
                   );
                 })}
               </div>

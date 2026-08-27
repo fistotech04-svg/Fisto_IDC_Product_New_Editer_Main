@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useOutletContext, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Pencil, Info, Phone, User, Building, MapPin, BarChart2, MoreVertical, Globe, BookOpen } from 'lucide-react';
 import { Icon } from '@iconify/react';
@@ -222,16 +222,31 @@ const Profile = () => {
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
 
-  const effectiveEmail = user?.emailId || user?.email || (() => {
+  const { useremail } = useParams();
+  const rawRouteEmail = useremail ? decodeURIComponent(useremail).trim() : '';
+
+  // Get logged-in user's authentic email
+  const ownEmail = (() => {
     try {
-      const stored = localStorage.getItem('user_profile') || localStorage.getItem('user');
+      const stored = localStorage.getItem('user') || localStorage.getItem('user_profile');
       if (stored) {
         const parsed = JSON.parse(stored);
-        return parsed.emailId || parsed.email || '';
+        return (parsed.emailId || parsed.email || '').trim();
       }
     } catch (e) {}
-    return '';
+    return (user?.emailId || user?.email || '').trim();
   })();
+
+  const effectiveEmail = ownEmail || rawRouteEmail;
+
+  // Protect route: redirect to own email if URL has no email or has another user's email
+  useEffect(() => {
+    if (ownEmail) {
+      if (!rawRouteEmail || rawRouteEmail.toLowerCase() !== ownEmail.toLowerCase()) {
+        navigate(`/settings/profile/${encodeURIComponent(ownEmail)}`, { replace: true });
+      }
+    }
+  }, [rawRouteEmail, ownEmail, navigate]);
 
   // 1. Fetch user profile from backend
   useEffect(() => {
