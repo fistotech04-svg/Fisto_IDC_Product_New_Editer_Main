@@ -92,7 +92,7 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
     );
 };
 
-const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, authorPicture, authorBgColor, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick }) => {
+const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, authorPicture, authorBgColor, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick, onAddToShelf }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -184,6 +184,8 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
                                             if (onShare) onShare(rawBook);
                                         } else if (menuItem.name === 'Download') {
                                             if (onDownload) onDownload(rawBook);
+                                        } else if (menuItem.name === 'Add to Shelf') {
+                                            if (onAddToShelf) onAddToShelf(rawBook);
                                         }
                                     }}
                                     className="w-[8.8vw] flex items-center mx-[0.5vw] gap-[0.8vw] px-[0.8vw] py-[0.8vh] transition-colors text-left rounded-md text-gray-600 hover:text-black hover:bg-gray-50"
@@ -418,6 +420,29 @@ const Explore = () => {
     const handleOpenExportModal = (rawBook) => {
         setSelectedBookForModal(rawBook);
         setIsExportModalOpen(true);
+    };
+
+    const handleAddToShelf = async (rawBook) => {
+        if (!currentUserEmail) {
+            alert("Please log in to add books to your shelf.");
+            return;
+        }
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const res = await axios.post(`${backendUrl}/api/profile/add-to-shelf`, {
+                emailId: currentUserEmail,
+                bookId: rawBook.v_id,
+                folderName: 'My Flipbooks'
+            });
+            if (res.data?.success) {
+                alert("Book successfully added to your shelf!");
+            } else {
+                alert(res.data?.message || "Failed to add book to shelf");
+            }
+        } catch (err) {
+            console.error("Error adding to shelf:", err);
+            alert(err.response?.data?.message || "Error adding book to shelf");
+        }
     };
 
     const [category, setCategory] = useState("All Category");
@@ -957,33 +982,51 @@ const Explore = () => {
                         </div>
                     </div>
 
-                    {/* Right Area (Books or Creators) */}
-                    <div className="flex-1 flex flex-col min-w-0">
-                        
-                        {/* Applied Filters Bar */}
-                        {appliedFilterChips.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-[0.6vw] mb-[2.5vh]">
-                                <span className="font-bold text-[0.9vw] text-black mr-[0.4vw]">Applied Filters :</span>
-                                <AnimatePresence>
-                                    {appliedFilterChips.map(chip => (
-                                        <motion.div
-                                            key={chip.id}
-                                            initial={{ opacity: 0, scale: 0.9 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            exit={{ opacity: 0, scale: 0.9 }}
-                                            transition={{ duration: 0.15 }}
-                                            className="inline-flex items-center gap-[0.4vw] bg-[#f0efff] text-[#5551ff] border border-[#e0defe] px-[0.7vw] py-[0.3vh] rounded-[0.4vw] text-[0.75vw] font-medium"
-                                        >
-                                            <span>{chip.label}</span>
-                                            <button
-                                                onClick={chip.onRemove}
-                                                className="hover:bg-[#e0defe] rounded-full p-[0.1vw] transition-colors cursor-pointer text-[#5551ff] font-bold"
-                                            >
-                                                ✕
-                                            </button>
-                                        </motion.div>
-                                    ))}
-                                </AnimatePresence>
+                    {/* Right Area (Books + Creators) */}
+                    <div className="flex-1 flex flex-col">
+                        {/* Books Grid */}
+                        {isLoading ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
+                                {[...Array(10)].map((_, idx) => (
+                                    <FlipbookCardSkeleton key={idx} />
+                                ))}
+                            </div>
+                        ) : error ? (
+                            <div className="w-full py-[10vh] flex flex-col items-center justify-center text-red-500">
+                                <svg className="w-[3vw] h-[3vw] mb-[1vh]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span className="text-[1.2vw] font-medium">{error}</span>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
+                                {filteredBooks.map((book, index) => (
+                                    <FlipbookCard
+                                        key={index}
+                                        v_id={book.v_id}
+                                        shareId={book.shareId}
+                                        access={book.access}
+                                        rawBook={book.rawBook}
+                                        coverImg={covers[index % 5]}
+                                        profileImg={profiles[index % 5]}
+                                        authorPicture={book.authorPicture}
+                                        authorBgColor={book.authorBgColor}
+                                        bookName={book.bookName}
+                                        authorName={book.authorName}
+                                        location={book.location}
+                                        pages={book.pages}
+                                        views={book.views}
+                                        rating={book.rating}
+                                        description={book.description}
+                                        onShare={handleOpenShareModal}
+                                        onDownload={handleOpenExportModal}
+                                        onProfileClick={handleProfileClick}
+                                        onAddToShelf={handleAddToShelf}
+                                    />
+                                ))}
+                                {filteredBooks.length === 0 && (
+                                    <div className="col-span-full py-[5vh] text-center font-semibold text-gray-700 text-[1vw]">
+                                        No flipbooks found matching your filters.
+                                    </div>
+                                )}
                             </div>
                         )}
 

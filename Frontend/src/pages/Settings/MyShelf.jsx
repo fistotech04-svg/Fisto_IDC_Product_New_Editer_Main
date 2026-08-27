@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Icon } from '@iconify/react';
+import { resolveUploadsPath, getSupabaseBaseUrl } from '../../utils/supabaseUtils';
 
 import bookShelf1 from '../../assets/Bookshelf/Book_shelf1.webp';
 import textureScreen2 from '../../assets/Bookshelf/classicwood/classic woodtexture.webp';
@@ -50,7 +51,7 @@ const MyShelf = () => {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [hoveredInfoId, setHoveredInfoId] = useState(null);
   const [folders, setFolders] = useState([
-    { name: 'My Flipbooks', books: [...initialBooks] }
+    { name: 'My Flipbooks', books: [] }
   ]);
   const [selectedFolder, setSelectedFolder] = useState('My Flipbooks');
   const [showAddShelfModal, setShowAddShelfModal] = useState(false);
@@ -72,66 +73,259 @@ const MyShelf = () => {
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
   const currentUserEmail = (() => {
-      try {
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-              const u = JSON.parse(storedUser);
-              if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
-          }
-          const storedProfile = localStorage.getItem('user_profile');
-          if (storedProfile) {
-              const p = JSON.parse(storedProfile);
-              if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
-          }
-      } catch (e) {}
-      return '';
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        if (u?.emailId || u?.email) return (u.emailId || u.email).toLowerCase();
+      }
+      const storedProfile = localStorage.getItem('user_profile');
+      if (storedProfile) {
+        const p = JSON.parse(storedProfile);
+        if (p?.emailId || p?.email) return (p.emailId || p.email).toLowerCase();
+      }
+    } catch (e) { }
+    return '';
   })();
 
   useEffect(() => {
     const fetchMyBooks = async () => {
-        setIsLoading(true);
-        try {
-            if (!currentUserEmail) {
-                setIsLoading(false);
-                return;
-            }
-            const res = await axios.get(`${backendUrl}/api/explore/creator`, {
-                params: { emailId: currentUserEmail }
-            });
-            if (res.data?.success) {
-                if (res.data.profile) {
-                    setProfileData(res.data.profile);
-                }
-                const rawBooks = res.data.books || [];
-                const formatted = rawBooks.map((b, idx) => ({
-                    rawBook: b,
-                    v_id: b.v_id,
-                    shareId: b.Customized_Settings?.Visibility?.shareId || b.Visibility?.shareId || b.v_id,
-                    access: b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public',
-                    title: b.flipbookName || `Flipbook ${idx + 1}`,
-                    cover: covers[idx % covers.length],
-                    pages: b.pages?.length || 0,
-                    views: b.views || '1.2k',
-                    rating: b.rating || 4.5,
-                    description: b.Customized_Settings?.FlipbookInfo?.quotes || '“Bring your content to life with a real, interactive experience”',
-                    category: b.Customized_Settings?.FlipbookInfo?.category || 'Product Catalogue'
-                }));
-                setBooksData(formatted);
-            }
-        } catch (err) {
-            console.error("Error fetching my shelf books:", err);
-        } finally {
-            setIsLoading(false);
+      setIsLoading(true);
+      try {
+        if (!currentUserEmail) {
+          setIsLoading(false);
+          return;
         }
+        const timestamp = Date.now();
+        const [creatorRes, listRes, shelfRes] = await Promise.all([
+          axios.get(`${backendUrl}/api/explore/creator`, { params: { emailId: currentUserEmail, t: timestamp } }).catch(() => ({ data: {} })),
+          axios.get(`${backendUrl}/api/flipbook/list`, { params: { emailId: currentUserEmail, t: timestamp } }).catch(() => ({ data: {} })),
+          axios.get(`${backendUrl}/api/profile/my-shelf-books`, { params: { emailId: currentUserEmail, t: timestamp } }).catch(() => ({ data: {} }))
+        ]);
+
+        if (creatorRes.data?.profile) {
+          setProfileData(creatorRes.data.profile);
+        }
+
+        const rawBooks = listRes.data?.books || [];
+        const shelfBooks = shelfRes.data?.books || [];
+
+        // Filter out 'Recent Book' virtual tags so we only show actual folder contents, or filter by specific folder
+        const actualCreatedBooks = rawBooks.filter(b => b.folder !== 'Recent Book');
+
+        // Combine created books and shelf books, avoiding duplicates if a user somehow added their own book to the shelf
+        const combinedBooksMap = new Map();
+        actualCreatedBooks.forEach(b => {
+          combinedBooksMap.set(b.v_id, b);
+        });
+        shelfBooks.forEach(b => {
+          if (!combinedBooksMap.has(b.v_id)) {
+            combinedBooksMap.set(b.v_id, b);
+          } else {
+            // Update folder if the shelf explicitly categorized it differently
+            const existing = combinedBooksMap.get(b.v_id);
+            existing.folder = b.folder;
+          }
+        });
+
+        const actualBooks = Array.from(combinedBooksMap.values());
+        const fetchedProfile = creatorRes.data?.profile || profileData;
+
+        const formatted = actualBooks.map((b, idx) => {
+          const isMyBook = !b.isAddedToShelf || (b.userEmail && b.userEmail.toLowerCase() === currentUserEmail);
+
+          let aName = b.authorName;
+          let aPic = b.authorPicture;
+          let aBg = b.authorBgColor;
+          let aLoc = b.city || b.location;
+
+          if (isMyBook && fetchedProfile) {
+            aName = aName || fetchedProfile.name;
+            aPic = aPic || (fetchedProfile.picture !== 'color_only' ? fetchedProfile.picture : null);
+            aBg = aBg || fetchedProfile.avatarBgColor;
+            aLoc = aLoc || fetchedProfile.city || fetchedProfile.state;
+          }
+
+          aName = aName || (b.userEmail ? b.userEmail.split('@')[0] : 'Creator');
+          aBg = aBg || '#4c5add';
+          aLoc = aLoc || 'Coimbatore';
+
+          return {
+            rawBook: b,
+            v_id: b.v_id,
+            shareId: b.Customized_Settings?.Visibility?.shareId || b.Visibility?.shareId || b.v_id,
+            access: b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public',
+            title: b.title || b.flipbookName || `Flipbook ${idx + 1}`,
+            cover: b.image || covers[idx % covers.length],
+            pages: typeof b.pages === 'number' ? b.pages : (b.pages?.length || 0),
+            views: b.views || '1.2k',
+            rating: b.rating || 4.5,
+            description: b.Customized_Settings?.FlipbookInfo?.quotes || b.quotes || '“Bring your content to life with a real, interactive experience”',
+            category: b.Customized_Settings?.FlipbookInfo?.category || b.category || 'Product Catalogue',
+            authorName: aName,
+            authorPicture: aPic,
+            authorBgColor: aBg,
+            location: aLoc
+          };
+        });
+
+        setBooksData(formatted);
+
+        // Re-group books into folders
+        const folderMap = {};
+
+        // First, initialize folderMap with any existing folders from the profile
+        const actualMyShelf = shelfRes.data?.myShelf || (fetchedProfile && fetchedProfile.myShelf);
+        const folderDesignMap = {};
+        const bookToFolderMap = new Map();
+        
+        if (actualMyShelf && actualMyShelf.folders) {
+          actualMyShelf.folders.forEach(f => {
+            const fName = f.folderName === 'My_Flipbooks' ? 'My Flipbooks' : (f.folderName || 'My Flipbooks');
+            if (!folderMap[fName]) folderMap[fName] = [];
+            folderDesignMap[fName] = f.shelf_design || 1;
+            
+            if (f.books && Array.isArray(f.books)) {
+              f.books.forEach(b => {
+                const v_id = typeof b === 'string' ? b : b.v_id;
+                if (v_id) bookToFolderMap.set(v_id, fName);
+              });
+            }
+          });
+        }
+
+        formatted.forEach(b => {
+          let folderName = bookToFolderMap.get(b.v_id) || b.rawBook.folder || 'My Flipbooks';
+          if (folderName === 'My_Flipbooks') {
+            folderName = 'My Flipbooks';
+          }
+          if (!folderMap[folderName]) folderMap[folderName] = [];
+          folderMap[folderName].push(b);
+        });
+
+        // Sort books based on their row and order from DB
+        if (actualMyShelf && actualMyShelf.folders) {
+          const globalDbOrder = new Map();
+          actualMyShelf.folders.forEach(f => {
+            const fName = f.folderName === 'My_Flipbooks' ? 'My Flipbooks' : (f.folderName || 'My Flipbooks');
+            if (f.books && Array.isArray(f.books)) {
+              f.books.forEach((b) => {
+                const v_id = typeof b === 'string' ? b : b.v_id;
+                if (v_id) {
+                  globalDbOrder.set(`${fName}_${v_id}`, { row: b.row || 0, order: b.order || 0 });
+                }
+              });
+            }
+          });
+
+          // Apply sorting based on folder mapping
+          Object.keys(folderMap).forEach(fName => {
+            folderMap[fName].sort((a, b) => {
+              const aOrder = globalDbOrder.get(`${fName}_${a.v_id}`);
+              const bOrder = globalDbOrder.get(`${fName}_${b.v_id}`);
+              if (aOrder && bOrder) {
+                if (aOrder.row !== bOrder.row) return aOrder.row - bOrder.row;
+                return aOrder.order - bOrder.order;
+              }
+              if (aOrder) return -1;
+              if (bOrder) return 1;
+              return 0; // Keep existing order if both missing
+            });
+          });
+        }
+
+        const newFolders = Object.keys(folderMap).map(folderName => ({
+          name: folderName,
+          books: folderMap[folderName],
+          shelf_design: folderDesignMap[folderName] || 1
+        }));
+
+        // Ensure 'My Flipbooks' always exists
+        if (!newFolders.some(f => f.name === 'My Flipbooks')) {
+          newFolders.unshift({ name: 'My Flipbooks', books: [], shelf_design: folderDesignMap['My Flipbooks'] || 1 });
+        }
+
+        setFolders(newFolders);
+
+        // Update initial active shelf style based on 'My Flipbooks'
+        const myFlipbooksFolderDesign = newFolders.find(f => f.name === 'My Flipbooks')?.shelf_design || 1;
+        setActiveShelfStyle(`customize${myFlipbooksFolderDesign}`);
+
+        // Auto-sync migration for missing legacy books
+        if (actualMyShelf && actualMyShelf.folders) {
+          const myFlipbooksFolder = newFolders.find(f => f.name === 'My Flipbooks');
+          const dbMyFlipbooks = actualMyShelf.folders.find(f => f.folderName === 'My Flipbooks' || f.folderName === 'My_Flipbooks');
+          const dbBookCount = dbMyFlipbooks && dbMyFlipbooks.books ? dbMyFlipbooks.books.length : 0;
+
+          if (myFlipbooksFolder && myFlipbooksFolder.books.length > dbBookCount) {
+            try {
+              const bookIds = myFlipbooksFolder.books.map(b => b.v_id);
+              axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
+                emailId: currentUserEmail,
+                folderName: 'My Flipbooks',
+                bookIds
+              }).catch(e => console.warn("Auto-sync warning:", e));
+            } catch (e) { }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching my shelf books:", err);
+      } finally {
+        setIsLoading(false);
+      }
     };
+
     fetchMyBooks();
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchMyBooks();
+      }
+    };
+
+    const handlePageShow = (e) => {
+      if (e.persisted) {
+        fetchMyBooks();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, [backendUrl, currentUserEmail]);
+
+  const handleRemoveBook = async (v_id) => {
+    if (!v_id) return;
+    try {
+      await axios.post(`${backendUrl}/api/profile/remove-from-shelf`, {
+        emailId: currentUserEmail,
+        bookId: v_id
+      });
+
+      // Remove from local state
+      setBooksData(prev => prev.filter(b => b.v_id !== v_id));
+      setFolders(prev => prev.map(f => ({
+        ...f,
+        books: f.books.filter(b => b.v_id !== v_id)
+      })));
+    } catch (err) {
+      console.error("Failed to remove book:", err);
+    }
+  };
 
   const handleFlipbookSelect = (e) => {
     if (e.target.value === 'add_shelf') {
       setShowAddShelfModal(true);
     } else {
       setSelectedFolder(e.target.value);
+      const targetFolder = folders.find(f => f.name === e.target.value);
+      if (targetFolder) {
+        setActiveShelfStyle(`customize${targetFolder.shelf_design || 1}`);
+      }
     }
   };
 
@@ -140,37 +334,80 @@ const MyShelf = () => {
     setShowShelfModal(true);
   };
 
-  const applyShelfStyle = () => {
+  const applyShelfStyle = async () => {
     setActiveShelfStyle(draftShelfStyle);
     setShowShelfModal(false);
+
+    if (!currentUserEmail || !selectedFolder) return;
+    try {
+      const shelfDesignNum = parseInt(draftShelfStyle.replace('customize', '')) || 1;
+      await axios.post(`${backendUrl}/api/profile/update-shelf-design`, {
+        emailId: currentUserEmail,
+        folderName: selectedFolder,
+        shelf_design: shelfDesignNum
+      });
+
+      setFolders(prev => prev.map(f => f.name === selectedFolder ? { ...f, shelf_design: shelfDesignNum } : f));
+    } catch (err) {
+      console.error("Failed to update shelf design:", err);
+    }
   };
 
-  const handleMoveSubmit = () => {
+  const handleMoveSubmit = async () => {
     if (targetMoveFolder === '__add_shelf__') {
       if (!newShelfName.trim()) return;
       const newFolderName = newShelfName.trim();
+      let updatedSourceBooks = [];
+      let newFolderBooks = [];
+
       setFolders(prev => {
         const sourceFolderIdx = prev.findIndex(f => f.name === selectedFolder);
         if (sourceFolderIdx === -1) return prev;
-        
+
         const newSourceBooks = [...prev[sourceFolderIdx].books];
         const [movedBook] = newSourceBooks.splice(bookToMoveIndex, 1);
-        
-        const updatedFolders = prev.map((f, idx) => 
+
+        updatedSourceBooks = newSourceBooks;
+        newFolderBooks = [movedBook];
+
+        const updatedFolders = prev.map((f, idx) =>
           idx === sourceFolderIdx ? { ...f, books: newSourceBooks } : f
         );
-        
-        return [{ name: newFolderName, books: [movedBook] }, ...updatedFolders];
+
+        return [{ name: newFolderName, books: newFolderBooks }, ...updatedFolders];
       });
+
+      if (currentUserEmail) {
+        try {
+          await axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
+            emailId: currentUserEmail,
+            folderName: newFolderName,
+            bookIds: newFolderBooks.map(b => b.v_id)
+          });
+          await axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
+            emailId: currentUserEmail,
+            folderName: selectedFolder,
+            bookIds: updatedSourceBooks.map(b => b.v_id)
+          });
+        } catch (e) {
+          console.error("Failed to sync move", e);
+        }
+      }
+
       setNewShelfName('');
       setShowMoveModal(false);
       setBookToMoveIndex(null);
       return;
     }
+
     if (!targetMoveFolder || targetMoveFolder === selectedFolder) {
       setShowMoveModal(false);
       return;
     }
+
+    let updatedSourceBooks = [];
+    let updatedTargetBooks = [];
+
     setFolders(prev => {
       const sourceFolderIdx = prev.findIndex(f => f.name === selectedFolder);
       const targetFolderIdx = prev.findIndex(f => f.name === targetMoveFolder);
@@ -179,29 +416,40 @@ const MyShelf = () => {
       const newFolders = [...prev];
       const newSourceBooks = [...newFolders[sourceFolderIdx].books];
       const [movedBook] = newSourceBooks.splice(bookToMoveIndex, 1);
-      
+
       const newTargetBooks = [...newFolders[targetFolderIdx].books];
       newTargetBooks.push(movedBook);
+
+      updatedSourceBooks = newSourceBooks;
+      updatedTargetBooks = newTargetBooks;
 
       newFolders[sourceFolderIdx] = { ...newFolders[sourceFolderIdx], books: newSourceBooks };
       newFolders[targetFolderIdx] = { ...newFolders[targetFolderIdx], books: newTargetBooks };
       return newFolders;
     });
+
+    if (currentUserEmail) {
+      try {
+        await axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
+          emailId: currentUserEmail,
+          folderName: targetMoveFolder,
+          bookIds: updatedTargetBooks.map(b => b.v_id)
+        });
+        await axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
+          emailId: currentUserEmail,
+          folderName: selectedFolder,
+          bookIds: updatedSourceBooks.map(b => b.v_id)
+        });
+      } catch (e) {
+        console.error("Failed to sync move", e);
+      }
+    }
+
     setShowMoveModal(false);
     setBookToMoveIndex(null);
   };
 
-  const handleRemoveBook = (bookIndex) => {
-    setFolders(prev => prev.map(folder => {
-      if (folder.name === selectedFolder) {
-        const newBooks = [...folder.books];
-        newBooks.splice(bookIndex, 1);
-        return { ...folder, books: newBooks };
-      }
-      return folder;
-    }));
-    setOpenMenuId(null);
-  };
+
 
   const handleDragStart = (e, index) => {
     setDraggedBookIndex(index);
@@ -213,20 +461,36 @@ const MyShelf = () => {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e, targetIndex) => {
+  const handleDrop = async (e, targetIndex) => {
     e.preventDefault();
     if (draggedBookIndex === null || draggedBookIndex === targetIndex) return;
+
+    let updatedFolderBooks = [];
 
     setFolders(prev => prev.map(folder => {
       if (folder.name === selectedFolder) {
         const newBooks = [...folder.books];
         const [draggedBook] = newBooks.splice(draggedBookIndex, 1);
         newBooks.splice(targetIndex, 0, draggedBook);
+        updatedFolderBooks = newBooks;
         return { ...folder, books: newBooks };
       }
       return folder;
     }));
     setDraggedBookIndex(null);
+
+    if (updatedFolderBooks.length > 0) {
+      try {
+        const bookIds = updatedFolderBooks.map(b => b.v_id);
+        await axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
+          emailId: currentUserEmail,
+          folderName: selectedFolder,
+          bookIds
+        });
+      } catch (err) {
+        console.error("Failed to update shelf order:", err);
+      }
+    }
   };
 
   const handleDragEnd = () => {
@@ -250,7 +514,7 @@ const MyShelf = () => {
           padding: 'px-6',
           topOffset: 6,
           spacing: 32,
-          bookWidth: '15%',
+          bookWidth: '11.5%',
           bookStyle: { bottom: '21%', padding: '0 14%' }
         };
       case 'customize2':
@@ -265,7 +529,7 @@ const MyShelf = () => {
           rowPadding: '0 1.5%',
           topOffset: 29.7,
           spacing: 32.15,
-          bookWidth: '14%',
+          bookWidth: '13%',
           bookStyle: { bottom: '76%', padding: '0 10%' }
         };
       case 'customize3':
@@ -280,7 +544,7 @@ const MyShelf = () => {
           rowPadding: '0 4%',
           topOffset: 5,
           spacing: 33,
-          bookWidth: '12%',
+          bookWidth: '14%',
           bookStyle: { bottom: '15%', padding: '0 7%' }
         };
       default:
@@ -294,7 +558,7 @@ const MyShelf = () => {
           padding: 'px-6',
           topOffset: 6,
           spacing: 32,
-          bookWidth: '15%',
+          bookWidth: '11.5%',
           bookStyle: { bottom: '21%', padding: '0 14%' }
         };
     }
@@ -312,7 +576,7 @@ const MyShelf = () => {
   const topOffset = activeAssets.topOffset ?? 6;
   // Container grows exactly by 'spacing' for each new shelf, plus a tiny 3% extra for breathing room
   const heightRatio = globalRowCount <= 3 ? 1 : (100 + (globalRowCount - 3) * spacing + 3) / 100;
-  
+
   // Scale percentages inversely so physical positions remain identical
   const newTopOffset = topOffset / heightRatio;
   const newSpacing = spacing / heightRatio;
@@ -358,17 +622,17 @@ const MyShelf = () => {
           <svg className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input type="text" placeholder="Search Flipbook..." className="w-full pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
         </div>
-        
+
         {/* Flipbook Dropdown */}
         <div className="relative">
-          <button 
+          <button
             onClick={() => setOpenDropdown(openDropdown === 'flipbooks' ? null : 'flipbooks')}
             className="flex items-center justify-between w-40 px-4 py-1.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none"
           >
             <span className="text-[#5B738B]">{selectedFolder === 'add_shelf' ? 'Add Shelf' : selectedFolder}</span>
             <Icon icon={openDropdown === 'flipbooks' ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-[#8BA3BA]" />
           </button>
-          
+
           {openDropdown === 'flipbooks' && (
             <div className="absolute z-50 w-full mt-1.5 bg-white border border-gray-100 rounded-lg shadow-[0_4px_20px_rgb(0,0,0,0.08)] py-1 overflow-hidden">
               {folders.map(folder => (
@@ -398,14 +662,14 @@ const MyShelf = () => {
 
         {/* Status Dropdown */}
         <div className="relative">
-          <button 
+          <button
             onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
             className="flex items-center justify-between w-40 px-4 py-1.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none"
           >
             <span className="text-[#5B738B]">{selectedStatus}</span>
             <Icon icon={openDropdown === 'status' ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-[#8BA3BA]" />
           </button>
-          
+
           {openDropdown === 'status' && (
             <div className="absolute z-50 w-full mt-1.5 bg-white border border-gray-100 rounded-lg shadow-[0_4px_20px_rgb(0,0,0,0.08)] py-1 overflow-hidden">
               {['All Status', 'Private', 'Public'].map((status) => (
@@ -426,12 +690,12 @@ const MyShelf = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex gap-6 h-[calc(100vh-40px)] relative">
+      <div className="flex gap-6 h-[calc(100vh-40px)]  mt[1vw] relative">
         {view === 'shelf' ? (
           /* Outer Scrollable Container */
           <div className={`flex-1 h-full overflow-x-hidden ${globalRowCount <= 3 ? 'overflow-y-hidden' : 'overflow-y-auto pr-2'}`}>
             {/* The White Rounded Box (Grows in height) */}
-            <div 
+            <div
               className="w-full rounded-xl bg-white shadow-inner overflow-hidden flex flex-col"
               style={{
                 minHeight: '100%',
@@ -440,162 +704,234 @@ const MyShelf = () => {
             >
               <div
                 className={`relative flex-1 w-full bg-top rounded-xl`}
-              style={{
-                backgroundImage: (!Array.isArray(activeAssets.bg) && activeAssets.bg) ? `url('${activeAssets.bg}')` : 'none',
-                backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
-                backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
-              }}
-            >
-              {/* If bg is an array, map over it to render wall blocks */}
-              {Array.isArray(activeAssets.bg) && (
-                 <div className="absolute inset-0 flex flex-col rounded-xl overflow-hidden pointer-events-none">
-                   {Array.from({ length: activeAssets.rowCount }, (_, i) => (
-                      <div 
-                         key={i} 
-                         className="w-full flex-1 bg-center"
-                         style={{ 
-                           backgroundImage: `url('${activeAssets.bg[i % activeAssets.bg.length]}')`,
-                           backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
-                           backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
-                           backgroundPosition: 'center',
-                         }}
-                      />
-                   ))}
-                 </div>
-              )}
-              {openMenuId && (
-                <div
-                  className="fixed inset-0 z-20"
-                  onClick={() => setOpenMenuId(null)}
-                />
-              )}
-              <div className="absolute right-4 top-4 z-20">
-                <div
-                  className="bg-white/80 backdrop-blur p-2 rounded-full cursor-pointer hover:bg-white shadow-sm transition-all"
-                  onClick={openShelfModal}
-                  title="Change Shelf"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                </div>
-              </div>
-
-              {activeAssets.type === 'rows' && activeAssets.rowAsset && (
-                <div className="absolute inset-0 w-full h-full">
-                  {Array.from({ length: activeAssets.rowCount }, (_, i) => (
-                    <div
-                      key={i}
-                      className={`absolute left-0 w-full ${activeAssets.rowPadding ? '' : (activeAssets.padding || 'px-12')}`}
-                      style={{
-                        top: `${newTopOffset + (i * newSpacing) - (activeShelfStyle === 'customize2' && i !== activeAssets.rowCount - 1 ? 3.5 : 0)}%`,
-                        padding: activeAssets.rowPadding || undefined
-                      }}
-                    >
-                    {!(activeShelfStyle === 'customize2' && i === activeAssets.rowCount - 1) && (
-                      <img src={activeAssets.rowAsset} alt="Shelf" className="w-full h-auto drop-shadow-lg" />
-                    )}
-                    {/* Books Container */}
-                    {!activeAssets.hideBooks && (
+                style={{
+                  backgroundImage: (!Array.isArray(activeAssets.bg) && activeAssets.bg) ? `url('${activeAssets.bg}')` : 'none',
+                  backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
+                  backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
+                }}
+              >
+                {/* If bg is an array, map over it to render wall blocks */}
+                {Array.isArray(activeAssets.bg) && (
+                  <div className="absolute inset-0 flex flex-col rounded-xl overflow-hidden pointer-events-none">
+                    {Array.from({ length: activeAssets.rowCount }, (_, i) => (
                       <div
-                        className="absolute inset-0 flex justify-between items-end"
-                        style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
-                      >
-                      {(activeFolderGlobal?.books.slice(i * 6, (i + 1) * 6) || []).map((book, bIdx) => (
-                        <div 
-                          key={bIdx} 
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, i * 6 + bIdx)}
-                          onDragOver={handleDragOver}
-                          onDrop={(e) => handleDrop(e, i * 6 + bIdx)}
-                          onDragEnd={handleDragEnd}
-                          className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-4' : 'translate-y-0') : 'translate-y-2'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-3' : bIdx === 1 ? 'translate-x-3' : bIdx === 2 ? 'translate-x-4' : ''} ${draggedBookIndex === (i * 6 + bIdx) ? 'opacity-50' : ''}`} 
-                          style={{ width: activeAssets.bookWidth || '12%' }}
-                        >
-                          <img src={book} alt={`Book ${bIdx}`} className="w-[135%] aspect-[1/0.88] max-w-none object-fill rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105" />
+                        key={i}
+                        className="w-full flex-1 bg-center"
+                        style={{
+                          backgroundImage: `url('${activeAssets.bg[i % activeAssets.bg.length]}')`,
+                          backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
+                          backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
+                          backgroundPosition: 'center',
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+                {openMenuId && (
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setOpenMenuId(null)}
+                  />
+                )}
+                <div className="absolute right-4 top-4 z-20">
+                  <div
+                    className="bg-white/80 backdrop-blur p-2 rounded-full cursor-pointer hover:bg-white shadow-sm transition-all"
+                    onClick={openShelfModal}
+                    title="Change Shelf"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                  </div>
+                </div>
 
-                          {/* Hover Menu Pill */}
-                          <div className="absolute top-[2%] right-4 w-5 h-[46px] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto">
-                            <button
-                              onClick={() => setOpenMenuId(openMenuId === `${i}-${bIdx}` ? null : `${i}-${bIdx}`)}
-                              className="text-black hover:bg-gray-300 rounded-full w-4 h-4 flex items-center justify-center mt-0.5 transition-colors"
-                            >
-                              <Icon icon="mdi:dots-vertical" className="text-[14px]" />
-                            </button>
-                            <div 
-                              className="text-[#4A4A4A] hover:text-black flex items-center justify-center mb-0.5 transition-colors relative cursor-pointer"
-                              onMouseEnter={() => setHoveredInfoId(`${i}-${bIdx}`)}
-                              onMouseLeave={() => setHoveredInfoId(null)}
-                            >
-                              <Icon icon="si:info-fill" className="w-4 h-4" />
-                              
-                              {/* Info Tooltip Bridge & Container */}
-                              <div className={`absolute top-1/2 right-full pr-3 -translate-y-1/2 ${hoveredInfoId === `${i}-${bIdx}` ? 'block' : 'hidden'} z-[60]`}>
-                                <div className="w-[130px] bg-[#3B3B3C] rounded-md p-2 text-[#D8D8D8] text-[9px] font-normal shadow-xl flex flex-col gap-1 cursor-default text-left tracking-wide leading-tight">
-                                  <div>Views : 528k</div>
-                                  <div>No of Pages : 26</div>
-                                  <div>Added to Shelf : 250k</div>
-                                  <div className="flex items-center gap-0.5">
-                                    Ratings : 
-                                    <div className="flex text-[#F5C518] text-[10px] ml-0.5">
-                                      <Icon icon="mdi:star" />
-                                      <Icon icon="mdi:star" />
-                                      <Icon icon="mdi:star" />
-                                      <Icon icon="mdi:star-half-full" />
-                                      <Icon icon="mdi:star-outline" />
+                {activeAssets.type === 'rows' && activeAssets.rowAsset && (
+                  <div className="absolute inset-0 w-full h-full">
+                    {Array.from({ length: activeAssets.rowCount }, (_, i) => (
+                      <div
+                        key={i}
+                        className={`absolute left-0 w-full ${activeAssets.rowPadding ? '' : (activeAssets.padding || 'px-12')}`}
+                        style={{
+                          top: `${newTopOffset + (i * newSpacing) - (activeShelfStyle === 'customize2' && i !== activeAssets.rowCount - 1 ? 3.5 : 0)}%`,
+                          padding: activeAssets.rowPadding || undefined
+                        }}
+                      >
+                        {!(activeShelfStyle === 'customize2' && i === activeAssets.rowCount - 1) && (
+                          <img src={activeAssets.rowAsset} alt="Shelf" className="w-full h-auto drop-shadow-lg" />
+                        )}
+                        {/* Books Container */}
+                        {!activeAssets.hideBooks && (
+                          <div
+                            className="absolute inset-0 flex justify-between items-end"
+                            style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
+                          >
+                            {(activeFolderGlobal?.books.slice(i * 6, (i + 1) * 6) || []).map((book, bIdx) => (
+                              <div
+                                key={book.v_id || bIdx}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, i * 6 + bIdx)}
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDrop(e, i * 6 + bIdx)}
+                                onDragEnd={handleDragEnd}
+                                className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-4' : 'translate-y-0') : 'translate-y-2'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-3' : bIdx === 1 ? 'translate-x-3' : bIdx === 2 ? 'translate-x-4' : ''} ${draggedBookIndex === (i * 6 + bIdx) ? 'opacity-50' : ''}`}
+                                style={{ width: activeAssets.bookWidth || '12%' }}
+                              >
+                                {(() => {
+                                  const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
+                                  const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
+                                  const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
+                                  const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+
+                                  return (
+                                    <div className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden">
+                                      <LazyPreview
+                                        v_id={book.v_id}
+                                        emailId={book.rawBook?.userEmail || currentUserEmail}
+                                        backendUrl={backendUrl}
+                                        iframeBaseUrl={basePath}
+                                        title={book.title}
+                                        imageUrl={null}
+                                      />
                                     </div>
-                                    <span className="text-[#D8D8D8] text-[8px]">(4.5)</span>
-                                  </div>
-                                  <div>No of Ratings : 1528</div>
-                                  <div className="mt-1 text-center">
-                                    <button className="inline-flex items-center gap-0.5 text-[#E8E8E8] hover:text-white transition-colors group/btn">
-                                      <span className="underline underline-offset-2 decoration-1">View More details</span>
-                                      <Icon icon="mdi:arrow-top-right" className="text-[12px] group-hover/btn:-translate-y-0.5 group-hover/btn:translate-x-0.5 transition-transform" />
-                                    </button>
+                                  );
+                                })()}
+
+                                {/* Hover Menu Pill */}
+                                <div className="absolute top-[2%] right-[0vw] w-[1vw] h-[3vw] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto">
+                                  <button
+                                    onClick={() => setOpenMenuId(openMenuId === `${i}-${bIdx}` ? null : `${i}-${bIdx}`)}
+                                    className="text-black hover:bg-gray-300 rounded-full w-4 h-4 flex items-center justify-center mt-0.5 transition-colors"
+                                  >
+                                    <Icon icon="mdi:dots-vertical" className="text-[14px]" />
+                                  </button>
+                                  <div
+                                    className="text-[#4A4A4A] hover:text-black flex items-center justify-center mb-0.5 transition-colors relative cursor-pointer"
+                                    onMouseEnter={() => setHoveredInfoId(`${i}-${bIdx}`)}
+                                    onMouseLeave={() => setHoveredInfoId(null)}
+                                  >
+                                    <Icon icon="si:info-fill" className="w-4 h-4" />
+
+                                    {/* Info Tooltip Bridge & Container */}
+                                    <div className={`absolute top-1/2 right-full pr-3 -translate-y-1/2 ${hoveredInfoId === `${i}-${bIdx}` ? 'block' : 'hidden'} z-[60]`}>
+                                      <div className="w-[170px] bg-white rounded-xl p-4 text-gray-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col gap-3 cursor-default text-left border border-gray-100 relative">
+                                        {/* Author Info */}
+                                        <div className="flex items-center gap-2">
+                                          {book.authorPicture && book.authorPicture !== 'color_only' ? (
+                                            <img
+                                              src={book.authorPicture}
+                                              alt={book.authorName}
+                                              className="w-8 h-8 rounded-full border border-gray-200 object-cover shrink-0"
+                                            />
+                                          ) : (
+                                            <div
+                                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0 shadow-inner"
+                                              style={{ backgroundColor: book.authorBgColor }}
+                                            >
+                                              {(book.authorName || 'U').charAt(0).toUpperCase()}
+                                            </div>
+                                          )}
+                                          <div className="flex flex-col min-w-0 pr-1">
+                                            <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate">{book.authorName}</span>
+                                            <span className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5 truncate">
+                                              <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
+                                              <span className="truncate">{String(book.location).replace(/📍/g, '').trim()}</span>
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {/* Stats */}
+                                        <div className="flex items-center gap-2 justify-start text-[11px] text-gray-700 font-medium whitespace-nowrap">
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-black font-semibold">{book.pages || 0}</span>
+                                            <span className="font-normal text-gray-500">Pages</span>
+                                          </div>
+                                          <span className="text-gray-300">|</span>
+                                          <span className="flex items-center gap-1">
+                                            <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
+                                            {book.views || '1.2k'}
+                                          </span>
+                                          <span className="text-gray-300">|</span>
+                                          <span className="flex items-center gap-1">
+                                            <Icon icon="material-symbols:star" className="w-3.5 h-3.5 text-yellow-400" />
+                                            {book.rating || 4.5}
+                                          </span>
+                                        </div>
+
+                                        {/* Title & Desc & Button */}
+                                        <div className="relative">
+                                          <h4 className="text-[14px] font-semibold text-black truncate tracking-tight mb-1">{book.title}</h4>
+                                          <p className="text-[11px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
+
+                                          {/* Action Button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const targetShareId = book.shareId || book.v_id;
+                                              const rawAcc = String(book.access || 'public').toLowerCase();
+                                              if (targetShareId) {
+                                                window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+                                              }
+                                            }}
+                                            className="absolute bottom-0 right-0 bg-black text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                                          >
+                                            <Icon icon="mdi:arrow-top-right" className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </div>
-                          </div>
 
-                          {/* Dropdown Menu */}
-                          {openMenuId === `${i}-${bIdx}` && (
-                            <div className="absolute top-[2%] -right-2 bg-white rounded-md shadow-xl border border-gray-100 py-1 w-28 z-50">
-                              <button className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-                                Open Book
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setBookToMoveIndex(i * 6 + bIdx);
-                                  setTargetMoveFolder(selectedFolder);
-                                  setShowMoveModal(true);
-                                  setOpenMenuId(null);
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                              >
-                                Move Folder
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveBook(i * 6 + bIdx);
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 transition-colors"
-                              >
-                                Remove Book
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                                {/* Dropdown Menu */}
+                                {openMenuId === `${i}-${bIdx}` && (
+                                  <div className="absolute top-[2%] -right-2 bg-white rounded-md shadow-xl border border-gray-100 py-1 w-28 z-50">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const targetShareId = book.shareId || book.v_id;
+                                        const rawAcc = String(book.access || 'public').toLowerCase();
+                                        if (targetShareId) {
+                                          window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+                                        }
+                                        setOpenMenuId(null);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                                    >
+                                      Open Book
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBookToMoveIndex(i * 6 + bIdx);
+                                        setTargetMoveFolder(selectedFolder);
+                                        setShowMoveModal(true);
+                                        setOpenMenuId(null);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                                    >
+                                      Move Folder
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveBook(book.v_id);
+                                        setOpenMenuId(null);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
             </div>
           </div>
-        </div>
         ) : (
           /* List View Grid */
           <div className="flex-1 overflow-y-auto pr-2 pb-4">
@@ -607,15 +943,15 @@ const MyShelf = () => {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {isLoading ? (
-                  <div className="col-span-full py-10 flex justify-center text-gray-500">Loading...</div>
-              ) : booksData.length === 0 ? (
-                  <div className="col-span-full py-10 flex justify-center text-gray-500">No flipbooks found.</div>
+                <div className="col-span-full py-10 flex justify-center text-gray-500">Loading...</div>
+              ) : (activeFolderGlobal?.books || []).length === 0 ? (
+                <div className="col-span-full py-10 flex justify-center text-gray-500">No flipbooks found.</div>
               ) : (
-                booksData.map((book, idx) => (
-                <div key={book.v_id || idx} className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100">
-                  {/* Image Area Wrapper */}
-                  <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden">
-                    <img src={book.cover || listFrame} alt={book.title || "Flipbook"} className="w-full h-full object-cover" />
+                (activeFolderGlobal?.books || []).map((book, idx) => (
+                  <div key={book.v_id || idx} className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100">
+                    {/* Image Area Wrapper */}
+                    <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden">
+                      <img src={book.cover || listFrame} alt={book.title || "Flipbook"} className="w-full h-full object-cover" />
 
                       <button
                         onClick={() => setOpenMenuId(openMenuId === book.v_id ? null : book.v_id)}
@@ -626,21 +962,21 @@ const MyShelf = () => {
 
                       {openMenuId === book.v_id && (
                         <div className="absolute top-10 right-3 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-36 z-40">
-                          <button 
+                          <button
                             onClick={() => {
-                                const targetShareId = book.shareId || book.v_id;
-                                const rawAcc = String(book.access || 'public').toLowerCase();
-                                if (targetShareId) {
-                                    window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
-                                }
-                                setOpenMenuId(null);
+                              const targetShareId = book.shareId || book.v_id;
+                              const rawAcc = String(book.access || 'public').toLowerCase();
+                              if (targetShareId) {
+                                window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+                              }
+                              setOpenMenuId(null);
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                           >
                             <Icon icon="mdi:book-open-outline" className="w-4 h-4 text-gray-400" />
                             Open Book
                           </button>
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setBookToMoveIndex(idx);
@@ -653,10 +989,10 @@ const MyShelf = () => {
                             <Icon icon="mdi:folder-move-outline" className="w-4 h-4 text-gray-400" />
                             Move Folder
                           </button>
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // handleRemoveBook(idx); or delete api call
+                              handleRemoveBook(book.v_id);
                               setOpenMenuId(null);
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
@@ -668,73 +1004,73 @@ const MyShelf = () => {
                       )}
                     </div>
 
-                  {/* Card Details */}
-                  <div className="p-4 flex flex-col flex-1 bg-white">
+                    {/* Card Details */}
+                    <div className="p-4 flex flex-col flex-1 bg-white">
                       {/* Author Info */}
                       <div className="flex items-center gap-3">
-                          {profileData?.picture && profileData.picture !== 'color_only' ? (
-                              <img
-                                  src={profileData.picture}
-                                  alt={profileData.name}
-                                  className="w-9 h-9 rounded-full border border-gray-200 object-cover shrink-0"
-                              />
-                          ) : (
-                              <div 
-                                  className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-inner"
-                                  style={{ backgroundColor: profileData?.avatarBgColor || '#4c5add' }}
-                              >
-                                  {(profileData?.name || 'U').charAt(0).toUpperCase()}
-                              </div>
-                          )}
-                          <div className="flex flex-col min-w-0 pr-1">
-                              <span className="text-sm font-semibold text-gray-900 leading-tight truncate">{profileData?.name || 'Creator'}</span>
-                              <span className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5 truncate">
-                                  <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
-                                  <span className="truncate">{(profileData?.city || profileData?.state || 'Coimbatore').replace(/📍/g, '').trim()}</span>
-                              </span>
+                        {book.authorPicture && book.authorPicture !== 'color_only' ? (
+                          <img
+                            src={book.authorPicture}
+                            alt={book.authorName}
+                            className="w-9 h-9 rounded-full border border-gray-200 object-cover shrink-0"
+                          />
+                        ) : (
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-inner"
+                            style={{ backgroundColor: book.authorBgColor }}
+                          >
+                            {(book.authorName || 'U').charAt(0).toUpperCase()}
                           </div>
+                        )}
+                        <div className="flex flex-col min-w-0 pr-1">
+                          <span className="text-sm font-semibold text-gray-900 leading-tight truncate">{book.authorName}</span>
+                          <span className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5 truncate">
+                            <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
+                            <span className="truncate">{String(book.location).replace(/📍/g, '').trim()}</span>
+                          </span>
+                        </div>
                       </div>
 
                       {/* Stats */}
                       <div className="flex items-center gap-2 justify-start text-xs text-gray-700 font-medium mt-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                              <span className="text-black font-semibold">{book.pages || 0}</span>
-                              <span className="font-normal text-gray-500">Pages</span>
-                          </div>
-                          <span className="text-gray-300">|</span>
-                          <span className="flex items-center gap-1">
-                              <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
-                              {book.views || '1.2k'}
-                          </span>
-                          <span className="text-gray-300">|</span>
-                          <span className="flex items-center gap-1">
-                              <Icon icon="material-symbols:star" className="w-4 h-4 text-yellow-400" />
-                              {book.rating || 4.5}
-                          </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-black font-semibold">{book.pages || 0}</span>
+                          <span className="font-normal text-gray-500">Pages</span>
+                        </div>
+                        <span className="text-gray-300">|</span>
+                        <span className="flex items-center gap-1">
+                          <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
+                          {book.views || '1.2k'}
+                        </span>
+                        <span className="text-gray-300">|</span>
+                        <span className="flex items-center gap-1">
+                          <Icon icon="material-symbols:star" className="w-4 h-4 text-yellow-400" />
+                          {book.rating || 4.5}
+                        </span>
                       </div>
 
                       {/* Title & Desc & Button */}
                       <div className="relative flex-1 mt-3">
-                          <h4 className="text-[15px] font-semibold text-black truncate tracking-tight mb-1">{book.title}</h4>
-                          <p className="text-[12px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
+                        <h4 className="text-[15px] font-semibold text-black truncate tracking-tight mb-1">{book.title}</h4>
+                        <p className="text-[12px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
 
-                          {/* Action Button */}
-                          <button
-                              onClick={() => {
-                                  const targetShareId = book.shareId || book.v_id;
-                                  const rawAcc = String(book.access || 'public').toLowerCase();
-                                  if (targetShareId) {
-                                      window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
-                                  }
-                              }}
-                              className="absolute bottom-0 right-0 bg-black text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
-                          >
-                              <Icon icon="mdi:arrow-top-right" className="w-5 h-5" />
-                          </button>
+                        {/* Action Button */}
+                        <button
+                          onClick={() => {
+                            const targetShareId = book.shareId || book.v_id;
+                            const rawAcc = String(book.access || 'public').toLowerCase();
+                            if (targetShareId) {
+                              window.open(`/share=${rawAcc}/${targetShareId}`, '_blank');
+                            }
+                          }}
+                          className="absolute bottom-0 right-0 bg-black text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                        >
+                          <Icon icon="mdi:arrow-top-right" className="w-5 h-5" />
+                        </button>
                       </div>
+                    </div>
                   </div>
-                </div>
-              )))}
+                )))}
             </div>
           </div>
         )}
@@ -804,8 +1140,8 @@ const MyShelf = () => {
                   key={option.id}
                   onClick={() => setDraftShelfStyle(option.id)}
                   className={`cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 group relative bg-white shadow-sm ${draftShelfStyle === option.id
-                      ? 'border-blue-500 ring-2 ring-blue-100'
-                      : 'border-transparent hover:border-gray-200 hover:shadow-md'
+                    ? 'border-blue-500 ring-2 ring-blue-100'
+                    : 'border-transparent hover:border-gray-200 hover:shadow-md'
                     }`}
                 >
                   <div className="bg-[#f0ece6] aspect-[4/3] flex items-center justify-center p-4 relative">
@@ -859,26 +1195,26 @@ const MyShelf = () => {
             </div>
             <div className="p-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Shelf Name</label>
-              <input 
-                type="text" 
-                value={newShelfName} 
-                onChange={(e) => setNewShelfName(e.target.value)} 
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" 
+              <input
+                type="text"
+                value={newShelfName}
+                onChange={(e) => setNewShelfName(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter shelf name"
                 autoFocus
               />
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
               <button onClick={() => setShowAddShelfModal(false)} className="px-5 py-2 border border-gray-200 rounded-md text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 hover:text-gray-800 transition-colors">Cancel</button>
-              <button 
+              <button
                 onClick={() => {
-                  if(newShelfName.trim()) {
+                  if (newShelfName.trim()) {
                     setFolders(prev => [{ name: newShelfName.trim(), books: [] }, ...prev]);
                     setSelectedFolder(newShelfName.trim());
                     setNewShelfName('');
                     setShowAddShelfModal(false);
                   }
-                }} 
+                }}
                 className="px-5 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors"
               >
                 Create
@@ -901,14 +1237,14 @@ const MyShelf = () => {
             <div className="p-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Select Destination Folder</label>
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setOpenDropdown(openDropdown === 'move_folder' ? null : 'move_folder')}
                   className="flex items-center justify-between w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none"
                 >
                   <span className="text-[#5B738B]">{targetMoveFolder === '__add_shelf__' ? '+ Add Shelf' : targetMoveFolder}</span>
                   <Icon icon={openDropdown === 'move_folder' ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-[#8BA3BA]" />
                 </button>
-                
+
                 {openDropdown === 'move_folder' && (
                   <div className="absolute z-50 w-full mt-1.5 bg-white border border-gray-100 rounded-lg shadow-[0_4px_20px_rgb(0,0,0,0.08)] py-1 overflow-hidden">
                     {folders.map(folder => (
@@ -952,7 +1288,7 @@ const MyShelf = () => {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
               <button onClick={() => setShowMoveModal(false)} className="px-5 py-2 border border-gray-200 rounded-md text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 hover:text-gray-800 transition-colors">Cancel</button>
-              <button 
+              <button
                 onClick={handleMoveSubmit}
                 className="px-5 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors"
               >
@@ -962,6 +1298,87 @@ const MyShelf = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl }) => {
+  const containerRef = useRef(null);
+  const [html, setHtml] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [fetching, setFetching] = useState(false);
+
+  useEffect(() => {
+    if (!v_id || loaded) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loaded && !fetching) {
+          observer.disconnect();
+          setFetching(true);
+          axios
+            .get(`${backendUrl}/api/flipbook/preview/${v_id}`, { params: { emailId } })
+            .then((res) => {
+              if (res.data?.html) {
+                const fontsToLoad = new Set();
+                const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+                const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+                let match;
+                while ((match = cssRegex.exec(res.data.html)) !== null) {
+                  let f = match[1] || match[2];
+                  if (f) f = f.split(',')[0].replace(/['"]/g, '').trim();
+                  if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+                }
+                while ((match = attrRegex.exec(res.data.html)) !== null) {
+                  let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+                  if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+                }
+
+                let fontImports = '';
+                if (fontsToLoad.size > 0) {
+                  const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
+                  fontImports = `<link href="https://fonts.googleapis.com/css?family=${fontList}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`;
+                }
+
+                setHtml({ content: res.data.html, fontImports });
+              }
+            })
+            .catch(() => { })
+            .finally(() => { setFetching(false); setLoaded(true); });
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [v_id, loaded, fetching, backendUrl, emailId]);
+
+  const isLoading = !loaded || fetching;
+
+  return (
+    <div ref={containerRef} className="w-full h-full flex items-center justify-center relative bg-white overflow-hidden rounded-[3px]">
+      {isLoading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[0.4vw] bg-[#E8E6E1] overflow-hidden border border-[#d5d2c9]">
+          <Icon icon="eos-icons:loading" className="w-[1.5vw] h-[1.5vw] text-gray-400" />
+        </div>
+      )}
+
+      {html ? (
+        <iframe
+          title={`Preview of ${title}`}
+          className="w-full h-full border-none pointer-events-none object-fill"
+          srcDoc={`<!DOCTYPE html><html><head>${html.fontImports}<base href="${iframeBaseUrl}"><style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:white;}svg{width:100%;height:100%;max-width:100%;max-height:100%;}[data-name="Free Frame"]{stroke:transparent !important;fill:transparent !important;}</style></head><body>${html.content.replace(/<svg/, '<svg preserveAspectRatio="none"')}</body></html>`}
+        />
+      ) : loaded && imageUrl ? (
+        <img src={resolveUploadsPath(imageUrl)} alt={title} className="w-full h-full object-fill bg-white" />
+      ) : loaded && !html ? (
+        <div className="flex flex-col items-center justify-center text-gray-400 w-full h-full bg-white border border-[#d5d2c9]">
+          <Icon icon="mdi:book-open-blank-variant" className="w-[2vw] h-[2vw] text-gray-400 mb-1" />
+          <span className="text-[0.7vw] font-medium leading-tight text-gray-500">No Preview</span>
+        </div>
+      ) : null}
     </div>
   );
 };

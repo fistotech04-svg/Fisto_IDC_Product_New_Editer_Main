@@ -129,33 +129,59 @@ const profileSchema = new mongoose.Schema({
     default: Date.now
   },
   myShelf: {
-    folders: [{ 
-      f_id: {
-        type: String,
-        required: true
-      },
-      f_name: {
-        type: String,
-        required: true
-      },
-      books: [{
-        v_id: {
+    shelfCount: {
+      type: Number,
+      default: 1
+    },
+    folders: [
+      {
+        _id:false,
+        folderName: {
           type: String,
-          required: true
+          default: ""
         },
-        position: {
+        shelf_design: {
           type: Number,
-          required: true,
-          default: 0
-        }
-    }]
-    }]
+          default: 1
+        },
+        books: [
+          {
+            _id:false,
+            row: {
+              type: Number,
+              default: 1
+            },
+            order: {
+              type: Number,
+              default: 1
+            },
+            v_id: {
+              type: String,
+              required: true
+            }
+          }]
+      }]
   }
 });
 
 // Update the updatedAt field before saving
-profileSchema.pre('save', function() {
+profileSchema.pre('save', function () {
   this.updatedAt = Date.now();
+});
+
+// Enforce order of properties in myShelf when converting to JSON
+profileSchema.set('toJSON', {
+  transform: (doc, ret) => {
+    if (ret.myShelf) {
+      // Create a new object with the desired order
+      const orderedMyShelf = {
+        shelfCount: ret.myShelf.shelfCount,
+        folders: ret.myShelf.folders
+      };
+      ret.myShelf = orderedMyShelf;
+    }
+    return ret;
+  }
 });
 
 const Profile = mongoose.model('Profile', profileSchema, 'Profiles');

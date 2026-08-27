@@ -1293,7 +1293,7 @@ const ShareViewBook = () => {
                                     <X className="w-[1vw] h-[1vw]" />
                                 </button>
                             </div>
-                            <span className="text-[0.75vw] text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">You can find this book in Profile {'>'} My Shelf {'>'} External Books</span>
+                            <span className="text-[0.75vw] text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">You can find this book in Profile {'>'} My Shelf {'>'} My Flipbooks</span>
                         </div>
 
                         <img 
@@ -1318,7 +1318,25 @@ const ShareViewBook = () => {
                                 <X className="w-[1vw] h-[1vw]" /> Cancel
                             </button>
                             <button 
-                                onClick={() => setIsAddToShelfOpen(false)} 
+                                onClick={async () => {
+                                    if (!currentUserEmail) {
+                                        alert("Please log in to add books to your shelf.");
+                                        return;
+                                    }
+                                    try {
+                                        const backendUrl = getBackendUrl();
+                                        await axios.post(`${backendUrl}/api/profile/add-to-shelf`, {
+                                            emailId: currentUserEmail,
+                                            bookId: bookData?.v_id || shareId,
+                                            folderName: 'My Flipbooks'
+                                        });
+                                        alert("Book successfully added to your shelf!");
+                                        setIsAddToShelfOpen(false);
+                                    } catch (err) {
+                                        console.error("Failed to add to shelf:", err);
+                                        alert(err.response?.data?.message || "Failed to add book to shelf.");
+                                    }
+                                }} 
                                 className="flex-1 py-[0.8vw] rounded-xl bg-black text-[0.95vw] font-medium text-white hover:bg-gray-900 transition-colors flex items-center justify-center gap-[0.5vw] shadow-md cursor-pointer"
                             >
                                 <Icon icon="ri:book-shelf-line" className="w-[1vw] h-[1vw]" /> Add to Shelf
