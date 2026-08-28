@@ -23,7 +23,7 @@ export const addCategory = async (req, res) => {
     const category = await TextureCategory.findOneAndUpdate(
         { userEmail, name },
         { userEmail, name },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     res.status(201).json({ category });
@@ -39,7 +39,7 @@ export const renameCategory = async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ message: "New name required" });
 
-    const category = await TextureCategory.findByIdAndUpdate(id, { name }, { new: true });
+    const category = await TextureCategory.findByIdAndUpdate(id, { name }, { returnDocument: 'after' });
     if (!category) return res.status(404).json({ message: "Category not found" });
 
     res.status(200).json({ category });

@@ -36,26 +36,24 @@ const PreviewPage = () => {
         };
         const backendUrl = getBackendUrl();
         const params = currentUserEmail ? { emailId: currentUserEmail } : {};
-        const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, { params });
+        
+        if (!currentUserEmail) {
+          setData({ error: true, errorMessage: "Please login with the owner account to preview this flipbook." });
+          return;
+        }
+
+        const [res, checkRes] = await Promise.all([
+          axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, { params }),
+          axios.get(`${backendUrl}/api/flipbook/check-owner/${shareId}?emailId=${encodeURIComponent(currentUserEmail)}`).catch(() => ({ data: { isOwner: false } }))
+        ]);
+
+        if (!checkRes.data || !checkRes.data.isOwner) {
+          setData({ error: true, errorMessage: "You do not have permission to preview another user's flipbook." });
+          return;
+        }
 
         if (res.data) {
           let processedData = res.data;
-
-          if (!currentUserEmail) {
-            setData({ error: true, errorMessage: "Please login with the owner account to preview this flipbook." });
-            return;
-          }
-
-          try {
-            const checkRes = await axios.get(`${backendUrl}/api/flipbook/check-owner/${shareId}?emailId=${encodeURIComponent(currentUserEmail)}`);
-            if (!checkRes.data || !checkRes.data.isOwner) {
-              setData({ error: true, errorMessage: "You do not have permission to preview another user's flipbook." });
-              return;
-            }
-          } catch (ownerErr) {
-            setData({ error: true, errorMessage: "You do not have permission to preview another user's flipbook." });
-            return;
-          }
 
           const bUrl = processedData.meta?.baseUrl ? resolveUploadsPath(processedData.meta.baseUrl) : '';
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-import CrownImg from '../../../assets/settings/Crown img.svg';
 import p1 from '../../../assets/settings/p1.png';
 
 const defaultColors = [
@@ -72,7 +71,19 @@ const getInitialProfile = () => {
 };
 
 const SettingsLayout = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(getInitialProfile);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_profile');
+    localStorage.removeItem('last_active_folder');
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.disableAutoSelect();
+    }
+    navigate('/');
+  };
 
   useEffect(() => {
     let targetEmail = '';
@@ -131,32 +142,35 @@ const SettingsLayout = () => {
     }
   }, []);
 
+  const userEmail = user?.emailId || user?.email || '';
+  const profilePath = userEmail ? `profile/${encodeURIComponent(userEmail)}` : 'profile';
+
   const sidebarGroups = [
     {
       title: 'General',
       items: [
-        { path: 'profile', label: 'Profile', icon: 'mingcute:profile-line' },
-        { path: 'account', label: 'Account', icon: 'iconamoon:profile' },
-        { path: 'notifications', label: 'Notifications', icon: 'basil:notification-on-outline' },
-        { path: 'my-shelf', label: 'My Shelf', icon: 'clarity:library-line' },
+        { path: profilePath, id: 'profile', label: 'Profile', icon: 'mingcute:profile-line' },
+        { path: 'account', id: 'account', label: 'Account', icon: 'iconamoon:profile' },
+        { path: 'notifications', id: 'notifications', label: 'Notifications', icon: 'basil:notification-on-outline' },
+        { path: 'my-shelf', id: 'my-shelf', label: 'My Shelf', icon: 'clarity:library-line' },
       ]
     },
     {
       title: 'Workspace',
       items: [
-        { path: 'editor-defaults', label: 'Editor Defaults', icon: 'vaadin:edit' },
-        { path: 'library', label: 'Library', icon: 'clarity:library-line' },
-        { path: 'integrations', label: 'Integrations', icon: 'oui:integration-general' },
+        { path: 'editor-defaults', id: 'editor-defaults', label: 'Editor Defaults', icon: 'vaadin:edit' },
+        { path: 'library', id: 'library', label: 'Library', icon: 'clarity:library-line' },
+        { path: 'integrations', id: 'integrations', label: 'Integrations', icon: 'oui:integration-general' },
       ]
     },
     {
       title: 'System & Billing',
       items: [
-        { path: 'privacy-access', label: 'Privacy & Access', icon: 'line-md:security' },
-        { path: 'analytics', label: 'Analytics', icon: 'carbon:analytics' },
-        { path: 'billing', label: 'Billing', icon: 'tdesign:bill' },
-        { path: 'advanced', label: 'Advanced', icon: 'gcp:advanced-solutions-lab' },
-        { path: 'account-management', label: 'Account Management', icon: 'material-symbols:manage-accounts-outline-rounded' },
+        { path: 'privacy-access', id: 'privacy-access', label: 'Privacy & Access', icon: 'line-md:security' },
+        { path: 'analytics', id: 'analytics', label: 'Analytics', icon: 'carbon:analytics' },
+        { path: 'billing', id: 'billing', label: 'Billing', icon: 'tdesign:bill' },
+        { path: 'advanced', id: 'advanced', label: 'Advanced', icon: 'gcp:advanced-solutions-lab' },
+        { path: 'account-management', id: 'account-management', label: 'Account Management', icon: 'material-symbols:manage-accounts-outline-rounded' },
       ]
     }
   ];
@@ -182,11 +196,16 @@ const SettingsLayout = () => {
 
               <div className="flex flex-col gap-[0.2vw]">
                 {group.items.map((item) => {
+                  const isProfile = item.id === 'profile';
+                  const isActive = isProfile 
+                    ? location.pathname.startsWith('/settings/profile')
+                    : location.pathname === `/settings/${item.path}` || location.pathname.startsWith(`/settings/${item.path}/`);
+
                   return (
-                    <NavLink
-                      key={item.path}
+                    <Link
+                      key={item.id || item.path}
                       to={item.path}
-                      className={({ isActive }) => `
+                      className={`
                         flex items-center gap-[1vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] text-[0.8125vw] font-semibold transition-colors
                         ${isActive 
                           ? 'bg-[#F2F2F2] text-gray-800' 
@@ -194,17 +213,13 @@ const SettingsLayout = () => {
                         }
                       `}
                     >
-                      {({ isActive }) => (
-                        <>
-                          <Icon 
-                            icon={item.icon} 
-                            className={`w-[1vw] h-[1vw] flex-shrink-0 text-gray-700 ${item.icon.startsWith('gcp:') ? 'grayscale brightness-0 opacity-90' : ''}`} 
-                            style={{ strokeWidth: '1.2px' }}
-                          />
-                          {item.label}
-                        </>
-                      )}
-                    </NavLink>
+                      <Icon 
+                        icon={item.icon} 
+                        className={`w-[1vw] h-[1vw] flex-shrink-0 text-gray-700 ${item.icon.startsWith('gcp:') ? 'grayscale brightness-0 opacity-90' : ''}`} 
+                        style={{ strokeWidth: '1.2px' }}
+                      />
+                      {item.label}
+                    </Link>
                   );
                 })}
               </div>
@@ -212,22 +227,14 @@ const SettingsLayout = () => {
           ))}
         </div>
 
-        {/* Upgrade Profile Button */}
+        {/* Log Out Button */}
         <div className="p-[0.5vw] mb-[0.5vw]">
-          <button className="w-full relative overflow-visible bg-gradient-to-r from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] text-white rounded-[0.8vw] py-[0.6vw] flex items-center justify-center gap-[0.5vw] transition-all group">
-            {/* Adding a subtle noise/stars pattern could be done with a background image here */}
-            <div className="absolute inset-0 bg-black opacity-30 rounded-[0.8vw]"></div>
-            
-            <span className="font-semibold text-[0.9vw] relative z-10 flex items-center gap-[0.5vw]">
-              Upgrade Profile 
-              <span className="group-hover:translate-x-1 inline-block transition-transform font-semibold text-[1.2vw]">→</span>
-            </span>
-            
-            <img 
-              src={CrownImg} 
-              alt="Crown" 
-              className="absolute -top-[2vw] -right-[1vw] w-[4vw] h-[4vw] z-20 drop-shadow-xl transform rotate-12"
-            />
+          <button 
+            onClick={handleLogout}
+            className="w-full relative overflow-hidden bg-transparent border-2 border-red-600 text-red-600 hover:bg-red-600 hover:border-red-600 hover:text-white active:scale-[0.98] rounded-[0.8vw] py-[0.65vw] flex items-center justify-center gap-[0.5vw] transition-all duration-200 cursor-pointer font-semibold text-[0.85vw] shadow-xs hover:shadow-md hover:shadow-red-500/20 group"
+          >
+            <Icon icon="lucide:log-out" className="w-[1.05vw] h-[1.05vw] transition-transform group-hover:-translate-x-0.5" />
+            <span>Log Out</span>
           </button>
         </div>
 

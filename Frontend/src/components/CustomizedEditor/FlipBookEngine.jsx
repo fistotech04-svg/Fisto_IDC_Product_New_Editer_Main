@@ -290,7 +290,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             <div
                                 className="fbe-static-bg"
                                 style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#fff', borderRadius: 'inherit', pointerEvents: 'none' }}
-                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '') }}
+                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '') }}
                             />
                             <iframe
                                 title={`Page ${i + 1}`}
@@ -486,7 +486,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 const staticBg = document.createElement('div');
                 staticBg.className = 'fbe-static-bg';
                 staticBg.style.cssText = 'position:absolute;inset:0;overflow:hidden;background:#fff;pointer-events:none;border-radius:inherit;';
-                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '');
+                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '');
                 inner.appendChild(staticBg);
 
                 const iframe = document.createElement('iframe');
@@ -748,19 +748,43 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             if (e.data.type === 'IFRAME_MOUSEDOWN') {
                 if (bookEl.current) {
                     bookEl.current.classList.add('fbe-is-dragging');
-                    $(bookEl.current).trigger(createJqEvent('mousedown', e.data));
-                    $(bookEl.current).trigger(createJqEvent('touchstart', e.data));
+
+                    let cx = e.data.originalClientX || 0;
+                    let cy = e.data.originalClientY || 0;
+                    if (e.data.pageNumber && bookEl.current) {
+                        const iframe = bookEl.current.querySelector(`.p${e.data.pageNumber} iframe`);
+                        if (iframe) {
+                            const rect = iframe.getBoundingClientRect();
+                            cx += rect.left;
+                            cy += rect.top;
+                        }
+                    }
+                    window._fbeDragOffset = {
+                        x: (e.data.screenX || 0) - cx,
+                        y: (e.data.screenY || 0) - cy
+                    };
+
+                    $(bookEl.current).trigger(createJqEvent('mousedown', { originalClientX: cx, originalClientY: cy }));
+                    $(bookEl.current).trigger(createJqEvent('touchstart', { originalClientX: cx, originalClientY: cy }));
                 }
             } else if (e.data.type === 'IFRAME_MOUSEMOVE') {
                 if (bookEl.current && bookEl.current.classList.contains('fbe-is-dragging')) {
-                    $(document).trigger(createJqEvent('mousemove', e.data));
-                    $(document).trigger(createJqEvent('touchmove', e.data));
+                    const offset = window._fbeDragOffset || { x: 0, y: 0 };
+                    const cx = (e.data.screenX || 0) - offset.x;
+                    const cy = (e.data.screenY || 0) - offset.y;
+                    
+                    $(document).trigger(createJqEvent('mousemove', { originalClientX: cx, originalClientY: cy }));
+                    $(document).trigger(createJqEvent('touchmove', { originalClientX: cx, originalClientY: cy }));
                 }
             } else if (e.data.type === 'IFRAME_MOUSEUP') {
                 if (bookEl.current && bookEl.current.classList.contains('fbe-is-dragging')) {
                     bookEl.current.classList.remove('fbe-is-dragging');
-                    $(document).trigger(createJqEvent('mouseup', e.data));
-                    $(document).trigger(createJqEvent('touchend', e.data));
+                    const offset = window._fbeDragOffset || { x: 0, y: 0 };
+                    const cx = (e.data.screenX || 0) - offset.x;
+                    const cy = (e.data.screenY || 0) - offset.y;
+                    
+                    $(document).trigger(createJqEvent('mouseup', { originalClientX: cx, originalClientY: cy }));
+                    $(document).trigger(createJqEvent('touchend', { originalClientX: cx, originalClientY: cy }));
                 }
             }
         };
@@ -782,6 +806,12 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 opacity: pageOpacity ?? 1,
             }}
         >
+            <style>{`
+                .fbe-is-dragging iframe {
+                    pointer-events: none !important;
+                }
+            `}</style>
+            
             {/* Loading indicator */}
             {!ready && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f7f7', color: '#999', fontSize: '13px', zIndex: 10 }}>

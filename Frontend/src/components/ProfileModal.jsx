@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Save, BookOpen, Library, Settings, ChevronRight, ArrowRight, LogOut } from 'lucide-react';
+import { X, Save, BookOpen, Library, Settings, ChevronRight, ArrowRight } from 'lucide-react';
 
 const defaultColors = [
   '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
@@ -58,17 +58,6 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
     if (onToggleAutoSave) {
       onToggleAutoSave(nextState);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('user_profile');
-    localStorage.removeItem('last_active_folder');
-    if (window.google?.accounts?.id) {
-      window.google.accounts.id.disableAutoSelect();
-    }
-    navigate('/');
-    onClose();
   };
 
   useEffect(() => {
@@ -188,7 +177,10 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
 
         {/* User Info Card with Free Ribbon */}
         <div 
-          onClick={() => { navigate('/settings/profile'); onClose(); }}
+          onClick={() => { 
+            navigate(user?.email && user?.email !== 'No Email' ? `/settings/profile/${encodeURIComponent(user.email)}` : '/settings/profile'); 
+            onClose(); 
+          }}
           className="relative border border-gray-100 rounded-[0.8vw] p-[0.85vw] shadow-sm bg-white flex items-center gap-[0.85vw] mb-[1vw] cursor-pointer hover:bg-gray-50/80 hover:border-gray-200 hover:shadow transition-all group"
         >
           {/* Free Badge Ribbon */}
@@ -264,7 +256,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
 
           {/* Go to Shelf */}
           <div
-            onClick={() => { navigate('/shelf'); onClose(); }}
+            onClick={() => { navigate('/settings/my-shelf'); onClose(); }}
             className="flex items-center justify-between py-[0.65vw] px-[0.25vw] hover:bg-gray-50 rounded-[0.4vw] cursor-pointer transition-colors group"
           >
             <div className="flex items-center gap-[0.75vw]">
@@ -280,7 +272,10 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
 
           {/* Settings */}
           <div
-            onClick={() => { navigate('/settings/profile'); onClose(); }}
+            onClick={() => { 
+              navigate(user?.email && user?.email !== 'No Email' ? `/settings/profile/${encodeURIComponent(user.email)}` : '/settings/profile'); 
+              onClose(); 
+            }}
             className="flex items-center justify-between py-[0.65vw] px-[0.25vw] hover:bg-gray-50 rounded-[0.4vw] cursor-pointer transition-colors group"
           >
             <div className="flex items-center gap-[0.75vw]">
@@ -298,17 +293,9 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
         {/* Upgrade Profile Button */}
         <button 
           onClick={() => { navigate('/settings/billing'); onClose(); }}
-          className="w-full bg-[#18181b] hover:bg-black text-white py-[0.65vw] px-[1vw] rounded-[0.75vw] text-[0.8vw] font-bold flex items-center justify-center gap-[0.4vw] shadow-md transition-all cursor-pointer mb-[0.4vw]"
+          className="w-full bg-[#18181b] hover:bg-black text-white py-[0.65vw] px-[1vw] rounded-[0.75vw] text-[0.8vw] font-bold flex items-center justify-center gap-[0.4vw] shadow-md transition-all cursor-pointer"
         >
           Upgrade Profile <ArrowRight size="0.9vw" />
-        </button>
-
-        {/* Logout Link */}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-[0.4vw] text-red-500 hover:text-red-600 py-[0.25vw] text-[0.72vw] font-semibold cursor-pointer transition-colors"
-        >
-          <LogOut size="0.8vw" /> Logout
         </button>
       </div>
     </>

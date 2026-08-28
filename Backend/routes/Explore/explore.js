@@ -125,18 +125,50 @@ router.get("/creator", async (req, res) => {
         const normalizedEmail = rawEmail.trim().toLowerCase();
         const safeRegex = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
 
-        // Fetch user profile, user auth, published flipbooks, and 3D models in parallel
-        const [profile, user, publishedBooks, creator3DModels] = await Promise.all([
-            Profile.findOne({ emailId: safeRegex }).lean(),
+        // Fetch user profile
+        const profile = await Profile.findOne({ emailId: safeRegex }).lean();
+
+        let shelfVIds = [];
+        if (profile && profile.myShelf && profile.myShelf.folders) {
+            profile.myShelf.folders.forEach(f => {
+                if (f.books && Array.isArray(f.books)) {
+                    f.books.forEach(b => {
+                        const v_id = typeof b === 'string' ? b : b.v_id;
+                        if (v_id) shelfVIds.push(v_id);
+                    });
+                }
+            });
+        }
+
+        // Fetch user auth, published flipbooks, shelf flipbooks, and 3D models in parallel
+        const [user, publishedBooks, shelfBooks, creator3DModels] = await Promise.all([
             User.findOne({ emailId: safeRegex }).lean(),
             Flipbook.find({ userEmail: safeRegex, isPublished: true }).sort({ createdAt: -1 }).lean(),
+            shelfVIds.length > 0 ? Flipbook.find({ v_id: { $in: shelfVIds } }).lean() : Promise.resolve([]),
             InteractionThreedModel.find({ userEmail: safeRegex }).lean()
         ]);
+
+        const allBooksMap = new Map();
+        publishedBooks.forEach(b => { if (b.v_id) allBooksMap.set(b.v_id, b); });
+        shelfBooks.forEach(b => { if (b.v_id) allBooksMap.set(b.v_id, b); });
+        const allBooks = Array.from(allBooksMap.values());
 
         const creatorThreedVIds = new Set(creator3DModels.map(m => m.flipbook_v_id).filter(Boolean));
         const creatorThreedNames = new Set(creator3DModels.map(m => (m.flipbookName || '').toLowerCase()));
 
-        const enrichedPublishedBooks = publishedBooks.map(book => {
+        // Extract distinct user emails for all books
+        const bookUserEmails = [...new Set(allBooks.map(b => b.userEmail).filter(Boolean))];
+        const safeRegexListBook = bookUserEmails.map(e => new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+        
+        // Fetch corresponding profiles for author enrichment
+        const bookProfiles = await Profile.find({ emailId: { $in: safeRegexListBook } }).lean();
+        
+        const bookProfileMap = {};
+        bookProfiles.forEach(p => {
+            if (p.emailId) bookProfileMap[p.emailId.toLowerCase()] = p;
+        });
+
+        const enrichedPublishedBooks = allBooks.map(book => {
             const has3D = Boolean(
                 (book.v_id && creatorThreedVIds.has(book.v_id)) ||
                 (book.flipbookName && creatorThreedNames.has(book.flipbookName.toLowerCase())) ||
@@ -145,10 +177,21 @@ router.get("/creator", async (req, res) => {
                 book.has3DModels ||
                 (book.Customized_Settings?.InteractionThreedModel && Object.keys(book.Customized_Settings.InteractionThreedModel).length > 0)
             );
+            
+            const p = bookProfileMap[book.userEmail?.toLowerCase()] || {};
+            const authorName = p.name || (book.userEmail ? book.userEmail.split('@')[0] : 'Creator');
+            const city = p.city || p.state || (p.country && p.country !== 'INDIA' ? p.country : '') || 'Coimbatore';
+            const authorPicture = p.picture || null;
+            const authorBgColor = p.avatarBgColor || '#E8D4C8';
+
             return {
                 ...book,
                 has3D,
-                is3D: has3D
+                is3D: has3D,
+                authorName,
+                city,
+                authorPicture,
+                authorBgColor
             };
         });
 
@@ -181,7 +224,8 @@ router.get("/creator", async (req, res) => {
             socials: profile?.socials || {},
             followers: profile?.followers || [],
             following: profile?.following || [],
-            isFollowing: isFollowingCreator
+            isFollowing: isFollowingCreator,
+            myShelf: profile?.myShelf || { shelfCount: 1, folders: [{ folderName: 'My Flipbooks', shelf_design: 1, books: [] }] }
         };
 
         return res.status(200).json({

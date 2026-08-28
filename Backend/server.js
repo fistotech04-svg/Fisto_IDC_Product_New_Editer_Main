@@ -1,11 +1,15 @@
 import dotenv from "dotenv";
+import dns from "node:dns";
+// Trigger nodemon restart
+
 dotenv.config();
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 import express from "express";
-
 import cors from "cors";
 import bodyParser from "body-parser";
 import connectDB from "./config/db.js";
+
 import usersettingRoutes from "./routes/User_Details/usersetting.js";
 import authRoutes from "./routes/User_Details/login.js";
 import flipbookRoutes from "./routes/Flipbook/flipbook.js";
@@ -13,14 +17,15 @@ import threedModelRoutes from "./routes/User_Details/threed_models.js";
 import textureRoutes from "./routes/Texture/texture.js";
 import exploreRoutes from "./routes/Explore/explore.js";
 import profileRoutes from "./routes/User_Details/profile.js";
+import activityRoutes from "./routes/User_Details/activity.js";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-
 // Connect to database
 connectDB();
+
 
 import { SUPABASE_BUCKET, getSupabasePublicUrl, downloadFileFromSupabase } from "./config/supabase.js";
 
@@ -106,6 +111,7 @@ app.use("/api/3d-models", threedModelRoutes);
 app.use("/api/textures", textureRoutes);
 app.use("/api/explore", exploreRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/activity", activityRoutes);
 
 const PORT = process.env.PORT || 5000;
 

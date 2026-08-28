@@ -38,6 +38,14 @@ const profileSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  company_logo_url: {
+    type: String,
+    default: ''
+  },
+  companyLogo: {
+    type: String,
+    default: ''
+  },
   companyName: {
     type: String,
     default: ''
@@ -119,12 +127,61 @@ const profileSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  myShelf: {
+    shelfCount: {
+      type: Number,
+      default: 1
+    },
+    folders: [
+      {
+        _id:false,
+        folderName: {
+          type: String,
+          default: ""
+        },
+        shelf_design: {
+          type: Number,
+          default: 1
+        },
+        books: [
+          {
+            _id:false,
+            row: {
+              type: Number,
+              default: 1
+            },
+            order: {
+              type: Number,
+              default: 1
+            },
+            v_id: {
+              type: String,
+              required: true
+            }
+          }]
+      }]
   }
 });
 
 // Update the updatedAt field before saving
-profileSchema.pre('save', function() {
+profileSchema.pre('save', function () {
   this.updatedAt = Date.now();
+});
+
+// Enforce order of properties in myShelf when converting to JSON
+profileSchema.set('toJSON', {
+  transform: (doc, ret) => {
+    if (ret.myShelf) {
+      // Create a new object with the desired order
+      const orderedMyShelf = {
+        shelfCount: ret.myShelf.shelfCount,
+        folders: ret.myShelf.folders
+      };
+      ret.myShelf = orderedMyShelf;
+    }
+    return ret;
+  }
 });
 
 const Profile = mongoose.model('Profile', profileSchema, 'Profiles');

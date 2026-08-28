@@ -31,10 +31,27 @@ import ARView from './pages/ARView';
 import ThreedEditor from './components/ThreedEditor/ThreedEditor';
 import CustomizedEditor from './components/CustomizedEditor/CustomizedEditor';
 import ShareViewBook from './pages/shareviewbook';
+import Viewprofile from './pages/Viewprofile';
 import { ToastProvider } from './components/CustomToast';
 import { ModernToastProvider } from './components/ModernToast';
 import ProtectedRoute from './components/ProtectedRoute';
 import NetworkStatus from './pages/NetworkStatus';
+
+function SettingsIndexRedirect() {
+  let email = '';
+  try {
+    const stored = localStorage.getItem('user_profile') || localStorage.getItem('user');
+    if (stored) {
+      const u = JSON.parse(stored);
+      email = u.emailId || u.email || '';
+    }
+  } catch (e) {}
+
+  if (email) {
+    return <Navigate to={`profile/${encodeURIComponent(email)}`} replace />;
+  }
+  return <Navigate to="profile" replace />;
+}
 
 function App() {
   return (
@@ -81,9 +98,12 @@ function App() {
               <Route path="/home" element={<Home />} />
               <Route path="/my-flipbooks" element={<MyFlipbooks />} />
               <Route path="/explore" element={<Explore />} />
+              <Route path="/profile/:useremail" element={<Viewprofile />} />
+              <Route path="/profile" element={<Viewprofile />} />
               <Route path="/settings" element={<SettingsLayout />}>
-                <Route index element={<Navigate to="profile" replace />} />
+                <Route index element={<SettingsIndexRedirect />} />
                 <Route path="profile" element={<Profile />} />
+                <Route path="profile/:useremail" element={<Profile />} />
                 <Route path="account" element={<Account />} />
                 <Route path="notifications" element={<Notifications />} />
                 <Route path="my-shelf" element={<MyShelf />} />
