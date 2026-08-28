@@ -1715,7 +1715,7 @@ const getVideoControlsScript = () => `
   </script>
 `;
 
-const getIframeContent = (html, pageNumber) => {
+const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount = 0, singlePage = false) => {
     // Extract and dynamically load Google Fonts found in the SVG
     const fontsToLoad = new Set();
     if (html) {
@@ -1978,6 +1978,45 @@ const getIframeContent = (html, pageNumber) => {
             </head>
             <body>
                 ${html || ''}
+                ${(function() {
+                    if (!watermarkSettings?.src) return '';
+                    const f = watermarkSettings.adjustments || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
+                    const exposure = f.exposure || 0;
+                    const contrast = f.contrast || 0;
+                    const saturation = f.saturation || 0;
+                    const temperature = f.temperature || 0;
+                    const tint = f.tint || 0;
+                    const hl = f.highlights || 0;
+                    const sd = f.shadows || 0;
+                    let filterStr = "";
+                    filterStr += `brightness(${100 + exposure + (hl / 5)}%) `;
+                    filterStr += `contrast(${100 + contrast + (sd / 5)}%) `;
+                    filterStr += `saturate(${100 + saturation}%) `;
+                    if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
+                    if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
+                    else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
+
+                    const opacity = (watermarkSettings.opacity ?? 64) / 100;
+                    let positionStyle = "";
+                    const offset = '4%';
+
+                    switch (watermarkSettings.position) {
+                        case 'Top Left': positionStyle = `top: ${offset}; left: ${offset};`; break;
+                        case 'Top Right': positionStyle = `top: ${offset}; right: ${offset};`; break;
+                        case 'Bottom Left': positionStyle = `bottom: ${offset}; left: ${offset};`; break;
+                        case 'Center': positionStyle = `top: 50%; left: 50%; transform: translate(-50%, -50%);`; break;
+                        case 'Bottom Right':
+                        default: positionStyle = `bottom: ${offset}; right: ${offset};`; break;
+                    }
+
+                    const objectFit = watermarkSettings.type === 'Fill' ? 'cover' : watermarkSettings.type === 'Stretch' ? 'fill' : 'contain';
+
+                    return `
+                        <div style="position: absolute; z-index: 9999; pointer-events: none; opacity: ${opacity}; width: 15%; height: auto; ${positionStyle}">
+                            <img src="${watermarkSettings.src}" style="width: 100%; height: auto; object-fit: ${objectFit}; filter: ${filterStr};" />
+                        </div>
+                    `;
+                })()}
             </body>
         </html>
     `;
@@ -2397,6 +2436,7 @@ const TurnJsBookRenderer = React.memo(({
     activeTooltip,
     isTurnJs,
     physicalZoom,
+    watermarkSettings,
 }) => {
     const turnOnFlip = useCallback((evt) => {
         const logicalIndex = typeof evt === 'object' && evt !== null ? evt.data : evt;
@@ -2465,7 +2505,7 @@ const TurnJsBookRenderer = React.memo(({
                 useMouseEvents={settings?.navigation?.dragToTurn ?? true}
             />
 
-            <div
+            {/* Bookmarks rendering */}<div
                 className="absolute top-0 pointer-events-none"
                 style={{ width: '100%', height: '100%', left: '0%', zIndex: 200, perspective: '2000px' }}
             >
@@ -3691,7 +3731,7 @@ const PreviewArea = React.memo(({
         const opacity = (backgroundSettings?.opacity ?? 100) / 100;
 
         if (backgroundSettings?.style === 'Gradient') {
-            return { background: backgroundSettings.gradient, opacity };
+            return { backgroundImage: backgroundSettings.gradient, opacity };
         } else if (backgroundSettings?.style === 'Image' && backgroundSettings.image) {
             const adj = backgroundSettings.adjustments || {};
             const exposure = adj.exposure || 0;
@@ -3828,6 +3868,10 @@ const PreviewArea = React.memo(({
         return () => window.removeEventListener('message', handleMessage);
     }, [currentPage, pages.length]);
 
+    const memoizedBuildPageDoc = useCallback((html, pageNum) => {
+        return getIframeContent(html, pageNum, watermarkSettings, pages.length, isSinglePage);
+    }, [watermarkSettings, pages.length, isSinglePage]);
+
     const bookRendererProps = {
         augmentedPages,
         WIDTH,
@@ -3855,12 +3899,13 @@ const PreviewArea = React.memo(({
         onPageClick,
         settings,
         setShowViewBookmarkPopup,
-        buildPageDoc: getIframeContent,
+        buildPageDoc: memoizedBuildPageDoc,
         activeLayout,
         interactionZoom,
         activeTooltip,
         isTurnJs,
         physicalZoom: actualPhysicalZoom,
+        watermarkSettings,
         style: (() => {
             if (!interactionZoom) return { transition: 'transform 0.5s ease', transform: 'scale(1)', transformOrigin: 'center center' };
             const { scale, rect, pageNumber } = interactionZoom;
@@ -4700,63 +4745,6 @@ const PreviewArea = React.memo(({
         </>
     );
 
-    const renderWatermark = () => {
-        if (!watermarkSettings?.src) return null;
-
-        const f = watermarkSettings.adjustments || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
-        const exposure = f.exposure || 0;
-        const contrast = f.contrast || 0;
-        const saturation = f.saturation || 0;
-        const temperature = f.temperature || 0;
-        const tint = f.tint || 0;
-        const hl = f.highlights || 0;
-        const sd = f.shadows || 0;
-
-        let filterStr = "";
-        filterStr += `brightness(${100 + exposure + (hl / 5)}%) `;
-        filterStr += `contrast(${100 + contrast + (sd / 5)}%) `;
-        filterStr += `saturate(${100 + saturation}%) `;
-        if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
-        if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
-        else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
-
-        return (
-            <div
-                className="absolute z-[20] pointer-events-none select-none"
-                style={{
-                    opacity: (watermarkSettings.opacity ?? 64) / 100,
-                    width: '6vw',
-                    height: 'auto',
-                    ...(() => {
-                        switch (watermarkSettings.position) {
-                            case 'Top Left':
-                                return { top: '4vw', left: '2vw' };
-                            case 'Top Right':
-                                return { top: '4vw', right: '2vw' };
-                            case 'Bottom Left':
-                                return { bottom: '4vw', left: '2vw' };
-                            case 'Bottom Right':
-                            default:
-                                return { bottom: '4vw', right: '2vw' };
-                        }
-                    })()
-                }}
-            >
-                <img
-                    src={watermarkSettings.src}
-                    alt="Watermark"
-                    className={`w-full h-auto ${watermarkSettings.type === 'Fill'
-                            ? 'object-cover'
-                            : watermarkSettings.type === 'Stretch'
-                                ? 'object-fill'
-                                : 'object-contain'
-                        }`}
-                    style={{ filter: filterStr }}
-                />
-            </div>
-        );
-    };
-
     return (
         <div
             ref={containerRef}
@@ -4780,7 +4768,6 @@ const PreviewArea = React.memo(({
                     const mobileContent = (
                         <div ref={screenRef} className="w-full h-full relative overflow-hidden">
                             {backgroundLayers}
-                            {renderWatermark()}
 
                             <style>{`
                                 #preview-area-root .flipbook-magazine-wrapper {
@@ -4837,7 +4824,6 @@ const PreviewArea = React.memo(({
                         <div ref={screenRef} id="device-screen-container" style={getScreenWrapperStyle()} className="relative">
 
                             {backgroundLayers}
-                            {renderWatermark()}
 
                             <style>{`
                                 #preview-area-root .flipbook-magazine-wrapper {
