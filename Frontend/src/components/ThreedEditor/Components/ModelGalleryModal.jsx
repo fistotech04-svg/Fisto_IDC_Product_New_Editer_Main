@@ -82,7 +82,7 @@ const ModelThumbnail = React.memo(({ model }) => {
                             />
                         </group>
                         
-                        <Environment preset="city" />
+                        <Environment preset="studio" />
                         
                         <OrbitControls 
                             enableZoom={false} 

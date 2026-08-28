@@ -22,8 +22,7 @@ export default function RightPanel({
     onUvUnwrap,
     onMapUpload,
     selectedTextureId,
-    onSelectTexture,
-    physicsProps
+    onSelectTexture
 }) {
   const fileRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -171,7 +170,6 @@ export default function RightPanel({
                   onMapUpload={onMapUpload}
                   selectedTextureId={selectedTextureId}
                   onSelectTexture={onSelectTexture}
-                  physicsProps={physicsProps}
               />
             </div>
           </div>

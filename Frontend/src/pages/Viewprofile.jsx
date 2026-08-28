@@ -428,19 +428,8 @@ export default function Viewprofile() {
 
     return (
         <div className="w-full h-full min-h-0 bg-[#f8f9fa] flex flex-col overflow-hidden select-none">
-            {/* Top Navigation Bar with Back Button */}
-            <div className="w-full bg-white px-[2vw] py-[0.8vw] flex items-center border-b border-gray-200 shrink-0 shadow-xs z-30">
-                <button 
-                    onClick={() => navigate(-1)} 
-                    className="flex items-center gap-[0.5vw] text-gray-900 hover:text-gray-600 font-bold text-[1.1vw] cursor-pointer transition-colors bg-transparent border-none p-0 group"
-                >
-                    <Icon icon="lucide:arrow-left" className="w-[1.3vw] h-[1.3vw] transition-transform group-hover:-translate-x-0.5" />
-                    <span>Back</span>
-                </button>
-            </div>
-
             {/* Main Content Area */}
-            <div className="flex-1 w-full p-[1.5vw] pt-[1vw] flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 w-full p-[1.2vw] pt-[0.8vw] flex flex-col min-h-0 overflow-hidden">
                 {/* Overall Scroll Container */}
                 <div id="view-profile-container" className="flex flex-col flex-1 h-full min-h-0 bg-transparent relative overflow-y-auto no-scrollbar">
                     {/* Dummy spacer to create 12vw scroll area */}
@@ -451,6 +440,15 @@ export default function Viewprofile() {
 
                         {/* Banner */}
                         <div className="relative w-full rounded-[1vw] z-[05] flex-shrink-0" style={{ height: `${12 - (6 * scrollProgress)}vw`, willChange: 'height' }}>
+                            {/* Back Button inside Banner */}
+                            <button 
+                                onClick={() => navigate(-1)} 
+                                className="absolute top-[0.8vw] left-[0.8vw] z-20 flex items-center gap-[0.4vw] text-gray-900 hover:text-black font-semibold text-[0.85vw] px-[0.75vw] py-[0.35vw] bg-white/80 hover:bg-white backdrop-blur-md rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.1)] cursor-pointer transition-all duration-200 group border border-white/60"
+                            >
+                                <Icon icon="lucide:arrow-left" className="w-[1.1vw] h-[1.1vw] transition-transform group-hover:-translate-x-0.5 text-gray-800" />
+                                <span>Back</span>
+                            </button>
+
                             {isLoading ? (
                                 <div className="absolute inset-0 rounded-[1vw] bg-gray-200 animate-pulse"></div>
                             ) : (
