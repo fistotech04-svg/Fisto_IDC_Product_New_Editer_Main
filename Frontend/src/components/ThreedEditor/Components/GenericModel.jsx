@@ -46,9 +46,9 @@ const getTextureSource = (tex) => {
     }
 };
 
-const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures }, ref) => {
-  const [position, setPosition] = useState([0, 0, 0]);
-  const [scale, setScale] = useState(1);
+const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures }, ref) => {
+  const [position, setPosition] = useState(() => scene?.userData?.normalization?.position || [0, 0, 0]);
+  const [scale, setScale] = useState(() => scene?.userData?.normalization?.scale || 1);
   const groupRef = React.useRef(null);
   const [modelGroup, setModelGroup] = useState(null);
   const [syncedSelectionSignature, setSyncedSelectionSignature] = useState(null);
@@ -554,12 +554,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         targetScale = 3 / maxDim;
     }
 
-    setScale(targetScale);
-
     const centeredX = -center.x * targetScale;
     const centeredZ = -center.z * targetScale;
     const bottomY = -box.min.y * targetScale; 
-     
+
+    // Apply normalized scale and position directly to scene object immediately so it never shows unnormalized at scale 1
+    scene.scale.set(targetScale, targetScale, targetScale);
+    scene.position.set(centeredX, bottomY, centeredZ);
+    scene.updateMatrixWorld(true);
+
+    setScale(targetScale);
     setPosition([centeredX, bottomY, centeredZ]);
     
     // Persistent storage of normalization baseline on the scene object itself
@@ -923,9 +927,21 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
       onUpdateMaterialSettingRef.current = onUpdateMaterialSetting;
   });
 
+  const lastMaterialResetKeyRef = React.useRef(resetKey);
+  const lastApplyResetKeyRef = React.useRef(resetKey);
+
   // A. Load Settings when Selection Changes
   useEffect(() => {
     if (!scene) return;
+    
+    // When resetKey changes (Undo, Redo, or Reset), skip loading from mesh 
+    // so we don't overwrite the restored materialSettings!
+    if (resetKey !== lastMaterialResetKeyRef.current) {
+        lastMaterialResetKeyRef.current = resetKey;
+        const sig = `${modelName || ''}_${selectedMaterial ? (selectedMaterial.uuid || selectedMaterial.name) : 'FULL'}`;
+        setSyncedSelectionSignature(sig);
+        return;
+    }
     
     const selMat = selectedMaterial;
     const targetMatName = selMat ? selMat.name : (modelName || "Scene");
@@ -1031,7 +1047,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     const sig = `${modelName || ''}_${selMat ? (selMat.uuid || selMat.name) : 'FULL'}`;
     setSyncedSelectionSignature(sig);
 
-  }, [selectedMaterial, scene, modelName]); 
+  }, [selectedMaterial, scene, modelName, resetKey]); 
 
   // B. Apply Settings when UI changes
   useEffect(() => {
@@ -1040,10 +1056,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     const selMat = selectedMaterial; 
     const targetMatName = selMat ? selMat.name : (modelName || "Scene");
     
+    const isResetOrUndo = resetKey !== lastApplyResetKeyRef.current;
+    lastApplyResetKeyRef.current = resetKey;
+
     // Guard: Prevent applying stale material settings if the selection has changed 
     // but the UI hasn't synced with the model's current state yet.
     const currentSig = `${modelName || ''}_${selMat ? (selMat.uuid || selMat.name) : 'FULL'}`;
-    if (syncedSelectionSignature && syncedSelectionSignature !== currentSig) {
+    if (!isResetOrUndo && syncedSelectionSignature && syncedSelectionSignature !== currentSig) {
         return;
     }
 
@@ -1298,7 +1317,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     } else if (targetMatName && meshIndexRef.current.has(targetMatName)) {
         applyToMeshes(meshIndexRef.current.get(targetMatName));
     }
-  }, [scene, materialSettings?.maps, selectedMaterial, modelName]);
+  }, [scene, materialSettings?.maps, materialSettings?.appliedTexture, selectedMaterial, modelName, resetKey]);
 
   // C. Handle overall visibility
   useEffect(() => {
@@ -1319,68 +1338,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     });
   }, [scene, hiddenMaterials]);
 
-  // Sync transformValues (from UI) to Object
-  useEffect(() => {
-      const targetObj = modelGroup || (scene && scene.parent ? scene.parent : scene);
-      if (!targetObj || !transformValues || !transformValues.position || !transformValues.rotation || !transformValues.scale) return;
-      
-      // Apply position
-      targetObj.position.set(
-          transformValues.position.x, 
-          transformValues.position.y, 
-          transformValues.position.z
-      );
-      
-      // Apply rotation
-      targetObj.rotation.set(
-          transformValues.rotation.x, 
-          transformValues.rotation.y, 
-          transformValues.rotation.z
-      );
-      
-      // Apply scale
-      targetObj.scale.set(
-          transformValues.scale.x, 
-          transformValues.scale.y, 
-          transformValues.scale.z
-      );
-      
-      targetObj.updateMatrixWorld?.(true);
-
-      // Multi-mesh Sync: If this is a material-based selection, sync followers.
-      // We only sync if the current transformTarget is the "leader" (the first mesh in relatedMeshes).
-      if (relatedMeshesRef.current.length > 1 && !isSyncingRef.current && transformTarget === relatedMeshesRef.current[0]) {
-          isSyncingRef.current = true;
-          try {
-              transformTarget.updateMatrixWorld(true);
-              const leaderWorldMatrix = transformTarget.matrixWorld;
-
-              relatedMeshesRef.current.forEach(follower => {
-                  if (follower === transformTarget) return;
-                  
-                  const relativeMatrix = followerOffsetsRef.current.get(follower.uuid);
-                  if (relativeMatrix) {
-                      // follower.matrixWorld = leader.matrixWorld * relativeMatrix
-                      const newWorldMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldMatrix, relativeMatrix);
-                      
-                      // Apply to follower (maintaining its own parentage)
-                      const parentInverse = new THREE.Matrix4().copy(follower.parent.matrixWorld).invert();
-                      const newLocalMatrix = new THREE.Matrix4().multiplyMatrices(parentInverse, newWorldMatrix);
-                      
-                      newLocalMatrix.decompose(follower.position, follower.quaternion, follower.scale);
-                      follower.updateMatrix();
-                  }
-              });
-          } finally {
-              isSyncingRef.current = false;
-          }
-      }
-      
-  }, [transformTarget, 
-      transformValues?.position?.x, transformValues?.position?.y, transformValues?.position?.z, 
-      transformValues?.rotation?.x, transformValues?.rotation?.y, transformValues?.rotation?.z,
-      transformValues?.scale?.x, transformValues?.scale?.y, transformValues?.scale?.z]);
-  
+  const prevTransformTargetRef = React.useRef(null);
+  const lastTransformResetKeyRef = React.useRef(resetKey);
 
   // 3.5 Capture Initial Transforms (runs once per scene load)
   useEffect(() => {
@@ -1400,21 +1359,14 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     scene.traverse(capture);
   }, [scene]);
 
+  // 4. Determine Transform Target (Runs BEFORE transform sync)
   useEffect(() => {
     if (!scene) return;
 
     const targetName = selectedMaterial ? selectedMaterial.name : null;
     const targetUuid = selectedMaterial ? selectedMaterial.uuid : null;
-    const targetParentGroup = selectedMaterial ? selectedMaterial.parentGroup : null;
     const isGroup = selectedMaterial ? selectedMaterial.isGroup : false;
     
-    // 4. Determine Transform Target
-    if (targetParentGroup && targetParentGroup !== modelName && targetParentGroup !== "Scene") {
-        // If the selection belongs to a different model entirely, we ignore it.
-        // We check if targetParentGroup matches ANY of our internal group names.
-        // This is a safety check to avoid multiple models fighting for the same gizmo.
-    }
-
     if (!targetName || targetName === "Scene") {
         setTransformTarget(null);
         relatedMeshesRef.current = [];
@@ -1426,21 +1378,14 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     if (targetName === modelName) {
         relatedMeshesRef.current = [];
         followerOffsetsRef.current.clear();
-        
+
         if (modelGroup) {
             setTransformTarget(modelGroup);
-            
-            // Ensure UI stays in sync with Full Model transform
             if (typeof onTransformChange === 'function') {
-                 onTransformChange({
+                onTransformChange({
                     position: modelGroup.position,
                     rotation: modelGroup.rotation,
-                    scale: modelGroup.scale,
-                    original: modelGroup.userData.originalTransform || {
-                        position: modelGroup.position.clone(),
-                        rotation: modelGroup.rotation.clone(),
-                        scale: modelGroup.scale.clone()
-                    }
+                    scale: modelGroup.scale
                 });
             }
         }
@@ -1449,7 +1394,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
 
     // Priority 0: Group Selection (Handle both physical Scene groups and UI-only Material groups)
     if (isGroup) {
-        // A: Check for physical group in scene
         let physicalGroup = null;
         scene.traverse((child) => {
             if (physicalGroup) return;
@@ -1460,22 +1404,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         
         if (physicalGroup) {
             setTransformTarget(physicalGroup);
-            if (typeof onTransformChange === 'function') {
-                onTransformChange({
-                    position: physicalGroup.position,
-                    rotation: physicalGroup.rotation,
-                    scale: physicalGroup.scale,
-                    original: physicalGroup.userData.originalTransform || {
-                        position: physicalGroup.position.clone(),
-                        rotation: physicalGroup.rotation.clone(),
-                        scale: physicalGroup.scale.clone()
-                    }
-                });
-            }
             return; 
         }
 
-        // B: Check for UI-only group (e.g., Multiple Selection or Material Folder)
         const groupMats = selectedMaterial.materials || [];
         if (groupMats.length > 0) {
             const allMatches = [];
@@ -1494,7 +1425,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                 setTransformTarget(leader);
                 relatedMeshesRef.current = allMatches;
 
-                // Pre-calculate relative world matrices for all followers
                 if (allMatches.length > 1) {
                     leader.updateMatrixWorld(true);
                     const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
@@ -1544,8 +1474,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         });
     }
 
-    // --- Multi-Mesh Identification ---
-    // If we found a mesh, also find all other meshes that share the same material
+    // Multi-Mesh Identification
     const allMatches = [];
     if (foundMesh && !isGroup && targetName !== modelName) {
         scene.traverse((child) => {
@@ -1563,7 +1492,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     }
     relatedMeshesRef.current = allMatches;
 
-    // Pre-calculate relative world matrices for all followers
     if (allMatches.length > 1) {
         const leader = foundMesh;
         leader.updateMatrixWorld(true);
@@ -1573,7 +1501,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         allMatches.forEach(mesh => {
             if (mesh === leader) return;
             mesh.updateMatrixWorld(true);
-            // relative = leaderInverse * meshWorld
             const relative = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
             offsets.set(mesh.uuid, relative);
         });
@@ -1582,11 +1509,80 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         followerOffsetsRef.current.clear();
     }
 
-    // Set the target to the found mesh. 
-    // IMPORTANT: DO NOT fallback to modelGroup here. If a material was selected but no mesh was found,
-    // we should select nothing for transformation (null), rather than the whole object.
     setTransformTarget(foundMesh);
+    if (foundMesh && typeof onTransformChange === 'function') {
+        onTransformChange({
+            position: foundMesh.position,
+            rotation: foundMesh.rotation,
+            scale: foundMesh.scale
+        });
+    }
   }, [scene, selectedMaterial, modelName, onTransformChange, modelGroup]);
+
+  // 4.5. Sync transformValues (from UI / Undo) → the currently ACTIVE transform target only.
+  useEffect(() => {
+      const isResetOrUndo = resetKey !== lastTransformResetKeyRef.current;
+      lastTransformResetKeyRef.current = resetKey;
+
+      if (!transformTarget) {
+          prevTransformTargetRef.current = null;
+          return;
+      }
+
+      if (!transformValues || !transformValues.position || !transformValues.rotation || !transformValues.scale) return;
+
+      // Strict target validation: Ensure transformTarget matches selectedMaterial
+      const targetName = selectedMaterial ? selectedMaterial.name : (modelName || "Scene");
+      const isTargetValid = (() => {
+          if (!selectedMaterial || targetName === modelName || targetName === "Scene") {
+              return transformTarget === modelGroup || transformTarget === scene;
+          }
+          if (selectedMaterial.uuid && transformTarget.uuid === selectedMaterial.uuid) {
+              return true;
+          }
+          if (selectedMaterial.isGroup && Array.isArray(selectedMaterial.materials)) {
+              const m = transformTarget.material;
+              const mats = Array.isArray(m) ? m : [m];
+              return mats.some(mat => selectedMaterial.materials.includes(mat?.name));
+          }
+          const m = transformTarget.material;
+          const mats = Array.isArray(m) ? m : [m];
+          return mats.some(mat => mat?.name === targetName);
+      })();
+
+      if (!isTargetValid) {
+          // Guard: If transformTarget has not yet updated to match selectedMaterial, skip applying to avoid corrupting wrong mesh
+          return;
+      }
+
+      if (!isResetOrUndo && prevTransformTargetRef.current !== transformTarget) {
+          prevTransformTargetRef.current = transformTarget;
+          return;
+      }
+      prevTransformTargetRef.current = transformTarget;
+
+      transformTarget.position.set(
+          transformValues.position.x,
+          transformValues.position.y,
+          transformValues.position.z
+      );
+      transformTarget.rotation.set(
+          transformValues.rotation.x,
+          transformValues.rotation.y,
+          transformValues.rotation.z
+      );
+      transformTarget.scale.set(
+          transformValues.scale.x,
+          transformValues.scale.y,
+          transformValues.scale.z
+      );
+      transformTarget.updateMatrixWorld?.(true);
+
+  }, [transformTarget,
+      transformValues?.position?.x, transformValues?.position?.y, transformValues?.position?.z,
+      transformValues?.rotation?.x, transformValues?.rotation?.y, transformValues?.rotation?.z,
+      transformValues?.scale?.x, transformValues?.scale?.y, transformValues?.scale?.z,
+      selectedMaterial, modelName, resetKey, modelGroup, scene]);
 
   // 5. Scene-Wide Reset Effect
   useEffect(() => {
@@ -1798,6 +1794,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                              }
                          }
 
+                         // Always report the current target's live values back to the panel
+                         // so the display stays in sync while the user drags the gizmo.
                          onTransformChange({
                              position: transformTarget.position,
                              rotation: transformTarget.rotation,
@@ -1805,7 +1803,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                          });
                      }
                  }}
-                 onMouseUp={typeof onTransformEnd === 'function' ? onTransformEnd : undefined}
+                  onMouseDown={typeof onTransformStart === 'function' ? onTransformStart : undefined}
+                  onMouseUp={typeof onTransformEnd === 'function' ? onTransformEnd : undefined}
               />
          )}
         <group 

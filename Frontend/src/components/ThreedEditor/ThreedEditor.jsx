@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import * as THREE from "three";
 import { Icon } from "@iconify/react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Environment, useProgress, ContactShadows, TransformControls } from "@react-three/drei";
+import { OrbitControls, Environment, useProgress, ContactShadows, TransformControls, useGLTF } from "@react-three/drei";
 import RightPanel from "./ThreedRightpanel";
 import EditorInfoBox from "./EditorInfoBox";
 import EditorToolbar from "./EditorToolbar";
@@ -12,7 +12,6 @@ import TopToolbar from "./TopToolbar";
 import AnimatedGizmo from "./Components/AnimatedGizmo";
 import { GlobalLoader } from "./Components/GlobalLoader";
 import RenderModel from "./Components/ModelLoaders";
-import PhysicsManager from "./Physics/PhysicsManager";
 import useModalHistory from "./hooks/useModalHistory";
 import Export3DModal from "./Components/Export3DModal";
 import AddModelModal from "./Components/AddModelModal";
@@ -171,48 +170,6 @@ export default function ThreedEditor() {
       });
   }, [sanitizeTransformValues]);
 
-  // Physics State (Rapier, Cannon-es, Ammo.js)
-  const [physicsEngine, setPhysicsEngine] = useState('none'); // 'rapier' | 'cannon' | 'ammo' | 'none'
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [gravity, setGravity] = useState([0, -9.81, 0]);
-  const [bodyType, setBodyType] = useState('dynamic');
-  const [colliderShape, setColliderShape] = useState('cuboid');
-  const [mass, setMass] = useState(1.0);
-  const [friction, setFriction] = useState(0.5);
-  const [restitution, setRestitution] = useState(0.3);
-  const [physicsResetTrigger, setPhysicsResetTrigger] = useState(0);
-  const handleSpawnPhysicsDemo = useCallback(() => {
-      if (physicsEngine === 'none') {
-          setPhysicsEngine('cannon');
-      }
-      setPhysicsResetTrigger(prev => prev + 1);
-      setIsSimulating(true);
-      if (toast && typeof toast.success === 'function') {
-          toast.success("Physics simulation active! Testing drop dynamics.");
-      }
-  }, [physicsEngine, toast]);
-
-  const physicsProps = useMemo(() => ({
-      physicsEngine,
-      setPhysicsEngine,
-      isSimulating,
-      setIsSimulating,
-      gravity,
-      setGravity,
-      bodyType,
-      setBodyType,
-      colliderShape,
-      setColliderShape,
-      mass,
-      setMass,
-      friction,
-      setFriction,
-      restitution,
-      setRestitution,
-      onResetPhysics: () => setPhysicsResetTrigger(prev => prev + 1),
-      onSpawnDemo: handleSpawnPhysicsDemo
-  }), [physicsEngine, isSimulating, gravity, bodyType, colliderShape, mass, friction, restitution, handleSpawnPhysicsDemo]);
-
   // --- History Management ---
   const [modelName, setModelName] = useState(threedState.modelName);
   const [selectedTextureId, setSelectedTextureId] = useState(null);
@@ -305,6 +262,7 @@ export default function ThreedEditor() {
           try {
             const res = await axios.get(`${backendUrl}/api/3d-models/get-model/${urlModelId}`);
             if (res.data) {
+              const modelData = res.data.model || res.data;
               const fullUrl = resolveUploadsPath(modelData.url);
 
               const newModel = {
@@ -312,8 +270,8 @@ export default function ThreedEditor() {
                 modelId: modelData.modelId,
                 url: fullUrl,
                 file: null,
-                type: modelData.type,
-                name: modelData.name.replace(/\.[^/.]+$/, ""),
+                type: modelData.type || 'glb',
+                name: (modelData.name || "Model").replace(/\.[^/.]+$/, ""),
                 fileName: modelData.fileName,
                 displayName: modelData.displayName
               };
@@ -393,7 +351,7 @@ export default function ThreedEditor() {
             modelName: "",
             materialSettings: {
                 alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 4, rotation: 0,
-                specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
+                specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
                 color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
                 lightPosition: { x: 10, y: 10, z: 10 }
             }
@@ -444,7 +402,6 @@ export default function ThreedEditor() {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
       const nextModels = [...models];
-      let hasUploaded = false;
 
       // 0. Upload Manual Texture Maps if they are Blobs
       const nextMaterialSettings = { ...(materialSettings || {}) };
@@ -489,53 +446,7 @@ export default function ThreedEditor() {
           }
       }
 
-      for (let i = 0; i < nextModels.length; i++) {
-        const m = nextModels[i];
-        if (m.file) {
-          const file = m.file;
-          const ext = file.name.split('.').pop().toLowerCase();
-          // Prioritize original physical filename over display name
-          const nameToUse = m.fileName || m.name;
-          const finalFileName = nameToUse.toLowerCase().endsWith(`.${ext}`) ? nameToUse : `${nameToUse}.${ext}`;
-          
-          const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-          const uploadId = Date.now().toString() + Math.random().toString(36).substring(7);
-          
-          let lastResponse = null;
 
-          // Upload chunks sequentially to avoid overwhelming the connection
-          for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-              const start = chunkIndex * CHUNK_SIZE;
-              const end = Math.min(start + CHUNK_SIZE, file.size);
-              const chunk = file.slice(start, end);
-              
-              const formData = new FormData();
-              // Append metadata BEFORE the file chunk to ensure multer sees them in req.body
-              formData.append('uploadId', uploadId);
-              formData.append('chunkIndex', chunkIndex);
-              formData.append('totalChunks', totalChunks);
-              formData.append('fileName', finalFileName);
-              formData.append('emailId', user.emailId);
-              formData.append('chunk', chunk);
-
-              // We use a separate endpoint for chunks
-              const res = await axios.post(`${backendUrl}/api/3d-models/upload-chunk`, formData, {
-                  headers: { 'Content-Type': 'multipart/form-data' }
-              });
-              lastResponse = res;
-          }
-
-          if (lastResponse && lastResponse.data && lastResponse.data.url) {
-            nextModels[i] = {
-              ...m,
-              url: `${backendUrl}${lastResponse.data.url}`,
-              file: null, // Clear file object after successful upload
-              modelId: lastResponse.data.modelId || m.modelId
-            };
-            hasUploaded = true;
-          }
-        }
-      }
 
       // 1. Export Textured GLB and PNG for Gallery Thumbnail
       let hasExported = false;
@@ -545,10 +456,35 @@ export default function ThreedEditor() {
       
       if (gl && camera && modelGroup && nextModels.length > 0) {
           try {
-              // A. Export GLB
+              // Ensure all models in the group have up-to-date world matrices
+              modelGroup.updateMatrixWorld(true);
+
+              // Prepare a clean clone for export
+              const exportScene = modelGroup.clone(true);
+              exportScene.updateMatrixWorld(true);
+
+              // Sanitize materials for export
+              exportScene.traverse((obj) => {
+                  if (obj.isMesh && obj.material) {
+                      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                      mats.forEach((mat) => {
+                          const isTrans = (mat.opacity < 0.99) || !!mat.alphaMap;
+                          mat.transparent = isTrans;
+                          mat.depthWrite = !isTrans;
+                          mat.alphaTest = 0;
+                      });
+                  }
+              });
+
+              // A. Export combined GLB containing all models
               const exporter = new GLTFExporter();
               const glbBuffer = await new Promise((resolve, reject) => {
-                  exporter.parse(modelGroup, (result) => resolve(result), (err) => reject(err), { binary: true });
+                  exporter.parse(
+                      exportScene, 
+                      (result) => resolve(result instanceof ArrayBuffer ? result : new TextEncoder().encode(JSON.stringify(result)).buffer), 
+                      (err) => reject(err), 
+                      { binary: true, forceIndices: true, embedImages: true, includeCustomExtensions: false }
+                  );
               });
               
               // If a physical fileName exists (e.g. Interaction Mode), preserve it exactly.
@@ -557,25 +493,60 @@ export default function ThreedEditor() {
               
               const exportFileName = originalFileName || `${defaultBaseName}.glb`;
               
-              // C. Upload GLB (The textured model)
-              const glbFormData = new FormData();
-              glbFormData.append('emailId', user.emailId);
-              if (nextModels[0]?.modelId) {
-                  glbFormData.append('modelId', nextModels[0].modelId);
+              // C. Upload GLB using chunked upload to prevent 413 Content Too Large errors over proxies
+              const glbBlob = new Blob([glbBuffer]);
+              const glbSize = glbBlob.size;
+              const totalGlbChunks = Math.ceil(glbSize / CHUNK_SIZE);
+              const glbUploadId = Date.now().toString() + Math.random().toString(36).substring(7);
+              let glbRes = null;
+
+              for (let chunkIndex = 0; chunkIndex < totalGlbChunks; chunkIndex++) {
+                  const start = chunkIndex * CHUNK_SIZE;
+                  const end = Math.min(start + CHUNK_SIZE, glbSize);
+                  const chunk = glbBlob.slice(start, end);
+                  
+                  const formData = new FormData();
+                  formData.append('uploadId', glbUploadId);
+                  formData.append('chunkIndex', chunkIndex);
+                  formData.append('totalChunks', totalGlbChunks);
+                  formData.append('fileName', exportFileName);
+                  formData.append('emailId', user.emailId);
+                  if (nextModels[0]?.modelId) {
+                      formData.append('modelId', nextModels[0].modelId);
+                  }
+                  formData.append('chunk', chunk);
+
+                  const res = await axios.post(`${backendUrl}/api/3d-models/upload-chunk`, formData, {
+                      headers: { 'Content-Type': 'multipart/form-data' }
+                  });
+                  glbRes = res;
               }
-              glbFormData.append('model', new Blob([glbBuffer]), exportFileName);
-              const glbRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, glbFormData);
               
-              if (glbRes.data && glbRes.data.url) {
-                  const targetGlbUrl = (glbRes.data.url.startsWith('http://') || glbRes.data.url.startsWith('https://'))
-                      ? glbRes.data.url
-                      : `${backendUrl}${glbRes.data.url}`;
+              if (glbRes && glbRes.data && glbRes.data.url) {
+                  const rawUrl = glbRes.data.url;
+                  const baseUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
+                      ? rawUrl
+                      : `${backendUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+
+                  const timestamp = Date.now();
+                  const targetGlbUrl = baseUrl.includes('?') 
+                      ? `${baseUrl}&t=${timestamp}` 
+                      : `${baseUrl}?t=${timestamp}`;
+
+                  // Clear loader cache so the fresh merged model is loaded
+                  try {
+                      useGLTF.clear(baseUrl);
+                      useGLTF.clear(targetGlbUrl);
+                  } catch (e) {}
 
                   // Keep UI name clean, but update underlying record info
-                  nextModels[0] = {
+                  const mergedModelId = `model_${timestamp}`;
+                  const mergedModel = {
                       ...nextModels[0],
+                      id: mergedModelId,
                       url: targetGlbUrl,
                       name: nextModels[0]?.displayName || (originalFileName ? originalFileName : `${defaultBaseName}.glb`),
+                      displayName: nextModels[0]?.displayName || (originalFileName ? originalFileName : defaultBaseName),
                       fileName: originalFileName,
                       type: 'glb',
                       file: null,
@@ -587,7 +558,15 @@ export default function ThreedEditor() {
                   }
                   setModelUrl(targetGlbUrl);
 
-                  
+                  // Merge all models into the single unified model
+                  nextModels.splice(0, nextModels.length, mergedModel);
+
+                  // Clear multi-model lists so the unified model takes over
+                  setModelMaterialLists({});
+                  setModelMaterialDataMap({});
+                  setModelStatsMap({});
+                  setSelectedMaterial({ name: defaultBaseName, parentGroup: defaultBaseName });
+
                   // Broadcast save to InteractionPanel to bust browser cache
                   try {
                     const bc = new BroadcastChannel('threed_model_updates');
@@ -606,7 +585,7 @@ export default function ThreedEditor() {
           }
       }
 
-      if (hasUploaded || hasExported) {
+      if (hasExported) {
         setModels(nextModels);
       }
       
@@ -1026,6 +1005,11 @@ export default function ThreedEditor() {
           if (prevState.deletedMaterials !== undefined) setDeletedMaterials(new Set(prevState.deletedMaterials));
           if (prevState.selectedMaterial !== undefined) setSelectedMaterial(prevState.selectedMaterial);
           if (prevState.selectedTexture !== undefined) setSelectedTexture(prevState.selectedTexture);
+          
+          const tex = prevState.materialSettings?.appliedTexture || prevState.selectedTexture;
+          setSelectedTextureId(tex?.id || null);
+
+          setResetKey(prev => prev + 1);
       }
   }, [undo, models.length]);
 
@@ -1041,6 +1025,11 @@ export default function ThreedEditor() {
           if (nextState.modelMaterialLists !== undefined) setModelMaterialLists(nextState.modelMaterialLists);
           if (nextState.selectedMaterial !== undefined) setSelectedMaterial(nextState.selectedMaterial);
           if (nextState.selectedTexture !== undefined) setSelectedTexture(nextState.selectedTexture);
+
+          const tex = nextState.materialSettings?.appliedTexture || nextState.selectedTexture;
+          setSelectedTextureId(tex?.id || null);
+
+          setResetKey(prev => prev + 1);
       }
   }, [redo]);
 
@@ -1442,7 +1431,7 @@ export default function ThreedEditor() {
     
     const nextMaterialSettings = {
         alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
-        specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
+        specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
         color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         appliedTexture: null,
         maps: {},
@@ -1509,7 +1498,7 @@ export default function ThreedEditor() {
 
     const nextMaterialSettings = {
         alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
-        specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
+        specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
         color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         appliedTexture: null,
         lightPosition: { x: 10, y: 10, z: 10 }
@@ -1595,29 +1584,35 @@ export default function ThreedEditor() {
         modelName: "",
         materialSettings: {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
-            specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
+            specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
             color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
             lightPosition: { x: 10, y: 10, z: 10 }
         }
     }));
 
-    // Make clearing undoable
-    pushHistory({
-        ...stateRef.current,
+    // Reset undo/redo history completely
+    resetHistory({
         models: [],
         modelName: "",
         transformValues: defaultTransform,
         materialSettings: {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
-            specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
+            specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
             color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
             lightPosition: { x: 10, y: 10, z: 10 }
         },
         hiddenMaterials: [],
         deletedMaterials: [],
         selectedMaterial: null,
-        selectedTexture: null
+        selectedTexture: null,
+        modelMaterialLists: {}
     });
+
+    lastSavedRef.current = {
+      historyIndex: 0,
+      hasLocalFiles: false
+    };
+    setHasUnsavedChanges(false);
 
     // Also clear from server session to make it persistent across refreshes
     try {
@@ -1731,13 +1726,37 @@ export default function ThreedEditor() {
     });
   };
   
-  const handleTransformEnd = () => {
-     // Called when drag ends. We push the current validated state to history.
+  const transformStartSnapshotRef = useRef(null);
+
+  const handleTransformStart = useCallback(() => {
+     // Snapshot the exact state before transform drag starts
+     transformStartSnapshotRef.current = {
+         ...stateRef.current,
+         transformValues: {
+             position: { ...(stateRef.current.transformValues?.position || { x: 0, y: 0, z: 0 }) },
+             rotation: { ...(stateRef.current.transformValues?.rotation || { x: 0, y: 0, z: 0 }) },
+             scale: { ...(stateRef.current.transformValues?.scale || { x: 1, y: 1, z: 1 }) }
+         }
+     };
+  }, []);
+
+  const handleTransformEnd = useCallback(() => {
+     // If we have a start snapshot, push that first if it's the beginning of a drag
+     if (transformStartSnapshotRef.current) {
+         pushHistory(transformStartSnapshotRef.current);
+         transformStartSnapshotRef.current = null;
+     }
+     
+     // Push the finished transform state
      pushHistory({
          ...stateRef.current,
-         transformValues: stateRef.current.transformValues // ensure we capture latest
+         transformValues: {
+             position: { ...(stateRef.current.transformValues?.position || { x: 0, y: 0, z: 0 }) },
+             rotation: { ...(stateRef.current.transformValues?.rotation || { x: 0, y: 0, z: 0 }) },
+             scale: { ...(stateRef.current.transformValues?.scale || { x: 1, y: 1, z: 1 }) }
+         }
      });
-  };
+  }, [pushHistory]);
 
   const [settings, setSettings] = useState({
     backgroundColor: "#393939", // Blender default dark grey
@@ -1890,8 +1909,10 @@ export default function ThreedEditor() {
       setMaterialSettings(prev => {
           const next = { ...prev, maps: {} };
           
-          // If it's a single material selection, try to fetch default textures/properties from the model
-          if (!isShift && target.name && target.name !== modelName && target.name !== "Scene") {
+          // If it's a single material selection, try to fetch default textures/properties from the model.
+          // Skip lookup when target is a model-level selection (model name clicked in the list).
+          const isModelLevelSelection = models.some(m => m.name === target.name);
+          if (!isShift && target.name && !isModelLevelSelection && target.name !== "Scene") {
               // Find which model this material belongs to
               let defaultData = null;
               for (const modelId in modelMaterialDataMap) {
@@ -1917,13 +1938,7 @@ export default function ThreedEditor() {
           return next;
       });
 
-      // Selection changes should be undoable
-      pushHistory({
-          ...stateRef.current,
-          selectedMaterial: target,
-          selectedTexture: null
-      });
-  }, [modelName, modelMaterialDataMap, pushHistory, selectedMaterial]);
+   }, [modelName, models, modelMaterialDataMap, selectedMaterial]);
 
   // Reset the override flag when selection changes.
   // This prevents the settings from one material (or a freshly synced baseline)
@@ -1968,13 +1983,7 @@ export default function ThreedEditor() {
       });
   }, []);
 
-  const onTransformEnd = useCallback(() => {
-     // Push to history only when user releases the gizmo handle
-     pushHistory({
-         ...stateRef.current,
-         transformValues: transformValues
-     });
-  }, [transformValues, pushHistory]);
+
 
   return (
     <div 
@@ -2190,58 +2199,47 @@ export default function ThreedEditor() {
               />
 
               <Suspense fallback={null}>
-                <PhysicsManager
-                    physicsEngine={physicsEngine}
-                    isSimulating={isSimulating}
-                    gravity={gravity}
-                    bodyType={bodyType}
-                    colliderShape={colliderShape}
-                    mass={mass}
-                    friction={friction}
-                    restitution={restitution}
-                    resetTrigger={physicsResetTrigger}
-                    sceneRef={sceneWrapperRef}
-                >
-                  <group ref={sceneWrapperRef}>
-                    {models.map((model, index) => (
-                      <RenderModel
-                          key={model.id}
-                          ref={(r) => {
-                              if (index === 0) modelRef.current = r;
-                              if (r) modelRefs.current.set(model.id, r);
-                              else modelRefs.current.delete(model.id);
-                          }}
-                          type={model.type}
-                          url={model.url}
-                          wireframe={settings.wireframe}
-                          setModelStats={(stats) => handleSetModelStats(model.id, stats)}
-                          setMaterialList={(list) => handleSetMaterialList(model.id, list)}
-                          selectedMaterial={selectedMaterial}
-                          onSelectMaterial={handleSelectMaterial}
-                          modelName={model.name}
-                          transformMode={transformMode}
-                          transformValues={transformValues}
-                          materialSettings={materialSettings}
-                          hiddenMaterials={new Set([...hiddenMaterials, ...deletedMaterials])}
-                          onUpdateMaterialSetting={handleMaterialSync}
-                          selectedTexture={selectedTexture}
-                          resetKey={resetKey}
-                          sceneResetTrigger={sceneResetTrigger}
-                          uvUnwrapTrigger={uvUnwrapTrigger}
-                          onTextureApplied={handleTextureApplied}
-                          onTextureIdentified={handleTextureIdentified}
-                          onTransformEnd={handleTransformEnd}
-                          onTransformChange={handleTransformChange}
-                      />
-                    ))}
-                  </group>
-                </PhysicsManager>
+                <group ref={sceneWrapperRef}>
+                  {models.map((model, index) => (
+                    <RenderModel
+                        key={model.id}
+                        ref={(r) => {
+                            if (index === 0) modelRef.current = r;
+                            if (r) modelRefs.current.set(model.id, r);
+                            else modelRefs.current.delete(model.id);
+                        }}
+                        type={model.type}
+                        url={model.url}
+                        wireframe={settings.wireframe}
+                        setModelStats={(stats) => handleSetModelStats(model.id, stats)}
+                        setMaterialList={(list) => handleSetMaterialList(model.id, list)}
+                        selectedMaterial={selectedMaterial}
+                        onSelectMaterial={handleSelectMaterial}
+                        modelName={model.name}
+                        transformMode={transformMode}
+                        transformValues={transformValues}
+                        materialSettings={materialSettings}
+                        hiddenMaterials={new Set([...hiddenMaterials, ...deletedMaterials])}
+                        onUpdateMaterialSetting={handleMaterialSync}
+                        selectedTexture={selectedTexture}
+                        resetKey={resetKey}
+                        sceneResetTrigger={sceneResetTrigger}
+                        uvUnwrapTrigger={uvUnwrapTrigger}
+                        onTextureApplied={handleTextureApplied}
+                        onTextureIdentified={handleTextureIdentified}
+                        onTransformStart={handleTransformStart}
+                        onTransformEnd={handleTransformEnd}
+                        onTransformChange={handleTransformChange}
+                    />
+                  ))}
+                </group>
 
                 {transformMode && (selectedMaterial?.name === "Scene") && (
                     <TransformControls
                         object={sceneWrapperRef.current}
                         mode={transformMode}
                         size={0.8}
+                        onMouseDown={handleTransformStart}
                         onChange={() => {
                             if (handleTransformChange && sceneWrapperRef.current) {
                                 handleTransformChange({
@@ -2342,7 +2340,7 @@ export default function ThreedEditor() {
 
                <Environment
                    files={materialSettings?.maps?.envMap || null}
-                   preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'city')}
+                   preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'studio')}
                    background={false}
                    blur={0.5}
                    environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
@@ -2358,7 +2356,6 @@ export default function ThreedEditor() {
             <RightPanel
               onFileProcess={processFile}
               hasModel={models.length > 0}
-              physicsProps={physicsProps}
               onExport={() => setShowExportModal(true)}
               autoRotate={autoRotate}
               setAutoRotate={setAutoRotate}

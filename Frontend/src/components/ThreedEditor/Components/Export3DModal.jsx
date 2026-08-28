@@ -113,7 +113,7 @@ const ModelThumbnail = React.memo(({
 
                   <Environment
                       files={materialSettings?.maps?.envMap || null}
-                      preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'city')}
+                      preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'studio')}
                       background={false}
                       blur={0.5}
                       environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
@@ -558,7 +558,7 @@ export default function Export3DModal({
                                          />
                                          <Environment
                                              files={materialSettings?.maps?.envMap || null}
-                                             preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'city')}
+                                             preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'studio')}
                                              background={false}
                                              blur={0.5}
                                              environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
