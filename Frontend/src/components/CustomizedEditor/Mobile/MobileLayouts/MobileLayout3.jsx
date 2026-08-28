@@ -521,7 +521,7 @@ const MobileLayout3 = (props) => {
                     <div className="w-[70%] max-w-[300px] bg-[#D9DCEB] rounded-full h-7 px-3 flex items-center gap-2 relative">
                         <Icon icon="ph:magnifying-glass" className="text-[#4B528C] w-3.5 h-3.5" />
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
                             className="bg-transparent text-[#4B528C] placeholder-[#4B528C]/60 text-[11px] outline-none w-full font-bold"
                             value={localSearchQuery}
@@ -638,7 +638,7 @@ const MobileLayout3 = (props) => {
             {/* Content Sub-Header (Light Blue/Gray) */}
             <div className="bg-[#BDC3D9] h-10 flex items-center justify-between px-5 z-40 pt-6">
                 <span className="text-[#575C9C] text-[12px] font-bold truncate max-w-[50%]">
-                    {bookName || "Name of the book"}
+                    {/* bookName hidden */}
                 </span>
             </div>
 

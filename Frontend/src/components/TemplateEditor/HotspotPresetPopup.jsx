@@ -194,7 +194,12 @@ const HotspotPresetPopup = ({ onClose, onSelectPreset }) => {
               }
               const data = {
                 type: 'hotspot',
-                icon: { presetId: 'interactive-button', html: html }
+                icon: { 
+                  presetId: 'interactive-button', 
+                  html: html,
+                  bgColor: btn.color,
+                  iconColor: '#ffffff'
+                }
               };
               if (e) {
                 e.dataTransfer.setData('application/json', JSON.stringify(data));

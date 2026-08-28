@@ -215,7 +215,7 @@ const Grid7Layout = ({
     const isFullscreen = isFullscreenProp || false;
     const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
     const [showNoteOptions, setShowNoteOptions] = useState(false);
-    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
+    const isCanvasHovered = false; const setIsCanvasHovered = () => {};
 
     const closeAll = () => {
         setShowThumbnails(false);
@@ -365,7 +365,7 @@ const Grid7Layout = ({
                                     }}
                                 />
                                 <input
-                                    type="text"
+                                    type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                     value={localSearchQuery}
                                     onChange={(e) => {
                                         const val = e.target.value;
@@ -466,7 +466,7 @@ const Grid7Layout = ({
                     className={`absolute left-1/2 -translate-x-1/2 ${isTablet ? 'text-[1.1vw]' : 'text-[1.2vw]'} font-semibold tracking-wide`}
                     style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}
                 >
-                    {bookName || "Name of the book"}
+                    {/* bookName hidden */}
                 </div>
 
                 {/* Right: Logo */}
@@ -510,7 +510,7 @@ const Grid7Layout = ({
                 <AnimatePresence>
                     {showTOC && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'right-[3.1vw] top-[1.5vh] w-[16vw]' : 'right-[4.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
+                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[1.5vh] w-[16vw]' : 'left-[4.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
                             style={{
                                 backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                                 opacity: 1,
@@ -541,7 +541,7 @@ const Grid7Layout = ({
                                     >
                                         <Icon icon="lucide:search" className="w-[1vw] h-[1vw]" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.4 }} />
                                         <input
-                                            type="text"
+                                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                             value={tocSearchQuery}
                                             onChange={(e) => setTocSearchQuery(e.target.value)}
                                             placeholder="Search in TOC..."
@@ -636,7 +636,7 @@ const Grid7Layout = ({
                 <AnimatePresence>
                     {showThumbnails && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'right-[3.1vw] top-[1.5vh] w-[17vw]' : 'right-[4.5vw] top-[2vh] w-[19vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
+                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[1.5vh] w-[17vw]' : 'left-[4.5vw] top-[2vh] w-[19vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
                             style={{
                                 backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                                 opacity: 1,
@@ -722,7 +722,7 @@ const Grid7Layout = ({
                 <AnimatePresence>
                     {showBookmarks && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'right-[3.1vw] top-[1.5vh] w-[16vw]' : 'right-[4.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw]`}
+                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[1.5vh] w-[16vw]' : 'left-[4.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw]`}
                             style={{
                                 backgroundColor: getLayoutColor('toc-bg', 'rgba(255,255,255,0.4)'),
                                 opacity: getLayoutOpacity('toc-bg', 1),
@@ -892,7 +892,7 @@ const Grid7Layout = ({
                 })()}
 
                 <div
-                    className={`absolute ${isTablet ? `right-[0.5vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.4vw]'} py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]` : `right-[0.8vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.8vw]'} py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]`} top-[2vh] flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                    className={`absolute ${isTablet ? `left-[1.5vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.4vw]'} py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]` : `left-[2vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.8vw]'} py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]`} top-[42%] -translate-y-1/2 flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
                     style={{
                         opacity: isFullscreen && isCanvasHovered ? 0 : 1
                     }}
@@ -918,7 +918,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="fluent:text-bullet-list-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Table of<br />Contents</span>}
-                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
+                            <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -933,7 +933,7 @@ const Grid7Layout = ({
                                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
                                 }}>
                                 Table of Contents
-                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                <div className="absolute top-1/2 -translate-y-1/2 -left-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-r-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderRightColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                             </div>
                         </button>
                     )}
@@ -952,7 +952,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="ph:squares-four-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Thumbnails</span>}
-                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
+                            <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -967,7 +967,7 @@ const Grid7Layout = ({
                                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
                                 }}>
                                 Thumbnails
-                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                <div className="absolute top-1/2 -translate-y-1/2 -left-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-r-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderRightColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                             </div>
                         </button>
                     )}
@@ -985,7 +985,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="clarity:image-gallery-solid" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Gallery</span>}
-                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
+                            <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1000,7 +1000,7 @@ const Grid7Layout = ({
                                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
                                 }}>
                                 Gallery
-                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                <div className="absolute top-1/2 -translate-y-1/2 -left-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-r-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderRightColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                             </div>
                         </button>
                     )}
@@ -1020,7 +1020,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="solar:music-notes-bold" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Sound</span>}
-                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
+                            <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1035,7 +1035,7 @@ const Grid7Layout = ({
                                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
                                 }}>
                                 Sound
-                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                <div className="absolute top-1/2 -translate-y-1/2 -left-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-r-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderRightColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                             </div>
                         </button>
                     )}
@@ -1053,7 +1053,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="fluent:person-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Profile</span>}
-                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
+                            <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1068,7 +1068,7 @@ const Grid7Layout = ({
                                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
                                 }}>
                                 Profile
-                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                <div className="absolute top-1/2 -translate-y-1/2 -left-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-r-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderRightColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                             </div>
                         </button>
                     )}
@@ -1083,7 +1083,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="mage:share-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Share</span>}
-                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
+                            <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1098,7 +1098,7 @@ const Grid7Layout = ({
                                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
                                 }}>
                                 Share
-                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                <div className="absolute top-1/2 -translate-y-1/2 -left-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-r-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderRightColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                             </div>
                         </button>
                     )}
@@ -1113,7 +1113,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="meteor-icons:download" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Download</span>}
-                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
+                            <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1128,7 +1128,7 @@ const Grid7Layout = ({
                                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
                                 }}>
                                 Download
-                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                <div className="absolute top-1/2 -translate-y-1/2 -left-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-r-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderRightColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                             </div>
                         </button>
                     )}
@@ -1143,7 +1143,7 @@ const Grid7Layout = ({
                     >
                         <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                         {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>}
-                        <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
+                        <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                             style={{
                                 background: 'rgba(10, 10, 12, 0.55)',
                                 backdropFilter: 'blur(30px)',
@@ -1177,7 +1177,7 @@ const Grid7Layout = ({
                     >
                         <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>Page </span>
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             value={pageInputValue}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -1408,10 +1408,9 @@ const Grid7Layout = ({
                 {(settings?.viewing?.zoom ?? true) && (
                     <div className="flex items-center ml-[2vw]">
                         <div
-                            className="flex items-center rounded-[0.5vw] p-[0.3vw] pl-[0.8vw] gap-[1vw] border"
+                            className="flex items-center rounded-[0.5vw] p-[0.3vw] pl-[0.8vw] gap-[1vw] border border-white/40"
                             style={{
                                 backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') + '1A', // 10% opacity
-                                borderColor: getLayoutColor('toolbar-text-main', '#FFFFFF') + '1A'
                             }}
                         >
                             <div className="flex items-center gap-[0.8vw]">

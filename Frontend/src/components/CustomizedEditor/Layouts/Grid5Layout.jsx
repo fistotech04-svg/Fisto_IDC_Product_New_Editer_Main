@@ -291,7 +291,7 @@ const Grid5Layout = ({
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
     const isFullscreen = isFullscreenProp || false;
-    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
+    const isCanvasHovered = false; const setIsCanvasHovered = () => {};
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
     const [recommendations, setRecommendations] = useState([]);
     // using showProfilePopup from props instead of local state
@@ -510,7 +510,7 @@ const Grid5Layout = ({
                                     style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                                 />
                                 <input
-                                    type="text"
+                                    type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                     value={localSearchQuery}
                                     onChange={(e) => {
                                         const val = e.target.value;
@@ -613,7 +613,7 @@ const Grid5Layout = ({
                     <span
                         className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-semibold tracking-tight`}
                         style={{ color: getLayoutColor('search-text-v1', '#9BA0C9') }}
-                    >{bookName}</span>
+                    >{/* {bookName} */}</span>
                 </div>
 
                 {/* Right: Brand Logo */}
@@ -698,7 +698,7 @@ const Grid5Layout = ({
                             style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                         >Page: </span>
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             value={pageInputValue}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -884,23 +884,6 @@ const Grid5Layout = ({
 
                     {/* Functional Icons Group */}
                     <div className={`flex items-center ${isTablet ? 'gap-[0.9vw]' : 'gap-[1.15vw]'} shrink-0`}>
-                        {/* Thumbnails */}
-                        {(settings?.navigation?.pageThumbnails ?? true) && renderToolbarBtn(
-                            <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                            'Thumbnails',
-                            (e) => {
-                                e.stopPropagation();
-                                setShowThumbnails(!showThumbnails);
-                                setShowTOCMemo?.(false);
-                                setShowBookmarkLocal(false);
-                                setShowProfilePopup(false);
-                                setShowBottomNotesOptions(false);
-                                setShowBookmarkOptions(false);
-                                setShowSoundPopupMemo(false);
-                            },
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: showThumbnails ? 0.7 : 1 }
-                        )}
-
                         {/* TOC */}
                         <div className="relative">
                             {(settings?.navigation?.tableOfContents ?? true) && renderToolbarBtn(
@@ -978,7 +961,7 @@ const Grid5Layout = ({
                                                                 <div className="relative z-10 flex items-center w-full">
                                                                     <Icon icon="lucide:search" className="w-[0.9vw] h-[0.9vw]" style={{ color: getLayoutColor('toc-text', '#575C9C'), opacity: 0.4 }} />
                                                                     <input
-                                                                        type="text"
+                                                                        type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                                                         value={tocSearchQuery}
                                                                         onChange={(e) => setTocSearchQuery(e.target.value)}
                                                                         placeholder="Search..."
@@ -1097,6 +1080,24 @@ const Grid5Layout = ({
                                 </>
                             )}
                         </div>
+
+                        {/* Thumbnails */}
+                        {(settings?.navigation?.pageThumbnails ?? true) && renderToolbarBtn(
+                            <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                            'Thumbnails',
+                            (e) => {
+                                e.stopPropagation();
+                                setShowThumbnails(!showThumbnails);
+                                setShowTOCMemo?.(false);
+                                setShowBookmarkLocal(false);
+                                setShowProfilePopup(false);
+                                setShowBottomNotesOptions(false);
+                                setShowBookmarkOptions(false);
+                                setShowSoundPopupMemo(false);
+                            },
+                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: showThumbnails ? 0.7 : 1 }
+                        )}
+                        
                         {/* Gallery */}
                         {(settings?.interaction?.gallery ?? true) && renderToolbarBtn(
                             <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
@@ -1307,11 +1308,9 @@ const Grid5Layout = ({
 
                 {/* Right: Standardized Zoom Box Matched to Screenshot */}
                 {(settings?.viewing?.zoom ?? true) && (
-                    <div className={`rounded-full flex items-center shadow-[0_0.2vw_1vw_rgba(0,0,0,0.06)] border border-gray-100 shrink-0 ${isTablet ? 'h-[3.2vh] gap-[0.3vw] px-[0.4vw]' : 'h-[4.5vh] gap-[0.4vw] px-[0.5vw]'}`}
+                    <div className={`rounded-full flex items-center shadow-[0_0.2vw_1vw_rgba(0,0,0,0.15)] border border-white/10 shrink-0 ${isTablet ? 'h-[4vh] gap-[0.3vw] px-[0.4vw]' : 'h-[6vh] gap-[0.4vw] px-[0.8vw]'}`}
                         style={{
-                            backgroundColor: currentPage === 0
-                                ? getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1')
-                                : getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1')
+                            backgroundColor: getLayoutColorRgba('bottom-toolbar-bg', '87, 92, 156', '1')
                         }}
                     >
                         {/* Zoom Out Button */}
@@ -1322,14 +1321,14 @@ const Grid5Layout = ({
                         >
                             <Icon
                                 icon="ph:magnifying-glass-minus-bold"
-                                className={`${isTablet ? 'w-[0.75vw] h-[0.75vw]' : 'w-[1vw] h-[1vw]'}`}
-                                style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                                className={`${isTablet ? 'w-[0.75vw] h-[0.75vw]' : 'w-[1.25vw] h-[1.25vw]'}`}
+                                style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                             />
                         </button>
 
                         <span
                             className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-semibold select-none shrink-0 min-w-[2.2vw] text-center`}
-                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                            style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                         >
                             {Math.round((dimWidth / initialWidth) * 100)}%
                         </span>
@@ -1342,8 +1341,8 @@ const Grid5Layout = ({
                         >
                             <Icon
                                 icon="ph:magnifying-glass-plus-bold"
-                                className={`${isTablet ? 'w-[0.75vw] h-[0.75vw]' : 'w-[1vw] h-[1vw]'}`}
-                                style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                                className={`${isTablet ? 'w-[0.75vw] h-[0.75vw]' : 'w-[1.25vw] h-[1.25vw]'}`}
+                                style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                             />
                         </button>
 
@@ -1352,14 +1351,10 @@ const Grid5Layout = ({
                                 setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
                                 setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
                             }}
-                            className={`${isTablet ? 'text-[0.55vw] px-[0.5vw] py-[0.25vw]' : 'text-[0.8vw] px-[0.7vw] py-[0.35vw]'} font-bold rounded-[0.8vw] hover:brightness-90 transition-all shadow-sm`}
+                            className={`${isTablet ? 'text-[0.55vw] px-[0.5vw] py-[0.25vw]' : 'text-[0.8vw] px-[1vw] py-[0.4vw]'} font-bold rounded-[0.8vw] hover:brightness-90 transition-all shadow-sm`}
                             style={{
-                                backgroundColor: currentPage === 0
-                                    ? getLayoutColor('toolbar-bg', '#575C9C')
-                                    : getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                color: currentPage === 0
-                                    ? getLayoutColor('toolbar-text-main', '#FFFFFF')
-                                    : getLayoutColor('toolbar-bg', '#575C9C')
+                                backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                color: getLayoutColor('bottom-toolbar-bg', '#575C9C')
                             }}
                         >
                             Reset

@@ -15,13 +15,12 @@ import FlipbookSharePopup from './popups/FlipbookSharePopup';
 import CreatorProfileModal from '../../pages/CreatorProfileModal';
 import ShareModal from '../ShareModal';
 import Sound from './popups/Sound';
-import Export from './popups/Export';
+import ExportModal from '../ExportModal';
 import Grid1Layout from './Layouts/Grid1Layout';
 import Grid2Layout from './Layouts/Grid2Layout';
 import Grid3Layout from './Layouts/Grid3Layout';
 import Grid4Layout from './Layouts/Grid4Layout';
 import Grid5Layout from './Layouts/Grid5Layout';
-import Grid6Layout from './Layouts/Grid6Layout';
 import Grid7Layout from './Layouts/Grid7Layout';
 import Grid8Layout from './Layouts/Grid8Layout';
 import Grid9Layout from './Layouts/Grid9Layout';
@@ -31,7 +30,6 @@ import TabletLayout2 from './Tablet/TabletLayouts/TabletLayout2';
 import TabletLayout3 from './Tablet/TabletLayouts/TabletLayout3';
 import TabletLayout4 from './Tablet/TabletLayouts/TabletLayout4';
 import TabletLayout5 from './Tablet/TabletLayouts/TabletLayout5';
-import TabletLayout6 from './Tablet/TabletLayouts/TabletLayout6';
 import TabletLayout7 from './Tablet/TabletLayouts/TabletLayout7';
 import { LAYOUT_DEFAULT_COLORS } from './Layout';
 import TabletLayout8 from './Tablet/TabletLayouts/TabletLayout8';
@@ -2186,7 +2184,7 @@ const TooltipOverlay = React.memo(({ tooltip }) => {
 
     const rawAnimType = settings.animation || settings.animationStyle || 'Default';
     const animType = rawAnimType.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-    
+
     const speed = (settings.speed || settings.animationSpeed || 'Medium').toLowerCase();
     const durationMap = {
         'slow': 0.8,
@@ -2485,7 +2483,7 @@ const TurnJsBookRenderer = React.memo(({
                         <TooltipOverlay key={activeTooltip.elementId || 'tooltip'} tooltip={activeTooltip} />
                     )}
                 </AnimatePresence>,
-                document.body
+                document.fullscreenElement || document.body
             )}
         </div>
     );
@@ -2543,7 +2541,7 @@ const PreviewArea = React.memo(({
                 canvas.width = img.naturalWidth;
                 canvas.height = img.naturalHeight;
                 const ctx = canvas.getContext('2d');
-                
+
                 const adj = incomingLogoSettings.adjustments || {};
                 const exposure = adj.exposure || 0;
                 const contrast = adj.contrast || 0;
@@ -2552,9 +2550,9 @@ const PreviewArea = React.memo(({
                 const tint = adj.tint || 0;
                 const highlights = (adj.highlights || 0) / 5;
                 const shadows = (adj.shadows || 0) / 5;
-                
+
                 const filterStr = `brightness(${100 + exposure + highlights}%) contrast(${100 + contrast + shadows}%) saturate(${100 + saturation}%) hue-rotate(${tint}deg) sepia(${temperature > 0 ? temperature : 0}%)`;
-                
+
                 ctx.filter = filterStr;
                 ctx.drawImage(img, 0, 0);
                 setProcessedLogoSrc(canvas.toDataURL());
@@ -2673,8 +2671,8 @@ const PreviewArea = React.memo(({
         return {
             ...galleryFromOther,
             ...galleryFromMenuBar,
-            images: (galleryFromOther.images && galleryFromOther.images.length > 0) 
-                ? galleryFromOther.images 
+            images: (galleryFromOther.images && galleryFromOther.images.length > 0)
+                ? galleryFromOther.images
                 : (galleryFromMenuBar.images || [])
         };
     }, [otherSetupSettings, menuBarSettings]);
@@ -2832,7 +2830,14 @@ const PreviewArea = React.memo(({
 
 
     // Responsive scaling logic
-    const [manualZoom, setManualZoom] = useState(zoom);
+    const [deviceZoom, setDeviceZoom] = useState({ Desktop: zoom, Tablet: zoom, Mobile: zoom });
+    const manualZoom = deviceZoom[activeDevice] ?? zoom;
+    const setManualZoom = useCallback((val) => {
+        setDeviceZoom(prev => {
+            let newZoom = typeof val === 'function' ? val(prev[activeDevice] ?? zoom) : val;
+            return { ...prev, [activeDevice]: newZoom };
+        });
+    }, [activeDevice, zoom]);
     const manualZoomRef = useRef(manualZoom);
     useEffect(() => { manualZoomRef.current = manualZoom; }, [manualZoom]);
     const [interactionZoom, setInteractionZoom] = useState(null);
@@ -2843,32 +2848,11 @@ const PreviewArea = React.memo(({
     const [active3DModelConfig, setActive3DModelConfig] = useState(null);
     // Declare isFullscreen here (before the computeFitScale effect that depends on it)
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [isToolbarHidden, setIsToolbarHidden] = useState(false);
+    
 
 
 
-    useEffect(() => {
-        if (!isFullscreen) {
-            setIsToolbarHidden(false);
-            return;
-        }
-
-        const handleMouseMove = (e) => {
-            const EDGE_ZONE = 72;
-            const nearEdge = e.clientY < EDGE_ZONE || e.clientY > window.innerHeight - EDGE_ZONE;
-            setIsToolbarHidden(!nearEdge);
-        };
-
-        const handleMouseLeave = () => setIsToolbarHidden(false);
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseleave', handleMouseLeave);
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseleave', handleMouseLeave);
-        };
-    }, [isFullscreen]);
+    
     const baseDimensions = useMemo(() => {
         if (pages && pages.length > 0) {
             for (const p of pages) {
@@ -3024,8 +3008,8 @@ const PreviewArea = React.memo(({
             const { clientWidth, clientHeight } = screen;
             const isCurrentlyFullscreen = (document.fullscreenElement === containerRef.current) || isFullscreen;
 
-            const wFactor = isCurrentlyFullscreen ? (isToolbarHidden ? 0.80 : 0.70) : 0.70;
-            const hFactor = isCurrentlyFullscreen ? (isToolbarHidden ? 0.85 : 0.80) : 0.80;
+            const wFactor = isCurrentlyFullscreen ? 0.70 : 0.70;
+            const hFactor = isCurrentlyFullscreen ? 0.80 : 0.80;
 
             const availableW = clientWidth * wFactor;
             const availableH = clientHeight * hFactor;
@@ -3072,7 +3056,7 @@ const PreviewArea = React.memo(({
             document.removeEventListener('fullscreenchange', onFSChange);
             document.removeEventListener('webkitfullscreenchange', onFSChange);
         };
-    }, [activeDevice, isSidebarOpen, isFullscreen, isToolbarHidden, zoom, manualZoom, interactionZoom, baseDimensions, isTurnJs]);
+    }, [activeDevice, isSidebarOpen, isFullscreen, zoom, manualZoom, interactionZoom, baseDimensions, isTurnJs]);
 
     const setCurrentZoom = useCallback((val) => {
         if (typeof val === 'function') {
@@ -3080,7 +3064,7 @@ const PreviewArea = React.memo(({
         } else {
             setManualZoom(val);
         }
-    }, []);
+    }, [setManualZoom]);
     const [showBookmarkMenu, setShowBookmarkMenu] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [showNotesMenu, setShowNotesMenu] = useState(false);
@@ -3213,7 +3197,7 @@ const PreviewArea = React.memo(({
 
     const getScreenWrapperStyle = () => {
         if (activeDevice === 'Desktop') return { width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', flex: 1 };
-        if (activeDevice === 'Tablet' && !isPublishedPreview) return {
+        if (activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet) return {
             position: 'absolute',
             top: '9.38%',
             bottom: '7.7%',
@@ -3222,9 +3206,10 @@ const PreviewArea = React.memo(({
             borderRadius: '12px',
             overflow: 'hidden',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            transform: 'translateZ(0)' // Establish containing block for fixed Modals
         };
-        return { width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', flex: 1 };
+        return { width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', flex: 1, transform: 'translateZ(0)' };
     };
 
 
@@ -3479,12 +3464,12 @@ const PreviewArea = React.memo(({
     const handleZoomOut = useCallback(() => setManualZoom(prev => Math.max(prev - 0.05, 0.5)), []);
     const handleFullScreen = useCallback(() => {
         if (!isFullscreen) {
+            if (useNativeFullscreen && containerRef.current) {
+                containerRef.current.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            }
             setIsFullscreen(true);
-        } else if (!document.fullscreenElement && useNativeFullscreen) {
-            if (!containerRef.current) return;
-            containerRef.current.requestFullscreen().catch(err => {
-                console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-            });
         } else {
             if (document.fullscreenElement) {
                 document.exitFullscreen();
@@ -3922,9 +3907,9 @@ const PreviewArea = React.memo(({
         // Inject global styles for the progress bar thumb
         const thumbStyleId = 'global-custom-video-progress-style';
         if (!document.getElementById(thumbStyleId)) {
-          const ts = document.createElement('style');
-          ts.id = thumbStyleId;
-          ts.textContent = `
+            const ts = document.createElement('style');
+            ts.id = thumbStyleId;
+            ts.textContent = `
             input.custom-video-progress {
               -webkit-appearance: none !important;
               appearance: none !important;
@@ -3971,384 +3956,384 @@ const PreviewArea = React.memo(({
               background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.9) 100%) !important;
             }
           `;
-          document.head.appendChild(ts);
+            document.head.appendChild(ts);
         }
 
         let intervalId;
         const renderVideoControls = () => {
-          document.querySelectorAll('[data-page-index] video, foreignObject video').forEach(v => {
-            if (!v.hasAttribute('data-custom-ctrl-active')) {
-              v.controls = false;
-              v.removeAttribute('controls');
-            }
-          });
+            document.querySelectorAll('[data-page-index] video, foreignObject video').forEach(v => {
+                if (!v.hasAttribute('data-custom-ctrl-active')) {
+                    v.controls = false;
+                    v.removeAttribute('controls');
+                }
+            });
 
-          const videos = document.querySelectorAll('.page-svg-container video, .flipbook-magazine-wrapper video');
-          videos.forEach(video => {
-            const fo = video.closest('foreignObject');
-            const liveEl = fo ? (fo.closest('[id]') || fo) : (video.closest('[id]') || video);
-            const layerId = liveEl.id;
-            if (!layerId) return;
+            const videos = document.querySelectorAll('.page-svg-container video, .flipbook-magazine-wrapper video');
+            videos.forEach(video => {
+                const fo = video.closest('foreignObject');
+                const liveEl = fo ? (fo.closest('[id]') || fo) : (video.closest('[id]') || video);
+                const layerId = liveEl.id;
+                if (!layerId) return;
 
-            const showControls = video.getAttribute('data-show-controls') !== 'false';
-            
-            // APPLY CUSTOM VIDEO PROPERTIES
-            const pbSpeedStr = video.getAttribute('data-playback-speed');
-            if (pbSpeedStr) {
-               const pbSpeed = parseFloat(pbSpeedStr.replace('x', ''));
-               if (!isNaN(pbSpeed)) video.playbackRate = pbSpeed;
-            }
+                const showControls = video.getAttribute('data-show-controls') !== 'false';
 
-            if (!video.hasAttribute('data-video-props-applied')) {
-                video.setAttribute('data-video-props-applied', 'true');
-                
-                const defVolStr = video.getAttribute('data-default-volume');
-                if (defVolStr) {
-                    video.volume = parseInt(defVolStr) / 100;
+                // APPLY CUSTOM VIDEO PROPERTIES
+                const pbSpeedStr = video.getAttribute('data-playback-speed');
+                if (pbSpeedStr) {
+                    const pbSpeed = parseFloat(pbSpeedStr.replace('x', ''));
+                    if (!isNaN(pbSpeed)) video.playbackRate = pbSpeed;
                 }
 
-                const startTimeAttr = video.getAttribute('data-start-time');
-                let sTime = 0;
-                if (startTimeAttr) {
-                  const parts = startTimeAttr.split(':').map(Number);
-                  if (parts.length === 3) sTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                  else if (parts.length === 2) sTime = parts[0] * 60 + parts[1];
-                }
-                const endTimeAttr = video.getAttribute('data-end-time');
-                let eTime = Infinity;
-                if (endTimeAttr) {
-                  const parts = endTimeAttr.split(':').map(Number);
-                  if (parts.length === 3) eTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                  else if (parts.length === 2) eTime = parts[0] * 60 + parts[1];
-                }
-                video._startTime = sTime;
-                video._endTime = eTime;
-                
-                if (sTime > 0) {
-                   video.currentTime = sTime;
-                }
+                if (!video.hasAttribute('data-video-props-applied')) {
+                    video.setAttribute('data-video-props-applied', 'true');
 
-                video.addEventListener('timeupdate', () => {
-                   if (video._startTime > 0 && video.currentTime < video._startTime - 0.5) {
-                       video.currentTime = video._startTime;
-                   }
-                   if (video._endTime < Infinity && video.currentTime >= video._endTime) {
-                       if (video.loop) {
-                           video.currentTime = video._startTime;
-                       } else {
-                           video.pause();
-                       }
-                   }
-                });
-                
-                const resumeBehavior = video.getAttribute('data-resume-behavior');
-                if (resumeBehavior === "Start from Beginning") {
-                    video.addEventListener('play', () => {
-                        if (video._wasPaused) {
-                            video.currentTime = video._startTime || 0;
+                    const defVolStr = video.getAttribute('data-default-volume');
+                    if (defVolStr) {
+                        video.volume = parseInt(defVolStr) / 100;
+                    }
+
+                    const startTimeAttr = video.getAttribute('data-start-time');
+                    let sTime = 0;
+                    if (startTimeAttr) {
+                        const parts = startTimeAttr.split(':').map(Number);
+                        if (parts.length === 3) sTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                        else if (parts.length === 2) sTime = parts[0] * 60 + parts[1];
+                    }
+                    const endTimeAttr = video.getAttribute('data-end-time');
+                    let eTime = Infinity;
+                    if (endTimeAttr) {
+                        const parts = endTimeAttr.split(':').map(Number);
+                        if (parts.length === 3) eTime = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                        else if (parts.length === 2) eTime = parts[0] * 60 + parts[1];
+                    }
+                    video._startTime = sTime;
+                    video._endTime = eTime;
+
+                    if (sTime > 0) {
+                        video.currentTime = sTime;
+                    }
+
+                    video.addEventListener('timeupdate', () => {
+                        if (video._startTime > 0 && video.currentTime < video._startTime - 0.5) {
+                            video.currentTime = video._startTime;
                         }
-                        video._wasPaused = false;
+                        if (video._endTime < Infinity && video.currentTime >= video._endTime) {
+                            if (video.loop) {
+                                video.currentTime = video._startTime;
+                            } else {
+                                video.pause();
+                            }
+                        }
                     });
-                    video.addEventListener('pause', () => {
-                        video._wasPaused = true;
+
+                    const resumeBehavior = video.getAttribute('data-resume-behavior');
+                    if (resumeBehavior === "Start from Beginning") {
+                        video.addEventListener('play', () => {
+                            if (video._wasPaused) {
+                                video.currentTime = video._startTime || 0;
+                            }
+                            video._wasPaused = false;
+                        });
+                        video.addEventListener('pause', () => {
+                            video._wasPaused = true;
+                        });
+                    }
+
+                    const playVideoWhile = video.getAttribute('data-play-video-while');
+                    if (playVideoWhile === "Auto Play While on Page") {
+                        video.play().catch(() => { });
+                    } else if (playVideoWhile === "Click to Play") {
+                        video.pause();
+                    }
+                }
+
+                const ctrlId = `custom-ctrl-${layerId}`;
+                let bar = document.getElementById(ctrlId);
+
+
+
+                const mountPoint = video.parentElement || fo || liveEl;
+                if (!mountPoint) return;
+
+                if (bar && bar._video !== video) {
+                    if (bar._cleanup) bar._cleanup();
+                    bar.remove();
+                    bar = null;
+                }
+
+                if (bar) {
+                    const repBtn = bar.querySelector('.custom-repeat-btn');
+                    if (repBtn) repBtn.style.opacity = video.loop ? '1' : '0.5';
+
+                    const topC = bar.querySelector('.custom-top-container');
+                    const centerC = bar.querySelector('.custom-center-container');
+                    const progC = bar.querySelector('.custom-prog-container');
+                    const timeW = bar.querySelector('.custom-time-wrapper');
+
+                    if (topC) topC.style.visibility = showControls ? 'visible' : 'hidden';
+                    if (centerC) centerC.style.visibility = showControls ? 'visible' : 'hidden';
+                    if (progC) progC.style.visibility = showControls ? 'visible' : 'hidden';
+                    if (timeW) timeW.style.visibility = showControls ? 'visible' : 'hidden';
+                    if (repBtn) repBtn.style.visibility = showControls ? 'visible' : 'hidden';
+                }
+
+                if (!bar) {
+                    video.controls = false;
+                    video.removeAttribute('controls');
+                    video.setAttribute('data-custom-ctrl-active', 'true');
+
+                    if (mountPoint.style) {
+                        mountPoint.style.position = 'relative';
+                        if (!mountPoint._prevPointerEvents) {
+                            mountPoint._prevPointerEvents = mountPoint.style.pointerEvents || '';
+                        }
+                        mountPoint.style.pointerEvents = 'none';
+                    }
+
+                    if (!window._videoHoverTrackerAdded) {
+                        window._videoHoverTrackerAdded = true;
+                        window.addEventListener('pointermove', (e) => {
+                            document.querySelectorAll('.custom-video-overlay').forEach(b => {
+                                const rect = b.getBoundingClientRect();
+                                const isInside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                                    e.clientY >= rect.top && e.clientY <= rect.bottom;
+                                if (isInside) b.classList.add('video-is-hovered');
+                                else b.classList.remove('video-is-hovered');
+                            });
+                        });
+                    }
+
+                    bar = document.createElement('div');
+                    bar.id = ctrlId;
+                    bar._video = video;
+                    bar.className = 'custom-video-overlay' + (video.paused ? ' is-paused' : '');
+                    Object.assign(bar.style, {
+                        position: 'absolute', top: '0', bottom: '0', left: '0', right: '0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '2% 3%', boxSizing: 'border-box', zIndex: '9999', pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(0,0,0,0.9) 100%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.9) 100%)',
                     });
-                }
 
-                const playVideoWhile = video.getAttribute('data-play-video-while');
-                if (playVideoWhile === "Auto Play While on Page") {
-                    video.play().catch(()=>{});
-                } else if (playVideoWhile === "Click to Play") {
-                    video.pause();
-                }
-            }
+                    const ro = new ResizeObserver(entries => {
+                        for (let entry of entries) {
+                            const w = entry.contentRect.width || entry.target.offsetWidth;
+                            if (w > 0) bar.style.fontSize = (w * 0.01) + 'px';
+                        }
+                    });
+                    ro.observe(bar);
 
-            const ctrlId = `custom-ctrl-${layerId}`;
-            let bar = document.getElementById(ctrlId);
+                    const topContainer = document.createElement('div');
+                    topContainer.className = 'custom-top-container';
+                    Object.assign(topContainer.style, { display: 'flex', justifyContent: 'flex-end', width: '100%', pointerEvents: 'none' });
 
+                    const volumeBtn = document.createElement('button');
+                    Object.assign(volumeBtn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '7em', height: '7em', pointerEvents: 'auto', opacity: '0.8' });
+                    const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+                    const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
 
+                    const updateVolumeIcon = () => { volumeBtn.innerHTML = (video.muted || video.volume === 0) ? VOL_OFF_SVG : VOL_ON_SVG; };
+                    updateVolumeIcon();
+                    volumeBtn.onclick = (e) => { e.stopPropagation(); video.muted = !video.muted; if (video.muted) video.setAttribute('muted', ''); else video.removeAttribute('muted'); updateVolumeIcon(); };
+                    video.addEventListener('volumechange', updateVolumeIcon);
+                    topContainer.appendChild(volumeBtn);
 
-            const mountPoint = video.parentElement || fo || liveEl;
-            if (!mountPoint) return;
+                    const centerContainer = document.createElement('div');
+                    centerContainer.className = 'custom-center-container';
+                    Object.assign(centerContainer.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0 2%', flexGrow: '1', pointerEvents: 'none', boxSizing: 'border-box' });
 
-            if (bar && bar._video !== video) {
-              if (bar._cleanup) bar._cleanup();
-              bar.remove();
-              bar = null;
-            }
+                    const REWIND_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>`;
+                    const FORWARD_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>`;
 
-            if (bar) {
-              const repBtn = bar.querySelector('.custom-repeat-btn');
-              if (repBtn) repBtn.style.opacity = video.loop ? '1' : '0.5';
-              
-              const topC = bar.querySelector('.custom-top-container');
-              const centerC = bar.querySelector('.custom-center-container');
-              const progC = bar.querySelector('.custom-prog-container');
-              const timeW = bar.querySelector('.custom-time-wrapper');
-              
-              if (topC) topC.style.visibility = showControls ? 'visible' : 'hidden';
-              if (centerC) centerC.style.visibility = showControls ? 'visible' : 'hidden';
-              if (progC) progC.style.visibility = showControls ? 'visible' : 'hidden';
-              if (timeW) timeW.style.visibility = showControls ? 'visible' : 'hidden';
-              if (repBtn) repBtn.style.visibility = showControls ? 'visible' : 'hidden';
-            }
+                    const createSkipBtn = (icon, delta) => {
+                        const btn = document.createElement('button');
+                        Object.assign(btn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', pointerEvents: 'auto', opacity: '0.9', position: 'relative' });
+                        const tw = document.createElement('div');
+                        Object.assign(tw.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', [delta < 0 ? 'marginLeft' : 'marginRight']: '0.5em' });
+                        const t = document.createElement('div');
+                        t.textContent = "3s";
+                        Object.assign(t.style, { position: 'absolute', top: '50%', left: '50%', width: 'max-content', fontSize: '10em', transform: 'translate(-50%, -50%) scale(0.35)', transformOrigin: 'center center', fontFamily: 'Inter, sans-serif', color: 'white', pointerEvents: 'none' });
+                        tw.appendChild(t);
+                        if (delta < 0) { btn.innerHTML = icon; btn.appendChild(tw); }
+                        else { btn.appendChild(tw); btn.insertAdjacentHTML('beforeend', icon); }
+                        btn.onclick = (e) => { e.stopPropagation(); video.currentTime += delta; };
+                        return btn;
+                    };
 
-            if (!bar) {
-              video.controls = false;
-              video.removeAttribute('controls');
-              video.setAttribute('data-custom-ctrl-active', 'true');
+                    centerContainer.appendChild(createSkipBtn(REWIND_ICON, -3));
+                    centerContainer.appendChild(createSkipBtn(FORWARD_ICON, 3));
 
-              if (mountPoint.style) {
-                mountPoint.style.position = 'relative';
-                if (!mountPoint._prevPointerEvents) {
-                  mountPoint._prevPointerEvents = mountPoint.style.pointerEvents || '';
-                }
-                mountPoint.style.pointerEvents = 'none';
-              }
+                    const bottomContainer = document.createElement('div');
+                    Object.assign(bottomContainer.style, { display: 'flex', alignItems: 'center', width: '100%', gap: '2em', pointerEvents: 'none', paddingBottom: '2%', paddingLeft: '2%', paddingRight: '2%', boxSizing: 'border-box' });
 
-              if (!window._videoHoverTrackerAdded) {
-                window._videoHoverTrackerAdded = true;
-                window.addEventListener('pointermove', (e) => {
-                  document.querySelectorAll('.custom-video-overlay').forEach(b => {
-                    const rect = b.getBoundingClientRect();
-                    const isInside = e.clientX >= rect.left && e.clientX <= rect.right &&
-                      e.clientY >= rect.top && e.clientY <= rect.bottom;
-                    if (isInside) b.classList.add('video-is-hovered');
-                    else b.classList.remove('video-is-hovered');
-                  });
-                });
-              }
+                    const PLAY_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+                    const PAUSE_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+                    const playBtn = document.createElement('button');
+                    Object.assign(playBtn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: "8em", height: "8em", pointerEvents: 'auto', flexShrink: '0' });
+                    const onPlay = () => { playBtn.innerHTML = PAUSE_SVG; bar.classList.remove('is-paused'); };
+                    const onPause = () => { playBtn.innerHTML = PLAY_SVG; bar.classList.add('is-paused'); };
+                    playBtn.innerHTML = video.paused ? PLAY_SVG : PAUSE_SVG;
+                    video.addEventListener('play', onPlay);
+                    video.addEventListener('pause', onPause);
+                    playBtn.onclick = (e) => { e.stopPropagation(); video.paused ? video.play() : video.pause(); };
 
-              bar = document.createElement('div');
-              bar.id = ctrlId;
-              bar._video = video;
-              bar.className = 'custom-video-overlay' + (video.paused ? ' is-paused' : '');
-              Object.assign(bar.style, {
-                position: 'absolute', top: '0', bottom: '0', left: '0', right: '0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '2% 3%', boxSizing: 'border-box', zIndex: '9999', pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(0,0,0,0.9) 100%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.9) 100%)',
-              });
+                    const progContainer = document.createElement('div');
+                    progContainer.className = 'custom-prog-container';
+                    Object.assign(progContainer.style, { flexGrow: '1', height: '1.2em', background: 'rgba(255,255,255,0.3)', position: 'relative', cursor: 'pointer', pointerEvents: 'auto', borderRadius: '0.2em' });
+                    const progFill = document.createElement('div');
+                    Object.assign(progFill.style, { position: 'absolute', top: '0', left: '0', bottom: '0', width: '0%', background: 'white', pointerEvents: 'none', borderRadius: '0.2em' });
+                    progContainer.appendChild(progFill);
 
-              const ro = new ResizeObserver(entries => {
-                for (let entry of entries) {
-                  const w = entry.contentRect.width || entry.target.offsetWidth;
-                  if (w > 0) bar.style.fontSize = (w * 0.01) + 'px';
-                }
-              });
-              ro.observe(bar);
+                    const timeWrapper = document.createElement('div');
+                    timeWrapper.className = 'custom-time-wrapper';
+                    Object.assign(timeWrapper.style, { position: 'relative', width: '28em', height: '8em', flexShrink: '0', marginLeft: '1em' });
+                    const timeDisplay = document.createElement('div');
+                    Object.assign(timeDisplay.style, { position: 'absolute', top: '50%', left: '0', width: 'max-content', fontSize: '10em', transform: 'translateY(-50%) scale(0.35)', transformOrigin: 'left center', fontFamily: 'Inter, sans-serif', color: 'white', pointerEvents: 'none' });
+                    timeDisplay.textContent = "00:00 / 00:00";
+                    timeWrapper.appendChild(timeDisplay);
 
-              const topContainer = document.createElement('div');
-              topContainer.className = 'custom-top-container';
-              Object.assign(topContainer.style, { display: 'flex', justifyContent: 'flex-end', width: '100%', pointerEvents: 'none' });
-              
-              const volumeBtn = document.createElement('button');
-              Object.assign(volumeBtn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '7em', height: '7em', pointerEvents: 'auto', opacity: '0.8' });
-              const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
-              const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
-              
-              const updateVolumeIcon = () => { volumeBtn.innerHTML = (video.muted || video.volume === 0) ? VOL_OFF_SVG : VOL_ON_SVG; };
-              updateVolumeIcon();
-              volumeBtn.onclick = (e) => { e.stopPropagation(); video.muted = !video.muted; if(video.muted) video.setAttribute('muted',''); else video.removeAttribute('muted'); updateVolumeIcon(); };
-              video.addEventListener('volumechange', updateVolumeIcon);
-              topContainer.appendChild(volumeBtn);
+                    const formatTime = (sec) => {
+                        if (isNaN(sec)) return "00:00";
+                        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+                        const s = Math.floor(sec % 60).toString().padStart(2, '0');
+                        return `${m}:${s}`;
+                    };
 
-              const centerContainer = document.createElement('div');
-              centerContainer.className = 'custom-center-container';
-              Object.assign(centerContainer.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0 2%', flexGrow: '1', pointerEvents: 'none', boxSizing: 'border-box' });
-              
-              const REWIND_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>`;
-              const FORWARD_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>`;
-              
-              const createSkipBtn = (icon, delta) => {
-                const btn = document.createElement('button');
-                Object.assign(btn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', pointerEvents: 'auto', opacity: '0.9', position: 'relative' });
-                const tw = document.createElement('div');
-                Object.assign(tw.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', [delta < 0 ? 'marginLeft' : 'marginRight']: '0.5em' });
-                const t = document.createElement('div');
-                t.textContent = "3s";
-                Object.assign(t.style, { position: 'absolute', top: '50%', left: '50%', width: 'max-content', fontSize: '10em', transform: 'translate(-50%, -50%) scale(0.35)', transformOrigin: 'center center', fontFamily: 'Inter, sans-serif', color: 'white', pointerEvents: 'none' });
-                tw.appendChild(t);
-                if (delta < 0) { btn.innerHTML = icon; btn.appendChild(tw); }
-                else { btn.appendChild(tw); btn.insertAdjacentHTML('beforeend', icon); }
-                btn.onclick = (e) => { e.stopPropagation(); video.currentTime += delta; };
-                return btn;
-              };
-              
-              centerContainer.appendChild(createSkipBtn(REWIND_ICON, -3));
-              centerContainer.appendChild(createSkipBtn(FORWARD_ICON, 3));
+                    const onTimeUpdate = () => {
+                        if (video.duration) {
+                            progFill.style.width = `${(video.currentTime / video.duration) * 100}%`;
+                            timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+                        }
+                    };
+                    video.addEventListener('timeupdate', onTimeUpdate);
+                    video.addEventListener('loadedmetadata', onTimeUpdate);
+                    onTimeUpdate();
 
-              const bottomContainer = document.createElement('div');
-              Object.assign(bottomContainer.style, { display: 'flex', alignItems: 'center', width: '100%', gap: '2em', pointerEvents: 'none', paddingBottom: '2%', paddingLeft: '2%', paddingRight: '2%', boxSizing: 'border-box' });
-              
-              const PLAY_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
-              const PAUSE_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
-              const playBtn = document.createElement('button');
-              Object.assign(playBtn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: "8em", height: "8em", pointerEvents: 'auto', flexShrink: '0' });
-              const onPlay = () => { playBtn.innerHTML = PAUSE_SVG; bar.classList.remove('is-paused'); };
-              const onPause = () => { playBtn.innerHTML = PLAY_SVG; bar.classList.add('is-paused'); };
-              playBtn.innerHTML = video.paused ? PLAY_SVG : PAUSE_SVG;
-              video.addEventListener('play', onPlay);
-              video.addEventListener('pause', onPause);
-              playBtn.onclick = (e) => { e.stopPropagation(); video.paused ? video.play() : video.pause(); };
-              
-              const progContainer = document.createElement('div');
-              progContainer.className = 'custom-prog-container';
-              Object.assign(progContainer.style, { flexGrow: '1', height: '1.2em', background: 'rgba(255,255,255,0.3)', position: 'relative', cursor: 'pointer', pointerEvents: 'auto', borderRadius: '0.2em' });
-              const progFill = document.createElement('div');
-              Object.assign(progFill.style, { position: 'absolute', top: '0', left: '0', bottom: '0', width: '0%', background: 'white', pointerEvents: 'none', borderRadius: '0.2em' });
-              progContainer.appendChild(progFill);
-              
-              const timeWrapper = document.createElement('div');
-              timeWrapper.className = 'custom-time-wrapper';
-              Object.assign(timeWrapper.style, { position: 'relative', width: '28em', height: '8em', flexShrink: '0', marginLeft: '1em' });
-              const timeDisplay = document.createElement('div');
-              Object.assign(timeDisplay.style, { position: 'absolute', top: '50%', left: '0', width: 'max-content', fontSize: '10em', transform: 'translateY(-50%) scale(0.35)', transformOrigin: 'left center', fontFamily: 'Inter, sans-serif', color: 'white', pointerEvents: 'none' });
-              timeDisplay.textContent = "00:00 / 00:00";
-              timeWrapper.appendChild(timeDisplay);
-              
-              const formatTime = (sec) => {
-                if (isNaN(sec)) return "00:00";
-                const m = Math.floor(sec / 60).toString().padStart(2, '0');
-                const s = Math.floor(sec % 60).toString().padStart(2, '0');
-                return `${m}:${s}`;
-              };
-              
-              const onTimeUpdate = () => {
-                if (video.duration) {
-                  progFill.style.width = `${(video.currentTime / video.duration) * 100}%`;
-                  timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
-                }
-              };
-              video.addEventListener('timeupdate', onTimeUpdate);
-              video.addEventListener('loadedmetadata', onTimeUpdate);
-              onTimeUpdate();
-              
-              progContainer.onpointerdown = (e) => {
-                e.stopPropagation();
-                const rect = progContainer.getBoundingClientRect();
-                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                if (video.duration) video.currentTime = pct * video.duration;
-                const onMove = (me) => {
-                  const p = Math.max(0, Math.min(1, (me.clientX - rect.left) / rect.width));
-                  if (video.duration) video.currentTime = p * video.duration;
-                };
-                const onUp = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
-                document.addEventListener('pointermove', onMove);
-                document.addEventListener('pointerup', onUp);
-              };
+                    progContainer.onpointerdown = (e) => {
+                        e.stopPropagation();
+                        const rect = progContainer.getBoundingClientRect();
+                        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                        if (video.duration) video.currentTime = pct * video.duration;
+                        const onMove = (me) => {
+                            const p = Math.max(0, Math.min(1, (me.clientX - rect.left) / rect.width));
+                            if (video.duration) video.currentTime = p * video.duration;
+                        };
+                        const onUp = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
+                        document.addEventListener('pointermove', onMove);
+                        document.addEventListener('pointerup', onUp);
+                    };
 
-              const REPEAT_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>`;
-              const repeatBtn = document.createElement('button');
-              repeatBtn.className = 'custom-repeat-btn';
-              Object.assign(repeatBtn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '5em', height: '5em', pointerEvents: 'auto', flexShrink: '0', opacity: video.loop ? '1' : '0.5' });
-              repeatBtn.innerHTML = REPEAT_SVG;
-              repeatBtn.onclick = (e) => { e.stopPropagation(); video.loop = !video.loop; if(video.loop) video.setAttribute('loop',''); else video.removeAttribute('loop'); repeatBtn.style.opacity = video.loop ? '1' : '0.5'; };
+                    const REPEAT_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>`;
+                    const repeatBtn = document.createElement('button');
+                    repeatBtn.className = 'custom-repeat-btn';
+                    Object.assign(repeatBtn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '5em', height: '5em', pointerEvents: 'auto', flexShrink: '0', opacity: video.loop ? '1' : '0.5' });
+                    repeatBtn.innerHTML = REPEAT_SVG;
+                    repeatBtn.onclick = (e) => { e.stopPropagation(); video.loop = !video.loop; if (video.loop) video.setAttribute('loop', ''); else video.removeAttribute('loop'); repeatBtn.style.opacity = video.loop ? '1' : '0.5'; };
 
-              const FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
-              const EXIT_FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>`;
-              const fsBtn = document.createElement('button');
-              Object.assign(fsBtn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '5em', height: '5em', pointerEvents: 'auto', flexShrink: '0' });
-              
-              const fsStyleId = 'custom-fs-style';
-              if (!document.getElementById(fsStyleId)) {
-                const style = document.createElement('style');
-                style.id = fsStyleId;
-                style.innerHTML = `
+                    const FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
+                    const EXIT_FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>`;
+                    const fsBtn = document.createElement('button');
+                    Object.assign(fsBtn.style, { background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '5em', height: '5em', pointerEvents: 'auto', flexShrink: '0' });
+
+                    const fsStyleId = 'custom-fs-style';
+                    if (!document.getElementById(fsStyleId)) {
+                        const style = document.createElement('style');
+                        style.id = fsStyleId;
+                        style.innerHTML = `
                   foreignObject:fullscreen, foreignObject:-webkit-full-screen, foreignObject:-moz-full-screen { width: 100vw !important; height: 100vh !important; background: black !important; transform: none !important; }
                   foreignObject:fullscreen video, foreignObject:-webkit-full-screen video, foreignObject:-moz-full-screen video { width: 100% !important; height: 100% !important; object-fit: contain !important; }
                   #temp-fs-wrapper .custom-video-overlay { font-size: 0.3vw !important; }
                   #temp-fs-wrapper .custom-video-overlay svg { stroke-width: 2.5 !important; }
                   #temp-fs-wrapper .custom-video-overlay .time-display { margin-right: 0 !important; }
                 `;
-                document.head.appendChild(style);
-              }
+                        document.head.appendChild(style);
+                    }
 
-              const updateFsIcon = () => { fsBtn.innerHTML = document.fullscreenElement ? EXIT_FS_SVG : FS_SVG; };
-              updateFsIcon();
-              
-              fsBtn.onclick = (e) => {
-                e.stopPropagation();
-                if (!document.fullscreenElement) {
-                  const fsWrapper = document.createElement('div');
-                  fsWrapper.id = 'temp-fs-wrapper';
-                  Object.assign(fsWrapper.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center' });
-                  const vPlaceholder = document.createComment('video-placeholder');
-                  const bPlaceholder = document.createComment('bar-placeholder');
-                  video.parentElement.insertBefore(vPlaceholder, video);
-                  bar.parentElement.insertBefore(bPlaceholder, bar);
-                  const wasPlaying = !video.paused;
-                  fsWrapper.appendChild(video);
-                  fsWrapper.appendChild(bar);
-                  document.body.appendChild(fsWrapper);
-                  fsWrapper._vPlaceholder = vPlaceholder;
-                  fsWrapper._bPlaceholder = bPlaceholder;
-                  const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
-                  if (reqFs) {
-                    reqFs.call(fsWrapper).then(() => { if (wasPlaying) video.play().catch(() => {}); }).catch(err => {
-                      if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
-                      if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
-                      vPlaceholder.remove(); bPlaceholder.remove(); fsWrapper.remove();
-                    });
-                  }
-                } else {
-                  if (document.exitFullscreen) document.exitFullscreen();
-                  else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                    const updateFsIcon = () => { fsBtn.innerHTML = document.fullscreenElement ? EXIT_FS_SVG : FS_SVG; };
+                    updateFsIcon();
+
+                    fsBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (!document.fullscreenElement) {
+                            const fsWrapper = document.createElement('div');
+                            fsWrapper.id = 'temp-fs-wrapper';
+                            Object.assign(fsWrapper.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center' });
+                            const vPlaceholder = document.createComment('video-placeholder');
+                            const bPlaceholder = document.createComment('bar-placeholder');
+                            video.parentElement.insertBefore(vPlaceholder, video);
+                            bar.parentElement.insertBefore(bPlaceholder, bar);
+                            const wasPlaying = !video.paused;
+                            fsWrapper.appendChild(video);
+                            fsWrapper.appendChild(bar);
+                            document.body.appendChild(fsWrapper);
+                            fsWrapper._vPlaceholder = vPlaceholder;
+                            fsWrapper._bPlaceholder = bPlaceholder;
+                            const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
+                            if (reqFs) {
+                                reqFs.call(fsWrapper).then(() => { if (wasPlaying) video.play().catch(() => { }); }).catch(err => {
+                                    if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
+                                    if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
+                                    vPlaceholder.remove(); bPlaceholder.remove(); fsWrapper.remove();
+                                });
+                            }
+                        } else {
+                            if (document.exitFullscreen) document.exitFullscreen();
+                            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                        }
+                    };
+
+                    const handleFsChange = () => {
+                        const isFs = !!document.fullscreenElement;
+                        fsBtn.innerHTML = isFs ? EXIT_FS_SVG : FS_SVG;
+                        if (!isFs) {
+                            const fsWrapper = document.getElementById('temp-fs-wrapper');
+                            if (fsWrapper) {
+                                const wasPlaying = !video.paused;
+                                const vp = fsWrapper._vPlaceholder;
+                                const bp = fsWrapper._bPlaceholder;
+                                if (vp && vp.parentNode) { vp.parentNode.insertBefore(video, vp); vp.remove(); }
+                                if (bp && bp.parentNode) { bp.parentNode.insertBefore(bar, bp); bp.remove(); }
+                                fsWrapper.remove();
+                                if (wasPlaying) video.play().catch(() => { });
+                            }
+                        }
+                    };
+                    document.addEventListener('fullscreenchange', handleFsChange);
+                    document.addEventListener('webkitfullscreenchange', handleFsChange);
+
+                    const disableFullScreen = video.getAttribute('data-disable-fullscreen') === 'true';
+
+                    bottomContainer.appendChild(playBtn);
+                    bottomContainer.appendChild(progContainer);
+                    bottomContainer.appendChild(timeWrapper);
+                    bottomContainer.appendChild(repeatBtn);
+                    if (!disableFullScreen) {
+                        bottomContainer.appendChild(fsBtn);
+                    }
+
+                    bar.appendChild(topContainer);
+                    bar.appendChild(centerContainer);
+                    bar.appendChild(bottomContainer);
+                    mountPoint.appendChild(bar);
+
+                    bar._cleanup = () => {
+                        document.removeEventListener('fullscreenchange', handleFsChange);
+                        document.removeEventListener('webkitfullscreenchange', handleFsChange);
+                        if (ro) ro.disconnect();
+                        video.removeEventListener('play', onPlay);
+                        video.removeEventListener('pause', onPause);
+                        video.removeEventListener('timeupdate', onTimeUpdate);
+                        video.removeEventListener('loadedmetadata', onTimeUpdate);
+                        video.removeEventListener('volumechange', updateVolumeIcon);
+                        video.removeAttribute('data-custom-ctrl-active');
+                        if (mountPoint.style && mountPoint._prevPointerEvents !== undefined) {
+                            mountPoint.style.pointerEvents = mountPoint._prevPointerEvents;
+                        }
+                    };
                 }
-              };
-              
-              const handleFsChange = () => {
-                const isFs = !!document.fullscreenElement;
-                fsBtn.innerHTML = isFs ? EXIT_FS_SVG : FS_SVG;
-                if (!isFs) {
-                  const fsWrapper = document.getElementById('temp-fs-wrapper');
-                  if (fsWrapper) {
-                    const wasPlaying = !video.paused;
-                    const vp = fsWrapper._vPlaceholder;
-                    const bp = fsWrapper._bPlaceholder;
-                    if (vp && vp.parentNode) { vp.parentNode.insertBefore(video, vp); vp.remove(); }
-                    if (bp && bp.parentNode) { bp.parentNode.insertBefore(bar, bp); bp.remove(); }
-                    fsWrapper.remove();
-                    if (wasPlaying) video.play().catch(() => {});
-                  }
-                }
-              };
-              document.addEventListener('fullscreenchange', handleFsChange);
-              document.addEventListener('webkitfullscreenchange', handleFsChange);
-
-              const disableFullScreen = video.getAttribute('data-disable-fullscreen') === 'true';
-
-              bottomContainer.appendChild(playBtn);
-              bottomContainer.appendChild(progContainer);
-              bottomContainer.appendChild(timeWrapper);
-              bottomContainer.appendChild(repeatBtn);
-              if (!disableFullScreen) {
-                 bottomContainer.appendChild(fsBtn);
-              }
-
-              bar.appendChild(topContainer);
-              bar.appendChild(centerContainer);
-              bar.appendChild(bottomContainer);
-              mountPoint.appendChild(bar);
-
-              bar._cleanup = () => {
-                document.removeEventListener('fullscreenchange', handleFsChange);
-                document.removeEventListener('webkitfullscreenchange', handleFsChange);
-                if (ro) ro.disconnect();
-                video.removeEventListener('play', onPlay);
-                video.removeEventListener('pause', onPause);
-                video.removeEventListener('timeupdate', onTimeUpdate);
-                video.removeEventListener('loadedmetadata', onTimeUpdate);
-                video.removeEventListener('volumechange', updateVolumeIcon);
-                video.removeAttribute('data-custom-ctrl-active');
-                if (mountPoint.style && mountPoint._prevPointerEvents !== undefined) {
-                  mountPoint.style.pointerEvents = mountPoint._prevPointerEvents;
-                }
-              };
-            }
-          });
+            });
         };
 
         intervalId = setInterval(renderVideoControls, 200);
         return () => {
-          clearInterval(intervalId);
-          document.querySelectorAll('.custom-video-overlay').forEach(b => { if (b._cleanup) b._cleanup(); b.remove(); });
+            clearInterval(intervalId);
+            document.querySelectorAll('.custom-video-overlay').forEach(b => { if (b._cleanup) b._cleanup(); b.remove(); });
         };
     }, []);
 
@@ -4542,7 +4527,7 @@ const PreviewArea = React.memo(({
                 />
             )}
 
-            {showSharePopup && createPortal(
+            {showSharePopup && !isMobile && createPortal(
                 <ShareModal
                     isOpen={showSharePopup}
                     onClose={() => setShowSharePopup(false)}
@@ -4550,20 +4535,21 @@ const PreviewArea = React.memo(({
                     flipbookThumbnail={currentBook?.thumbnail}
                     currentBook={currentBook}
                     activeLayout={activeLayout}
+                    isMobileLayout={isMobile}
                 />,
-                document.body
+                document.fullscreenElement || document.getElementById('device-screen-container') || document.body
             )}
 
-            <Export
-                isOpen={showExportPopup}
-                onClose={() => setShowExportPopup(false)}
-                hideButton={true}
-                pages={pages}
-                bookName={bookName}
-                currentPage={currentPage}
-                isTablet={isTablet}
-                isMobile={isMobile}
-            />
+            {showExportPopup && createPortal(
+                <ExportModal
+                    isOpen={showExportPopup}
+                    onClose={() => setShowExportPopup(false)}
+                    currentBook={currentBook}
+                    pages={pages}
+                    currentPageIndex={currentPage - 1}
+                />,
+                document.fullscreenElement || document.getElementById('device-screen-container') || document.body
+            )}
 
 
             {/* Visual Countdown Overlay - Positioned after layouts to stay on top */}
@@ -4695,7 +4681,7 @@ const PreviewArea = React.memo(({
         else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
 
         return (
-            <div 
+            <div
                 className="absolute z-[20] pointer-events-none select-none"
                 style={{
                     opacity: (watermarkSettings.opacity ?? 64) / 100,
@@ -4716,16 +4702,15 @@ const PreviewArea = React.memo(({
                     })()
                 }}
             >
-                <img 
-                    src={watermarkSettings.src} 
-                    alt="Watermark" 
-                    className={`w-full h-auto ${
-                        watermarkSettings.type === 'Fill' 
-                            ? 'object-cover' 
-                            : watermarkSettings.type === 'Stretch' 
-                                ? 'object-fill' 
+                <img
+                    src={watermarkSettings.src}
+                    alt="Watermark"
+                    className={`w-full h-auto ${watermarkSettings.type === 'Fill'
+                            ? 'object-cover'
+                            : watermarkSettings.type === 'Stretch'
+                                ? 'object-fill'
                                 : 'object-contain'
-                    }`} 
+                        }`}
                     style={{ filter: filterStr }}
                 />
             </div>
@@ -4811,7 +4796,7 @@ const PreviewArea = React.memo(({
                                 <ellipse cx="500" cy="50" rx="490" ry="45" fill="url(#tablet-floor-shadow)" />
                             </svg>
                         )}
-                        <div ref={screenRef} style={getScreenWrapperStyle()} className="relative">
+                        <div ref={screenRef} id="device-screen-container" style={getScreenWrapperStyle()} className="relative">
 
                             {backgroundLayers}
                             {renderWatermark()}
@@ -4864,6 +4849,7 @@ const PreviewArea = React.memo(({
                                     isAutoFlipping={isAutoFlipping}
                                     setIsPlaying={setIsPlaying}
                                     currentZoom={currentZoom}
+                                    setCurrentZoom={setCurrentZoom}
                                     handleZoomIn={handleZoomIn}
                                     handleZoomOut={handleZoomOut}
                                     handleDownload={handleDownload}
@@ -4901,6 +4887,9 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     currentBook={currentBook}
                                     activeLayout={activeLayout}
+                                    searchQuery={searchQuery}
+                                    setSearchQuery={setSearchQuery}
+                                    handleQuickSearch={handleQuickSearch}
                                 >
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
@@ -5357,134 +5346,6 @@ const PreviewArea = React.memo(({
                                         />
                                     </Grid5Layout>
                                 )
-                            ) : (Number(activeLayout) === 6) ? (
-                                activeDevice === 'Tablet' ? (
-                                    <TabletLayout6 gallerySettings={otherSetupSettings?.gallery}
-                                    settings={settings}
-                                    bookName={bookName}
-                                    searchQuery={searchQuery}
-                                    setSearchQuery={setSearchQuery}
-                                    handleQuickSearch={handleQuickSearch}
-                                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                                    setShowTOCMemo={setShowTOCMemo}
-                                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                                    bookRef={bookRef}
-                                    pages={pages}
-                                    setIsPlaying={setIsPlaying}
-                                    isAutoFlipping={isAutoFlipping}
-                                    currentBook={currentBook}
-                                    handleDownload={handleDownload}
-                                    showSharePopup={showSharePopup}
-                                    setShowSharePopup={setShowSharePopup}
-                                    showExportPopup={showExportPopup}
-                                    setShowExportPopup={setShowExportPopup}
-                                    showGalleryPopup={showGalleryPopup}
-                                    handleFullScreen={handleFullScreen}
-                                    setShowProfilePopup={setShowProfilePopup}
-                                    showProfilePopup={showProfilePopup}
-                                    logoSettings={logoSettings}
-                                    currentPage={currentPage}
-                                    pagesCount={pages.length}
-                                    currentZoom={currentZoom}
-                                    setCurrentZoom={setCurrentZoom}
-                                    onPageClick={onPageClick}
-                                    bookmarks={layout6Bookmarks}
-                                    notes={layout6Notes}
-                                    onAddNote={onAddNote}
-                                    onDeleteBookmark={onDeleteBookmark}
-                                    onUpdateBookmark={onUpdateBookmark}
-                                    profileSettings={profileSettings}
-                                    isSidebarOpen={isSidebarOpen}
-                                    backgroundSettings={layoutBackgroundSettings}
-                                    backgroundStyle={layoutBackgroundStyle}
-                                    isMuted={isMuted}
-                                    onToggleAudio={handleToggleAudio}
-                                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={isSinglePage ? 0 : offset}
-                                    isFullscreen={isFullscreen}
-                                    isTablet={activeDevice === 'Tablet'}
-                                    isMobile={activeDevice === 'Mobile'}
-                                    isLandscape={isLandscape}
-                                    isMobileLandscape={isMobileLandscape}
-                                    activeLayout={activeLayout}
-                                    showSoundPopup={showSoundPopup}
-                                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                                    showTOC={showTOC}
-                                    showThumbnailBar={showThumbnailBar}
-                                    >
-                                        <TurnJsBookRenderer
-                                            {...bookRendererProps}
-                                            bookmarks={layout6Bookmarks}
-                                            bookmarkSpacing={5}
-                                        />
-                                    </TabletLayout6>
-                                ) : (
-                                    <Grid6Layout
-                                    settings={settings}
-                                    bookName={bookName}
-                                    searchQuery={searchQuery}
-                                    setSearchQuery={setSearchQuery}
-                                    handleQuickSearch={handleQuickSearch}
-                                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                                    setShowTOCMemo={setShowTOCMemo}
-                                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                                    bookRef={bookRef}
-                                    pages={pages}
-                                    setIsPlaying={setIsPlaying}
-                                    isAutoFlipping={isAutoFlipping}
-                                    handleShare={handleShare}
-                                    handleDownload={handleDownload}
-                                    showSharePopup={showSharePopup}
-                                    setShowSharePopup={setShowSharePopup}
-                                    showExportPopup={showExportPopup}
-                                    setShowExportPopup={setShowExportPopup}
-                                    showGalleryPopup={showGalleryPopup}
-                                    handleFullScreen={handleFullScreen}
-                                    setShowProfilePopup={setShowProfilePopup}
-                                    showProfilePopup={showProfilePopup}
-                                    logoSettings={logoSettings}
-                                    currentPage={currentPage}
-                                    pagesCount={pages.length}
-                                    currentZoom={currentZoom}
-                                    setCurrentZoom={setCurrentZoom}
-                                    onPageClick={onPageClick}
-                                    bookmarks={layout6Bookmarks}
-                                    notes={layout6Notes}
-                                    onAddNote={onAddNote}
-                                    onDeleteBookmark={onDeleteBookmark}
-                                    onUpdateBookmark={onUpdateBookmark}
-                                    profileSettings={profileSettings}
-                                    isSidebarOpen={isSidebarOpen}
-                                    backgroundSettings={layoutBackgroundSettings}
-                                    backgroundStyle={layoutBackgroundStyle}
-                                    isMuted={isMuted}
-                                    onToggleAudio={handleToggleAudio}
-                                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={isSinglePage ? 0 : offset}
-                                    isFullscreen={isFullscreen}
-                                    isTablet={activeDevice === 'Tablet'}
-                                    isMobile={activeDevice === 'Mobile'}
-                                    isLandscape={isLandscape}
-                                    isMobileLandscape={isMobileLandscape}
-                                    activeLayout={activeLayout}
-                                    showSoundPopup={showSoundPopup}
-                                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                                    showTOC={showTOC}
-                                    showThumbnailBar={showThumbnailBar}
-                                    >
-                                        <TurnJsBookRenderer
-                                            {...bookRendererProps}
-                                            bookmarks={layout6Bookmarks}
-                                            bookmarkSpacing={5}
-                                        />
-                                    </Grid6Layout>
-                                )
                             ) : (Number(activeLayout) === 7) ? (
                                 activeDevice === 'Tablet' ? (
                                     <TabletLayout7
@@ -5778,60 +5639,60 @@ const PreviewArea = React.memo(({
                                         settings={settings}
                                         bookName={bookName}
                                         searchQuery={searchQuery}
-                                    setSearchQuery={setSearchQuery}
-                                    handleQuickSearch={handleQuickSearch}
-                                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                                    setShowTOCMemo={setShowTOCMemo}
-                                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                                    bookRef={bookRef}
-                                    pages={pages}
-                                    setIsPlaying={setIsPlaying}
-                                    isAutoFlipping={isAutoFlipping}
-                                    handleShare={handleShare}
-                                    handleDownload={handleDownload}
-                                    handleFullScreen={handleFullScreen}
-                                    setShowProfilePopup={setShowProfilePopup}
-                                    showProfilePopup={showProfilePopup}
-                                    logoSettings={logoSettings}
-                                    currentPage={currentPage}
-                                    pagesCount={pages.length}
-                                    currentZoom={currentZoom}
-                                    setCurrentZoom={setCurrentZoom}
-                                    onPageClick={onPageClick}
-                                    bookmarks={layout9Bookmarks}
-                                    notes={layout9Notes}
-                                    onAddNote={onAddNote}
-                                    onDeleteBookmark={onDeleteBookmark}
-                                    onUpdateBookmark={onUpdateBookmark}
-                                    profileSettings={profileSettings}
-                                    isSidebarOpen={isSidebarOpen}
-                                    backgroundSettings={layoutBackgroundSettings}
-                                    backgroundStyle={layoutBackgroundStyle}
-                                    isMuted={isMuted}
-                                    onToggleAudio={handleToggleAudio}
-                                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={isSinglePage ? 0 : offset}
-                                    isFullscreen={isFullscreen}
-                                    isTablet={activeDevice === 'Tablet'}
-                                    isMobile={activeDevice === 'Mobile'}
-                                    isLandscape={isLandscape}
-                                    isMobileLandscape={isMobileLandscape}
-                                    activeLayout={activeLayout}
-                                    showSoundPopup={showSoundPopup}
-                                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                                    showTOC={showTOC}
-                                    showThumbnailBar={showThumbnailBar}
-                                    layoutColors={layoutColors}
-                                >
-                                    <TurnJsBookRenderer
-                                        {...bookRendererProps}
+                                        setSearchQuery={setSearchQuery}
+                                        handleQuickSearch={handleQuickSearch}
+                                        setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                                        setShowTOCMemo={setShowTOCMemo}
+                                        setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                                        setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                                        setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                                        setShowNotesViewerMemo={setShowNotesViewerMemo}
+                                        bookRef={bookRef}
+                                        pages={pages}
+                                        setIsPlaying={setIsPlaying}
+                                        isAutoFlipping={isAutoFlipping}
+                                        handleShare={handleShare}
+                                        handleDownload={handleDownload}
+                                        handleFullScreen={handleFullScreen}
+                                        setShowProfilePopup={setShowProfilePopup}
+                                        showProfilePopup={showProfilePopup}
+                                        logoSettings={logoSettings}
+                                        currentPage={currentPage}
+                                        pagesCount={pages.length}
+                                        currentZoom={currentZoom}
+                                        setCurrentZoom={setCurrentZoom}
+                                        onPageClick={onPageClick}
                                         bookmarks={layout9Bookmarks}
-                                        bookmarkSpacing={5}
-                                    />
-                                </Grid9Layout>
+                                        notes={layout9Notes}
+                                        onAddNote={onAddNote}
+                                        onDeleteBookmark={onDeleteBookmark}
+                                        onUpdateBookmark={onUpdateBookmark}
+                                        profileSettings={profileSettings}
+                                        isSidebarOpen={isSidebarOpen}
+                                        backgroundSettings={layoutBackgroundSettings}
+                                        backgroundStyle={layoutBackgroundStyle}
+                                        isMuted={isMuted}
+                                        onToggleAudio={handleToggleAudio}
+                                        setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                                        offset={isSinglePage ? 0 : offset}
+                                        isFullscreen={isFullscreen}
+                                        isTablet={activeDevice === 'Tablet'}
+                                        isMobile={activeDevice === 'Mobile'}
+                                        isLandscape={isLandscape}
+                                        isMobileLandscape={isMobileLandscape}
+                                        activeLayout={activeLayout}
+                                        showSoundPopup={showSoundPopup}
+                                        setShowSoundPopupMemo={setShowSoundPopupMemo}
+                                        showTOC={showTOC}
+                                        showThumbnailBar={showThumbnailBar}
+                                        layoutColors={layoutColors}
+                                    >
+                                        <TurnJsBookRenderer
+                                            {...bookRendererProps}
+                                            bookmarks={layout9Bookmarks}
+                                            bookmarkSpacing={5}
+                                        />
+                                    </Grid9Layout>
                                 )
                             ) : (
                                 <Grid1Layout
@@ -5934,14 +5795,14 @@ const PreviewArea = React.memo(({
                                         if (anim === 'Zoom In') return { scale: 0.5, opacity: 0 };
                                         return { opacity: 0 };
                                     })()}
-                                    transition={{ 
+                                    transition={{
                                         duration: (() => {
                                             const s = activePopupInteraction?.speed || 'Medium';
                                             if (s === 'Slow') return 0.6;
                                             if (s === 'Fast') return 0.15;
                                             return 0.3; // Medium
                                         })(),
-                                        ease: "easeOut" 
+                                        ease: "easeOut"
                                     }}
                                     className="relative pointer-events-auto flex items-center justify-center"
                                     style={{
@@ -5995,7 +5856,7 @@ const PreviewArea = React.memo(({
                                 >
                                     <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
                                 </button>
-                                
+
                                 <div className="relative w-full h-full max-w-[55vw] max-h-[75vh] bg-white rounded-2xl shadow-2xl border border-gray-100 p-[1vw] flex items-center justify-center overflow-hidden" style={{ perspective: '1200px' }} onClick={e => e.stopPropagation()}>
                                     <AnimatePresence mode="wait">
                                         <motion.img
@@ -6029,7 +5890,7 @@ const PreviewArea = React.memo(({
                                                 let dur = 0.5;
                                                 if (s === 'Slow') dur = 0.8;
                                                 if (s === 'Fast') dur = 0.3;
-                                                
+
                                                 if (activeSlideshowInteraction.effect === 'Spring Bounce') {
                                                     return { type: 'spring', bounce: 0.6, duration: dur * 1.5 };
                                                 }
@@ -6042,7 +5903,7 @@ const PreviewArea = React.memo(({
                                     {/* Arrows */}
                                     {activeSlideshowInteraction.images.length > 1 && (
                                         <>
-                                            <button 
+                                            <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setActiveSlideshowInteraction(prev => ({
@@ -6054,7 +5915,7 @@ const PreviewArea = React.memo(({
                                             >
                                                 <Icon icon="lucide:chevron-left" className="w-[1.2vw] h-[1.2vw] text-gray-800" />
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setActiveSlideshowInteraction(prev => ({

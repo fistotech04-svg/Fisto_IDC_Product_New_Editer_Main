@@ -1416,7 +1416,7 @@ const Sound = ({
             return isSidebarOpen ? `bottom-[4.2vw] left-[calc(50%_+_4.5vw)] -translate-x-1/2` : `bottom-[4.2vw] left-[calc(50%_+_14.5vw)] -translate-x-1/2`;
         }
         if (layout === 6) return isTablet ? 'top-[37vh] right-[80px] -translate-y-1/2' : 'top-[34vh] right-[4vw] -translate-y-1/2';
-        if (layout === 7) return 'top-[28vh] right-[4.7vw] -translate-y-1/2';
+        if (layout === 7) return 'top-[42%] left-[5.5vw] -translate-y-1/2';
         if (layout === 8) return isTablet ? 'bottom-[10.5vh] left-[calc(50%_+_96px)] -translate-x-1/2' : 'bottom-[10.5vh] left-[calc(50%_+_6.5vw)] -translate-x-1/2';
         const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons;
         if (layout === 9) return addTextBelowIcons ? 'top-[2.5vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2' : 'top-[2vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2';
@@ -1635,7 +1635,7 @@ const Sound = ({
             );
         }
 
-        if (isTablet && (layout == 1 || layout == 2 || layout == 3 || layout == 4)) {
+        if (isTablet && [1, 2, 3, 4, 5, 7, 8, 9].includes(layout)) {
             const anchor = document.getElementById('tablet-sound-portal');
             if (anchor) {
                 return ReactDOM.createPortal(

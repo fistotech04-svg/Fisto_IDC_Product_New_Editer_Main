@@ -320,7 +320,7 @@ const Grid2Layout = ({
     const [responsiveScale, setResponsiveScale] = useState(1);
 
     // --- Fullscreen toolbar hide/show (mirrors Grid1Layout) ---
-    const [isCanvasHovered, setIsCanvasHovered] = useState(true);
+    const isCanvasHovered = false; const setIsCanvasHovered = () => { };
     const savedZoomRef = React.useRef(null);
     const zoomTimerRef = React.useRef(null);
     const dimWidthRef = React.useRef(dimWidth);
@@ -566,21 +566,21 @@ const Grid2Layout = ({
                                 <div
                                     className={`flex items-center transition-all duration-300 border border-transparent ${isMobileLandscape ? 'w-[8.8vw] h-[1.5vw] px-[0.5vw] mt-[0.5vw]' : isTablet ? 'w-[10vw] px-[0.6vw] py-[0.25vw]' : isSidebarOpen ? 'w-[11.5vw] px-[0.8vw] py-[0.3vw]' : 'w-[15vw] px-[1vw] py-[0.35vw]'} group ${isMobileLandscape ? 'rounded-full' : isTablet ? 'rounded-[0.5vw]' : 'rounded-[0.7vw]'} relative z-20`}
                                     onClick={(e) => e.stopPropagation()}
-                                    style={{ backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF') }}
+                                    style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                                 >
                                     <style>{`
                                     #quick-search-v1-${activeLayout}::placeholder {
-                                        color: ${getLayoutColor('search-text-v1', '#575C9C')} !important;
-                                        opacity: 0.7;
+                                        color: ${getLayoutColor('toolbar-bg', '#575C9C')} !important;
+                                        opacity: 0.8;
                                     }
                                 `}</style>
                                     <Icon
                                         icon="lucide:search"
                                         className={`${isMobileLandscape ? 'w-[0.6vw] h-[0.6vw] shrink-0' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1.1vw] h-[1.1vw]'}`}
-                                        style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
+                                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C'), opacity: 0.8 }}
                                     />
                                     <input
-                                        type="text"
+                                        type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                         value={localSearchQuery}
                                         onChange={(e) => {
                                             const val = e.target.value;
@@ -630,7 +630,7 @@ const Grid2Layout = ({
                                         id={`quick-search-v1-${activeLayout}`}
                                         placeholder="Quick Search..."
                                         className={`bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ${isMobileLandscape ? 'text-[0.6vw] ml-[0.3vw] p-0' : isTablet ? 'text-[0.6vw] ml-[0.65vw]' : 'text-[0.85vw] ml-[0.65vw]'} w-full font-medium`}
-                                        style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
+                                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C'), fontFamily: textFont }}
                                     />
                                 </div>
 
@@ -641,24 +641,19 @@ const Grid2Layout = ({
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         <div
-                                            className={`${isMobileLandscape ? 'rounded-b-[0.8vw] px-[0.4vw] pb-[0.2vw] pt-[1.8vw]' : isTablet ? 'rounded-b-[0.8vw] px-[0.5vw] pb-[0.25vw] pt-[1.8vw]' : 'rounded-b-[1.3vw] px-[0.7vw] pb-[0.4vw] pt-[2.8vw]'} border border-white/20 relative overflow-hidden`}
-                                            style={{ background: `linear-gradient(to bottom, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.6) ${isMobileLandscape || isTablet ? '1.8vw' : '2.8vw'}, rgba(255,255,255,0.6) 100%)` }}
+                                            className={`${isMobileLandscape ? 'rounded-b-[0.8vw] px-[0.4vw] pb-[0.2vw] pt-[1.8vw]' : isTablet ? 'rounded-b-[0.8vw] px-[0.5vw] pb-[0.25vw] pt-[1.8vw]' : 'rounded-b-[1.3vw] px-[0.7vw] pb-[0.4vw] pt-[2.8vw]'} border border-transparent relative overflow-hidden`}
+                                            style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}
                                         >
-                                            {/* Blur layer - only for the results area, not the top bar touched area */}
-                                            <div
-                                                className="absolute inset-0 z-0 backdrop-blur-xl"
-                                                style={{ top: isMobileLandscape || isTablet ? '1.8vw' : '2.8vw' }}
-                                            />
                                             <div className={`relative z-10 ${isMobileLandscape ? 'rounded-[0.5vw]' : isTablet ? 'rounded-[0.6vw]' : 'rounded-[0.9vw]'} overflow-hidden`}>
                                                 <div
                                                     className={`${isMobileLandscape ? 'rounded-[0.5vw]' : isTablet ? 'rounded-[0.6vw]' : 'rounded-[0.9vw]'} overflow-hidden`}
-                                                    style={{ backgroundColor: getLayoutColor('dropdown-bg', '#3E4491') }}
+                                                    style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}
                                                 >
                                                     <div className={`flex flex-col ${isMobileLandscape ? 'py-[0.2vw]' : isTablet ? 'py-[0.25vw]' : 'py-[0.4vw]'}`}>
                                                         {recommendations.map((rec, idx) => (
                                                             <button
                                                                 key={`${rec.word}-${rec.pageNumber}-${idx}`}
-                                                                className={`flex items-center justify-between ${isMobileLandscape ? 'px-[0.6vw] py-[0.3vw]' : isTablet ? 'px-[0.6vw] py-[0.4vw]' : 'px-[1vw] py-[0.6vw]'} hover:bg-white/10 text-white transition-colors group`}
+                                                                className={`flex items-center justify-between ${isMobileLandscape ? 'px-[0.6vw] py-[0.3vw]' : isTablet ? 'px-[0.6vw] py-[0.4vw]' : 'px-[1vw] py-[0.6vw]'} hover:opacity-70 transition-opacity group`}
                                                                 onClick={() => {
                                                                     onPageClick(rec.pageNumber - 1);
                                                                     const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
@@ -690,7 +685,7 @@ const Grid2Layout = ({
                     </div>
 
                     {/* Center Area: One Long Cluster of Icons (Grouped) */}
-                    <div className={`${isMobileLandscape ? 'flex flex-1 justify-end pr-[2vw]' : isTablet ? 'flex flex-1 justify-center pr-[9vw]' : 'flex flex-1 justify-center pr-[9vw]'} items-center ${isMobileLandscape ? 'gap-[1vw]' : isTablet ? 'gap-[0.8vw]' : 'gap-[1.2vw]'}`}>
+                    <div className={`${isMobileLandscape ? 'flex flex-1 justify-end pr-[2vw]' : isTablet ? 'flex flex-1 justify-center pr-[12vw]' : 'flex flex-1 justify-center pr-[13vw]'} items-center ${isMobileLandscape ? 'gap-[1vw]' : isTablet ? 'gap-[0.8vw]' : 'gap-[1.2vw]'}`}>
                         {/* Tools Group - 5 Icons */}
                         <div className="contents">
                             {(settings?.navigation?.tableOfContents ?? true) && renderToolbarBtn(
@@ -893,7 +888,7 @@ const Grid2Layout = ({
                                 style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                             >Page </span>
                             <input
-                                type="text"
+                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 value={pageInputValue}
                                 onChange={(e) => {
                                     const val = e.target.value;
@@ -960,9 +955,7 @@ const Grid2Layout = ({
                             className={`${isMobileLandscape ? 'text-[0.65vw]' : isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-bold tracking-tight truncate max-w-[15vw]`}
                             style={{ color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }}
                             title={bookName}
-                        >
-                            {bookName}
-                        </span>
+                        >{/* {bookName} */}</span>
                     </div>
                     {/* Continuous Line of Pagination Dots */}
                     <div className={`absolute left-1/2 -translate-x-1/2 flex items-center justify-center ${isMobileLandscape ? 'gap-[0.3vw]' : 'gap-[0.5vw]'} ${isTablet ? 'h-[1.2vw]' : isMobileLandscape ? 'h-[1vw]' : 'h-[2vw]'}`}>
@@ -1136,7 +1129,7 @@ const Grid2Layout = ({
                                     width: '100%',
                                     height: '100%',
                                     borderRadius: '50%',
-                                    border: `14.5vh solid rgba(87, 92, 156, 0.05)`,
+                                    border: `14.5vh solid ${getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.05')}`,
                                     boxSizing: 'border-box',
                                     filter: 'blur(4px)',
                                     pointerEvents: 'none',
@@ -1146,11 +1139,11 @@ const Grid2Layout = ({
                                         <radialGradient id="ringFillGradient" cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
                                             <stop offset="0%" stopColor="white" stopOpacity="0" />
                                             <stop offset="56%" stopColor="white" stopOpacity="0" />
-                                            <stop offset="60%" stopColor="#575C9C" stopOpacity="0.05" />
-                                            <stop offset="70%" stopColor="#575C9C" stopOpacity="0.02" />
-                                            <stop offset="94%" stopColor="#575C9C" stopOpacity="0.02" />
-                                            <stop offset="98%" stopColor="#575C9C" stopOpacity="0.05" />
-                                            <stop offset="100%" stopColor="#575C9C" stopOpacity="0.05" />
+                                            <stop offset="60%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
+                                            <stop offset="70%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.02" />
+                                            <stop offset="94%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.02" />
+                                            <stop offset="98%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
+                                            <stop offset="100%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
                                         </radialGradient>
                                     </defs>
                                     <path

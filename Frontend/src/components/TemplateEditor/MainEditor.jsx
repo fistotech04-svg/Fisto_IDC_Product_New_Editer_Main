@@ -2760,6 +2760,7 @@ const MainEditor = ({
       // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
       g.setAttribute('transform', `translate(${centerX - 12}, ${centerY - 12}) scale(0.5)`);
       g.setAttribute('data-is-hotspot', 'true');
+      g.setAttribute('data-show-highlight', 'false');
       
       const currentPresetId = e.detail.presetId || (icon && icon.presetId);
       if (currentPresetId) {
@@ -2793,8 +2794,12 @@ const MainEditor = ({
         }
       }
 
-      if (icon?.html) g.innerHTML = icon.html;
-      else if (icon?.d) {
+      if (icon?.bgColor) g.setAttribute('data-bg-color', icon.bgColor);
+      if (icon?.iconColor) g.setAttribute('data-icon-color', icon.iconColor);
+
+      if (icon?.html) {
+        g.innerHTML = icon.html;
+      } else if (icon?.d) {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', icon.d);
         g.appendChild(path);
@@ -3052,7 +3057,11 @@ const MainEditor = ({
         g.innerHTML = html;
       }
       if (presetId) g.setAttribute('data-preset-id', presetId);
-      if (iconSrc) g.setAttribute('data-hotspot-icon-src', iconSrc);
+      if (iconSrc) {
+        g.setAttribute('data-hotspot-icon-src', iconSrc);
+      } else {
+        g.removeAttribute('data-hotspot-icon-src');
+      }
       if (bgColor) g.setAttribute('data-bg-color', bgColor);
       if (iconColor) g.setAttribute('data-icon-color', iconColor);
 
@@ -7633,7 +7642,11 @@ const MainEditor = ({
 
             // Define anchor point in local space (opposite point)
             let localAnchor;
-            if (dir === 'se') localAnchor = { x: bbox.x, y: bbox.y };
+            const isInteractiveBtn = el.getAttribute('data-is-hotspot') === 'true' && el.querySelector('rect') && (el.querySelector('text') || el.querySelector('[data-type="text"]'));
+            
+            if (isInteractiveBtn && ['e', 'w', 'n', 's'].includes(dir)) {
+              localAnchor = { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
+            } else if (dir === 'se') localAnchor = { x: bbox.x, y: bbox.y };
             else if (dir === 'sw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y };
             else if (dir === 'ne') localAnchor = { x: bbox.x, y: bbox.y + bbox.height };
             else if (dir === 'nw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height };
@@ -7898,6 +7911,49 @@ const MainEditor = ({
             const isInteractiveButton = isHotspot && state.childrenData && state.childrenData.some(c => c.child.tagName.toLowerCase() === 'rect') && state.childrenData.some(c => c.child.tagName.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
             const isHotspotPreset = isHotspot && !isInteractiveButton;
 
+            const isInteractiveUniform = isInteractiveButton && (dir === 'n' || dir === 's');
+
+            let originalDroppedWidth;
+            let originalDroppedHeight;
+            if (isInteractiveButton) {
+              originalDroppedWidth = el.getAttribute('data-dropped-width');
+              if (!originalDroppedWidth) {
+                let textWidth = 40;
+                try {
+                  const textEl = el.querySelector('text');
+                  if (textEl) textWidth = textEl.getBBox().width;
+                } catch(e) {}
+                originalDroppedWidth = Math.max(textWidth + 30, 80);
+                el.setAttribute('data-dropped-width', originalDroppedWidth);
+              } else {
+                originalDroppedWidth = parseFloat(originalDroppedWidth);
+              }
+
+              originalDroppedHeight = el.getAttribute('data-dropped-height');
+              if (!originalDroppedHeight) {
+                originalDroppedHeight = 32;
+                el.setAttribute('data-dropped-height', originalDroppedHeight);
+              } else {
+                originalDroppedHeight = parseFloat(originalDroppedHeight);
+              }
+            }
+
+            if (isInteractiveButton && (dir === 'e' || dir === 'w')) {
+              const startA = matrix.a || 1;
+              const minScale = 0.5 / Math.abs(startA);
+              if (scaleX < minScale) {
+                scaleX = minScale;
+              }
+            }
+
+            if (isInteractiveUniform) {
+              const startD = matrix.d || 1;
+              const minScale = 0.5 / Math.abs(startD);
+              if (scaleY < minScale) {
+                scaleY = minScale;
+              }
+            }
+
             if (event.shiftKey) {
               let targetRatio = null;
               if (el.hasAttribute('data-original-aspect-ratio') && !isElementInCropMode) {
@@ -7941,9 +7997,9 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isScaledImage || isShape || isHotspotPreset || isFreeFrame || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || isHotspotPreset))) {
+            } else if ((isCorner && (isScaledImage || isShape || isHotspotPreset || isFreeFrame || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || isHotspotPreset || isInteractiveUniform))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-              if (!isCorner && ((isText && !isForeignObject) || isHotspotPreset)) {
+              if (!isCorner && ((isText && !isForeignObject) || isHotspotPreset || isInteractiveUniform)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
                 scaleX = sSide;
                 scaleY = sSide;
@@ -8252,19 +8308,9 @@ const MainEditor = ({
 
                     if (isHotspot && isInteractiveButton && (dir === 'e' || dir === 'w')) {
                       myAnchorX = bound.x + bound.width / 2; // Anchor at the center
-                      let newMyScaleX = 1 + 2 * (scaleX - 1);
-                      if (newMyScaleX < 1) newMyScaleX = 1;
-                      if (bound.width * newMyScaleX < 180) newMyScaleX = 180 / bound.width;
-                      myScaleX = newMyScaleX;
-                    }
-
-                    if (isHotspot && isInteractiveButton && (dir === 'n' || dir === 's')) {
-                      myAnchorX = bound.x + bound.width / 2; // Anchor center X
-                      myAnchorY = bound.y + bound.height / 2; // Anchor center Y
-                      let newMyScale = 1 + 2 * (scaleY - 1);
-                      if (newMyScale < 1) newMyScale = 1;
-                      if (bound.height * newMyScale < 60) newMyScale = 60 / bound.height;
-                      myScaleY = newMyScale;
+                      if (tag !== 'rect') {
+                        myScaleX = 1; // Do not scale text/icons horizontally
+                      }
                     }
 
                     // Scale bound in <g> local space from localAnchor

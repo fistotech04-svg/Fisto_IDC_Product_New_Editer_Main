@@ -244,7 +244,7 @@ const TabletLayout5 = ({
                                 style={{ color: getLayoutColor('search-text-v1', '#9BA0C9') }}
                             />
                             <input
-                                type="text"
+                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 value={localSearchQuery}
                                 onChange={(e) => {
                                     const val = e.target.value;
@@ -342,7 +342,7 @@ const TabletLayout5 = ({
                         className="text-[2.2cqw] font-bold truncate drop-shadow-sm"
                         style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                     >
-                        {bookName || 'Flipbook'}
+                        {/* bookName hidden */}
                     </span>
                 </div>
 
@@ -418,7 +418,7 @@ const TabletLayout5 = ({
                             <span className="text-[1.6cqw] font-bold whitespace-nowrap flex items-center" style={{ color: iconColor }}>
                                 Page: 
                                 <input 
-                                    type="text"
+                                    type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                     value={inputPage}
                                     onChange={(e) => setInputPage(e.target.value)}
                                     onBlur={() => {

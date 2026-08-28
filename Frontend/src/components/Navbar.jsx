@@ -454,6 +454,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
         flipbookUrl={currentBook?.shareUrl}
         flipbookThumbnail={currentBook?.thumbnail}
         currentBook={currentBook}
+        isMobileLayout={activeDevice === 'Mobile'}
       />
     </>
   );
