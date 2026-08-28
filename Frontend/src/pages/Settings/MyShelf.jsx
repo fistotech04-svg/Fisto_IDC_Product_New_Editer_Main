@@ -251,22 +251,23 @@ const MyShelf = () => {
         const myFlipbooksFolderDesign = newFolders.find(f => f.name === 'My Flipbooks')?.shelf_design || 1;
         setActiveShelfStyle(`customize${myFlipbooksFolderDesign}`);
 
-        // Auto-sync migration for missing legacy books
+        // Auto-sync migration for missing legacy books or removed books
         if (actualMyShelf && actualMyShelf.folders) {
-          const myFlipbooksFolder = newFolders.find(f => f.name === 'My Flipbooks');
-          const dbMyFlipbooks = actualMyShelf.folders.find(f => f.folderName === 'My Flipbooks' || f.folderName === 'My_Flipbooks');
-          const dbBookCount = dbMyFlipbooks && dbMyFlipbooks.books ? dbMyFlipbooks.books.length : 0;
-
-          if (myFlipbooksFolder && myFlipbooksFolder.books.length > dbBookCount) {
-            try {
-              const bookIds = myFlipbooksFolder.books.map(b => b.v_id);
-              axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
-                emailId: currentUserEmail,
-                folderName: 'My Flipbooks',
-                bookIds
-              }).catch(e => console.warn("Auto-sync warning:", e));
-            } catch (e) { }
-          }
+          newFolders.forEach(folder => {
+            const dbFolder = actualMyShelf.folders.find(f => f.folderName === folder.name || (folder.name === 'My Flipbooks' && f.folderName === 'My_Flipbooks'));
+            const dbBookCount = dbFolder && dbFolder.books ? dbFolder.books.length : 0;
+            
+            if (folder.books.length !== dbBookCount) {
+              try {
+                const bookIds = folder.books.map(b => b.v_id);
+                axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
+                  emailId: currentUserEmail,
+                  folderName: folder.name,
+                  bookIds
+                }).catch(e => console.warn("Auto-sync warning:", e));
+              } catch (e) { }
+            }
+          });
         }
       } catch (err) {
         console.error("Error fetching my shelf books:", err);
@@ -882,7 +883,7 @@ const MyShelf = () => {
 
                                 {/* Dropdown Menu */}
                                 {openMenuId === `${i}-${bIdx}` && (
-                                  <div className="absolute top-[2%] -right-2 bg-white rounded-md shadow-xl border border-gray-100 py-1 w-28 z-50">
+                                  <div className="absolute top-[2%] -right-2 bg-white rounded-lg shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-2 w-32 z-50 overflow-hidden">
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -893,7 +894,7 @@ const MyShelf = () => {
                                         }
                                         setOpenMenuId(null);
                                       }}
-                                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                                      className="w-full text-left px-4 py-2 text-[13px] font-medium text-gray-600 hover:text-black hover:bg-gray-50 transition-colors"
                                     >
                                       Open Book
                                     </button>
@@ -905,7 +906,7 @@ const MyShelf = () => {
                                         setShowMoveModal(true);
                                         setOpenMenuId(null);
                                       }}
-                                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                                      className="w-full text-left px-4 py-2 text-[13px] font-medium text-gray-600 hover:text-black hover:bg-gray-50 transition-colors"
                                     >
                                       Move Folder
                                     </button>
@@ -915,9 +916,9 @@ const MyShelf = () => {
                                         handleRemoveBook(book.v_id);
                                         setOpenMenuId(null);
                                       }}
-                                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                                      className="w-full text-left px-4 py-2 text-[13px] font-medium text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                                     >
-                                      Delete
+                                      Remove Book
                                     </button>
                                   </div>
                                 )}
@@ -961,7 +962,7 @@ const MyShelf = () => {
                       </button>
 
                       {openMenuId === book.v_id && (
-                        <div className="absolute top-10 right-3 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-36 z-40">
+                        <div className="absolute top-10 right-3 bg-white rounded-lg shadow-xl border border-gray-100 py-2 w-36 z-40 overflow-hidden">
                           <button
                             onClick={() => {
                               const targetShareId = book.shareId || book.v_id;
@@ -971,7 +972,7 @@ const MyShelf = () => {
                               }
                               setOpenMenuId(null);
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                            className="w-full text-left px-4 py-2 text-[13px] font-medium text-gray-600 hover:text-black hover:bg-gray-50 flex items-center gap-2 transition-colors"
                           >
                             <Icon icon="mdi:book-open-outline" className="w-4 h-4 text-gray-400" />
                             Open Book
@@ -984,7 +985,7 @@ const MyShelf = () => {
                               setShowMoveModal(true);
                               setOpenMenuId(null);
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                            className="w-full text-left px-4 py-2 text-[13px] font-medium text-gray-600 hover:text-black hover:bg-gray-50 flex items-center gap-2 transition-colors"
                           >
                             <Icon icon="mdi:folder-move-outline" className="w-4 h-4 text-gray-400" />
                             Move Folder
@@ -995,10 +996,10 @@ const MyShelf = () => {
                               handleRemoveBook(book.v_id);
                               setOpenMenuId(null);
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                            className="w-full text-left px-4 py-2 text-[13px] font-medium text-red-500 hover:text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
                           >
                             <Icon icon="mdi:trash-can-outline" className="w-4 h-4 text-red-400" />
-                            Delete
+                            Remove Book
                           </button>
                         </div>
                       )}
