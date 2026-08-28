@@ -188,10 +188,9 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
           const parser = new DOMParser();
           const doc = parser.parseFromString(`<svg>${innerHTML}</svg>`, 'image/svg+xml');
           const svg = doc.querySelector('svg');
-          // Find the static outer circle. Built-in presets use a 52x52 rect with rx=26 and fill-opacity.
-          const outerCircle = svg.querySelector('rect[width="52"], rect[rx="26"], rect[fill-opacity], circle[r="26"]');
-          if (outerCircle) {
-             outerCircle.remove();
+          const outerCircles = svg.querySelectorAll('rect[width="52"], rect[rx="26"], rect[fill-opacity], circle[r="26"]');
+          if (outerCircles.length > 0) {
+             outerCircles.forEach(el => el.remove());
              innerHTML = svg.innerHTML;
           }
         }
@@ -552,9 +551,46 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
         styles.push({ id: 'default', src: initialData.src });
       }
       
-      const lookupKey = (initialData.preset && getIconsForAction(initialData.preset).length > 0) 
+      let lookupKey = (initialData.preset && getIconsForAction(initialData.preset).length > 0) 
         ? initialData.preset 
         : initialData.actionId;
+
+      // Smartly infer the folder from the current src so that if an 'Open Link' hotspot 
+      // uses an 'Instagram' icon, we show Instagram styles instead of Link styles.
+      if (initialData.src && typeof initialData.src === 'string') {
+        const srcLower = initialData.src.toLowerCase();
+        
+        const fileToActionMap = {
+            'whatsapp': 'whatsapp',
+            'openlink': 'open-link',
+            '/open link/': 'open-link',
+            'video': 'video',
+            'vedio': 'video',
+            'instagram': 'instagram',
+            'facebook': 'facebook',
+            'linkedin': 'linkedin',
+            'x.svg': 'x',
+            '/x/': 'x',
+            'youtube': 'youtube',
+            'yotube': 'youtube',
+            'popup': 'popup',
+            'slideshow': 'slideshow',
+            '3d.svg': '3d-viewer',
+            '/3d viewer/': '3d-viewer',
+            'email': 'email',
+            'call': 'call',
+            'location': 'location',
+            'navigation': 'navigate-to',
+            '/navigation page/': 'navigate-to'
+        };
+
+        for (const [key, action] of Object.entries(fileToActionMap)) {
+            if (srcLower.includes(key)) {
+                lookupKey = action;
+                break;
+            }
+        }
+      }
         
       if (lookupKey) {
         const actionIcons = getIconsForAction(lookupKey);
@@ -670,8 +706,9 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
               <div className="flex-1 flex items-center justify-center bg-white py-[1vh] px-[2vw]">
                 <div className="relative w-[10vw] h-[10vw] flex items-center justify-center">
                   <svg 
-                    viewBox={isButtonMode ? `0 0 ${btnWidth} ${btnHeight}` : "0 0 48 48"}
-                    className={isButtonMode ? "w-full max-h-[8vw] transition-all duration-300 overflow-visible" : "w-[100%] h-[100%] transition-all duration-300 overflow-visible"}
+                    viewBox={isButtonMode ? `0 0 ${btnWidth} ${btnHeight}` : "-12 -12 72 72"}
+                    className={isButtonMode ? "w-full max-h-[8vw] transition-all duration-300 overflow-visible" : "w-[150%] h-[150%] max-w-none transition-all duration-300 overflow-visible"}
+                    style={{ overflow: 'visible' }}
                     dangerouslySetInnerHTML={{ __html: isButtonMode ? generateButtonSVG(btnLabel, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), btnHasIcon, btnIconColor, btnIconPlacement, btnWidth, btnHeight, btnRx, btnFontSize, btnIconSrc) : generateHotspotSVG(selectedPreset, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), getCurrentIconSrc(), getRecoloredSvg(), 'preview') }}
                   />
                 </div>
@@ -700,9 +737,18 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                       <button
                         key={p.id}
                         onClick={() => setSelectedPreset(p.id)}
-                        className={`w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-[0.3vw] border transition-all ${selectedPreset === p.id ? 'border-gray-800 shadow-sm bg-gray-50' : 'border-transparent hover:bg-gray-50'}`}
+                        className={`w-[2.5vw] h-[2.5vw] rounded-[0.4vw] flex items-center justify-center transition-all overflow-visible ${
+                          selectedPreset === p.id 
+                            ? 'border border-gray-300 shadow-sm' 
+                            : 'border border-transparent hover:bg-gray-50'
+                        }`}
                       >
-                        <svg viewBox="0 0 48 48" className="w-[1.4vw] h-[1.4vw] overflow-visible" dangerouslySetInnerHTML={{ __html: generateHotspotSVG(p.id, bgColor, '#FFFFFF', '', getRecoloredSvg(bgColor, '#FFFFFF'), `btn-${p.id}`) }} />
+                        <svg 
+                          viewBox="-12 -12 72 72" 
+                          className="w-[150%] h-[150%] max-w-none overflow-visible pointer-events-none"
+                          style={{ overflow: 'visible' }}
+                          dangerouslySetInnerHTML={{ __html: generateHotspotSVG(p.id, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), null, getRecoloredSvg(), p.id) }}
+                        />
                       </button>
                     ))}
                   </div>
