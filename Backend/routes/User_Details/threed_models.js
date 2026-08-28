@@ -162,7 +162,7 @@ router.post("/upload-model", (req, res) => {
 // @access  Public
 router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
   try {
-    const { uploadId, chunkIndex, totalChunks, fileName, emailId } = req.body;
+    const { uploadId, chunkIndex, totalChunks, fileName, emailId, modelId } = req.body;
 
     if (!uploadId || !emailId || !fileName) {
       return res.status(400).json({ message: "Missing required chunk metadata" });
@@ -215,7 +215,14 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
              const supabaseUrl = await uploadFileToSupabase(finalPath, destinationPath);
              const modelUrl = supabaseUrl || `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`;
 
-             const existing = await ThreedModel.findOne({ userEmail: emailId, name: fileName });
+             let existing = null;
+             if (modelId) {
+               existing = await ThreedModel.findOne({ modelId, userEmail: emailId });
+             }
+             if (!existing) {
+               existing = await ThreedModel.findOne({ userEmail: emailId, name: fileName });
+             }
+
              if (!existing) {
                  const newModel = new ThreedModel({
                      userEmail: emailId,
@@ -227,10 +234,13 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
                  await newModel.save();
                  return newModel;
              } else {
+                 existing.name = fileName;
                  existing.url = modelUrl;
+                 existing.type = type;
+                 existing.size = sizeStr;
                  await existing.save();
+                 return existing;
              }
-             return existing;
         };
 
         saveToDb().then(model => {

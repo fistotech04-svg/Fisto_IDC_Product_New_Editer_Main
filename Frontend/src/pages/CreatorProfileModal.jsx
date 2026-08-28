@@ -537,7 +537,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
             {isOpen && (
                 <div className={
                     isPreview
-                        ? "absolute inset-0 z-[160] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pt-[3%] pb-[3%] px-[3%]"
+                        ? "absolute inset-0 z-[2000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pt-[3%] pb-[3%] px-[3%]"
                         : "fixed top-[8vh] inset-x-0 bottom-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pb-[2vw]"
                 }>
                     <motion.div

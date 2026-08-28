@@ -290,9 +290,9 @@ const MobileLayout1 = (props) => {
         return {
             '--toolbar-bg-rgb': activeLayout?.toolbarBgRgb || '87, 92, 156',
             '--toolbar-bg-opacity': activeLayout?.toolbarBgOpacity || '1',
-            '--toolbar-text': activeLayout?.toolbarText || '#575C9C',
-            '--toolbar-icon': activeLayout?.toolbarIcon || '#575C9C',
-            '--toolbar-icon-hover': activeLayout?.toolbarIconHover || '#2D3270',
+            '--toolbar-text': activeLayout?.toolbarText || '#FFFFFF',
+            '--toolbar-icon': activeLayout?.toolbarIcon || '#FFFFFF',
+            '--toolbar-icon-hover': activeLayout?.toolbarIconHover || '#E2E8F0',
             '--toolbar-search-bg': activeLayout?.toolbarSearchBg || '#D7D8E8',
             '--toolbar-search-text': activeLayout?.toolbarSearchText || '#575C9C',
             '--toolbar-search-placeholder': activeLayout?.toolbarSearchPlaceholder || '#575C9C',
@@ -537,11 +537,11 @@ const MobileLayout1 = (props) => {
     const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: "transparent" }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: getLayoutColor('page-bg', '#DADBE8') }}>
             {/* Notch Spacer - fills the area near the hardware notch with a status bar color */}
             {!isPhysicalMobile && <div className="h-10 w-full shrink-0 z-50 bg-[#0B0F4E]" />}
             {/* Search Area */}
-            <div className="flex flex-col z-50 pt-0" style={{ backgroundColor: "transparent" }}>
+            <div className="flex flex-col z-50 pt-0" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}>
                 {/* Row 1: Book Name & Logo (Only when search is visible) */}
                 {settings?.interaction?.search !== false && !isPdfProject && (
                     <div className="flex items-center justify-between px-6 pt-6 pb-1">
@@ -713,7 +713,7 @@ const MobileLayout1 = (props) => {
             </div>
 
             {/* Footer Navigation */}
-            <footer className="z-[60] flex flex-col pt-8 pb-10 relative mb-[-20px]" style={{ backgroundColor: "transparent" }}>
+            <footer className="z-[60] flex flex-col pt-8 pb-10 relative mb-[-20px]" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}>
                 <div className="flex items-center justify-center gap-6 mb-3" style={{ color: getLayoutColor('toolbar-icon', '#575C9C') }}>
                     <button onClick={() => { closeAllPopups(); onPageClick(0); }} className="active:scale-90 transition-transform">
                         <Icon icon="ph:skip-back-bold" className="w-4 h-4" />

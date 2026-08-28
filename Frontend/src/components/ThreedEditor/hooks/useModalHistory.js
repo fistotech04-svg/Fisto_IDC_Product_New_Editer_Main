@@ -3,51 +3,63 @@ import { useState, useCallback, useRef } from 'react';
 export default function useModalHistory(initialState) {
     const [index, setIndex] = useState(0);
     const [history, setHistory] = useState([initialState]);
+    
+    const historyRef = useRef([initialState]);
+    const indexRef = useRef(0);
 
     const setState = useCallback((newState) => {
-        setHistory((prev) => {
-            const currentHistory = prev.slice(0, index + 1);
-            return [...currentHistory, newState];
-        });
-        setIndex((prev) => prev + 1);
-    }, [index]);
+        const curIndex = indexRef.current;
+        const curHistory = historyRef.current;
+        const nextHistory = [...curHistory.slice(0, curIndex + 1), newState];
+        const nextIndex = nextHistory.length - 1;
+
+        historyRef.current = nextHistory;
+        indexRef.current = nextIndex;
+
+        setHistory(nextHistory);
+        setIndex(nextIndex);
+    }, []);
 
     const undo = useCallback(() => {
-        if (index > 0) {
-            setIndex((prev) => prev - 1);
-            return history[index - 1]; // Return the state to restore
+        const curIndex = indexRef.current;
+        const curHistory = historyRef.current;
+        if (curIndex > 0) {
+            const prevIndex = curIndex - 1;
+            indexRef.current = prevIndex;
+            setIndex(prevIndex);
+            return curHistory[prevIndex];
         }
-        return null; // Nothing to undo
-    }, [index, history]);
+        return null;
+    }, []);
 
     const redo = useCallback(() => {
-        if (index < history.length - 1) {
-            setIndex((prev) => prev + 1);
-            return history[index + 1]; // Return the state to restore
+        const curIndex = indexRef.current;
+        const curHistory = historyRef.current;
+        if (curIndex < curHistory.length - 1) {
+            const nextIndex = curIndex + 1;
+            indexRef.current = nextIndex;
+            setIndex(nextIndex);
+            return curHistory[nextIndex];
         }
-        return null; // Nothing to redo
-    }, [index, history]);
+        return null;
+    }, []);
 
-    // Retrieve current state from history
-    const currentState = history[index];
-
-    const canUndo = index > 0;
-    const canRedo = index < history.length - 1;
-
-    // Reset history (e.g., when loading a new model)
     const resetHistory = useCallback((newState) => {
+        historyRef.current = [newState];
+        indexRef.current = 0;
         setHistory([newState]);
         setIndex(0);
     }, []);
 
-    // Update current state in history (useful for async updates like model loading)
     const update = useCallback((newState) => {
-        setHistory((prev) => {
-            const next = [...prev];
-            next[index] = newState;
-            return next;
-        });
-    }, [index]);
+        const curIndex = indexRef.current;
+        const curHistory = [...historyRef.current];
+        curHistory[curIndex] = newState;
+        historyRef.current = curHistory;
+        setHistory(curHistory);
+    }, []);
+
+    const currentState = history[index] || historyRef.current[indexRef.current];
 
     return {
         state: currentState,
@@ -57,8 +69,8 @@ export default function useModalHistory(initialState) {
         update,
         undo,
         redo,
-        canUndo,
-        canRedo,
+        canUndo: index > 0,
+        canRedo: index < history.length - 1,
         resetHistory
     };
 }

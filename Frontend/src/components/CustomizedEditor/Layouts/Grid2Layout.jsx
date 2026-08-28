@@ -685,7 +685,7 @@ const Grid2Layout = ({
                     </div>
 
                     {/* Center Area: One Long Cluster of Icons (Grouped) */}
-                    <div className={`${isMobileLandscape ? 'flex flex-1 justify-end pr-[2vw]' : isTablet ? 'flex flex-1 justify-center pr-[12vw]' : 'flex flex-1 justify-center pr-[13vw]'} items-center ${isMobileLandscape ? 'gap-[1vw]' : isTablet ? 'gap-[0.8vw]' : 'gap-[1.2vw]'}`}>
+                    <div className={`${isMobileLandscape ? 'flex flex-1 justify-end pr-[2vw]' : isTablet ? `flex flex-1 justify-center ${isPdfProject ? 'pr-0' : 'pr-[12vw]'}` : `flex flex-1 justify-center ${isPdfProject ? 'pr-0' : 'pr-[13vw]'}`} items-center ${isMobileLandscape ? 'gap-[1vw]' : isTablet ? 'gap-[0.8vw]' : 'gap-[1.2vw]'}`}>
                         {/* Tools Group - 5 Icons */}
                         <div className="contents">
                             {(settings?.navigation?.tableOfContents ?? true) && renderToolbarBtn(
