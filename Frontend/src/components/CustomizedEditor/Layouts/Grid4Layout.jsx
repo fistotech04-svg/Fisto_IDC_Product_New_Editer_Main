@@ -342,7 +342,7 @@ const Grid4Layout = ({
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
     const [tocSearchQuery, setTocSearchQuery] = useState('');
     const isFullscreen = isFullscreenProp || false;
-    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
+    const isCanvasHovered = false; const setIsCanvasHovered = () => {};
     const [sidebarMousePos, setSidebarMousePos] = useState(null);
     const isBigBars = !isEditor || (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement);
     const scrollRef = useRef(null);
@@ -519,7 +519,7 @@ const Grid4Layout = ({
                 </div>
 
                 <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none ${isMobileLandscape ? 'mt-[1.5vh]' : ''}`}>
-                    <span className={`${isMobileLandscape ? 'text-[2.2vw]' : 'text-[1.25vw]'} font-medium tracking-tight whitespace-nowrap`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>{bookName}</span>
+                    <span className={`${isMobileLandscape ? 'text-[2.2vw]' : 'text-[1.25vw]'} font-medium tracking-tight whitespace-nowrap`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>{/* {bookName} */}</span>
                 </div>
 
                 {/* Search Wrapper */}

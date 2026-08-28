@@ -444,7 +444,7 @@ const MobileLayout9 = ({
                         <div className="bg-white/10 rounded px-1.5 py-0.5 flex items-center gap-1 backdrop-blur-sm border border-white/10">
                             <Icon icon="lucide:search" className="text-white/60 w-2.5 h-2.5" />
                             <input
-                                type="text"
+                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 placeholder="Quick Search..."
                                 className="bg-transparent text-white placeholder-white/40 text-[7px] outline-none w-full font-medium"
                                 value={localSearchQuery}
@@ -517,7 +517,7 @@ const MobileLayout9 = ({
                         </AnimatePresence>
                     </div>
                     <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none w-full max-w-[30%]">
-                        <span className="text-white text-[8px] font-bold opacity-90 truncate block">{bookName}</span>
+                        <span className="text-white text-[8px] font-bold opacity-90 truncate block">{/* {bookName} */}</span>
                     </div>
                     <div className="flex-1 flex justify-end" />
                 </header>
@@ -652,7 +652,7 @@ const MobileLayout9 = ({
                     >
                         <Icon icon="ph:magnifying-glass-bold" className="text-[#575C9C] w-4 h-4 opacity-70" />
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
                             className="bg-transparent text-[#575C9C] placeholder-[#575C9C]/60 text-[12px] outline-none w-full font-semibold"
                             value={localSearchQuery}
@@ -725,7 +725,7 @@ const MobileLayout9 = ({
             {/* Subheader: Book Name and Zoom */}
             <div className="px-5 py-2 flex items-center justify-between">
                 <span className="text-[#575C9C] text-[13px] font-bold opacity-80 truncate max-w-[60%]">
-                    {bookName || "Name of the book"}
+                    {/* bookName hidden */}
                 </span>
                 <div className="flex items-center gap-1.5 bg-white/60 rounded-full px-2 py-0.5 border border-[#C0C5E0] text-[#575C9C]">
                     <Icon icon="ph:magnifying-glass-plus-bold" className="w-3.5 h-3.5" />

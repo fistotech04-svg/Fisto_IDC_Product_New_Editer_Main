@@ -48,67 +48,82 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                     </div>
                 </div>
 
-                {/* Link Input */}
-                <div className={`flex items-center w-full ${isLandscape ? 'gap-1.5' : 'gap-2'}`}>
-                    <input
-                        type="text"
-                        value={isPublished ? localUrl : 'Publish flipbook to enable link sharing'}
-                        onChange={(e) => isPublished && setLocalUrl(e.target.value)}
-                        readOnly={!isPublished}
-                        className={`${isMobile ? (isLandscape ? 'h-7 px-2 text-[10px]' : 'h-9 px-3 text-[12px]') : 'h-[2.5vw] px-[0.8vw] text-[0.8vw]'} flex-1 min-w-0 border border-gray-300 rounded-lg bg-gray-50 shadow-sm outline-none text-gray-600 truncate focus:border-black transition-colors ${!isPublished ? 'italic text-amber-600 font-medium' : ''}`}
-                    />
-                    <div className="relative flex-shrink-0">
-                        <button
-                            disabled={!isPublished}
-                            className={`${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-2.5') : 'h-[2.5vw] px-[1.2vw]'} ${!isPublished ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60' : 'bg-black text-white hover:bg-gray-800 cursor-pointer'} rounded-lg flex items-center gap-1 transition-colors shadow-sm`}
-                            onClick={() => {
-                                if (!isPublished) {
-                                    alert("Please publish your flipbook first to copy or share the link.");
-                                    return;
-                                }
-                                navigator.clipboard.writeText(localUrl);
-                                setCopied(true);
-                                setTimeout(() => setCopied(false), 2000);
-                            }}
-                        >
-                            <Icon icon="solar:copy-bold-duotone" className={isMobile ? (isLandscape ? 'w-3 h-3' : 'w-3.5 h-3.5') : 'w-[1.2vw] h-[1.2vw]'} />
-                            <span className={`${isMobile ? (isLandscape ? 'text-[10px]' : 'text-[11px]') : 'text-[0.8vw]'} font-semibold`}>Copy</span>
-                        </button>
-                        {copied && (
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 text-black text-[10px] font-bold mt-1 animate-in fade-in slide-in-from-top-1 duration-200 z-10">
-                                Copied!
-                            </div>
-                        )}
+                {/* Link Input Section */}
+                <div className="flex flex-col gap-1.5 w-full">
+                    <div className="flex items-center gap-2">
+                        <h3 className={`${isMobile ? (isLandscape ? 'text-[11px]' : 'text-[12px]') : 'text-[1vw]'} font-semibold text-gray-700 whitespace-nowrap`}>Flipbook Link</h3>
+                        <div className="flex-1 h-[1px] bg-gray-100" />
                     </div>
-                </div>
-
-                {/* Checkbox */}
-                <div
-                    className="flex items-center gap-2.5 cursor-pointer w-fit"
-                    onClick={() => setShareCurrentPage(!shareCurrentPage)}
-                >
-                    <div className={`${isMobile ? (isLandscape ? 'w-3 h-3 rounded-[3px]' : 'w-3.5 h-3.5 rounded-[4px]') : 'w-[0.9vw] h-[0.9vw] rounded-[0.2vw]'} border-[1.5px] flex items-center justify-center transition-colors bg-white ${shareCurrentPage ? 'border-black' : 'border-gray-400'}`}>
-                        {shareCurrentPage && <Icon icon="lucide:check" className={isMobile ? (isLandscape ? 'w-2 h-2 text-black' : 'w-2.5 h-2.5 text-black') : 'w-[0.7vw] h-[0.7vw] text-black'} strokeWidth={3} />}
+                    <div className={`flex items-center w-full ${isLandscape ? 'gap-1.5' : 'gap-2'}`}>
+                        <input
+                            type="text"
+                            value={isPublished ? localUrl : 'Publish flipbook to enable link sharing'}
+                            onChange={(e) => isPublished && setLocalUrl(e.target.value)}
+                            readOnly={!isPublished}
+                            className={`${isMobile ? (isLandscape ? 'h-7 px-2 text-[10px]' : 'h-9 px-3 text-[12px]') : 'h-[2.5vw] px-[0.8vw] text-[0.8vw]'} flex-1 min-w-0 border border-gray-300 rounded-lg bg-gray-50 shadow-sm outline-none text-gray-600 truncate focus:border-black transition-colors ${!isPublished ? 'italic text-amber-600 font-medium' : ''}`}
+                        />
+                        <div className="relative flex-shrink-0">
+                            <button
+                                disabled={!isPublished}
+                                className={`${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-2.5') : 'h-[2.5vw] px-[1.2vw]'} ${!isPublished ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60' : 'bg-black text-white hover:bg-gray-800 cursor-pointer'} rounded-lg flex items-center gap-1 transition-colors shadow-sm`}
+                                onClick={() => {
+                                    if (!isPublished) {
+                                        alert("Please publish your flipbook first to copy or share the link.");
+                                        return;
+                                    }
+                                    navigator.clipboard.writeText(localUrl);
+                                    setCopied(true);
+                                    setTimeout(() => setCopied(false), 2000);
+                                }}
+                            >
+                                <Icon icon="solar:copy-bold-duotone" className={isMobile ? (isLandscape ? 'w-3 h-3' : 'w-3.5 h-3.5') : 'w-[1.2vw] h-[1.2vw]'} />
+                                <span className={`${isMobile ? (isLandscape ? 'text-[10px]' : 'text-[11px]') : 'text-[0.8vw]'} font-semibold`}>Copy</span>
+                            </button>
+                            {copied && (
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 text-black text-[10px] font-bold mt-1 animate-in fade-in slide-in-from-top-1 duration-200 z-10">
+                                    Copied!
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    <span className={`${isMobile ? (isLandscape ? 'text-[11px]' : 'text-[12px]') : 'text-[0.75vw]'} text-gray-500 font-medium tracking-tight`}>Share Current Page only</span>
+                    {!isPublished && (
+                        <p className="text-[10px] text-gray-500 italic mt-1 leading-tight">
+                            * Flipbook is currently unpublished. Click "Publish" in top bar to enable link sharing.
+                        </p>
+                    )}
                 </div>
 
                 {/* QR Code Section */}
-                <div className={`flex items-center ${isLandscape ? 'gap-2.5' : 'gap-5'}`}>
-                    <div className={`${isMobile ? (isLandscape ? 'p-0.5 w-[50px]' : 'p-1.5 w-[72px]') : 'p-[0.6vw] w-[8vw]'} flex flex-col items-center gap-0.5 border border-gray-100 rounded-lg shadow-sm bg-white`}>
-                        <div className={`${isMobile ? (isLandscape ? 'w-8 h-8' : 'w-14 h-14') : 'w-[6.5vw] h-[6.5vw]'} flex items-center justify-center`}>
-                            <QRCode
-                                size={256}
-                                style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                                value={localUrl}
-                                viewBox={`0 0 256 256`}
-                            />
-                        </div>
-                        <span className={`${isMobile ? (isLandscape ? 'text-[7px]' : 'text-[9px]') : 'text-[0.6vw]'} font-medium text-gray-400 truncate w-full text-center`}>{bookName}</span>
+                <div className="flex flex-col gap-1.5 w-full">
+                    <div className="flex items-center gap-2">
+                        <h3 className={`${isMobile ? (isLandscape ? 'text-[11px]' : 'text-[12px]') : 'text-[1vw]'} font-semibold text-gray-700 whitespace-nowrap`}>Share QR</h3>
+                        <div className="flex-1 h-[1px] bg-gray-100" />
                     </div>
-                    <div className="flex items-center gap-2 text-gray-500">
-                        <Icon icon="mdi:share" className={`${isMobile ? (isLandscape ? 'w-3 h-3' : 'w-4 h-4') : 'w-[1.2vw] h-[1.2vw]'} text-gray-400`} />
-                        <span className={`${isMobile ? (isLandscape ? 'text-[10px]' : 'text-[13px]') : 'text-[0.8vw]'} font-medium text-gray-600`}>Through QR Code</span>
+                    <div className={`flex items-center ${isLandscape ? 'gap-2.5' : 'gap-4'}`}>
+                        <div className={`${isMobile ? (isLandscape ? 'p-0.5 w-[50px]' : 'p-1.5 w-[72px]') : 'p-[0.6vw] w-[8vw]'} flex flex-col items-center gap-0.5 border border-gray-100 rounded-lg shadow-sm bg-white shrink-0`}>
+                            <div className={`${isMobile ? (isLandscape ? 'w-8 h-8' : 'w-14 h-14') : 'w-[6.5vw] h-[6.5vw]'} flex items-center justify-center`}>
+                                <QRCode
+                                    size={256}
+                                    style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                                    value={localUrl}
+                                    viewBox={`0 0 256 256`}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm h-9 overflow-hidden flex-1 max-w-[140px]">
+                            <button
+                                className="flex-1 px-2 font-bold text-[11px] flex items-center justify-center gap-1.5 text-gray-700 hover:bg-gray-50 transition-colors h-full whitespace-nowrap"
+                            >
+                                <Icon icon="lucide:download" className="w-3.5 h-3.5 text-gray-400" />
+                                <span>Download JPG</span>
+                            </button>
+                            <div className="w-[1px] h-5 bg-gray-200 shrink-0" />
+                            <button
+                                className="px-2 h-full hover:bg-gray-50 transition-colors flex items-center justify-center shrink-0"
+                            >
+                                <Icon icon="lucide:chevron-down" className="w-3.5 h-3.5 text-gray-400" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -116,14 +131,23 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
 
                 {/* Social Share */}
                 <div className={`${isMobile ? (isLandscape ? 'space-y-0.5' : 'space-y-2.5') : 'space-y-[0.8vw]'}`}>
-                    <h3 className={`${isMobile ? (isLandscape ? 'text-[11px]' : 'text-[13px]') : 'text-[1vw]'} font-semibold text-gray-700`}>Share Through</h3>
-                    <div className="flex gap-1.5 justify-between">
+                    <div className="flex items-center gap-2">
+                        <h3 className={`${isMobile ? (isLandscape ? 'text-[11px]' : 'text-[12px]') : 'text-[1vw]'} font-semibold text-gray-700 whitespace-nowrap`}>Share Through</h3>
+                        <div className="flex-1 h-[1px] bg-gray-100" />
+                    </div>
+                    <div className="flex gap-2 justify-start flex-wrap">
+                        {/* Embed Option */}
+                        <button
+                            className={`${isMobile ? (isLandscape ? 'w-7 h-7 rounded-md' : 'w-9 h-9 rounded-xl') : 'w-[3.2vw] h-[3.2vw] rounded-[0.6vw]'} flex items-center justify-center border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all shadow-sm`}
+                            title="Embed"
+                        >
+                            <Icon icon="lucide:code-2" className={`${isMobile ? (isLandscape ? 'w-3.5 h-3.5' : 'w-4 h-4') : 'w-[2vw] h-[2vw]'} text-gray-600`} />
+                        </button>
                         {[
                             { id: 'whatsapp', icon: 'ic:baseline-whatsapp', color: '#25D366', url: `https://wa.me/?text=${encodeURIComponent(`Check out this flipbook: ${bookName} - ${url}`)}` },
                             { id: 'twitter', icon: 'ri:twitter-x-fill', color: '#000000', url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out this flipbook: ${bookName}`)}&url=${encodeURIComponent(url)}` },
-                            { id: 'facebook', icon: 'ic:baseline-facebook', color: '#3b5998', url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}` },
                             { id: 'gmail', icon: 'logos:google-gmail', color: '#ffffff', url: `mailto:?subject=${encodeURIComponent(bookName)}&body=${encodeURIComponent(`Check out this flipbook: ${url}`)}`, hasBorder: true },
-                            { id: 'drive', icon: 'logos:google-drive', color: '#ffffff', url: `https://drive.google.com/`, hasBorder: true },
+                            { id: 'linkedin', icon: 'ri:linkedin-fill', color: '#0A66C2', url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}` },
                             { id: 'instagram', icon: 'skill-icons:instagram', color: '#ffffff', url: `https://www.instagram.com/` }
                         ].map((social) => (
                             <button
@@ -135,7 +159,7 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                                 <Icon
                                     icon={social.icon}
                                     className={`${isMobile ? (isLandscape ? 'w-3.5 h-3.5' : 'w-5 h-5') : 'w-[2vw] h-[2vw]'}`}
-                                    style={{ color: social.id === 'twitter' || social.id === 'facebook' || social.id === 'whatsapp' ? 'white' : undefined }}
+                                    style={{ color: social.id === 'twitter' || social.id === 'whatsapp' || social.id === 'linkedin' ? 'white' : undefined }}
                                 />
                             </button>
                         ))}

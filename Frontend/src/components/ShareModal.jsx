@@ -256,7 +256,7 @@ const CustomQRCode = React.forwardRef(({
 });
 
 
-const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook, activeLayout, isTabletLayout = false }) => {
+const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook, activeLayout, isTabletLayout = false, isMobileLayout = false }) => {
     const [addCover, setAddCover] = useState(false);
 
     const getResolvedFirstPageHtml = () => {
@@ -1369,7 +1369,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
             />
 
             {/* Modal Container */}
-            <div className="relative bg-white w-[52vw] rounded-[1vw] shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+            <div className={`relative bg-white ${isMobileLayout ? 'w-[30vw]' : 'w-[52vw]'} rounded-[1vw] shadow-2xl animate-in fade-in zoom-in-95 duration-300`}>
                 {/* Header */}
                 <div className="px-[1.2vw] py-[0.8vw] flex items-center gap-[0.8vw] border-b border-gray-50">
                     {!isEditingQR ? (
@@ -1402,49 +1402,49 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                     {!isEditingQR ? (
                         <div className="flex gap-[1.5vw]">
                             {/* Left Column: Preview */}
-                            <div className="flex-[1.1] flex flex-col">
-                                <div className="relative rounded-[1vw] overflow-hidden shadow-lg aspect-square bg-gray-100">
-                                    {(() => {
-                                        const storedUser = localStorage.getItem('user');
-                                        const user = storedUser ? JSON.parse(storedUser) : null;
-                                        const emailId = user?.emailId || '';
-                                        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-                                        const emailFolder = emailId ? emailId.replace(/[@.]/g, "_") : '';
-                                        const actualFolder = currentBook?.folder || currentBook?.folderName || '';
-                                        const realName = currentBook?.realName || currentBook?.title || currentBook?.flipbookName || '';
-                                        const iframeBaseUrl = getSupabaseBaseUrl(
-                                            emailFolder,
-                                            actualFolder,
-                                            realName
-                                        );
+                            {!isMobileLayout && (
+                                <div className="flex-[1.1] flex flex-col">
+                                    <div className="relative rounded-[1vw] overflow-hidden shadow-lg aspect-square bg-gray-100">
+                                        {(() => {
+                                            const storedUser = localStorage.getItem('user');
+                                            const user = storedUser ? JSON.parse(storedUser) : null;
+                                            const emailId = user?.emailId || '';
+                                            const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+                                            const emailFolder = emailId ? emailId.replace(/[@.]/g, "_") : '';
+                                            const actualFolder = currentBook?.folder || currentBook?.folderName || '';
+                                            const realName = currentBook?.realName || currentBook?.title || currentBook?.flipbookName || '';
+                                            const iframeBaseUrl = getSupabaseBaseUrl(
+                                                emailFolder,
+                                                actualFolder,
+                                                realName
+                                            );
 
-
-
-                                        return (
-                                            <LazyPreview
-                                                v_id={currentBook?.v_id}
-                                                emailId={emailId}
-                                                backendUrl={backendUrl}
-                                                iframeBaseUrl={iframeBaseUrl}
-                                                title={currentBook?.title}
-                                                imageUrl={currentBook?.image || null}
-                                            />
-                                        );
-                                    })()}
-                                    {/* Footer Overlay */}
-                                    <div className="absolute bottom-0 left-0 right-0 bg-[#3d3331]/80 backdrop-blur-sm py-[0.6vw] px-[0.8vw] flex items-center justify-center gap-[0.6vw] rounded-b-[1vw]">
-                                        <span className="text-white text-[0.75vw] font-medium opacity-90">
-                                            Add Cover picture while sharing
-                                        </span>
-                                        <div
-                                            className={`w-[1vw] h-[1vw] rounded-[0.2vw] border-[0.1vw] border-white/50 flex items-center justify-center cursor-pointer transition-all ${addCover ? 'bg-white border-white' : 'hover:border-white'}`}
-                                            onClick={() => setAddCover(!addCover)}
-                                        >
-                                            {addCover && <Icon icon="lucide:check" className="text-[#3d3331] w-[0.7vw] h-[0.7vw]" strokeWidth={4} />}
+                                            return (
+                                                <LazyPreview
+                                                    v_id={currentBook?.v_id}
+                                                    emailId={emailId}
+                                                    backendUrl={backendUrl}
+                                                    iframeBaseUrl={iframeBaseUrl}
+                                                    title={currentBook?.title}
+                                                    imageUrl={currentBook?.image || null}
+                                                />
+                                            );
+                                        })()}
+                                        {/* Footer Overlay */}
+                                        <div className="absolute bottom-0 left-0 right-0 bg-[#3d3331]/80 backdrop-blur-sm py-[0.6vw] px-[0.8vw] flex items-center justify-center gap-[0.6vw] rounded-b-[1vw]">
+                                            <span className="text-white text-[0.75vw] font-medium opacity-90">
+                                                Add Cover picture while sharing
+                                            </span>
+                                            <div
+                                                className={`w-[1vw] h-[1vw] rounded-[0.2vw] border-[0.1vw] border-white/50 flex items-center justify-center cursor-pointer transition-all ${addCover ? 'bg-white border-white' : 'hover:border-white'}`}
+                                                onClick={() => setAddCover(!addCover)}
+                                            >
+                                                {addCover && <Icon icon="lucide:check" className="text-[#3d3331] w-[0.7vw] h-[0.7vw]" strokeWidth={4} />}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Right Column: Share Options */}
                             <div className="flex-1 flex flex-col gap-[1vw]">

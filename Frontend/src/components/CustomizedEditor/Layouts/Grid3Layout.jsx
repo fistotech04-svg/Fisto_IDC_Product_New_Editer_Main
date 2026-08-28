@@ -248,7 +248,7 @@ const Grid3Layout = ({
     const aspectRatio = initialHeight / initialWidth;
 
     // --- Fullscreen toolbar hide/show (mirrors Grid1Layout) ---
-    const [isCanvasHovered, setIsCanvasHovered] = useState(true);
+    const isCanvasHovered = false; const setIsCanvasHovered = () => {};
     const savedZoomRef = useRef(null);
     const zoomTimerRef = useRef(null);
     const dimWidthRef = useRef(dimWidth);
@@ -599,7 +599,7 @@ const Grid3Layout = ({
                                 `}</style>
                                         <Icon icon="lucide:search" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1.2vw] h-[1.2vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }} />
                                         <input
-                                            type="text"
+                                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                             id="quick-search-v3"
                                             placeholder={isMobileLandscape ? "Search..." : "Quick Search..."}
                                             value={localSearchQuery}
@@ -819,9 +819,7 @@ const Grid3Layout = ({
                         <div className="flex items-center gap-[1vw]">
                             {bookName && (
                                 <span className={`${!isBigBars ? (isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]') : (isTablet ? 'text-[1.1vw]' : 'text-[1.2vw]')} font-semibold truncate max-w-[20vw] select-none`}
-                                    style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 0.9 }}>
-                                    {bookName}
-                                </span>
+                                    style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 0.9 }}>{/* {bookName} */}</span>
                             )}
                             <div className="flex items-center">
                                 {settings.brandingProfile.logo && logoSettings?.src && (
@@ -939,11 +937,11 @@ const Grid3Layout = ({
 
                         {/* Left: Page Counter Rounded Box */}
                         {(settings?.navigation?.pageQuickAccess ?? true) && (
-                            <div className="flex items-center">
-                                <div className={`rounded-[0.3vw] flex items-center justify-center ${!isBigBars ? (isMobileLandscape ? 'px-[0.6vw] h-[1.8vh] min-w-[4vw]' : isTablet ? 'px-[0.3vw] h-[2vh] min-w-[3.5vw]' : 'px-[0.3vw] h-[2.5vh] min-w-[3.8vw]') : (isMobileLandscape ? 'px-[1.2vw] h-[3.5vh] min-w-[7vw]' : isTablet ? 'px-[0.6vw] h-[2.8vh] min-w-[5vw]' : 'px-[0.6vw] pb-[0.1vw] pt-0 h-[3.5vh] min-w-[5.8vw]')} text-center shadow-sm`} style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
-                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
+                            <div className="flex items-center translate-y-[0.3vh]">
+                                <div className={`rounded-[0.3vw] flex items-center justify-center ${!isBigBars ? (isMobileLandscape ? 'px-[0.6vw] h-[1.8vh] min-w-[4vw]' : isTablet ? 'px-[0.3vw] h-[2vh] min-w-[3.5vw]' : 'px-[0.7vw] pb-[0.3vh] h-[3.5vh] min-w-[5.5vw]') : (isMobileLandscape ? 'px-[1.2vw] h-[3.5vh] min-w-[7vw]' : isTablet ? 'px-[0.6vw] h-[2.8vh] min-w-[5vw]' : 'px-[0.6vw] pb-[0.1vw] pt-0 h-[3.5vh] min-w-[5.8vw]')} text-center shadow-sm`} style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
+                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
                                     <input
-                                        type="text"
+                                        type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                         value={pageInputValue}
                                         onChange={(e) => {
                                             const val = e.target.value;
@@ -970,10 +968,10 @@ const Grid3Layout = ({
                                                 setPageInputValue(String(currentPage + 1));
                                             }
                                         }}
-                                        className={`${!isBigBars ? (isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold bg-transparent border-none outline-none text-center leading-none`}
+                                        className={`${!isBigBars ? (isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold bg-transparent border-none outline-none text-center leading-none`}
                                         style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
                                     />
-                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}> / {totalPages}</span>
+                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}> / {totalPages}</span>
                                 </div>
                             </div>
                         )}
@@ -1018,7 +1016,7 @@ const Grid3Layout = ({
                         {/* Right: Zoom Pill with Reset Button */}
                         {(settings?.viewing?.zoom ?? true) && (
                             <div className="flex items-center">
-                                <div className={`flex items-center ${!isBigBars ? 'px-[0.15vw] py-[0.05vw] pl-[0.25vw] rounded-[0.25vw]' : 'px-[0.3vw] py-[0.2vw] pl-[0.5vw] rounded-[0.4vw]'} border shadow-sm transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.4vw]' : 'gap-[0.6vw]')}`}
+                                <div className={`flex items-center ${!isBigBars ? 'px-[0.35vw] py-[0.15vw] pl-[0.45vw] rounded-[0.45vw]' : 'px-[0.3vw] py-[0.2vw] pl-[0.5vw] rounded-[0.4vw]'} border shadow-sm transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.4vw]' : 'gap-[0.6vw]')}`}
                                     style={{
                                         backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'),
                                         borderColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1')
@@ -1026,7 +1024,7 @@ const Grid3Layout = ({
                                 >
                                     <div className={`flex items-center transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.5vw]' : 'gap-[0.8vw]')}`}>
                                         {renderToolbarBtn(
-                                            <Icon icon="lucide:zoom-out" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />,
+                                            <Icon icon="lucide:zoom-out" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
                                             'Zoom Out',
                                             () => zoomOut(),
                                             { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' },
@@ -1035,13 +1033,13 @@ const Grid3Layout = ({
                                             true,
                                             'top'
                                         )}
-                                        <span className={`font-bold ${!isBigBars ? (isTablet ? 'text-[0.55vw]' : 'text-[0.6vw]') : (isTablet ? 'text-[0.65vw]' : 'text-[0.7vw]')} tracking-tight tabular-nums select-none min-w-[2.0vw]`}
+                                        <span className={`font-bold ${!isBigBars ? (isTablet ? 'text-[0.55vw]' : 'text-[0.75vw]') : (isTablet ? 'text-[0.65vw]' : 'text-[0.7vw]')} tracking-tight tabular-nums select-none min-w-[2.0vw]`}
                                             style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
                                         >
                                             {Math.round((dimWidth / initialWidth) * 100)}%
                                         </span>
                                         {renderToolbarBtn(
-                                            <Icon icon="lucide:zoom-in" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />,
+                                            <Icon icon="lucide:zoom-in" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
                                             'Zoom In',
                                             () => zoomIn(),
                                             { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' },
@@ -1056,7 +1054,7 @@ const Grid3Layout = ({
                                             setDimWidth(isMobileLandscape ? initialWidth * 0.95 : isTablet ? initialWidth * 0.7 : initialWidth);
                                             setDimHeight(isMobileLandscape ? initialHeight * 0.9 : isTablet ? initialHeight * 0.7 : initialHeight);
                                         }}
-                                        className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.65vw] px-[0.4vw] py-[0.1vw]' : isTablet ? 'text-[0.45vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.5vw] px-[0.3vw] py-[0.1vw]') : (isMobileLandscape ? 'text-[0.85vw] px-[0.8vw] py-[0.2vw]' : isTablet ? 'text-[0.55vw] px-[0.5vw] py-[0.2vw]' : 'text-[0.65vw] px-[0.5vw] py-[0.2vw]')} font-bold rounded-[0.25vw] transition-all shadow-sm active:scale-95`}
+                                        className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.65vw] px-[0.4vw] py-[0.1vw]' : isTablet ? 'text-[0.45vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.65vw] px-[0.5vw] py-[0.2vw]') : (isMobileLandscape ? 'text-[0.85vw] px-[0.8vw] py-[0.2vw]' : isTablet ? 'text-[0.55vw] px-[0.5vw] py-[0.2vw]' : 'text-[0.65vw] px-[0.5vw] py-[0.2vw]')} font-bold rounded-[0.25vw] transition-all shadow-sm active:scale-95`}
                                         style={{
                                             backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1'),
                                             color: getLayoutColor('toolbar-icon', '#FFFFFF'),
@@ -1071,7 +1069,7 @@ const Grid3Layout = ({
 
                         <div
                             ref={progressRef}
-                            className="absolute bottom-[0.2vh] left-[2vw] right-[2vw] pt-[1.1vh] pb-[1.1vh] cursor-pointer group pointer-events-auto"
+                            className="absolute bottom-[0.2vh] left-[15vw] right-[15vw] pt-[1.1vh] pb-[1.1vh] cursor-pointer group pointer-events-auto"
                             onClick={handleProgressClick}
                             onMouseMove={(e) => {
                                 if (!progressRef.current || pages.length <= 1) return;
@@ -1144,7 +1142,7 @@ const Grid3Layout = ({
                                         >
                                             {/* Label at Top (Screenshot 1 Style) */}
                                             <div className={`w-full ${isTablet ? 'mb-[0.35vw]' : 'mb-[0.5vw]'} text-center`}>
-                                                <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.9vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 'var(--dropdown-text-opacity, 1)', fontFamily: "'Poppins', sans-serif" }}>
+                                                <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.9vw]'} font-medium`} style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 'var(--dropdown-text-opacity, 1)', fontFamily: "'Poppins', sans-serif" }}>
                                                     {progressHover.spread.label}
                                                 </span>
                                             </div>

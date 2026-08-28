@@ -290,19 +290,19 @@ const MobileLayout1 = (props) => {
         return {
             '--toolbar-bg-rgb': activeLayout?.toolbarBgRgb || '87, 92, 156',
             '--toolbar-bg-opacity': activeLayout?.toolbarBgOpacity || '1',
-            '--toolbar-text': activeLayout?.toolbarText || '#FFFFFF',
-            '--toolbar-icon': activeLayout?.toolbarIcon || '#FFFFFF',
-            '--toolbar-icon-hover': activeLayout?.toolbarIconHover || '#E0E0E0',
+            '--toolbar-text': activeLayout?.toolbarText || '#575C9C',
+            '--toolbar-icon': activeLayout?.toolbarIcon || '#575C9C',
+            '--toolbar-icon-hover': activeLayout?.toolbarIconHover || '#2D3270',
             '--toolbar-search-bg': activeLayout?.toolbarSearchBg || '#D7D8E8',
             '--toolbar-search-text': activeLayout?.toolbarSearchText || '#575C9C',
             '--toolbar-search-placeholder': activeLayout?.toolbarSearchPlaceholder || '#575C9C',
             '--toolbar-search-icon': activeLayout?.toolbarSearchIcon || '#575C9C',
             '--page-bg': activeLayout?.pageBg || '#DADBE8', // Matches screenshot
-            '--progress-bar-bg': activeLayout?.progressBarBg || 'rgba(255,255,255,0.2)',
-            '--progress-bar-fill': activeLayout?.progressBarFill || '#FFFFFF',
-            '--play-button-bg': activeLayout?.playButtonBg || '#FFFFFF',
-            '--play-button-icon': activeLayout?.playButtonIcon || '#575C9C',
-            '--play-button-border': activeLayout?.playButtonBorder || '#FFFFFF',
+            '--progress-bar-bg': activeLayout?.progressBarBg || 'rgba(87, 92, 156, 0.2)',
+            '--progress-bar-fill': activeLayout?.progressBarFill || '#575C9C',
+            '--play-button-bg': activeLayout?.playButtonBg || '#575C9C',
+            '--play-button-icon': activeLayout?.playButtonIcon || '#FFFFFF',
+            '--play-button-border': activeLayout?.playButtonBorder || '#575C9C',
         };
     }, [activeLayout]);
 
@@ -545,7 +545,7 @@ const MobileLayout1 = (props) => {
                 {/* Row 1: Book Name & Logo (Only when search is visible) */}
                 {settings?.interaction?.search !== false && !isPdfProject && (
                     <div className="flex items-center justify-between px-6 pt-6 pb-1">
-                        <span className="text-[16px] font-light opacity-90 truncate flex-1 mt-[-15px]" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>{bookName || "Name of the book"}</span>
+                        <span className="text-[16px] font-light opacity-90 truncate flex-1 mt-[-15px]" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toolbar-text-main', '#575C9C') }}>{/* bookName hidden */}</span>
                         {settings?.brandingProfile?.logo && logoSettings?.src && (
                             <img
                                 src={logoSettings.src}
@@ -561,7 +561,7 @@ const MobileLayout1 = (props) => {
                 <div className={`px-5 ${settings?.interaction?.search !== false && !isPdfProject ? 'pt-6 pb-6' : 'pt-5 pb-5'} flex items-center justify-end gap-4`}>
                     {!(settings?.interaction?.search !== false && !isPdfProject) && (
                         <>
-                            <span className="text-[16px] font-light opacity-90 truncate flex-1" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>{bookName || "Name of the book"}</span>
+                            <span className="text-[16px] font-light opacity-90 truncate flex-1" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toolbar-text-main', '#575C9C') }}>{/* bookName hidden */}</span>
                             {settings?.brandingProfile?.logo && logoSettings?.src && (
                                 <img
                                     src={logoSettings.src}
@@ -576,7 +576,7 @@ const MobileLayout1 = (props) => {
                     <div className="flex-1 rounded-full h-9 px-4 flex items-center gap-2 relative" style={{ backgroundColor: "transparent" }}>
                         <Icon icon="ph:magnifying-glass" className="w-4.5 h-4.5" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search.."
                             className="bg-transparent placeholder-current text-[11px] outline-none w-full font-bold"
                             style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
@@ -644,7 +644,7 @@ const MobileLayout1 = (props) => {
                     <button
                         onClick={(e) => { e.stopPropagation(); const wasOpen = showMoreMenu; closeAllPopups(); if (!wasOpen) setShowMoreMenu(true); }}
                         className="active:scale-90 transition-transform"
-                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}
+                        style={{ color: getLayoutColor('toolbar-icon', '#575C9C') }}
                     >
                         <Icon icon="ph:list" className="w-7 h-7" />
                     </button>
@@ -714,7 +714,7 @@ const MobileLayout1 = (props) => {
 
             {/* Footer Navigation */}
             <footer className="z-[60] flex flex-col pt-8 pb-10 relative mb-[-20px]" style={{ backgroundColor: "transparent" }}>
-                <div className="flex items-center justify-center gap-6 mb-3" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                <div className="flex items-center justify-center gap-6 mb-3" style={{ color: getLayoutColor('toolbar-icon', '#575C9C') }}>
                     <button onClick={() => { closeAllPopups(); onPageClick(0); }} className="active:scale-90 transition-transform">
                         <Icon icon="ph:skip-back-bold" className="w-4 h-4" />
                     </button>

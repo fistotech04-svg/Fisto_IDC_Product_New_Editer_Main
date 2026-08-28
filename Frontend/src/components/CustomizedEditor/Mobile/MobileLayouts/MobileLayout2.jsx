@@ -535,7 +535,7 @@ const MobileLayout2 = (props) => {
                     <div className="w-[70%] max-w-[240px] h-7.5 bg-white/80 rounded-full flex items-center px-3 gap-1.5 relative">
                         <Icon icon="ph:magnifying-glass-bold" className="text-[#575C9C] w-3 h-3" />
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
                             className="bg-transparent text-[#575C9C] placeholder-[#575C9C]/70 text-[11px] outline-none w-full font-semibold"
                             value={localSearchQuery}

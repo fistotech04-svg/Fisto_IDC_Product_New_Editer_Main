@@ -228,7 +228,7 @@ const TabletLayout9 = ({
             )}
 
             {/* Top Bar (Floating) */}
-            <div className="absolute top-[2cqh] left-[2cqw] right-[2cqw] flex items-center justify-between z-50 pointer-events-none">
+            <div className="absolute top-[2cqh] left-[2cqw] right-[2cqw] flex items-center justify-between z-[200] pointer-events-none">
 
                 {/* Left: Search Bar */}
                 <div className="w-[22cqw] pointer-events-auto">
@@ -243,7 +243,7 @@ const TabletLayout9 = ({
                                 style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
                             />
                             <input
-                                type="text"
+                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 value={localSearchQuery}
                                 onChange={(e) => {
                                     const val = e.target.value;
@@ -335,31 +335,46 @@ const TabletLayout9 = ({
                 </div>
 
                 {/* Center: Tools Container */}
-                <div className="absolute left-[55%] -translate-x-1/2 flex items-center gap-[0.8cqw] pointer-events-auto">
+                <div className="absolute left-[58%] -translate-x-1/2 flex items-center gap-[1.5cqw] pointer-events-auto">
                     
                     {/* Block 1: Navigation & Media */}
-                    <div className="flex items-center gap-[0.8cqw]">
+                    <div className="flex items-center gap-[1.5cqw]">
                         {(settings?.navigation?.tableOfContents ?? true) && (
-                            <ToolbarBtn icon="fluent:text-bullet-list-24-filled" onClick={() => setShowTOCMemo(!showTOC)} bg={primaryColor} />
+                            <ToolbarBtn 
+                                icon="fluent:text-bullet-list-24-filled" 
+                                onClick={() => setShowTOCMemo(!showTOC)} 
+                                bg={showTOC ? secondaryColor : primaryColor}
+                                color={showTOC ? primaryColor : secondaryColor}
+                            />
                         )}
                         {(settings?.navigation?.pageThumbnails ?? true) && (
-                            <ToolbarBtn icon="ph:squares-four-fill" onClick={() => setShowThumbnailBarMemo(!showThumbnailBar)} bg={primaryColor} />
+                            <ToolbarBtn 
+                                icon="ph:squares-four-fill" 
+                                onClick={() => setShowThumbnailBarMemo(!showThumbnailBar)} 
+                                bg={showThumbnailBar ? secondaryColor : primaryColor}
+                                color={showThumbnailBar ? primaryColor : secondaryColor}
+                            />
                         )}
                         <ToolbarBtn icon={isAutoFlipping ? 'ph:pause-fill' : 'ph:play-fill'} onClick={() => setIsPlaying?.(!isAutoFlipping)} bg={primaryColor} />
                         {(settings?.interaction?.gallery ?? true) && (
                             <ToolbarBtn icon="clarity:image-gallery-solid" onClick={() => setShowGalleryPopupMemo(!showGalleryPopup)} bg={primaryColor} />
                         )}
                         {(settings?.media?.backgroundAudio ?? true) && (
-                            <ToolbarBtn icon={isMuted ? "solar:music-notes-bold-duotone" : "solar:music-notes-bold"} onClick={(e) => { e.stopPropagation(); setShowSoundPopupMemo?.(!showSoundPopup); }} bg={primaryColor} />
+                            <ToolbarBtn 
+                                icon={isMuted ? "solar:music-notes-bold-duotone" : "solar:music-notes-bold"} 
+                                onClick={(e) => { e.stopPropagation(); setShowSoundPopupMemo?.(!showSoundPopup); }} 
+                                bg={showSoundPopup ? secondaryColor : primaryColor}
+                                color={showSoundPopup ? primaryColor : secondaryColor}
+                            />
                         )}
                     </div>
 
                     {/* Divider */}
-                    <div className="w-[1.5px] h-[2cqw] rounded-full mx-[0.2cqw]" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}></div>
+                    <div className="w-[1.5px] h-[2cqw] rounded-full mx-[0.5cqw]" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}></div>
 
                     {/* Block 2: Zoom */}
                     {(settings?.viewing?.zoom ?? true) && (
-                        <div className="flex items-center gap-[0.8cqw]">
+                        <div className="flex items-center gap-[1.5cqw]">
                             <ToolbarBtn 
                                 icon="ph:magnifying-glass-minus-bold" 
                                 onClick={() => setCurrentZoom?.(Math.max(0.5, (currentZoom || 1) - 0.1))} 
@@ -384,10 +399,10 @@ const TabletLayout9 = ({
                     )}
 
                     {/* Divider */}
-                    <div className="w-[1.5px] h-[2cqw] rounded-full mx-[0.2cqw]" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}></div>
+                    <div className="w-[1.5px] h-[2cqw] rounded-full mx-[0.5cqw]" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}></div>
 
                     {/* Block 3: Actions */}
-                    <div className="flex items-center gap-[0.8cqw]">
+                    <div className="flex items-center gap-[1.5cqw]">
                         {(settings?.brandingProfile?.profile ?? true) && (
                             <ToolbarBtn icon="fluent:person-24-filled" onClick={() => setShowProfilePopup(!showProfilePopup)} bg={primaryColor} />
                         )}
@@ -456,7 +471,7 @@ const TabletLayout9 = ({
                 {/* Left: Book Name */}
                 <div className="flex-1 flex justify-start pointer-events-auto">
                     <span className="text-[1.5cqw] font-bold tracking-wide" style={{ color: primaryColor }}>
-                        {bookName || "Name of the Book"}
+                        {/* bookName hidden */}
                     </span>
                 </div>
 
@@ -486,7 +501,7 @@ const TabletLayout9 = ({
                             <span className="text-[1.4cqw] font-semibold flex items-center text-white">
                                 Page - 
                                 <input 
-                                    type="text"
+                                    type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                     value={inputPage}
                                     onChange={(e) => setInputPage(e.target.value)}
                                     onBlur={() => {
@@ -533,32 +548,51 @@ const TabletLayout9 = ({
             {/* Thumbnail Bar */}
             {showThumbnailBar && (
                 <>
+                    {/* Invisible click-to-close overlay */}
                     <div
-                        className={`absolute z-[150] bottom-[11cqh] left-1/2 -translate-x-1/2 w-fit max-w-[75cqw] ${spreads.length === 1 ? 'rounded-[1.2cqw]' : 'rounded-full'} shadow-lg flex items-center border overflow-hidden`}
+                        className="fixed inset-0 z-[149] cursor-default"
+                        onClick={() => setShowThumbnailBarMemo(false)}
+                    />
+                    <div
+                        id="layout9-thumb-panel"
+                        className="absolute w-max max-w-[70cqw] z-[150] pointer-events-auto"
                         style={{
-                            backgroundColor: '#FFFFFF',
-                            borderColor: getLayoutColor('dropdown-text', '#575C9C')
+                            top: '5cqw',
+                            left: '53%',
+                            transform: 'translateX(-50%)'
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
+                        {/* Connector Tab for Thumbnail Icon */}
+                        <div className="absolute bottom-[98%] w-[5cqw] h-[3.4cqw] z-0" style={{ left: '25%', transform: 'translateX(-50%)' }}>
+                            <svg width="100%" height="100%" viewBox="0 0 113 67" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M24.8182 33.0909C24.8182 14.8153 39.6335 0 57.9091 0C76.1847 0 91 14.8153 91 33.0909V41.7377C91.0109 60.2573 94.967 66.6391 113 67H0C18.7515 67 24.8182 52.7213 24.8182 41.7377V33.0909Z"
+                                    fill={getLayoutColor('dropdown-bg', '#5C5898')}
+                                    fillOpacity="1"
+                                />
+                            </svg>
+                        </div>
+
                         <div
-                            className={`w-full h-full flex items-center ${canScrollLeft ? 'pl-[1cqw]' : 'pl-[2cqw]'} ${canScrollRight ? 'pr-[1cqw]' : 'pr-[2cqw]'}`}
-                            style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1') }}
+                            className="w-full h-[12cqw] rounded-[1.2cqw] flex items-center relative px-[1cqw] shadow-2xl backdrop-blur-md"
+                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#5C5898') }}
                         >
                             {canScrollLeft && (
                                 <button
-                                    className="w-[4cqw] h-[8cqw] flex items-center justify-center hover:scale-110 transition-all shrink-0"
+                                    className="w-[4cqw] h-[8cqw] flex items-center justify-center hover:scale-110 transition-all shrink-0 z-10"
                                     onClick={(e) => { e.stopPropagation(); scroll('left'); }}
-                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                    style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
                                 >
-                                    <Icon icon="ph:caret-left" className="w-[1.8cqw] h-[1.8cqw]" />
+                                    <Icon icon="lucide:arrow-left" className="w-[2cqw] h-[2cqw]" />
                                 </button>
                             )}
 
                             <div
                                 ref={scrollRef}
                                 onScroll={checkScroll}
-                                className="shrink flex overflow-x-hidden no-scrollbar scroll-smooth items-center h-[8cqw] max-w-[60cqw] gap-[1cqw] px-[0.5cqw] py-[0.5cqw]"
+                                className="flex-1 flex gap-[1.5cqw] px-[1cqw] items-center overflow-x-auto custom-scrollbar h-full py-[0.5cqw]"
+                                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                             >
                                 {spreads.map((spread, idx) => {
                                     const isSelected = spread.indices.includes(currentPage);
@@ -566,8 +600,7 @@ const TabletLayout9 = ({
                                     return (
                                         <div
                                             key={idx}
-                                            className="thumbnail-item relative flex flex-col items-center shrink-0 cursor-pointer transition-all duration-300 group"
-                                            style={{ width: '9cqw' }}
+                                            className="flex-shrink-0 flex flex-col items-center cursor-pointer group py-[0.5cqw]"
                                             onClick={() => {
                                                 if (bookRef?.current?.pageFlip) {
                                                     bookRef.current.pageFlip().turnToPage(spread.indices[0]);
@@ -578,39 +611,37 @@ const TabletLayout9 = ({
                                             }}
                                         >
                                             <div
-                                                className="w-full h-[6cqw] bg-white border-[1.2px] transition-all rounded-[0.2cqw] overflow-hidden relative"
+                                                className="rounded-[0.5cqw] overflow-hidden transition-all duration-300 bg-white shadow-lg flex flex-col items-center px-[0.3cqw] pt-[0.3cqw] pb-[0.2cqw]"
                                                 style={{
-                                                    borderColor: getLayoutColor('dropdown-text', '#575C9C')
+                                                    width: '9cqw',
+                                                    height: '7cqw',
+                                                    border: isSelected ? `0.2cqw solid ${getLayoutColor('dropdown-bg', '#5C5898')}` : 'none',
+                                                    transform: isSelected ? 'scale(1.04)' : 'scale(1)'
                                                 }}
                                             >
-                                                <div className="flex w-full h-full gap-0 bg-white justify-center relative">
-                                                    {spread.pages.map((page, pIdx) => {
-                                                        return (
-                                                            <div key={`${idx}-${pIdx}`} className="flex-1 max-w-[50%] bg-white overflow-hidden relative flex items-center justify-center border-r border-black/10 last:border-r-0">
-                                                                <PageThumbnail
-                                                                    html={page.html || page.content}
-                                                                    index={spread.indices[pIdx]}
-                                                                    scale={0.08}
-                                                                />
-                                                                {pIdx === 1 && (
-                                                                    <div className="absolute top-0 right-0 w-[1cqw] h-[1cqw] bg-white shadow-[-1px_1px_2px_rgba(0,0,0,0.1)] z-10"
-                                                                        style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%)', transform: 'rotate(180deg)' }} />
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
+                                                <div className="flex w-full flex-1 gap-[0.1cqw] items-center justify-center overflow-hidden">
+                                                    {spread.pages.map((page, pIdx) => (
+                                                        <div key={`${idx}-${pIdx}`} className="w-[48%] h-[85%] overflow-hidden bg-white shadow-sm flex items-center justify-center rounded-[0.1cqw]">
+                                                            <PageThumbnail
+                                                                html={page.html || page.content}
+                                                                index={spread.indices[pIdx]}
+                                                                scale={0.06}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                    {spread.pages.length === 1 && idx === spreads.length - 1 && (
+                                                        <div className="w-[48%] h-[85%] bg-gray-50 rounded-[0.1cqw]" />
+                                                    )}
                                                 </div>
 
-                                                {isSelected && (
-                                                    <div
-                                                        className="absolute inset-0 flex items-center justify-center z-20 backdrop-blur-[0.5px]"
-                                                        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+                                                <div className="w-full text-center mt-auto pb-[0.1cqw]">
+                                                    <span 
+                                                        className="text-[0.9cqw] font-medium"
+                                                        style={{ color: isSelected ? getLayoutColor('dropdown-bg', '#5C5898') : '#666666' }}
                                                     >
-                                                        <span className="text-white text-[1.2cqw] font-semibold whitespace-nowrap">
-                                                            Page {spread.indices[0] + 1} / {totalPages}
-                                                        </span>
-                                                    </div>
-                                                )}
+                                                        Page {spread.indices[0] + 1}{spread.indices.length > 1 ? `-${spread.indices[1] + 1}` : ''}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -619,11 +650,11 @@ const TabletLayout9 = ({
 
                             {canScrollRight && (
                                 <button
-                                    className="w-[4cqw] h-[8cqw] flex items-center justify-center hover:scale-110 transition-all shrink-0"
+                                    className="w-[4cqw] h-[8cqw] flex items-center justify-center hover:scale-110 transition-all shrink-0 z-10"
                                     onClick={(e) => { e.stopPropagation(); scroll('right'); }}
-                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                    style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
                                 >
-                                    <Icon icon="ph:caret-right" className="w-[1.8cqw] h-[1.8cqw]" />
+                                    <Icon icon="lucide:arrow-right" className="w-[2cqw] h-[2cqw]" />
                                 </button>
                             )}
                         </div>
