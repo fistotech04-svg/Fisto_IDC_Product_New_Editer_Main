@@ -263,7 +263,7 @@ const Grid8Layout = ({
     const [recommendations, setRecommendations] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const isFullscreen = isFullscreenProp || false;
-    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
+    const isCanvasHovered = false; const setIsCanvasHovered = () => {};
 
     // Track actual browser fullscreen (fires only when browser enters real fullscreen — 2nd click)
     const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
@@ -440,7 +440,7 @@ const Grid8Layout = ({
     const bbHeight = isTablet ? 'h-[5.5vh]' : 'h-[7vh]';
     const bbPt = 'pb-[1.5vh]';
     const bbGap = 'gap-[1.3vw]';
-    const bbMb = 'mb-[0.3vh]';
+    const bbMb = addTextBelowIcons ? 'mb-[0vh] mt-[1.2vh]' : 'mb-[0vh] mt-[2.5vh]';
     const bbIconSm = isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]';
     const bbIconMid = isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.15vw] h-[1.15vw]';
     const bbIconLg = isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]';
@@ -616,7 +616,7 @@ const Grid8Layout = ({
                 {/* Center Title */}
                 <div className="flex-shrink-0 flex justify-center pointer-events-auto px-[1vw] max-w-[30vw]">
                     <h1 className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-bold tracking-wide truncate`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        {bookName || "Name of the book"}
+                        {/* bookName hidden */}
                     </h1>
                 </div>
 
@@ -924,7 +924,7 @@ const Grid8Layout = ({
                 {/* Progress Bar */}
                 <div
                     ref={progressRef}
-                    className={`${isTablet ? 'w-[35vw]' : 'w-[45vw]'} h-[2vw] flex items-center relative cursor-pointer`}
+                    className={`${isTablet ? 'w-[30vw]' : 'w-[40vw]'} ${addTextBelowIcons ? 'mt-[0.2vw]' : 'mt-0'} h-[2vw] flex items-center relative cursor-pointer`}
                     onMouseMove={handleProgressMouseMove}
                     onMouseLeave={() => {
                         if (progressHoverRef.current) cancelAnimationFrame(progressHoverRef.current);

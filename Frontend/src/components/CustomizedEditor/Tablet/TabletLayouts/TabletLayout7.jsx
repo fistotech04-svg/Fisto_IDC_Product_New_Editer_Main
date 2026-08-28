@@ -104,7 +104,7 @@ const TabletLayout7 = ({
             
             {/* Thumbnails Popup */}
             {showThumbnailBar && (
-                <div className="absolute right-[6.8cqw] bottom-[7.5%] top-[10cqw] w-[26cqw] bg-[#F5F6F8] rounded-t-[1.5cqw] shadow-[-4px_0_24px_rgba(0,0,0,0.15)] flex flex-col pointer-events-auto z-[100]">
+                <div className="absolute left-[6.8cqw] bottom-[7.5%] top-[10cqw] w-[26cqw] bg-[#F5F6F8] rounded-t-[1.5cqw] shadow-[-4px_0_24px_rgba(0,0,0,0.15)] flex flex-col pointer-events-auto z-[100]">
                     {/* Header */}
                     <div className="flex items-center justify-between p-[2cqw] pb-[1cqw]">
                         <h2 className="text-[1.8cqw] font-bold text-[#575C9C]">
@@ -177,7 +177,7 @@ const TabletLayout7 = ({
                 </div>
                 {/* Title */}
                 <div className="text-white font-bold text-[1.8cqw] tracking-wide filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.1)]">
-                    {bookName || "Flipbook_20260704100611"}
+                    {/* bookName hidden */}
                 </div>
                 {/* Spacer to keep title centered */}
                 <div className="w-[20cqw]"></div>
@@ -206,8 +206,8 @@ const TabletLayout7 = ({
                     <Icon icon="lucide:chevron-right" className="w-[3cqw] h-[4cqw]" />
                 </button>
 
-                {/* Right Vertical Toolbar */}
-                <div className="absolute right-[1.5cqw] top-1/2 -translate-y-1/2 bg-[#5C5898] rounded-[1.2cqw] flex flex-col items-center py-[1.8cqw] gap-[1.8cqw] z-20 shadow-lg px-[1.2cqw]">
+                {/* Left Vertical Toolbar */}
+                <div className="absolute left-[1.5cqw] top-1/2 -translate-y-1/2 bg-[#5C5898] rounded-[1.2cqw] flex flex-col items-center py-[1.8cqw] gap-[1.8cqw] z-20 shadow-lg px-[1.2cqw]">
                     <button onClick={() => { setShowTOCMemo?.(!showTOC); setShowThumbnailBarMemo?.(false); setShowSoundPopupMemo?.(false); }} className={`text-white hover:text-gray-300 active:scale-95 transition-transform ${showTOC ? 'text-gray-300 opacity-70' : ''}`}><Icon icon="fluent:text-bullet-list-24-filled" className="w-[2.4cqw] h-[2.4cqw]" /></button>
                     <button onClick={() => { setShowThumbnailBarMemo?.(!showThumbnailBar); setShowTOCMemo?.(false); setShowSoundPopupMemo?.(false); }} className={`text-white hover:text-gray-300 active:scale-95 transition-transform ${showThumbnailBar ? 'text-gray-300 opacity-70' : ''}`}><Icon icon="ph:squares-four-fill" className="w-[2.4cqw] h-[2.4cqw]" /></button>
                     <button className="text-white hover:text-gray-300 active:scale-95 transition-transform"><Icon icon="clarity:image-gallery-solid" className="w-[2.4cqw] h-[2.4cqw]" /></button>
@@ -250,7 +250,7 @@ const TabletLayout7 = ({
                 </div>
 
                 {/* Zoom Controls */}
-                <div className="flex items-center bg-[#494582] rounded-[0.4cqw] border border-white/10 pl-[0.8cqw] pr-[0.4cqw] py-[0.4cqw] gap-[0.8cqw]">
+                <div className="flex items-center bg-[#494582] rounded-[0.4cqw] border border-white/40 pl-[0.8cqw] pr-[0.4cqw] py-[0.4cqw] gap-[0.8cqw]">
                     <button className="text-white/80 hover:text-white"><Icon icon="ph:magnifying-glass-minus" className="w-[1.2cqw] h-[1.2cqw]" /></button>
                     <span className="text-white font-bold text-[1cqw]">100%</span>
                     <button className="text-white/80 hover:text-white"><Icon icon="ph:magnifying-glass-plus" className="w-[1.2cqw] h-[1.2cqw]" /></button>

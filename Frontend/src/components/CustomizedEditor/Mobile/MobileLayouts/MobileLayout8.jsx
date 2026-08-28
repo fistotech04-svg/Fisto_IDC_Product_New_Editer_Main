@@ -234,7 +234,7 @@ const MobileLayout8 = (props) => {
             {/* Header */}
             <header className="z-50 px-4 pt-0 pb-4 flex flex-col gap-4 shadow-md shrink-0 bg-white/20 backdrop-blur-sm">
                 <div className="flex items-center justify-between px-1">
-                    <span className="text-[#575C9C] text-[15px] font-bold truncate flex-1">{bookName || 'Name of the book'}</span>
+                    <span className="text-[#575C9C] text-[15px] font-bold truncate flex-1">{/* bookName hidden */}</span>
                     {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
                         <img
                             src={logoSettings.src}
@@ -249,7 +249,7 @@ const MobileLayout8 = (props) => {
                     <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center gap-3 shadow-sm relative border border-gray-100">
                         <Icon icon="lucide:search" className="text-gray-400 w-5 h-5" />
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
                             className="bg-transparent text-gray-700 placeholder-gray-400 text-[13px] outline-none w-full font-medium"
                             value={localSearchQuery}

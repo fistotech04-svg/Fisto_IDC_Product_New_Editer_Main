@@ -228,7 +228,7 @@ const Grid9Layout = ({
     const [recommendations, setRecommendations] = useState([]);
     const [popupPositions, setPopupPositions] = useState({});
     const isFullscreen = isFullscreenProp || false;
-    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
+    const isCanvasHovered = false; const setIsCanvasHovered = () => {};
     const thumbScrollRef = useRef(null);
     const layoutRef = useRef(null);
     const showThumbnails = showThumbnailBar;
@@ -510,7 +510,7 @@ const Grid9Layout = ({
                             >
                                 <Icon icon="lucide:search" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '1.0vw') : (isTablet ? '1.0vw' : '1.1vw'), height: isSidebarOpen ? (isTablet ? '0.9vw' : '1.0vw') : (isTablet ? '1.0vw' : '1.1vw') }} color={getLayoutColor('search-text-v1', primaryColor)} />
                                 <input
-                                    type="text"
+                                    type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                     value={localSearchQuery}
                                     onChange={(e) => {
                                         const val = e.target.value;
@@ -945,6 +945,7 @@ const Grid9Layout = ({
             >
                 <div className="w-full flex items-center justify-between px-[2vw]">
                     {/* Left: Book Name */}
+                    {/* Left: Book Name */}
                     <div className="flex-1 flex justify-start pointer-events-auto">
                         <span className="font-bold tracking-wide truncate max-w-[80%]" style={{ 
                             color: (() => {
@@ -955,7 +956,7 @@ const Grid9Layout = ({
                             })(), 
                             fontSize: isTablet ? '1vw' : '1.2vw' 
                         }}>
-                            {bookName || "Name of the Book"}
+                            {/* bookName hidden */}
                         </span>
                     </div>
 
@@ -1031,7 +1032,7 @@ const Grid9Layout = ({
                                 Page –
                             </span>
                             <input
-                                type="text"
+                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 value={pageInputValue}
                                 onChange={(e) => {
                                     const val = e.target.value;

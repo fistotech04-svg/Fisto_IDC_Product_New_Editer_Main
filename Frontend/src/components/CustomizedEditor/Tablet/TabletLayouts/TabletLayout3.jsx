@@ -299,9 +299,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                 </div>
 
                 {/* Right: Book Name */}
-                <div className="flex-none font-semibold text-[1.2cqw] truncate max-w-[20cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 'var(--toolbar-text-main-opacity, 1)' }}>
-                    {bookName}
-                </div>
+                <div className="flex-none font-semibold text-[1.2cqw] truncate max-w-[20cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 'var(--toolbar-text-main-opacity, 1)' }}>{/* {bookName} */}</div>
             </div>
 
             {/* Thumbnail Bar */}
@@ -454,7 +452,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
 
                 <div className="flex items-center justify-between w-full -mt-[0.5cqw]">
                     {/* Left: Page Info */}
-                    <div className="px-[1cqw] py-[0.4cqw] rounded-[0.4cqw] text-[0.9cqw] font-semibold shadow-sm" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'), color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                    <div className="px-[1.2cqw] pb-[0.5cqw] pt-[0.3cqw] rounded-[0.4cqw] text-[1cqw] font-semibold shadow-sm translate-y-[0.2cqw]" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'), color: getLayoutColor('search-text-v1', '#575C9C') }}>
                         Page {displayPage} / {totalPages}
                     </div>
 
@@ -499,15 +497,15 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                     </div>
 
                     {/* Right: Zoom Controls */}
-                    <div className=" rounded-[0.4cqw] flex items-center px-[0.6cqw] py-[0.4cqw] gap-[0.8cqw] shadow-sm" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
+                    <div className=" rounded-[0.5cqw] flex items-center px-[0.8cqw] py-[0.3cqw] gap-[0.8cqw] shadow-sm translate-y-[0.2cqw]" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
                         <button className="hover:opacity-80 transition-opacity" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
-                            <Icon icon="fluent:zoom-out-24-regular" className="w-[1.2cqw] h-[1.2cqw]" />
+                            <Icon icon="fluent:zoom-out-24-regular" className="w-[1.4cqw] h-[1.4cqw]" />
                         </button>
-                        <span className="text-[0.9cqw] font-semibold min-w-[2.5cqw] text-center" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>100%</span>
+                        <span className="text-[1cqw] font-semibold min-w-[3cqw] text-center" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>100%</span>
                         <button className="hover:opacity-80 transition-opacity" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
-                            <Icon icon="fluent:zoom-in-24-regular" className="w-[1.2cqw] h-[1.2cqw]" />
+                            <Icon icon="fluent:zoom-in-24-regular" className="w-[1.4cqw] h-[1.4cqw]" />
                         </button>
-                        <button className="px-[0.8cqw] py-[0.2cqw] rounded-[0.3cqw] text-[0.8cqw] font-semibold hover:opacity-90 transition-colors ml-[0.2cqw]"
+                        <button className="px-[1cqw] py-[0.3cqw] rounded-[0.4cqw] text-[0.9cqw] font-semibold hover:opacity-90 transition-colors ml-[0.2cqw]"
                             style={{
                                 backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1'),
                                 color: getLayoutColor('toolbar-icon', '#FFFFFF'),
@@ -520,7 +518,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                 </div>
 
                 {/* Progress Line */}
-                <div className="absolute bottom-[0.8cqw] left-[2cqw] right-[2cqw] h-[2px] rounded-full" style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 0.3 }}>
+                <div className="absolute bottom-[0.8cqw] left-[20cqw] right-[20cqw] h-[2px] rounded-full" style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 0.3 }}>
                     <div
                         className="absolute left-0 top-0 h-full rounded-full transition-all duration-300"
                         style={{ width: `${progressPercentage}%`, backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}

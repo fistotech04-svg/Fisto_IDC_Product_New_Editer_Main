@@ -244,7 +244,7 @@ const MobileLayout7 = (props) => {
             {/* Header */}
             <header className="z-50 px-4 pt-2 pb-4 flex flex-col gap-4 shadow-sm relative shrink-0" style={{ backgroundColor: "transparent" }}>
                 <div className="flex items-center justify-between px-1 mt-1">
-                    <span className="text-white text-[13px] font-medium opacity-90 truncate flex-1">{bookName}</span>
+                    <span className="text-white text-[13px] font-medium opacity-90 truncate flex-1">{/* {bookName} */}</span>
                     <div className="flex items-center">
                         {settings?.brandingProfile?.logo && logoSettings?.src && (
                             <img
@@ -270,7 +270,7 @@ const MobileLayout7 = (props) => {
                     >
                         <Icon icon="lucide:search" className="text-white/70 w-5 h-5" />
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
                             className="bg-transparent text-white placeholder-white/60 text-[13px] outline-none w-full font-medium"
                             value={localSearchQuery}

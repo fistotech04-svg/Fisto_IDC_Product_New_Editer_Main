@@ -281,7 +281,7 @@ const Grid1Layout = React.memo((props) => {
     const isFullscreen = isFullscreenProp || false;
     const isNativeFS = typeof document !== 'undefined' && !!document.fullscreenElement;
     const isPreviewMode = typeof window !== 'undefined' && (window.location.pathname.includes('/preview') || window.location.pathname.includes('/share'));
-    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
+    const isCanvasHovered = false; const setIsCanvasHovered = () => {};
     const [activePopup, setActivePopup] = useState(null);
 
     const closeAllPopups = useCallback(() => {
@@ -367,6 +367,20 @@ const Grid1Layout = React.memo((props) => {
             window.removeEventListener('resize', updateScale);
         };
     }, [isMobileLandscape, isTablet, initialWidth, initialHeight]);
+
+    const zoomSliderRef = React.useRef(null);
+
+    const handleZoomDrag = (e) => {
+        if (!zoomSliderRef.current) return;
+        const rect = zoomSliderRef.current.getBoundingClientRect();
+        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        const percentage = x / rect.width;
+        setDimWidth(prev => {
+            const nextWidth = initialWidth * 0.5 + percentage * initialWidth;
+            setDimHeight(nextWidth * aspectRatio);
+            return nextWidth;
+        });
+    };
 
     const zoomIn = () => {
         setDimWidth(prev => {
@@ -660,29 +674,32 @@ const Grid1Layout = React.memo((props) => {
             />
             {/* Top Bar - Revamped */}
             {!hideHeader && (
-                <div className={isFullscreen ? 'absolute top-0 left-0 w-full z-[1000]' : 'shrink-0'}>
+                <div className="shrink-0 w-full z-[1000]">
                     <div
-                        className={`${isMobileLandscape ? 'h-[5.5vh] pt-[0.5vh]' : isTablet ? 'h-[5.5vh]' : 'h-[7vh]'} flex items-center justify-between px-[2vw] w-full shadow-lg z-[1001] relative transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : ''}`}
+                        className={`${isMobileLandscape ? 'h-[5.5vh] pt-[0.5vh]' : isTablet ? 'h-[5.5vh]' : 'h-[7vh]'} flex items-center justify-between px-[2vw] w-full shadow-lg z-[1001] relative transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : ''}`}
                         style={{ backgroundColor: isTablet ? getLayoutColorRgba('bottom-toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}
                     >
                         {/* Search Area */}
                         {(settings?.interaction?.search ?? true) && !isPdfProject ? (
                             <div className="relative">
                                 <div
-                                    className={`flex items-center rounded-full px-[0.9vw] py-[0.35vw] ${isMobileLandscape ? 'w-[9vw]' : 'w-[14vw]'} group transition-all shadow-inner`}
+                                    className={`flex items-center rounded-full px-[0.9vw] py-[0.35vw] ${isMobileLandscape ? 'w-[9vw]' : 'w-[14vw]'} group transition-all shadow-inner border`}
                                     onClick={(e) => e.stopPropagation()}
-                                    style={{ backgroundColor: isTablet ? getLayoutColor('search-bg-v1', '#D7D8E8') : getLayoutColorRgba('search-bg-v1', '215, 216, 232', '1') }}
+                                    style={{ 
+                                        backgroundColor: getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.08), 
+                                        borderColor: getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.4) 
+                                    }}
                                 >
                                     <style>{`
                                     #quick-search-v1-${activeLayout}::placeholder {
-                                        color: ${getLayoutColor('search-text-v1', '#575C9C')} !important;
-                                        opacity: var(--search-text-v1-opacity, 1);
+                                        color: ${getLayoutColor('toolbar-text-main', '#FFFFFF')} !important;
+                                        opacity: 0.8;
                                     }
                                 `}</style>
                                     <Icon
                                         icon="lucide:search"
                                         className={`${isMobileLandscape ? 'w-[0.55vw] h-[0.55vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[1vw] h-[1vw]'}`}
-                                        style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
+                                        style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 0.8 }}
                                     />
                                     <input
                                         type="text"
@@ -734,10 +751,13 @@ const Grid1Layout = React.memo((props) => {
                                         }}
                                         id={`quick-search-v1-${activeLayout}`}
                                         placeholder="Quick Search..."
+                                        autoComplete="off"
+                                        spellCheck="false"
+                                        autoCorrect="off"
                                         className={`bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ml-[0.6vw] w-full ${isMobileLandscape ? 'text-[0.45vw]' : isTablet ? 'text-[0.55vw]' : 'text-[0.8vw]'} font-normal`}
                                         style={{
-                                            color: getLayoutColor('search-text-v1', '#575C9C'),
-                                            opacity: 'var(--search-text-v1-opacity, 1)'
+                                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                            opacity: 1
                                         }}
                                     />
                                 </div>
@@ -766,7 +786,7 @@ const Grid1Layout = React.memo((props) => {
                                                 >
                                                     <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
                                                         <span className={`${isMobileLandscape ? 'text-[0.5vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.9vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
-                                                            <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 800 }}>{rec.word}</span>
+                                                            <span className="font-semibold mr-[0.3vw]">{rec.word}</span>
                                                             {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
                                                         </span>
                                                     </div>
@@ -779,13 +799,15 @@ const Grid1Layout = React.memo((props) => {
                             </div>
                         ) : null}
 
-                        {/* Centered Title */}
+                        {/* Centered Title (Hidden per user request) */}
+                        {/* 
                         <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none">
                             <span
                                 className={`${isMobileLandscape ? 'text-[1.1vw]' : isTablet ? 'text-[1.2vw]' : 'text-[1.25vw]'} font-medium drop-shadow-sm`}
                                 style={{ color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }}
                             >{bookName}</span>
-                        </div>
+                        </div> 
+                        */}
 
                         {/* Logo Area */}
                         {settings.brandingProfile.logo && logoSettings?.src && (
@@ -979,9 +1001,9 @@ const Grid1Layout = React.memo((props) => {
                 </div>
             </div>
             {/* Inline Bottom Toolbar Integration */}
-            <div className={isFullscreen ? 'absolute bottom-0 left-0 w-full z-[1000]' : 'shrink-0'}>
+            <div className="shrink-0 w-full z-[1000]">
                 <div
-                    className={`${isMobileLandscape ? 'h-[4vh] mb-[1vh]' : isTablet ? 'h-[5vh]' : 'h-[6.5vh]'} flex items-center justify-between px-[2vw] w-full z-[1001] shadow-[0_-0.5vw_2vw_rgba(0,0,0,0.2)] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}
+                    className={`${isMobileLandscape ? 'h-[4vh] mb-[1vh]' : isTablet ? 'h-[5vh]' : 'h-[6.5vh]'} flex items-center justify-between px-[2vw] w-full z-[1001] shadow-[0_-0.5vw_2vw_rgba(0,0,0,0.2)] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'relative'}`}
                     style={{ backgroundColor: isTablet ? getLayoutColor('bottom-toolbar-bg', '#575C9C') : getLayoutColorRgba('bottom-toolbar-bg', '87, 92, 156', '1') }}
                     onMouseMove={(e) => setDockMousePos({ x: e.clientX, y: e.clientY })}
                     onMouseLeave={() => setDockMousePos(null)}
@@ -1268,15 +1290,35 @@ const Grid1Layout = React.memo((props) => {
                                     false,
                                     true
                                 )}
-                                <div className={`${isMobileLandscape ? 'w-[2vw]' : 'w-[6vw]'} ${isMobileLandscape ? 'h-[0.15vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.25vw]'} rounded-full relative overflow-hidden`}>
+                                <div 
+                                    ref={zoomSliderRef}
+                                    className={`${isMobileLandscape ? 'w-[2vw]' : 'w-[6vw]'} flex items-center h-[1vw] relative cursor-pointer`}
+                                    onPointerDown={(e) => {
+                                        e.stopPropagation();
+                                        e.currentTarget.setPointerCapture(e.pointerId);
+                                        handleZoomDrag(e);
+                                    }}
+                                    onPointerMove={(e) => {
+                                        e.stopPropagation();
+                                        if (e.buttons === 1) handleZoomDrag(e);
+                                    }}
+                                >
                                     {/* Track Underlay */}
-                                    <div className="absolute inset-0 transition-colors duration-300" style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 0.3 }} />
+                                    <div className={`w-full ${isMobileLandscape ? 'h-[0.15vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.25vw]'} rounded-full absolute transition-colors duration-300`} style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 0.3 }} />
                                     {/* Progress Fill */}
                                     <div
-                                        className="absolute top-0 left-0 h-full transition-all duration-300 z-10"
+                                        className={`absolute left-0 ${isMobileLandscape ? 'h-[0.15vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.25vw]'} rounded-full transition-all duration-75 z-10`}
                                         style={{
                                             backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'),
                                             width: `${Math.max(0, Math.min(100, ((dimWidth - initialWidth * 0.5) / (initialWidth * 1.5 - initialWidth * 0.5)) * 100))}%`
+                                        }}
+                                    />
+                                    {/* Thumb */}
+                                    <div 
+                                        className="absolute top-1/2 -translate-y-1/2 w-[0.8vw] h-[0.8vw] rounded-full shadow-md transition-all duration-75 z-20"
+                                        style={{
+                                            backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'),
+                                            left: `calc(${Math.max(0, Math.min(100, ((dimWidth - initialWidth * 0.5) / (initialWidth * 1.5 - initialWidth * 0.5)) * 100))}% - 0.4vw)`
                                         }}
                                     />
                                 </div>

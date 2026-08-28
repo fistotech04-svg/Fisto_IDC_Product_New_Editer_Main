@@ -275,22 +275,12 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
   let isInvalid = false;
   let hasDigits = false;
 
-  if (isWhatsApp) {
-    const localNumber = localValue.replace(/^\+91/, '').replace(/\D/g, '');
-    hasDigits = localNumber.length > 0;
-    if (hasDigits) {
-      const firstDigit = localNumber.charAt(0);
-      const validStart = ['6', '7', '8', '9'].includes(firstDigit);
-      isInvalid = !validStart || localNumber.length !== 10;
-    }
-  } else {
-    hasDigits = localValue.trim().length > 0;
-    if (hasDigits) {
-      try {
-        isInvalid = !isValidPhoneNumber(localValue, selectedCountry.toUpperCase());
-      } catch (e) {
-        isInvalid = true;
-      }
+  hasDigits = localValue.trim().length > 0;
+  if (hasDigits) {
+    try {
+      isInvalid = !isValidPhoneNumber(localValue, selectedCountry.toUpperCase());
+    } catch (e) {
+      isInvalid = true;
     }
   }
 
@@ -321,7 +311,7 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
   }, [initialValue]);
 
   useEffect(() => {
-    if (!containerRef.current || isWhatsApp) return;
+    if (!containerRef.current) return;
 
     const removeTitle = () => {
       if (!containerRef.current) return;
@@ -347,145 +337,105 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
     });
 
     return () => observer.disconnect();
-  }, [isWhatsApp]);
+  }, []);
 
   return (
     <div className="w-full h-full relative" ref={containerRef}>
-      {!isWhatsApp && (
-        <style>{`
-          .react-tel-input .flag-dropdown .selected-flag,
-          .react-tel-input .flag-dropdown:hover .selected-flag,
-          .react-tel-input .flag-dropdown.open-dropdown .selected-flag,
-          .react-tel-input .flag-dropdown:focus .selected-flag {
-            background-color: transparent !important;
-            width: 100% !important;
-            justify-content: center !important;
+      <style>{`
+        .react-tel-input .flag-dropdown .selected-flag,
+        .react-tel-input .flag-dropdown:hover .selected-flag,
+        .react-tel-input .flag-dropdown.open-dropdown .selected-flag,
+        .react-tel-input .flag-dropdown:focus .selected-flag {
+          background-color: transparent !important;
+          width: 100% !important;
+          justify-content: center !important;
+        }
+        .react-tel-input .country-list .country {
+          padding: 0.6vw 0.6vw 0.6vw 2.6vw !important;
+        }
+        .react-tel-input .country-list .flag {
+          left: 0.8vw !important;
+          margin-top: 0.2vw !important;
+        }
+        .react-tel-input .country-list {
+          margin: 0 !important;
+          left: 0 !important;
+          transform: none !important;
+          top: 100% !important;
+          bottom: auto !important;
+          margin-top: 0.2vw !important;
+          z-index: 99999 !important;
+        }
+      `}</style>
+      <PhoneInput
+        country={selectedCountry}
+        preferredCountries={['in', 'us', 'gb']}
+        disableCountryGuess={true}
+        value={'+' + dialCode + localValue}
+        onChange={(phone, data) => {
+          let nationalNum = phone;
+          if (data && data.dialCode && phone.startsWith(data.dialCode)) {
+            nationalNum = phone.substring(data.dialCode.length);
           }
-          .react-tel-input .country-list .country {
-            padding: 0.6vw 0.6vw 0.6vw 2.6vw !important;
+          setLocalValue(nationalNum);
+          
+          if (data && data.countryCode && data.countryCode !== selectedCountry) {
+            setSelectedCountry(data.countryCode);
+            setDialCode(data.dialCode);
           }
-          .react-tel-input .country-list .flag {
-            left: 0.8vw !important;
-            margin-top: 0.2vw !important;
+          setIsSaved(false);
+        }}
+        onBlur={() => {
+          const saveVal = '+' + dialCode + localValue;
+          if (saveVal !== initialValue) {
+            onSave(saveVal);
+            setIsSaved(true);
           }
-          .react-tel-input .country-list {
-            margin: 0 !important;
-            left: 0 !important;
-            transform: none !important;
-            top: 100% !important;
-            bottom: auto !important;
-            margin-top: 0.2vw !important;
-            z-index: 99999 !important;
-          }
-        `}</style>
-      )}
-      {isWhatsApp ? (
-        <div className="relative w-full h-full bg-white rounded-[0.6vw]">
-          <div className="absolute left-[0.6vw] top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center z-10">
-            <Icon icon="ic:outline-whatsapp" className="text-[#22C55E] text-[1.4vw]" />
-          </div>
-          <div className="absolute left-[2.4vw] top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center bg-[#F3F4F6] rounded-[0.4vw] px-[0.4vw] h-[70%] z-10">
-            <span className="text-[0.85vw] text-gray-700 font-medium">+91</span>
-            <Icon icon="lucide:chevron-down" className="text-gray-500 text-[0.8vw] ml-[0.3vw]" />
-          </div>
-          <input
-            type="text"
-            value={localValue.replace(/^\+91/, '').replace(/\D/g, '')}
-            onChange={(e) => {
-              const val = e.target.value.replace(/\D/g, '');
-              if (val.length <= 10) {
-                setLocalValue(val ? '+91' + val : '');
-                setIsSaved(false);
-              }
-            }}
-            onBlur={() => {
-              const saveVal = '+91' + localValue.replace(/\D/g, '');
-              if (saveVal !== initialValue) {
-                onSave(saveVal);
-                setIsSaved(true);
-              }
-            }}
-            placeholder="1234567890"
-            className="w-full h-full rounded-[0.6vw] text-[0.85vw] font-medium text-gray-700 outline-none transition-all bg-transparent relative z-0"
-            style={{
-              paddingLeft: '6vw',
-              border: `1px solid ${borderColor}`,
-              boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
-              color: textColor
-            }}
-          />
-        </div>
-      ) : (
-        <PhoneInput
-          country={selectedCountry}
-          preferredCountries={['in', 'us', 'gb']}
-          disableCountryGuess={true}
-          value={'+' + dialCode + localValue}
-          onChange={(phone, data) => {
-            let nationalNum = phone;
-            if (data && data.dialCode && phone.startsWith(data.dialCode)) {
-              nationalNum = phone.substring(data.dialCode.length);
-            }
-            setLocalValue(nationalNum);
-            
-            if (data && data.countryCode && data.countryCode !== selectedCountry) {
-              setSelectedCountry(data.countryCode);
-              setDialCode(data.dialCode);
-            }
-            setIsSaved(false);
-          }}
-          onBlur={() => {
-            const saveVal = '+' + dialCode + localValue;
-            if (saveVal !== initialValue) {
-              onSave(saveVal);
-              setIsSaved(true);
-            }
-          }}
-          placeholder="1234567890"
-          containerStyle={{
-            width: '100%',
-            height: '100%'
-          }}
-          inputStyle={{
-            width: '100%',
-            height: '100%',
-            border: `1px solid ${borderColor}`,
-            borderRadius: '0.6vw',
-            fontSize: '0.85vw',
-            color: textColor,
-            fontWeight: '500',
-            paddingLeft: '3.8vw',
-            backgroundColor: '#FFFFFF',
-            outline: 'none',
-            boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
-            transition: 'all 0.3s ease'
-          }}
-          buttonStyle={{
-            backgroundColor: bgColor,
-            border: `1px solid ${borderColor}`,
-            borderRight: '1px solid #D1D5DB',
-            borderRadius: '0.6vw 0 0 0.6vw',
-            width: '3.2vw',
-            height: '100%',
-            top: '0',
-            left: '0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.3s ease'
-          }}
-          dropdownStyle={{
-            width: '14vw',
-            maxHeight: '20vh',
-            fontSize: '0.8vw',
-            borderRadius: '0.6vw',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-            border: '1px solid #E5E7EB',
-            textAlign: 'left',
-            zIndex: 50
-          }}
-        />
-      )}
+        }}
+        placeholder="1234567890"
+        containerStyle={{
+          width: '100%',
+          height: '100%'
+        }}
+        inputStyle={{
+          width: '100%',
+          height: '100%',
+          border: `1px solid ${borderColor}`,
+          borderRadius: '0.6vw',
+          fontSize: '0.85vw',
+          color: textColor,
+          fontWeight: '500',
+          paddingLeft: '3.8vw',
+          backgroundColor: '#FFFFFF',
+          outline: 'none',
+          boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
+          transition: 'all 0.3s ease'
+        }}
+        buttonStyle={{
+          backgroundColor: bgColor,
+          border: `1px solid ${borderColor}`,
+          borderRight: '1px solid #D1D5DB',
+          borderRadius: '0.6vw 0 0 0.6vw',
+          width: '3.2vw',
+          height: '100%',
+          top: '0',
+          left: '0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.3s ease'
+        }}
+        dropdownStyle={{
+          width: '14vw',
+          maxHeight: '20vh',
+          fontSize: '0.8vw',
+          borderRadius: '0.6vw',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+          border: '1px solid #E5E7EB',
+          textAlign: 'left',
+          zIndex: 50
+        }}
+      />
       {/* Green Checkmark inside input when valid */}
       {isValidAndFilled && (
         <div className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
@@ -540,7 +490,7 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
     return () => window.removeEventListener('scroll', handleScroll, true);
   }, [isDropdownOpen, setOpenDropdownId]);
 
-  const isLocked = ['youtube', 'instagram', 'x', 'facebook', 'linkedin'].includes(item.presetId);
+  const isLocked = ['youtube', 'instagram', 'x', 'facebook', 'linkedin', 'whatsapp'].includes(item.presetId);
 
   return (
     <>
@@ -1184,14 +1134,20 @@ const InteractionPanel = ({
         const imageEl = foundEl.querySelector('image');
         const isHotspot = foundEl.getAttribute('data-is-hotspot') === 'true' || 
                           (foundEl.getAttribute('data-type') === 'icon' || foundEl.getAttribute('data-type') === 'hotspot') && imageEl && imageEl.getAttribute('width') === '52';
-        let hotspotIconSrc = foundEl.getAttribute('data-hotspot-icon-src');
-        if (!hotspotIconSrc && isHotspot && imageEl) {
-           hotspotIconSrc = imageEl.getAttribute('href');
+        
+        const isInteractiveButton = isHotspot && foundEl.querySelector('rect') !== null && (foundEl.querySelector('text') !== null || foundEl.querySelector('[data-type="text"]') !== null);
+
+        let hotspotIconSrc = null;
+        if (!isInteractiveButton) {
+          hotspotIconSrc = foundEl.getAttribute('data-hotspot-icon-src');
+          if (!hotspotIconSrc && isHotspot && imageEl) {
+             hotspotIconSrc = imageEl.getAttribute('href');
+          }
         }
         
         let hotspotHtml = null;
-        let hotspotBBox = "0 0 24 24";
-        if (isHotspot && !hotspotIconSrc) {
+        let hotspotBBox = "0 0 48 48";
+        if (isHotspot || isInteractiveButton) {
            hotspotHtml = foundEl.innerHTML;
            const rectMatch = hotspotHtml.match(/<rect[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"/);
            if (rectMatch) {
@@ -1514,17 +1470,17 @@ const InteractionPanel = ({
                               </div>
                               
                               {/* Icon Preview */}
-                              {item.hotspotIconSrc ? (
-                                <img src={item.hotspotIconSrc} alt="hotspot" className="w-[4.5vw] h-[4.5vw] object-contain pointer-events-none" />
-                              ) : item.hotspotHtml ? (
+                              {item.hotspotHtml ? (
                                 <div className="w-[8vw] h-[4.5vw] flex items-center justify-center overflow-hidden pointer-events-none">
                                   <svg 
                                     className="w-full h-full" 
-                                    viewBox={item.hotspotBBox || "0 0 24 24"} 
+                                    viewBox={item.hotspotBBox || "0 0 48 48"} 
                                     preserveAspectRatio="xMidYMid meet"
                                     dangerouslySetInnerHTML={{ __html: item.hotspotHtml }} 
                                   />
                                 </div>
+                              ) : item.hotspotIconSrc ? (
+                                <img src={item.hotspotIconSrc} alt="hotspot" className="w-[4.5vw] h-[4.5vw] object-contain pointer-events-none" />
                               ) : (
                                 <div className="w-[4.5vw] h-[4.5vw] flex items-center justify-center rounded-full bg-[#EFF6FF] border-[0.15vw] border-[#BFDBFE]">
                                   <Icon icon="ph:link-bold" className="text-[#3B82F6] text-[2.2vw]" />
@@ -3526,7 +3482,8 @@ const InteractionPanel = ({
             'x': '#000000',
             'navigate-to': '#8B5CF6',
             'slideshow': '#22C55E',
-            'popup': '#14B8A6'
+            'popup': '#14B8A6',
+            'call': '#19B2AB'
           };
           return colorMap[actionId] || '#359CFD';
         };

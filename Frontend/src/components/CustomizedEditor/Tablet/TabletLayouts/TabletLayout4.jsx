@@ -198,7 +198,7 @@ const TabletLayout4 = ({
 
                 <div className="flex-1 text-center truncate px-[2cqw]">
                     <span className="text-[2cqw] font-medium truncate" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        {bookName || 'Flipbook'}
+                        {/* bookName hidden */}
                     </span>
                 </div>
 
@@ -207,7 +207,7 @@ const TabletLayout4 = ({
                         <div className="flex items-center px-[1cqw] py-[0.4cqh] rounded-[0.5cqw] shadow-inner w-full" style={{ backgroundColor: getLayoutColor('search-bg-v2', '#E0E3F5') }}>
                             <Icon icon="lucide:search" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
                             <input
-                                type="text"
+                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 value={localSearchQuery}
                                 onChange={(e) => setLocalSearchQuery(e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
@@ -225,7 +225,7 @@ const TabletLayout4 = ({
                 
                 {/* Left Sidebar */}
                 <div 
-                    className="w-[6cqw] flex flex-col justify-evenly items-center pt-[2cqh] pb-[6cqh] shrink-0 shadow-lg z-40"
+                    className="w-[6cqw] flex flex-col items-center pt-[4cqh] pb-[2cqh] gap-[4cqh] shrink-0 shadow-lg z-40"
                     style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
                 >
                     {(settings?.navigation?.tableOfContents ?? true) && (
@@ -411,7 +411,7 @@ const TabletLayout4 = ({
                 className="flex items-center justify-between px-[2cqw] py-[0.5cqh] shrink-0 w-full z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] h-[7cqh]"
                 style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
             >
-                <div className="flex items-center gap-[2cqw] w-[15cqw]">
+                <div className="flex items-center gap-[2cqw] w-[15cqw] ml-[4cqw]">
                     <button onClick={() => onPageClick(0)} className="transition-colors hover:opacity-80" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                         <Icon icon="mdi:skip-previous-outline" className="w-[3cqw] h-[3cqw]" />
                     </button>
@@ -423,7 +423,7 @@ const TabletLayout4 = ({
                     </button>
                 </div>
                 
-                <div className="flex-1 flex items-center justify-center px-[4cqw]">
+                <div className="flex-1 flex items-center justify-start ml-[2cqw]">
                     <div className="w-full max-w-[50cqw] h-[2px] relative rounded-full" style={{ backgroundColor: getLayoutColorAlpha('toolbar-icon', '255,255,255', 0.3) }}>
                         <div 
                             className="absolute left-0 top-0 h-full rounded-full" 

@@ -9,12 +9,12 @@ import layout2 from '../../assets/layout/Layout2.jpg';
 import layout3 from '../../assets/layout/Layout3.jpg';
 import layout4 from '../../assets/layout/Layout4.jpg';
 import layout5 from '../../assets/layout/Layout5.jpg';
-import layout6 from '../../assets/layout/Layout6.png';
 import layout7 from '../../assets/layout/Layout7.png';
 import layout8 from '../../assets/layout/Layout8.png'; // Assuming a Layout8.png exists or this name works
 import layout9 from '../../assets/layout/Layout9.png';
 
-const layoutImages = [layout1, layout2, layout3, layout4, layout5, layout6, layout7, layout8, layout9];
+const layoutImages = [layout1, layout2, layout3, layout4, layout5, layout7, layout8, layout9];
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Default color definitions per layout (6 swatches each)
@@ -500,7 +500,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
         setColorPopup({ layoutIndex: layoutIdx });
     };
 
-    const layoutNames = { 1: 'Layout 1', 2: 'Layout 2', 3: 'Layout 3', 4: 'Layout 4', 5: 'Layout 5', 6: 'Layout 6', 7: 'Layout 7', 8: 'Layout 8', 9: 'Layout 9' };
+    const layoutNames = { 1: 'Layout 1', 2: 'Layout 2', 3: 'Layout 3', 4: 'Layout 4', 5: 'Layout 5', 7: 'Layout 6', 8: 'Layout 7', 9: 'Layout 8' };
 
     // ─────────────────────────────────────────────────────────────────────
     return (
@@ -535,7 +535,8 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
             {activeTab === 'Layouts' && (
                 <div className="px-[1vw] pb-[1vw] grid grid-cols-2 gap-[0.8vw] relative z-[10]">
                     {layoutImages.map((img, index) => {
-                        const layoutNum = index + 1;
+                        const layoutIds = [1, 2, 3, 4, 5, 7, 8, 9];
+                        const layoutNum = layoutIds[index];
                         const isActive = activeLayout === layoutNum;
                         const layoutColorsList = colors[layoutNum] || [];
                         const layoutName = layoutNames[layoutNum] || `Layout ${layoutNum}`;
