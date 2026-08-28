@@ -267,6 +267,9 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
         return () => clearTimeout(timer);
     }, [selectedMaterial, modelName]);
 
+    // Determine if we are in multi-model mode
+    const isMultiModel = materials.length > 1 || (materials.length === 1 && materials[0]?.group && materials[0].group !== modelName);
+
     // Filtering logic
     const filteredMaterials = materials.map(item => {
         if (typeof item === 'object' && item.group) {
@@ -358,8 +361,9 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
                 {/* MATERIALS LIST */}
                 {/* MATERIALS SCROLL LIST */}
                 <div className="flex-1 overflow-y-auto space-y-[0.21vw] custom-scrollbar px-[0.42vw] pb-[0.2vw] mt-[0.21vw]">
-                    {/* Model Name Parent Item (Sticky) */}
-                    {(!searchTerm || (modelName || "Model").toLowerCase().includes(searchTerm.toLowerCase())) && (
+                    
+                    {/* Single-model mode: show one sticky "Select whole model" header */}
+                    {!isMultiModel && (!searchTerm || (modelName || "Model").toLowerCase().includes(searchTerm.toLowerCase())) && (
                         <div className="sticky top-0 bg-white z-10 pt-[0.2vw] pb-[0.42vw]">
                             <div 
                                 onClick={(e) => onSelect({ name: (modelName || "Model"), parentGroup: (modelName || "Model"), isShift: e.shiftKey })}
@@ -388,21 +392,41 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
                         {filteredMaterials.map((item, idx) => {
                             // Check if it's a group
                             if (typeof item === 'object' && item.group) {
+                                const groupModelName = item.group;
+                                const isThisModelSelected = selectedMaterial && selectedMaterial.name === groupModelName;
                                 return (
-                                    <MaterialGroup 
-                                        key={idx} 
-                                        id={item.id}
-                                        group={item.group} 
-                                        materials={item.materials} 
-                                        selectedMaterial={selectedMaterial} 
-                                        onSelect={onSelect} 
-                                        hiddenMaterials={hiddenMaterials}
-                                        onToggleVisibility={handleToggleVisibility}
-                                        onDelete={handleDelete}
-                                        onRename={onRenameMaterial}
-                                        onDeleteModel={onDeleteModel}
-                                        checkIfSelected={checkIfSelected}
-                                    />
+                                    <div key={idx}>
+                                        {/* Multi-model mode: show per-model "select whole model" row above each group */}
+                                        {isMultiModel && (!searchTerm || groupModelName.toLowerCase().includes(searchTerm.toLowerCase())) && (
+                                            <div className="pt-[0.1vw] pb-[0.21vw]">
+                                                <div
+                                                    onClick={(e) => onSelect({ name: groupModelName, parentGroup: groupModelName, isShift: e.shiftKey })}
+                                                    className={`py-[0.35vw] px-[0.62vw] flex items-center gap-[0.52vw] text-[0.7vw] font-semibold rounded-[0.42vw] cursor-pointer transition-all border border-transparent
+                                                        ${isThisModelSelected
+                                                            ? "bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm"
+                                                            : "bg-gray-50 text-gray-800 hover:bg-gray-100 border-gray-100/50"
+                                                        }`}
+                                                >
+                                                    <Icon icon="ph:cube-duotone" width="1vw" height="1vw" className={`shrink-0 ${isThisModelSelected ? "text-indigo-500" : "text-gray-400"}`} />
+                                                    <span className="truncate flex-1 min-w-0">{groupModelName}</span>
+                                                    {isThisModelSelected && <Icon icon="heroicons:check-circle-20-solid" width="0.73vw" height="0.73vw" className="text-indigo-500 shrink-0" />}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <MaterialGroup 
+                                            id={item.id}
+                                            group={item.group} 
+                                            materials={item.materials} 
+                                            selectedMaterial={selectedMaterial} 
+                                            onSelect={onSelect} 
+                                            hiddenMaterials={hiddenMaterials}
+                                            onToggleVisibility={handleToggleVisibility}
+                                            onDelete={handleDelete}
+                                            onRename={onRenameMaterial}
+                                            onDeleteModel={onDeleteModel}
+                                            checkIfSelected={checkIfSelected}
+                                        />
+                                    </div>
                                 );
                             } else {
                                 // Standard string item
@@ -426,3 +450,4 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
         </div>
     );
 }
+

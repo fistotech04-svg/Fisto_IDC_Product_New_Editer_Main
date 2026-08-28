@@ -45,14 +45,29 @@ export function resolveUploadsPath(path) {
 
   let cleanPath = path;
 
+  // Auto-heal double URL concatenation (e.g. https://devtunnel.mshttps://supabase.co... or https://...https//...)
+  const doubleUrlMatch = cleanPath.match(/^https?:\/\/[^/]+(https?:?\/?\/?.+)$/i);
+  if (doubleUrlMatch) {
+    let nested = doubleUrlMatch[1];
+    if (!nested.startsWith('http://') && !nested.startsWith('https://')) {
+      nested = nested.replace(/^https?:?\/?\/?/i, 'https://');
+    }
+    return nested;
+  }
+
   // If path contains backend origin with /uploads/, strip backend origin
   if (/^https?:\/\/[^/]+\/uploads\//i.test(cleanPath)) {
     cleanPath = cleanPath.replace(/^https?:\/\/[^/]+\/uploads\//i, '/uploads/');
   }
 
+  // If it's already a full external URL (like direct supabase URL), return it directly
+  if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+    return cleanPath;
+  }
+
   // Check if this is an upload path
   const isUpload = cleanPath.startsWith('/uploads') || cleanPath.startsWith('uploads/');
-  if (!isUpload) return path;
+  if (!isUpload) return cleanPath;
 
   if (SUPABASE_URL) {
     const key = cleanPath.replace(/^\/?uploads\/?/, '');

@@ -6,7 +6,6 @@ import { textureData } from "../../data/textureData";
 import { useRef } from "react";
 import { useEffect } from "react";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
-import PhysicsAccordion from "./Physics/PhysicsAccordion";
 
 // --- Reusable UI Components (Matched to PreDefined.jsx) ---
 
@@ -569,8 +568,7 @@ export default function Customized({
     onUvUnwrap,
     onMapUpload,
     selectedTextureId,
-    onSelectTexture,
-    physicsProps
+    onSelectTexture
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [activeColorType, setActiveColorType] = useState('color');
@@ -1081,7 +1079,7 @@ export default function Customized({
                 <div className="flex items-center gap-[0.75vw] mb-[0.5vw]">
                     <div className="flex-1">
                         <CustomDropdown 
-                            value={controls.environment || 'city'}
+                            value={controls.environment || 'studio'}
                             onChange={(val) => updateControl('environment', val)}
                             options={[
                                 { label: 'City', value: 'city' },
@@ -1151,13 +1149,6 @@ export default function Customized({
         </div>
       </Accordion>
 
-      {physicsProps && (
-        <PhysicsAccordion
-            isOpen={activePanel === "physics"}
-            onToggle={() => handlePanelToggle("physics")}
-            {...physicsProps}
-        />
-      )}
        {showColorPicker && createPortal(
             <ColorPicker
                 color={controls[activeColorType] || (activeColorType === 'emissiveColor' ? '#ffffff' : '#000000')}
