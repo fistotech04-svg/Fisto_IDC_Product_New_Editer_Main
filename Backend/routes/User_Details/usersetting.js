@@ -165,7 +165,7 @@ router.post('/update-autosave', async (req, res) => {
     const settings = await UserSettings.findOneAndUpdate(
       { emailId },
       { $set: { 'editorSettings.isAutoSaveEnabled': isAutoSaveEnabled } },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
 
     res.json({ 
@@ -200,7 +200,7 @@ router.post('/update-editor-settings', async (req, res) => {
     const settings = await UserSettings.findOneAndUpdate(
       { emailId },
       { $set: updateObj },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
 
     res.json({ message: 'Editor settings updated', editorSettings: settings.editorSettings });

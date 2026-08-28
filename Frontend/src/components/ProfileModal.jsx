@@ -177,7 +177,10 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
 
         {/* User Info Card with Free Ribbon */}
         <div 
-          onClick={() => { navigate('/settings/profile'); onClose(); }}
+          onClick={() => { 
+            navigate(user?.email && user?.email !== 'No Email' ? `/settings/profile/${encodeURIComponent(user.email)}` : '/settings/profile'); 
+            onClose(); 
+          }}
           className="relative border border-gray-100 rounded-[0.8vw] p-[0.85vw] shadow-sm bg-white flex items-center gap-[0.85vw] mb-[1vw] cursor-pointer hover:bg-gray-50/80 hover:border-gray-200 hover:shadow transition-all group"
         >
           {/* Free Badge Ribbon */}
@@ -269,7 +272,10 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
 
           {/* Settings */}
           <div
-            onClick={() => { navigate('/settings/profile'); onClose(); }}
+            onClick={() => { 
+              navigate(user?.email && user?.email !== 'No Email' ? `/settings/profile/${encodeURIComponent(user.email)}` : '/settings/profile'); 
+              onClose(); 
+            }}
             className="flex items-center justify-between py-[0.65vw] px-[0.25vw] hover:bg-gray-50 rounded-[0.4vw] cursor-pointer transition-colors group"
           >
             <div className="flex items-center gap-[0.75vw]">

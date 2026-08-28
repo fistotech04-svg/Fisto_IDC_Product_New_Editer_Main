@@ -75,7 +75,7 @@ export const addTexture = async (req, res) => {
             const cat = await TextureCategory.findOneAndUpdate(
                 { userEmail, name: materialCategory },
                 { userEmail, name: materialCategory },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
+                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
             );
             categoryId = cat._id;
         } else {
@@ -136,7 +136,7 @@ export const updateTexture = async (req, res) => {
                 const cat = await TextureCategory.findOneAndUpdate(
                     { userEmail: texture.userEmail, name: materialCategory },
                     { userEmail: texture.userEmail, name: materialCategory },
-                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
                 );
                 categoryId = cat._id;
             } else {
