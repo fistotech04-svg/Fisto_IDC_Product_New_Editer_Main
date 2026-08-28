@@ -337,7 +337,7 @@ const MobileLayout5 = (props) => {
                                                     <div className="relative z-10 flex items-center w-full">
                                                         <Icon icon="lucide:search" className="w-3 h-3" style={{ color: getLayoutColor('toc-text', '#575C9C'), opacity: 0.4 }} />
                                                         <input
-                                                            type="text"
+                                                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                                             value={tocSearchQuery}
                                                             onChange={(e) => setTocSearchQuery(e.target.value)}
                                                             placeholder="Search..."
@@ -557,7 +557,7 @@ const MobileLayout5 = (props) => {
                 {/* Light Layout Header */}
                 <header className="z-50 px-5 pt-4 pb-2 flex flex-col gap-3 relative shrink-0" style={{ backgroundColor: '#BDC3D9' }}>
                     <div className="flex items-center justify-between">
-                        <span className="text-[#575C9C] text-[15px] font-semibold truncate flex-1 opacity-80">{bookName || "Name of the book"}</span>
+                        <span className="text-[#575C9C] text-[15px] font-semibold truncate flex-1 opacity-80">{/* bookName hidden */}</span>
                         <div className="flex items-center">
                             {settings?.brandingProfile?.logo && logoSettings?.src ? (
                                 <img src={logoSettings.src} alt="Logo" className="h-6 w-auto" style={{ opacity: (logoSettings.opacity ?? 100) / 100 }} />
@@ -571,7 +571,7 @@ const MobileLayout5 = (props) => {
                         <div className={`flex-1 bg-white rounded-full px-4 py-1 flex items-center gap-3 shadow-sm relative ${showSuggestions && recommendations.length > 0 ? 'z-20' : ''}`}>
                             <Icon icon="lucide:search" className="text-[#575C9C] w-4 h-4 opacity-50" />
                             <input
-                                type="text"
+                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 placeholder="Quick Search..."
                                 className="bg-transparent text-[#575C9C] placeholder-[#575C9C]/50 text-[13px] outline-none w-full font-medium"
                                 value={localSearchQuery}

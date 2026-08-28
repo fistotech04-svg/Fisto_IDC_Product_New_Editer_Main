@@ -277,7 +277,7 @@ const MobileLayout4 = (props) => {
 
                 {/* Top Row: Book Title & Logo */}
                 <div className="flex items-center justify-between">
-                    <span className="text-white text-[13px] font-medium opacity-90 truncate flex-1">{bookName}</span>
+                    <span className="text-white text-[13px] font-medium opacity-90 truncate flex-1">{/* {bookName} */}</span>
                     <div className="flex items-center">
                         {settings?.brandingProfile?.logo && logoSettings?.src && (
                             <img
@@ -297,7 +297,7 @@ const MobileLayout4 = (props) => {
                     >
                         <Icon icon="lucide:search" className="text-[#575C9C] w-4 h-4 opacity-70" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
                         <input
-                            type="text"
+                            type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
                             className="bg-transparent text-[#575C9C] placeholder-[#575C9C]/70 text-[12px] outline-none w-full font-medium"
                             value={localSearchQuery}
@@ -614,7 +614,7 @@ const MobileLayout4 = (props) => {
                                                 className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#575C9C]/50"
                                             />
                                             <input
-                                                type="text"
+                                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                                 placeholder="Search..."
                                                 value={tocSearchQuery}
                                                 onChange={(e) => setTocSearchQuery(e.target.value)}

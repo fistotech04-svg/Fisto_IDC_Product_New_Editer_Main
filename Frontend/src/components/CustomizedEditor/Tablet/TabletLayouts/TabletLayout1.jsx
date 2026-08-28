@@ -57,13 +57,24 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
-const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, settings, showTOC, setShowTOCMemo, showThumbnailBar, setShowThumbnailBarMemo, onPageClick, showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, showGalleryPopup, setShowGalleryPopupMemo, currentBook, activeLayout, handleFullScreen }) => {
+const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, settings, showTOC, setShowTOCMemo, showThumbnailBar, setShowThumbnailBarMemo, onPageClick, showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, showGalleryPopup, setShowGalleryPopupMemo, currentBook, activeLayout, handleFullScreen, currentZoom = 1, setCurrentZoom, handleZoomIn, handleZoomOut, handleDownload, searchQuery, setSearchQuery, handleQuickSearch, bookName }) => {
     const scrollRef = useRef(null);
+    const sliderRef = useRef(null);
+
+    const handleZoomDrag = (e) => {
+        if (!sliderRef.current || !setCurrentZoom) return;
+        const rect = sliderRef.current.getBoundingClientRect();
+        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        const percentage = x / rect.width;
+        setCurrentZoom(1 + percentage * 2);
+    };
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
     const [visibleIndices, setVisibleIndices] = useState([]);
     const [isOverflowing, setIsOverflowing] = useState(false);
     const [isShareOpen, setIsShareOpen] = useState(false);
+    const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
+    const [recommendations, setRecommendations] = useState([]);
 
     const progressRef = useRef(null);
     const handleProgressClick = (e) => {
@@ -193,7 +204,6 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
         }
     }, [currentPage, showThumbnailBar, checkScroll]);
 
-    const [localSearchQuery, setLocalSearchQuery] = useState('');
 
     const {
         addSearch = true,
@@ -241,19 +251,105 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
             {/* Top Bar */}
             <div className="w-full h-[8%] flex items-center justify-between px-[2cqw] flex-shrink-0 z-10 shadow-md" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#5C5898'), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
                 {/* Search Bar */}
-                <div className="relative w-[25cqw] h-[60%] rounded-full flex items-center px-[1cqw]" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                    <Icon icon="lucide:search" className="opacity-70 w-[1.8cqw] h-[1.8cqw]" />
-                    <input
-                        type="text"
-                        placeholder="Quick Search..."
-                        className="bg-transparent border-none outline-none w-full h-full text-[1.4cqw] ml-[0.5cqw] placeholder-[currentColor] placeholder-opacity-70"
-                        style={{ color: 'inherit' }}
-                    />
+                <div className="relative z-50 w-[25cqw] h-full flex items-center">
+                    <div className="relative w-full h-[60%] rounded-full flex items-center px-[1cqw] border" style={{ backgroundColor: getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.08), borderColor: getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.4) }}>
+                        <Icon icon="lucide:search" className="opacity-70 w-[1.8cqw] h-[1.8cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
+                        <input
+                            type="text"
+                            value={localSearchQuery}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setLocalSearchQuery(val);
+
+                                if (val.length >= 1) {
+                                    const results = [];
+                                    const lowerQuery = val.toLowerCase();
+                                    const uniqueMatches = new Set();
+
+                                    pages.forEach((page, index) => {
+                                        const text = (page.html || page.content || '').replace(/<[^>]*>/g, ' ');
+                                        const words = text.split(/\s+/).filter(w => w.trim().length > 0);
+
+                                        for (let i = 0; i < words.length; i++) {
+                                            const word = words[i];
+                                            const cleanWord = word.replace(/[^a-zA-Z0-9]/g, '');
+                                            if (cleanWord.length > 2 && cleanWord.toLowerCase().startsWith(lowerQuery)) {
+                                                const contextWords = words.slice(i + 1, i + 3).join(' ');
+                                                const matchKey = `${cleanWord.toLowerCase()}|${contextWords.toLowerCase()}`;
+
+                                                if (!uniqueMatches.has(matchKey)) {
+                                                    results.push({
+                                                        word: word,
+                                                        context: contextWords,
+                                                        pageNumber: index + 1
+                                                    });
+                                                    uniqueMatches.add(matchKey);
+                                                }
+                                            }
+                                            if (results.length > 15) break;
+                                        }
+                                        if (results.length > 15) return;
+                                    });
+                                    setRecommendations(results.slice(0, 6));
+                                } else {
+                                    setRecommendations([]);
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    setSearchQuery?.(localSearchQuery);
+                                    handleQuickSearch?.(localSearchQuery);
+                                    setRecommendations([]);
+                                }
+                            }}
+                            placeholder="Quick Search..."
+                            autoComplete="off"
+                            spellCheck="false"
+                            autoCorrect="off"
+                            className="bg-transparent border-none outline-none w-full h-full text-[1.4cqw] ml-[0.5cqw] placeholder-[currentColor] placeholder-opacity-70"
+                            style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        />
+                    </div>
+                    {/* Recommendations Dropdown */}
+                    {recommendations.length > 0 && (
+                        <div
+                            className="absolute top-[100%] mt-[1cqw] w-[25cqw] left-0 rounded-[1cqw] shadow-2xl z-[100] overflow-hidden border border-white/10 animate-in fade-in slide-in-from-top-2 duration-200"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ backgroundColor: getLayoutColorAlpha('toc-bg', '87, 92, 156', 0.8), backdropFilter: 'blur(8px)' }}
+                        >
+                            <div className="flex flex-col py-[0.5cqw]">
+                                {recommendations.map((rec, idx) => (
+                                    <button
+                                        key={`${rec.word}-${rec.pageNumber}-${idx}`}
+                                        className="flex items-center justify-between px-[1.5cqw] py-[0.8cqw] hover:bg-white/10 transition-colors group"
+                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}
+                                        onClick={() => {
+                                            onPageClick(rec.pageNumber - 1);
+                                            const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
+                                            setLocalSearchQuery(fullQuery);
+                                            setSearchQuery?.(fullQuery);
+                                            setRecommendations([]);
+                                        }}
+                                    >
+                                        <div className="flex flex-col items-start overflow-hidden flex-1 mr-[1cqw]">
+                                            <span className="text-[1.3cqw] opacity-90 group-hover:opacity-100 truncate w-full text-left">
+                                                <span className="font-semibold mr-[0.5cqw]">{rec.word}</span>
+                                                {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
+                                            </span>
+                                        </div>
+                                        <span className="text-[1.1cqw] font-bold opacity-60 tabular-nums shrink-0">
+                                            {rec.pageNumber < 10 ? `0${rec.pageNumber}` : rec.pageNumber}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Title */}
                 <div className="absolute left-1/2 -translate-x-1/2  font-medium text-[1.8cqw] tracking-wide">
-                    Flipbook_20260704100611
+                    {/* bookName hidden */}
                 </div>
 
                 {/* Empty space for balance */}
@@ -263,23 +359,23 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
             {/* Middle Content Area */}
             <div className="flex-1 min-h-0 w-full relative flex items-center justify-center overflow-hidden">
 
-                {/* Left Chevron */}
-                <button
-                    onClick={() => bookRef?.current?.pageFlip()?.flipPrev()}
-                    className={`absolute left-[2cqw] w-[3cqw] h-[4cqw] rounded-[0.3cqw] flex items-center justify-center transition-colors z-10 ${(!currentPage || currentPage === 0)
-                        ? 'opacity-70'
-                        : 'shadow-md hover:brightness-90'
-                        }`}
-                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#5C5898') }}
-                >
-                    <Icon icon="lucide:chevron-left" className=" w-[2cqw] h-[2cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
-                </button>
+                <div className="absolute inset-0 w-full h-full flex items-center justify-center z-0 gap-[4cqw] px-[4cqw]">
+                    {/* Left Chevron */}
+                    <button
+                        onClick={() => bookRef?.current?.pageFlip()?.flipPrev()}
+                        className={`shrink-0 w-[3cqw] h-[4cqw] rounded-[0.3cqw] flex items-center justify-center transition-all duration-300 z-10 ${(!currentPage || currentPage === 0)
+                            ? 'opacity-30 cursor-not-allowed'
+                            : 'shadow-md hover:brightness-90 cursor-pointer'
+                            }`}
+                        style={{ backgroundColor: getLayoutColor('toolbar-bg', '#5C5898') }}
+                    >
+                        <Icon icon="lucide:chevron-left" className="w-[2cqw] h-[2cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
+                    </button>
 
-                {/* The Book (Placeholder or Children) */}
-                <div className="absolute inset-0 w-full h-full flex items-center justify-center z-0">
+                    {/* The Book (Placeholder or Children) */}
                     <div
                         style={{ transform: `translateX(${offset}px)`, transition: 'transform 0.5s ease-out' }}
-                        className="flex items-center justify-center"
+                        className="flex items-center justify-center shrink-0 max-w-[calc(100%-14cqw)]"
                     >
                         {children ? (
                             children
@@ -301,19 +397,19 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                             </div>
                         )}
                     </div>
-                </div>
 
-                {/* Right Chevron */}
-                <button
-                    onClick={() => bookRef?.current?.pageFlip()?.flipNext()}
-                    className={`absolute right-[2cqw] w-[3cqw] h-[4cqw] rounded-[0.3cqw] flex items-center justify-center transition-colors z-10 ${(pages && currentPage >= (Array.isArray(pages) ? pages.length - 1 : pages - 1))
-                        ? 'opacity-70'
-                        : 'shadow-md hover:brightness-90'
-                        }`}
-                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#5C5898') }}
-                >
-                    <Icon icon="lucide:chevron-right" className=" w-[2cqw] h-[2cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
-                </button>
+                    {/* Right Chevron */}
+                    <button
+                        onClick={() => bookRef?.current?.pageFlip()?.flipNext()}
+                        className={`shrink-0 w-[3cqw] h-[4cqw] rounded-[0.3cqw] flex items-center justify-center transition-all duration-300 z-10 ${(pages && currentPage >= (Array.isArray(pages) ? pages.length - 1 : pages - 1))
+                            ? 'opacity-30 cursor-not-allowed'
+                            : 'shadow-md hover:brightness-90 cursor-pointer'
+                            }`}
+                        style={{ backgroundColor: getLayoutColor('toolbar-bg', '#5C5898') }}
+                    >
+                        <Icon icon="lucide:chevron-right" className="w-[2cqw] h-[2cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
+                    </button>
+                </div>
 
                 {/* Page Indicator Pill */}
                 <div className="absolute bottom-[2cqw] left-[2cqw] px-[2cqw] py-[0.8cqw] rounded-full shadow-sm font-semibold text-[1.4cqw] flex items-center justify-center z-10" style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), color: getLayoutColor('toolbar-bg', '#5C5898') }}>
@@ -338,7 +434,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         style={{
                             width: 'fit-content',
                             minWidth: '40cqw',
-                            maxWidth: '90cqw',
+                            maxWidth: '88cqw',
                             height: '14cqw',
                             backgroundColor: getLayoutColorAlpha('thumbnail-outer-v2', '87, 92, 156', 0.8),
                             backdropFilter: 'blur(8px)',
@@ -347,27 +443,25 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {spreads.length > 6 && (
-                            <div className="absolute left-[1cqw] inset-y-0 flex items-center z-50">
-                                <button
-                                    className={`w-[3cqw] h-[5cqw] rounded-[0.5cqw] flex items-center justify-center transition-all shadow-xl transition-colors border border-white/20 ${canScrollLeft ? 'opacity-100 active:scale-95 hover:bg-white/10 cursor-pointer' : 'opacity-30 cursor-default'}`}
-                                    style={{
-                                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                                        color: '#FFFFFF'
-                                    }}
-                                    onClick={(e) => { e.stopPropagation(); if (canScrollLeft) scroll('left'); }}
-                                >
-                                    <Icon icon="lucide:chevron-left" className="w-[2cqw] h-[2cqw]" />
-                                </button>
-                            </div>
-                        )}
-
+                        {/* Always Visible Left Arrow */}
+                        <div className="flex-shrink-0 flex items-center justify-center pl-[1cqw] pr-[0.5cqw] z-50 h-full">
+                            <button
+                                className={`w-[3cqw] h-[5cqw] rounded-[0.5cqw] flex items-center justify-center transition-all shadow-xl transition-colors border border-white/20 ${canScrollLeft ? 'opacity-100 active:scale-95 hover:bg-white/10 cursor-pointer' : 'opacity-30 cursor-default'}`}
+                                style={{
+                                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                    color: '#FFFFFF'
+                                }}
+                                onClick={(e) => { e.stopPropagation(); if (canScrollLeft) scroll('left'); }}
+                            >
+                                <Icon icon="lucide:chevron-left" className="w-[2cqw] h-[2cqw]" />
+                            </button>
+                        </div>
                         <div
                             ref={scrollRef}
-                            className="flex items-center h-full overflow-x-auto no-scrollbar scroll-smooth relative"
+                            className="flex-1 flex items-center h-full overflow-x-auto no-scrollbar scroll-smooth relative"
                             style={{
-                                paddingLeft: spreads.length > 6 ? '5cqw' : '2cqw',
-                                paddingRight: spreads.length > 6 ? '5cqw' : '2cqw',
+                                paddingLeft: '1cqw',
+                                paddingRight: '1cqw',
                                 gap: '2cqw'
                             }}
                             onScroll={checkScroll}
@@ -397,8 +491,8 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                                         <div
                                             className={`relative overflow-hidden transition-all bg-white border-[2px] shadow-xl rounded-none ${isActive ? 'border-white' : 'border-transparent hover:border-white/20'}`}
                                             style={{
-                                                width: '10cqw',
-                                                height: '7.5cqw'
+                                                width: '9cqw',
+                                                height: '6.75cqw'
                                             }}
                                         >
                                             {/* Inner Flex Container for Spread */}
@@ -409,7 +503,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                                                             (visibleIndices.length > 0 && Math.abs(idx - visibleIndices[0]) <= 5) ||
                                                             (visibleIndices.length > 0 && Math.abs(idx - visibleIndices[visibleIndices.length - 1]) <= 5)
                                                         ) ? (
-                                                            <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={0.11} />
+                                                            <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={0.10} />
                                                         ) : (
                                                             <div className="w-full h-full bg-white flex items-center justify-center">
                                                                 <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-400 rounded-full animate-spin"></div>
@@ -419,7 +513,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                                                 ))}
                                             </div>
                                         </div>
-                                        <span 
+                                        <span
                                             className={`text-[1.2cqw] transition-colors ${isActive ? 'font-bold' : 'font-medium'} px-[0.6cqw] py-[0.2cqw] rounded bg-black/20`}
                                             style={{ color: '#FFFFFF', textShadow: '0px 1px 2px rgba(0,0,0,0.5)' }}
                                         >
@@ -430,20 +524,19 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                             })}
                         </div>
 
-                        {spreads.length > 6 && (
-                            <div className="absolute right-[1cqw] inset-y-0 flex items-center z-50">
-                                <button
-                                    className={`w-[3cqw] h-[5cqw] rounded-[0.5cqw] flex items-center justify-center transition-all shadow-xl transition-colors border border-white/20 ${canScrollRight ? 'opacity-100 active:scale-95 hover:bg-white/10 cursor-pointer' : 'opacity-30 cursor-default'}`}
-                                    style={{
-                                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                                        color: '#FFFFFF'
-                                    }}
-                                    onClick={(e) => { e.stopPropagation(); if (canScrollRight) scroll('right'); }}
-                                >
-                                    <Icon icon="lucide:chevron-right" className="w-[2cqw] h-[2cqw]" />
-                                </button>
-                            </div>
-                        )}
+                        {/* Always Visible Right Arrow */}
+                        <div className="flex-shrink-0 flex items-center justify-center pr-[1cqw] pl-[0.5cqw] z-50 h-full">
+                            <button
+                                className={`w-[3cqw] h-[5cqw] rounded-[0.5cqw] flex items-center justify-center transition-all shadow-xl transition-colors border border-white/20 ${canScrollRight ? 'opacity-100 active:scale-95 hover:bg-white/10 cursor-pointer' : 'opacity-30 cursor-default'}`}
+                                style={{
+                                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                    color: '#FFFFFF'
+                                }}
+                                onClick={(e) => { e.stopPropagation(); if (canScrollRight) scroll('right'); }}
+                            >
+                                <Icon icon="lucide:chevron-right" className="w-[2cqw] h-[2cqw]" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -521,15 +614,15 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                     <div
                         ref={progressRef}
                         onClick={handleProgressClick}
-                        className="flex-1 h-[0.3cqw] bg-white/30 rounded-full relative cursor-pointer ml-[1cqw]"
+                        className="flex-1 h-[0.3cqw] rounded-full relative cursor-pointer ml-[1cqw]"
+                        style={{ backgroundColor: getLayoutColorAlpha('toolbar-icon', '255,255,255', 0.3) }}
                     >
                         <div
-                            className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-300"
-                            style={{ width: `${progressPercentage}%` }}
-                        ></div>
-                        <div
-                            className="absolute top-1/2 -translate-y-1/2 w-[1cqw] h-[1cqw] bg-white rounded-full shadow-sm transition-all duration-300"
-                            style={{ left: `calc(${progressPercentage}% - 0.5cqw)` }}
+                            className="absolute left-0 top-0 h-full rounded-full transition-all duration-300"
+                            style={{
+                                width: `${progressPercentage}%`,
+                                backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF')
+                            }}
                         ></div>
                     </div>
                 </div>
@@ -584,20 +677,56 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
 
                     {/* Zoom Section */}
                     <div className="flex items-center gap-[0.5cqw] ml-[1cqw]">
-                        <button className=" hover:text-gray-200 transition-colors">
-                            <Icon icon="ph:magnifying-glass-minus" className="w-[1.6cqw] h-[1.6cqw]" />
+                        <button
+                            className="hover:text-gray-200 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); handleZoomOut?.(); }}
+                        >
+                            <Icon icon="ph:magnifying-glass-minus" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
                         </button>
-                        <div className="w-[6cqw] h-[0.3cqw] bg-white/30 rounded-full relative cursor-pointer">
-                            <div className="absolute left-0 top-0 h-full w-[30%] bg-white rounded-full"></div>
-                            <div className="absolute left-[30%] top-1/2 -translate-y-1/2 w-[1cqw] h-[1cqw] bg-white rounded-full shadow-sm"></div>
+
+                        <div
+                            ref={sliderRef}
+                            className="w-[6cqw] h-[1cqw] flex items-center relative cursor-pointer"
+                            onPointerDown={(e) => {
+                                e.stopPropagation();
+                                e.currentTarget.setPointerCapture(e.pointerId);
+                                handleZoomDrag(e);
+                            }}
+                            onPointerMove={(e) => {
+                                e.stopPropagation();
+                                if (e.buttons === 1) handleZoomDrag(e);
+                            }}
+                        >
+                            {/* Track Underlay */}
+                            <div className="w-full h-[0.3cqw] rounded-full absolute transition-colors duration-300" style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 0.3 }} />
+                            {/* Progress Fill */}
+                            <div
+                                className="absolute left-0 h-[0.3cqw] rounded-full transition-all duration-75 z-10"
+                                style={{
+                                    backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                    width: `${Math.max(0, Math.min(100, ((currentZoom - 1) / 2) * 100))}%`
+                                }}
+                            />
+                            {/* Thumb (Pointer) */}
+                            <div
+                                className="absolute top-1/2 -translate-y-1/2 w-[1cqw] h-[1cqw] rounded-full shadow-md transition-all duration-75 z-20"
+                                style={{
+                                    backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                    left: `calc(${Math.max(0, Math.min(100, ((currentZoom - 1) / 2) * 100))}% - 0.5cqw)`
+                                }}
+                            />
                         </div>
-                        <button className=" hover:text-gray-200 transition-colors">
-                            <Icon icon="ph:magnifying-glass-plus" className="w-[1.6cqw] h-[1.6cqw]" />
+
+                        <button
+                            className="hover:text-gray-200 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); handleZoomIn?.(); }}
+                        >
+                            <Icon icon="ph:magnifying-glass-plus" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
                         </button>
                     </div>
 
                     <button
-                        className=" hover:text-gray-200 transition-colors ml-[1cqw]"
+                        className="hover:text-gray-200 transition-colors ml-[1cqw]"
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowTOCMemo?.(false);
@@ -608,18 +737,24 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                             setIsShareOpen(true);
                         }}
                     >
-                        <Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" />
+                        <Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
                     </button>
-                    <button className=" hover:text-gray-200 transition-colors">
-                        <Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" />
+                    <button
+                        className="hover:text-gray-200 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleDownload?.(); }}
+                    >
+                        <Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
                     </button>
-                    <button className=" hover:text-gray-200 transition-colors">
-                        <Icon icon="lucide:fullscreen" className="w-[1.6cqw] h-[1.6cqw]" />
+                    <button
+                        className="hover:text-gray-200 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleFullScreen?.(); }}
+                    >
+                        <Icon icon="lucide:fullscreen" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
                     </button>
                 </div>
 
             </div>
-            
+
             <ShareModal
                 isOpen={isShareOpen}
                 onClose={() => setIsShareOpen(false)}

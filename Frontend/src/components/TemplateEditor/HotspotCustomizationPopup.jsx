@@ -5,6 +5,7 @@ import ColorPicker, { parseGradient } from './ColorPicker';
 import { presets as hotspotPresets } from './HotspotPresetPopup';
 
 const ALL_ICON_ASSETS = import.meta.glob('../../assets/hotspot preset icon/**/*.svg', { as: 'url', eager: true });
+const BUTTON_ICON_ASSETS = import.meta.glob('../../assets/hotspot preset icon/interactive_button/*.png', { as: 'url', eager: true });
 
 const getCategoryKeywords = (actionId) => {
   const map = {
@@ -102,52 +103,50 @@ const PRESETS = [
   { id: 'preset6', type: 'thin-circle' },
 ];
 
-export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgInfo = null) => {
+export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgInfo = null, idSuffix = '') => {
   const bgInfo = generateSvgGradient(bgColor, 'bg');
   const bgFill = bgInfo.fillValue;
   const fgInfo = generateSvgGradient(iconColor, 'fg');
   const fgFill = fgInfo.fillValue;
   let backgroundHTML = bgInfo.defsString + fgInfo.defsString;
+
+  // Add invisible rect to stabilize SVG bounds and prevent jittering during resize
+  backgroundHTML += `<rect x="0" y="0" width="48" height="48" fill="transparent" pointer-events="none" />`;
   
   if (preset === 'preset1') {
     // No extra rings, just the rich icon itself
   } else if (preset === 'preset2') {
     backgroundHTML += `
       <circle cx="24" cy="24" r="24" fill="${bgFill}" opacity="0.3">
-        <animate attributeName="r" values="22; 28; 22" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="r" values="20; 24; 20" dur="2s" repeatCount="indefinite" />
         <animate attributeName="opacity" values="0.5; 0.1; 0.5" dur="2s" repeatCount="indefinite" />
       </circle>`;
   } else if (preset === 'preset3') {
     backgroundHTML += `
-      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgFill}" stroke-width="2" stroke-dasharray="6 6">
+      <circle cx="24" cy="24" r="22" fill="none" stroke="${bgFill}" stroke-width="2" stroke-dasharray="6 6">
         <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="8s" repeatCount="indefinite" />
       </circle>`;
   } else if (preset === 'preset4') {
     backgroundHTML += `
-      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgFill}" stroke-width="1.5" opacity="0.5" />
-      <circle cx="24" cy="24" r="30" fill="none" stroke="${bgFill}" stroke-width="2" stroke-dasharray="18 16">
-        <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="6s" repeatCount="indefinite" />
+      <circle cx="24" cy="24" r="22" fill="none" stroke="${bgFill}" stroke-width="2" stroke-dasharray="4 4">
+        <animate attributeName="opacity" values="1; 0.3; 1" dur="2s" repeatCount="indefinite" />
       </circle>`;
   } else if (preset === 'preset5') {
     backgroundHTML += `
-      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgFill}" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0 8" opacity="0.8">
-        <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="10s" repeatCount="indefinite" />
-      </circle>
-      <circle cx="24" cy="24" r="31" fill="none" stroke="${bgFill}" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="0 6" opacity="0.4">
-        <animateTransform attributeName="transform" type="rotate" from="360 24 24" to="0 24 24" dur="15s" repeatCount="indefinite" />
+      <circle cx="24" cy="24" r="22" fill="none" stroke="${bgFill}" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="0 6">
+        <animate attributeName="r" values="20; 24; 20" dur="2s" repeatCount="indefinite" />
       </circle>`;
   } else if (preset === 'preset6') {
+    const filterId = idSuffix ? `hotspot-glow-${idSuffix}` : `hotspot-glow-${Math.random().toString(36).substr(2, 6)}`;
     backgroundHTML += `
-      <circle cx="24" cy="24" r="26" fill="none" stroke="${bgFill}" stroke-width="1" opacity="0.5"/>
-      <circle cx="24" cy="24" r="30" fill="none" stroke="${bgFill}" stroke-width="1" opacity="0.3"/>
-      <g>
-        <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="4s" repeatCount="indefinite" />
-        <circle cx="24" cy="5" r="2.5" fill="${bgFill}" />
-      </g>
-      <g>
-        <animateTransform attributeName="transform" type="rotate" from="360 24 24" to="0 24 24" dur="6s" repeatCount="indefinite" />
-        <circle cx="24" cy="1" r="1.5" fill="${bgFill}" opacity="0.8"/>
-      </g>`;
+      <defs>
+        <filter id="${filterId}" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
+        </filter>
+      </defs>
+      <circle cx="24" cy="24" r="20" fill="none" stroke="${bgFill}" stroke-width="4" filter="url(#${filterId})">
+        <animate attributeName="opacity" values="1; 0; 1" dur="1.5s" repeatCount="indefinite" />
+      </circle>`;
   }
 
   // Draw the original image or the recolored inline SVG
@@ -181,11 +180,31 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
       }
     }
 
+    let innerHTML = inlinedSvgInfo.innerHTML;
+
+    if (!inlinedSvgInfo.isRawIcon && preset !== 'preset1') {
+      try {
+        if (typeof DOMParser !== 'undefined') {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(`<svg>${innerHTML}</svg>`, 'image/svg+xml');
+          const svg = doc.querySelector('svg');
+          // Find the static outer circle. Built-in presets use a 52x52 rect with rx=26 and fill-opacity.
+          const outerCircle = svg.querySelector('rect[width="52"], rect[rx="26"], rect[fill-opacity], circle[r="26"]');
+          if (outerCircle) {
+             outerCircle.remove();
+             innerHTML = svg.innerHTML;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to remove static outer circle:", e);
+      }
+    }
+
     return `
       ${backgroundHTML}
       ${extraBg}
       <svg ${innerSvgAttrs} viewBox="${inlinedSvgInfo.viewBox}" overflow="visible" ${fillAttr} ${strokeAttr}>
-        ${inlinedSvgInfo.innerHTML}
+        ${innerHTML}
       </svg>
     `;
   } else {
@@ -196,19 +215,34 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
   }
 };
 
-export const generateButtonSVG = (label, bgCol, textCol, hasIcon, w = 80, h = 32, rx = 4, fontSize = 14) => {
+export const generateButtonSVG = (label, bgCol, textCol, hasIcon, btnIconCol = textCol, btnIconPlacement = 'Front', w = 80, h = 32, rx = 4, fontSize = 14, iconSrc = null) => {
   const bgInfo = generateSvgGradient(bgCol, 'btnBg');
   let html = bgInfo.defsString + `<rect x="0" y="0" width="${w}" height="${h}" rx="${rx}" fill="${bgInfo.fillValue}" />`;
   const textY = h / 2 + (fontSize / 3);
+  
   if (hasIcon) {
     const textWidth = label.length * (fontSize * 0.55);
     const contentWidth = 15 + 5 + textWidth; // icon 15px, gap 5px
     const startX = (w - contentWidth) / 2;
-    const textX = startX + 20 + (textWidth / 2);
+    
+    let textX, iconTranslateX;
+    if (btnIconPlacement === 'Front') {
+      iconTranslateX = startX - 20;
+      textX = startX + 20 + (textWidth / 2);
+    } else {
+      textX = startX + (textWidth / 2);
+      iconTranslateX = startX + textWidth + 5 - 20;
+    }
 
-    html += `<g transform="translate(${startX - 20}, 0)">`;
-    html += `<path d="M20 16 L25 21 L35 11" fill="none" stroke="${textCol}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />`;
-    html += `</g>`;
+    if (iconSrc) {
+      // The iconTranslateX assumes a 20px offset for the path.
+      // If we render an image at x=20, it places exactly where the path was drawn (M20 16)
+      html += `<image href="${iconSrc}" x="${iconTranslateX + 20}" y="${(h - 14) / 2}" width="14" height="14" preserveAspectRatio="xMidYMid meet" />`;
+    } else {
+      html += `<g transform="translate(${iconTranslateX}, 0)">`;
+      html += `<path d="M20 16 L25 21 L35 11" fill="none" stroke="${btnIconCol}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />`;
+      html += `</g>`;
+    }
     html += `<text x="${textX}" y="${textY}" fill="${textCol}" font-size="${fontSize}" font-family="sans-serif" font-weight="bold" text-anchor="middle" data-type="text">${label}</text>`;
   } else {
     html += `<text x="${w / 2}" y="${textY}" fill="${textCol}" font-size="${fontSize}" font-family="sans-serif" font-weight="bold" text-anchor="middle" data-type="text">${label}</text>`;
@@ -233,10 +267,14 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
   const isButtonMode = initialData?.preset === 'interactive-button';
   const [btnLabel, setBtnLabel] = useState('Button');
   const [btnHasIcon, setBtnHasIcon] = useState(false);
+  const [btnIconSrc, setBtnIconSrc] = useState(null);
+  const [showIconPicker, setShowIconPicker] = useState(false);
   const [btnWidth, setBtnWidth] = useState(80);
   const [btnHeight, setBtnHeight] = useState(32);
   const [btnRx, setBtnRx] = useState(4);
   const [btnFontSize, setBtnFontSize] = useState(14);
+  const [btnIconColor, setBtnIconColor] = useState('#FFFFFF');
+  const [btnIconPlacement, setBtnIconPlacement] = useState('Front');
   
   const [bareDefaultSrc, setBareDefaultSrc] = useState(null);
 
@@ -251,25 +289,40 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
             const svg = svgDoc.querySelector('svg');
             if (svg) {
               const bgElements = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon')).filter(el => {
-                const fill = el.getAttribute('fill');
+                const fill = el.getAttribute('fill') || el.style.fill;
                 if (!fill) return false;
                 const f = fill.toLowerCase();
                 if (f.startsWith('url(')) return true;
-                return f !== 'none' && f !== 'white' && f !== '#ffffff' && f !== '#fff';
+                return f !== 'none' && f !== 'transparent' && f !== 'white' && f !== '#ffffff' && f !== '#fff' && !f.includes('rgb(255, 255, 255)');
               });
               
               bgElements.forEach(el => el.remove());
 
-              const fgElements = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon')).filter(el => {
-                const fill = el.getAttribute('fill');
-                if (!fill) return false;
-                const f = fill.toLowerCase();
-                return f === 'white' || f === '#ffffff' || f === '#fff';
+              // Clone the document to create the bareDefaultSrc so we don't mutate the original svgDoc
+              const thumbnailDoc = svgDoc.cloneNode(true);
+              const thumbnailSvg = thumbnailDoc.querySelector('svg');
+              const fgElements = Array.from(thumbnailSvg.querySelectorAll('g, rect, circle, path, ellipse, polygon')).filter(el => {
+                const fill = el.getAttribute('fill') || el.style.fill;
+                const stroke = el.getAttribute('stroke') || el.style.stroke;
+                const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
+                return isWhite(fill) || isWhite(stroke);
               });
               
-              fgElements.forEach(el => el.setAttribute('fill', '#000000'));
+              fgElements.forEach(el => {
+                const fill = el.getAttribute('fill') || el.style.fill;
+                const stroke = el.getAttribute('stroke') || el.style.stroke;
+                const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
+                if (isWhite(fill)) {
+                  if (el.getAttribute('fill')) el.setAttribute('fill', '#000000');
+                  if (el.style.fill) el.style.fill = '#000000';
+                }
+                if (isWhite(stroke)) {
+                  if (el.getAttribute('stroke')) el.setAttribute('stroke', '#000000');
+                  if (el.style.stroke) el.style.stroke = '#000000';
+                }
+              });
               
-              const svgString = new XMLSerializer().serializeToString(svg);
+              const svgString = new XMLSerializer().serializeToString(thumbnailSvg);
               const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
               setBareDefaultSrc(dataUrl);
             }
@@ -375,15 +428,20 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
     const fgInfo = generateSvgGradient(fg, 'svgFg');
 
     const isRawIcon = selectedIconStyle !== 'default';
-    const allShapes = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon'));
+    const allShapes = Array.from(svg.querySelectorAll('g, rect, circle, path, ellipse, polygon'));
 
     if (isRawIcon) {
       allShapes.forEach(el => {
         const fill = el.getAttribute('fill') || el.style.fill;
         const stroke = el.getAttribute('stroke') || el.style.stroke;
+        const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
 
         if (fill && fill.toLowerCase() !== 'none') {
-           el.setAttribute('fill', fgInfo.fillValue);
+           if (isWhite(fill)) {
+             el.setAttribute('fill', 'none');
+           } else {
+             el.setAttribute('fill', fgInfo.fillValue);
+           }
            el.style.fill = '';
         }
         
@@ -395,25 +453,36 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
     } else {
       // Original logic for built-in preset SVGs
       const bgElements = allShapes.filter(el => {
-        const fill = el.getAttribute('fill');
+        const fill = el.getAttribute('fill') || el.style.fill;
         if (!fill) return false;
         const f = fill.toLowerCase();
-        return f !== 'none' && f !== 'white' && f !== '#ffffff' && f !== '#fff';
+        return f !== 'none' && f !== 'transparent' && f !== 'white' && f !== '#ffffff' && f !== '#fff' && !f.includes('rgb(255, 255, 255)');
       });
       
       bgElements.forEach(el => {
-        el.setAttribute('fill', bgInfo.fillValue);
+        if (el.getAttribute('fill')) el.setAttribute('fill', bgInfo.fillValue);
+        if (el.style.fill) el.style.fill = bgInfo.fillValue;
       });
 
       if (fg && fg.toLowerCase() !== '#ffffff' && fg !== 'white') {
         const fgElements = allShapes.filter(el => {
-          const fill = el.getAttribute('fill');
-          if (!fill) return false;
-          const f = fill.toLowerCase();
-          return f === 'white' || f === '#ffffff' || f === '#fff';
+          const fill = el.getAttribute('fill') || el.style.fill;
+          const stroke = el.getAttribute('stroke') || el.style.stroke;
+          const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
+          return isWhite(fill) || isWhite(stroke);
         });
         fgElements.forEach(el => {
-          el.setAttribute('fill', fgInfo.fillValue);
+          const fill = el.getAttribute('fill') || el.style.fill;
+          const stroke = el.getAttribute('stroke') || el.style.stroke;
+          const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
+          if (isWhite(fill)) {
+            if (el.getAttribute('fill')) el.setAttribute('fill', fgInfo.fillValue);
+            if (el.style.fill) el.style.fill = fgInfo.fillValue;
+          }
+          if (isWhite(stroke)) {
+            if (el.getAttribute('stroke')) el.setAttribute('stroke', fgInfo.fillValue);
+            if (el.style.stroke) el.style.stroke = fgInfo.fillValue;
+          }
         });
       }
     }
@@ -522,7 +591,15 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
         if (textMatch) setBtnLabel(textMatch[1]);
         
         const pathMatch = initialData.hotspotHtml.match(/<path/);
-        setBtnHasIcon(!!pathMatch);
+        const imgMatch = initialData.hotspotHtml.match(/<image[^>]*href="([^"]*)"/);
+        
+        if (imgMatch) {
+          setBtnIconSrc(imgMatch[1]);
+        } else {
+          setBtnIconSrc(null);
+        }
+        
+        setBtnHasIcon(!!pathMatch || !!imgMatch);
 
         const wMatch = initialData.hotspotHtml.match(/width="([\d.]+)"/);
         if (wMatch) setBtnWidth(parseFloat(wMatch[1]));
@@ -535,6 +612,9 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
 
         const fMatch = initialData.hotspotHtml.match(/font-size="([\d.]+)"/);
         if (fMatch) setBtnFontSize(parseFloat(fMatch[1]));
+
+        const strokeMatch = initialData.hotspotHtml.match(/<path[^>]*stroke="([^"]*)"/);
+        if (strokeMatch) setBtnIconColor(strokeMatch[1]);
       }
     }
   }, [initialData, isOpen]);
@@ -542,17 +622,17 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    let finalHtml;
+    let finalHtml = '';
     if (isButtonMode) {
-      finalHtml = generateButtonSVG(btnLabel, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), btnHasIcon, btnWidth, btnHeight, btnRx, btnFontSize);
+      finalHtml = generateButtonSVG(btnLabel, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), btnHasIcon, btnIconColor, btnIconPlacement, btnWidth, btnHeight, btnRx, btnFontSize, btnIconSrc);
     } else {
-      finalHtml = generateHotspotSVG(selectedPreset, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), getCurrentIconSrc(), getRecoloredSvg());
+      finalHtml = generateHotspotSVG(selectedPreset, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), getCurrentIconSrc(), getRecoloredSvg(), `final-${Math.random().toString(36).substr(2, 6)}`);
     }
 
     onSave({
       preset: selectedPreset,
       iconStyle: selectedIconStyle,
-      src: getCurrentIconSrc(),
+      src: isButtonMode ? btnIconSrc : getCurrentIconSrc(),
       iconColor: applyOpacity(iconColor, iconOpacity),
       bgColor: applyOpacity(bgColor, bgOpacity),
       customHtml: finalHtml
@@ -592,7 +672,7 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                   <svg 
                     viewBox={isButtonMode ? `0 0 ${btnWidth} ${btnHeight}` : "0 0 48 48"}
                     className={isButtonMode ? "w-full max-h-[8vw] transition-all duration-300 overflow-visible" : "w-[100%] h-[100%] transition-all duration-300 overflow-visible"}
-                    dangerouslySetInnerHTML={{ __html: isButtonMode ? generateButtonSVG(btnLabel, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), btnHasIcon, btnWidth, btnHeight, btnRx, btnFontSize) : generateHotspotSVG(selectedPreset, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), getCurrentIconSrc(), getRecoloredSvg()) }}
+                    dangerouslySetInnerHTML={{ __html: isButtonMode ? generateButtonSVG(btnLabel, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), btnHasIcon, btnIconColor, btnIconPlacement, btnWidth, btnHeight, btnRx, btnFontSize, btnIconSrc) : generateHotspotSVG(selectedPreset, applyOpacity(bgColor, bgOpacity), applyOpacity(iconColor, iconOpacity), getCurrentIconSrc(), getRecoloredSvg(), 'preview') }}
                   />
                 </div>
               </div>
@@ -615,14 +695,14 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
               {!isButtonMode && (
                 <div className="border-t border-gray-100 p-[1vw] flex flex-col gap-[0.5vh]">
                   <span className="text-[0.6vw] text-gray-400 font-medium uppercase tracking-wider">Preset</span>
-                  <div className="flex items-center gap-[0.5vw] justify-between">
+                  <div className="flex items-center justify-between mt-[0.5vh]">
                     {PRESETS.map((p) => (
                       <button
                         key={p.id}
                         onClick={() => setSelectedPreset(p.id)}
-                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.4vw] border transition-all ${selectedPreset === p.id ? 'border-gray-800 shadow-sm' : 'border-transparent hover:bg-gray-50'}`}
+                        className={`w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-[0.3vw] border transition-all ${selectedPreset === p.id ? 'border-gray-800 shadow-sm bg-gray-50' : 'border-transparent hover:bg-gray-50'}`}
                       >
-                        <svg viewBox="0 0 48 48" className="w-[1.8vw] h-[1.8vw] overflow-visible" dangerouslySetInnerHTML={{ __html: generateHotspotSVG(p.id, bgColor, '#FFFFFF', '', getRecoloredSvg(bgColor, '#FFFFFF')) }} />
+                        <svg viewBox="0 0 48 48" className="w-[1.4vw] h-[1.4vw] overflow-visible" dangerouslySetInnerHTML={{ __html: generateHotspotSVG(p.id, bgColor, '#FFFFFF', '', getRecoloredSvg(bgColor, '#FFFFFF'), `btn-${p.id}`) }} />
                       </button>
                     ))}
                   </div>
@@ -632,14 +712,112 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
           </div>
 
           {/* Right Controls */}
-          <div className="flex-1 flex flex-col justify-between">
-            <div className="flex flex-col gap-[3.5vh] mt-[4vh]">
+          <div className="flex-1 flex flex-col">
+            <div className="flex flex-col gap-[2.5vh] mt-[1.5vh]">
               {isButtonMode ? (
                 <>
+                  {btnHasIcon && (
+                    <>
+                      {/* Icon Gallery */}
+                      <div className="flex items-center relative z-50">
+                        <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Icon Gallery:</span>
+                        <div className="flex items-center gap-[0.5vw] flex-1 relative">
+                          <div className="flex-1 h-[1.8vw] border border-gray-200 rounded-[0.3vw] flex items-center justify-center bg-white shadow-sm overflow-hidden">
+                            {btnIconSrc ? (
+                              <img src={btnIconSrc} className="w-[1vw] h-[1vw] object-contain" />
+                            ) : (
+                              <Icon icon="lucide:check" className="text-[1vw] text-gray-800" />
+                            )}
+                          </div>
+                          <button 
+                            className="h-[1.8vw] px-[0.8vw] bg-[#F3F4F6] text-gray-700 text-[0.7vw] font-medium rounded-[0.3vw] flex items-center gap-[0.3vw] hover:bg-gray-200 transition-colors border border-gray-200 shadow-sm"
+                            onClick={() => setShowIconPicker(!showIconPicker)}
+                          >
+                            <Icon icon="lucide:arrow-left-right" className="text-[0.7vw]" />
+                            Change
+                          </button>
+
+                          {/* Icon Picker Popup */}
+                          {showIconPicker && (
+                            <div className="absolute top-[2.2vw] right-0 bg-white border border-gray-200 rounded-[0.5vw] shadow-xl p-[0.8vw] w-[12vw] z-[999]">
+                              <div className="fixed inset-0 z-[-1]" onClick={(e) => { e.stopPropagation(); setShowIconPicker(false); }} />
+                              <div className="grid grid-cols-3 gap-[0.6vw]">
+                                {/* Default Check */}
+                                <button
+                                  className={`aspect-square flex items-center justify-center rounded-[0.3vw] border transition-all ${!btnIconSrc ? 'border-gray-800 bg-gray-50 shadow-sm' : 'border-gray-100 hover:bg-gray-50 hover:border-gray-300'}`}
+                                  onClick={() => { setBtnIconSrc(null); setShowIconPicker(false); }}
+                                >
+                                  <Icon icon="lucide:check" className="text-[1.2vw] text-gray-800" />
+                                </button>
+                                {/* PNG Assets */}
+                                {Object.entries(BUTTON_ICON_ASSETS).map(([path, url]) => (
+                                  <button
+                                    key={path}
+                                    className={`aspect-square flex items-center justify-center rounded-[0.3vw] border transition-all ${btnIconSrc === url ? 'border-gray-800 bg-gray-50 shadow-sm' : 'border-gray-100 hover:bg-gray-50 hover:border-gray-300'}`}
+                                    onClick={() => { setBtnIconSrc(url); setShowIconPicker(false); }}
+                                  >
+                                    <img src={url} className="w-[1.2vw] h-[1.2vw] object-contain" />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Placement */}
+                      <div className="flex items-center">
+                        <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Placement :</span>
+                        <div className="flex-1 bg-white border border-gray-200 rounded-[0.3vw] h-[1.8vw] flex items-center px-[0.5vw] relative shadow-sm">
+                          <select 
+                            className="text-[0.75vw] text-gray-600 font-medium bg-transparent outline-none w-full appearance-none cursor-pointer"
+                            value={btnIconPlacement}
+                            onChange={(e) => setBtnIconPlacement(e.target.value)}
+                          >
+                            <option value="Front">Front</option>
+                            <option value="Back">Back</option>
+                          </select>
+                          <Icon icon="lucide:chevron-down" className="absolute right-[0.5vw] text-[0.8vw] text-gray-400 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      {/* Icon Color */}
+                      <div className="flex items-center relative">
+                        <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Icon Color :</span>
+                        <div className="flex items-center gap-[0.8vw] ml-[0.5vw] flex-1">
+                          <div 
+                            className="w-[1.8vw] h-[1.8vw] rounded-[0.3vw] border border-gray-200 cursor-pointer shadow-sm flex-shrink-0"
+                            style={{ background: btnIconColor }}
+                            onClick={() => setActiveColorPicker(activeColorPicker === 'btnIcon' ? null : 'btnIcon')}
+                          ></div>
+                          <div className="flex-1 bg-white border border-gray-200 rounded-[0.3vw] h-[1.8vw] flex items-center justify-between px-[0.5vw] min-w-0">
+                            <input
+                              type="text"
+                              className="text-[0.65vw] text-gray-600 uppercase font-mono bg-transparent outline-none flex-1 min-w-0"
+                              value={btnIconColor}
+                              onChange={(e) => setBtnIconColor(e.target.value)}
+                            />
+                            <span className="text-[0.6vw] flex-shrink-0 ml-[0.5vw] text-gray-400 select-none">
+                              100%
+                            </span>
+                          </div>
+                        </div>
+                        {activeColorPicker === 'btnIcon' && (
+                          <div className="absolute top-[-11vw] left-[8vw] z-50">
+                            <div className="fixed inset-0" onClick={(e) => { e.stopPropagation(); setActiveColorPicker(null); }} />
+                            <div className="relative">
+                              <ColorPicker color={btnIconColor} onChange={setBtnIconColor} opacity={100} onOpacityChange={() => {}} onClose={() => setActiveColorPicker(null)} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
                   {/* Label */}
                   <div className="flex items-center">
-                    <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Label :</span>
-                    <div className="flex-1 bg-white border border-gray-200 rounded-[0.3vw] h-[1.8vw] flex items-center px-[0.5vw]">
+                    <span className="text-[0.8vw] font-medium text-gray-700 w-[5vw]">Text :</span>
+                    <div className="flex-1 bg-white border border-gray-200 rounded-[0.3vw] h-[1.8vw] flex items-center px-[0.5vw] shadow-sm">
                       <input
                         type="text"
                         className="text-[0.75vw] text-gray-600 font-medium bg-transparent outline-none flex-1 min-w-0"
@@ -647,7 +825,7 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                         maxLength={20}
                         onChange={(e) => setBtnLabel(e.target.value)}
                       />
-                      <span className="text-[0.6vw] text-gray-400 select-none">{btnLabel.length}/20</span>
+                      <span className="text-[0.6vw] text-gray-400 select-none">{btnLabel.length}/10</span>
                     </div>
                   </div>
 
@@ -815,20 +993,19 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                 </>
               )}
             </div>
-
-            {/* Buttons inside Right Controls aligned with Presets */}
-            <div className="flex justify-end gap-[0.6vw] mt-auto mb-[2.5vh]">
+            {/* Action Buttons (Moved inside Right Controls with mt-auto for alignment) */}
+            <div className="flex justify-end gap-[0.8vw] mt-auto">
               <button 
-                className="px-[1vw] py-[0.5vh] text-[0.7vw] font-medium text-gray-700 bg-white border border-gray-200 rounded-[0.3vw] hover:bg-gray-50 flex items-center gap-[0.3vw] transition-colors"
+                className="px-[1.5vw] py-[0.8vh] text-[0.8vw] font-medium text-gray-700 bg-white border border-gray-200 rounded-[0.4vw] hover:bg-gray-50 flex items-center gap-[0.4vw] transition-colors"
                 onClick={onClose}
               >
-                <Icon icon="lucide:x" className="text-[0.8vw]" /> Cancel
+                <Icon icon="lucide:x" className="text-[0.9vw]" /> Cancel
               </button>
               <button 
                 onClick={handleSave}
-                className="px-[1.5vw] py-[0.8vh] bg-black text-white text-[0.8vw] font-medium rounded-[0.3vw] hover:bg-gray-800 transition-colors flex items-center gap-[0.4vw]"
+                className="px-[1.5vw] py-[0.8vh] bg-black text-white text-[0.8vw] font-medium rounded-[0.4vw] hover:bg-gray-800 transition-colors flex items-center gap-[0.4vw]"
               >
-                <Icon icon="lucide:check" className="text-[0.8vw]" /> Save Changes
+                <Icon icon="lucide:check" className="text-[0.9vw]" /> Save Changes
               </button>
             </div>
           </div>
