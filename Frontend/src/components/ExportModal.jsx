@@ -1677,7 +1677,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-[2vw]">
+      <div className="fixed inset-0 z-[5000] flex items-center justify-center p-[2vw]">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" 
@@ -1685,7 +1685,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       />
       
       {/* Modal Content */}
-      <div className="relative bg-white w-[52vw] h-[36vw] rounded-[1vw] shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-300">
+      <div className="relative bg-white w-[52vw] h-[36vw] max-h-[85vh] rounded-[1vw] shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-300">
         
         {/* Header */}
         <div className="flex items-center justify-between px-[1.2vw] py-[0.8vw] border-b border-gray-100">

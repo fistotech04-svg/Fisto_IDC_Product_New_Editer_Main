@@ -590,7 +590,7 @@ const Grid4Layout = ({
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <div className="w-full h-full border-x border-b border-gray-100"
-                                    style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
+                                    style={{ backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), calc(0.4 + var(--toc-bg-opacity, 1) * 0.6))` }}
                                 >
                                     <div className="px-[1.2vw] py-[1.2vh]">
                                         <span className={`${'text-[1vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Suggestion</span>
@@ -743,9 +743,9 @@ const Grid4Layout = ({
 
                 {/* Vertical Thumbnail Sidebar Integration */}
                 {showThumbnails && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[14vw]' : 'left-[4.2vw] w-[11.5vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[13vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
-                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
+                            style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 255, 255, 255), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
                         >
                             {/* Header */}
                             <div className="flex flex-col pt-[1.5vh] pb-0">
@@ -825,7 +825,7 @@ const Grid4Layout = ({
                 {showTOC && (
                     <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[13vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
-                            style={{ backgroundColor: getLayoutColor('toc-bg', '#FFFFFF') }}
+                            style={{ backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), calc(0.4 + var(--toc-bg-opacity, 1) * 0.6))` }}
                         >
                             {/* Header */}
                             <div className="flex flex-col pt-[1.5vh] pb-0">

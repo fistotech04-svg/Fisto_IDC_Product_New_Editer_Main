@@ -178,6 +178,16 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
       if (!origFill && !origStroke) {
         fillAttr = `fill="${fgFill}"`;
       }
+    } else {
+      const origFill = inlinedSvgInfo.svgTagFill;
+      const origStroke = inlinedSvgInfo.svgTagStroke;
+      
+      if (origStroke) {
+        strokeAttr = `stroke="${origStroke}"`;
+      }
+      if (origFill) {
+        fillAttr = `fill="${origFill}"`;
+      }
     }
 
     let innerHTML = inlinedSvgInfo.innerHTML;
@@ -287,39 +297,39 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
             const svgDoc = parser.parseFromString(text, 'image/svg+xml');
             const svg = svgDoc.querySelector('svg');
             if (svg) {
-              const bgElements = Array.from(svg.querySelectorAll('rect, circle, path, ellipse, polygon')).filter(el => {
-                const fill = el.getAttribute('fill') || el.style.fill;
-                if (!fill) return false;
-                const f = fill.toLowerCase();
-                if (f.startsWith('url(')) return true;
-                return f !== 'none' && f !== 'transparent' && f !== 'white' && f !== '#ffffff' && f !== '#fff' && !f.includes('rgb(255, 255, 255)');
-              });
-              
-              bgElements.forEach(el => el.remove());
-
-              // Clone the document to create the bareDefaultSrc so we don't mutate the original svgDoc
+              // Clone the document to create the bareDefaultSrc
               const thumbnailDoc = svgDoc.cloneNode(true);
               const thumbnailSvg = thumbnailDoc.querySelector('svg');
-              const fgElements = Array.from(thumbnailSvg.querySelectorAll('g, rect, circle, path, ellipse, polygon')).filter(el => {
-                const fill = el.getAttribute('fill') || el.style.fill;
-                const stroke = el.getAttribute('stroke') || el.style.stroke;
-                const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
-                return isWhite(fill) || isWhite(stroke);
-              });
               
-              fgElements.forEach(el => {
+              const allElements = Array.from(thumbnailSvg.querySelectorAll('g, rect, circle, path, ellipse, polygon'));
+              const hasNonWhiteColors = allElements.some(el => {
                 const fill = el.getAttribute('fill') || el.style.fill;
                 const stroke = el.getAttribute('stroke') || el.style.stroke;
-                const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
-                if (isWhite(fill)) {
-                  if (el.getAttribute('fill')) el.setAttribute('fill', '#000000');
-                  if (el.style.fill) el.style.fill = '#000000';
-                }
-                if (isWhite(stroke)) {
-                  if (el.getAttribute('stroke')) el.setAttribute('stroke', '#000000');
-                  if (el.style.stroke) el.style.stroke = '#000000';
-                }
+                const isColor = (c) => c && c.toLowerCase() !== 'none' && c.toLowerCase() !== 'transparent' && c.toLowerCase() !== 'white' && c.toLowerCase() !== '#ffffff' && c.toLowerCase() !== '#fff' && !c.replace(/\s+/g,'').toLowerCase().includes('rgb(255,255,255)');
+                return isColor(fill) || isColor(stroke);
               });
+
+              if (!hasNonWhiteColors) {
+                // If the icon is entirely white/transparent, turn white elements to black for visibility in the picker
+                allElements.forEach(el => {
+                  const fill = el.getAttribute('fill') || el.style.fill;
+                  const stroke = el.getAttribute('stroke') || el.style.stroke;
+                  const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
+                  
+                  if (isWhite(fill)) {
+                    if (el.getAttribute('fill')) el.setAttribute('fill', '#000000');
+                    if (el.style.fill) el.style.fill = '#000000';
+                  }
+                  if (isWhite(stroke)) {
+                    if (el.getAttribute('stroke')) el.setAttribute('stroke', '#000000');
+                    if (el.style.stroke) el.style.stroke = '#000000';
+                  }
+                });
+              } else {
+                // If it has other colors (like the YouTube red icon), we keep it as is, 
+                // but we might want to strip the background shape if it's a solid colored circle.
+                // However, doing so blindly breaks complex icons. The safest approach is to just use the original SVG for the thumbnail.
+              }
               
               const svgString = new XMLSerializer().serializeToString(thumbnailSvg);
               const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
