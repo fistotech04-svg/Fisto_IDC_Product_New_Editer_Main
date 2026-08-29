@@ -1106,25 +1106,27 @@ const InteractionPanel = ({
       let foundEl = null;
       let foundPageIndex = -1;
 
-      // 1. ALWAYS check live DOM first (super fast, O(1))
-      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-      const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-      const liveEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(id)}"]`) : editorDoc.getElementById(id);
-      if (liveEl) {
-        foundEl = liveEl;
-        foundPageIndex = activePageIndex;
-      } else {
-        // 2. Only if not in live DOM, use cached DOMs
-        for (let i = 0; i < pages.length; i++) {
-          const cached = parsedPagesDOMsRef.current[i];
-          if (cached && cached.doc) {
-            const el = cached.doc.getElementById(id);
-            if (el) {
-              foundEl = el;
-              foundPageIndex = i;
-              break;
-            }
+      // 1. ALWAYS check cached DOMs first (guaranteed in sync with React state `pages`)
+      for (let i = 0; i < pages.length; i++) {
+        const cached = parsedPagesDOMsRef.current[i];
+        if (cached && cached.doc) {
+          const el = cached.doc.getElementById(id);
+          if (el) {
+            foundEl = el;
+            foundPageIndex = i;
+            break;
           }
+        }
+      }
+
+      // 2. Fallback to live DOM if not found in cache
+      if (!foundEl) {
+        const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+        const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+        const liveEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(id)}"]`) : editorDoc.getElementById(id);
+        if (liveEl) {
+          foundEl = liveEl;
+          foundPageIndex = activePageIndex;
         }
       }
 
@@ -3483,7 +3485,9 @@ const InteractionPanel = ({
             'navigate-to': '#8B5CF6',
             'slideshow': '#22C55E',
             'popup': '#14B8A6',
-            'call': '#19B2AB'
+            'call': '#19B2AB',
+            'download': '#F3326A',
+            'info-box': '#000000'
           };
           return colorMap[actionId] || '#359CFD';
         };
