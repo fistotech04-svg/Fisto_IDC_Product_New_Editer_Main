@@ -9,7 +9,7 @@ const userSettingsSchema = new mongoose.Schema({
   editorSettings: {
     isAutoSaveEnabled: {
       type: Boolean,
-      default: true
+      default: false
     },
     isTrimViewEnabled: {
       type: Boolean,

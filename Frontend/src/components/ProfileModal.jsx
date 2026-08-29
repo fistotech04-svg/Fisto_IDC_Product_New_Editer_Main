@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Save, BookOpen, Library, Settings, ChevronRight, ArrowRight } from 'lucide-react';
+import { resolveUploadsPath } from '../utils/supabaseUtils';
 
 const defaultColors = [
   '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
@@ -195,7 +196,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
           >
             {user.picture && user.picture !== 'color_only' ? (
               <img 
-                src={user.picture} 
+                src={user.picture.startsWith('blob:') || user.picture.startsWith('data:') ? user.picture : resolveUploadsPath(user.picture)} 
                 alt={user.name} 
                 className="w-full h-full object-cover" 
                 referrerPolicy="no-referrer"

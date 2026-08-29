@@ -1,21 +1,13 @@
-// TemplateModal.jsx - HTML Template Selection
 import React, { useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Upload, AlertCircle } from 'lucide-react';
 
 // Import SVG templates as URLs
-import TemplateSVG1 from "../../assets/Templates/Template_1.svg?url";
-import TemplateSVG2 from "../../assets/Templates/Template_2.svg?url"; 
-import TemplateSVG3 from "../../assets/Templates/Template_3.svg?url"; 
-import TemplateSVG4 from "../../assets/Templates/Template_4.svg?url"; 
-import TemplateSVG5 from "../../assets/Templates/Template_5.svg?url"; 
-import TemplateSVG6 from "../../assets/Templates/Template_6.svg?url";
-import TemplateSVG7 from "../../assets/Templates/Template_7.svg?url";
-import TemplateSVG8 from "../../assets/Templates/Template_8.svg?url";
-import TemplateSVG9 from "../../assets/Templates/Template_9.svg?url";
-import TemplateSVG10 from "../../assets/Templates/Template_Car_1.svg?url";
-import TemplateSVG11 from "../../assets/Templates/Template_Car_2.svg?url";
-import TemplateSVG12 from "../../assets/Templates/Template_Car_3.svg?url";
-import TemplateSVG13 from "../../assets/Templates/Template_Car_4.svg?url";
+import NewTemplateSVG2 from "../../assets/Templates/New_Template_2.svg?url"; 
+import NewTemplateSVG3 from "../../assets/Templates/New_Template_3.svg?url"; 
+import NewTemplateSVG4 from "../../assets/Templates/New_Template_4.svg?url"; 
+import NewTemplateSVG5 from "../../assets/Templates/New_Template_5.svg?url";
+import NewTemplateSVG6 from "../../assets/Templates/New_Template_6.svg?url";
 
 // Global cache to store fetched template SVG strings so they load instantly on subsequent opens
 const templateCache = {};
@@ -157,7 +149,7 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
       id: 1, 
       name: 'Template 1', 
       category: 'Business', 
-      src: TemplateSVG1, 
+      src: NewTemplateSVG2, 
       type: 'svg',
       description: 'Professional A4 business template'
     },
@@ -165,95 +157,31 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
       id: 2, 
       name: 'Template 2', 
       category: 'Business', 
-      src: TemplateSVG2, 
+      src: NewTemplateSVG3, 
       type: 'svg',
       description: 'Professional A4 business template'
     },
     { 
       id: 3, 
       name: 'Template 3', 
-      category: 'Business', 
-      src: TemplateSVG3, 
+      category: 'Presentation', 
+      src: NewTemplateSVG4, 
       type: 'svg',
-      description: 'Professional A4 business template'
+      description: 'Professional A4 presentation template'
     },
     { 
       id: 4, 
       name: 'Template 4', 
-      category: 'Presentation', 
-      src: TemplateSVG4, 
+      category: 'Business', 
+      src: NewTemplateSVG5, 
       type: 'svg',
-      description: 'Professional A4 presentation template'
+      description: 'Professional A4 business template'
     },
     { 
       id: 5, 
       name: 'Template 5', 
       category: 'Business', 
-      src: TemplateSVG5, 
-      type: 'svg',
-      description: 'Professional A4 business template'
-    },
-    { 
-      id: 6, 
-      name: 'Template 6', 
-      category: 'Marketing', 
-      src: TemplateSVG6, 
-      type: 'svg',
-      description: 'Professional A4 marketing template'
-    },
-    { 
-      id: 7, 
-      name: 'Template 7', 
-      category: 'Business', 
-      src: TemplateSVG7, 
-      type: 'svg',
-      description: 'Professional A4 business template'
-    },
-    {
-      id: 8,
-      name: 'Template 8',
-      category: 'Business',
-      src: TemplateSVG8,
-      type: 'svg',
-      description: 'Professional A4 business template'
-    },
-    {
-      id: 9,
-      name: 'Template 9',
-      category: 'Business',
-      src: TemplateSVG9,
-      type: 'svg',
-      description: 'Professional A4 business template'
-    },
-    { 
-      id: 10, 
-      name: 'Template 10', 
-      category: 'Car', 
-      src: TemplateSVG10, 
-      type: 'svg',
-      description: 'Professional A4 business template'
-    },
-    { 
-      id: 11, 
-      name: 'Template 11', 
-      category: 'Car', 
-      src: TemplateSVG11, 
-      type: 'svg',
-      description: 'Professional A4 business template'
-    },
-    { 
-      id: 12, 
-      name: 'Template 12', 
-      category: 'Car', 
-      src: TemplateSVG12, 
-      type: 'svg',
-      description: 'Professional A4 business template'
-    },
-    { 
-      id: 13, 
-      name: 'Template 13', 
-      category: 'Car', 
-      src: TemplateSVG13, 
+      src: NewTemplateSVG6, 
       type: 'svg',
       description: 'Professional A4 business template'
     }
@@ -264,7 +192,7 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
     if (uploadedTemplates.length > 0) {
       baseCategories.push('Uploaded');
     }
-    return [...baseCategories, 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio', 'Car'];
+    return [...baseCategories, 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio'];
   }, [uploadedTemplates.length]);
 
   // Filter templates (including user-uploaded ones)
@@ -377,16 +305,16 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
     setShowTemplateModal(false);
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-[1.5vw] backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
+      className="fixed inset-0 z-[100000] w-screen h-screen bg-black/60 flex items-center justify-center p-[2vw] backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
       onClick={() => setShowTemplateModal(false)}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       <div
-        className="bg-white rounded-[1.2vw] shadow-2xl w-full max-w-[80vw] h-[85vh] flex flex-col overflow-hidden transform transition-all scale-100 animate-in zoom-in-95 duration-200 relative"
+        className="bg-white rounded-[1.2vw] shadow-2xl w-full max-w-[80vw] h-[85vh] max-h-[85vh] flex flex-col overflow-hidden transform transition-all scale-100 animate-in zoom-in-95 duration-200 relative my-auto mx-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag & Drop Visual Overlay */}
@@ -534,7 +462,8 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
