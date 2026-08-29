@@ -90,8 +90,8 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
   const handleAddField = (type = 'empty') => {
     const newField = { id: Date.now().toString(), type };
     if (type === 'dropdown' || type === 'radio' || type === 'checkbox') {
-      newField.label = type === 'radio' ? 'Select Option' : type === 'checkbox' ? 'Interested Products' : 'Interested Service';
-      newField.options = type === 'radio' ? ['Option 1', 'Option 2'] : type === 'checkbox' ? ['500 ml Round', '1000 ml round', '250 ml Square', '500 ml Square'] : ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'];
+      newField.label = type === 'radio' ? 'Select Option' : type === 'dropdown' ? 'Select Option' : type === 'checkbox' ? 'Interested Products' : '';
+      newField.options = (type === 'dropdown' || type === 'radio') ? ['Option 1', 'Option 2'] : type === 'checkbox' ? ['Option 1', 'Option 2'] : ['Option 1', 'Option 2'];
     } else if (type === 'feedback') {
       newField.label = 'feedback';
       newField.placeholder = 'Enter your Feedback';
@@ -146,7 +146,20 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
   const handleAddOption = (fieldId) => {
     const newFields = (settings.fields || []).map(f => {
       if (f.id === fieldId) {
-        return { ...f, options: [...(f.options || []), ''] };
+        const nextIndex = (f.options || []).length + 1;
+        return { ...f, options: [...(f.options || []), `Option ${nextIndex}`] };
+      }
+      return f;
+    });
+    onUpdate({ ...settings, fields: newFields });
+  };
+
+  const handleRemoveOption = (fieldId, optionIndex) => {
+    const newFields = (settings.fields || []).map(f => {
+      if (f.id === fieldId) {
+        const newOptions = [...(f.options || [])];
+        newOptions.splice(optionIndex, 1);
+        return { ...f, options: newOptions };
       }
       return f;
     });
@@ -162,7 +175,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     { type: 'enquiry', label: 'Enquiry', icon: 'lucide:message-square' }
   ];
 
-  const allOptionsAdded = (settings.fields || []).length >= fieldOptions.length;
+
 
   const updateAppearance = (field, value) => {
     onUpdate({
@@ -207,7 +220,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             id: Date.now().toString() + '-5', 
             type: 'dropdown', 
             label: 'Interested Service', 
-            options: ['Web Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing'] 
+            options: ['Web Development', 'Mobile App Development'] 
           }
         ]
       }
@@ -228,7 +241,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             id: Date.now().toString() + '-4', 
             type: 'checkbox', 
             label: 'Interested Products', 
-            options: ['500 ml Round', '1000 ml round', '250 ml Square', '500 ml Square'] 
+            options: ['500 ml Round', '1000 ml round'] 
           }
         ]
       }
@@ -265,7 +278,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             id: Date.now().toString() + '-4', 
             type: 'dropdown', 
             label: 'Number of Tickets', 
-            options: ['1', '2', '3', '4+'] 
+            options: ['1', '2'] 
           }
         ]
       }
@@ -457,6 +470,15 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                                   className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
                                   placeholder={`Option ${idx + 1}`}
                                 />
+                                {(field.options || []).length > 2 && (
+                                  <button
+                                    onClick={() => handleRemoveOption(field.id, idx)}
+                                    className="text-red-400 hover:text-red-600 hover:bg-red-50 p-[0.3vw] rounded-[0.3vw] transition-colors flex-shrink-0"
+                                    title="Remove Option"
+                                  >
+                                    <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+                                  </button>
+                                )}
                               </div>
                             ))}
                             <div className="flex justify-end pt-[0.2vw]">
@@ -706,15 +728,13 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
               )})}
 
               {/* Add Lead Field Button */}
-              {!allOptionsAdded && (
-                <button
-                  onClick={() => setIsAddFieldPopupOpen(true)}
-                  className="w-full flex items-center justify-center gap-[0.4vw] py-[0.6vw] bg-white border border-gray-200 rounded-[0.5vw] text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors shadow-[0_0.1vw_0.2vw_rgba(0,0,0,0.02)] mt-[0.5vw]"
-                >
-                  <Plus size="0.9vw" className="stroke-[2.5]" />
-                  <span className="text-[0.8vw] font-medium tracking-wide">Add Lead Field</span>
-                </button>
-              )}
+              <button
+                onClick={() => setIsAddFieldPopupOpen(true)}
+                className="w-full flex items-center justify-center gap-[0.4vw] py-[0.6vw] bg-white border border-gray-200 rounded-[0.5vw] text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors shadow-[0_0.1vw_0.2vw_rgba(0,0,0,0.02)] mt-[0.5vw]"
+              >
+                <Plus size="0.9vw" className="stroke-[2.5]" />
+                <span className="text-[0.8vw] font-medium tracking-wide">Add Lead Field</span>
+              </button>
             </div>
           </div>
 

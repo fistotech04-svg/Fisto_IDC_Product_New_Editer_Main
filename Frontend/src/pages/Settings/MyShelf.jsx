@@ -42,7 +42,7 @@ const covers = [cover1, cover2, cover3, cover4, cover5];
 const shelfOptions = [
   { id: 'customize1', name: 'Modern White', img: customize1 },
   { id: 'customize2', name: 'Classic Wood', img: customize2 },
-  { id: 'customize3', name: 'Dark Oak', img: customize3 },
+  // { id: 'customize3', name: 'Dark Oak', img: customize3 },
 ];
 
 const MyShelf = () => {
@@ -544,8 +544,8 @@ const MyShelf = () => {
           rowPadding: '0 4%',
           topOffset: 5,
           spacing: 33,
-          bookWidth: '14%',
-          bookStyle: { bottom: '15%', padding: '0 7%' }
+          bookWidth: '11.5%',
+          bookStyle: { bottom: '15%', padding: '0 10%' }
         };
       default:
         return {
@@ -1134,12 +1134,12 @@ const MyShelf = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-5 bg-gray-50/50">
+            <div className="p-6 flex flex-col md:flex-row justify-center items-center gap-6 bg-gray-50/50">
               {shelfOptions.map((option) => (
                 <div
                   key={option.id}
                   onClick={() => setDraftShelfStyle(option.id)}
-                  className={`cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 group relative bg-white shadow-sm ${draftShelfStyle === option.id
+                  className={`w-full md:w-[220px] cursor-pointer rounded-xl border-2 overflow-hidden transition-all duration-200 group relative bg-white shadow-sm ${draftShelfStyle === option.id
                     ? 'border-blue-500 ring-2 ring-blue-100'
                     : 'border-transparent hover:border-gray-200 hover:shadow-md'
                     }`}
