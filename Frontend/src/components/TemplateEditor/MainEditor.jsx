@@ -1833,7 +1833,8 @@ const MainEditor = ({
           if (dlBtn) dlBtn.style.display = showDownloadButton ? '' : 'none';
           if (progC) progC.style.display = showProgressBar ? '' : 'none';
 
-          bar.style.display = showControls ? 'flex' : 'none';
+          const showControls = video.getAttribute('data-show-controls') !== 'false';
+          bar.style.display = (showControls || showPlayPause || showFullscreenButton || showDownloadButton) ? 'flex' : 'none';
         }
 
         if (!bar) {
@@ -2370,7 +2371,10 @@ const MainEditor = ({
 
         // Re-evaluate display visibility at the very end
         const shouldShowControls = video.getAttribute('data-show-controls') !== 'false';
-        bar.style.display = shouldShowControls ? 'flex' : 'none';
+        const sp = video.getAttribute('data-show-play-pause') !== 'false';
+        const sf = video.getAttribute('data-show-fullscreen-button') !== 'false';
+        const sd = video.getAttribute('data-show-download-button') !== 'false';
+        bar.style.display = (shouldShowControls || sp || sf || sd) ? 'flex' : 'none';
       });
 
       // Cleanup orphan controls
@@ -2886,7 +2890,7 @@ const MainEditor = ({
       const svgW = (svg.getAttribute('width') && !svg.getAttribute('width').includes('%') ? parseFloat(svg.getAttribute('width')) : 0) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || (typeof baseWidth === 'number' ? baseWidth : parseFloat(baseWidth || 794)) || 794;
       const svgH = (svg.getAttribute('height') && !svg.getAttribute('height').includes('%') ? parseFloat(svg.getAttribute('height')) : 0) || (svg.viewBox?.baseVal?.height ? svg.viewBox.baseVal.height : 0) || (typeof baseHeight === 'number' ? baseHeight : parseFloat(baseHeight || 1123)) || 1123;
 
-      let displayWidth = Math.round(svgW * 0.9);
+      let displayWidth = Math.round(svgW * 0.5);
       let displayHeight = Math.round(displayWidth * (9 / 16));
 
       // We use foreignObject to host the video/iframe element in SVG
@@ -2960,7 +2964,7 @@ const MainEditor = ({
                 newH = Math.round(svgH * 0.65);
                 newW = Math.round(newH * aspect);
               } else { // Landscape
-                newW = Math.round(svgW * 0.9);
+                newW = Math.round(svgW * 0.5);
                 newH = Math.round(newW / aspect);
               }
               fo.setAttribute('width', newW.toString());

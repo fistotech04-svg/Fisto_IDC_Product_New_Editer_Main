@@ -913,7 +913,7 @@ const Branding = ({
               : (preloaderSettings || {});
             return (
               <div
-                className="relative w-full h-[8vw] rounded-[1vw] flex flex-col items-center justify-center shadow-xl border border-white/10 group overflow-hidden flex-shrink-0"
+                className="relative w-full h-[8vw] rounded-[1vw] flex flex-col items-center justify-center shadow-md border border-white/10 group overflow-hidden flex-shrink-0"
                 style={{
                   backgroundColor: displayPreloader?.bgColor || '#D6E0F4',
                   color: displayPreloader?.textColor || '#ffffff'

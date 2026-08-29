@@ -1353,7 +1353,8 @@ const getVideoControlsScript = () => `
             if (dlBtn) dlBtn.style.display = showDownloadButton ? '' : 'none';
             if (progC) progC.style.display = showProgressBar ? '' : 'none';
             
-            bar.style.display = showControls ? 'flex' : 'none';
+            const showControls = video.getAttribute('data-show-controls') !== 'false';
+            bar.style.display = (showControls || showPlayPause || showFullscreenButton || showDownloadButton) ? 'flex' : 'none';
           }
 
           if (!bar) {
