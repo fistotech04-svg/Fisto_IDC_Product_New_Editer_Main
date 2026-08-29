@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { User, Building, MapPin, Globe, Check, X, Upload, Trash2 } from 'lucide-react';
 import { Icon } from '@iconify/react';
+import { resolveUploadsPath } from '../../../utils/supabaseUtils';
 
 const EditProfile = ({ user, setUser }) => {
   const [editedUser, setEditedUser] = useState(user);
@@ -242,7 +243,7 @@ const EditProfile = ({ user, setUser }) => {
                     {/* Thumbnail */}
                     <div className="relative w-[8vw] h-[5vw] rounded-[0.4vw] overflow-hidden bg-White flex-shrink-0 flex items-center justify-center border border-gray-200">
                       <img
-                        src={editedUser.company_logo_url || editedUser.companyLogo}
+                        src={(editedUser.company_logo_url || editedUser.companyLogo)?.startsWith('data:') ? (editedUser.company_logo_url || editedUser.companyLogo) : resolveUploadsPath(editedUser.company_logo_url || editedUser.companyLogo)}
                         alt="Company Logo Thumbnail"
                         className="w-full h-full object-contain"
                       />

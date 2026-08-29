@@ -58,7 +58,7 @@ const PasswordProtectModal = ({ v_id, shareId, onUnlock }) => {
     e.preventDefault();
     const trimmedKey = passwordInput.trim();
     if (!trimmedKey) {
-      setPasswordError("Please enter flipbook protect password.");
+      setPasswordError("Please enter password.");
       return;
     }
 
@@ -74,7 +74,7 @@ const PasswordProtectModal = ({ v_id, shareId, onUnlock }) => {
         const res = await axios.post(`${backendUrl}/api/flipbook/verify-credential`, {
           v_id: v_id || shareId,
           input: trimmedKey,
-          mode: 'accessKey'
+          mode: 'password'
         });
         if (res.data && res.data.success) {
           isVerified = true;
@@ -101,11 +101,11 @@ const PasswordProtectModal = ({ v_id, shareId, onUnlock }) => {
         if (shareId) sessionStorage.setItem(`unlocked_${shareId}`, 'true');
         if (onUnlock) onUnlock();
       } else {
-        setPasswordError("Invalid flipbook protect password.");
+        setPasswordError("Invalid password.");
       }
     } catch (err) {
       console.error("Password verification error:", err);
-      setPasswordError("Invalid flipbook protect password.");
+      setPasswordError("Invalid password.");
     } finally {
       setIsSubmittingPassword(false);
     }
@@ -270,12 +270,12 @@ const PasswordProtectModal = ({ v_id, shareId, onUnlock }) => {
         {step === 'login' && (
           <>
             <p className="text-[0.7vw] text-gray-400 font-normal mt-[0.2vw]">
-              Enter flipbook protect password to view this flipbook.
+              Enter password to view this flipbook.
             </p>
 
             <form onSubmit={handlePasswordSubmit} className="mt-[1vw] space-y-[0.35vw]">
               <label className="text-[0.78vw] font-semibold text-gray-900 block">
-                Flipbook Protect Password
+                Password
               </label>
               <div className="relative">
                 <input
@@ -285,7 +285,7 @@ const PasswordProtectModal = ({ v_id, shareId, onUnlock }) => {
                     setPasswordInput(e.target.value);
                     if (passwordError) setPasswordError('');
                   }}
-                  placeholder="Enter flipbook protect password..."
+                  placeholder="Enter password..."
                   className="w-full bg-white border border-gray-300 rounded-[0.5vw] px-[0.8vw] py-[0.5vw] text-[0.78vw] font-medium text-gray-800 focus:outline-none focus:border-[#5551FF] focus:ring-2 focus:ring-[#5551FF]/10 transition-all pr-[2.2vw] shadow-xs"
                 />
                 <button
