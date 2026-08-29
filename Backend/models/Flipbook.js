@@ -96,7 +96,7 @@ const flipbookSchema = new mongoose.Schema(
           layout: { type: String, default: "spinner" },
           text: { type: String, default: "Loading Flipbook Please Wait...." },
           font: { type: String, default: "Poppins" },
-          bgColor: { type: String, default: "#2D2F33" },
+          bgColor: { type: String, default: "#D6E0F4" },
           textColor: { type: String, default: "#ffffff" },
           spinnerColor: { type: String, default: "#3B3C8A" },
           showPercentage: { type: Boolean, default: false },

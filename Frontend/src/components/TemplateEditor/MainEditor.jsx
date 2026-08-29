@@ -1832,7 +1832,8 @@ const MainEditor = ({
           if (dlBtn) dlBtn.style.display = showDownloadButton ? '' : 'none';
           if (progC) progC.style.display = showProgressBar ? '' : 'none';
 
-          bar.style.display = showControls ? 'flex' : 'none';
+          const showControls = video.getAttribute('data-show-controls') !== 'false';
+          bar.style.display = (showControls || showPlayPause || showFullscreenButton || showDownloadButton) ? 'flex' : 'none';
         }
 
         if (!bar) {
@@ -2369,7 +2370,10 @@ const MainEditor = ({
 
         // Re-evaluate display visibility at the very end
         const shouldShowControls = video.getAttribute('data-show-controls') !== 'false';
-        bar.style.display = shouldShowControls ? 'flex' : 'none';
+        const sp = video.getAttribute('data-show-play-pause') !== 'false';
+        const sf = video.getAttribute('data-show-fullscreen-button') !== 'false';
+        const sd = video.getAttribute('data-show-download-button') !== 'false';
+        bar.style.display = (shouldShowControls || sp || sf || sd) ? 'flex' : 'none';
       });
 
       // Cleanup orphan controls
@@ -2769,11 +2773,11 @@ const MainEditor = ({
       g.setAttribute('transform', `translate(${centerX - 12}, ${centerY - 12}) scale(0.5)`);
       g.setAttribute('data-is-hotspot', 'true');
       g.setAttribute('data-show-highlight', 'false');
-      
+
       const currentPresetId = e.detail.presetId || (icon && icon.presetId);
       if (currentPresetId) {
         g.setAttribute('data-preset-id', currentPresetId);
-        
+
         const actionMap = {
           'youtube': 'open-link',
           'instagram': 'open-link',
@@ -2795,7 +2799,7 @@ const MainEditor = ({
           '3d-viewer': '3d-viewer',
           'interactive-button': 'open-link'
         };
-        
+
         const actionType = actionMap[currentPresetId];
         if (actionType) {
           g.setAttribute('data-interaction', actionType);
@@ -2827,7 +2831,7 @@ const MainEditor = ({
 
       updatePageHtml(targetPageIndex, svg.outerHTML);
       setSelectedLayerId(newId);
-      
+
       if (e.detail.isHotspot && typeof setActiveTopTool === 'function') {
         setActiveTopTool('interaction');
       }
@@ -2894,7 +2898,7 @@ const MainEditor = ({
       const svgW = (svg.getAttribute('width') && !svg.getAttribute('width').includes('%') ? parseFloat(svg.getAttribute('width')) : 0) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || (typeof baseWidth === 'number' ? baseWidth : parseFloat(baseWidth || 794)) || 794;
       const svgH = (svg.getAttribute('height') && !svg.getAttribute('height').includes('%') ? parseFloat(svg.getAttribute('height')) : 0) || (svg.viewBox?.baseVal?.height ? svg.viewBox.baseVal.height : 0) || (typeof baseHeight === 'number' ? baseHeight : parseFloat(baseHeight || 1123)) || 1123;
 
-      let displayWidth = Math.round(svgW * 0.9);
+      let displayWidth = Math.round(svgW * 0.5);
       let displayHeight = Math.round(displayWidth * (9 / 16));
 
       // We use foreignObject to host the video/iframe element in SVG
@@ -2968,7 +2972,7 @@ const MainEditor = ({
                 newH = Math.round(svgH * 0.65);
                 newW = Math.round(newH * aspect);
               } else { // Landscape
-                newW = Math.round(svgW * 0.9);
+                newW = Math.round(svgW * 0.5);
                 newH = Math.round(newW / aspect);
               }
               fo.setAttribute('width', newW.toString());
@@ -6633,7 +6637,7 @@ const MainEditor = ({
           }
           window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: initNodeType, segIdx: 0, selectedCount: 1, canJoin: false, isLineSelected: false } }));
         }
-      } catch (_) {}
+      } catch (_) { }
     } catch (err) {
       console.warn('[NodeEditMode] Failed to enter node edit mode:', err);
     }
@@ -7651,7 +7655,7 @@ const MainEditor = ({
             // Define anchor point in local space (opposite point)
             let localAnchor;
             const isInteractiveBtn = el.getAttribute('data-is-hotspot') === 'true' && el.querySelector('rect') && (el.querySelector('text') || el.querySelector('[data-type="text"]'));
-            
+
             if (isInteractiveBtn && ['e', 'w', 'n', 's'].includes(dir)) {
               localAnchor = { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
             } else if (dir === 'se') localAnchor = { x: bbox.x, y: bbox.y };
@@ -7930,7 +7934,7 @@ const MainEditor = ({
                 try {
                   const textEl = el.querySelector('text');
                   if (textEl) textWidth = textEl.getBBox().width;
-                } catch(e) {}
+                } catch (e) { }
                 originalDroppedWidth = Math.max(textWidth + 30, 80);
                 el.setAttribute('data-dropped-width', originalDroppedWidth);
               } else {
@@ -8422,7 +8426,7 @@ const MainEditor = ({
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
-                        
+
                         if (child.classList?.contains('gif-inner-content')) {
                           const innerImg = child.querySelector('image, foreignObject');
                           if (innerImg) {
@@ -8628,10 +8632,10 @@ const MainEditor = ({
                   if (isHotspot) {
                     const rectData = state.childrenData.find(c => c.child.tagName.toLowerCase() === 'rect');
                     const textData = state.childrenData.find(c => c.child.tagName.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
-                    
+
                     if (rectData && textData) {
-                      const rectBound = rectData.bound; 
-                      
+                      const rectBound = rectData.bound;
+
                       let myAnchorX = la.x;
                       let myAnchorY = la.y;
                       let myScaleX = scaleX;
@@ -8654,17 +8658,17 @@ const MainEditor = ({
                         myScaleX = newMyScale;
                         myScaleY = newMyScale;
                       }
-                      
+
                       const newMinX = myAnchorX + (rectBound.x - myAnchorX) * myScaleX;
                       const newMaxX = myAnchorX + (rectBound.x + rectBound.width - myAnchorX) * myScaleX;
                       const newMinY = myAnchorY + (rectBound.y - myAnchorY) * myScaleY;
                       const newMaxY = myAnchorY + (rectBound.y + rectBound.height - myAnchorY) * myScaleY;
-                      
+
                       const newRectX = Math.min(newMinX, newMaxX);
                       const newRectW = Math.abs(newMaxX - newMinX);
                       const newRectY = Math.min(newMinY, newMaxY);
                       const newRectH = Math.abs(newMaxY - newMinY);
-                      
+
                       const textEl = textData.child;
                       textEl.setAttribute('x', newRectX + newRectW / 2);
                       textEl.setAttribute('y', newRectY + newRectH / 2);
@@ -11694,10 +11698,9 @@ const MainEditor = ({
       return;
     }
 
-    const isCropModeMedia = target && (
+    const isCropModeMedia = target && !target.closest?.('[data-is-gif-group="true"]') && (
       (target.getAttribute('data-object-fit') === 'Crop') ||
-      (target.closest?.('[data-object-fit="Crop"]')) ||
-      target.closest?.('[data-is-gif-group="true"]')
+      (target.closest?.('[data-object-fit="Crop"]'))
     );
 
     if (isCropModeMedia) {
@@ -12389,7 +12392,7 @@ const MainEditor = ({
                 {showHotspotPopup && (
                   <HotspotPresetPopup
                     onClose={() => setShowHotspotPopup(false)}
-                    onSelectPreset={() => {}} // No functionality for now as requested
+                    onSelectPreset={() => { }} // No functionality for now as requested
                   />
                 )}
               </div>
@@ -13117,8 +13120,8 @@ const MainEditor = ({
                   disabled={activePageIndex === 0}
                   onClick={handlePrevPage}
                   className={`flex items-center justify-center transition-all duration-200 group ${activePageIndex === 0
-                      ? 'opacity-25 cursor-not-allowed'
-                      : 'cursor-pointer hover:scale-110 active:scale-95'
+                    ? 'opacity-25 cursor-not-allowed'
+                    : 'cursor-pointer hover:scale-110 active:scale-95'
                     }`}
                   title="Previous Page"
                 >

@@ -307,6 +307,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFollowLoading, setIsFollowLoading] = useState(false);
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [hoveredInfoId, setHoveredInfoId] = useState(null);
 
     const currentUserEmail = (() => {
         try {
@@ -1081,11 +1083,13 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                                 return (
                                                                                     <div
                                                                                         key={book.v_id || bIdx}
-                                                                                        className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                        className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
                                                                                         style={{ width: activeAssets.bookWidth || '12%' }}
-                                                                                        onClick={() => handleOpenBook(book)}
                                                                                     >
-                                                                                        <div className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden">
+                                                                                        <div 
+                                                                                            className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden"
+                                                                                            onClick={() => handleOpenBook(book)}
+                                                                                        >
                                                                                             <LazyPreview
                                                                                                 v_id={book.v_id}
                                                                                                 emailId={book.rawBook?.userEmail || currentUserEmail}
@@ -1095,6 +1099,104 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                                                 imageUrl={null}
                                                                                             />
                                                                                         </div>
+
+                                                                                        {/* Hover Menu Pill */}
+                                                                                        <div className="absolute top-[2%] right-[0vw] w-[1vw] h-[3vw] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto">
+                                                                                            <button
+                                                                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `${i}-${bIdx}` ? null : `${i}-${bIdx}`); }}
+                                                                                                className="text-black hover:bg-gray-300 rounded-full w-4 h-4 flex items-center justify-center mt-0.5 transition-colors"
+                                                                                            >
+                                                                                                <Icon icon="mdi:dots-vertical" className="text-[14px]" />
+                                                                                            </button>
+                                                                                            <div
+                                                                                                className="text-[#4A4A4A] hover:text-black flex items-center justify-center mb-0.5 transition-colors relative cursor-pointer"
+                                                                                                onMouseEnter={() => setHoveredInfoId(`${i}-${bIdx}`)}
+                                                                                                onMouseLeave={() => setHoveredInfoId(null)}
+                                                                                            >
+                                                                                                <Icon icon="si:info-fill" className="w-4 h-4" />
+
+                                                                                                {/* Info Tooltip Bridge & Container */}
+                                                                                                <div className={`absolute top-1/2 right-full pr-3 -translate-y-1/2 ${hoveredInfoId === `${i}-${bIdx}` ? 'block' : 'hidden'} z-[60]`}>
+                                                                                                    <div className="w-[170px] bg-white rounded-xl p-4 text-gray-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col gap-3 cursor-default text-left border border-gray-100 relative" onClick={(e) => e.stopPropagation()}>
+                                                                                                        {/* Author Info */}
+                                                                                                        <div className="flex items-center gap-2">
+                                                                                                            {book.authorPicture && book.authorPicture !== 'color_only' ? (
+                                                                                                                <img
+                                                                                                                    src={book.authorPicture}
+                                                                                                                    alt={book.authorName}
+                                                                                                                    className="w-8 h-8 rounded-full border border-gray-200 object-cover shrink-0"
+                                                                                                                />
+                                                                                                            ) : (
+                                                                                                                <div
+                                                                                                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0 shadow-inner"
+                                                                                                                    style={{ backgroundColor: book.authorBgColor || '#4c5add' }}
+                                                                                                                >
+                                                                                                                    {(book.authorName || 'U').charAt(0).toUpperCase()}
+                                                                                                                </div>
+                                                                                                            )}
+                                                                                                            <div className="flex flex-col min-w-0 pr-1">
+                                                                                                                <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate">{book.authorName}</span>
+                                                                                                                <span className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5 truncate">
+                                                                                                                    <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
+                                                                                                                    <span className="truncate">{String(book.location || 'Coimbatore').replace(/📍/g, '').trim()}</span>
+                                                                                                                </span>
+                                                                                                            </div>
+                                                                                                        </div>
+
+                                                                                                        {/* Stats */}
+                                                                                                        <div className="flex items-center gap-2 justify-start text-[11px] text-gray-700 font-medium whitespace-nowrap">
+                                                                                                            <div className="flex items-center gap-1">
+                                                                                                                <span className="text-black font-semibold">{book.pages || 0}</span>
+                                                                                                                <span className="font-normal text-gray-500">Pages</span>
+                                                                                                            </div>
+                                                                                                            <span className="text-gray-300">|</span>
+                                                                                                            <span className="flex items-center gap-1">
+                                                                                                                <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
+                                                                                                                {book.views || '1.2k'}
+                                                                                                            </span>
+                                                                                                            <span className="text-gray-300">|</span>
+                                                                                                            <span className="flex items-center gap-1">
+                                                                                                                <Icon icon="material-symbols:star" className="w-3.5 h-3.5 text-yellow-400" />
+                                                                                                                {book.rating || 4.5}
+                                                                                                            </span>
+                                                                                                        </div>
+
+                                                                                                        {/* Title & Desc & Button */}
+                                                                                                        <div className="relative">
+                                                                                                            <h4 className="text-[14px] font-semibold text-black truncate tracking-tight mb-1">{book.title}</h4>
+                                                                                                            <p className="text-[11px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
+
+                                                                                                            {/* Action Button */}
+                                                                                                            <button
+                                                                                                                onClick={(e) => {
+                                                                                                                    e.stopPropagation();
+                                                                                                                    handleOpenBook(book);
+                                                                                                                }}
+                                                                                                                className="absolute bottom-0 right-0 bg-black text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                                                                                                            >
+                                                                                                                <Icon icon="mdi:arrow-top-right" className="w-4 h-4" />
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        {/* Dropdown Menu */}
+                                                                                        {openMenuId === `${i}-${bIdx}` && (
+                                                                                            <div className="absolute top-[2%] -right-2 bg-white rounded-md shadow-xl border border-gray-100 py-1 w-28 z-50">
+                                                                                                <button
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        handleOpenBook(book);
+                                                                                                        setOpenMenuId(null);
+                                                                                                    }}
+                                                                                                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                                                                                                >
+                                                                                                    Open Book
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        )}
                                                                                     </div>
                                                                                 );
                                                                             })}

@@ -1417,55 +1417,38 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
 
 
-  const handleReplaceUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    const imageUrl = URL.createObjectURL(file);
-    setNewReplaceImg({ url: imageUrl, name: file.name, file: file }); // Store file object for upload
-    e.target.value = '';
-  };
+  const handleModalReplace = async (file) => {
+    if (!file || replaceTargetIndex === null) return;
+    const targetImg = slideshowImages[replaceTargetIndex];
+    if (!targetImg) return;
 
-  const confirmReplace = useCallback(async () => {
-    if (!newReplaceImg || replaceTargetIndex === null) return;
-
-    const targetImage = slideshowImages[replaceTargetIndex];
-    const fileToUpload = newReplaceImg.file;
-
-    // Optimistic Update
-    setSlideshowImages(prev => {
-      const updated = [...prev];
+    const optimisticUrl = file.url || URL.createObjectURL(file);
+    setSlideshowImages(current => {
+      const updated = [...current];
       if (updated[replaceTargetIndex]) {
-        updated[replaceTargetIndex] = {
-          ...updated[replaceTargetIndex],
-          url: newReplaceImg.url,
-          name: newReplaceImg.name,
-          isUploading: true
-        };
+        updated[replaceTargetIndex] = { ...updated[replaceTargetIndex], url: optimisticUrl, isUploading: true };
       }
       return updated;
     });
 
     setShowReplaceModal(false);
+
+    const compressedFile = await compressImage(file);
+    const uploadedData = await uploadFile(compressedFile, targetImg.file_v_id);
+
+    setSlideshowImages(current =>
+      current.map((img, idx) => {
+        if (idx === replaceTargetIndex) {
+          return uploadedData
+            ? { ...img, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false }
+            : { ...img, isUploading: false };
+        }
+        return img;
+      })
+    );
     setReplaceTargetIndex(null);
-    setNewReplaceImg(null);
+  };
 
-    // Upload
-    if (fileToUpload) {
-      const compressedFile = await compressImage(fileToUpload);
-      const uploadedData = await uploadFile(compressedFile, targetImage.file_v_id); // Pass existing v_id for replacement
-
-      if (uploadedData) {
-        setSlideshowImages(prev => prev.map((item, idx) => {
-          if (idx === replaceTargetIndex || (item.isUploading && item.url === newReplaceImg.url)) { // Fallback matching
-            return { ...item, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false };
-          }
-          return item;
-        }));
-      }
-    }
-
-    if (onUpdateRef.current) onUpdateRef.current({ shouldRefresh: true });
-  }, [newReplaceImg, replaceTargetIndex, slideshowImages, uploadFile]);
 
   const deleteImage = useCallback(async (index) => {
     const img = slideshowImages[index];
@@ -1537,7 +1520,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   const updateSetting = (key, value) => {
     setSlideshowSettings(prev => ({ ...prev, [key]: value }));
   };
-  const effects = ['Linear', 'Fade', 'Slide', 'Push', 'Flip', 'Reveal'];
+  const effects = ['Linear', 'Fade', 'Flip', 'Reveal'];
 
   const colorsOnPage = React.useMemo(() => {
     const doc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
@@ -1699,7 +1682,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                           onClick={() => { 
                             if (slideshowImages[i]) { 
                               setReplaceTargetIndex(i); 
-                              replaceInputRef.current?.click(); 
+                              setShowReplaceModal(true); 
                               setOpenContextMenu(null); 
                             } else { 
                               setActiveSlideIndex(i); 
@@ -1785,17 +1768,6 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           </div>
         </div>
 
-        {/* 3. Library Access Button */}
-        <button onClick={() => setShowGallery(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5">
-          <div className="absolute inset-0 flex gap-[0.5vw] opacity-20 group-hover:opacity-40 transition-opacity">
-            {[1, 2, 3].map(j => <div key={j} className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1493612276216-ee3925520721?q=80&w=300&auto=format&fit=crop')" }} />)}
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-gray/10 via-gray/20 to-gray/40 group-hover:via-gray/20 transition-all"></div>
-          <div className="relative z-10 flex items-center gap-[0.75vw]">
-            <Icon icon="clarity:image-gallery-solid" className="w-[1vw] h-[1.2vw] text-white" />
-            <span className="text-[0.95vw] font-semibold text-white ">Image Gallery</span>
-          </div>
-        </button>
 
         {/* 4. Slideshow Property Consolidated Accordion */}
         <div ref={accordionRef} className="border border-gray-100 rounded-[0.75vw] overflow-hidden shadow-sm bg-white">
@@ -1815,7 +1787,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                 <div className="flex items-center justify-between px-[0.2vw]">
                   <span className="text-[0.75vw] font-medium text-gray-700">Select Slide Effects :</span>
                   <PremiumDropdown
-                    options={['Linear', 'Fade', 'Slide', 'Push', 'Flip', 'Reveal']}
+                    options={['Linear', 'Fade', 'Flip', 'Reveal']}
                     value={slideshowSettings.transitionEffect || 'Linear'}
                     onChange={(val) => updateSetting('transitionEffect', val)}
                     width="7vw"
@@ -2011,99 +1983,23 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       )}
 
 
-      {/* Internal Gallery Modal */}
+      {/* Media Modal for Gallery and Replace */}
       <ReplaceMediaModal
-        show={showGallery}
+        show={showGallery || showReplaceModal}
         mediaType="image"
-        onClose={() => setShowGallery(false)}
+        onClose={() => {
+          setShowGallery(false);
+          setShowReplaceModal(false);
+          setReplaceTargetIndex(null);
+        }}
         onReplace={(file) => {
-          handleGallerySelect({ url: URL.createObjectURL(file), file });
+          if (showReplaceModal) {
+            handleModalReplace(file);
+          } else {
+            handleGallerySelect({ url: URL.createObjectURL(file), file });
+          }
         }}
       />
-
-      {/* Replace Image Modal*/}
-      {showReplaceModal && replaceTargetIndex !== null && slideshowImages[replaceTargetIndex] && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-[1vw]">
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-[0.15vw]" onClick={() => { setShowReplaceModal(false); setNewReplaceImg(null); }} />
-          <div className="relative bg-white rounded-[2vw] shadow-2xl w-[28vw] overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-gray-100 p-[2vw]">
-            {/* HEADER */}
-            <div className="flex items-center gap-[1vw] mb-[2.5vw]">
-              <h2 className="text-[1.1vw] font-semibold text-gray-700 whitespace-nowrap">Replace Image</h2>
-              <div className="h-[0.1vw] w-full bg-gray-100 flex-1" />
-              <button
-                onClick={() => { setShowReplaceModal(false); setNewReplaceImg(null); }}
-                className="w-[1.5vw] h-[1.5vw] flex items-center justify-center rounded-[0.75vw] border-[0.15vw] border-[#ff6b6b] text-[#ff6b6b] hover:bg-red-50 transition-colors shrink-0"
-              >
-                <X size="1vw" strokeWidth={2.5} />
-              </button>
-            </div>
-
-            {/* CONTENT AREA */}
-            <div className="flex flex-col gap-[1.5vw] mb-[2vw]">
-              <div className="flex items-center justify-between gap-[1vw]">
-                {/* Left: Current Image container */}
-                <div className="flex flex-col items-center gap-[0.5vw] w-[8vw]">
-                  <div className="w-[6vw] h-[6vw] rounded-[1.25vw] border-[0.15vw] border-dashed border-gray-400 bg-gray-50 flex items-center justify-center overflow-hidden p-[0.5vw]">
-                    <img src={slideshowImages[replaceTargetIndex].url} className="w-full h-full object-contain rounded-[0.5vw]" alt="current" />
-                  </div>
-                  <span className="text-[0.9vw] font-semibold text-gray-400 truncate w-full text-center">Current</span>
-                </div>
-
-                {/* Middle: Replacement Connector - Vertically Centered */}
-                <div className="flex items-center justify-center pt-[0.5vw]">
-                  <Replace size="1.5vw" className="text-gray-400" strokeWidth={1.5} />
-                </div>
-
-                {/* Right: Upload Drop-zone - Matches height of left box */}
-                <div className="flex flex-col items-center gap-[0.5vw] flex-1">
-                  <div
-                    onClick={() => replaceInputRef.current?.click()}
-                    className={`w-full h-[6vw] rounded-[1.25vw] border-[0.15vw] border-dashed flex flex-col items-center justify-center cursor-pointer transition-all group overflow-hidden ${newReplaceImg ? 'border-gray-400 bg-indigo-50/20' : 'border-gray-400 bg-gray-50 hover:border-gray-400'
-                      }`}
-                  >
-                    {newReplaceImg ? (
-                      <div className="relative w-full h-full p-[0.5vw] flex items-center justify-center">
-                        <img src={newReplaceImg.url} className="w-full h-full object-contain rounded-[0.5vw]" alt="new" />
-                        <div className="absolute inset-0 bg-gray-900/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Upload size="1.25vw" className="text-black-900" />
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <Upload size="1.5vw" className="text-gray-400 mb-[0.25vw] group-hover:-translate-y-1 transition-transform" />
-                        <p className="text-[0.8vw] text-gray-500 font-medium">Drag & Drop or <span className="text-indigo-600 font-semibold">Upload</span></p>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-[0.7vw] text-gray-400 font-medium italic">Supported File Format : JPG, PNG</p>
-                </div>
-              </div>
-            </div>
-
-            {/* FOOTER BUTTONS */}
-            <div className="flex items-center justify-end gap-[0.75vw] mt-[1vw]">
-              <button
-                onClick={() => { setShowReplaceModal(false); setNewReplaceImg(null); }}
-                className="px-[1.5vw] h-[2vw] rounded-[0.5vw] border-[0.15vw] border-gray-700 text-gray-700 font-semibold text-[0.9vw] flex items-center gap-[0.5vw] hover:bg-gray-50 transition-all"
-              >
-                <X size="1vw" strokeWidth={2.5} /> Close
-              </button>
-              <button
-                onClick={confirmReplace}
-                disabled={!newReplaceImg}
-                className={`px-[2vw] h-[2vw] rounded-[0.5vw] font-semibold text-[0.9vw] flex items-center gap-[0.5vw] shadow-lg transition-all ${newReplaceImg
-                  ? 'bg-gray-600 text-white hover:bg-gray-700 hover:scale-[1.02] active:scale-95'
-                  : 'bg-gray-200 text-black-900 cursor-not-allowed shadow-none'
-                  }`}
-              >
-                <Replace size="1vw" strokeWidth={2.5} /> Replace
-              </button>
-            </div>
-
-            <input type="file" ref={replaceInputRef} onChange={handleReplaceUpload} accept="image/*" className="hidden" />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

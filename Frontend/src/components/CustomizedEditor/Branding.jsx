@@ -41,7 +41,7 @@ const Branding = ({
   const [showWatermarkUrlInput, setShowWatermarkUrlInput] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [showCropOverlay, setShowCropOverlay] = useState(false);
-  const [deleteAlert, setDeleteAlert] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [replaceTarget, setReplaceTarget] = useState(null); // 'logo' | 'watermark' | null
   const [showLogoAdjustments, setShowLogoAdjustments] = useState(false);
   const [showWatermarkAdjustments, setShowWatermarkAdjustments] = useState(false);
@@ -327,7 +327,7 @@ const Branding = ({
   };
 
   const confirmRemoveLogo = () => {
-    setDeleteAlert(true);
+    setDeleteTarget('logo');
   };
 
   const deleteBrandingAsset = async (assetType) => {
@@ -368,7 +368,7 @@ const Branding = ({
         }
       });
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setDeleteAlert(false);
+      setDeleteTarget(null);
     } else {
       onUpdateWatermark({
         src: '',
@@ -381,6 +381,7 @@ const Branding = ({
         }
       });
       if (watermarkFileInputRef.current) watermarkFileInputRef.current.value = '';
+      setDeleteTarget(null);
     }
   };
 
@@ -564,7 +565,7 @@ const Branding = ({
 
                   <div className="flex items-center gap-[0.5vw]">
                     <button
-                      onClick={() => setReplaceTarget('logo')}
+                      onClick={() => setGalleryTarget('logo')}
                       className="px-[0.75vw] py-[0.4vw] bg-[#f3f4f6] hover:bg-[#e5e7eb] text-gray-700 text-[0.75vw] font-semibold rounded-[0.4vw] border border-gray-200 cursor-pointer transition-colors"
                     >
                       Replace image
@@ -740,13 +741,13 @@ const Branding = ({
                   </div>
                   <div className="flex items-center gap-[0.5vw]">
                     <button
-                      onClick={() => setReplaceTarget('watermark')}
+                      onClick={() => setGalleryTarget('watermark')}
                       className="px-[0.75vw] py-[0.4vw] bg-[#f3f4f6] hover:bg-[#e5e7eb] text-gray-700 text-[0.75vw] font-semibold rounded-[0.4vw] border border-gray-200 cursor-pointer transition-colors"
                     >
                       Replace image
                     </button>
                     <button
-                      onClick={removeWatermark}
+                      onClick={() => setDeleteTarget('watermark')}
                       className="p-[0.45vw] bg-[#f3f4f6] hover:bg-[#fee2e2] text-gray-500 hover:text-red-500 rounded-[0.4vw] border border-gray-200 cursor-pointer transition-colors"
                     >
                       <Trash2 size="0.95vw" />
@@ -828,7 +829,7 @@ const Branding = ({
               <div className="flex items-center justify-between gap-[1vw] py-[0.5vw]">
                 <label className="text-[0.75vw] font-semibold text-gray-700">Select Watermark Position :</label>
                 <PremiumDropdown
-                  options={['Top Left', 'Top Right', 'Bottom Left', 'Bottom Right']}
+                  options={['Top Left', 'Top Right', 'Center', 'Bottom Left', 'Bottom Right']}
                   value={watermarkSettings?.position || 'Bottom Right'}
                   onChange={(val) => onUpdateWatermark({ ...watermarkSettings, position: val })}
                   width="7.6vw"
@@ -912,9 +913,9 @@ const Branding = ({
               : (preloaderSettings || {});
             return (
               <div
-                className="relative w-full h-[8vw] rounded-[1vw] flex flex-col items-center justify-center shadow-lg border border-white/10 group overflow-hidden flex-shrink-0"
+                className="relative w-full h-[8vw] rounded-[1vw] flex flex-col items-center justify-center shadow-md border border-white/10 group overflow-hidden flex-shrink-0"
                 style={{
-                  backgroundColor: displayPreloader?.bgColor || '#2D2F33',
+                  backgroundColor: displayPreloader?.bgColor || '#D6E0F4',
                   color: displayPreloader?.textColor || '#ffffff'
                 }}
               >
@@ -1044,7 +1045,7 @@ const Branding = ({
                     <div className="flex-1 flex gap-[0.5vw] items-center">
                       <div
                         className="w-[1.8vw] h-[1.8vw] border border-gray-200 rounded-[0.5vw] shadow-[0_2px_4px_rgba(0,0,0,0.06)] cursor-pointer hover:border-indigo-400 transition-colors flex-shrink-0"
-                        style={{ backgroundColor: tempPreloaderSettings?.bgColor || '#2D2F33' }}
+                        style={{ backgroundColor: tempPreloaderSettings?.bgColor || '#D6E0F4' }}
                         onClick={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
                           setPickerPos({ x: Math.min(window.innerWidth - 260, rect.left + 260), y: rect.top });
@@ -1377,9 +1378,12 @@ const Branding = ({
         )}
 
         <AlertModal
-          isOpen={deleteAlert}
-          onClose={() => setDeleteAlert(false)}
-          onConfirm={removeLogo}
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            if (deleteTarget === 'logo') removeLogo();
+            else if (deleteTarget === 'watermark') removeWatermark();
+          }}
           type="warning"
           title="Delete Image"
           message="Are you sure you want to delete this image? This action cannot be undone."

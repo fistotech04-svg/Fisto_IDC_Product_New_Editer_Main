@@ -18,6 +18,7 @@ import Footer from './Footer';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
 import CreatorProfileModal from './CreatorProfileModal';
+import { useToast } from '../components/CustomToast';
 
 const covers = [cover1, cover2, cover3, cover4, cover5];
 const profiles = [p1, p2, p3, p4, p5];
@@ -92,7 +93,7 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
     );
 };
 
-const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, authorPicture, authorBgColor, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick, onAddToShelf }) => {
+const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, authorPicture, authorBgColor, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick, onAddToShelf, isAddedToShelf }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -147,7 +148,7 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
     const menuItems = [
         { name: 'View Book', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> },
         { name: 'Creator Profile', icon: <Icon icon="solar:user-bold" className="w-[1vw] h-[1vw]" /> },
-        { name: 'Add to Shelf', icon: <Icon icon="ri:book-shelf-line" className="w-[1vw] h-[1vw]" /> },
+        { name: isAddedToShelf ? 'Book Added' : 'Add to Shelf', icon: isAddedToShelf ? <Icon icon="lucide:check" className="w-[1vw] h-[1vw] text-green-500" /> : <Icon icon="ri:book-shelf-line" className="w-[1vw] h-[1vw]" /> },
         ...(canShare ? [{ name: 'Share', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> }] : []),
         ...(canDownload ? [{ name: 'Download', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> }] : []),
         { name: 'Report', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> }
@@ -184,7 +185,7 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
                                             if (onShare) onShare(rawBook);
                                         } else if (menuItem.name === 'Download') {
                                             if (onDownload) onDownload(rawBook);
-                                        } else if (menuItem.name === 'Add to Shelf') {
+                                        } else if (menuItem.name === 'Add to Shelf' || menuItem.name === 'Book Added') {
                                             if (onAddToShelf) onAddToShelf(rawBook);
                                         }
                                     }}
@@ -315,6 +316,8 @@ const Explore = () => {
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const toast = useToast();
+    const [shelfBookIds, setShelfBookIds] = useState([]);
 
     const currentUserEmail = React.useMemo(() => {
         try {
@@ -336,9 +339,25 @@ const Explore = () => {
     const [isCreatorsLoading, setIsCreatorsLoading] = useState(true);
     const [followingLoadingMap, setFollowingLoadingMap] = useState({});
 
+    useEffect(() => {
+        if (!currentUserEmail) return;
+        const fetchShelfBooks = async () => {
+            try {
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                const res = await axios.get(`${backendUrl}/api/profile/my-shelf-books?emailId=${encodeURIComponent(currentUserEmail)}`);
+                if (res.data && res.data.books) {
+                    setShelfBookIds(res.data.books.map(b => b.v_id));
+                }
+            } catch (err) {
+                console.error("Error fetching shelf books:", err);
+            }
+        };
+        fetchShelfBooks();
+    }, [currentUserEmail]);
+
     const handleToggleFollow = async (targetEmail) => {
         if (!currentUserEmail) {
-            alert("Please log in to follow creators.");
+            toast.error("Please log in to follow creators.");
             return;
         }
         if (!targetEmail) return;
@@ -424,24 +443,43 @@ const Explore = () => {
 
     const handleAddToShelf = async (rawBook) => {
         if (!currentUserEmail) {
-            alert("Please log in to add books to your shelf.");
+            toast.error("Please log in to add books to your shelf.");
             return;
         }
+        const isAdded = shelfBookIds.includes(rawBook.v_id);
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        
         try {
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-            const res = await axios.post(`${backendUrl}/api/profile/add-to-shelf`, {
-                emailId: currentUserEmail,
-                bookId: rawBook.v_id,
-                folderName: 'My Flipbooks'
-            });
-            if (res.data?.success) {
-                alert("Book successfully added to your shelf!");
+            if (isAdded) {
+                const res = await axios.post(`${backendUrl}/api/profile/remove-from-shelf`, {
+                    emailId: currentUserEmail,
+                    bookId: rawBook.v_id
+                });
+                if (res.data?.success) {
+                    toast.success("Book removed from your shelf.");
+                    setShelfBookIds(prev => prev.filter(id => id !== rawBook.v_id));
+                } else {
+                    toast.error(res.data?.message || "Failed to remove book from shelf");
+                }
             } else {
-                alert(res.data?.message || "Failed to add book to shelf");
+                const res = await axios.post(`${backendUrl}/api/profile/add-to-shelf`, {
+                    emailId: currentUserEmail,
+                    bookId: rawBook.v_id,
+                    folderName: 'My Flipbooks'
+                });
+                if (res.data?.success) {
+                    toast.success("Book successfully added to your shelf!");
+                    setShelfBookIds(prev => [...prev, rawBook.v_id]);
+                } else {
+                    toast.error(res.data?.message || "Failed to add book to shelf");
+                    if (res.data?.message === 'Book is already on your shelf') {
+                        setShelfBookIds(prev => [...prev, rawBook.v_id]);
+                    }
+                }
             }
         } catch (err) {
-            console.error("Error adding to shelf:", err);
-            alert(err.response?.data?.message || "Error adding book to shelf");
+            console.error("Error managing shelf:", err);
+            toast.error(err.response?.data?.message || "Error updating shelf");
         }
     };
 
