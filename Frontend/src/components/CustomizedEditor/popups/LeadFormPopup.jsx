@@ -229,13 +229,13 @@ const LeadFormPopup = ({
                                                         <label className="text-[12px] font-medium" style={{ color: leadFormSettings.appearance?.textFill || '#111827' }}>
                                                             {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
                                                         </label>
-                                                        <div className="flex items-center gap-1">
+                                                        <div className="flex items-center gap-4">
                                                             {[1, 2, 3, 4, 5].map((star) => (
                                                                 <Icon 
                                                                     key={star} 
-                                                                    icon="lucide:star"
-                                                                    className={`w-6 h-6 text-yellow-400 stroke-[1.5] cursor-pointer hover:scale-110 transition-transform ${formValues[fieldKey] >= star ? 'fill-yellow-400' : ''}`} 
-                                                                    onClick={() => handleInputChange(fieldKey, star)}
+                                                                    icon={formValues[fieldKey] >= star ? "mdi:star" : "lucide:star"}
+                                                                    className={`w-8 h-8 text-yellow-400 stroke-1 cursor-pointer`}
+                                                                    onClick={() => handleInputChange(fieldKey, formValues[fieldKey] === star ? star - 1 : star)}
                                                                 />
                                                             ))}
                                                         </div>
@@ -504,13 +504,13 @@ const LeadFormPopup = ({
                                                                 </div>
                                                             </>
                                                         ) : field.type === 'rating' ? (
-                                                            <div className="flex items-center gap-[0.5vw]">
+                                                            <div className="flex items-center gap-[1.5vw]">
                                                                 {[1, 2, 3, 4, 5].map((star) => (
                                                                     <Icon 
                                                                         key={star} 
-                                                                        icon="lucide:star"
-                                                                        className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'} text-yellow-400 stroke-[1.5] cursor-pointer hover:scale-110 transition-transform ${formValues[fieldKey] >= star ? 'fill-yellow-400' : ''}`} 
-                                                                        onClick={() => handleInputChange(fieldKey, star)}
+                                                                        icon={formValues[fieldKey] >= star ? "mdi:star" : "lucide:star"}
+                                                                        className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} text-yellow-400 stroke-1 cursor-pointer`} 
+                                                                        onClick={() => handleInputChange(fieldKey, formValues[fieldKey] === star ? star - 1 : star)}
                                                                     />
                                                                 ))}
                                                             </div>

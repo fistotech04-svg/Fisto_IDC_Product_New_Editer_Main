@@ -125,6 +125,9 @@ router.get("/creator", async (req, res) => {
         const normalizedEmail = rawEmail.trim().toLowerCase();
         const safeRegex = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
 
+        const currentEmailParam = (req.query.currentEmail || req.query.followerEmail || req.query.userEmail || '').trim().toLowerCase();
+        const isOwner = Boolean(currentEmailParam && currentEmailParam === normalizedEmail);
+
         // Fetch user profile
         const profile = await Profile.findOne({ emailId: safeRegex }).lean();
 
@@ -140,17 +143,34 @@ router.get("/creator", async (req, res) => {
             });
         }
 
-        // Fetch user auth, published flipbooks, shelf flipbooks, and 3D models in parallel
-        const [user, publishedBooks, shelfBooks, creator3DModels] = await Promise.all([
+        // For owner viewing own profile, retrieve all books (including drafts/unpublished); for others, retrieve only published books
+        const booksQuery = isOwner 
+            ? { userEmail: safeRegex } 
+            : { userEmail: safeRegex, isPublished: true };
+
+        const shelfBooksQuery = isOwner
+            ? { v_id: { $in: shelfVIds } }
+            : { v_id: { $in: shelfVIds }, isPublished: true };
+
+        // Fetch user auth, creator flipbooks, shelf flipbooks, and 3D models in parallel
+        const [user, creatorBooks, shelfBooks, creator3DModels] = await Promise.all([
             User.findOne({ emailId: safeRegex }).lean(),
-            Flipbook.find({ userEmail: safeRegex, isPublished: true }).sort({ createdAt: -1 }).lean(),
-            shelfVIds.length > 0 ? Flipbook.find({ v_id: { $in: shelfVIds } }).lean() : Promise.resolve([]),
+            Flipbook.find(booksQuery).sort({ createdAt: -1 }).lean(),
+            shelfVIds.length > 0 ? Flipbook.find(shelfBooksQuery).lean() : Promise.resolve([]),
             InteractionThreedModel.find({ userEmail: safeRegex }).lean()
         ]);
 
         const allBooksMap = new Map();
-        publishedBooks.forEach(b => { if (b.v_id) allBooksMap.set(b.v_id, b); });
-        shelfBooks.forEach(b => { if (b.v_id) allBooksMap.set(b.v_id, b); });
+        creatorBooks.forEach(b => { 
+            if (b.v_id && (isOwner || b.isPublished === true || b.isPublished === 'true')) {
+                allBooksMap.set(b.v_id, b); 
+            }
+        });
+        shelfBooks.forEach(b => { 
+            if (b.v_id && (isOwner || b.isPublished === true || b.isPublished === 'true')) {
+                allBooksMap.set(b.v_id, b); 
+            }
+        });
         const allBooks = Array.from(allBooksMap.values());
 
         const creatorThreedVIds = new Set(creator3DModels.map(m => m.flipbook_v_id).filter(Boolean));
@@ -195,7 +215,6 @@ router.get("/creator", async (req, res) => {
             };
         });
 
-        const currentEmailParam = (req.query.currentEmail || req.query.followerEmail || req.query.userEmail || '').trim().toLowerCase();
         let isFollowingCreator = false;
         if (currentEmailParam && Array.isArray(profile?.followers)) {
             isFollowingCreator = profile.followers.some(f => f.toLowerCase() === currentEmailParam);

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
@@ -164,6 +165,7 @@ const compressImage = (file) => {
 const MAX_GALLERY_IMAGES = 4;
 
 const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpen, onToggle, opacity, onUpdateOpacity, setPreviewSrc, setIsUpdatingDOM, currentPageVId, flipbookVId, folderName, flipbookName, onDisableSlideshow }) => {
+  const location = useLocation();
   const accordionRef = useRef(null);
 
   useEffect(() => {
@@ -1302,11 +1304,15 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     const user = JSON.parse(storedUser);
     const formData = new FormData();
     formData.append('emailId', user.emailId);
-    if (flipbookVId) formData.append('v_id', flipbookVId);
+    
+    const effectiveVId = flipbookVId || location.state?.v_id || location.state?.flipbook_v_id;
+    if (effectiveVId) formData.append('v_id', effectiveVId);
 
-    // Provide defaults for unsaved books
-    formData.append('folderName', folderName || 'My_Flipbooks');
-    formData.append('flipbookName', flipbookName || 'Untitled Document');
+    const effectiveFolder = folderName || location.state?.folderName || 'My_Flipbooks';
+    const effectiveBook = flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
+
+    formData.append('folderName', effectiveFolder);
+    formData.append('flipbookName', effectiveBook);
 
     formData.append('type', 'image');
     formData.append('assetType', 'Image');
@@ -1331,7 +1337,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       console.error("Slideshow image upload failed:", err);
     }
     return null;
-  }, [flipbookVId, folderName, flipbookName, currentPageVId]);
+  }, [flipbookVId, folderName, flipbookName, currentPageVId, location.state]);
 
   const handleFileUpload = useCallback(async (e) => {
     const files = e.target.files;
@@ -1459,19 +1465,21 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         if (storedUser) {
           const user = JSON.parse(storedUser);
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          const effectiveFolder = folderName || location.state?.folderName || 'My_Flipbooks';
+          const effectiveBook = flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
           await axios.post(`${backendUrl}/api/flipbook/delete-asset`, {
             emailId: user.emailId,
             file_v_id: img.file_v_id,
             assetType: 'Image',
-            folderName: folderName || 'My_Flipbooks',
-            bookName: flipbookName || 'Untitled Document'
+            folderName: effectiveFolder,
+            bookName: effectiveBook
           });
         }
       } catch (error) {
         console.error("Failed to delete asset from backend:", error);
       }
     }
-  }, [slideshowImages, folderName, flipbookName]);
+  }, [slideshowImages, folderName, flipbookName, location.state]);
 
   const handleGallerySelect = useCallback((img) => {
     if (!img) return;

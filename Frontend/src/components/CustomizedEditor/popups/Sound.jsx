@@ -487,7 +487,7 @@ const Layout4 = ({
         <div
             className={isMobile ? "flex flex-col gap-[10px]" : (isTablet ? "flex flex-col gap-[6px]" : "flex flex-col gap-[0.6vw]")}
             style={{
-                backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '0.8'),
+                backgroundColor: `rgba(var(--dropdown-bg-rgb, 255, 255, 255), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))`,
                 backdropFilter: 'blur(10px)',
                 padding: isMobile ? '12px 16px' : (isTablet ? '8px 11px' : '0.7vw 1vw'),
             }}
@@ -1412,8 +1412,8 @@ const Sound = ({
         if (layout === 3) return 'top-[7.5vh] left-[calc(50%_+_0.2vw)] -translate-x-1/2';
         if (layout === 4) return isTablet ? 'top-[34vh] left-[48px]' : 'top-[34vh] left-[4.2vw]';
         if (layout === 5) {
-            if (isFullscreen && document.fullscreenElement) return `bottom-[4.2vw] left-[calc(50%_+_22vw)] -translate-x-1/2`;
-            return isSidebarOpen ? `bottom-[4.2vw] left-[calc(50%_+_4.5vw)] -translate-x-1/2` : `bottom-[4.2vw] left-[calc(50%_+_14.5vw)] -translate-x-1/2`;
+            if (isFullscreen && document.fullscreenElement) return `bottom-[4.2vw] left-[calc(50%_+_21vw)] -translate-x-1/2`;
+            return isSidebarOpen ? `bottom-[4.2vw] left-[calc(50%_+_3.5vw)] -translate-x-1/2` : `bottom-[4.2vw] left-[calc(50%_+_13.5vw)] -translate-x-1/2`;
         }
         if (layout === 6) return isTablet ? 'top-[37vh] right-[80px] -translate-y-1/2' : 'top-[34vh] right-[4vw] -translate-y-1/2';
         if (layout === 7) return 'top-[42%] left-[5.5vw] -translate-y-1/2';

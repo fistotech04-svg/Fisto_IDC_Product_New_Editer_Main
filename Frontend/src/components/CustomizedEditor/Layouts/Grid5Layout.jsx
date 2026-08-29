@@ -860,9 +860,9 @@ const Grid5Layout = ({
                                             </div>
                                         </div>
 
-                                        {/* Arrow with border (inlet) effect - shifted further left as requested */}
+                                        {/* Arrow with border (inlet) effect */}
                                         <div
-                                            className="absolute top-full left-[38%] -translate-x-1/2 pointer-events-none"
+                                            className="absolute top-full left-1/2 -translate-x-1/2 pointer-events-none"
                                             style={{
                                                 width: isTablet ? '1vw' : '1.3vw',
                                                 height: isTablet ? '1.2vw' : '1.5vw',

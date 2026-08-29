@@ -94,7 +94,7 @@ const flipbookSchema = new mongoose.Schema(
         },
         preloaderSettings: {
           layout: { type: String, default: "spinner" },
-          text: { type: String, default: "Loading Modal Please Wait...." },
+          text: { type: String, default: "Loading Flipbook Please Wait...." },
           font: { type: String, default: "Poppins" },
           bgColor: { type: String, default: "#D6E0F4" },
           textColor: { type: String, default: "#ffffff" },
@@ -110,16 +110,26 @@ const flipbookSchema = new mongoose.Schema(
         },
         color: { type: String, default: "#FFFFFF" },
         opacity: { type: Number, default: 100, min: 0, max: 100 },
-        gradient: { type: String, default: "linear-gradient(90deg,#6468a3,#e0e7ff)" },
+        gradient: {
+          type: String,
+          default: "linear-gradient(90deg, #63D0CD 0%, #4B3EFE 100%)",
+        },
         gradientType: { type: String, default: "linear" },
         gradientAngle: { type: Number, default: 90 },
         gradientRadius: { type: Number, default: 50 },
-        gradientStops: [
-          {
-            offset: { type: Number, min: 0, max: 100 },
-            color: { type: String },
-          },
-        ],
+        gradientStops: {
+          type: [
+            {
+              offset: { type: Number, min: 0, max: 100 },
+              color: { type: String },
+              opacity: { type: Number, default: 100, min: 0, max: 100 },
+            },
+          ],
+          default: [
+            { offset: 0, color: "#63D0CD", opacity: 100 },
+            { offset: 100, color: "#4B3EFE", opacity: 100 },
+          ],
+        },
         image: { type: String, default: "" },
         video: { type: String, default: "" },
         fit: {

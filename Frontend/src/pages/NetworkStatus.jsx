@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { WifiOff, RefreshCw } from 'lucide-react';
 
 const NetworkStatus = () => {
@@ -19,8 +20,8 @@ const NetworkStatus = () => {
 
     if (isOnline) return null;
 
-    return (
-        <div className="fixed inset-0 z-[9999] min-h-screen w-full flex flex-col items-center justify-center bg-white text-slate-950 font-sans selection:bg-slate-900 selection:text-white">
+    return createPortal(
+        <div className="fixed inset-0 z-[9999999] w-screen h-screen min-h-screen flex flex-col items-center justify-center bg-white text-slate-950 font-sans selection:bg-slate-900 selection:text-white">
             {/* Subtle grid background for a tech/premium feel */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none"></div>
 
@@ -66,7 +67,8 @@ const NetworkStatus = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

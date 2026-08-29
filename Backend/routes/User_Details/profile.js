@@ -89,17 +89,27 @@ const saveProfileAsset = async (sanitizedEmail, fileOrBase64, prefix = 'avatar',
 router.get('/', async (req, res) => {
   try {
     const { emailId } = req.query;
-    if (!emailId) return res.status(400).json({ message: 'emailId is required' });
+    if (!emailId) return res.status(400).json({ success: false, message: 'emailId is required' });
     
-    let profile = await Profile.findOne({ emailId: emailId.trim().toLowerCase() });
+    const normalizedEmail = emailId.trim().toLowerCase();
+    let profile = await Profile.findOne({ emailId: normalizedEmail });
     if (!profile) {
-      profile = new Profile({ emailId: emailId.trim().toLowerCase() });
+      const defaultName = normalizedEmail.split('@')[0];
+      const formattedName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
+      profile = new Profile({ 
+        emailId: normalizedEmail,
+        name: formattedName
+      });
       await profile.save();
     }
-    res.json(profile);
+    res.json({
+      success: true,
+      profile: profile,
+      ...profile.toObject()
+    });
   } catch (error) {
     console.error('Error fetching profile:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
 
@@ -130,7 +140,6 @@ router.get('/my-shelf-books', async (req, res) => {
     // Only show books on the shelf that are actually published, UNLESS they are owned by the current user
     const userEmailNorm = emailId.trim().toLowerCase();
     const books = allBooks.filter(b => (b.isPublished === true || b.isPublished === 'true') || (b.userEmail && b.userEmail.toLowerCase() === userEmailNorm));
-    
     
     const userEmails = [...new Set(books.map(b => b.userEmail?.toLowerCase()).filter(Boolean))];
     const profiles = await Profile.find({ emailId: { $in: userEmails } }).lean();
@@ -164,12 +173,160 @@ router.get('/my-shelf-books', async (req, res) => {
   }
 });
 
-// POST /api/profile
-// @desc    Create or update user profile
-router.post('/', async (req, res) => {
+// POST /api/profile/avatar
+// @desc    Upload or update user profile avatar in Supabase Storage
+router.post('/avatar', upload.single('avatar'), async (req, res) => {
+  try {
+    const emailId = req.body?.emailId;
+    if (!emailId) {
+      return res.status(400).json({ success: false, message: 'emailId is required' });
+    }
+
+    const normalizedEmail = emailId.trim().toLowerCase();
+    const sanitizedEmail = normalizedEmail.replace(/[@.]/g, '_');
+
+    let existingProfile = await Profile.findOne({ emailId: normalizedEmail });
+    if (!existingProfile) {
+      existingProfile = new Profile({ emailId: normalizedEmail });
+    }
+
+    let finalPictureUrl = existingProfile.picture;
+    let targetColor = req.body.avatarBgColor !== undefined ? req.body.avatarBgColor : existingProfile.avatarBgColor;
+
+    // Case 1: Multer file uploaded
+    if (req.file) {
+      if (existingProfile.picture) {
+        await deletePreviousProfileAssetIfSupabase(existingProfile.picture, sanitizedEmail);
+      }
+      const savedUrl = await saveProfileAsset(sanitizedEmail, req.file, 'avatar', 'Profile');
+      finalPictureUrl = savedUrl;
+    }
+    // Case 2: Base64 string in req.body.picture
+    else if (req.body.picture && typeof req.body.picture === 'string' && req.body.picture.startsWith('data:')) {
+      if (existingProfile.picture && existingProfile.picture !== req.body.picture) {
+        await deletePreviousProfileAssetIfSupabase(existingProfile.picture, sanitizedEmail);
+      }
+      const savedUrl = await saveProfileAsset(sanitizedEmail, req.body.picture, 'avatar', 'Profile');
+      finalPictureUrl = savedUrl;
+    }
+    // Case 3: Explicit null or empty string (deleting avatar)
+    else if (req.body.picture === null || req.body.picture === '') {
+      if (existingProfile.picture) {
+        await deletePreviousProfileAssetIfSupabase(existingProfile.picture, sanitizedEmail);
+      }
+      finalPictureUrl = null;
+    }
+    // Case 4: Preset URL, 'color_only', or existing URL
+    else if (req.body.picture !== undefined) {
+      if (existingProfile.picture && existingProfile.picture !== req.body.picture) {
+        await deletePreviousProfileAssetIfSupabase(existingProfile.picture, sanitizedEmail);
+      }
+      finalPictureUrl = req.body.picture;
+    }
+
+    existingProfile.picture = finalPictureUrl;
+    if (targetColor !== undefined) {
+      existingProfile.avatarBgColor = targetColor;
+    }
+    existingProfile.updatedAt = new Date();
+    await existingProfile.save();
+
+    // Log activity
+    logActivity({
+      userEmail: normalizedEmail,
+      type: 'edit',
+      title: 'You updated your profile picture',
+      desc: 'Profile picture updated successfully.',
+      entityId: existingProfile._id?.toString()
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Avatar updated successfully',
+      picture: existingProfile.picture,
+      avatarBgColor: existingProfile.avatarBgColor,
+      profile: existingProfile
+    });
+  } catch (error) {
+    console.error('Error updating avatar in Supabase/MongoDB:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// POST /api/profile/banner
+// @desc    Upload or update user profile banner in Supabase Storage
+router.post('/banner', upload.single('banner'), async (req, res) => {
+  try {
+    const emailId = req.body?.emailId;
+    if (!emailId) {
+      return res.status(400).json({ success: false, message: 'emailId is required' });
+    }
+
+    const normalizedEmail = emailId.trim().toLowerCase();
+    const sanitizedEmail = normalizedEmail.replace(/[@.]/g, '_');
+
+    let existingProfile = await Profile.findOne({ emailId: normalizedEmail });
+    if (!existingProfile) {
+      existingProfile = new Profile({ emailId: normalizedEmail });
+    }
+
+    let finalBannerBg = existingProfile.bannerBg || { type: 'gradient', value: 'linear-gradient(to bottom right, #c1e8d7, #85d8c3, #60bba3)' };
+
+    // Case 1: Multer file uploaded
+    if (req.file) {
+      if (existingProfile?.bannerBg?.value) {
+        await deletePreviousProfileAssetIfSupabase(existingProfile.bannerBg.value, sanitizedEmail);
+      }
+      const savedUrl = await saveProfileAsset(sanitizedEmail, req.file, 'banner', 'Profile');
+      finalBannerBg = {
+        type: 'media',
+        value: `url(${savedUrl})`
+      };
+    }
+    // Case 2: bannerBg in body
+    else if (req.body.bannerBg !== undefined) {
+      let bBg = req.body.bannerBg;
+      if (typeof bBg === 'string') {
+        try { bBg = JSON.parse(bBg); } catch (e) {}
+      }
+      if (bBg && typeof bBg === 'object' && bBg.value && typeof bBg.value === 'string' && bBg.value.includes('data:')) {
+        if (existingProfile?.bannerBg?.value && existingProfile.bannerBg.value !== bBg.value) {
+          await deletePreviousProfileAssetIfSupabase(existingProfile.bannerBg.value, sanitizedEmail);
+        }
+        const rawBase64 = bBg.value.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, '');
+        const savedUrl = await saveProfileAsset(sanitizedEmail, rawBase64, 'banner', 'Profile');
+        bBg.value = `url(${savedUrl})`;
+        finalBannerBg = bBg;
+      } else {
+        if (existingProfile?.bannerBg?.value && bBg?.value && existingProfile.bannerBg.value !== bBg.value) {
+          await deletePreviousProfileAssetIfSupabase(existingProfile.bannerBg.value, sanitizedEmail);
+        }
+        finalBannerBg = bBg;
+      }
+    }
+
+    existingProfile.bannerBg = finalBannerBg;
+    existingProfile.updatedAt = new Date();
+    await existingProfile.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Banner updated successfully',
+      bannerBg: existingProfile.bannerBg,
+      profile: existingProfile
+    });
+  } catch (error) {
+    console.error('Error updating banner in Supabase/MongoDB:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// POST /api/profile and POST /api/profile/save
+// @desc    Create or update full user profile
+const saveProfileHandler = async (req, res) => {
   try {
     const { emailId } = req.body;
-    if (!emailId) return res.status(400).json({ message: 'emailId is required' });
+    if (!emailId) return res.status(400).json({ success: false, message: 'emailId is required' });
     
     const normalizedEmail = emailId.trim().toLowerCase();
     const sanitizedEmail = normalizedEmail.replace(/[@.]/g, '_');
@@ -218,6 +375,24 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Convert and save avatar picture to Profile folder in Supabase if base64
+    if (req.body.picture !== undefined) {
+      const rawPicture = req.body.picture;
+      const oldPicture = existingProfile?.picture;
+      if (typeof rawPicture === 'string' && rawPicture.startsWith('data:')) {
+        if (oldPicture && oldPicture !== rawPicture) {
+          await deletePreviousProfileAssetIfSupabase(oldPicture, sanitizedEmail);
+        }
+        const savedAvatar = await saveProfileAsset(sanitizedEmail, rawPicture, 'avatar', 'Profile');
+        updateFields.picture = savedAvatar;
+      } else if (rawPicture === null || rawPicture === '') {
+        if (oldPicture) {
+          await deletePreviousProfileAssetIfSupabase(oldPicture, sanitizedEmail);
+        }
+        updateFields.picture = null;
+      }
+    }
+
     updateFields.updatedAt = new Date();
 
     const updatedProfile = await Profile.findOneAndUpdate(
@@ -242,9 +417,12 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error saving profile:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
-});
+};
+
+router.post('/', saveProfileHandler);
+router.post('/save', saveProfileHandler);
 
 // POST /api/profile/add-to-shelf
 router.post('/add-to-shelf', async (req, res) => {

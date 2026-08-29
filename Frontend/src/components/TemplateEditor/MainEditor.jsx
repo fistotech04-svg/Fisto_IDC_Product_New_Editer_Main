@@ -384,9 +384,8 @@ const svgGlobalStyles = `
   }
 
   div.text-edit-box {
-    outline: 1.5px solid #6366F1 !important;
-    box-shadow: 0 0 4px rgba(99, 102, 241, 0.3) !important;
-    background: white !important;
+    outline: none !important;
+    background: transparent !important;
     background-clip: padding-box !important;
   }
 
@@ -2411,11 +2410,20 @@ const MainEditor = ({
           }
           if (el.hasAttribute('data-bg-fill')) {
             const bgFill = el.getAttribute('data-bg-fill');
-            cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: ${bgFill} !important; --bg-fill: ${bgFill} !important; }\n`;
+            if (bgFill && bgFill !== 'transparent' && bgFill !== 'none' && bgFill !== '#') {
+              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: ${bgFill} !important; --bg-fill: ${bgFill} !important; }\n`;
+            } else {
+              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: transparent !important; --bg-fill: transparent !important; }\n`;
+            }
           }
           if (el.hasAttribute('data-bg-stroke')) {
-            const sw = el.getAttribute('data-bg-stroke-width') !== null ? el.getAttribute('data-bg-stroke-width') : 2;
-            cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { border: ${sw}px solid ${el.getAttribute('data-bg-stroke')} !important; }\n`;
+            const bgStroke = el.getAttribute('data-bg-stroke');
+            const sw = el.getAttribute('data-bg-stroke-width') !== null ? el.getAttribute('data-bg-stroke-width') : 0;
+            if (bgStroke && bgStroke !== 'none' && bgStroke !== 'transparent' && Number(sw) > 0) {
+              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { border: ${sw}px solid ${bgStroke} !important; }\n`;
+            } else {
+              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { border: none !important; }\n`;
+            }
           }
         }
       });

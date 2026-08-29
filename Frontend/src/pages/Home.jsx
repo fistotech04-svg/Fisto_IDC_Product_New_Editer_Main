@@ -772,14 +772,16 @@ export default function Home() {
     createdFlipbookVIdRef.current = null;
 
     try {
-      const MAX_TOTAL_PAGES = 12;
+      // PDF 12-page limit (commented out for now - can re-enable later):
+      // const MAX_TOTAL_PAGES = 12;
+      const MAX_TOTAL_PAGES = Infinity;
       let totalPdfSize = 0;
       for (const file of files) {
         totalPdfSize += file.size || 0;
       }
       let allImages = [];
 
-      // Step 1 — Extract pages from all PDFs (up to 12 pages)
+      // Step 1 — Extract pages from all PDFs
       for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
         if (isUploadCancelledRef.current) return;
         const file = files[fileIndex];
