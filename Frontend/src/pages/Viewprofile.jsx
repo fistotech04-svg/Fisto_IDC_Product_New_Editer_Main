@@ -29,16 +29,6 @@ const getAvatarColor = (identifier, customColor) => {
   return defaultColors[Math.abs(hash) % defaultColors.length];
 };
 
-const defaultMockBooks = [
-    { title: "Thinking, Fast and Slow", cover: cover1, pages: 28, views: '12.5k', rating: 4.5, description: '“Bring your content to life with a real, interactive experience”' },
-    { title: "The Art of Spending Money", cover: cover2, pages: 32, views: '8.1k', rating: 4.8, description: '“Bring your content to life with a real, interactive experience”' },
-    { title: "Games People Play", cover: cover3, pages: 24, views: '15.3k', rating: 4.6, description: '“Bring your content to life with a real, interactive experience”' },
-    { title: "The Psychology of Leadership", cover: cover4, pages: 40, views: '9.4k', rating: 4.9, description: '“Bring your content to life with a real, interactive experience”' },
-    { title: "Just Keep Buying", cover: cover5, pages: 36, views: '11.2k', rating: 4.7, description: '“Bring your content to life with a real, interactive experience”' },
-    { title: "Seduction", cover: cover1, pages: 20, views: '6.5k', rating: 4.3, description: '“Bring your content to life with a real, interactive experience”' },
-    { title: "Thinking, Fast and Slow 2", cover: cover2, pages: 28, views: '10.1k', rating: 4.5, description: '“Bring your content to life with a real, interactive experience”' },
-    { title: "The Art of Spending Money 2", cover: cover3, pages: 30, views: '7.8k', rating: 4.6, description: '“Bring your content to life with a real, interactive experience”' },
-];
 
 const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -348,8 +338,15 @@ export default function Viewprofile() {
                     if (res.data.profile) {
                         setProfileData(res.data.profile);
                     }
+                    const creatorEmail = (res.data.profile?.emailId || res.data.profile?.email || targetEmail || '').trim().toLowerCase();
+                    const isSelf = Boolean(currentUserEmail && creatorEmail && currentUserEmail === creatorEmail);
+
                     const rawBooks = res.data.books || [];
-                    const formatted = rawBooks.map((b, idx) => ({
+                    const visibleBooks = isSelf 
+                        ? rawBooks 
+                        : rawBooks.filter(b => b && (b.isPublished === true || b.isPublished === 'true'));
+
+                    const formatted = visibleBooks.map((b, idx) => ({
                         rawBook: b,
                         v_id: b.v_id,
                         shareId: b.Customized_Settings?.Visibility?.shareId || b.Visibility?.shareId || b.v_id,
@@ -374,7 +371,7 @@ export default function Viewprofile() {
     }, [targetEmail, backendUrl, currentUserEmail]);
 
     const profileUser = profileData || {};
-    const books = booksData.length > 0 ? booksData : (targetEmail ? [] : defaultMockBooks);
+    const books = booksData;
 
     const handleToggleFollowModal = async () => {
         if (!currentUserEmail) {
