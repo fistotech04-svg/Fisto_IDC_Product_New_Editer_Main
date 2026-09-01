@@ -433,9 +433,10 @@ export default function Viewprofile() {
                     const isSelf = Boolean(currentUserEmail && creatorEmail && currentUserEmail === creatorEmail);
 
                     const rawBooks = res.data.books || [];
+                    const userCreatedBooks = rawBooks.filter(b => b && b.userEmail && b.userEmail.trim().toLowerCase() === creatorEmail);
                     const visibleBooks = isSelf 
-                        ? rawBooks 
-                        : rawBooks.filter(b => b && (b.isPublished === true || b.isPublished === 'true'));
+                        ? userCreatedBooks 
+                        : userCreatedBooks.filter(b => b && (b.isPublished === true || b.isPublished === 'true'));
 
                     const formatted = visibleBooks.map((b, idx) => ({
                         rawBook: b,
@@ -538,8 +539,8 @@ export default function Viewprofile() {
                     rowPadding: '0 4%',
                     topOffset: 5,
                     spacing: 33,
-                    bookWidth: '14%',
-                    bookStyle: { bottom: '15%', padding: '0 7%' }
+                    bookWidth: '11.5%',
+                    bookStyle: { bottom: '10%', padding: '0 10%' }
                 };
             default:
                 return {
@@ -562,8 +563,9 @@ export default function Viewprofile() {
     const bookCount = displayBooks.length;
     const globalRowCount = Math.max(3, Math.ceil(bookCount / 6));
 
-    const BASE_VW = 48;
-    const containerHeightVw = ((activeAssets.topOffset ?? 6) + (globalRowCount * (activeAssets.spacing ?? 32))) * BASE_VW / 100;
+    const BASE_VW = 44;
+    const heightRatio = globalRowCount <= 3 ? 1 : (100 + (globalRowCount - 3) * (activeAssets.spacing ?? 32) + 3) / 100;
+    const containerHeightVw = BASE_VW * heightRatio;
 
     const getTopVw = (i) => {
         const spacing = activeAssets.spacing ?? 32;

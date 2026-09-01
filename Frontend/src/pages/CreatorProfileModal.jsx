@@ -429,8 +429,10 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                     if (res.data.profile) {
                         setProfileData(res.data.profile);
                     }
+                    const creatorEmail = (res.data.profile?.emailId || res.data.profile?.email || targetEmail || '').trim().toLowerCase();
                     const rawBooks = res.data.books || [];
-                    const formatted = rawBooks.map((b, idx) => {
+                    const userCreatedBooks = rawBooks.filter(b => b && b.userEmail && b.userEmail.trim().toLowerCase() === creatorEmail);
+                    const formatted = userCreatedBooks.map((b, idx) => {
                         const isMyBook = b.userEmail && res.data.profile?.emailId && b.userEmail.toLowerCase() === res.data.profile.emailId.toLowerCase();
 
                         let aName = b.authorName;
@@ -948,8 +950,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowPadding: '0 4%',
                                                                 topOffset: 5,
                                                                 spacing: 33,
-                                                                bookWidth: '14%',
-                                                                bookStyle: { bottom: '15%', padding: '0 7%' }
+                                                                bookWidth: '11.5%',
+                                                                bookStyle: { bottom: '10%', padding: '0 10%' }
                                                             };
                                                         default:
                                                             return {
@@ -974,8 +976,9 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                 const bookCount = displayBooks.length;
                                                 const globalRowCount = Math.max(3, Math.ceil(bookCount / 6));
 
-                                                const BASE_VW = 48; // Base height reference to fit ~2.5 rows in view
-                                                const containerHeightVw = ((activeAssets.topOffset ?? 6) + (globalRowCount * (activeAssets.spacing ?? 32))) * BASE_VW / 100;
+                                                const BASE_VW = 34; // Base height reference to fit ~2.5 rows in view
+                                                const heightRatio = globalRowCount <= 3 ? 1 : (100 + (globalRowCount - 3) * (activeAssets.spacing ?? 32) + 3) / 100;
+                                                const containerHeightVw = BASE_VW * heightRatio;
 
                                                 const getTopVw = (i) => {
                                                     const spacing = activeAssets.spacing ?? 32;

@@ -42,7 +42,7 @@ const covers = [cover1, cover2, cover3, cover4, cover5];
 const shelfOptions = [
   { id: 'customize1', name: 'Modern White', img: customize1 },
   { id: 'customize2', name: 'Classic Wood', img: customize2 },
-  // { id: 'customize3', name: 'Dark Oak', img: customize3 },
+  { id: 'customize3', name: 'Dark Oak', img: customize3 },
 ];
 
 const MyShelf = () => {
@@ -466,31 +466,31 @@ const MyShelf = () => {
     e.preventDefault();
     if (draggedBookIndex === null || draggedBookIndex === targetIndex) return;
 
-    let updatedFolderBooks = [];
+    const currentFolder = folders.find(f => f.name === selectedFolder);
+    if (!currentFolder) return;
+
+    const newBooks = [...currentFolder.books];
+    const [draggedBook] = newBooks.splice(draggedBookIndex, 1);
+    newBooks.splice(targetIndex, 0, draggedBook);
 
     setFolders(prev => prev.map(folder => {
       if (folder.name === selectedFolder) {
-        const newBooks = [...folder.books];
-        const [draggedBook] = newBooks.splice(draggedBookIndex, 1);
-        newBooks.splice(targetIndex, 0, draggedBook);
-        updatedFolderBooks = newBooks;
         return { ...folder, books: newBooks };
       }
       return folder;
     }));
+    
     setDraggedBookIndex(null);
 
-    if (updatedFolderBooks.length > 0) {
-      try {
-        const bookIds = updatedFolderBooks.map(b => b.v_id);
-        await axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
-          emailId: currentUserEmail,
-          folderName: selectedFolder,
-          bookIds
-        });
-      } catch (err) {
-        console.error("Failed to update shelf order:", err);
-      }
+    try {
+      const bookIds = newBooks.map(b => b.v_id);
+      await axios.post(`${backendUrl}/api/profile/update-shelf-order`, {
+        emailId: currentUserEmail,
+        folderName: selectedFolder,
+        bookIds
+      });
+    } catch (err) {
+      console.error("Failed to update shelf order:", err);
     }
   };
 
@@ -546,7 +546,7 @@ const MyShelf = () => {
           topOffset: 5,
           spacing: 33,
           bookWidth: '11.5%',
-          bookStyle: { bottom: '15%', padding: '0 10%' }
+          bookStyle: { bottom: '10%', padding: '0 10%' }
         };
       default:
         return {
@@ -773,6 +773,8 @@ const MyShelf = () => {
                                   return (
                                     <div
                                       key={`empty-${i}-${bIdx}`}
+                                      onDragOver={handleDragOver}
+                                      onDrop={(e) => handleDrop(e, i * 6 + bIdx)}
                                       className={`relative flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-4' : 'translate-y-0') : 'translate-y-2'} ${bIdx === 0 ? 'translate-x-3' : bIdx === 1 ? 'translate-x-3' : bIdx === 2 ? 'translate-x-4' : ''}`}
                                       style={{ width: activeAssets.bookWidth || '12%' }}
                                     />
@@ -892,7 +894,7 @@ const MyShelf = () => {
                                   </div>
                                 </div>
 
-                                {/* Dropdown Menu */}
+                                                  
                                 {openMenuId === `${i}-${bIdx}` && (
                                   <div className="absolute top-[2%] -right-2 bg-white rounded-lg shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-2 w-32 z-50 overflow-hidden">
                                     <button
