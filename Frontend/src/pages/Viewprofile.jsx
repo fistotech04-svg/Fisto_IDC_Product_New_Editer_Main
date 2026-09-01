@@ -2,7 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Icon } from '@iconify/react';
-import { resolveUploadsPath } from '../utils/supabaseUtils';
+import { resolveUploadsPath, getSupabaseBaseUrl } from '../utils/supabaseUtils';
+import bookShelf1 from '../assets/Bookshelf/Book_shelf1.webp';
+import textureScreen2 from '../assets/Bookshelf/classicwood/classic woodtexture.webp';
+import bookShelf2 from '../assets/Bookshelf/classicwood/classicwoodshelf.webp';
+import darkOakTex1 from '../assets/Bookshelf/Darkoak/texture_screen1.webp';
+import darkOakTex2 from '../assets/Bookshelf/Darkoak/texture_screen2.webp';
+import darkOakTex3 from '../assets/Bookshelf/Darkoak/texture_screen3.webp';
+import darkOakShelf from '../assets/Bookshelf/Darkoak/darkoakshelf.webp';
+import mwWall1 from '../assets/Bookshelf/modernwhite/wall1.webp';
 import p1 from '../assets/Explore/p1.png';
 import cover1 from '../assets/Explore/c-bg1.png';
 import cover2 from '../assets/Explore/c-bg2.png';
@@ -29,6 +37,87 @@ const getAvatarColor = (identifier, customColor) => {
   return defaultColors[Math.abs(hash) % defaultColors.length];
 };
 
+
+const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl }) => {
+    const containerRef = useRef(null);
+    const [html, setHtml] = useState(null);
+    const [loaded, setLoaded] = useState(false);
+    const [fetching, setFetching] = useState(false);
+
+    useEffect(() => {
+        if (!v_id || loaded) return;
+        const el = containerRef.current;
+        if (!el) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && !loaded && !fetching) {
+                    observer.disconnect();
+                    setFetching(true);
+                    axios
+                        .get(`${backendUrl}/api/flipbook/preview/${v_id}`, { params: { emailId } })
+                        .then((res) => {
+                            if (res.data?.html) {
+                                const fontsToLoad = new Set();
+                                const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+                                const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+                                let match;
+                                while ((match = cssRegex.exec(res.data.html)) !== null) {
+                                    let f = match[1] || match[2];
+                                    if (f) f = f.split(',')[0].replace(/['"]/g, '').trim();
+                                    if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+                                }
+                                while ((match = attrRegex.exec(res.data.html)) !== null) {
+                                    let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+                                    if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+                                }
+
+                                let fontImports = '';
+                                if (fontsToLoad.size > 0) {
+                                    const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
+                                    fontImports = `<link href="https://fonts.googleapis.com/css?family=${fontList}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`;
+                                }
+
+                                setHtml({ content: res.data.html, fontImports });
+                            }
+                        })
+                        .catch(() => { })
+                        .finally(() => { setFetching(false); setLoaded(true); });
+                }
+            },
+            { threshold: 0.1 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [v_id, loaded, fetching, backendUrl, emailId]);
+
+    const isLoading = !loaded || fetching;
+
+    return (
+        <div ref={containerRef} className="w-full h-full flex items-center justify-center relative bg-white overflow-hidden rounded-[3px]">
+            {isLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-[0.4vw] bg-[#E8E6E1] overflow-hidden border border-[#d5d2c9]">
+                    <Icon icon="eos-icons:loading" className="w-[1.5vw] h-[1.5vw] text-gray-400" />
+                </div>
+            )}
+
+            {html ? (
+                <iframe
+                    title={`Preview of ${title}`}
+                    className="w-full h-full border-none pointer-events-none object-fill"
+                    srcDoc={`<!DOCTYPE html><html><head>${html.fontImports}<base href="${iframeBaseUrl}"><style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:white;}svg{width:100%;height:100%;max-width:100%;max-height:100%;}[data-name="Free Frame"]{stroke:transparent !important;fill:transparent !important;}</style></head><body>${html.content.replace(/<svg/, '<svg preserveAspectRatio="none"')}</body></html>`}
+                />
+            ) : loaded && imageUrl ? (
+                <img src={resolveUploadsPath(imageUrl)} alt={title} className="w-full h-full object-fill bg-white" />
+            ) : loaded && !html ? (
+                <div className="flex flex-col items-center justify-center text-gray-400 w-full h-full bg-white border border-[#d5d2c9]">
+                    <Icon icon="mdi:book-open-blank-variant" className="w-[2vw] h-[2vw] text-gray-400 mb-1" />
+                    <span className="text-[0.7vw] font-medium leading-tight text-gray-500">No Preview</span>
+                </div>
+            ) : null}
+        </div>
+    );
+};
 
 const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -224,6 +313,8 @@ export default function Viewprofile() {
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFollowLoading, setIsFollowLoading] = useState(false);
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [hoveredInfoId, setHoveredInfoId] = useState(null);
 
     const currentUserEmail = (() => {
         try {
@@ -372,6 +463,117 @@ export default function Viewprofile() {
 
     const profileUser = profileData || {};
     const books = booksData;
+
+    let displayBooks = books;
+    let activeShelfStyle = 'customize1';
+    let myFlipbooksFolder = null;
+
+    if (profileData?.myShelf?.folders) {
+        myFlipbooksFolder = profileData.myShelf.folders.find(f => f.folderName === 'My Flipbooks' || f.folderName === 'My_Flipbooks');
+        if (myFlipbooksFolder) {
+            const designId = myFlipbooksFolder.shelf_design || 1;
+            if (designId === 2) activeShelfStyle = 'customize2';
+            else if (designId === 3) activeShelfStyle = 'customize3';
+        }
+    }
+
+    if (myFlipbooksFolder && myFlipbooksFolder.books) {
+        const shelfBooksOrder = new Map();
+        myFlipbooksFolder.books.forEach(b => {
+            const v_id = typeof b === 'string' ? b : b.v_id;
+            if (v_id) shelfBooksOrder.set(v_id, b);
+        });
+        displayBooks = books.filter(b => shelfBooksOrder.has(b.v_id));
+        displayBooks.sort((a, b) => {
+            const aOrder = shelfBooksOrder.get(a.v_id);
+            const bOrder = shelfBooksOrder.get(b.v_id);
+            if (aOrder.row !== bOrder.row) return aOrder.row - bOrder.row;
+            return aOrder.order - bOrder.order;
+        });
+    }
+
+    const getShelfAssets = (style) => {
+        const bookCount = displayBooks.length;
+        const calculatedRowCount = Math.max(3, Math.ceil(bookCount / 6));
+
+        switch (style) {
+            case 'customize1':
+                return {
+                    type: 'rows',
+                    bg: mwWall1,
+                    rowAsset: bookShelf1,
+                    rowCount: calculatedRowCount,
+                    bgStretch: false,
+                    noZone: true,
+                    padding: 'px-6',
+                    topOffset: 6,
+                    spacing: 32,
+                    bookWidth: '11.5%',
+                    bookStyle: { bottom: '21%', padding: '0 14%' }
+                };
+            case 'customize2':
+                return {
+                    type: 'rows',
+                    bg: textureScreen2,
+                    rowAsset: bookShelf2,
+                    rowCount: calculatedRowCount,
+                    bgStretch: true,
+                    noZone: true,
+                    padding: 'px-0',
+                    rowPadding: '0 1.5%',
+                    topOffset: 29.7,
+                    spacing: 32.15,
+                    bookWidth: '13%',
+                    bookStyle: { bottom: '76%', padding: '0 10%' }
+                };
+            case 'customize3':
+                return {
+                    type: 'rows',
+                    bg: [darkOakTex1, darkOakTex2, darkOakTex3],
+                    rowAsset: darkOakShelf,
+                    rowCount: calculatedRowCount,
+                    bgStretch: false,
+                    noZone: true,
+                    padding: 'px-0',
+                    rowPadding: '0 4%',
+                    topOffset: 5,
+                    spacing: 33,
+                    bookWidth: '14%',
+                    bookStyle: { bottom: '15%', padding: '0 7%' }
+                };
+            default:
+                return {
+                    type: 'rows',
+                    bg: mwWall1,
+                    rowAsset: bookShelf1,
+                    rowCount: calculatedRowCount,
+                    bgStretch: false,
+                    noZone: true,
+                    padding: 'px-6',
+                    topOffset: 6,
+                    spacing: 32,
+                    bookWidth: '11.5%',
+                    bookStyle: { bottom: '21%', padding: '0 14%' }
+                };
+        }
+    };
+
+    const activeAssets = getShelfAssets(activeShelfStyle);
+    const bookCount = displayBooks.length;
+    const globalRowCount = Math.max(3, Math.ceil(bookCount / 6));
+
+    const BASE_VW = 48;
+    const containerHeightVw = ((activeAssets.topOffset ?? 6) + (globalRowCount * (activeAssets.spacing ?? 32))) * BASE_VW / 100;
+
+    const getTopVw = (i) => {
+        const spacing = activeAssets.spacing ?? 32;
+        const topOffset = activeAssets.topOffset ?? 6;
+        let offsetPercent = topOffset + (i * spacing);
+        if (activeShelfStyle === 'customize2' && i !== activeAssets.rowCount - 1) {
+            offsetPercent -= 3.5;
+        }
+        return (offsetPercent * BASE_VW) / 100;
+    };
 
     const handleToggleFollowModal = async () => {
         if (!currentUserEmail) {
@@ -736,18 +938,20 @@ export default function Viewprofile() {
 
                                             {/* View Toggles */}
                                             <div className="flex items-center gap-[0.5vw]">
-                                                <button 
+                                                <button
                                                     onClick={() => setViewMode('shelf')}
-                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                    className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.6vw] text-[0.75vw] font-semibold transition-all duration-200 border ${viewMode === 'shelf' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
                                                 >
-                                                    <Icon icon="ph:books" className="w-[1vw] h-[1vw]" />
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className={`w-[1vw] h-[1vw] ${viewMode === 'shelf' ? 'text-gray-500' : 'text-[#94a3b8]'}`}>
+                                                        <path fillRule="evenodd" clipRule="evenodd" d="M 2 3 h 20 v 5 H 2 Z M 13.5 4 h 1.2 v 4 h -1.2 Z M 15.1 4 h 1.2 v 4 h -1.2 Z M 16.7 4 h 1.2 v 4 h -1.2 Z M 18.3 4 h 1.2 v 4 h -1.2 Z M 2 9.5 h 20 v 5 H 2 Z M 3.5 10.5 h 1.2 v 4 h -1.2 Z M 5.1 10.5 h 1.2 v 4 h -1.2 Z M 6.7 10.5 h 1.2 v 4 h -1.2 Z M 8.5 14.5 L 9.7 10.5 h 1.2 L 9.7 14.5 Z M 2 16 h 20 v 5 H 2 Z M 3.5 17 h 1.2 v 4 h -1.2 Z M 5.1 17 h 1.2 v 4 h -1.2 Z M 13.5 18.4 h 4 v 1.2 h -4 Z M 14.5 19.8 h 4 v 1.2 h -4 Z" />
+                                                    </svg>
                                                     <span className="text-[0.75vw] font-medium">Shelf View</span>
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => setViewMode('list')}
-                                                    className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                    className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.6vw] text-[0.75vw] font-semibold transition-all duration-200 border ${viewMode === 'list' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
                                                 >
-                                                    <Icon icon="ph:list-dashes-bold" className="w-[1vw] h-[1vw]" />
+                                                    <Icon icon="circum:box-list" className={`w-[1vw] h-[1vw] ${viewMode === 'list' ? 'text-gray-500' : 'text-[#94a3b8]'}`} />
                                                     <span className="text-[0.75vw] font-medium">List View</span>
                                                 </button>
                                             </div>
@@ -790,53 +994,212 @@ export default function Viewprofile() {
                                                 ))}
                                             </div>
                                         )
-                                    ) : books.length === 0 ? (
+                                    ) : displayBooks.length === 0 ? (
                                         <div className="flex flex-col items-center justify-center py-[8vh] text-gray-400">
                                             <Icon icon="ph:book-open" className="w-[3vw] h-[3vw] text-gray-300 mb-[1vh]" />
                                             <span className="text-[1vw] font-medium text-gray-600">No published flipbooks yet</span>
                                             <span className="text-[0.75vw] text-gray-400 mt-[0.3vh]">This creator hasn't published any flipbooks to explore.</span>
                                         </div>
                                     ) : viewMode === 'shelf' ? (
-                                        <div className="flex flex-col gap-[3vw] pt-[1vw] bg-[#d5e0d8] rounded-[0.8vw] px-[2vw] pb-[3vw] border border-gray-200 inset-shadow-sm">
-                                            {Array.from({ length: Math.ceil(books.length / 4) }).map((_, rowIndex) => (
-                                                <div key={rowIndex} className="relative w-full flex justify-around items-end pt-[3vw] border-b-[0.8vw] border-[#d4a373] shadow-[0_12px_15px_-5px_rgba(0,0,0,0.3)] bg-gradient-to-t from-[#e6ccb2] to-transparent">
-                                                    {/* Shelf Supports */}
-                                                    <div className="absolute bottom-[-0.8vw] left-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
-                                                    <div className="absolute bottom-[-0.8vw] right-[2%] w-[0.6vw] h-[0.8vw] bg-[#b07d5b]"></div>
-                                                    
-                                                    {books.slice(rowIndex * 4, rowIndex * 4 + 4).map((book, idx) => (
-                                                        <div 
-                                                            key={idx} 
-                                                            onClick={() => handleOpenBook(book)}
-                                                            className="relative w-[18%] flex justify-center cursor-pointer group z-10 transition-transform duration-300 hover:translate-y-[-0.5vw]"
-                                                        >
-                                                            <img
-                                                                src={book.cover}
-                                                                alt={book.title}
-                                                                className="w-full h-auto object-contain drop-shadow-[10px_5px_10px_rgba(0,0,0,0.3)] rounded-r-[0.3vw]"
+                                        <div
+                                            className="w-full rounded-[0.8vw] bg-white shadow-inner overflow-hidden flex flex-col"
+                                            style={{
+                                                height: `${containerHeightVw}vw`,
+                                                minHeight: `${containerHeightVw}vw`
+                                            }}
+                                        >
+                                            <div
+                                                className="relative flex-1 w-full bg-top rounded-[0.8vw]"
+                                                style={{
+                                                    backgroundImage: (!Array.isArray(activeAssets.bg) && activeAssets.bg) ? `url('${activeAssets.bg}')` : 'none',
+                                                    backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
+                                                    backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
+                                                }}
+                                            >
+                                                {Array.isArray(activeAssets.bg) && (
+                                                    <div className="absolute inset-0 flex flex-col rounded-[0.8vw] overflow-hidden pointer-events-none">
+                                                        {Array.from({ length: activeAssets.rowCount }, (_, i) => (
+                                                            <div
+                                                                key={i}
+                                                                className="w-full flex-1 bg-center"
+                                                                style={{
+                                                                    backgroundImage: `url('${activeAssets.bg[i % activeAssets.bg.length]}')`,
+                                                                    backgroundSize: activeAssets.bgStretch ? '100% 100%' : '100% auto',
+                                                                    backgroundRepeat: activeAssets.bgStretch ? 'no-repeat' : 'repeat',
+                                                                    backgroundPosition: 'center',
+                                                                }}
                                                             />
-                                                            <div className="absolute top-[30%] right-[-1.5vw] flex-col gap-[0.3vw] opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button 
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleOpenBook(book);
-                                                                    }}
-                                                                    className="bg-white rounded-full p-[0.3vw] shadow-md hover:bg-gray-100 flex items-center justify-center cursor-pointer"
-                                                                >
-                                                                    <Icon icon="ph:book-open" className="w-[1vw] h-[1vw] text-gray-700" />
-                                                                </button>
-                                                                <button className="bg-gray-900 rounded-full p-[0.3vw] shadow-md mt-[0.5vw] hover:bg-gray-800 flex items-center justify-center cursor-pointer">
-                                                                    <Icon icon="mdi:information-variant" className="w-[1vw] h-[1vw] text-white" />
-                                                                </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                <div className="absolute inset-0 w-full h-full">
+                                                    {Array.from({ length: activeAssets.rowCount }, (_, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className={`absolute left-0 w-full`}
+                                                            style={{
+                                                                top: `${getTopVw(i)}vw`,
+                                                                padding: activeAssets.rowPadding || (activeAssets.padding || '0 3vw')
+                                                            }}
+                                                        >
+                                                            {!(activeShelfStyle === 'customize2' && i === activeAssets.rowCount - 1) && (
+                                                                <img src={activeAssets.rowAsset} alt="Shelf" className="w-full h-auto drop-shadow-lg" />
+                                                            )}
+                                                            <div
+                                                                className="absolute inset-0 flex justify-between items-end"
+                                                                style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
+                                                            >
+                                                                {(() => {
+                                                                    const rowBooks = displayBooks.slice(i * 6, (i + 1) * 6) || [];
+                                                                    const paddedBooks = [...rowBooks, ...Array.from({ length: 6 - rowBooks.length }).fill(null)];
+
+                                                                    return paddedBooks.map((book, bIdx) => {
+                                                                        if (!book) {
+                                                                            return (
+                                                                                <div
+                                                                                    key={`empty-${i}-${bIdx}`}
+                                                                                    className={`relative flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                    style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                                />
+                                                                            );
+                                                                        }
+
+                                                                        const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
+                                                                        const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
+                                                                        const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
+                                                                        const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+
+                                                                        return (
+                                                                            <div
+                                                                                key={book.v_id || bIdx}
+                                                                                className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                            >
+                                                                            <div 
+                                                                                className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden"
+                                                                                onClick={() => handleOpenBook(book)}
+                                                                            >
+                                                                                <LazyPreview
+                                                                                    v_id={book.v_id}
+                                                                                    emailId={book.rawBook?.userEmail || currentUserEmail}
+                                                                                    backendUrl={backendUrl}
+                                                                                    iframeBaseUrl={basePath}
+                                                                                    title={book.title}
+                                                                                    imageUrl={null}
+                                                                                />
+                                                                            </div>
+
+                                                                            {/* Hover Menu Pill */}
+                                                                            <div className="absolute top-[2%] right-[0vw] w-[1vw] h-[3vw] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto">
+                                                                                <button
+                                                                                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `${i}-${bIdx}` ? null : `${i}-${bIdx}`); }}
+                                                                                    className="text-black hover:bg-gray-300 rounded-full w-4 h-4 flex items-center justify-center mt-0.5 transition-colors"
+                                                                                >
+                                                                                    <Icon icon="mdi:dots-vertical" className="text-[14px]" />
+                                                                                </button>
+                                                                                <div
+                                                                                    className="text-[#4A4A4A] hover:text-black flex items-center justify-center mb-0.5 transition-colors relative cursor-pointer"
+                                                                                    onMouseEnter={() => setHoveredInfoId(`${i}-${bIdx}`)}
+                                                                                    onMouseLeave={() => setHoveredInfoId(null)}
+                                                                                >
+                                                                                    <Icon icon="si:info-fill" className="w-4 h-4" />
+
+                                                                                    {/* Info Tooltip Bridge & Container */}
+                                                                                    <div className={`absolute top-1/2 right-full pr-3 -translate-y-1/2 ${hoveredInfoId === `${i}-${bIdx}` ? 'block' : 'hidden'} z-[60]`}>
+                                                                                        <div className="w-[170px] bg-white rounded-xl p-4 text-gray-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col gap-3 cursor-default text-left border border-gray-100 relative" onClick={(e) => e.stopPropagation()}>
+                                                                                            {/* Author Info */}
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                {book.authorPicture && book.authorPicture !== 'color_only' ? (
+                                                                                                    <img
+                                                                                                        src={book.authorPicture}
+                                                                                                        alt={book.authorName}
+                                                                                                        className="w-8 h-8 rounded-full border border-gray-200 object-cover shrink-0"
+                                                                                                    />
+                                                                                                ) : (
+                                                                                                    <div
+                                                                                                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0 shadow-inner"
+                                                                                                        style={{ backgroundColor: book.authorBgColor || '#4c5add' }}
+                                                                                                    >
+                                                                                                        {(book.authorName || 'U').charAt(0).toUpperCase()}
+                                                                                                    </div>
+                                                                                                )}
+                                                                                                <div className="flex flex-col min-w-0 pr-1">
+                                                                                                    <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate">{book.authorName}</span>
+                                                                                                    <span className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5 truncate">
+                                                                                                        <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
+                                                                                                        <span className="truncate">{String(book.location || 'Coimbatore').replace(/📍/g, '').trim()}</span>
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                            </div>
+
+                                                                                            {/* Stats */}
+                                                                                            <div className="flex items-center gap-2 justify-start text-[11px] text-gray-700 font-medium whitespace-nowrap">
+                                                                                                <div className="flex items-center gap-1">
+                                                                                                    <span className="text-black font-semibold">{book.pages || 0}</span>
+                                                                                                    <span className="font-normal text-gray-500">Pages</span>
+                                                                                                </div>
+                                                                                                <span className="text-gray-300">|</span>
+                                                                                                <span className="flex items-center gap-1">
+                                                                                                    <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
+                                                                                                    {book.views || '1.2k'}
+                                                                                                </span>
+                                                                                                <span className="text-gray-300">|</span>
+                                                                                                <span className="flex items-center gap-1">
+                                                                                                    <Icon icon="material-symbols:star" className="w-3.5 h-3.5 text-yellow-400" />
+                                                                                                    {book.rating || 4.5}
+                                                                                                </span>
+                                                                                            </div>
+
+                                                                                            {/* Title & Desc & Button */}
+                                                                                            <div className="relative">
+                                                                                                <h4 className="text-[14px] font-semibold text-black truncate tracking-tight mb-1">{book.title}</h4>
+                                                                                                <p className="text-[11px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
+
+                                                                                                {/* Action Button */}
+                                                                                                <button
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        handleOpenBook(book);
+                                                                                                    }}
+                                                                                                    className="absolute bottom-0 right-0 bg-black text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                                                                                                >
+                                                                                                    <Icon icon="mdi:arrow-top-right" className="w-4 h-4" />
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Dropdown Menu */}
+                                                                            {openMenuId === `${i}-${bIdx}` && (
+                                                                                <div className="absolute top-[2%] -right-2 bg-white rounded-md shadow-xl border border-gray-100 py-1 w-28 z-50">
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            handleOpenBook(book);
+                                                                                            setOpenMenuId(null);
+                                                                                        }}
+                                                                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                                                                                    >
+                                                                                        Open Book
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                });
+                                                                })()}
                                                             </div>
                                                         </div>
                                                     ))}
                                                 </div>
-                                            ))}
+                                            </div>
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-[0.8vw]">
-                                            {books.map((book, idx) => (
+                                            {displayBooks.map((book, idx) => (
                                                 <CreatorFlipbookCard 
                                                     key={idx} 
                                                     book={book} 

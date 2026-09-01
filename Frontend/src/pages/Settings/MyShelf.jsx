@@ -764,24 +764,37 @@ const MyShelf = () => {
                             className="absolute inset-0 flex justify-between items-end"
                             style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
                           >
-                            {(activeFolderGlobal?.books.slice(i * 6, (i + 1) * 6) || []).map((book, bIdx) => (
-                              <div
-                                key={book.v_id || bIdx}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, i * 6 + bIdx)}
-                                onDragOver={handleDragOver}
-                                onDrop={(e) => handleDrop(e, i * 6 + bIdx)}
-                                onDragEnd={handleDragEnd}
-                                className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-4' : 'translate-y-0') : 'translate-y-2'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-3' : bIdx === 1 ? 'translate-x-3' : bIdx === 2 ? 'translate-x-4' : ''} ${draggedBookIndex === (i * 6 + bIdx) ? 'opacity-50' : ''}`}
-                                style={{ width: activeAssets.bookWidth || '12%' }}
-                              >
-                                {(() => {
-                                  const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
-                                  const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
-                                  const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
-                                  const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
-
+                            {(() => {
+                              const rowBooks = activeFolderGlobal?.books.slice(i * 6, (i + 1) * 6) || [];
+                              const paddedBooks = [...rowBooks, ...Array.from({ length: 6 - rowBooks.length }).fill(null)];
+                              
+                              return paddedBooks.map((book, bIdx) => {
+                                if (!book) {
                                   return (
+                                    <div
+                                      key={`empty-${i}-${bIdx}`}
+                                      className={`relative flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-4' : 'translate-y-0') : 'translate-y-2'} ${bIdx === 0 ? 'translate-x-3' : bIdx === 1 ? 'translate-x-3' : bIdx === 2 ? 'translate-x-4' : ''}`}
+                                      style={{ width: activeAssets.bookWidth || '12%' }}
+                                    />
+                                  );
+                                }
+
+                                const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
+                                const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
+                                const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
+                                const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+
+                                return (
+                                  <div
+                                    key={book.v_id || bIdx}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, i * 6 + bIdx)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, i * 6 + bIdx)}
+                                    onDragEnd={handleDragEnd}
+                                    className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-4' : 'translate-y-0') : 'translate-y-2'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-3' : bIdx === 1 ? 'translate-x-3' : bIdx === 2 ? 'translate-x-4' : ''} ${draggedBookIndex === (i * 6 + bIdx) ? 'opacity-50' : ''}`}
+                                    style={{ width: activeAssets.bookWidth || '12%' }}
+                                  >
                                     <div className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden">
                                       <LazyPreview
                                         v_id={book.v_id}
@@ -792,8 +805,6 @@ const MyShelf = () => {
                                         imageUrl={null}
                                       />
                                     </div>
-                                  );
-                                })()}
 
                                 {/* Hover Menu Pill */}
                                 <div className="absolute top-[2%] right-[0vw] w-[1vw] h-[3vw] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto">
@@ -923,13 +934,15 @@ const MyShelf = () => {
                                   </div>
                                 )}
                               </div>
-                            ))}
-                          </div>
-                        )}
+                            );
+                          });
+                        })()}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
+                ))}
+              </div>
+            )}
               </div>
             </div>
           </div>
@@ -1083,11 +1096,11 @@ const MyShelf = () => {
           <div className="bg-white border border-gray-200 rounded-[14px] p-5">
             <h3 className="font-medium text-[#475569] mb-4 text-[15px]">Shelf Usage</h3>
             <div className="h-1.5 w-full bg-[#E2E8F0] rounded-full mb-4">
-              <div className="h-1.5 bg-[#4F46E5] rounded-full w-1/2"></div>
+              <div className="h-1.5 bg-[#4F46E5] rounded-full" style={{ width: `${Math.min(100, (booksData.length / 50) * 100)}%` }}></div>
             </div>
             <div className="flex justify-between text-[13.5px] text-[#475569]">
-              <span>25 of 50 Flipbooks Used</span>
-              <span>50%</span>
+              <span>{booksData.length} of 50 Flipbooks Used</span>
+              <span>{Math.round(Math.min(100, (booksData.length / 50) * 100))}%</span>
             </div>
           </div>
 

@@ -852,17 +852,19 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                     <div className="flex items-center gap-[0.5vw]">
                                                         <button
                                                             onClick={() => setViewMode('shelf')}
-                                                            className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                            className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.6vw] text-[0.75vw] font-semibold transition-all duration-200 border ${viewMode === 'shelf' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
                                                         >
-                                                            <Icon icon="ph:books" className="w-[1vw] h-[1vw]" />
-                                                            <span className="text-[0.75vw] font-medium">Shelf View</span>
+                                                            <svg viewBox="0 0 24 24" fill="currentColor" className={`w-[1vw] h-[1vw] ${viewMode === 'shelf' ? 'text-gray-500' : 'text-[#94a3b8]'}`}>
+                                                                <path fillRule="evenodd" clipRule="evenodd" d="M 2 3 h 20 v 5 H 2 Z M 13.5 4 h 1.2 v 4 h -1.2 Z M 15.1 4 h 1.2 v 4 h -1.2 Z M 16.7 4 h 1.2 v 4 h -1.2 Z M 18.3 4 h 1.2 v 4 h -1.2 Z M 2 9.5 h 20 v 5 H 2 Z M 3.5 10.5 h 1.2 v 4 h -1.2 Z M 5.1 10.5 h 1.2 v 4 h -1.2 Z M 6.7 10.5 h 1.2 v 4 h -1.2 Z M 8.5 14.5 L 9.7 10.5 h 1.2 L 9.7 14.5 Z M 2 16 h 20 v 5 H 2 Z M 3.5 17 h 1.2 v 4 h -1.2 Z M 5.1 17 h 1.2 v 4 h -1.2 Z M 13.5 18.4 h 4 v 1.2 h -4 Z M 14.5 19.8 h 4 v 1.2 h -4 Z" />
+                                                            </svg>
+                                                            <span>Shelf View</span>
                                                         </button>
                                                         <button
                                                             onClick={() => setViewMode('list')}
-                                                            className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                            className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.6vw] text-[0.75vw] font-semibold transition-all duration-200 border ${viewMode === 'list' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
                                                         >
-                                                            <Icon icon="ph:list-dashes-bold" className="w-[1vw] h-[1vw]" />
-                                                            <span className="text-[0.75vw] font-medium">List View</span>
+                                                            <Icon icon="circum:box-list" className={`w-[1vw] h-[1vw] ${viewMode === 'list' ? 'text-gray-500' : 'text-[#94a3b8]'}`} />
+                                                            <span>List View</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -1074,19 +1076,33 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                             className="absolute inset-0 flex justify-between items-end"
                                                                             style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
                                                                         >
-                                                                            {(displayBooks.slice(i * 6, (i + 1) * 6) || []).map((book, bIdx) => {
-                                                                                const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
-                                                                                const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
-                                                                                const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
-                                                                                const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+                                                                            {(() => {
+                                                                                const rowBooks = displayBooks.slice(i * 6, (i + 1) * 6) || [];
+                                                                                const paddedBooks = [...rowBooks, ...Array.from({ length: 6 - rowBooks.length }).fill(null)];
 
-                                                                                return (
-                                                                                    <div
-                                                                                        key={book.v_id || bIdx}
-                                                                                        className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
-                                                                                        style={{ width: activeAssets.bookWidth || '12%' }}
-                                                                                    >
-                                                                                        <div 
+                                                                                return paddedBooks.map((book, bIdx) => {
+                                                                                    if (!book) {
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={`empty-${i}-${bIdx}`}
+                                                                                                className={`relative flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                                style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                                            />
+                                                                                        );
+                                                                                    }
+
+                                                                                    const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
+                                                                                    const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
+                                                                                    const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
+                                                                                    const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={book.v_id || bIdx}
+                                                                                            className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                            style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                                        >
+                                                                                                <div 
                                                                                             className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden"
                                                                                             onClick={() => handleOpenBook(book)}
                                                                                         >
@@ -1199,7 +1215,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                                         )}
                                                                                     </div>
                                                                                 );
-                                                                            })}
+                                                                            });
+                                                                            })()}
                                                                         </div>
                                                                     </div>
                                                                 ))}
