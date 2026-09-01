@@ -196,7 +196,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     return (
         <div className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100 relative group">
             {/* Image Area Wrapper */}
-            <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden cursor-pointer" onClick={handleOpen}>
+            <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden">
                 <img src={book.cover} alt={book.title || "Flipbook Cover"} className="w-full h-full object-cover" />
 
                 {/* Menu Button */}
@@ -214,7 +214,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
 
                     {/* Dropdown Menu */}
                     {isMenuOpen && (
-                        <div className="absolute top-8 right-0 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-36 z-40">
+                        <div className="absolute top-[2.5vw] right-0 bg-white rounded-[0.5vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-[0.5vw] w-[6vw] z-40 overflow-hidden">
                             {menuItems.map((menuItem, mIdx) => (
                                 <button
                                     key={mIdx}
@@ -224,9 +224,9 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
                                             handleOpen();
                                         }
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                    className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-medium text-gray-600 hover:text-black hover:bg-gray-50 flex items-center gap-[0.5vw] transition-colors"
                                 >
-                                    <span className="flex items-center justify-center text-gray-400 w-4 h-4">{menuItem.icon}</span>
+                                    <span className="flex items-center justify-center text-gray-400 w-[1vw] h-[1vw]">{menuItem.icon}</span>
                                     {menuItem.name}
                                 </button>
                             ))}
@@ -432,7 +432,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                     const creatorEmail = (res.data.profile?.emailId || res.data.profile?.email || targetEmail || '').trim().toLowerCase();
                     const rawBooks = res.data.books || [];
                     const userCreatedBooks = rawBooks.filter(b => b && b.userEmail && b.userEmail.trim().toLowerCase() === creatorEmail);
-                    const formatted = userCreatedBooks.map((b, idx) => {
+                    const visibleBooks = userCreatedBooks.filter(b => b && (b.isPublished === true || b.isPublished === 'true') && String(b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public').toLowerCase() === 'public');
+                    const formatted = visibleBooks.map((b, idx) => {
                         const isMyBook = b.userEmail && res.data.profile?.emailId && b.userEmail.toLowerCase() === res.data.profile.emailId.toLowerCase();
 
                         let aName = b.authorName;
@@ -917,7 +918,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowCount: calculatedRowCount,
                                                                 bgStretch: false,
                                                                 noZone: true,
-                                                                padding: 'px-6',
+                                                                padding: '0 2.5vw',
                                                                 topOffset: 6,
                                                                 spacing: 32,
                                                                 bookWidth: '11.5%',
@@ -961,7 +962,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowCount: calculatedRowCount,
                                                                 bgStretch: false,
                                                                 noZone: true,
-                                                                padding: 'px-6',
+                                                                padding: '0 2.5vw',
                                                                 topOffset: 6,
                                                                 spacing: 32,
                                                                 bookWidth: '11.5%',
@@ -1107,7 +1108,6 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                                         >
                                                                                                 <div 
                                                                                             className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden"
-                                                                                            onClick={() => handleOpenBook(book)}
                                                                                         >
                                                                                             <LazyPreview
                                                                                                 v_id={book.v_id}
@@ -1203,15 +1203,15 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
 
                                                                                         {/* Dropdown Menu */}
                                                                                         {openMenuId === `${i}-${bIdx}` && (
-                                                                                            <div className="absolute top-[2%] -right-2 bg-white rounded-md shadow-xl border border-gray-100 py-1 w-28 z-50">
+                                                                                            <div className="absolute top-[2%] -right-[0.5vw] bg-white rounded-[0.5vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-[0.2vw] w-[5vw] z-50 overflow-hidden"> 
                                                                                                 <button
                                                                                                     onClick={(e) => {
                                                                                                         e.stopPropagation();
                                                                                                         handleOpenBook(book);
                                                                                                         setOpenMenuId(null);
                                                                                                     }}
-                                                                                                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                                                                                                >
+                                                                                                    className="w-full text-left px-[0.5vw] py-[0.2vw] text-[0.75vw] font-medium text-gray-600 hover:text-black hover:bg-gray-50 transition-colors"
+                                                                                    >
                                                                                                     Open Book
                                                                                                 </button>
                                                                                             </div>
