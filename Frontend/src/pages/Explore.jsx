@@ -551,7 +551,7 @@ const Explore = () => {
                             is3D: has3D,
                             category: book.Customized_Settings?.FlipbookInfo?.category
                         };
-                    });
+                    }).filter(book => book.access === 'public');
 
                     setBooksData(formattedBooks);
                 }

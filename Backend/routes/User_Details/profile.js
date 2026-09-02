@@ -424,6 +424,63 @@ const saveProfileHandler = async (req, res) => {
 router.post('/', saveProfileHandler);
 router.post('/save', saveProfileHandler);
 
+const normalizeFolderName = (name) => {
+  if (!name) return 'My Flipbooks';
+  const trimmed = name.trim();
+  if (trimmed.toLowerCase() === 'my flipbooks' || trimmed.toLowerCase() === 'my_flipbooks') {
+    return 'My Flipbooks';
+  }
+  return trimmed;
+};
+
+const normalizeAndMergeFolders = (profile) => {
+  if (!profile.myShelf) profile.myShelf = {};
+  if (!profile.myShelf.folders) profile.myShelf.folders = [];
+
+  const folderMap = new Map();
+  let changed = false;
+
+  profile.myShelf.folders.forEach(folder => {
+    const normName = normalizeFolderName(folder.folderName);
+    if (folder.folderName !== normName) {
+      folder.folderName = normName;
+      changed = true;
+    }
+
+    if (folderMap.has(normName)) {
+      changed = true;
+      const existing = folderMap.get(normName);
+      const existingVIds = new Set((existing.books || []).map(b => (typeof b === 'string' ? b : b.v_id)));
+      
+      if (folder.books) {
+        folder.books.forEach(b => {
+          const vId = typeof b === 'string' ? b : b.v_id;
+          if (!existingVIds.has(vId)) {
+            existing.books.push(b);
+            existingVIds.add(vId);
+          }
+        });
+      }
+    } else {
+      if (!folder.books) folder.books = [];
+      folderMap.set(normName, folder);
+    }
+  });
+
+  if (changed || profile.myShelf.folders.length !== folderMap.size) {
+    profile.myShelf.folders = Array.from(folderMap.values());
+    changed = true;
+  }
+
+  const newShelfCount = profile.myShelf.folders.length || 1;
+  if (profile.myShelf.shelfCount !== newShelfCount) {
+    profile.myShelf.shelfCount = newShelfCount;
+    changed = true;
+  }
+  
+  return changed;
+};
+
 // POST /api/profile/add-to-shelf
 router.post('/add-to-shelf', async (req, res) => {
   try {
@@ -437,11 +494,9 @@ router.post('/add-to-shelf', async (req, res) => {
       profile = new Profile({ emailId: emailId.trim().toLowerCase() });
     }
 
-    if (!profile.myShelf) profile.myShelf = {};
-    if (!profile.myShelf.folders) profile.myShelf.folders = [];
-    if (!profile.myShelf.shelfCount) profile.myShelf.shelfCount = 1;
+    const wasMerged = normalizeAndMergeFolders(profile);
     
-    let targetFolder = folderName || 'My Flipbooks';
+    let targetFolder = normalizeFolderName(folderName);
     let folder = profile.myShelf.folders.find(f => f.folderName === targetFolder);
     
     if (!folder) {
@@ -457,6 +512,12 @@ router.post('/add-to-shelf', async (req, res) => {
     });
     
     if (bookExists) {
+      if (wasMerged) {
+        profile.updatedAt = new Date();
+        profile.markModified('myShelf.folders');
+        profile.markModified('myShelf');
+        await profile.save();
+      }
       return res.json({ success: false, message: 'Book is already on your shelf' });
     }
     
@@ -492,7 +553,9 @@ router.post('/update-shelf-order', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Profile or shelf not found' });
     }
 
-    let targetFolder = folderName || 'My Flipbooks';
+    normalizeAndMergeFolders(profile);
+
+    let targetFolder = normalizeFolderName(folderName);
     let folder = profile.myShelf.folders.find(f => f.folderName === targetFolder);
     if (!folder) {
       profile.myShelf.folders.push({ folderName: targetFolder, shelf_design: 1, books: [] });
@@ -530,8 +593,9 @@ router.post('/remove-from-shelf', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Profile or shelf not found' });
     }
 
+    let removed = normalizeAndMergeFolders(profile);
+
     // Remove book from all folders
-    let removed = false;
     profile.myShelf.folders.forEach(folder => {
       if (folder.books) {
         const initLength = folder.books.length;
@@ -581,7 +645,9 @@ router.post('/update-shelf-design', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Profile or shelf not found' });
     }
 
-    let targetFolder = folderName || 'My Flipbooks';
+    normalizeAndMergeFolders(profile);
+
+    let targetFolder = normalizeFolderName(folderName);
     let folder = profile.myShelf.folders.find(f => f.folderName === targetFolder);
     if (!folder) {
       return res.status(404).json({ success: false, message: 'Folder not found' });
