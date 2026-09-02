@@ -2416,7 +2416,7 @@ router.get("/public/get/:shareId", async (req, res) => {
     }));
 
     // 1. Private access check (Private flipbooks cannot be viewed via public share links)
-    if (accessMode.includes('private')) {
+    if (accessMode.includes('private') && !isOwner) {
       return res.status(403).json({ message: "This flipbook is private. It cannot be viewed via public link.", isPrivate: true, accessMode: 'private' });
     }
 

@@ -308,7 +308,7 @@ export const getCanvasBounds = (svgElement, baseWidth = 210, baseHeight = 297) =
 
 // Global style to ensure injected SVGs always fill their container perfectly
 const svgGlobalStyles = `
-  .page-svg-container svg {
+  .page-svg-container svg:not(.svg-icon-override) {
     width: 100% !important;
     height: 100% !important;
     display: block !important;
@@ -12838,7 +12838,7 @@ const MainEditor = ({
                         const isTypeActive = activeMainTool === 'type';
 
                         const pageHtml = pages[displayIndex]?.html;
-                        const isPageEmpty = !pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0));
+                        const isPageEmpty = !pages[displayIndex]?.isHidden && (!pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0)));
 
                         return (
                           <div
@@ -12847,6 +12847,7 @@ const MainEditor = ({
                           >
                             {pageHtml && (
                               <div
+                                key={`canvas-content-${displayIndex}`}
                                 id={`canvas-content-${displayIndex}`}
                                 className="w-full h-full flex items-center justify-center"
                                 ref={(el) => {
@@ -13037,33 +13038,45 @@ const MainEditor = ({
                                 onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
                               />
                             )}
-                            {/* Selection Overlay (Overlay rotated element perfectly) */}
-                            <svg
-                              id={`highlight-overlay-${displayIndex}`}
-                              className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
-                              style={{ overflow: 'visible', pointerEvents: 'none' }}
-                            />
-
-                            {/* HTML Overlay for Resize Handles (Clickable) */}
-                            <div
-                              id={`highlight-overlay-html-${displayIndex}`}
-                              className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
-                              style={{ overflow: 'visible', pointerEvents: 'none' }}
-                            />
-                            <AnimatePresence>
-                              {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
-                                <SelectionTooltip
-                                  selectedId={selectedLayerId}
-                                  multiSelectedIds={multiSelectedIds}
-                                  zoom={zoom}
-                                  setActiveTopTool={setActiveTopTool}
-                                  pageIndex={displayIndex}
-                                  activePageIndex={activePageIndex}
-                                  updateElementAttribute={updateElementAttribute}
-                                  activeTopTool={activeTopTool}
+                            {pages[displayIndex]?.isHidden && (
+                              <div key={`hidden-placeholder-${displayIndex}`} className="w-full h-full flex flex-col items-center justify-center bg-white/70 backdrop-blur-[1px] z-20 absolute inset-0 pointer-events-auto">
+                                <Icon icon="lucide:eye-off" width="3vw" height="3vw" style={{ strokeWidth: 0.2 }} className="text-gray-600 mb-[1vw] svg-icon-override" />
+                                <span className="text-gray-700 font-semibold text-[1.2vw]">This page is hidden</span>
+                                <span className="text-gray-600 text-[0.85vw] mt-[0.5vw]">It will not be shown in the flipbook.</span>
+                              </div>
+                            )}
+                            
+                            {!pages[displayIndex]?.isHidden && (
+                              <>
+                                {/* Selection Overlay (Overlay rotated element perfectly) */}
+                                <svg
+                                  id={`highlight-overlay-${displayIndex}`}
+                                  className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
+                                  style={{ overflow: 'visible', pointerEvents: 'none' }}
                                 />
-                              )}
-                            </AnimatePresence>
+
+                                {/* HTML Overlay for Resize Handles (Clickable) */}
+                                <div
+                                  id={`highlight-overlay-html-${displayIndex}`}
+                                  className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
+                                  style={{ overflow: 'visible', pointerEvents: 'none' }}
+                                />
+                                <AnimatePresence>
+                                  {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                                    <SelectionTooltip
+                                      selectedId={selectedLayerId}
+                                      multiSelectedIds={multiSelectedIds}
+                                      zoom={zoom}
+                                      setActiveTopTool={setActiveTopTool}
+                                      pageIndex={displayIndex}
+                                      activePageIndex={activePageIndex}
+                                      updateElementAttribute={updateElementAttribute}
+                                      activeTopTool={activeTopTool}
+                                    />
+                                  )}
+                                </AnimatePresence>
+                              </>
+                            )}
 
                             {/* Marquee Selection Box */}
                             <div

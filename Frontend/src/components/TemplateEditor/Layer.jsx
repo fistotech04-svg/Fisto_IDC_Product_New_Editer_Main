@@ -375,6 +375,7 @@ const Layer = ({
   movePageToLast,
   movePage,
   clearPage,
+  togglePageVisibility,
   onOpenTemplateModal,
   toggleLayerVisibility,
   toggleLayerLock,
@@ -387,6 +388,7 @@ const Layer = ({
   copyLayer,
   cutLayer,
   pasteLayer,
+  duplicateLayer,
   selectedLayerId,
   setSelectedLayerId,
   multiSelectedIds = new Set(),
@@ -759,6 +761,17 @@ const Layer = ({
                     >
                       <Clipboard size="0.9vw" /> Paste
                     </button>
+                    {!isPageBackground && (
+                      <button
+                        onClick={() => {
+                          if (duplicateLayer) duplicateLayer(activePageIndex, cutCopyTargets);
+                          setActiveLayerMenu(null);
+                        }}
+                        className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors text-gray-700 hover:bg-gray-50 cursor-pointer`}
+                      >
+                        <Copy size="0.9vw" /> Duplicate
+                      </button>
+                    )}
 
                     {isPageBackground && (
                       <>
@@ -937,6 +950,15 @@ const Layer = ({
                       }`}
                   >
                     <Clipboard size="0.9vw" /> Paste
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (duplicateLayer) duplicateLayer(activePageIndex, targetIds);
+                      setActiveLayerMenu(null);
+                    }}
+                    className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                  >
+                    <Copy size="0.9vw" /> Duplicate
                   </button>
 
                   <div className="h-px bg-gray-100 my-[0.2vw]"></div>
@@ -1143,13 +1165,14 @@ const Layer = ({
                                 className="w-full text-left text-[0.85vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
                               />
                             ) : (
-                              <span className={`text-[0.85vw] font-semibold truncate tracking-tight transition-colors duration-300 ${isExpanded ? 'text-[#111827]' : 'text-[#4B5563]'}`}>
+                              <span className={`text-[0.85vw] font-semibold truncate tracking-tight transition-colors duration-300 ${page.isHidden ? 'text-gray-400 line-through' : (isExpanded ? 'text-[#111827]' : 'text-[#4B5563]')}`}>
                                 {page.name}
                               </span>
                             )}
                           </div>
 
                           <div className="flex items-center gap-[0.4vw] flex-shrink-0">
+                            {page.isHidden && <EyeOff size="0.9vw" className="text-gray-400" />}
                             <Layers size="1.1vw" className={isExpanded ? 'text-[#6366F1]' : 'text-[#6B7280]'} strokeWidth={isExpanded ? 2.5 : 2} />
                             {!editingPageId && (
                               <button
@@ -1172,7 +1195,11 @@ const Layer = ({
                               className="overflow-hidden bg-white rounded-b-[0.6vw] border-t border-[#EEF2FF]"
                             >
                               <div className="py-[1vh] px-[0.6vw] flex flex-col gap-[0.2vh] max-h-[45vh] overflow-y-auto custom-scrollbar">
-                                {page.layers && page.layers.some(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('hotspot-')) ? (
+                                {page.isHidden ? (
+                                  <div className="text-[0.75vw] text-gray-500 font-medium italic px-[0.8vw] py-[1vh] text-center bg-gray-50 rounded-[0.4vw]">
+                                    Page is hidden
+                                  </div>
+                                ) : page.layers && page.layers.some(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('hotspot-')) ? (
                                   (() => {
                                     const realLayers = page.layers.filter(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('hotspot-'));
                                     const isSingleRoot = realLayers.length === 1;
@@ -1271,17 +1298,26 @@ const Layer = ({
                                     className="w-full text-left text-[0.8vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
                                   />
                                 ) : (
-                                  <span className="text-[0.8vw] font-semibold text-gray-900 truncate block">
+                                  <span className={`text-[0.8vw] font-semibold text-gray-900 truncate block ${page.isHidden ? 'text-gray-400 line-through' : ''}`}>
                                     {page.name}
                                   </span>
                                 )}
                               </div>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleMenuClick(e, page.id); }}
-                                className="p-[0.4vw] hover:bg-gray-100 rounded-full transition-colors"
-                              >
-                                <MoreVertical size="1vw" className="text-gray-500" />
-                              </button>
+                              <div className="flex items-center gap-[0.2vw]">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); togglePageVisibility && togglePageVisibility(index); }}
+                                  className={`p-[0.4vw] hover:bg-gray-100 rounded-full transition-colors ${page.isHidden ? 'opacity-100' : 'opacity-0 group-hover/pageitem:opacity-100'} hover:opacity-100`}
+                                  title={page.isHidden ? "Show Page" : "Hide Page"}
+                                >
+                                  {page.isHidden ? <EyeOff size="0.9vw" className="text-gray-500" /> : <Eye size="0.9vw" className="text-gray-400 hover:text-gray-600" />}
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleMenuClick(e, page.id); }}
+                                  className="p-[0.4vw] hover:bg-gray-100 rounded-full transition-colors"
+                                >
+                                  <MoreVertical size="1vw" className="text-gray-500" />
+                                </button>
+                              </div>
                             </div>
 
                             {/* Page Preview */}
@@ -1305,6 +1341,11 @@ const Layer = ({
                                       __html: `<style>#page-card-preview-${page.id} [data-name="Free Frame"] { display: none !important; }</style>` + page.html.replace(/<svg/, '<svg width="100%" height="100%" preserveAspectRatio="xMidYMid meet"')
                                     }}
                                   />
+                                )}
+                                {page.isHidden && (
+                                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 pointer-events-none">
+                                    <Icon icon="lucide:eye-off" width="2vw" height="2vw" style={{ strokeWidth: 2.5 }} className="text-gray-600 svg-icon-override" />
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -1396,6 +1437,7 @@ const Layer = ({
                           {!isPdfProject && (
                             <button onClick={() => { setActivePageIndex(index); onOpenTemplateModal(); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Layout size="0.9vw" /> Template</button>
                           )}
+                          <button onClick={() => { togglePageVisibility && togglePageVisibility(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer">{page.isHidden ? <Eye size="0.9vw" /> : <EyeOff size="0.9vw" />} {page.isHidden ? 'Show' : 'Hide'}</button>
 
                           <div className="px-[0.5vw] py-[0.2vw] mt-[0.2vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-[0.5vw]">Page Order <div className="h-px bg-gray-100 flex-1"></div></div>
                           <button onClick={() => { movePageUp(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowUp size="0.9vw" /> Move Up</button>
