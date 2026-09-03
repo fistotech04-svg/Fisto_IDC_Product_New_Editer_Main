@@ -15,7 +15,6 @@ import FlipbookPreview from '../TemplateEditor/FlipbookPreview.jsx';
 import { getFromDB, saveToDB } from '../../utils/dbUtils';
 import { getDominantColors, REACT_BITS_THEMES_COLORS } from '../../utils/colorExtractor';
 import { getSupabaseBaseUrl } from '../../utils/supabaseUtils';
-import PasswordProtectModal from '../PasswordProtectModal';
 
 
 // Helper functions for color synchronization (matching Layout.jsx logic)
@@ -1788,29 +1787,6 @@ const CustomizedEditor = () => {
     return vars;
   }, [layoutSettings, layoutColors]);
 
-  const [isUnlocked, setIsUnlocked] = useState(() => {
-    return v_id ? sessionStorage.getItem(`unlocked_${v_id}`) === 'true' : false;
-  });
-
-  const accessMode = (
-    visibilitySettings?.type || 
-    visibilitySettings?.access || 
-    currentBook?.share?.access || 
-    currentBook?.share?.type || 
-    ''
-  ).toLowerCase().trim();
-
-  const isPasswordProtected = accessMode.includes('password');
-
-  useEffect(() => {
-    if (!isPasswordProtected && v_id) {
-      sessionStorage.removeItem(`unlocked_${v_id}`);
-      const currentShareId = currentBook?.share?.shareId || visibilitySettings?.shareId;
-      if (currentShareId) sessionStorage.removeItem(`unlocked_${currentShareId}`);
-      setIsUnlocked(false);
-    }
-  }, [isPasswordProtected, v_id, currentBook?.share?.shareId, visibilitySettings?.shareId]);
-
   return (
     <div
       className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans select-none relative"
@@ -1820,13 +1796,6 @@ const CustomizedEditor = () => {
       })) : {}}
     >
       <style>{`:root { ${layoutColorVars} }`}</style>
-      {!isLoading && isPasswordProtected && !isUnlocked && (
-        <PasswordProtectModal
-          v_id={v_id}
-          shareId={currentBook?.share?.shareId || visibilitySettings?.shareId}
-          onUnlock={() => setIsUnlocked(true)}
-        />
-      )}
       {/* Navbar handled by parent layout */}
 
 

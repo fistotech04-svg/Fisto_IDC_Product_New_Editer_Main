@@ -189,8 +189,20 @@ const RightSidebar = ({
     enableAR, setEnableAR,
   qrText, setQrText, qrColor, setQrColor, qrBgType, setQrBgType, qrBgColor, setQrBgColor, qrLevel, setQrLevel, qrDotType, setQrDotType, qrCornerSquareType, setQrCornerSquareType, qrCornerDotType, setQrCornerDotType, qrLogo, setQrLogo,
   topText, setTopText, bottomText, setBottomText,
-  current3DVId
+  current3DVId,
+  v_id: v_idProp,
+  flipbookVId: flipbookVIdProp,
+  folderName: folderNameProp,
+  flipbookName: flipbookNameProp,
+  folder: folderProp
 }) => {
+  const { folder: paramFolder, v_id: paramVId } = useParams();
+  const location = useLocation();
+
+  const effectiveVId = v_idProp || flipbookVIdProp || paramVId || location.state?.v_id || location.state?.flipbook_v_id;
+  const effectiveFolder = folderNameProp || folderProp || paramFolder || location.state?.folderName || 'My_Flipbooks';
+  const effectiveBook = flipbookNameProp || location.state?.flipbookName || 'Untitled Flipbook';
+
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
 
@@ -244,8 +256,6 @@ const RightSidebar = ({
     };
   };
   const fileInputRef = useRef(null);
-  const { folder, v_id } = useParams();
-  const location = useLocation();
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
   const [dimensionUnit, setDimensionUnit] = useState('mm');
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
@@ -1308,8 +1318,9 @@ const RightSidebar = ({
                           }}
                           pages={pages}
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
-                          folderName={location.state?.folderName || folder || 'Recent Book'}
-                          flipbookName={location.state?.flipbookName || 'Untitled Flipbook'}
+                          folderName={effectiveFolder}
+                          flipbookName={effectiveBook}
+                          flipbookVId={effectiveVId}
                           onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : selectedElementProps?.isText ? (
@@ -1395,8 +1406,9 @@ const RightSidebar = ({
                           }}
                           pages={pages}
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
-                          folderName="My_Flipbooks"
-                          flipbookName="Untitled"
+                          folderName={effectiveFolder}
+                          flipbookName={effectiveBook}
+                          flipbookVId={effectiveVId}
                           onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : selectedElementProps?.isGif ? (
@@ -1436,6 +1448,9 @@ const RightSidebar = ({
                           }}
                           pages={pages}
                           activePageIndex={activePageIndex}
+                          folderName={effectiveFolder}
+                          flipbookName={effectiveBook}
+                          flipbookVId={effectiveVId}
                           onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : (

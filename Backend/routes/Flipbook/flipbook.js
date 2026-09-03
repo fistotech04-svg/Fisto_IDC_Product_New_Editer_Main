@@ -86,12 +86,13 @@ const processAndSaveBase64Assets = ({
   flipbook_v_id,
   newFlipbookAssets = [],
   savedBase64Map = new Map(),
-  skipBase64Extraction = false
+  skipBase64Extraction = false,
+  pendingUploadPromises = []
 }) => {
   if (!htmlContent) return "";
   if (skipBase64Extraction) return htmlContent;
 
-  const base64Regex = /data:([^;]+);base64,([^"&<\s]+)/g;
+  const base64Regex = /data:([^;]+);base64,([^"&'<>)\s]+)/g;
   return htmlContent.replace(base64Regex, (match, mimeType, base64Data) => {
     if (savedBase64Map.has(base64Data)) {
       return savedBase64Map.get(base64Data);
@@ -120,7 +121,6 @@ const processAndSaveBase64Assets = ({
       else subfolder = 'download';
     }
 
-    
     if (!isDownload && ext === 'gif') subfolder = 'gif';
     if (normalizedExt.includes('+')) normalizedExt = normalizedExt.split('+')[0];
     
@@ -131,7 +131,11 @@ const processAndSaveBase64Assets = ({
     try {
       const buffer = Buffer.from(base64Data, 'base64');
       const assetDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
-      uploadBufferToSupabase(buffer, assetDestPath, actualMimeType).catch(err => console.warn("[Supabase] Asset upload warning:", err));
+      
+      const uploadPromise = uploadBufferToSupabase(buffer, assetDestPath, actualMimeType).catch(err => 
+        console.warn("[Supabase] Asset upload warning:", err)
+      );
+      pendingUploadPromises.push(uploadPromise);
 
       const absoluteUrl = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
       
@@ -497,6 +501,7 @@ router.post("/save", async (req, res) => {
     // Cache to prevent saving the same base64 string multiple times
     const savedBase64Map = new Map();
     const newFlipbookAssets = [];
+    const pendingUploadPromises = [];
     const flipbook_v_id = req.body.v_id || (existingDoc ? existingDoc.v_id : nanoid(20));
 
     const extractBase64AndSave = (htmlContent, pageVId) => {
@@ -509,7 +514,8 @@ router.post("/save", async (req, res) => {
         flipbookDir: "",
         flipbook_v_id,
         newFlipbookAssets,
-        savedBase64Map
+        savedBase64Map,
+        pendingUploadPromises
       });
     };
 
@@ -593,6 +599,12 @@ router.post("/save", async (req, res) => {
       });
     }
 
+    // Await all base64 Supabase asset uploads before proceeding to database updates
+    if (pendingUploadPromises.length > 0) {
+      await Promise.all(pendingUploadPromises);
+      console.log(`[Save] Awaited and stored ${pendingUploadPromises.length} extracted assets in Supabase.`);
+    }
+
     const incomingFlipbookInfo = req.body.FlipbookInfo || req.body.Customized_Settings?.FlipbookInfo || req.body.meta || {};
     const totalPagesSize = dbPages.reduce((sum, p) => sum + (p.size || 0), 0);
     const existingTotalSize = existingDoc?.fileSize || 0;
@@ -629,42 +641,78 @@ router.post("/save", async (req, res) => {
       const allHtmlLower = allHtmlContents ? allHtmlContents.toLowerCase() : "";
       const existingPageVIds = new Set(existingDoc && existingDoc.pages ? existingDoc.pages.map(p => p.v_id) : []);
       
-      // 1. Clean up FlipbookAsset records: remove deleted page assets, unreferenced page assets, and duplicate DB rows
+      // Determine if all pages in the flipbook were submitted in this save request
+      const totalBookPagesCount = existingDoc?.pages?.length || pages.length;
+      const allPagesSavedInRequest = modifiedPageIds.size >= totalBookPagesCount;
+
+      // 1. Clean up FlipbookAsset records: ONLY delete if asset is truly removed from all canvas pages AND saved
       const allFlipbookAssets = await FlipbookAsset.find({ flipbook_v_id: currentFlipbookVId });
       const seenAssets = new Set();
+      const deletionPromises = [];
       
       for (const asset of allFlipbookAssets) {
-        const isPageDeleted = asset.page_v_id && asset.page_v_id !== 'global' && existingPageVIds.has(asset.page_v_id) && !newPageIds.has(asset.page_v_id);
-        const isPageModifiedInRequest = asset.page_v_id && modifiedPageIds.has(asset.page_v_id);
-        const pageHtml = isPageModifiedInRequest ? pageHtmlMap.get(asset.page_v_id) || "" : null;
-        const isRemovedFromPage = isPageModifiedInRequest && asset.fileName && asset.page_v_id !== 'global' && !pageHtml.includes(asset.fileName.toLowerCase());
+        // Protect global gallery & user library assets from being deleted during flipbook save
+        const isGalleryAsset = (
+          asset.folderName === 'Gallery' ||
+          asset.isGallery === true ||
+          (asset.url && (
+            asset.url.toLowerCase().includes(`/${sanitizedEmail}/images/`) ||
+            asset.url.toLowerCase().includes(`/${sanitizedEmail}/videos/`) ||
+            asset.url.toLowerCase().includes(`/${sanitizedEmail}/gifs/`) ||
+            asset.url.toLowerCase().includes(`/${sanitizedEmail}/3d_modals/`) ||
+            asset.url.toLowerCase().includes(`/${sanitizedEmail}/texture/`) ||
+            asset.url.toLowerCase().includes(`/${sanitizedEmail}/profile/`) ||
+            asset.url.toLowerCase().includes(`/${sanitizedEmail}/company_logo/`) ||
+            asset.url.toLowerCase().includes('/images/') ||
+            asset.url.toLowerCase().includes('/videos/') ||
+            asset.url.toLowerCase().includes('/gifs/') ||
+            asset.url.toLowerCase().includes('/3d_modals/')
+          ))
+        );
 
-        if (isPageDeleted || isRemovedFromPage) {
-          console.log(`[Save Cleanup] Processing removed/page-deleted asset: ${asset.fileName}`);
-          const isGalleryFile = asset.folderName === 'Gallery' || asset.isGallery || (asset.url && (
-            asset.url.includes(`/${sanitizedEmail}/Images/`) ||
-            asset.url.includes(`/${sanitizedEmail}/Videos/`) ||
-            asset.url.includes(`/${sanitizedEmail}/gifs/`) ||
-            asset.url.includes(`/${sanitizedEmail}/3D_Modals/`) ||
-            asset.url.includes(`/${sanitizedEmail}/Image/`) ||
-            asset.url.includes(`/${sanitizedEmail}/video/`) ||
-            asset.url.includes(`/${sanitizedEmail}/gif/`) ||
-            asset.url.includes(`/${sanitizedEmail}/3D_Model/`)
-          ));
+        // Check if the asset is used ANYWHERE across all saved pages of this flipbook
+        const fileNameLower = asset.fileName ? asset.fileName.toLowerCase() : "";
+        const fileVIdLower = asset.file_v_id ? asset.file_v_id.toLowerCase() : "";
+        const encodedFileNameLower = asset.fileName ? encodeURIComponent(asset.fileName).toLowerCase() : "";
+        let urlBaseNameLower = "";
+        try {
+          if (asset.url) {
+            urlBaseNameLower = path.basename(decodeURIComponent(asset.url)).toLowerCase();
+          }
+        } catch(e) {}
 
-          if (!isGalleryFile) {
-            const assetSubFolder = asset.assetType || "Image";
-            const supabaseAssetPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${assetSubFolder}/${asset.fileName}`;
+        const isAssetUsedInFlipbook = (
+          (fileNameLower && allHtmlLower.includes(fileNameLower)) ||
+          (fileVIdLower && allHtmlLower.includes(fileVIdLower)) ||
+          (encodedFileNameLower && allHtmlLower.includes(encodedFileNameLower)) ||
+          (urlBaseNameLower && allHtmlLower.includes(urlBaseNameLower)) ||
+          (asset.url && allHtmlLower.includes(asset.url.toLowerCase()))
+        );
+
+        // If not all pages were provided in this save request, only check assets whose page was actually modified
+        const isTargetPageChecked = allPagesSavedInRequest || (asset.page_v_id && modifiedPageIds.has(asset.page_v_id));
+
+        // An asset is removed from the canvas ONLY if its page was checked, the asset is NOT used anywhere in the canvas,
+        // and it's not a gallery file.
+        const isCanvasSaved = allHtmlLower.trim().length > 0;
+        const isRemovedFromCanvas = isCanvasSaved && isTargetPageChecked && !isAssetUsedInFlipbook && !isGalleryAsset;
+
+        if (isRemovedFromCanvas) {
+          console.log(`[Save Cleanup] Processing canvas-removed asset from Supabase: ${asset.fileName}`);
+          const assetSubFolder = asset.assetType || "Image";
+          const supabaseAssetPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${assetSubFolder}/${asset.fileName}`;
+          
+          deletionPromises.push(
             deleteFileFromSupabase(supabaseAssetPath).catch((e) =>
               console.warn("[Supabase] Delete orphaned asset warning:", e)
-            );
-            if (asset.url && !asset.url.includes(`/${sanitizedEmail}/Images/`) && !asset.url.includes(`/${sanitizedEmail}/Videos/`) && !asset.url.includes(`/${sanitizedEmail}/gifs/`) && !asset.url.includes(`/${sanitizedEmail}/3D_Modals/`)) {
+            )
+          );
+          if (asset.url && !isGalleryAsset) {
+            deletionPromises.push(
               deleteFileFromSupabase(asset.url).catch((e) =>
                 console.warn("[Supabase] Delete orphaned asset URL warning:", e)
-              );
-            }
-          } else {
-            console.log(`[Save Cleanup] Preserving global gallery asset file in Supabase: ${asset.fileName}`);
+              )
+            );
           }
           await FlipbookAsset.deleteOne({ _id: asset._id });
         } else if (seenAssets.has(asset.fileName)) {
@@ -675,23 +723,60 @@ router.post("/save", async (req, res) => {
         }
       }
 
-      // 2. Clean up unreferenced InteractionThreedModel records & files
-      const all3DModels = await InteractionThreedModel.find({ userEmail: emailId, flipbookName: flipbookName });
-      for (const model of all3DModels) {
-        const isModelRemoved = model.fileName && !allHtmlLower.includes(model.fileName.toLowerCase());
-        if (isModelRemoved) {
-          console.log(`[Save Cleanup] Deleting unreferenced 3D model: ${model.fileName}`);
-          const supabaseModelPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/3D_Model/${model.fileName}`;
-          deleteFileFromSupabase(supabaseModelPath).catch((e) =>
-            console.warn("[Supabase] Delete orphaned 3D model warning:", e)
+      // 2. Clean up unreferenced InteractionThreedModel records & files (ONLY when entire flipbook is saved and model is truly removed)
+      if (allPagesSavedInRequest && allHtmlLower.trim().length > 0) {
+        const all3DModels = await InteractionThreedModel.find({
+          userEmail: emailId,
+          $or: [
+            { flipbook_v_id: currentFlipbookVId },
+            { flipbookName: flipbookName }
+          ]
+        });
+
+        for (const model of all3DModels) {
+          const isGalleryModel = model.url && (
+            model.url.toLowerCase().includes('/3d_modals/') ||
+            model.url.toLowerCase().includes(`/${sanitizedEmail}/3d_modals/`)
           );
-          deleteFileFromSupabase(`${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/3D_Modals/${model.fileName}`).catch(() => {});
-          if (model.url) {
-            deleteFileFromSupabase(model.url).catch((e) =>
-              console.warn("[Supabase] Delete orphaned 3D model URL warning:", e)
+
+          const modelFileNameLower = model.fileName ? model.fileName.toLowerCase() : "";
+          const modelVIdLower = model.v_id ? model.v_id.toLowerCase() : "";
+          const encodedFileNameLower = model.fileName ? encodeURIComponent(model.fileName).toLowerCase() : "";
+          let urlBaseNameLower = "";
+          try {
+            if (model.url) {
+              urlBaseNameLower = path.basename(decodeURIComponent(model.url)).toLowerCase();
+            }
+          } catch(e) {}
+
+          const isModelUsed = (
+            (modelFileNameLower && allHtmlLower.includes(modelFileNameLower)) ||
+            (modelVIdLower && allHtmlLower.includes(modelVIdLower)) ||
+            (encodedFileNameLower && allHtmlLower.includes(encodedFileNameLower)) ||
+            (urlBaseNameLower && allHtmlLower.includes(urlBaseNameLower)) ||
+            (model.url && allHtmlLower.includes(model.url.toLowerCase()))
+          );
+
+          if (!isGalleryModel && !isModelUsed) {
+            console.log(`[Save Cleanup] Deleting removed 3D model from Supabase: ${model.fileName}`);
+            const supabaseModelPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/3D_Model/${model.fileName}`;
+            deletionPromises.push(
+              deleteFileFromSupabase(supabaseModelPath).catch((e) =>
+                console.warn("[Supabase] Delete orphaned 3D model warning:", e)
+              )
             );
+            deletionPromises.push(
+              deleteFileFromSupabase(`${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/3D_Modals/${model.fileName}`).catch(() => {})
+            );
+            if (model.url) {
+              deletionPromises.push(
+                deleteFileFromSupabase(model.url).catch((e) =>
+                  console.warn("[Supabase] Delete orphaned 3D model URL warning:", e)
+                )
+              );
+            }
+            await InteractionThreedModel.deleteOne({ _id: model._id });
           }
-          await InteractionThreedModel.deleteOne({ _id: model._id });
         }
       }
 
@@ -699,13 +784,20 @@ router.post("/save", async (req, res) => {
       if (existingDoc && existingDoc.pages) {
         for (const oldPage of existingDoc.pages) {
           if (oldPage.fileName && !savedFileNames.has(oldPage.fileName)) {
-            console.log(`[Save Cleanup] Deleting removed page file: ${oldPage.fileName}`);
+            console.log(`[Save Cleanup] Deleting removed page file from Supabase: ${oldPage.fileName}`);
             const supabasePagePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/${oldPage.fileName}`;
-            deleteFileFromSupabase(supabasePagePath).catch((e) =>
-              console.warn("[Supabase] Delete removed page file warning:", e)
+            deletionPromises.push(
+              deleteFileFromSupabase(supabasePagePath).catch((e) =>
+                console.warn("[Supabase] Delete removed page file warning:", e)
+              )
             );
           }
         }
+      }
+
+      if (deletionPromises.length > 0) {
+        await Promise.all(deletionPromises);
+        console.log(`[Save Cleanup] Awaited and deleted ${deletionPromises.length} removed files from Supabase.`);
       }
     } catch (err) {
       console.error("Error cleaning up orphaned assets and pages:", err);
@@ -2328,24 +2420,21 @@ router.get("/public/get/:shareId", async (req, res) => {
       return res.status(403).json({ message: "This flipbook is private. It cannot be viewed via public link.", isPrivate: true, accessMode: 'private' });
     }
 
-    // 2. Password Protect access check (Strictly require matching Access Key ONLY)
+    // 2. Password Protect access check (Strictly require matching Access Key ONLY for Share View Book)
     if (accessMode.includes('password')) {
-      const isOwner = reqEmail && reqEmail === dbDoc.userEmail;
-      if (!isOwner) {
-        const inputKey = (reqAccessKey || reqPassword || '').trim();
-        const keyMatches = await compareKeys(inputKey, vis.accessKey);
-        if (!keyMatches) {
-          return res.status(401).json({
-            message: "Invalid Access Key",
-            isPasswordProtected: true,
-            bookName: dbDoc.flipbookName,
-            accessMode: 'password',
-            pages: previewPages,
-            FlipbookInfo: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
-            meta: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
-            Customized_Settings: dbDoc.Customized_Settings || dbDoc.settings || {}
-          });
-        }
+      const inputKey = (reqAccessKey || reqPassword || '').trim();
+      const keyMatches = await compareKeys(inputKey, vis.accessKey);
+      if (!keyMatches) {
+        return res.status(401).json({
+          message: "Invalid Access Key",
+          isPasswordProtected: true,
+          bookName: dbDoc.flipbookName,
+          accessMode: 'password',
+          pages: previewPages,
+          FlipbookInfo: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
+          meta: dbDoc.Customized_Settings?.FlipbookInfo || dbDoc.meta || {},
+          Customized_Settings: dbDoc.Customized_Settings || dbDoc.settings || {}
+        });
       }
     }
 
@@ -3685,7 +3774,14 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
       safeFolderName = "Gallery";
       safeFlipbookName = targetFolder;
     } else {
-      relativeUrlBase = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeFolderName}/${safeFlipbookName}/assets/${assetType}`;
+      let subFolder = assetType;
+      if (assetType === 'image' || assetType === 'images') subFolder = 'Image';
+      else if (assetType === 'audio') subFolder = 'audio';
+      else if (assetType === 'video') subFolder = 'video';
+      else if (assetType === '3d' || assetType === '3d_model' || assetType === '3d_modals' || assetType === 'model') subFolder = '3D_Model';
+      else if (assetType === 'gif') subFolder = 'gif';
+
+      relativeUrlBase = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeFolderName}/${safeFlipbookName}/assets/${subFolder}`;
     }
 
     // --- Handle Replacement / Old File Deletion ---
@@ -3743,11 +3839,15 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
     }
 
     // Save to Database
+    let savedAssetType = assetType;
+    if (assetType === 'image' || assetType === 'images') savedAssetType = 'Image';
+    else if (assetType === '3d' || assetType === '3d_model' || assetType === '3d_modals' || assetType === 'model') savedAssetType = '3D_Model';
+
     const newAsset = new FlipbookAsset({
       flipbook_v_id: v_id || "temp_" + Date.now(),
       file_v_id: file_v_id,
       page_v_id: finalPageVId,
-      assetType: assetType,
+      assetType: savedAssetType,
       fileName: uniqueFilename,
       flipbookName: safeFlipbookName,
       folderName: safeFolderName,
@@ -3984,11 +4084,6 @@ const deleteAssetHandler = async (req, res) => {
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/customized_assets/Logo/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/customized_assets/Watermark/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/customized_assets/Image/${fileName}`);
-        candidateUrls.add(`/uploads/${sanitizedEmail}/3D_Modals/${fileName}`);
-        candidateUrls.add(`/uploads/${sanitizedEmail}/3D_Model/${fileName}`);
-        candidateUrls.add(`/uploads/${sanitizedEmail}/Images/${fileName}`);
-        candidateUrls.add(`/uploads/${sanitizedEmail}/Videos/${fileName}`);
-        candidateUrls.add(`/uploads/${sanitizedEmail}/gifs/${fileName}`);
       }
     }
 
@@ -4004,7 +4099,7 @@ const deleteAssetHandler = async (req, res) => {
       await FlipbookAsset.deleteOne({ file_v_id: fileVId });
     }
 
-    if (fileName && emailId) {
+    if (fileName && emailId && (assetType === '3d' || assetType === '3d_model' || assetType === '3d_modals' || assetType === 'model')) {
       await InteractionThreedModel.deleteOne({ userEmail: emailId, fileName: fileName }).catch(() => {});
     }
 

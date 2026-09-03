@@ -16,6 +16,7 @@ import {
   DraggableSpan,
   ImageCropOverlay
 } from './AppearanceShared';
+import ReplaceMediaModal from '../TemplateEditor/ReplaceMediaModal';
 
 const themeStaticCache = {};
 
@@ -334,6 +335,7 @@ const BackgroundSection = ({
   const [showBgCropOverlay, setShowBgCropOverlay] = useState(false);
   const [videoThemes, setVideoThemes] = useState([]);
   const [backgroundImageUrls, setBackgroundImageUrls] = useState([]);
+  const [replaceTarget, setReplaceTarget] = useState(null);
   const galleryInputRef = useRef(null);
 
   // Dynamically fetch preset background images and videos from backend
@@ -742,7 +744,7 @@ const BackgroundSection = ({
   }, [bgStyle, backgroundSettings.gradientStops, backgroundSettings.gradient, onUpdateBackground]);
 
   useEffect(() => {
-    if (bgStyle === 'Gradient' && !backgroundSettings.gradientStops) {
+    if (bgStyle === 'Gradient' && (!backgroundSettings.gradientStops || backgroundSettings.gradientStops.length === 0)) {
       const stops = [
         { color: '#63D0CD', offset: 0, opacity: 100 },
         { color: '#4B3EFE', offset: 100, opacity: 100 }
@@ -1289,16 +1291,16 @@ const BackgroundSection = ({
 
                     if (gType === 'Angular') {
                       previewBg = generateGradientString('Angular', gStops, gAngle, backgroundSettings.gradientRadius || 100);
-                      previewStyle = { background: previewBg, borderRadius: '0.4vw' };
+                      previewStyle = { backgroundImage: previewBg, borderRadius: '0.4vw' };
                     } else if (gType === 'Diamond') {
                       previewBg = generateGradientString('Diamond', gStops, gAngle, backgroundSettings.gradientRadius || 100);
-                      previewStyle = { background: previewBg, borderRadius: '0.4vw' };
+                      previewStyle = { backgroundImage: previewBg, borderRadius: '0.4vw' };
                     } else if (gType === 'Radial') {
                       previewBg = generateGradientString('Radial', gStops, gAngle, backgroundSettings.gradientRadius || 100);
-                      previewStyle = { background: previewBg, borderRadius: '50%' };
+                      previewStyle = { backgroundImage: previewBg, borderRadius: '50%' };
                     } else {
                       previewBg = `linear-gradient(${gAngle}deg, ${stopsStr})`;
-                      previewStyle = { background: previewBg, borderRadius: '0.4vw' };
+                      previewStyle = { backgroundImage: previewBg, borderRadius: '0.4vw' };
                     }
 
                     return (
@@ -1403,7 +1405,7 @@ const BackgroundSection = ({
                       className="w-full h-[1.5vw] rounded-[0.4vw] shadow-inner border border-gray-100 cursor-copy"
                       onClick={addGradientStop}
                       style={{
-                        background: `linear-gradient(to right, ${(backgroundSettings.gradientStops || []).map(s => {
+                        backgroundImage: `linear-gradient(to right, ${(backgroundSettings.gradientStops || []).map(s => {
                           const rgb = hexToRgb(s.color);
                           const opacity = (s.opacity || 100) / 100;
                           return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity}) ${s.offset}%`;
@@ -1474,7 +1476,7 @@ const BackgroundSection = ({
                         onUpdateBackground({ ...backgroundSettings, gradientStops: newStops, gradient });
                       }}
                       className="aspect-square rounded-[0.5vw] border border-gray-200 shadow-sm transition-all hover:scale-110"
-                      style={{ background: `linear-gradient(to bottom right, ${colors.join(', ')})` }}
+                      style={{ backgroundImage: `linear-gradient(to bottom right, ${colors.join(', ')})` }}
                     />
                   ))}
                 </div>
@@ -1597,7 +1599,7 @@ const BackgroundSection = ({
 
                           <div className="flex items-center gap-[0.5vw] mt-[0.3vw]">
                             <button
-                              onClick={() => fileInputRef.current?.click()}
+                              onClick={() => setReplaceTarget('image')}
                               className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
                             >
                               Replace image
@@ -1749,7 +1751,7 @@ const BackgroundSection = ({
 
                           <div className="flex items-center gap-[0.5vw] mt-[0.3vw]">
                             <button
-                              onClick={() => videoInputRef.current?.click()}
+                              onClick={() => setReplaceTarget('video')}
                               className="px-[0.65vw] py-[0.35vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.75vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
                             >
                               Replace video
@@ -2158,6 +2160,21 @@ const BackgroundSection = ({
             setShowBgCropOverlay(false);
           }}
           onCancel={() => setShowBgCropOverlay(false)}
+        />
+      )}
+      
+      {replaceTarget && (
+        <ReplaceMediaModal
+          show={!!replaceTarget}
+          onClose={() => setReplaceTarget(null)}
+          onReplace={(file) => {
+            if (replaceTarget === 'image') {
+              handleImageReplace(file);
+            } else if (replaceTarget === 'video') {
+              handleVideoReplace(file);
+            }
+          }}
+          mediaType={replaceTarget === 'image' ? 'image' : 'video'}
         />
       )}
     </div>

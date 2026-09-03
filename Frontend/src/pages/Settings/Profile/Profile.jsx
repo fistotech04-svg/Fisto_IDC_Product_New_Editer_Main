@@ -7,7 +7,6 @@ import ThumbnailPopup from './Thumbnail_Popup';
 import AvatarPopup from './AvatarPopup';
 import EditProfile from './EditProfile';
 import Activity from './Activity';
-import p1 from '../../../assets/settings/p1.png';
 import { getSupabaseBaseUrl, resolveUploadsPath } from '../../../utils/supabaseUtils';
 
 const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl }) => {
@@ -257,8 +256,8 @@ const Profile = () => {
         const res = await axios.get(`${backendUrl}/api/profile`, {
           params: { emailId: effectiveEmail }
         });
-        if (res.data?.success && res.data?.profile) {
-          const p = res.data.profile;
+        const p = res.data?.profile || (res.data?.emailId ? res.data : null);
+        if (p) {
           setUser(prev => {
             const updated = {
               ...defaultProfile,
@@ -282,6 +281,15 @@ const Profile = () => {
             };
             try {
               localStorage.setItem('user_profile', JSON.stringify(updated));
+              const stored = localStorage.getItem('user');
+              const parsed = stored ? JSON.parse(stored) : {};
+              localStorage.setItem('user', JSON.stringify({
+                ...parsed,
+                name: updated.name,
+                emailId: updated.emailId,
+                picture: updated.picture,
+                avatarBgColor: updated.avatarBgColor
+              }));
               window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
             } catch (e) {}
             return updated;
@@ -372,10 +380,14 @@ const Profile = () => {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         if (res.data?.success) {
+          const newPic = res.data.picture || null;
           setUser(prev => {
-            const updated = { ...prev, picture: res.data.picture || null };
+            const updated = { ...prev, picture: newPic };
             try {
               localStorage.setItem('user_profile', JSON.stringify(updated));
+              const stored = localStorage.getItem('user');
+              const parsed = stored ? JSON.parse(stored) : {};
+              localStorage.setItem('user', JSON.stringify({ ...parsed, picture: newPic }));
               window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
             } catch (e) {}
             return updated;
@@ -406,10 +418,15 @@ const Profile = () => {
           avatarBgColor: targetColor
         });
         if (res.data?.success) {
+          const newPic = isDeleting ? null : (res.data.picture || null);
+          const newColor = res.data.avatarBgColor || targetColor;
           setUser(prev => {
-            const updated = { ...prev, picture: isDeleting ? null : (res.data.picture || null), avatarBgColor: res.data.avatarBgColor || targetColor };
+            const updated = { ...prev, picture: newPic, avatarBgColor: newColor };
             try {
               localStorage.setItem('user_profile', JSON.stringify(updated));
+              const stored = localStorage.getItem('user');
+              const parsed = stored ? JSON.parse(stored) : {};
+              localStorage.setItem('user', JSON.stringify({ ...parsed, picture: newPic, avatarBgColor: newColor }));
               window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
             } catch (e) {}
             return updated;
@@ -426,6 +443,9 @@ const Profile = () => {
       const updated = { ...prev, picture: 'color_only', avatarBgColor: color };
       try {
         localStorage.setItem('user_profile', JSON.stringify(updated));
+        const stored = localStorage.getItem('user');
+        const parsed = stored ? JSON.parse(stored) : {};
+        localStorage.setItem('user', JSON.stringify({ ...parsed, picture: 'color_only', avatarBgColor: color }));
         window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
       } catch (e) {}
       return updated;
@@ -582,7 +602,7 @@ const Profile = () => {
               style={{
                 height: `14vw`,
                 transform: `translateY(-${scrollProgress * 4}vw)`,
-                backgroundImage: bannerBg.value.startsWith('url') ? bannerBg.value : `url(${bannerBg.value})`,
+                backgroundImage: bannerBg.value ? `url(${resolveUploadsPath(bannerBg.value.replace(/^url\(['"]?/, '').replace(/['"]?\)$/, ''))})` : undefined,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 willChange: 'transform'

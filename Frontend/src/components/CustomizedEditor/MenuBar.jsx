@@ -471,11 +471,11 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
             enabled={settings.navigation?.nextPrevButtons}
             onChange={(val) => updateSection('navigation', 'nextPrevButtons', val)}
           />
-          <MenuItem
+          {/* <MenuItem
             label="Mouse Wheel Navigation"
             enabled={settings.navigation?.mouseWheel}
             onChange={(val) => updateSection('navigation', 'mouseWheel', val)}
-          />
+          /> */}
           <MenuItem
             label="Drag to Turn Pages"
             enabled={settings.navigation?.dragToTurn}

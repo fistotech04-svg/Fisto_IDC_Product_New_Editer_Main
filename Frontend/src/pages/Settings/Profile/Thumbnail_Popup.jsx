@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 import ColorPallet from '../../../components/CustomizedEditor/ColorPallet';
+import { resolveUploadsPath } from '../../../utils/supabaseUtils';
 
 const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
   const [isColorPalletOpen, setIsColorPalletOpen] = useState(false);
@@ -128,7 +129,7 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
       <div>
         {isCustomBanner && displayBannerSrc ? (
           <div className="flex gap-[1vw] items-center">
-             <img src={displayBannerSrc} alt="Uploaded" className="w-[4vw] h-[4vw] object-cover rounded-[0.4vw] border border-gray-200" />
+             <img src={displayBannerSrc.startsWith('blob:') || displayBannerSrc.startsWith('data:') ? displayBannerSrc : resolveUploadsPath(displayBannerSrc)} alt="Uploaded" className="w-[4vw] h-[4vw] object-cover rounded-[0.4vw] border border-gray-200" />
              <div className="flex-1 min-w-0">
                 <h4 className="text-[0.85vw] font-medium text-gray-800 truncate">Image</h4>
                 <p className="text-[0.6vw] text-gray-500 mt-[0.1vw]">

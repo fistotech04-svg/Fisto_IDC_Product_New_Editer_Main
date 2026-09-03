@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import FistoLogo from '../assets/logo/Fisto_logo.png';
 import { Bell } from 'lucide-react';
 import ProfileModal from './ProfileModal';
+import { resolveUploadsPath } from '../utils/supabaseUtils';
 
 const defaultColors = [
   '#4c5add', '#2563eb', '#059669', '#d97706', '#dc2626', 
@@ -115,7 +116,7 @@ export default function DashboardNavbar() {
          >
              {user?.picture && user?.picture !== 'color_only' ? (
                 <img 
-                  src={user.picture} 
+                  src={user.picture.startsWith('blob:') || user.picture.startsWith('data:') ? user.picture : resolveUploadsPath(user.picture)} 
                   alt={user.name || 'User'} 
                   className="w-full h-full object-cover rounded-full" 
                   referrerPolicy="no-referrer"

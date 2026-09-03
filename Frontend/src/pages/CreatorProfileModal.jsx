@@ -196,7 +196,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     return (
         <div className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100 relative group">
             {/* Image Area Wrapper */}
-            <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden cursor-pointer" onClick={handleOpen}>
+            <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden">
                 <img src={book.cover} alt={book.title || "Flipbook Cover"} className="w-full h-full object-cover" />
 
                 {/* Menu Button */}
@@ -214,7 +214,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
 
                     {/* Dropdown Menu */}
                     {isMenuOpen && (
-                        <div className="absolute top-8 right-0 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-36 z-40">
+                        <div className="absolute top-[2.5vw] right-0 bg-white rounded-[0.5vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-[0.5vw] w-[6vw] z-40 overflow-hidden">
                             {menuItems.map((menuItem, mIdx) => (
                                 <button
                                     key={mIdx}
@@ -224,9 +224,9 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
                                             handleOpen();
                                         }
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                    className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-medium text-gray-600 hover:text-black hover:bg-gray-50 flex items-center gap-[0.5vw] transition-colors"
                                 >
-                                    <span className="flex items-center justify-center text-gray-400 w-4 h-4">{menuItem.icon}</span>
+                                    <span className="flex items-center justify-center text-gray-400 w-[1vw] h-[1vw]">{menuItem.icon}</span>
                                     {menuItem.name}
                                 </button>
                             ))}
@@ -307,6 +307,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFollowLoading, setIsFollowLoading] = useState(false);
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [hoveredInfoId, setHoveredInfoId] = useState(null);
 
     const currentUserEmail = (() => {
         try {
@@ -427,8 +429,11 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                     if (res.data.profile) {
                         setProfileData(res.data.profile);
                     }
+                    const creatorEmail = (res.data.profile?.emailId || res.data.profile?.email || targetEmail || '').trim().toLowerCase();
                     const rawBooks = res.data.books || [];
-                    const formatted = rawBooks.map((b, idx) => {
+                    const userCreatedBooks = rawBooks.filter(b => b && b.userEmail && b.userEmail.trim().toLowerCase() === creatorEmail);
+                    const visibleBooks = userCreatedBooks.filter(b => b && (b.isPublished === true || b.isPublished === 'true') && String(b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public').toLowerCase() === 'public');
+                    const formatted = visibleBooks.map((b, idx) => {
                         const isMyBook = b.userEmail && res.data.profile?.emailId && b.userEmail.toLowerCase() === res.data.profile.emailId.toLowerCase();
 
                         let aName = b.authorName;
@@ -1031,17 +1036,19 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                     <div className="flex items-center gap-[0.5vw]">
                                                         <button
                                                             onClick={() => setViewMode('shelf')}
-                                                            className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                            className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.6vw] text-[0.75vw] font-semibold transition-all duration-200 border ${viewMode === 'shelf' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
                                                         >
-                                                            <Icon icon="ph:books" className="w-[1vw] h-[1vw]" />
-                                                            <span className="text-[0.75vw] font-medium">Shelf View</span>
+                                                            <svg viewBox="0 0 24 24" fill="currentColor" className={`w-[1vw] h-[1vw] ${viewMode === 'shelf' ? 'text-gray-500' : 'text-[#94a3b8]'}`}>
+                                                                <path fillRule="evenodd" clipRule="evenodd" d="M 2 3 h 20 v 5 H 2 Z M 13.5 4 h 1.2 v 4 h -1.2 Z M 15.1 4 h 1.2 v 4 h -1.2 Z M 16.7 4 h 1.2 v 4 h -1.2 Z M 18.3 4 h 1.2 v 4 h -1.2 Z M 2 9.5 h 20 v 5 H 2 Z M 3.5 10.5 h 1.2 v 4 h -1.2 Z M 5.1 10.5 h 1.2 v 4 h -1.2 Z M 6.7 10.5 h 1.2 v 4 h -1.2 Z M 8.5 14.5 L 9.7 10.5 h 1.2 L 9.7 14.5 Z M 2 16 h 20 v 5 H 2 Z M 3.5 17 h 1.2 v 4 h -1.2 Z M 5.1 17 h 1.2 v 4 h -1.2 Z M 13.5 18.4 h 4 v 1.2 h -4 Z M 14.5 19.8 h 4 v 1.2 h -4 Z" />
+                                                            </svg>
+                                                            <span>Shelf View</span>
                                                         </button>
                                                         <button
                                                             onClick={() => setViewMode('list')}
-                                                            className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                            className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.6vw] text-[0.75vw] font-semibold transition-all duration-200 border ${viewMode === 'list' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
                                                         >
-                                                            <Icon icon="ph:list-dashes-bold" className="w-[1vw] h-[1vw]" />
-                                                            <span className="text-[0.75vw] font-medium">List View</span>
+                                                            <Icon icon="circum:box-list" className={`w-[1vw] h-[1vw] ${viewMode === 'list' ? 'text-gray-500' : 'text-[#94a3b8]'}`} />
+                                                            <span>List View</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -1092,7 +1099,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowCount: calculatedRowCount,
                                                                 bgStretch: false,
                                                                 noZone: true,
-                                                                padding: 'px-6',
+                                                                padding: '0 2.5vw',
                                                                 topOffset: 6,
                                                                 spacing: 32,
                                                                 bookWidth: '11.5%',
@@ -1125,8 +1132,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowPadding: '0 4%',
                                                                 topOffset: 5,
                                                                 spacing: 33,
-                                                                bookWidth: '14%',
-                                                                bookStyle: { bottom: '15%', padding: '0 7%' }
+                                                                bookWidth: '11.5%',
+                                                                bookStyle: { bottom: '10%', padding: '0 10%' }
                                                             };
                                                         default:
                                                             return {
@@ -1136,7 +1143,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowCount: calculatedRowCount,
                                                                 bgStretch: false,
                                                                 noZone: true,
-                                                                padding: 'px-6',
+                                                                padding: '0 2.5vw',
                                                                 topOffset: 6,
                                                                 spacing: 32,
                                                                 bookWidth: '11.5%',
@@ -1151,8 +1158,9 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                 const bookCount = displayBooks.length;
                                                 const globalRowCount = Math.max(3, Math.ceil(bookCount / 6));
 
-                                                const BASE_VW = 48; // Base height reference to fit ~2.5 rows in view
-                                                const containerHeightVw = ((activeAssets.topOffset ?? 6) + (globalRowCount * (activeAssets.spacing ?? 32))) * BASE_VW / 100;
+                                                const BASE_VW = 34; // Base height reference to fit ~2.5 rows in view
+                                                const heightRatio = globalRowCount <= 3 ? 1 : (100 + (globalRowCount - 3) * (activeAssets.spacing ?? 32) + 3) / 100;
+                                                const containerHeightVw = BASE_VW * heightRatio;
 
                                                 const getTopVw = (i) => {
                                                     const spacing = activeAssets.spacing ?? 32;
@@ -1253,20 +1261,35 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                             className="absolute inset-0 flex justify-between items-end"
                                                                             style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
                                                                         >
-                                                                            {(displayBooks.slice(i * 6, (i + 1) * 6) || []).map((book, bIdx) => {
-                                                                                const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
-                                                                                const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
-                                                                                const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
-                                                                                const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+                                                                            {(() => {
+                                                                                const rowBooks = displayBooks.slice(i * 6, (i + 1) * 6) || [];
+                                                                                const paddedBooks = [...rowBooks, ...Array.from({ length: 6 - rowBooks.length }).fill(null)];
 
-                                                                                return (
-                                                                                    <div
-                                                                                        key={book.v_id || bIdx}
-                                                                                        className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
-                                                                                        style={{ width: activeAssets.bookWidth || '12%' }}
-                                                                                        onClick={() => handleOpenBook(book)}
-                                                                                    >
-                                                                                        <div className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden">
+                                                                                return paddedBooks.map((book, bIdx) => {
+                                                                                    if (!book) {
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={`empty-${i}-${bIdx}`}
+                                                                                                className={`relative flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                                style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                                            />
+                                                                                        );
+                                                                                    }
+
+                                                                                    const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
+                                                                                    const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
+                                                                                    const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
+                                                                                    const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={book.v_id || bIdx}
+                                                                                            className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                            style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                                        >
+                                                                                                <div 
+                                                                                            className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden"
+                                                                                        >
                                                                                             <LazyPreview
                                                                                                 v_id={book.v_id}
                                                                                                 emailId={book.rawBook?.userEmail || currentUserEmail}
@@ -1276,9 +1299,108 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                                                 imageUrl={null}
                                                                                             />
                                                                                         </div>
+
+                                                                                        {/* Hover Menu Pill */}
+                                                                                        <div className="absolute top-[2%] right-[0vw] w-[1vw] h-[3vw] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto">
+                                                                                            <button
+                                                                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `${i}-${bIdx}` ? null : `${i}-${bIdx}`); }}
+                                                                                                className="text-black hover:bg-gray-300 rounded-full w-4 h-4 flex items-center justify-center mt-0.5 transition-colors"
+                                                                                            >
+                                                                                                <Icon icon="mdi:dots-vertical" className="text-[14px]" />
+                                                                                            </button>
+                                                                                            <div
+                                                                                                className="text-[#4A4A4A] hover:text-black flex items-center justify-center mb-0.5 transition-colors relative cursor-pointer"
+                                                                                                onMouseEnter={() => setHoveredInfoId(`${i}-${bIdx}`)}
+                                                                                                onMouseLeave={() => setHoveredInfoId(null)}
+                                                                                            >
+                                                                                                <Icon icon="si:info-fill" className="w-4 h-4" />
+
+                                                                                                {/* Info Tooltip Bridge & Container */}
+                                                                                                <div className={`absolute top-1/2 right-full pr-3 -translate-y-1/2 ${hoveredInfoId === `${i}-${bIdx}` ? 'block' : 'hidden'} z-[60]`}>
+                                                                                                    <div className="w-[170px] bg-white rounded-xl p-4 text-gray-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col gap-3 cursor-default text-left border border-gray-100 relative" onClick={(e) => e.stopPropagation()}>
+                                                                                                        {/* Author Info */}
+                                                                                                        <div className="flex items-center gap-2">
+                                                                                                            {book.authorPicture && book.authorPicture !== 'color_only' ? (
+                                                                                                                <img
+                                                                                                                    src={book.authorPicture}
+                                                                                                                    alt={book.authorName}
+                                                                                                                    className="w-8 h-8 rounded-full border border-gray-200 object-cover shrink-0"
+                                                                                                                />
+                                                                                                            ) : (
+                                                                                                                <div
+                                                                                                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0 shadow-inner"
+                                                                                                                    style={{ backgroundColor: book.authorBgColor || '#4c5add' }}
+                                                                                                                >
+                                                                                                                    {(book.authorName || 'U').charAt(0).toUpperCase()}
+                                                                                                                </div>
+                                                                                                            )}
+                                                                                                            <div className="flex flex-col min-w-0 pr-1">
+                                                                                                                <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate">{book.authorName}</span>
+                                                                                                                <span className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5 truncate">
+                                                                                                                    <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
+                                                                                                                    <span className="truncate">{String(book.location || 'Coimbatore').replace(/📍/g, '').trim()}</span>
+                                                                                                                </span>
+                                                                                                            </div>
+                                                                                                        </div>
+
+                                                                                                        {/* Stats */}
+                                                                                                        <div className="flex items-center gap-2 justify-start text-[11px] text-gray-700 font-medium whitespace-nowrap">
+                                                                                                            <div className="flex items-center gap-1">
+                                                                                                                <span className="text-black font-semibold">{book.pages || 0}</span>
+                                                                                                                <span className="font-normal text-gray-500">Pages</span>
+                                                                                                            </div>
+                                                                                                            <span className="text-gray-300">|</span>
+                                                                                                            <span className="flex items-center gap-1">
+                                                                                                                <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
+                                                                                                                {book.views || '1.2k'}
+                                                                                                            </span>
+                                                                                                            <span className="text-gray-300">|</span>
+                                                                                                            <span className="flex items-center gap-1">
+                                                                                                                <Icon icon="material-symbols:star" className="w-3.5 h-3.5 text-yellow-400" />
+                                                                                                                {book.rating || 4.5}
+                                                                                                            </span>
+                                                                                                        </div>
+
+                                                                                                        {/* Title & Desc & Button */}
+                                                                                                        <div className="relative">
+                                                                                                            <h4 className="text-[14px] font-semibold text-black truncate tracking-tight mb-1">{book.title}</h4>
+                                                                                                            <p className="text-[11px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
+
+                                                                                                            {/* Action Button */}
+                                                                                                            <button
+                                                                                                                onClick={(e) => {
+                                                                                                                    e.stopPropagation();
+                                                                                                                    handleOpenBook(book);
+                                                                                                                }}
+                                                                                                                className="absolute bottom-0 right-0 bg-black text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                                                                                                            >
+                                                                                                                <Icon icon="mdi:arrow-top-right" className="w-4 h-4" />
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        {/* Dropdown Menu */}
+                                                                                        {openMenuId === `${i}-${bIdx}` && (
+                                                                                            <div className="absolute top-[2%] -right-[0.5vw] bg-white rounded-[0.5vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-[0.2vw] w-[5vw] z-50 overflow-hidden"> 
+                                                                                                <button
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        handleOpenBook(book);
+                                                                                                        setOpenMenuId(null);
+                                                                                                    }}
+                                                                                                    className="w-full text-left px-[0.5vw] py-[0.2vw] text-[0.75vw] font-medium text-gray-600 hover:text-black hover:bg-gray-50 transition-colors"
+                                                                                    >
+                                                                                                    Open Book
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        )}
                                                                                     </div>
                                                                                 );
-                                                                            })}
+                                                                            });
+                                                                            })()}
                                                                         </div>
                                                                     </div>
                                                                 ))}

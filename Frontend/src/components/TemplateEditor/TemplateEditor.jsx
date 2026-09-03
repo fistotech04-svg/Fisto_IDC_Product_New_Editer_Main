@@ -519,7 +519,7 @@ const TemplateEditor = () => {
       const bNameFor3D = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
 
       pagesToSave = await Promise.all(pagesToSave.map(async (p) => {
-        if (!p.html || (!p.html.includes('data-interaction="3d-viewer"') && !p.html.includes('data-interaction="download"') && !p.html.includes('data-interaction="audio"'))) return p;
+        if (!p.html || (!p.html.includes('data-interaction="3d-viewer"') && !p.html.includes('data-interaction="slideshow"') && !p.html.includes('data-interaction="download"') && !p.html.includes('data-interaction="audio"'))) return p;
 
         let newHtml = p.html;
         try {
@@ -688,6 +688,114 @@ const TemplateEditor = () => {
               }
             }
           }
+
+          // Extract and upload slideshow interaction images into assets/Image/
+          const slideshowElements = doc.querySelectorAll('[data-interaction="slideshow"]');
+          for (let el of slideshowElements) {
+            let dataVal = el.getAttribute('data-interaction-value');
+            if (!dataVal) continue;
+
+            try {
+              let imgList = JSON.parse(dataVal);
+              if (Array.isArray(imgList) && imgList.length > 0) {
+                let hasChanges = false;
+                const updatedList = await Promise.all(imgList.map(async (imgObj) => {
+                  if (!imgObj || !imgObj.data) return imgObj;
+                  const dataSrc = imgObj.data;
+
+                  if (dataSrc.startsWith('data:image/') || dataSrc.startsWith('blob:')) {
+                    try {
+                      let blob;
+                      if (dataSrc.startsWith('blob:')) {
+                        const res = await fetch(dataSrc);
+                        blob = await res.blob();
+                      } else {
+                        const parts = dataSrc.split(',');
+                        const mimeString = parts[0].split(':')[1].split(';')[0];
+                        let byteString;
+                        if (parts[0].indexOf('base64') >= 0) {
+                          byteString = atob(parts[1]);
+                        } else {
+                          byteString = decodeURI(parts[1]);
+                        }
+                        const ab = new ArrayBuffer(byteString.length);
+                        const ia = new Uint8Array(ab);
+                        for (let i = 0; i < byteString.length; i++) {
+                          ia[i] = byteString.charCodeAt(i);
+                        }
+                        blob = new Blob([ab], { type: mimeString });
+                      }
+
+                      const formData = new FormData();
+                      formData.append('emailId', user?.emailId);
+                      formData.append('folderName', fNameFor3D);
+                      formData.append('flipbookName', bNameFor3D);
+                      formData.append('type', 'image');
+                      formData.append('assetType', 'Image');
+                      formData.append('page_v_id', 'global');
+                      if (currentVId || v_id) {
+                        formData.append('v_id', currentVId || v_id);
+                      }
+                      const safeName = imgObj.name || `slide_${Date.now()}.png`;
+                      formData.append('file', blob, safeName);
+
+                      const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                      });
+
+                      if (uploadRes.data && uploadRes.data.url) {
+                        const finalUrl = uploadRes.data.url;
+                        const assetPathMatch = finalUrl.match(/assets\/[^/]+\/[^/]+$/);
+                        const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
+                        const absoluteUrl = assetPathMatch
+                          ? `${getSupabaseBaseUrl(sanitizedEmail, fNameFor3D, bNameFor3D)}${assetPathMatch[0]}`
+                          : resolveUploadsPath(finalUrl);
+
+                        hasChanges = true;
+                        return {
+                          ...imgObj,
+                          data: absoluteUrl,
+                          url: absoluteUrl,
+                          file_v_id: uploadRes.data.file_v_id
+                        };
+                      }
+                    } catch (uploadErr) {
+                      console.warn("Slideshow interaction image upload error:", uploadErr);
+                    }
+                  }
+                  return imgObj;
+                }));
+
+                if (hasChanges) {
+                  const newHtmlVal = JSON.stringify(updatedList);
+                  el.setAttribute('data-interaction-value', newHtmlVal);
+
+                  const escapedOld = dataVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                  const escapedNew = newHtmlVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+                  if (newHtml.includes(escapedOld)) {
+                    newHtml = newHtml.replace(escapedOld, escapedNew);
+                  } else if (newHtml.includes(dataVal)) {
+                    newHtml = newHtml.replace(dataVal, newHtmlVal);
+                  }
+
+                  // Update live DOM element
+                  try {
+                    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                    if (editorDoc) {
+                      const liveEl = editorDoc.getElementById(el.id);
+                      if (liveEl) {
+                        liveEl.setAttribute('data-interaction-value', newHtmlVal);
+                      }
+                    }
+                  } catch (e) {}
+                }
+              }
+            } catch (jsonErr) {
+              console.warn("Failed to parse slideshow interaction data:", jsonErr);
+            }
+          }
+
           newHtml = new XMLSerializer().serializeToString(doc.documentElement);
           // --- DIRECT STRING SEARCH base64 extraction and upload ---
           // Regex engines often fail silently or hit length limits on 3MB+ contiguous strings.
@@ -707,14 +815,15 @@ const TemplateEditor = () => {
 
             if (foundIdx === -1) break;
 
-            // The data URI is embedded in a JSON string, so it ends at &quot; or "
-            const endIdx1 = newHtml.indexOf('&quot;', foundIdx);
-            const endIdx2 = newHtml.indexOf('"', foundIdx);
-
+            // Find nearest delimiter character
+            const endChars = ['"', "'", '&quot;', '&apos;', ')', '>', ' ', '\n', '\r'];
             let endIdx = -1;
-            if (endIdx1 !== -1 && endIdx2 !== -1) endIdx = Math.min(endIdx1, endIdx2);
-            else if (endIdx1 !== -1) endIdx = endIdx1;
-            else if (endIdx2 !== -1) endIdx = endIdx2;
+            for (const ch of endChars) {
+              const idx = newHtml.indexOf(ch, foundIdx);
+              if (idx !== -1 && (endIdx === -1 || idx < endIdx)) {
+                endIdx = idx;
+              }
+            }
 
             if (endIdx !== -1) {
               const dataUri = newHtml.substring(foundIdx, endIdx);
@@ -877,79 +986,76 @@ const TemplateEditor = () => {
           currentVId = lastRes.data.v_id;
         }
       } else {
-        // Chunk the modified indices
-        for (let skip = 0; skip < modifiedPagesIndices.length; skip += CHUNK_SIZE) {
-          const currentChunkIndices = new Set(modifiedPagesIndices.slice(skip, skip + CHUNK_SIZE));
+        // Send all modified pages together in a single save request
+        const modifiedSet = new Set(modifiedPagesIndices);
 
-          const payloadPages = await Promise.all(pagesToSave.map(async (p, index) => {
-            const isModified = currentChunkIndices.has(index);
-            let content = isModified ? p.html : undefined;
-            let contentChunkId = undefined;
+        const payloadPages = await Promise.all(pagesToSave.map(async (p, index) => {
+          const isModified = modifiedSet.has(index);
+          let content = isModified ? p.html : undefined;
+          let contentChunkId = undefined;
 
-            const folderNameArr = Array.isArray(currentBook?.folderName) ? currentBook.folderName : [currentBook?.folderName || location.state?.folderName || 'Recent Book'];
-            const fName = folderNameArr.find(f => f !== 'Recent Book' && f !== 'All Books') || folderNameArr[0] || 'Recent Book';
-            const bName = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
-            const projectBaseUrl = getSupabaseBaseUrl(sanitizedEmail, fName, bName);
+          const folderNameArr = Array.isArray(currentBook?.folderName) ? currentBook.folderName : [currentBook?.folderName || location.state?.folderName || 'Recent Book'];
+          const fName = folderNameArr.find(f => f !== 'Recent Book' && f !== 'All Books') || folderNameArr[0] || 'Recent Book';
+          const bName = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
+          const projectBaseUrl = getSupabaseBaseUrl(sanitizedEmail, fName, bName);
 
-            // Convert absolute paths back to relative for storage portability
-
-            if (content && content.includes(projectBaseUrl)) {
-              content = content.split(projectBaseUrl).join('./');
-            }
-
-            // CHUNKED UPLOAD LOGIC: If content is too large (> 2MB), upload in chunks
-            const CHUNK_THRESHOLD = 2 * 1024 * 1024; // 2MB
-            if (content && content.length > CHUNK_THRESHOLD) {
-              const uploadId = `chunked-${Math.random().toString(36).substr(2, 9)}`;
-              const CHUNK_DATA_SIZE = 1 * 1024 * 1024; // 1MB chunks
-              const totalChunks = Math.ceil(content.length / CHUNK_DATA_SIZE);
-
-              console.log(`[Save] Page ${index + 1} is large (${(content.length / 1024 / 1024).toFixed(2)} MB). Uploading in ${totalChunks} chunks...`);
-
-              for (let i = 0; i < totalChunks; i++) {
-                const chunk = content.substr(i * CHUNK_DATA_SIZE, CHUNK_DATA_SIZE);
-                await axios.post(`${backendUrl}/api/flipbook/save/chunk`, {
-                  uploadId,
-                  chunkIndex: i,
-                  totalChunks,
-                  chunkData: chunk
-                });
-              }
-              content = undefined;
-              contentChunkId = uploadId;
-            }
-
-            return {
-              pageName: p.name || `Page ${index + 1}`,
-              content,
-              contentChunkId,
-              v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
-            };
-          }));
-
-          const activeDims = getFlipbookDimensions();
-          const payload = {
-            emailId: user?.emailId,
-            v_id: currentVId,
-            flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
-            folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
-            overwrite: true,
-            pages: payloadPages,
-            meta: {
-              width: activeDims.width,
-              height: activeDims.height,
-              templateId: currentBook?.templateId || location.state?.templateId,
-              orientation: currentBook?.orientation || location.state?.orientation
-            }
-          };
-
-          const payloadSize = JSON.stringify(payload).length;
-          console.log(`[Save] Chunk diffing: sending modified pages ${Array.from(currentChunkIndices).map(n => n + 1).join(', ')}. Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
-
-          lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
-          if (lastRes.data && lastRes.data.v_id) {
-            currentVId = lastRes.data.v_id;
+          // Convert absolute paths back to relative for storage portability
+          if (content && content.includes(projectBaseUrl)) {
+            content = content.split(projectBaseUrl).join('./');
           }
+
+          // CHUNKED UPLOAD LOGIC: If content is too large (> 2MB), upload in chunks
+          const CHUNK_THRESHOLD = 2 * 1024 * 1024; // 2MB
+          if (content && content.length > CHUNK_THRESHOLD) {
+            const uploadId = `chunked-${Math.random().toString(36).substr(2, 9)}`;
+            const CHUNK_DATA_SIZE = 1 * 1024 * 1024; // 1MB chunks
+            const totalChunks = Math.ceil(content.length / CHUNK_DATA_SIZE);
+
+            console.log(`[Save] Page ${index + 1} is large (${(content.length / 1024 / 1024).toFixed(2)} MB). Uploading in ${totalChunks} chunks...`);
+
+            for (let i = 0; i < totalChunks; i++) {
+              const chunk = content.substr(i * CHUNK_DATA_SIZE, CHUNK_DATA_SIZE);
+              await axios.post(`${backendUrl}/api/flipbook/save/chunk`, {
+                uploadId,
+                chunkIndex: i,
+                totalChunks,
+                chunkData: chunk
+              });
+            }
+            content = undefined;
+            contentChunkId = uploadId;
+          }
+
+          return {
+            pageName: p.name || `Page ${index + 1}`,
+            content,
+            contentChunkId,
+            v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
+          };
+        }));
+
+        const activeDims = getFlipbookDimensions();
+        const payload = {
+          emailId: user?.emailId,
+          v_id: currentVId,
+          flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+          folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
+          overwrite: true,
+          pages: payloadPages,
+          meta: {
+            width: activeDims.width,
+            height: activeDims.height,
+            templateId: currentBook?.templateId || location.state?.templateId,
+            orientation: currentBook?.orientation || location.state?.orientation
+          }
+        };
+
+        const payloadSize = JSON.stringify(payload).length;
+        console.log(`[Save] Sending modified pages ${Array.from(modifiedSet).map(n => n + 1).join(', ')}. Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
+
+        lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
+        if (lastRes.data && lastRes.data.v_id) {
+          currentVId = lastRes.data.v_id;
         }
       }
 
@@ -1825,6 +1931,8 @@ const TemplateEditor = () => {
   };
 
   const insertPageAfter = (index) => {
+    // PDF / Page limit (commented out for now - can re-enable later):
+    /*
     if (pages.length >= 12) {
       setAlertState({
         isOpen: true,
@@ -1834,6 +1942,7 @@ const TemplateEditor = () => {
       });
       return;
     }
+    */
     saveToHistory();
     setPages(prev => {
       const name = `Page ${prev.length + 1}`;
@@ -1852,6 +1961,8 @@ const TemplateEditor = () => {
   };
 
   const duplicatePage = (index) => {
+    // PDF / Page limit (commented out for now - can re-enable later):
+    /*
     if (pages.length >= 12) {
       setAlertState({
         isOpen: true,
@@ -1861,6 +1972,7 @@ const TemplateEditor = () => {
       });
       return;
     }
+    */
     saveToHistory();
     setPages(prev => {
       const pageToDuplicate = prev[index];
@@ -2115,6 +2227,8 @@ const TemplateEditor = () => {
     const isDefaultBlank = !isPdfProject && (pages.length === 0 ||
       (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
 
+    // PDF 12-page limitation (commented out for now - can re-enable later):
+    /*
     const maxAllowed = 12;
     const currentCount = isDefaultBlank ? 0 : pages.length;
     const remainingSlots = maxAllowed - currentCount;
@@ -2129,6 +2243,8 @@ const TemplateEditor = () => {
       setPdfProcessing(null);
       return;
     }
+    */
+    const remainingSlots = Infinity;
 
     setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...', fileName: file.name });
 
@@ -4520,6 +4636,10 @@ const TemplateEditor = () => {
         qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
         topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
         current3DVId={current3DVId}
+        v_id={v_id || currentBook?.v_id}
+        flipbookVId={v_id || currentBook?.v_id}
+        folderName={Array.isArray(currentBook?.folderName) ? currentBook.folderName.find(f => f !== 'Recent Book' && f !== 'All Books') || currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'My_Flipbooks')}
+        flipbookName={currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook'}
       />
 
       {showTemplateModal && (

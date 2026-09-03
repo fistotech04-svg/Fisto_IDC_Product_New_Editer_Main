@@ -583,11 +583,11 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     fillAngle: parseFloat(selectedElementProps?.['fill-angle'] || 0),
     fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
     scrollBarColor: selectedElementProps?.['data-scrollbar-color'] || '#4B5563',
-    bgFill: selectedElementProps?.['data-bg-fill'] || '#ffffff',
+    bgFill: selectedElementProps?.['data-bg-fill'] || 'transparent',
     bgFillOpacity: parseFloat(selectedElementProps?.['data-bg-fill-opacity'] !== undefined ? selectedElementProps['data-bg-fill-opacity'] : 1) * 100,
-    bgStroke: selectedElementProps?.['data-bg-stroke'] || '#d1d5db',
+    bgStroke: selectedElementProps?.['data-bg-stroke'] || 'none',
     bgStrokeOpacity: parseFloat(selectedElementProps?.['data-bg-stroke-opacity'] !== undefined ? selectedElementProps['data-bg-stroke-opacity'] : 1) * 100,
-    bgStrokeWidth: parseFloat(selectedElementProps?.['data-bg-stroke-width'] !== undefined ? selectedElementProps['data-bg-stroke-width'] : 2),
+    bgStrokeWidth: parseFloat(selectedElementProps?.['data-bg-stroke-width'] !== undefined ? selectedElementProps['data-bg-stroke-width'] : 0),
     bgStrokePosition: selectedElementProps?.['data-bg-stroke-position'] || 'Center',
     scrollBarOpacity: 100,
     stroke: selectedElementProps?.stroke || 'none',
@@ -652,6 +652,13 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       fillStops: selectedElementProps?.['fill-stops'],
       fillAngle: parseFloat(selectedElementProps?.['fill-angle'] || 0),
       fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
+      scrollBarColor: selectedElementProps?.['data-scrollbar-color'] || '#4B5563',
+      bgFill: selectedElementProps?.['data-bg-fill'] || 'transparent',
+      bgFillOpacity: parseFloat(selectedElementProps?.['data-bg-fill-opacity'] !== undefined ? selectedElementProps['data-bg-fill-opacity'] : 1) * 100,
+      bgStroke: selectedElementProps?.['data-bg-stroke'] || 'none',
+      bgStrokeOpacity: parseFloat(selectedElementProps?.['data-bg-stroke-opacity'] !== undefined ? selectedElementProps['data-bg-stroke-opacity'] : 1) * 100,
+      bgStrokeWidth: parseFloat(selectedElementProps?.['data-bg-stroke-width'] !== undefined ? selectedElementProps['data-bg-stroke-width'] : 0),
+      bgStrokePosition: selectedElementProps?.['data-bg-stroke-position'] || 'Center',
       stroke: selectedElementProps?.stroke || 'none',
       strokeOpacity: 100,
       strokeDashStyle: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
@@ -698,12 +705,35 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
 
       if (backgroundColor.scrollBarColor !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollbar-color', backgroundColor.scrollBarColor);
-      if (backgroundColor.bgFill !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', backgroundColor.bgFill);
-      if (backgroundColor.bgFillOpacity !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill-opacity', (backgroundColor.bgFillOpacity / 100).toString());
-      if (backgroundColor.bgStroke !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', backgroundColor.bgStroke);
-      if (backgroundColor.bgStrokeOpacity !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-opacity', (backgroundColor.bgStrokeOpacity / 100).toString());
-      if (backgroundColor.bgStrokeWidth !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-width', backgroundColor.bgStrokeWidth.toString());
-      if (backgroundColor.bgStrokePosition !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-position', backgroundColor.bgStrokePosition);
+      
+      if (backgroundColor.bgFill !== undefined) {
+        if (backgroundColor.bgFill && backgroundColor.bgFill !== 'transparent' && backgroundColor.bgFill !== 'none' && backgroundColor.bgFill !== '#') {
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', backgroundColor.bgFill);
+          if (backgroundColor.bgFillOpacity !== undefined) {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill-opacity', (backgroundColor.bgFillOpacity / 100).toString());
+          }
+        } else {
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', 'none');
+        }
+      }
+
+      if (backgroundColor.bgStroke !== undefined) {
+        if (backgroundColor.bgStroke && backgroundColor.bgStroke !== 'none' && backgroundColor.bgStroke !== 'transparent' && Number(backgroundColor.bgStrokeWidth) > 0) {
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', backgroundColor.bgStroke);
+          if (backgroundColor.bgStrokeOpacity !== undefined) {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-opacity', (backgroundColor.bgStrokeOpacity / 100).toString());
+          }
+          if (backgroundColor.bgStrokeWidth !== undefined) {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-width', backgroundColor.bgStrokeWidth.toString());
+          }
+          if (backgroundColor.bgStrokePosition !== undefined) {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-position', backgroundColor.bgStrokePosition);
+          }
+        } else {
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', 'none');
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-width', '0');
+        }
+      }
 
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.stroke);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeWidth', backgroundColor.strokeWeight.toString());
