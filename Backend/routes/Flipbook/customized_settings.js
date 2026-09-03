@@ -259,6 +259,31 @@ router.post("/upload-customized-asset", (req, res) => {
 
       const finalPublicUrl = uploadedPublicUrl || getSupabasePublicUrl(supabasePath) || rewriteUploadsToSupabase(`/uploads/${supabasePath}`);
 
+      if (assetType === 'gallery_image' || assetType === 'galleryimage') {
+        const fileExt = path.extname(req.file.originalname);
+        const file_v_id = fileName.replace(fileExt, '');
+        
+        try {
+          const newAsset = new FlipbookAsset({
+            flipbook_v_id: v_id || "temp_" + Date.now(),
+            file_v_id: file_v_id || nanoid(),
+            page_v_id: "global",
+            assetType: "Image",
+            fileName: fileName,
+            originalName: req.file.originalname,
+            userEmail: emailId,
+            isGallery: true,
+            flipbookName: bookName,
+            folderName: physicalFolder,
+            url: finalPublicUrl,
+            size: req.file.size
+          });
+          await newAsset.save();
+        } catch (dbErr) {
+          console.warn("Failed to save gallery_image to FlipbookAsset:", dbErr.message);
+        }
+      }
+
       return res.status(200).json({
         message: "Customized asset uploaded successfully",
         url: finalPublicUrl,

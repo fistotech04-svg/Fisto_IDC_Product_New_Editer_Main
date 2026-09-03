@@ -525,7 +525,7 @@ router.post("/save", async (req, res) => {
 
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
-      const { pageName, content, v_id: incomingPageVId } = page;
+      const { pageName, content, hide, v_id: incomingPageVId } = page;
       if (!pageName) continue;
 
       const fileName = pageName.endsWith(".html")
@@ -594,6 +594,7 @@ router.post("/save", async (req, res) => {
         pageNumber: i + 1,
         name: pageName,
         fileName: fileName,
+        hide: hide || 0,
         v_id: pageVId,
         size: pageSize,
       });
@@ -1484,7 +1485,8 @@ router.get("/preview/:v_id", async (req, res) => {
       doc.flipbookName,
     );
 
-    const firstPage = doc.pages?.find((p) => p.pageNumber === 1) || doc.pages?.[0];
+    const visiblePages = doc.pages?.filter(p => p.hide != 1 && String(p.hide) !== '1') || [];
+    const firstPage = visiblePages.length > 0 ? (visiblePages.find(p => p.pageNumber === 1) || visiblePages[0]) : null;
     if (!firstPage) return res.json({ html: null });
 
     let html = null;
@@ -2065,6 +2067,7 @@ router.get("/get", async (req, res) => {
                 name: p.name,
                 fileName: p.fileName,
                 html: "",
+                hide: p.hide || 0,
                 v_id: p.v_id,
              };
           }
@@ -2089,6 +2092,7 @@ router.get("/get", async (req, res) => {
             name: p.name,
             fileName: p.fileName,
             html: content,
+            hide: p.hide || 0,
             v_id: p.v_id,
           };
 
@@ -2106,6 +2110,7 @@ router.get("/get", async (req, res) => {
         name: p.name,
         fileName: p.fileName,
         html: "",
+        hide: p.hide || 0,
         v_id: p.v_id,
       }));
     }
@@ -2412,11 +2417,12 @@ router.get("/public/get/:shareId", async (req, res) => {
       name: p.name,
       fileName: p.fileName,
       html: "",
-      v_id: p.v_id
+      v_id: p.v_id,
+      hide: p.hide || 0
     }));
 
     // 1. Private access check (Private flipbooks cannot be viewed via public share links)
-    if (accessMode.includes('private')) {
+    if (accessMode.includes('private') && !isOwner) {
       return res.status(403).json({ message: "This flipbook is private. It cannot be viewed via public link.", isPrivate: true, accessMode: 'private' });
     }
 
@@ -2552,6 +2558,7 @@ router.get("/public/get/:shareId", async (req, res) => {
           fileName: p.fileName,
           html: content || "",
           v_id: p.v_id,
+          hide: p.hide || 0,
         };
       } catch (e) {
         return {
@@ -2574,6 +2581,7 @@ router.get("/public/get/:shareId", async (req, res) => {
         fileName: p.fileName,
         html: "",
         v_id: p.v_id,
+        hide: p.hide || 0,
       }));
     }
 
@@ -3849,6 +3857,9 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
       page_v_id: finalPageVId,
       assetType: savedAssetType,
       fileName: uniqueFilename,
+      originalName: file.originalname,
+      userEmail: emailId,
+      isGallery: req.body.isGallery === "true" || req.body.isGallery === true,
       flipbookName: safeFlipbookName,
       folderName: safeFolderName,
       url: relativeUrl,
@@ -3896,7 +3907,12 @@ router.get("/get-gallery-assets", async (req, res) => {
     const escapedEmail = escapeRegex(sanitizedEmail);
     const dbAssets = await FlipbookAsset.find({
       $and: [
-        { userEmail: emailId },
+        {
+          $or: [
+            { userEmail: emailId },
+            { url: { $regex: `\/uploads\/${escapedEmail}\/` } }
+          ]
+        },
         {
           $or: [
             { folderName: "Gallery" },
@@ -3926,7 +3942,7 @@ router.get("/get-gallery-assets", async (req, res) => {
         if (!requestedType || detectedType === requestedType || (requestedType === 'image' && detectedType === 'image') || (requestedType === '3d' && detectedType === '3d')) {
           assetsMap.set(asset.fileName, {
             id: asset.fileName,
-            name: asset.fileName,
+            name: asset.originalName || asset.fileName,
             url: asset.url,
             type: detectedType,
             size: asset.size || 0,
@@ -4003,7 +4019,7 @@ router.post("/delete-gallery-asset", async (req, res) => {
       await FlipbookAsset.deleteMany({ file_v_id });
     }
     if (fileName) {
-      await FlipbookAsset.deleteMany({ fileName, userEmail: emailId });
+      await FlipbookAsset.deleteMany({ fileName });
     }
 
     // 2. Delete file from Supabase Storage
@@ -4023,7 +4039,42 @@ router.post("/delete-gallery-asset", async (req, res) => {
   }
 });
 
+// @route POST /api/flipbook/rename-gallery-asset
+// @desc Rename global gallery asset in MongoDB
+router.post("/rename-gallery-asset", async (req, res) => {
+  try {
+    const { emailId, file_v_id, fileName, newName } = req.body;
+    if (!emailId || !newName) {
+      return res.status(400).json({ message: "Missing emailId or newName" });
+    }
 
+    // Don't search by userEmail since the schema does not have userEmail, wait, does FlipbookAsset have userEmail?
+    // Wait! In the get-gallery-assets it uses userEmail: emailId ? Let me check schema.
+    let query = {};
+    if (file_v_id) {
+      query.file_v_id = file_v_id;
+    } else if (fileName) {
+      query.fileName = fileName;
+    } else {
+      return res.status(400).json({ message: "Missing file identifier" });
+    }
+
+    const updatedAsset = await FlipbookAsset.findOneAndUpdate(
+      query,
+      { $set: { originalName: newName } },
+      { new: true }
+    );
+
+    if (!updatedAsset) {
+      return res.status(404).json({ message: "Asset not found" });
+    }
+
+    return res.json({ success: true, message: "Asset renamed successfully", name: updatedAsset.originalName || updatedAsset.fileName });
+  } catch (err) {
+    console.error("Error renaming gallery asset:", err);
+    return res.status(500).json({ message: err.message });
+  }
+});
 
 // @route   POST & DELETE /api/flipbook/delete-asset
 // @desc    Delete an asset from flipbook & Supabase Storage

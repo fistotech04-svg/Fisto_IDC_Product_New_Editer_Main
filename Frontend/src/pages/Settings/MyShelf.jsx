@@ -735,7 +735,13 @@ const MyShelf = () => {
       <div className="flex gap-6 h-[calc(100vh-40px)]  mt[1vw] relative">
         {view === 'shelf' ? (
           /* Outer Scrollable Container */
-          <div className={`flex-1 h-full overflow-x-hidden ${globalRowCount <= 3 ? 'overflow-y-hidden' : 'overflow-y-auto pr-2'}`}>
+          <div className={`relative flex-1 h-full overflow-x-hidden ${globalRowCount <= 3 ? 'overflow-y-hidden' : 'overflow-y-auto pr-2'}`}>
+            {isLoading && (
+              <div className="absolute inset-0 z-50 flex gap-[0.5vw] items-center justify-center bg-white/50 backdrop-blur-sm rounded-xl">
+                 <Icon icon="eos-icons:loading" className="w-8 h-8 text-blue-600" />
+                  <span className="text-[1vw] font-semibold text-gray-700">Shelf Loading...</span>
+                </div>
+            )}
             {/* The White Rounded Box (Grows in height) */}
             <div
               className="w-full rounded-xl bg-white shadow-inner overflow-hidden flex flex-col"
@@ -1000,7 +1006,12 @@ const MyShelf = () => {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {isLoading ? (
-                <div className="col-span-full py-10 flex justify-center text-gray-500">Loading...</div>
+                <div className="col-span-full py-20 flex justify-center items-center">
+                  <div className="flex flex-col items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100">
+                    <Icon icon="eos-icons:loading" className="w-8 h-8 text-blue-600" />
+                    <span className="text-sm font-semibold text-gray-700">Loading Flipbooks...</span>
+                  </div>
+                </div>
               ) : filteredBooks.length === 0 ? (
                 <div className="col-span-full py-10 flex justify-center text-gray-500">No flipbooks found.</div>
               ) : (

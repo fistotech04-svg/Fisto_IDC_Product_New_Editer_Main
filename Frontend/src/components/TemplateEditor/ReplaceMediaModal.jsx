@@ -4,8 +4,10 @@ import { Icon } from '@iconify/react';
 import axios from 'axios';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { checkIsAnimatedWebp } from './editorUtils';
+import { useToast } from '../CustomToast';
 
 const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) => {
+  const toast = useToast();
   const [replaceModalTab, setReplaceModalTab] = useState('Upload');
   const [replaceModalFile, setReplaceModalFile] = useState(null);
   const [galleryAssets, setGalleryAssets] = useState([]);
@@ -13,11 +15,18 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
   const [importUrlError, setImportUrlError] = useState('');
   const [replaceModalFileDim, setReplaceModalFileDim] = useState('');
   const [activeGalleryDropdown, setActiveGalleryDropdown] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
   const fileInputRefUpload = useRef(null);
   const fileInputRefGallery = useRef(null);
   const fileInputRefReplaceItem = useRef(null);
+  const sortDropdownRef = useRef(null);
   const [itemToReplaceId, setItemToReplaceId] = useState(null);
+  const [renamingItemId, setRenamingItemId] = useState(null);
+  const [renameInput, setRenameInput] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   const validateMediaFile = async (file) => {
     if (mediaType === 'video') return file.type.startsWith('video/');
@@ -56,6 +65,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
       alert(`Some files were ignored because they are not valid ${mediaType}s.`);
     }
     if (validFiles.length > 0) {
+      setIsUploading(true);
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -67,7 +77,8 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
           name: newFile.name.replace(/\.[^/.]+$/, ''),
           url: tempUrl,
           isLocal: true,
-          file: newFile
+          file: newFile,
+          uploadedAt: new Date().toISOString()
         };
 
         if (user) {
@@ -88,7 +99,8 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                 url: serverUrl,
                 rawUrl: res.data.url,
                 file_v_id: res.data.file_v_id,
-                isLocal: false
+                isLocal: false,
+                uploadedAt: new Date().toISOString()
               };
             }
           } catch (err) {
@@ -100,6 +112,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
 
       const uploadedNewAssets = await Promise.all(uploadPromises);
       setGalleryAssets(prev => [...uploadedNewAssets, ...prev]);
+      setIsUploading(false);
     }
   };
 
@@ -135,10 +148,11 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
           });
           if (res.data.assets) {
             setGalleryAssets(res.data.assets.map(asset => ({
-              id: asset.name,
-              name: asset.name.replace(/\.[^/.]+$/, ''),
+              id: asset.id || asset.name,
+              name: (asset.name || 'Asset').replace(/\.[^/.]+$/, ''),
               url: resolveUploadsPath(asset.url),
-              rawUrl: asset.url
+              rawUrl: asset.url,
+              uploadedAt: asset.uploadedAt || asset.created_at || new Date().toISOString()
             })));
           }
         } catch (err) {
@@ -148,6 +162,69 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
       fetchAssets();
     }
   }, [show, replaceModalTab, mediaType]);
+
+  const handleRenameSubmit = async (item) => {
+    if (!renameInput.trim() || renameInput === item.name) {
+      setRenamingItemId(null);
+      return;
+    }
+    
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      
+      try {
+        const res = await axios.post(`${backendUrl}/api/flipbook/rename-gallery-asset`, {
+          emailId: user.emailId,
+          file_v_id: item.file_v_id,
+          fileName: item.id || item.name,
+          newName: renameInput.trim()
+        });
+        
+        if (res.data.success) {
+          setGalleryAssets(prev => prev.map(g => g.id === item.id ? { ...g, name: res.data.name } : g));
+          if (replaceModalFile?.id === item.id) {
+            setReplaceModalFile(prev => ({ ...prev, name: res.data.name }));
+          }
+          toast.success("Renamed successfully");
+        }
+      } catch (err) {
+        console.error('Failed to rename asset:', err);
+        toast.error("Failed to rename asset");
+      }
+    }
+    setRenamingItemId(null);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target)) {
+        setIsSortDropdownOpen(false);
+      }
+    };
+    if (isSortDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isSortDropdownOpen]);
+
+  const filteredAssets = React.useMemo(() => {
+    let result = [...galleryAssets];
+    
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      result = result.filter(asset => asset.name.toLowerCase().includes(lowerQuery));
+    }
+    
+    result.sort((a, b) => {
+      const timeA = new Date(a.uploadedAt || 0).getTime();
+      const timeB = new Date(b.uploadedAt || 0).getTime();
+      return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+    });
+    
+    return result;
+  }, [galleryAssets, searchQuery, sortOrder]);
 
   if (!show) return null;
 
@@ -187,8 +264,18 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[2vw]" onClick={onClose}>
-      <div className="bg-white rounded-[0.8vw] w-[400px] shadow-xl flex flex-col font-sans relative" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[2vw]" onClick={(e) => {
+        if (!e.target.closest('.rename-input')) {
+          setRenamingItemId(null);
+        }
+        onClose();
+      }}>
+      <div className="bg-white rounded-[0.8vw] w-[400px] shadow-xl flex flex-col font-sans relative" onClick={(e) => {
+        e.stopPropagation();
+        if (!e.target.closest('.rename-input')) {
+          setRenamingItemId(null);
+        }
+      }}>
         {/* Header */}
         <div className="flex items-center justify-between p-[1.5vw] pb-[0.5vw]">
           <h2 className="text-[1.1vw] font-bold text-gray-900 mr-[1vw]">
@@ -286,28 +373,76 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
           {replaceModalTab === (mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery') && (
             <div className="flex flex-col flex-1 min-h-0" onClick={() => setActiveGalleryDropdown(null)}>
               {/* Toolbar */}
-              <div className="flex items-center justify-between mt-[1vw] mb-[1vw] shrink-0">
-                <h3 className="text-[0.85vw] font-semibold text-gray-800">{mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery'}</h3>
-                <div className="bg-[#4D47FF] hover:bg-[#3D38CC] rounded-[0.4vw] p-[0.15vw] shadow-sm transition-colors cursor-pointer inline-block">
-                  <div 
-                    className="flex items-center justify-center gap-[0.5vw] cursor-pointer text-white px-[0.85vw] py-[0.25vw] rounded-[0.3vw] border-[1.5px] border-dashed border-white"
-                    onClick={() => fileInputRefGallery.current?.click()}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (e.dataTransfer.files?.length) {
-                        handleGalleryFiles(Array.from(e.dataTransfer.files));
-                      }
-                    }}
-                  >
-                    <Icon icon="lucide:upload" className="w-[1vw] h-[1vw] stroke-[2]" />
-                    <span className="text-[0.85vw] font-medium">Browse Files</span>
-                    <input type="file" ref={fileInputRefGallery} className="hidden" accept={mediaType === 'video' ? 'video/mp4' : 'image/*'} multiple onChange={e => {
-                      if (e.target.files?.length) {
-                        handleGalleryFiles(Array.from(e.target.files));
-                      }
-                    }} onClick={(e) => { e.target.value = null; }} />
+              <div className="flex flex-col gap-[0.75vw] mt-[1vw] mb-[1vw] shrink-0">
+                {/* Search and Sort Row */}
+                <div className="flex items-center justify-between gap-[0.5vw]">
+                  {/* Search */}
+                  <div className="flex-1 relative">
+                    <Icon icon="lucide:search" className="absolute left-[0.5vw] top-1/2 -translate-y-1/2 w-[0.8vw] h-[0.8vw] text-gray-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search media..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-[1.8vw] pr-[0.5vw] py-[0.3vw] text-[0.75vw] border border-gray-200 rounded-[0.5vw] outline-none focus:border-[#4D47FF]"
+                    />
+                  </div>
+                  {/* Sort Dropdown */}
+                  <div className="relative inline-block cursor-pointer shrink-0" ref={sortDropdownRef}>
+                    <div 
+                      className="flex items-center justify-between gap-[0.3vw] w-[6.5vw] bg-white border border-gray-200 rounded-[0.4vw] px-[0.55vw] py-[0.3vw] shadow-sm hover:bg-gray-50 transition-colors"
+                      onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                    >
+                      <Icon icon="lucide:arrow-up-down" className="w-[0.75vw] h-[0.75vw] text-gray-500" />
+                      <span className="text-[0.7vw] font-medium ml-[-0.8vw] text-gray-700 truncate flex-1 text-center">{sortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
+                      <Icon icon="lucide:chevron-down" className="w-[0.75vw] h-[0.75vw] text-gray-500 shrink-0" />
+                    </div>
+                    
+                    {isSortDropdownOpen && (
+                      <div className="absolute top-full right-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 overflow-hidden">
+                        {['Newest', 'Oldest'].map(option => (
+                          <div 
+                            key={option}
+                            className={`px-[0.55vw] py-[0.45vw] text-[0.7vw] font-medium cursor-pointer transition-colors ${
+                              (sortOrder === 'desc' && option === 'Newest') || (sortOrder === 'asc' && option === 'Oldest') 
+                                ? 'bg-[#F3F4F6] text-gray-900' : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                            onClick={() => {
+                              setSortOrder(option === 'Newest' ? 'desc' : 'asc');
+                              setIsSortDropdownOpen(false);
+                            }}
+                          >
+                            {option}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[0.85vw] font-semibold text-gray-800">{mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery'}</h3>
+                  <div className="bg-[#4D47FF] hover:bg-[#3D38CC] rounded-[0.4vw] p-[0.15vw] shadow-sm transition-colors cursor-pointer inline-block">
+                    <div 
+                      className="flex items-center justify-center gap-[0.5vw] cursor-pointer text-white px-[0.85vw] py-[0.25vw] rounded-[0.3vw] border-[1.5px] border-dashed border-white"
+                      onClick={() => fileInputRefGallery.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (e.dataTransfer.files?.length) {
+                          handleGalleryFiles(Array.from(e.dataTransfer.files));
+                        }
+                      }}
+                    >
+                      <Icon icon="lucide:upload" className="w-[1vw] h-[1vw] stroke-[2]" />
+                      <span className="text-[0.85vw] font-medium">Browse Files</span>
+                      <input type="file" ref={fileInputRefGallery} className="hidden" accept={mediaType === 'video' ? 'video/mp4' : 'image/*'} multiple onChange={e => {
+                        if (e.target.files?.length) {
+                          handleGalleryFiles(Array.from(e.target.files));
+                        }
+                      }} onClick={(e) => { e.target.value = null; }} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -371,12 +506,23 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
 
               {/* Grid */}
               <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pr-[0.5vw] will-change-scroll" onClick={() => setReplaceModalFile(null)}>
-                <div className="grid grid-cols-4 gap-[1vw]">
-                {galleryAssets.length > 0 ? galleryAssets.map((item, idx) => (
+                {isUploading ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-[0.5vw]">
+                    <Icon icon="lucide:loader-2" className="w-[2vw] h-[2vw] animate-spin text-[#4D47FF]" />
+                    <span className="text-[0.8vw] font-medium">Uploading media...</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-[1vw]">
+                {filteredAssets.length > 0 ? filteredAssets.map((item, idx) => (
                   <div key={item.id || idx} className="flex flex-col gap-[0.4vw] relative">
                     <div 
                       className={`group cursor-pointer w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${replaceModalFile?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}
-                      onClick={(e) => { e.stopPropagation(); replaceModalFile?.id === item.id ? setReplaceModalFile(null) : setReplaceModalFile({ ...item, isGalleryItem: true }); setActiveGalleryDropdown(null); }}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (renamingItemId === item.id) return;
+                        replaceModalFile?.id === item.id ? setReplaceModalFile(null) : setReplaceModalFile({ ...item, isGalleryItem: true }); 
+                        setActiveGalleryDropdown(null); 
+                      }}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         const selectedItem = { ...item, isGalleryItem: true };
@@ -405,7 +551,18 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
 
                     {/* Dropdown Menu */}
                     {activeGalleryDropdown === item.id && (
-                      <div className={`absolute top-[1.5vw] ${idx % 4 < 2 ? 'left-0' : 'right-0'} bg-white rounded-[0.3vw] shadow-lg border border-gray-200 py-[0.2vw] w-[6.5vw] z-20 flex flex-col overflow-hidden`}>
+                      <div className={`absolute top-[1.5vw] ${idx % 4 < 2 ? 'left-0' : 'right-0'} bg-white rounded-[0.3vw] shadow-lg border border-gray-200 py-[0.2vw] w-[6vw] z-20 flex flex-col overflow-hidden`}>
+                        <button 
+                          className="text-[0.7vw] font-medium text-gray-700 hover:bg-gray-50 text-left px-[0.5vw] py-[0.3vw]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingItemId(item.id);
+                            setRenameInput(item.name);
+                            setActiveGalleryDropdown(null);
+                          }}
+                        >
+                          Rename
+                        </button>
                         <button 
                           className="text-[0.7vw] font-medium text-gray-700 hover:bg-gray-50 text-left px-[0.5vw] py-[0.3vw]"
                           onClick={(e) => {
@@ -432,8 +589,10 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                                   fileName: item.id || item.name,
                                   file_v_id: item.file_v_id
                                 });
+                                toast.error("Deleted successfully");
                               } catch (err) {
                                 console.error('Failed to delete gallery asset:', err);
+                                toast.error("Failed to delete asset");
                               }
                             }
                             setGalleryAssets(prev => prev.filter(g => g.id !== item.id));
@@ -447,7 +606,28 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                         </button>
                       </div>
                     )}
-                    <span className="text-center text-[0.7vw] font-medium text-gray-500 truncate w-full px-[0.2vw]">{item.name}</span>
+                    
+                    {renamingItemId === item.id ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={renameInput}
+                        onChange={(e) => setRenameInput(e.target.value)}
+                        onBlur={() => handleRenameSubmit(item)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleRenameSubmit(item);
+                          } else if (e.key === 'Escape') {
+                            setRenamingItemId(null);
+                          }
+                        }}
+                        className="rename-input text-center text-[0.7vw] font-medium text-gray-900 border border-[#4D47FF] rounded-[0.2vw] px-[0.2vw] py-0 outline-none w-full"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className="text-center text-[0.7vw] font-medium text-gray-500 truncate w-full px-[0.2vw]">{item.name}</span>
+                    )}
                   </div>
                 )) : (
                   <div className="col-span-4 flex items-center justify-center text-center text-gray-400 py-[2vw] text-[0.8vw]">
@@ -455,6 +635,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                   </div>
                 )}
                 </div>
+                )}
               </div>
             </div>
           )}

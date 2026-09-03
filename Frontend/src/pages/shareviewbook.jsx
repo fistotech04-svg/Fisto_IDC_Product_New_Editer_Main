@@ -635,7 +635,7 @@ const ShareViewBook = () => {
 
                 if (processedData.pages) {
                     let imageUrls = [];
-                    processedData.pages = processedData.pages.map(p => {
+                    processedData.pages = processedData.pages.filter(p => String(p.hide) !== '1' && p.isHidden !== true && String(p.isHidden) !== 'true').map(p => {
                         let html = p.html || p.content || '';
 
                         // Fix nullassets paths
@@ -745,7 +745,7 @@ const ShareViewBook = () => {
                 if (errData.pages || errData.bookName) {
                     setBookData({
                         flipbookName: errData.bookName || 'Protected Flipbook',
-                        pages: errData.pages || [],
+                        pages: (errData.pages || []).filter(p => String(p.hide) !== '1' && p.isHidden !== true && String(p.isHidden) !== 'true'),
                         meta: errData.meta || {},
                         Customized_Settings: errData.Customized_Settings || {}
                     });
@@ -828,7 +828,7 @@ const ShareViewBook = () => {
             }
             if (processedData.pages) {
                 const bUrl = processedData.meta?.baseUrl ? resolveUploadsPath(processedData.meta.baseUrl) : '';
-                processedData.pages = processedData.pages.map(p => {
+                processedData.pages = processedData.pages.filter(p => String(p.hide) !== '1' && p.isHidden !== true && String(p.isHidden) !== 'true').map(p => {
                     let html = p.html || p.content || '';
                     if (html.includes('nullassets/') && bUrl) html = html.split('nullassets/').join(`${bUrl}assets/`);
                     if (html.includes('./assets/') && bUrl) html = html.split('./assets/').join(`${bUrl}assets/`);
