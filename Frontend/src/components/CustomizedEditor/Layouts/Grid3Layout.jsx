@@ -4,7 +4,7 @@ import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from
 
 
 
-const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
+const PageThumbnail = React.memo(({ html, index, scale = 0.15, baseWidth = 400, baseHeight = 566 }) => {
     // Optimization: Strip malicious/heavy scripts
     const cleanHtml = (html || '')
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
@@ -23,8 +23,8 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                         padding: 0; 
                         overflow: hidden; 
                         background: white; 
-                        width: 400px; 
-                        height: 566px; 
+                        width: ${baseWidth}px; 
+                        height: ${baseHeight}px; 
                         position: relative;
                     }
                     * { box-sizing: border-box; }
@@ -33,7 +33,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                 </style>
             </head>
             <body>
-                 <div style="width: 400px; height: 566px; overflow: hidden; position: relative; background: white;">
+                 <div style="width: ${baseWidth}px; height: ${baseHeight}px; overflow: hidden; position: relative; background: white;">
                     ${cleanHtml}
                 </div>
             </body>
@@ -41,20 +41,20 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     `;
 
     return (
-        <div className="w-full h-full relative overflow-hidden bg-white flex items-center justify-center">
-            <iframe
-                className="border-none pointer-events-none"
-                srcDoc={srcDoc}
-                title={`Thumb ${index}`}
-                loading="lazy"
-                style={{
-                    width: '400px',
-                    height: '566px',
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'center center',
-                    backgroundColor: 'white'
-                }}
-            />
+        <div className="w-full h-full relative overflow-hidden bg-white">
+            <div className="absolute left-1/2 top-1/2" style={{ transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center center' }}>
+                <iframe
+                    className="border-none pointer-events-none"
+                    srcDoc={srcDoc}
+                    title={`Thumb ${index}`}
+                    loading="lazy"
+                    style={{
+                        width: `${baseWidth}px`,
+                        height: `${baseHeight}px`,
+                        backgroundColor: 'white'
+                    }}
+                />
+            </div>
         </div>
     );
 });
@@ -1152,8 +1152,8 @@ const Grid3Layout = ({
                                                 <div className="flex gap-[1px] bg-gray-200">
                                                     {progressHover.spread.pages.map((page, pIdx) => {
                                                         const boxHeight = isTablet ? 45 : 85;
-                                                        const scale = boxHeight / 566;
-                                                        const boxWidth = 400 * scale;
+                                                        const scale = boxHeight / dimHeight;
+                                                        const boxWidth = dimWidth * scale;
                                                         return (
                                                             <div
                                                                 key={`${progressHover.spread.indices[0]}-${pIdx}`}
@@ -1164,6 +1164,8 @@ const Grid3Layout = ({
                                                                     html={page.html || page.content}
                                                                     index={progressHover.spread.indices[pIdx]}
                                                                     scale={scale}
+                                                                    baseWidth={dimWidth}
+                                                                    baseHeight={dimHeight}
                                                                 />
                                                             </div>
                                                         );
@@ -1180,19 +1182,38 @@ const Grid3Layout = ({
                 </div>
 
                 {/* In-Layout Thumbnails Bar overlay matching the exact Layout 3 spec */}
-                {showThumbnails && (
-                    <>
-                        <div className="absolute inset-0 z-[100] bg-transparent" onClick={() => setShowThumbnails(false)} />
-                        <div
-                            className={`absolute z-[150] flex items-center pointer-events-auto transition-all ${isTablet ? 'top-[calc(6.5vh+0.4vw)] h-[4.5vw]' : 'top-[calc(7.5vh+0.4vw)] h-[6.5vw]'} left-1/2 -translate-x-1/2 rounded-[0.5vw] shadow-[0_0.2vw_1vw_rgba(0,0,0,0.15)] px-[0.4vw]`}
-                            style={{
-                                width: 'fit-content',
-                                maxWidth: isTablet ? '31vw' : '45.7vw',
-                                backgroundColor: getLayoutColor('dropdown-bg', '#575C9C')
-                            }}
+                {showThumbnails && (() => {
+                    let maxItems = 4;
+                    let actualMaxItems = Math.min(maxItems, spreads.length);
+                    let availableHeightVw = isTablet ? 2.5 : 4;
+                    let pageRatio = dimWidth / dimHeight;
+                    let singlePageWidthVw = availableHeightVw * pageRatio;
+                    let onePixelVw = typeof window !== 'undefined' ? 100 / window.innerWidth : 0.05;
+                    let doublePageInnerWidthVw = singlePageWidthVw * 2 + onePixelVw;
+                    let thumbnailPaddingVw = isTablet ? 0.3 : 0.6; // p-[0.15vw] is 0.15*2, p-[0.3vw] is 0.3*2
+                    let thumbnailOuterWidthVw = doublePageInnerWidthVw + thumbnailPaddingVw;
+                    
+                    let totalItemsWidthVw = actualMaxItems * thumbnailOuterWidthVw;
+                    let gapWidthVw = isTablet ? 0.5 : 0.8;
+                    let totalGapsVw = actualMaxItems > 1 ? (actualMaxItems - 1) * gapWidthVw : 0;
+                    let scrollPaddingVw = isTablet ? 1.4 : 2.0; // px-[0.7vw] or px-[1vw]
+                    let buttonsVw = spreads.length > maxItems ? (isTablet ? 2.6 : 3.2) : 0; // left and right buttons
+                    
+                    let dynamicMaxWidthVw = totalItemsWidthVw + totalGapsVw + scrollPaddingVw + buttonsVw + 1.5; // 1.5vw buffer for borders/rounding
+                    
+                    return (
+                        <>
+                            <div className="absolute inset-0 z-[100] bg-transparent" onClick={() => setShowThumbnails(false)} />
+                            <div
+                                className={`absolute z-[150] flex items-center pointer-events-auto transition-all ${isTablet ? 'top-[calc(6.5vh+0.4vw)] h-[4.5vw]' : 'top-[calc(7.5vh+0.4vw)] h-[6.5vw]'} left-1/2 -translate-x-1/2 rounded-[0.5vw] shadow-[0_0.2vw_1vw_rgba(0,0,0,0.15)] px-[0.4vw]`}
+                                style={{
+                                    width: 'fit-content',
+                                    maxWidth: `${dynamicMaxWidthVw}vw`,
+                                    backgroundColor: getLayoutColor('dropdown-bg', '#575C9C')
+                                }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {spreads.length > 6 && (
+                            {spreads.length > maxItems && (
                                 <button
                                     className={`${isTablet ? 'w-[1.3vw] h-[2.6vw]' : 'w-[1.6vw] h-[3.2vw]'} rounded-[0.3vw] ${canScrollLeft ? 'hover:opacity-80 cursor-pointer' : 'opacity-30 cursor-default'} flex items-center justify-center transition-all shrink-0 z-20`}
                                     style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
@@ -1205,14 +1226,20 @@ const Grid3Layout = ({
                             <div
                                 ref={scrollRef}
                                 onScroll={checkScroll}
-                                className={`flex w-full ${spreads.length > 6 ? 'overflow-x-auto justify-start' : 'overflow-x-hidden justify-center'} no-scrollbar scroll-smooth items-center h-full ${isTablet ? 'gap-[0.5vw] px-[0.7vw]' : 'gap-[0.8vw] px-[1vw]'}`}
+                                className={`flex w-full ${spreads.length > maxItems ? 'overflow-x-auto justify-start' : 'overflow-x-hidden justify-center'} no-scrollbar scroll-smooth items-center h-full ${isTablet ? 'gap-[0.5vw] px-[0.7vw]' : 'gap-[0.8vw] px-[1vw]'}`}
                             >
                                 {spreads.map((spread, idx) => {
                                     const isSelected = spread.indices.includes(currentPage);
+                                    const vwToPx = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
+                                    const availableHeight = (isTablet ? 2.5 : 4) * vwToPx;
+                                    const singlePageWidth = availableHeight * (dimWidth / dimHeight);
+                                    const doublePageInnerWidth = singlePageWidth * 2 + 1;
+                                    const thumbScale = availableHeight / dimHeight;
+
                                     return (
-                                        <div className={`thumbnail-item relative flex flex-col items-center shrink-0 cursor-pointer rounded-[0.3vw] ${isTablet ? 'p-[0.15vw]' : 'p-[0.3vw]'} border-[0.12vw] transition-all gap-[0.1vw]`}
+                                        <div key={idx} className={`thumbnail-item relative flex flex-col items-center shrink-0 cursor-pointer rounded-[0.3vw] ${isTablet ? 'p-[0.15vw]' : 'p-[0.3vw]'} border-[0.12vw] transition-all gap-[0.1vw]`}
                                             style={{
-                                                width: isTablet ? '4.2vw' : '6vw',
+                                                width: 'fit-content',
                                                 borderColor: isSelected ? getLayoutColor('dropdown-text', '#FFFFFF') : 'transparent',
                                                 backgroundColor: isSelected ? getLayoutColor('dropdown-text', '#FFFFFF') : 'transparent'
                                             }}
@@ -1220,21 +1247,18 @@ const Grid3Layout = ({
                                                 onPageClick(spread.indices[0]);
                                             }}
                                         >
-                                            <div className={`flex w-full bg-gray-200 gap-[1px] ${isTablet ? 'h-[2.5vw]' : 'h-[4vw]'} overflow-hidden rounded-[0.15vw] justify-center shadow-sm`}>
+                                            <div className={`flex gap-[1px] ${isTablet ? 'h-[2.5vw]' : 'h-[4vw]'} overflow-hidden rounded-[0.15vw] justify-center shadow-sm`}
+                                                style={{ width: `${doublePageInnerWidth}px`, backgroundColor: 'transparent' }}
+                                            >
                                                 {spread.pages.map((page, pIdx) => {
-                                                    const pageWidth = 400;
-                                                    const pageHeight = 566;
-                                                    const availableWidth = 84 / 2; // Fixed division to ensure consistent scale
-                                                    const availableHeight = 64;
-                                                    const scaleX = (availableWidth - 2) / pageWidth;
-                                                    const scaleY = (availableHeight - 2) / pageHeight;
-                                                    const thumbScale = Math.min(scaleX, scaleY);
                                                     return (
-                                                        <div key={`${idx}-${pIdx}`} className="flex-1 max-w-[50%] bg-white overflow-hidden relative flex items-center justify-center">
+                                                        <div key={`${idx}-${pIdx}`} className="bg-white overflow-hidden relative flex items-center justify-center" style={{ width: `${singlePageWidth}px`, flexShrink: 0 }}>
                                                             <PageThumbnail
                                                                 html={page.html || page.content}
                                                                 index={spread.indices[pIdx]}
                                                                 scale={thumbScale}
+                                                                baseWidth={dimWidth}
+                                                                baseHeight={dimHeight}
                                                             />
                                                         </div>
                                                     );
@@ -1248,7 +1272,7 @@ const Grid3Layout = ({
                                     );
                                 })}
                             </div>
-                            {spreads.length > 6 && (
+                            {spreads.length > maxItems && (
                                 <button
                                     className={`${isTablet ? 'w-[1.3vw] h-[2.6vw]' : 'w-[1.6vw] h-[3.2vw]'} rounded-[0.3vw] ${canScrollRight ? 'hover:opacity-80 cursor-pointer' : 'opacity-30 cursor-default'} flex items-center justify-center transition-all shrink-0 z-20`}
                                     style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
@@ -1259,7 +1283,7 @@ const Grid3Layout = ({
                             )}
                         </div>
                     </>
-                )}
+                ); })()}
 
 
 

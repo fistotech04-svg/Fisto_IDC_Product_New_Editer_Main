@@ -542,6 +542,14 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                           variant="secondary"
                         />
                       </div>
+                      <div className="flex items-center justify-between mt-[0.85vw]">
+                        <span className="text-[0.75vw] font-semibold text-gray-700">Read TOC with Male Voice</span>
+                        <Switch
+                          enabled={Boolean(activeTocSettings.useMaleVoice)}
+                          onChange={(val) => updateRootSetting('tocSettings', 'useMaleVoice', val)}
+                          variant="secondary"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-[0.8vw] mb-[1.2vw] pr-[0.4vw]">

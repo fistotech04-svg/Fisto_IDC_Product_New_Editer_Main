@@ -962,6 +962,7 @@ const TemplateEditor = () => {
         const payloadPages = pagesToSave.map((p, index) => ({
           pageName: p.name || `Page ${index + 1}`,
           content: undefined,
+          hide: p.isHidden ? 1 : 0,
           v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
         }));
 
@@ -1030,6 +1031,7 @@ const TemplateEditor = () => {
             pageName: p.name || `Page ${index + 1}`,
             content,
             contentChunkId,
+            hide: p.isHidden ? 1 : 0,
             v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
           };
         }));
@@ -2012,6 +2014,23 @@ const TemplateEditor = () => {
     setHasUnsavedChanges(true);
   };
 
+  const togglePageVisibility = (index) => {
+    saveToHistory();
+    setPages(prev => {
+      const updated = [...prev];
+      const newHiddenState = !updated[index].isHidden;
+      updated[index] = { ...updated[index], isHidden: newHiddenState };
+      
+      if (newHiddenState && index === activePageIndex) {
+        setSelectedLayerId(null);
+        setMultiSelectedIds(new Set());
+      }
+      
+      return updated;
+    });
+    setHasUnsavedChanges(true);
+  };
+
   const deletePage = (index) => {
     if (pages.length <= 1) {
       setAlertState({
@@ -2168,7 +2187,8 @@ const TemplateEditor = () => {
           updatedPage.layers = parseLayersFromSVG(doc.documentElement);
         } else {
           const pageName = updatedPage.name || "Replaced Page";
-          const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight);
+          const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+          const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, isPdfProject);
           const parser = new DOMParser();
           const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
           updatedPage.html = absoluteHtml;
@@ -2182,9 +2202,10 @@ const TemplateEditor = () => {
 
       setHasUnsavedChanges(true);
 
-      setTimeout(() => {
-        saveFlipbook(false, newPages);
-      }, 800);
+      // Removed auto-save after file replacement as requested
+      // setTimeout(() => {
+      //   saveFlipbook(false, newPages);
+      // }, 800);
 
     } catch (error) {
       console.error("Error replacing file:", error);
@@ -2309,13 +2330,18 @@ const TemplateEditor = () => {
 
         const existingNames = pages.map(p => p.name || "");
         const pdfNums = existingNames
-          .filter(n => n.startsWith("PDF Page "))
-          .map(n => parseInt(n.replace("PDF Page ", "")))
+          .filter(n => n.startsWith("PDF Page ") || n.startsWith("Page "))
+          .map(n => parseInt(n.replace(/^(PDF )?Page /, "")))
           .filter(n => !isNaN(n));
         const startNum = pdfNums.length > 0 ? Math.max(...pdfNums) + 1 : 1;
 
-        const pageName = `PDF Page ${startNum + i}`;
-        const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight);
+        const isPdfProjectCurrent = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+        const isDefaultBlankCurrent = !isPdfProjectCurrent && (pages.length === 0 ||
+          (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
+        const shouldBePdfBg = isDefaultBlankCurrent || isPdfProjectCurrent;
+
+        const pageName = shouldBePdfBg ? `PDF Page ${startNum + i}` : `Page ${startNum + i}`;
+        const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, shouldBePdfBg);
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
@@ -2350,10 +2376,10 @@ const TemplateEditor = () => {
       });
       setHasUnsavedChanges(true);
 
-      // Force an auto-save after successful PDF insertion, passing the new pages directly
-      setTimeout(() => {
-        saveFlipbook(false, finalPages);
-      }, 800);
+      // Removed auto-save after PDF insertion as requested
+      // setTimeout(() => {
+      //   saveFlipbook(false, finalPages);
+      // }, 800);
 
     } catch (error) {
       console.error("PDF upload error:", error);
@@ -3317,6 +3343,7 @@ const TemplateEditor = () => {
     if (clipboardItems.length > 0) {
       setClipboard(clipboardItems);
     }
+    return clipboardItems;
   };
 
   const cutLayer = (pageIndex, ids) => {
@@ -3324,8 +3351,8 @@ const TemplateEditor = () => {
     deleteLayer(pageIndex, ids);
   };
 
-  const pasteLayer = (pageIndex) => {
-    if (!clipboard || !Array.isArray(clipboard)) return;
+  const pasteLayer = (pageIndex, itemsToPaste = clipboard) => {
+    if (!itemsToPaste || !Array.isArray(itemsToPaste)) return;
     saveToHistory();
 
     const prepareLayer = (l) => {
@@ -3337,7 +3364,7 @@ const TemplateEditor = () => {
       };
     };
 
-    const newItems = clipboard.map(item => ({
+    const newItems = itemsToPaste.map(item => ({
       ...item,
       newLayer: prepareLayer(item.layer)
     }));
@@ -3513,6 +3540,13 @@ const TemplateEditor = () => {
       // Clear the guard after the selection has been safely applied
       setTimeout(() => { skipPasteResetRef.current = false; }, 50);
     }, 50);
+  };
+
+  const duplicateLayer = (pageIndex, ids) => {
+    const items = copyLayer(pageIndex, ids);
+    if (items && items.length > 0) {
+      pasteLayer(pageIndex, items);
+    }
   };
 
   // ── KEYBOARD SHORTCUTS (Cut, Copy, Paste) ──────────────────────────────────
@@ -4262,6 +4296,7 @@ const TemplateEditor = () => {
                 id: p.v_id || i + 1,
                 v_id: p.v_id,
                 name: name,
+                isHidden: p.hide == 1 || String(p.hide) === '1',
                 html: updatedHtml,
                 layers: layers
               };
@@ -4482,6 +4517,7 @@ const TemplateEditor = () => {
           movePageToLast={movePageToLast}
           movePage={movePage}
           clearPage={clearPage}
+          togglePageVisibility={togglePageVisibility}
           onOpenTemplateModal={handleOpenTemplateModal}
           toggleLayerVisibility={toggleLayerVisibility}
           toggleLayerLock={toggleLayerLock}
@@ -4494,6 +4530,7 @@ const TemplateEditor = () => {
           copyLayer={copyLayer}
           cutLayer={cutLayer}
           pasteLayer={pasteLayer}
+          duplicateLayer={duplicateLayer}
           selectedLayerId={selectedLayerId}
           setSelectedLayerId={setSelectedLayerId}
           multiSelectedIds={multiSelectedIds}
@@ -4653,7 +4690,7 @@ const TemplateEditor = () => {
 
       {showPreview && (
         <FlipbookPreview
-          pages={pages.map(p => ({ ...p, content: p.html || '' }))}
+          pages={pages.filter(p => !p.isHidden).map(p => ({ ...p, content: p.html || '' }))}
           pageName={currentBook?.flipbookName || 'Preview'}
           onClose={() => setShowPreview(false)}
           isMobile={false}

@@ -81,7 +81,14 @@ const CustomizedEditor = () => {
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [pages, setPages] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
-  const [targetPage, setTargetPage] = useState(0);
+  const [devicePages, setDevicePages] = useState({ Desktop: 0, Tablet: 0, Mobile: 0 });
+  const targetPage = devicePages[activeDevice || 'Desktop'] || 0;
+  const setTargetPage = useCallback((pageNum) => {
+    setDevicePages(prev => ({
+      ...prev,
+      [activeDevice || 'Desktop']: pageNum
+    }));
+  }, [activeDevice]);
   const [projectBaseUrl, setProjectBaseUrl] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -367,7 +374,7 @@ const CustomizedEditor = () => {
   const [menuBarSettings, setMenuBarSettings] = useState({
     navigation: {
       nextPrevButtons: true,
-      mouseWheel: true,
+      mouseWheel: false,
       dragToTurn: true,
       pageQuickAccess: true,
       tableOfContents: true,
@@ -1263,7 +1270,8 @@ const CustomizedEditor = () => {
               id: p.id || i,
               name: p.name || `Page ${i + 1}`,
               html: p.html || p.content || '',
-              content: p.html || p.content || ''
+              content: p.html || p.content || '',
+              isHidden: p.isHidden || p.hide === 1
             })));
             if (data.pageName && (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book')) {
               setBookName(data.pageName);
@@ -1360,7 +1368,8 @@ const CustomizedEditor = () => {
                     id: p.id || i,
                     content: rawHTML,
                     name: p.name || `Page ${i + 1}`,
-                    html: rawHTML
+                    html: rawHTML,
+                    isHidden: p.hide === 1 || p.isHidden
                   };
                 }));
                 setPages(mappedPages);
@@ -1779,7 +1788,7 @@ const CustomizedEditor = () => {
             setActiveSubView={setActiveSubView}
             isPanelCollapsed={isPanelCollapsed}
             setIsPanelCollapsed={setIsPanelCollapsed}
-            pageCount={pages.length}
+            pageCount={pages.filter(p => !p.isHidden).length}
             visibilitySettings={visibilitySettings}
             onUpdateVisibility={setVisibilitySettings}
             onPreview={stablePreviewHandler}
@@ -1880,7 +1889,7 @@ const CustomizedEditor = () => {
           )}
           <PreviewArea
             bookName={bookName}
-            pages={pages}
+            pages={pages.filter(p => !p.isHidden)}
             targetPage={targetPage}
             logoSettings={logoSettings}
             watermarkSettings={watermarkSettings}

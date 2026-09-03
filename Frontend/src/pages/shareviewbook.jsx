@@ -6,6 +6,7 @@ import { LAYOUT_DEFAULT_COLORS } from '../components/CustomizedEditor/Layout';
 import { Icon } from '@iconify/react';
 import { Ghost, ArrowLeft, Home, BookOpen, Clock, X, Star, Info, BookMarked, LogOut, Search, MapPin } from 'lucide-react';
 import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
+import { useToast } from '../components/CustomToast';
 
 const AVATAR_COLORS = [
     '#4F46E5', // Indigo
@@ -99,6 +100,7 @@ const ShareViewBook = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [bookData, setBookData] = useState(null);
+    const toast = useToast();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [retryAttempt, setRetryAttempt] = useState(0);
@@ -144,6 +146,53 @@ const ShareViewBook = () => {
 
     // View Count State
     const [viewsCount, setViewsCount] = useState(0);
+
+    const [isAddedToShelf, setIsAddedToShelf] = useState(false);
+
+    useEffect(() => {
+        if (!currentUserEmail || !bookData) return;
+        const checkShelf = async () => {
+            try {
+                const backendUrl = getBackendUrl();
+                const res = await axios.get(`${backendUrl}/api/profile/my-shelf-books?emailId=${encodeURIComponent(currentUserEmail)}`);
+                if (res.data && res.data.books) {
+                    const shelfIds = res.data.books.map(b => b.v_id);
+                    if (shelfIds.includes(bookData.v_id || shareId)) {
+                        setIsAddedToShelf(true);
+                    }
+                }
+            } catch (err) {
+                console.error("Error checking shelf:", err);
+            }
+        };
+        checkShelf();
+    }, [currentUserEmail, bookData, shareId]);
+
+    const handleShelfToggle = async () => {
+        if (!isAddedToShelf) {
+            setIsRatingsOpen(false);
+            setIsAddToShelfOpen(true);
+            return;
+        }
+        
+        // Remove from shelf
+        try {
+            const backendUrl = getBackendUrl();
+            const res = await axios.post(`${backendUrl}/api/profile/remove-from-shelf`, {
+                emailId: currentUserEmail,
+                bookId: bookData?.v_id || shareId
+            });
+            if (res.data?.success) {
+                toast.success("Book removed from your shelf.");
+                setIsAddedToShelf(false);
+            } else {
+                toast.error(res.data?.message || "Failed to remove book from shelf.");
+            }
+        } catch (err) {
+            console.error("Failed to remove from shelf:", err);
+            toast.error(err.response?.data?.message || "Failed to remove book from shelf.");
+        }
+    };
 
     // Auto-populate user name from localStorage
     useEffect(() => {
@@ -588,7 +637,7 @@ const ShareViewBook = () => {
 
                 if (processedData.pages) {
                     let imageUrls = [];
-                    processedData.pages = processedData.pages.map(p => {
+                    processedData.pages = processedData.pages.filter(p => String(p.hide) !== '1' && p.isHidden !== true && String(p.isHidden) !== 'true').map(p => {
                         let html = p.html || p.content || '';
 
                         // Fix nullassets paths
@@ -698,7 +747,7 @@ const ShareViewBook = () => {
                 if (errData.pages || errData.bookName) {
                     setBookData({
                         flipbookName: errData.bookName || 'Protected Flipbook',
-                        pages: errData.pages || [],
+                        pages: (errData.pages || []).filter(p => String(p.hide) !== '1' && p.isHidden !== true && String(p.isHidden) !== 'true'),
                         meta: errData.meta || {},
                         Customized_Settings: errData.Customized_Settings || {}
                     });
@@ -781,7 +830,7 @@ const ShareViewBook = () => {
             }
             if (processedData.pages) {
                 const bUrl = processedData.meta?.baseUrl ? resolveUploadsPath(processedData.meta.baseUrl) : '';
-                processedData.pages = processedData.pages.map(p => {
+                processedData.pages = processedData.pages.filter(p => String(p.hide) !== '1' && p.isHidden !== true && String(p.isHidden) !== 'true').map(p => {
                     let html = p.html || p.content || '';
                     if (html.includes('nullassets/') && bUrl) html = html.split('nullassets/').join(`${bUrl}assets/`);
                     if (html.includes('./assets/') && bUrl) html = html.split('./assets/').join(`${bUrl}assets/`);
@@ -1181,9 +1230,15 @@ const ShareViewBook = () => {
                         </div>
                     </button>
                     <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => { setIsRatingsOpen(false); setIsAddToShelfOpen(true); }} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
-                        <Icon icon="ri:book-shelf-line" className="w-[1.2vw] h-[1.2vw] text-[#2F296D] group-hover:scale-110 transition-transform" />
-                        <span className="text-[0.7vw] font-medium text-[#2F296D] text-center leading-tight">Add to<br />Shelf</span>
+                    <button onMouseDown={e => e.stopPropagation()} onClick={handleShelfToggle} className="flex flex-col items-center gap-[0.2vw] hover:bg-slate-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full">
+                        {isAddedToShelf ? (
+                            <Icon icon="lucide:check-circle" className="w-[1.2vw] h-[1.2vw] text-green-500" />
+                        ) : (
+                            <Icon icon="ri:book-shelf-line" className="w-[1.2vw] h-[1.2vw] text-[#2F296D] group-hover:scale-110 transition-transform" />
+                        )}
+                        <span className="text-[0.7vw] font-medium text-[#2F296D] text-center leading-tight">
+                            {isAddedToShelf ? <>Book<br />Added</> : <>Add to<br />Shelf</>}
+                        </span>
                     </button>
                     <div className="w-[60%] h-[1px] bg-gray-100 pointer-events-none"></div>
                     <button onMouseDown={e => e.stopPropagation()} onClick={() => window.history.back()} className="flex flex-col items-center gap-[0.2vw] hover:bg-red-50 py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer mt-[0.2vw] w-full text-red-600">
@@ -1322,21 +1377,30 @@ const ShareViewBook = () => {
                             <button 
                                 onClick={async () => {
                                     if (!currentUserEmail) {
-                                        alert("Please log in to add books to your shelf.");
+                                        toast.error("Please log in to add books to your shelf.");
                                         return;
                                     }
                                     try {
                                         const backendUrl = getBackendUrl();
-                                        await axios.post(`${backendUrl}/api/profile/add-to-shelf`, {
+                                        const res = await axios.post(`${backendUrl}/api/profile/add-to-shelf`, {
                                             emailId: currentUserEmail,
                                             bookId: bookData?.v_id || shareId,
                                             folderName: 'My Flipbooks'
                                         });
-                                        alert("Book successfully added to your shelf!");
-                                        setIsAddToShelfOpen(false);
+                                        if (res.data?.success) {
+                                            toast.success("Book successfully added to your shelf!");
+                                            setIsAddedToShelf(true);
+                                            setIsAddToShelfOpen(false);
+                                        } else {
+                                            toast.error(res.data?.message || "Failed to add book to shelf.");
+                                            if (res.data?.message === 'Book is already on your shelf') {
+                                                setIsAddedToShelf(true);
+                                                setIsAddToShelfOpen(false);
+                                            }
+                                        }
                                     } catch (err) {
                                         console.error("Failed to add to shelf:", err);
-                                        alert(err.response?.data?.message || "Failed to add book to shelf.");
+                                        toast.error(err.response?.data?.message || "Failed to add book to shelf.");
                                     }
                                 }} 
                                 className="flex-1 py-[0.8vw] rounded-xl bg-black text-[0.95vw] font-medium text-white hover:bg-gray-900 transition-colors flex items-center justify-center gap-[0.5vw] shadow-md cursor-pointer"

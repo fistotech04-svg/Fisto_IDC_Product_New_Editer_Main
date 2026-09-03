@@ -196,7 +196,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     return (
         <div className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow border border-transparent hover:border-gray-100 relative group">
             {/* Image Area Wrapper */}
-            <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden cursor-pointer" onClick={handleOpen}>
+            <div className="relative w-full aspect-square bg-[#e2b58d] overflow-hidden">
                 <img src={book.cover} alt={book.title || "Flipbook Cover"} className="w-full h-full object-cover" />
 
                 {/* Menu Button */}
@@ -214,7 +214,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
 
                     {/* Dropdown Menu */}
                     {isMenuOpen && (
-                        <div className="absolute top-8 right-0 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 w-36 z-40">
+                        <div className="absolute top-[2.5vw] right-0 bg-white rounded-[0.5vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-[0.5vw] w-[6vw] z-40 overflow-hidden">
                             {menuItems.map((menuItem, mIdx) => (
                                 <button
                                     key={mIdx}
@@ -224,9 +224,9 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
                                             handleOpen();
                                         }
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                    className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-medium text-gray-600 hover:text-black hover:bg-gray-50 flex items-center gap-[0.5vw] transition-colors"
                                 >
-                                    <span className="flex items-center justify-center text-gray-400 w-4 h-4">{menuItem.icon}</span>
+                                    <span className="flex items-center justify-center text-gray-400 w-[1vw] h-[1vw]">{menuItem.icon}</span>
                                     {menuItem.name}
                                 </button>
                             ))}
@@ -301,12 +301,14 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     );
 };
 
-export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false }) {
+export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false, isMobile = false, isTablet = false }) {
     const [viewMode, setViewMode] = useState('shelf');
     const [profileData, setProfileData] = useState(null);
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFollowLoading, setIsFollowLoading] = useState(false);
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [hoveredInfoId, setHoveredInfoId] = useState(null);
 
     const currentUserEmail = (() => {
         try {
@@ -427,8 +429,11 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                     if (res.data.profile) {
                         setProfileData(res.data.profile);
                     }
+                    const creatorEmail = (res.data.profile?.emailId || res.data.profile?.email || targetEmail || '').trim().toLowerCase();
                     const rawBooks = res.data.books || [];
-                    const formatted = rawBooks.map((b, idx) => {
+                    const userCreatedBooks = rawBooks.filter(b => b && b.userEmail && b.userEmail.trim().toLowerCase() === creatorEmail);
+                    const visibleBooks = userCreatedBooks.filter(b => b && (b.isPublished === true || b.isPublished === 'true') && String(b.Customized_Settings?.Visibility?.access || b.Visibility?.access || 'public').toLowerCase() === 'public');
+                    const formatted = visibleBooks.map((b, idx) => {
                         const isMyBook = b.userEmail && res.data.profile?.emailId && b.userEmail.toLowerCase() === res.data.profile.emailId.toLowerCase();
 
                         let aName = b.authorName;
@@ -530,6 +535,187 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
         }
     };
 
+    if (isMobile) {
+        return (
+            <AnimatePresence>
+                {isOpen && (
+                    <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] p-4">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-[#f8f9fa] w-[90%] max-w-[400px] h-auto max-h-[85vh] rounded-2xl flex flex-col relative shadow-2xl overflow-hidden p-2"
+                        >
+                            <div className="flex flex-col flex-1 h-full min-h-0 bg-white relative overflow-y-auto no-scrollbar rounded-xl shadow-sm border border-gray-100">
+                                {/* Banner */}
+                                <div className="relative w-full h-[110px] rounded-t-xl shrink-0">
+                                    {isLoading ? (
+                                        <div className="absolute inset-0 rounded-t-xl bg-gray-200 animate-pulse"></div>
+                                    ) : (
+                                        <div
+                                            className="absolute inset-0 rounded-t-xl overflow-hidden"
+                                            style={{
+                                                background: profileUser?.bannerBg?.type === 'solid' ? profileUser?.bannerBg?.value : undefined,
+                                                backgroundImage: (profileUser?.bannerBg?.type === 'gradient' || profileUser?.bannerBg?.type === 'media')
+                                                    ? profileUser?.bannerBg?.value
+                                                    : (profileUser?.bannerBg?.value || 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)'),
+                                                backgroundSize: profileUser?.bannerBg?.type === 'media' ? 'cover' : undefined,
+                                                backgroundPosition: 'center'
+                                            }}
+                                        >
+                                            <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 30% 150%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 70% -50%, rgba(255,255,255,0.4) 0%, transparent 50%)' }}></div>
+                                        </div>
+                                    )}
+                                    {/* Close Button */}
+                                    <button
+                                        onClick={onClose}
+                                        className="absolute top-3 right-3 z-50 bg-white/50 hover:bg-white rounded-md p-1 shadow-sm transition-colors border border-gray-900/10 cursor-pointer"
+                                    >
+                                        <Icon icon="mingcute:close-fill" className="w-4 h-4 text-gray-600" />
+                                    </button>
+                                </div>
+
+                                {/* Avatar & Actions Wrapper */}
+                                <div className="relative flex flex-col items-center">
+                                    {/* Avatar */}
+                                    <div className="absolute -top-10 flex justify-center z-30">
+                                        <div className="w-[84px] h-[84px] rounded-full bg-white p-1.5 flex items-center justify-center">
+                                            {isLoading ? (
+                                                <div className="w-full h-full rounded-full bg-gray-200 animate-pulse shadow-inner"></div>
+                                            ) : (
+                                                <div
+                                                    className="w-full h-full rounded-full overflow-hidden relative shadow-inner flex items-center justify-center"
+                                                    style={{ backgroundColor: (profileUser?.picture && profileUser?.picture !== 'color_only') ? '#ffffff' : getAvatarColor(profileUser?.name || profileUser?.email, profileUser?.avatarBgColor) }}
+                                                >
+                                                    {(profileUser?.picture && profileUser?.picture !== 'color_only') ? (
+                                                        <img src={profileUser?.picture.startsWith('blob:') || profileUser?.picture.startsWith('data:') ? profileUser?.picture : resolveUploadsPath(profileUser?.picture)} alt={profileUser?.name || "Profile Avatar"} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-white text-3xl font-bold drop-shadow-md">
+                                                            {profileUser?.name ? profileUser?.name.charAt(0).toUpperCase() : 'U'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Share Button */}
+                                    {!isLoading && (
+                                        <div className="w-full flex justify-end px-3 pt-2">
+                                            <button className="flex items-center gap-1 px-2 py-1 text-[13px] font-semibold text-gray-700 cursor-pointer">
+                                                <Icon icon="ic:round-share" className="w-[16px] h-[16px]" /> Share
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Name & Details */}
+                                    <div className="flex flex-col items-center w-full px-4 mt-6 pb-6">
+                                        {isLoading ? (
+                                            <div className="flex flex-col items-center gap-2 w-full">
+                                                <div className="h-5 w-32 bg-gray-200 rounded animate-pulse"></div>
+                                                <div className="h-3 w-24 bg-gray-100 rounded animate-pulse"></div>
+                                                <div className="h-3 w-32 bg-gray-100 rounded animate-pulse mt-1"></div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <h2 className="text-[18px] font-bold text-gray-900 text-center truncate w-full">{profileUser?.name || 'Creator'}</h2>
+                                                {profileUser?.email && (
+                                                    <p className="text-[11px] text-gray-400 text-center truncate w-full">{profileUser?.email}</p>
+                                                )}
+                                                {/* Followers & Following Stats */}
+                                                <div className="flex items-center justify-center gap-4 mt-2">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[13px] font-bold text-gray-900 leading-none">
+                                                            {profileUser?.followers?.length || 0}
+                                                        </span>
+                                                        <span className="text-[11px] text-gray-500 font-medium leading-none">Followers</span>
+                                                    </div>
+                                                    <div className="w-[1px] h-3 bg-gray-300"></div>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[13px] font-bold text-gray-900 leading-none">
+                                                            {profileUser?.following?.length || 0}
+                                                        </span>
+                                                        <span className="text-[11px] text-gray-500 font-medium leading-none">Following</span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Additional Details Container */}
+                                    {!isLoading && (
+                                        <div className="w-full flex flex-col pb-8">
+                                            {/* About */}
+                                            <div className="px-4 py-3">
+                                                <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700 mb-1.5">
+                                                    <Icon icon="mdi:information" className="w-4 h-4 text-gray-600" /> About
+                                                </h3>
+                                                <p className="text-[11px] text-gray-500 leading-relaxed whitespace-pre-wrap pl-5 pr-2">
+                                                    {profileUser?.about || "“Bring your content to life with a real, interactive experience”"}
+                                                </p>
+                                            </div>
+
+                                            {/* Contact Number */}
+                                            {profileUser?.mobile ? (
+                                                <div className="px-4 py-3 bg-[#FAFAFA]">
+                                                    <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700 mb-1.5">
+                                                        <Icon icon="ph:phone-call-fill" className="w-4 h-4 text-gray-600" /> Contact Number
+                                                    </h3>
+                                                    <p className="text-[11px] text-gray-500 pl-5">{profileUser?.mobile}</p>
+                                                </div>
+                                            ) : null}
+
+                                            {/* Company Details */}
+                                            <div className="px-4 py-3">
+                                                <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700 mb-2">
+                                                    {profileUser?.companyLogo ? (
+                                                        <img src={profileUser.companyLogo} alt="Company Logo" className="w-4 h-4 object-contain rounded-sm" />
+                                                    ) : (
+                                                        <Icon icon="mingcute:qrcode-2-fill" className="w-4 h-4 text-gray-600" />
+                                                    )}
+                                                    Company / Organization Details
+                                                </h3>
+                                                <div className="flex flex-col gap-1.5 text-[11px] pl-5 pr-2">
+                                                    <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">{profileUser?.companyName || 'Not specified'}</span></p>
+                                                    <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">{profileUser?.industryType || 'Not specified'}</span></p>
+                                                    <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">{profileUser?.companyEmail || profileUser?.email || 'Not specified'}</span></p>
+                                                    {profileUser?.website ? (
+                                                        <p><span className="font-semibold text-gray-700">Website :</span> <a href={profileUser?.website.startsWith('http') ? profileUser?.website : `https://${profileUser?.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">{profileUser?.website}</a></p>
+                                                    ) : (
+                                                        <p><span className="font-semibold text-gray-700">Website :</span> <span className="text-gray-500">Not specified</span></p>
+                                                    )}
+                                                    <p><span className="font-semibold text-gray-700">Services :</span> <span className="text-gray-500">{Array.isArray(profileUser?.services) && profileUser?.services.length > 0 ? profileUser?.services.join(', ') : (typeof profileUser?.services === 'string' && profileUser?.services ? profileUser?.services : 'Not specified')}</span></p>
+                                                </div>
+                                            </div>
+
+                                            {/* Address */}
+                                            {(profileUser?.address1 || profileUser?.address2 || profileUser?.city || profileUser?.state) ? (
+                                                <div className="px-4 py-3 bg-[#FAFAFA] rounded-b-xl">
+                                                    <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700 mb-1.5">
+                                                        <Icon icon="carbon:location-filled" className="w-4 h-4 text-gray-600" /> Address
+                                                    </h3>
+                                                    <div className="text-[11px] flex flex-col gap-1 text-gray-500 pl-5">
+                                                        {profileUser?.address1 && <div>{profileUser?.address1}</div>}
+                                                        {profileUser?.address2 && <div>{profileUser?.address2}</div>}
+                                                        <div>{[profileUser?.city, profileUser?.state, profileUser?.pincode].filter(Boolean).join(', ')}</div>
+                                                        {profileUser?.country && <div>{profileUser?.country}</div>}
+                                                    </div>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* Bottom Fade Shadow for scroll effect */}
+                                <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-white to-transparent pointer-events-none rounded-b-xl z-50"></div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        );
+    }
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -544,8 +730,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                         exit={{ opacity: 0 }}
                         className={
                             isPreview
-                                ? "bg-[#f8f9fa] w-full h-full p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
-                                : "bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
+                                ? `bg-[#f8f9fa] w-full ${isMobile ? 'h-[75%]' : 'h-full'} p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden`
+                                : `bg-[#f8f9fa] ${isMobile ? 'w-[95vw] h-[75vh]' : 'w-[85vw] h-[85vh]'} p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden`
                         }
                         style={isPreview ? { zoom: 0.95 } : {}}
                     >
@@ -592,7 +778,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                 <div className="flex flex-col md:flex-row relative gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]" style={{ marginTop: `${1 - 0.35 * scrollProgress}vw`, willChange: 'margin-top' }}>
 
                                     {/* Left Column (Avatar + Info) */}
-                                    <div className="w-[19vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
+                                    <div className={`${isMobile ? 'w-full' : 'w-full md:w-[19vw]'} flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0`}>
                                         {/* Bottom Fade Shadow */}
                                         <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50 rounded-b-[1vw]"></div>
 
@@ -800,7 +986,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                     </div>
 
                                     {/* Right Content Area */}
-                                    <div className="flex-1 flex flex-col h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative overflow-hidden">
+                                    <div className={`${isMobile ? 'hidden' : 'hidden md:flex'} flex-1 flex-col h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative overflow-hidden`}>
                                         {/* Bottom Fade Shadow */}
                                         <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50"></div>
 
@@ -850,17 +1036,19 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                     <div className="flex items-center gap-[0.5vw]">
                                                         <button
                                                             onClick={() => setViewMode('shelf')}
-                                                            className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'shelf' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                            className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.6vw] text-[0.75vw] font-semibold transition-all duration-200 border ${viewMode === 'shelf' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
                                                         >
-                                                            <Icon icon="ph:books" className="w-[1vw] h-[1vw]" />
-                                                            <span className="text-[0.75vw] font-medium">Shelf View</span>
+                                                            <svg viewBox="0 0 24 24" fill="currentColor" className={`w-[1vw] h-[1vw] ${viewMode === 'shelf' ? 'text-gray-500' : 'text-[#94a3b8]'}`}>
+                                                                <path fillRule="evenodd" clipRule="evenodd" d="M 2 3 h 20 v 5 H 2 Z M 13.5 4 h 1.2 v 4 h -1.2 Z M 15.1 4 h 1.2 v 4 h -1.2 Z M 16.7 4 h 1.2 v 4 h -1.2 Z M 18.3 4 h 1.2 v 4 h -1.2 Z M 2 9.5 h 20 v 5 H 2 Z M 3.5 10.5 h 1.2 v 4 h -1.2 Z M 5.1 10.5 h 1.2 v 4 h -1.2 Z M 6.7 10.5 h 1.2 v 4 h -1.2 Z M 8.5 14.5 L 9.7 10.5 h 1.2 L 9.7 14.5 Z M 2 16 h 20 v 5 H 2 Z M 3.5 17 h 1.2 v 4 h -1.2 Z M 5.1 17 h 1.2 v 4 h -1.2 Z M 13.5 18.4 h 4 v 1.2 h -4 Z M 14.5 19.8 h 4 v 1.2 h -4 Z" />
+                                                            </svg>
+                                                            <span>Shelf View</span>
                                                         </button>
                                                         <button
                                                             onClick={() => setViewMode('list')}
-                                                            className={`flex items-center gap-[0.4vw] px-[0.8vw] py-[0.5vw] rounded-lg border transition-colors cursor-pointer ${viewMode === 'list' ? 'border-gray-300 text-gray-700 bg-white shadow-sm' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                                                            className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.6vw] text-[0.75vw] font-semibold transition-all duration-200 border ${viewMode === 'list' ? 'bg-gray-50 text-[#1e293b] shadow-inner border-gray-200' : 'bg-white text-[#94a3b8] hover:text-[#64748b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-transparent hover:border-gray-50'}`}
                                                         >
-                                                            <Icon icon="ph:list-dashes-bold" className="w-[1vw] h-[1vw]" />
-                                                            <span className="text-[0.75vw] font-medium">List View</span>
+                                                            <Icon icon="circum:box-list" className={`w-[1vw] h-[1vw] ${viewMode === 'list' ? 'text-gray-500' : 'text-[#94a3b8]'}`} />
+                                                            <span>List View</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -911,7 +1099,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowCount: calculatedRowCount,
                                                                 bgStretch: false,
                                                                 noZone: true,
-                                                                padding: 'px-6',
+                                                                padding: '0 2.5vw',
                                                                 topOffset: 6,
                                                                 spacing: 32,
                                                                 bookWidth: '11.5%',
@@ -944,8 +1132,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowPadding: '0 4%',
                                                                 topOffset: 5,
                                                                 spacing: 33,
-                                                                bookWidth: '14%',
-                                                                bookStyle: { bottom: '15%', padding: '0 7%' }
+                                                                bookWidth: '11.5%',
+                                                                bookStyle: { bottom: '10%', padding: '0 10%' }
                                                             };
                                                         default:
                                                             return {
@@ -955,7 +1143,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                 rowCount: calculatedRowCount,
                                                                 bgStretch: false,
                                                                 noZone: true,
-                                                                padding: 'px-6',
+                                                                padding: '0 2.5vw',
                                                                 topOffset: 6,
                                                                 spacing: 32,
                                                                 bookWidth: '11.5%',
@@ -970,8 +1158,9 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                 const bookCount = displayBooks.length;
                                                 const globalRowCount = Math.max(3, Math.ceil(bookCount / 6));
 
-                                                const BASE_VW = 48; // Base height reference to fit ~2.5 rows in view
-                                                const containerHeightVw = ((activeAssets.topOffset ?? 6) + (globalRowCount * (activeAssets.spacing ?? 32))) * BASE_VW / 100;
+                                                const BASE_VW = 34; // Base height reference to fit ~2.5 rows in view
+                                                const heightRatio = globalRowCount <= 3 ? 1 : (100 + (globalRowCount - 3) * (activeAssets.spacing ?? 32) + 3) / 100;
+                                                const containerHeightVw = BASE_VW * heightRatio;
 
                                                 const getTopVw = (i) => {
                                                     const spacing = activeAssets.spacing ?? 32;
@@ -1072,20 +1261,35 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                             className="absolute inset-0 flex justify-between items-end"
                                                                             style={activeAssets.bookStyle || { bottom: '15%', padding: '0 5%' }}
                                                                         >
-                                                                            {(displayBooks.slice(i * 6, (i + 1) * 6) || []).map((book, bIdx) => {
-                                                                                const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
-                                                                                const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
-                                                                                const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
-                                                                                const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+                                                                            {(() => {
+                                                                                const rowBooks = displayBooks.slice(i * 6, (i + 1) * 6) || [];
+                                                                                const paddedBooks = [...rowBooks, ...Array.from({ length: 6 - rowBooks.length }).fill(null)];
 
-                                                                                return (
-                                                                                    <div
-                                                                                        key={book.v_id || bIdx}
-                                                                                        className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
-                                                                                        style={{ width: activeAssets.bookWidth || '12%' }}
-                                                                                        onClick={() => handleOpenBook(book)}
-                                                                                    >
-                                                                                        <div className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden">
+                                                                                return paddedBooks.map((book, bIdx) => {
+                                                                                    if (!book) {
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={`empty-${i}-${bIdx}`}
+                                                                                                className={`relative flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                                style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                                            />
+                                                                                        );
+                                                                                    }
+
+                                                                                    const emailFolder = book.rawBook?.userEmail ? book.rawBook.userEmail.replace(/[@.]/g, "_") : '';
+                                                                                    const folderName = (book.rawBook?.folderName && book.rawBook.folderName.length > 0) ? book.rawBook.folderName[0] : (book.rawBook?.folder || '');
+                                                                                    const bookName = book.rawBook?.flipbookName || book.rawBook?.title || '';
+                                                                                    const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
+
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={book.v_id || bIdx}
+                                                                                            className={`relative group cursor-pointer flex justify-center items-end ${activeShelfStyle === 'customize2' ? (i === activeAssets.rowCount - 1 ? 'translate-y-[1vw]' : 'translate-y-0') : 'translate-y-[0.5vw]'} ${openMenuId === `${i}-${bIdx}` ? 'z-40' : 'hover:z-30'} ${bIdx === 0 ? 'translate-x-[0.5vw]' : bIdx === 1 ? 'translate-x-[0.5vw]' : bIdx === 2 ? 'translate-x-[1vw]' : ''}`}
+                                                                                            style={{ width: activeAssets.bookWidth || '12%' }}
+                                                                                        >
+                                                                                                <div 
+                                                                                            className="w-[100%] aspect-[2.5/3.5] relative rounded-[3px] drop-shadow-md transition-transform origin-bottom group-hover:scale-105 overflow-hidden"
+                                                                                        >
                                                                                             <LazyPreview
                                                                                                 v_id={book.v_id}
                                                                                                 emailId={book.rawBook?.userEmail || currentUserEmail}
@@ -1095,9 +1299,108 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                                                                                 imageUrl={null}
                                                                                             />
                                                                                         </div>
+
+                                                                                        {/* Hover Menu Pill */}
+                                                                                        <div className="absolute top-[2%] right-[0vw] w-[1vw] h-[3vw] bg-[#E8E6E1] rounded-full flex flex-col items-center justify-between py-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-30 pointer-events-none group-hover:pointer-events-auto">
+                                                                                            <button
+                                                                                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `${i}-${bIdx}` ? null : `${i}-${bIdx}`); }}
+                                                                                                className="text-black hover:bg-gray-300 rounded-full w-4 h-4 flex items-center justify-center mt-0.5 transition-colors"
+                                                                                            >
+                                                                                                <Icon icon="mdi:dots-vertical" className="text-[14px]" />
+                                                                                            </button>
+                                                                                            <div
+                                                                                                className="text-[#4A4A4A] hover:text-black flex items-center justify-center mb-0.5 transition-colors relative cursor-pointer"
+                                                                                                onMouseEnter={() => setHoveredInfoId(`${i}-${bIdx}`)}
+                                                                                                onMouseLeave={() => setHoveredInfoId(null)}
+                                                                                            >
+                                                                                                <Icon icon="si:info-fill" className="w-4 h-4" />
+
+                                                                                                {/* Info Tooltip Bridge & Container */}
+                                                                                                <div className={`absolute top-1/2 right-full pr-3 -translate-y-1/2 ${hoveredInfoId === `${i}-${bIdx}` ? 'block' : 'hidden'} z-[60]`}>
+                                                                                                    <div className="w-[170px] bg-white rounded-xl p-4 text-gray-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col gap-3 cursor-default text-left border border-gray-100 relative" onClick={(e) => e.stopPropagation()}>
+                                                                                                        {/* Author Info */}
+                                                                                                        <div className="flex items-center gap-2">
+                                                                                                            {book.authorPicture && book.authorPicture !== 'color_only' ? (
+                                                                                                                <img
+                                                                                                                    src={book.authorPicture}
+                                                                                                                    alt={book.authorName}
+                                                                                                                    className="w-8 h-8 rounded-full border border-gray-200 object-cover shrink-0"
+                                                                                                                />
+                                                                                                            ) : (
+                                                                                                                <div
+                                                                                                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0 shadow-inner"
+                                                                                                                    style={{ backgroundColor: book.authorBgColor || '#4c5add' }}
+                                                                                                                >
+                                                                                                                    {(book.authorName || 'U').charAt(0).toUpperCase()}
+                                                                                                                </div>
+                                                                                                            )}
+                                                                                                            <div className="flex flex-col min-w-0 pr-1">
+                                                                                                                <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate">{book.authorName}</span>
+                                                                                                                <span className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5 truncate">
+                                                                                                                    <Icon icon="lucide:map-pin" className="w-3 h-3 text-gray-400 shrink-0" />
+                                                                                                                    <span className="truncate">{String(book.location || 'Coimbatore').replace(/📍/g, '').trim()}</span>
+                                                                                                                </span>
+                                                                                                            </div>
+                                                                                                        </div>
+
+                                                                                                        {/* Stats */}
+                                                                                                        <div className="flex items-center gap-2 justify-start text-[11px] text-gray-700 font-medium whitespace-nowrap">
+                                                                                                            <div className="flex items-center gap-1">
+                                                                                                                <span className="text-black font-semibold">{book.pages || 0}</span>
+                                                                                                                <span className="font-normal text-gray-500">Pages</span>
+                                                                                                            </div>
+                                                                                                            <span className="text-gray-300">|</span>
+                                                                                                            <span className="flex items-center gap-1">
+                                                                                                                <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-gray-400" />
+                                                                                                                {book.views || '1.2k'}
+                                                                                                            </span>
+                                                                                                            <span className="text-gray-300">|</span>
+                                                                                                            <span className="flex items-center gap-1">
+                                                                                                                <Icon icon="material-symbols:star" className="w-3.5 h-3.5 text-yellow-400" />
+                                                                                                                {book.rating || 4.5}
+                                                                                                            </span>
+                                                                                                        </div>
+
+                                                                                                        {/* Title & Desc & Button */}
+                                                                                                        <div className="relative">
+                                                                                                            <h4 className="text-[14px] font-semibold text-black truncate tracking-tight mb-1">{book.title}</h4>
+                                                                                                            <p className="text-[11px] text-gray-500 leading-relaxed pr-10 line-clamp-2">{book.description}</p>
+
+                                                                                                            {/* Action Button */}
+                                                                                                            <button
+                                                                                                                onClick={(e) => {
+                                                                                                                    e.stopPropagation();
+                                                                                                                    handleOpenBook(book);
+                                                                                                                }}
+                                                                                                                className="absolute bottom-0 right-0 bg-black text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                                                                                                            >
+                                                                                                                <Icon icon="mdi:arrow-top-right" className="w-4 h-4" />
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        {/* Dropdown Menu */}
+                                                                                        {openMenuId === `${i}-${bIdx}` && (
+                                                                                            <div className="absolute top-[2%] -right-[0.5vw] bg-white rounded-[0.5vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-[0.2vw] w-[5vw] z-50 overflow-hidden"> 
+                                                                                                <button
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        handleOpenBook(book);
+                                                                                                        setOpenMenuId(null);
+                                                                                                    }}
+                                                                                                    className="w-full text-left px-[0.5vw] py-[0.2vw] text-[0.75vw] font-medium text-gray-600 hover:text-black hover:bg-gray-50 transition-colors"
+                                                                                    >
+                                                                                                    Open Book
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        )}
                                                                                     </div>
                                                                                 );
-                                                                            })}
+                                                                            });
+                                                                            })()}
                                                                         </div>
                                                                     </div>
                                                                 ))}

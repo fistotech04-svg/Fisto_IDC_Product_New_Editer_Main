@@ -109,6 +109,9 @@ export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) =
       
       const widthPt = bounds[2] - bounds[0];
       const heightPt = bounds[3] - bounds[1];
+      
+      // Calculate size in mm (25.4 mm = 1 inch, so 25.4 / 72 mm per pt)
+      const ptToMm = 25.4 / 72;
       const widthMm = widthPt * ptToMm;
       const heightMm = heightPt * ptToMm;
 
@@ -167,7 +170,7 @@ export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) =
  * @param {number} baseHeight - The base height of the canvas (default 297).
  * @returns {string} SVG HTML string.
  */
-export const generatePdfPageSvg = (fullImageUrl, pageName = "PDF Background", baseWidth, baseHeight) => {
+export const generatePdfPageSvg = (fullImageUrl, pageName = "PDF Background", baseWidth, baseHeight, isPdfBg = true) => {
   if (!baseWidth || !baseHeight) {
     console.warn("generatePdfPageSvg called without dimensions, falling back to A4");
     baseWidth = 210;
@@ -177,10 +180,12 @@ export const generatePdfPageSvg = (fullImageUrl, pageName = "PDF Background", ba
   const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
   const imageId = `img-${Math.random().toString(36).substr(2, 9)}`;
 
+  const imgDataName = isPdfBg ? "PDF Background" : `${pageName}-pdf`;
+
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${baseWidth} ${baseHeight}" width="100%" height="100%" style="overflow: visible">
   <g id="${rootId}" data-name="${pageName}" data-type="frame">
     <rect id="${overlayId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" shape-rendering="crispEdges" />
-    <image id="${imageId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" href="${fullImageUrl}" preserveAspectRatio="none" data-name="PDF Background" data-locked="true" />
+    <image id="${imageId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" href="${fullImageUrl}" preserveAspectRatio="none" data-name="${imgDataName}" data-locked="true" />
   </g>
 </svg>`;
 };

@@ -403,6 +403,9 @@ const MobileLayout2 = (props) => {
                         >
                             <div className="flex flex-col p-2 gap-1">
                                 <MenuBtn icon="ph:list-bold" label="Table of Contents" onClick={() => setShowTOC(true)} />
+                                {settings?.interaction?.gallery !== false && (
+                                    <MenuBtn icon="clarity:image-gallery-solid" label="Gallery" onClick={() => { setShowMoreMenu(false); props.setShowGalleryPopup?.(true); }} />
+                                )}
                                 <MenuBtn icon="ph:squares-four-fill" label="Thumbnails" onClick={() => setShowThumbnailBar(true)} />
                                 <MenuBtn icon="ph:file-plus-fill" label="Add Notes" onClick={() => setShowAddNotesPopup(true)} />
                                 <MenuBtn icon="ph:eye-fill" label="View Notes" onClick={() => setShowNotesViewer(true)} />
@@ -612,7 +615,7 @@ const MobileLayout2 = (props) => {
                         icon="clarity:image-gallery-solid"
                         title="Gallery"
                         onClick={() => {
-                            // Functionality removed as requested
+                            props.setShowGalleryPopup?.(true);
                         }}
                         active={false}
                         className="!p-1.5"

@@ -5,7 +5,7 @@ import Sound from '../popups/Sound';
 const MobileLayout1 = lazy(() => import('../Mobile/MobileLayouts/MobileLayout1'));
 
 
-const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
+const PageThumbnail = React.memo(({ html, index, scale = 0.15, baseWidth = 400, baseHeight = 566 }) => {
     // Optimization: Strip malicious/heavy scripts
     const cleanHtml = (html || '')
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
@@ -24,8 +24,8 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                         padding: 0; 
                         overflow: hidden; 
                         background: white; 
-                        width: 400px; 
-                        height: 566px; 
+                        width: ${baseWidth}px; 
+                        height: ${baseHeight}px; 
                         position: relative;
                     }
                     * { box-sizing: border-box; }
@@ -34,7 +34,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                 </style>
             </head>
             <body>
-                 <div style="width: 400px; height: 566px; overflow: hidden; position: relative; background: white;">
+                 <div style="width: ${baseWidth}px; height: ${baseHeight}px; overflow: hidden; position: relative; background: white;">
                     ${cleanHtml}
                 </div>
             </body>
@@ -42,22 +42,23 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     `;
 
     return (
-        <div className="w-full h-full relative overflow-hidden bg-white flex items-center justify-center">
-            <iframe
-                className="border-none pointer-events-none"
-                srcDoc={srcDoc}
-                title={`Thumb ${index}`}
-                loading="lazy"
-                style={{
-                    width: '400px',
-                    height: '566px',
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'center center',
-                    backgroundColor: 'white'
-                }}
-            />
+        <div className="w-full h-full relative overflow-hidden bg-white">
+            <div className="absolute left-1/2 top-1/2" style={{ transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center center' }}>
+                <iframe
+                    className="border-none pointer-events-none"
+                    srcDoc={srcDoc}
+                    title={`Thumb ${index}`}
+                    loading="lazy"
+                    style={{
+                        width: `${baseWidth}px`,
+                        height: `${baseHeight}px`,
+                        backgroundColor: 'white'
+                    }}
+                />
+            </div>
         </div>
     );
+
 });
 
 const getLayoutColor = (id, defaultColor) => {
@@ -468,11 +469,11 @@ const Grid1Layout = React.memo((props) => {
         };
 
         window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('wheel', handleWheel, { passive: false });
+        // window.addEventListener('wheel', handleWheel, { passive: false });
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('wheel', handleWheel);
+            // window.removeEventListener('wheel', handleWheel);
         };
     }, [zoomIn, zoomOut, bookRef, closeAllPopups]);
 
@@ -1075,6 +1076,37 @@ const Grid1Layout = React.memo((props) => {
                     </div>
                     {/* Center - Playback & Progress */}
                     <div className={`flex-1 ${isMobileLandscape ? 'max-w-[12vw] px-[0.2vw]' : `px-[2vw] ${isPreviewMode ? `${isNativeFS ? 'max-w-[86vw] mr-[4vw]' : 'max-w-[54vw] mr-[7vw]'}` : `${isNativeFS ? 'max-w-[68vw] mr-[8vw]' : `max-w-[36vw] ${isSidebarOpen ? 'mr-[1vw]' : 'mr-[4vw]'}`}`}`} flex items-center justify-center`}>
+                        {isPreviewMode && (
+                            <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.4vw] mr-[1vw]' : 'gap-[0.8vw] mr-[2vw]'}`}>
+                                {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
+                                    <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                    'First',
+                                    () => {
+                                        closeAllPopups();
+                                        onPageClick(0);
+                                    },
+                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                )}
+                                {(settings?.media?.autoFlip ?? true) && renderDockBtn(
+                                    <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
+                                    isAutoFlipping ? 'Pause' : 'Play',
+                                    () => {
+                                        closeAllPopups();
+                                        setIsPlaying(!isAutoFlipping);
+                                    },
+                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                )}
+                                {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
+                                    <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                    'Last',
+                                    () => {
+                                        closeAllPopups();
+                                        onPageClick(pages.length - 1);
+                                    },
+                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                )}
+                            </div>
+                        )}
                         <div
                             ref={progressRef}
                             className={`flex-1 ${isMobileLandscape ? 'min-w-[4vw]' : isTablet ? 'w-[4vw]' : (isSidebarOpen ? 'w-[10vw]' : 'w-[6vw]')} py-[3vh] relative group cursor-pointer flex items-center`}
@@ -1107,37 +1139,6 @@ const Grid1Layout = React.memo((props) => {
                                 setProgressHover(prev => ({ ...prev, visible: false }));
                             }}
                         >
-                        {isPreviewMode && (
-                            <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.4vw] mr-[1vw]' : 'gap-[0.8vw] mr-[2vw]'}`}>
-                                {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
-                                    <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                    'First',
-                                    () => {
-                                        closeAllPopups();
-                                        onPageClick(0);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                                )}
-                                {(settings?.media?.autoFlip ?? true) && renderDockBtn(
-                                    <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
-                                    isAutoFlipping ? 'Pause' : 'Play',
-                                    () => {
-                                        closeAllPopups();
-                                        setIsPlaying(!isAutoFlipping);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                                )}
-                                {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
-                                    <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                    'Last',
-                                    () => {
-                                        closeAllPopups();
-                                        onPageClick(pages.length - 1);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                                )}
-                            </div>
-                        )}
                             <div className={`w-full ${isMobileLandscape ? 'h-[0.2vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.22vw]'} rounded-full relative overflow-hidden`}>
                                 {/* Track Underlay */}
                                 <div className="absolute inset-0 transition-colors duration-300" style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: isTablet ? 0.4 : 0.3 }} />
@@ -1170,24 +1171,38 @@ const Grid1Layout = React.memo((props) => {
                                         >
                                             <div
                                                 className={`flex justify-center ${isTablet ? 'mb-[0.25vw]' : 'mb-[0.3vw]'}`}
-                                                style={{ width: `${(400 * (isTablet ? 55 : 90) / 566) * 2 + 1}px` }}
                                             >
-                                                <div className="flex gap-[1px] bg-gray-200 overflow-hidden rounded-[0.2vw]">
-                                                    {progressHover.spread.pages.map((page, pIdx) => {
-                                                        const boxHeight = isTablet ? 55 : 90;
-                                                        const scale = boxHeight / 566;
-                                                        const boxWidth = 400 * scale;
-                                                        return (
-                                                            <div key={`${progressHover.spread.indices[0]}-${pIdx}`} className="bg-white overflow-hidden relative flex items-center justify-center" style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}>
-                                                                <PageThumbnail
-                                                                    html={page.html || page.content}
-                                                                    index={progressHover.spread.indices[pIdx]}
-                                                                    scale={scale}
-                                                                />
+                                                {(() => {
+                                                    let boxHeight = isMobileLandscape ? 27 : isTablet ? 36 : 54;
+                                                    let pageAspectRatio = dimWidth / dimHeight;
+                                                    let innerPageWidth = boxHeight * pageAspectRatio;
+                                                    let boxWidth = innerPageWidth * progressHover.spread.pages.length + (progressHover.spread.pages.length > 1 ? 1 : 0);
+                                                    
+                                                    return (
+                                                        <div
+                                                            className={`overflow-hidden transition-all bg-white relative rounded-[0.2vw]`}
+                                                            style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}
+                                                        >
+                                                            <div className="flex w-full h-full gap-[1px] bg-gray-200 justify-center">
+                                                                {progressHover.spread.pages.map((page, pIdx) => {
+                                                                    const thumbScale = boxHeight / dimHeight;
+
+                                                                    return (
+                                                                        <div key={`${progressHover.spread.indices[0]}-${pIdx}`} className={`flex-1 ${progressHover.spread.pages.length > 1 ? 'max-w-[50%]' : 'max-w-full'} bg-white overflow-hidden relative flex items-center justify-center`}>
+                                                                            <PageThumbnail
+                                                                                html={page.html || page.content}
+                                                                                index={progressHover.spread.indices[pIdx]}
+                                                                                scale={thumbScale}
+                                                                                baseWidth={dimWidth}
+                                                                                baseHeight={dimHeight}
+                                                                            />
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
 
                                             {/* Separating line */}
@@ -1437,14 +1452,35 @@ const Grid1Layout = React.memo((props) => {
 
 
             {/* Isolated Thumbnails Bar Rendering (to prevent layout shifts) */}
-            {showThumbnailBar && (
+            {showThumbnailBar && (() => {
+                let baseBoxHeight = isMobileLandscape ? 27 : isTablet ? 36 : 54;
+                let paddingW = isMobileLandscape ? 8 : isTablet ? 10 : 20;
+                let gapW = isMobileLandscape ? 8 : isTablet ? 12 : 16;
+                let outerMargin = isMobileLandscape ? 70 : isTablet ? 80 : 120;
+                
+                let exactSixWidth = 0;
+                let isLandscapeBook = dimWidth > dimHeight;
+                let maxBoxes = isLandscapeBook ? 4 : 6;
+                let maxItems = Math.min(maxBoxes, spreads.length);
+                for (let i = 0; i < maxItems; i++) {
+                    let pageAspectRatio = dimWidth / dimHeight;
+                    let innerHeight = baseBoxHeight - 4;
+                    let innerPageWidth = innerHeight * pageAspectRatio;
+                    let doubleBoxWidth = innerPageWidth * 2 + 1 + 4;
+                    exactSixWidth += doubleBoxWidth + paddingW;
+                }
+                
+                let totalGaps = maxItems > 1 ? gapW * (maxItems - 1) : 0;
+                let dynamicMaxWidth = Math.floor(exactSixWidth + totalGaps + outerMargin);
+
+                return (
                 <div className="absolute inset-0 z-[150] pointer-events-none">
                     <div
                         className="absolute flex items-center group/bar fisto-menu-content thumbnail-bar pointer-events-auto transition-all shadow-[0_8px_32px_rgba(0,0,0,0.3)] rounded-[0.7vw] backdrop-blur-md"
                         style={{
                             width: 'fit-content',
                             minWidth: isMobileLandscape ? '150px' : '200px',
-                            maxWidth: isMobileLandscape ? '370px' : isTablet ? '460px' : '716px',
+                            maxWidth: `${dynamicMaxWidth}px`,
                             height: isMobileLandscape ? '65px' : isTablet ? '75px' : '6.5vw',
                             bottom: isMobileLandscape ? '50px' : isTablet ? '50px' : '8vh',
                             left: '50%',
@@ -1479,14 +1515,18 @@ const Grid1Layout = React.memo((props) => {
                         <div
                             ref={scrollRef}
                             onScroll={checkScroll}
-                            className={`flex overflow-x-hidden no-scrollbar scroll-smooth items-center h-full ${isMobileLandscape ? `gap-[5px] ${spreads.length > 6 ? 'mx-[35px]' : 'mx-[10px]'}` : isTablet ? `gap-[6px] ${spreads.length > 6 ? 'mx-[40px]' : 'mx-[10px]'}` : `gap-[8px] ${spreads.length > 6 ? 'mx-[60px]' : 'mx-[15px]'}`} ${isOverflowing ? 'justify-start' : 'justify-center'} rounded-[0.7vw]`}
+                            className={`flex overflow-x-hidden no-scrollbar scroll-smooth items-center h-full ${isMobileLandscape ? `gap-[8px] ${spreads.length > 6 ? 'mx-[35px]' : 'mx-[10px]'}` : isTablet ? `gap-[12px] ${spreads.length > 6 ? 'mx-[40px]' : 'mx-[10px]'}` : `gap-[16px] ${spreads.length > 6 ? 'mx-[60px]' : 'mx-[15px]'}`} ${isOverflowing ? 'justify-start' : 'justify-center'} rounded-[0.7vw]`}
                         >
                             {spreads.map((spread, idx) => {
                                 const isSelected = spread.indices.includes(currentPage);
 
-                                // Base dimensions for thumbnails
-                                let boxWidth = isMobileLandscape ? 36 : isTablet ? 48 : 72;
                                 let boxHeight = isMobileLandscape ? 27 : isTablet ? 36 : 54;
+                                let innerHeight = boxHeight - 4;
+                                let pageAspectRatio = dimWidth / dimHeight;
+                                let innerPageWidth = innerHeight * pageAspectRatio;
+                                let boxWidth = innerPageWidth * spread.pages.length + (spread.pages.length > 1 ? 1 : 0) + 4;
+                                let doubleBoxWidth = innerPageWidth * 2 + 1 + 4;
+                                let paddingW = isMobileLandscape ? 8 : isTablet ? 10 : 20;
 
                                 return (
                                     <div
@@ -1495,7 +1535,9 @@ const Grid1Layout = React.memo((props) => {
                                         className={`thumbnail-item flex flex-col items-center shrink-0 cursor-pointer ${isMobileLandscape ? 'rounded-[8px]' : isTablet ? 'rounded-[0.2vw] ' : 'rounded-[12px]'}  ${isSelected ? 'active-thumbnail' : ''}`}
                                         style={{
                                             position: 'relative',
-                                            padding: isMobileLandscape ? '3px 4px' : isTablet ? '3px 5px' : '6px 10px',
+                                            width: `${doubleBoxWidth + paddingW}px`,
+                                            boxSizing: 'border-box',
+                                            padding: isMobileLandscape ? '3px 0' : isTablet ? '3px 0' : '6px 0',
                                             gap: isMobileLandscape ? '2px' : isTablet ? '0.1vw' : '4px',
                                             backgroundColor: isSelected
                                                 ? getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.6)
@@ -1517,20 +1559,16 @@ const Grid1Layout = React.memo((props) => {
                                         >
                                             <div className="flex w-full h-full gap-[1px] bg-gray-200 justify-center">
                                                 {spread.pages.map((page, pIdx) => {
-                                                    const pageWidth = 400;
-                                                    const pageHeight = 566;
-                                                    const availableWidth = boxWidth / 2;
-                                                    const availableHeight = boxHeight;
-                                                    const scaleX = (availableWidth - 2) / pageWidth;
-                                                    const scaleY = (availableHeight - 2) / pageHeight;
-                                                    const thumbScale = Math.min(scaleX, scaleY);
+                                                    const thumbScale = innerHeight / dimHeight;
 
                                                     return (
-                                                        <div key={`${idx}-${pIdx}`} className="flex-1 max-w-[50%] bg-white overflow-hidden relative flex items-center justify-center">
+                                                        <div key={`${idx}-${pIdx}`} className={`flex-1 ${spread.pages.length > 1 ? 'max-w-[50%]' : 'max-w-full'} bg-white overflow-hidden relative flex items-center justify-center`}>
                                                             <PageThumbnail
                                                                 html={page.html || page.content}
                                                                 index={spread.indices[pIdx]}
                                                                 scale={thumbScale}
+                                                                baseWidth={dimWidth}
+                                                                baseHeight={dimHeight}
                                                             />
                                                         </div>
                                                     );
@@ -1566,7 +1604,8 @@ const Grid1Layout = React.memo((props) => {
                         )}
                     </div>
                 </div>
-            )}
+                );
+            })()}
         </div>
     );
 });

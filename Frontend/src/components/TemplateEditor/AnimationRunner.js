@@ -402,7 +402,8 @@ export const initGifRunner = function(doc) {
           console.warn("Could not freeze GIF due to CORS", e);
         }
       };
-      tempImg.src = originalSrc;
+      const separator = originalSrc.includes('?') ? '&' : '?';
+      tempImg.src = `${originalSrc}${separator}cb=${Date.now()}`;
     };
 
     const playGif = () => {
@@ -464,7 +465,8 @@ export const initGifRunner = function(doc) {
     if (maxLoops !== Infinity && maxLoops > 0) {
       if (isNewSetting || !el.__hasGifTimeoutSetup) {
         import('gifuct-js').then(({ parseGIF, decompressFrames }) => {
-          fetch(originalSrc)
+          const separator = originalSrc.includes('?') ? '&' : '?';
+          fetch(`${originalSrc}${separator}cb=${Date.now()}`)
             .then(resp => resp.arrayBuffer())
             .then(buff => {
               const gif = parseGIF(buff);
@@ -501,4 +503,37 @@ export const initGifRunner = function(doc) {
        }
     }
   });
+
+  // Listen for PAGE_TURNED to restart GIFs when the page becomes visible
+  if (doc.defaultView && !doc.__gifPageTurnBound) {
+    doc.__gifPageTurnBound = true;
+    doc.defaultView.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'PAGE_TURNED') {
+        const visiblePages = e.data.visiblePages || [];
+        // Only restart if the page is now visible. We can check if any GIF is in the viewport,
+        // or just re-init everything and let the logic handle it.
+        // The safest approach is to re-run initGifRunner so that the GIFs play again.
+        // We will clear __lastLoopSetting so it thinks it's a new setting and restarts.
+        const gifs = doc.querySelectorAll('[data-loop-count]');
+        let shouldRestart = false;
+        
+        // Find if this iframe corresponds to a visible page
+        // Usually the page number is injected as window._pageNumber by PreviewArea script
+        const pageNum = doc.defaultView._pageNumber;
+        if (pageNum !== undefined && visiblePages.includes(pageNum)) {
+           shouldRestart = true;
+        } else if (pageNum === undefined) {
+           // Fallback if _pageNumber is not available
+           shouldRestart = true;
+        }
+
+        if (shouldRestart) {
+           gifs.forEach(el => {
+              el.__lastLoopSetting = null; // force restart
+           });
+           initGifRunner(doc);
+        }
+      }
+    });
+  }
 };

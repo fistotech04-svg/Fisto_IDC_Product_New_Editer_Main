@@ -843,6 +843,7 @@ const MobileLayout5 = (props) => {
                                 setShowTOC(false);
                                 setShowProfilePopup(false);
                                 setShowSoundPopup(false);
+                                props.setShowGalleryPopup?.(true);
                             }} className="text-white opacity-90 hover:opacity-100 hover:scale-110 active:scale-90 transition-all">
                                 <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
                             </button>

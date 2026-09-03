@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     const cleanHtml = (html || '')
@@ -56,67 +56,33 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
-// ── Magnetic dock button (same as Layout1) ──────────────────────────────────
-const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassName = '', mousePos, isTablet, addTextBelowIcons, textFont }) => {
-    const btnRef = React.useRef(null);
-    const [showTooltip, setShowTooltip] = React.useState(false);
-    const rawScale = useMotionValue(1);
-    const scale = useSpring(rawScale, { stiffness: 380, damping: 26, mass: 0.5 });
-    const rawGlow = useMotionValue(0);
-    const glowOp = useSpring(rawGlow, { stiffness: 380, damping: 26, mass: 0.5 });
-    const glowBg = useTransform(glowOp, v => `rgba(255,255,255,${v * 0.07})`);
 
-    React.useEffect(() => {
-        if (!mousePos || !btnRef.current) {
-            rawScale.set(1);
-            rawGlow.set(0);
-            setShowTooltip(false);
-            return;
-        }
-        const rect = btnRef.current.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const dist = Math.hypot(mousePos.x - cx, mousePos.y - cy);
-        const isInside = mousePos.x >= rect.left && mousePos.x <= rect.right &&
-            mousePos.y >= rect.top && mousePos.y <= rect.bottom;
-        setShowTooltip(isInside);
-        const maxDist = 52;
-        const t = Math.max(0, 1 - dist / maxDist);
-        const eased = t * t * (3 - 2 * t);
-        const focused = eased * eased;
-        rawScale.set(1 + 0.32 * focused);
-        rawGlow.set(focused);
-    }, [mousePos]);
+const ToolbarBtn = ({ icon, label, onClick, isActive, className = '', id, toolbarProps }) => {
+    const { primaryColor, getLayoutColor, isSidebarOpen, isTablet, addTextBelowIcons, textFont } = toolbarProps;
+    const bgColor = isActive ? getLayoutColor('toolbar-text-main', '#FFFFFF') : getLayoutColor('toolbar-bg', primaryColor);
+    const iconColor = isActive ? getLayoutColor('toolbar-bg', primaryColor) : getLayoutColor('toolbar-text-main', '#FFFFFF');
 
     return (
-        <button
-            ref={btnRef}
-            onFocus={() => setShowTooltip(true)}
-            onBlur={() => setShowTooltip(false)}
-            onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={() => setShowTooltip(false)}
-            className={`flex flex-col items-center justify-center relative z-[20] magnetic-dock-btn ${extraClassName || ''}`}
-            style={{ ...extraStyle, border: 'none', outline: 'none', cursor: 'pointer', padding: 0, background: 'transparent' }}
-            onClick={(e) => { setShowTooltip(false); if (onClick) onClick(e); }}
-        >
-            <motion.div
-                style={{ scale, transformOrigin: 'center 80%', willChange: 'transform' }}
-                className="flex flex-col items-center justify-center"
-                whileTap={{ scale: 0.91 }}
+        <div className="flex flex-col items-center gap-[0.2vh] group relative">
+            <button
+                id={id}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (onClick) onClick(e);
+                }}
+                className={`rounded-full flex items-center justify-center transition-all duration-300 ${isActive ? 'shadow-[0_4px_12px_rgba(0,0,0,0.15)] z-[101]' : 'z-10'} ${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : (isTablet ? 'w-[2.1vw] h-[2.1vw]' : 'w-[2.3vw] h-[2.3vw]')} ${className}`}
+                style={{ backgroundColor: bgColor }}
             >
-                <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.3vw', padding: '0.18vw', background: glowBg }}>
-                    {iconEl}
-                </motion.span>
-                {addTextBelowIcons && (
-                    <span
-                        className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold mt-[0.15vw] leading-none whitespace-nowrap`}
-                        style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
-                    >{label}</span>
-                )}
-            </motion.div>
-            {showTooltip && !addTextBelowIcons && (
-                <div
-                    className="absolute bottom-full mb-[2.8vh] left-1/2 -translate-x-1/2 whitespace-nowrap"
+                <Icon icon={icon} color={iconColor} style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : (isTablet ? '1.0vw' : '1.1vw'), height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : (isTablet ? '1.0vw' : '1.1vw') }} />
+            </button>
+            {addTextBelowIcons && label && (
+                <span
+                    className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.5vw]'} font-semibold leading-tight text-center whitespace-nowrap transition-opacity ${isActive ? 'opacity-0' : 'opacity-100'}`}
+                    style={{ color: getLayoutColor('toolbar-bg', primaryColor), fontFamily: textFont }}
+                >{label}</span>
+            )}
+            {!addTextBelowIcons && label && (
+                <div className="absolute top-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
                     style={{
                         background: 'rgba(10, 10, 12, 0.55)',
                         backdropFilter: 'blur(30px)',
@@ -128,22 +94,16 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
                         padding: '0.25vw 0.5vw',
                         borderRadius: '0.3vw',
                         fontSize: isTablet ? '0.55vw' : '0.65vw',
-                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
-                        pointerEvents: 'none',
-                        zIndex: 150,
-                    }}
-                >
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                    }}>
                     {label}
-                    <div
-                        className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-l-[0.35vw] border-r-[0.35vw] border-t-[0.45vw]"
-                        style={{ borderTopColor: 'rgba(10, 10, 12, 0.55)' }}
-                    />
+                    <div className="absolute bottom-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-b-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                 </div>
             )}
-        </button>
+        </div>
     );
 };
-// ───────────────────────────────────────────────────────────────────────────
+
 
 const Grid8Layout = ({
     children,
@@ -153,7 +113,6 @@ const Grid8Layout = ({
     setSearchQuery,
     handleQuickSearch,
     setShowThumbnailBarMemo,
-    showTOC,
     setShowTOCMemo,
     setShowAddNotesPopupMemo,
     setShowAddBookmarkPopupMemo,
@@ -166,7 +125,6 @@ const Grid8Layout = ({
     handleShare,
     handleDownload,
     handleFullScreen,
-    showProfilePopup,
     setShowProfilePopup,
     logoSettings,
     currentPage,
@@ -186,13 +144,20 @@ const Grid8Layout = ({
     backgroundStyle,
     isMuted,
     onToggleAudio,
-    showGalleryPopup,
     setShowGalleryPopupMemo,
+    showTOC,
+    showProfilePopup,
+    showGalleryPopup,
     showSoundPopup,
+    showThumbnailBar,
     setShowSoundPopupMemo,
     layoutColors,
     isTablet,
-    isFullscreen: isFullscreenProp,
+    otherSetupSettings,
+    isFlipMuted,
+    setIsFlipMuted,
+    isFullscreen: isFullscreenProp
+    ,
     offset = 0,
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
@@ -261,115 +226,65 @@ const Grid8Layout = ({
 
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
     const [recommendations, setRecommendations] = useState([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [popupPositions, setPopupPositions] = useState({});
     const isFullscreen = isFullscreenProp || false;
     const isCanvasHovered = false; const setIsCanvasHovered = () => {};
-
-    // Track actual browser fullscreen (fires only when browser enters real fullscreen — 2nd click)
-    const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
-    useEffect(() => {
-        const onFsChange = () => setIsBrowserFullscreen(!!document.fullscreenElement);
-        document.addEventListener('fullscreenchange', onFsChange);
-        return () => document.removeEventListener('fullscreenchange', onFsChange);
-    }, []);
-
-    const [dockMousePos, setDockMousePos] = useState(null);
-    const [showThumbnails, setShowThumbnails] = useState(false);
     const thumbScrollRef = useRef(null);
-
-    const closeAllPopups = () => {
-        setShowTOCMemo?.(false);
-        setShowThumbnails(false);
-        setShowGalleryPopupMemo?.(false);
-        setShowSoundPopupMemo?.(false);
-        setShowProfilePopup?.(false);
-    };
+    const layoutRef = useRef(null);
+    const showThumbnails = showThumbnailBar;
+    const setShowThumbnails = setShowThumbnailBarMemo;
 
     useEffect(() => {
         setLocalSearchQuery(searchQuery || '');
     }, [searchQuery]);
 
     const [pageInputValue, setPageInputValue] = useState(String(currentPage + 1));
-    const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
-    const [showNotesOptions, setShowNotesOptions] = useState(false);
-
+    const [showTopBookmarkOptions, setShowTopBookmarkOptions] = useState(false);
+    const [showTopNotesOptions, setShowTopNotesOptions] = useState(false);
 
     useEffect(() => {
         setPageInputValue(String(currentPage + 1));
     }, [currentPage]);
 
-    const spreads = useMemo(() => {
-        const s = [];
-        if (!pages || pages.length === 0) return s;
+    // Close popup options if user clicks outside
+    useEffect(() => {
+        const handleClickOutside = () => {
+            if (showTopBookmarkOptions) setShowTopBookmarkOptions(false);
+            if (showTopNotesOptions) setShowTopNotesOptions(false);
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [showTopBookmarkOptions, showTopNotesOptions]);
 
-        // Page 1 (Front Cover)
-        s.push({ label: 'Page 1', indices: [0], pages: [pages[0]] });
+    // Close localized popups if another main popup is opened
+    useEffect(() => {
+        if (showTOC || showThumbnails || showGalleryPopup || showProfilePopup || showViewBookmarkPopup || showSoundPopup) {
+            setShowTopBookmarkOptions(false);
+            setShowTopNotesOptions(false);
+        }
+    }, [showTOC, showThumbnails, showGalleryPopup, showProfilePopup, showViewBookmarkPopup, showSoundPopup]);
 
-        // Middle spreads
-        for (let i = 1; i < pages.length - 1; i += 2) {
-            const indices = [i];
-            const spreadPages = [pages[i]];
-            if (i + 1 < pages.length) {
-                indices.push(i + 1);
-                spreadPages.push(pages[i + 1]);
-            }
-            s.push({
-                label: indices.length > 1 ? `Page ${indices[0] + 1}-${indices[1] + 1}` : `Page ${indices[0] + 1}`,
-                indices,
-                pages: spreadPages
-            });
+    const handleMenuClick = (setter, currentVal, e, popupName) => {
+        if (e && e.currentTarget && popupName && layoutRef.current) {
+            const btnRect = e.currentTarget.getBoundingClientRect();
+            const layoutRect = layoutRef.current.getBoundingClientRect();
+            const relativeLeft = btnRect.left - layoutRect.left + (btnRect.width / 2);
+            setPopupPositions(prev => ({ ...prev, [popupName]: relativeLeft }));
         }
 
-        // Last page (Back Cover) if not already included
-        const lastIdx = pages.length - 1;
-        if (lastIdx > 0 && !s.some(spread => spread.indices.includes(lastIdx))) {
-            s.push({
-                label: `Page ${lastIdx + 1}`,
-                indices: [lastIdx],
-                pages: [pages[lastIdx]]
-            });
+        const next = !currentVal;
+        if (next) {
+            // Close local dropdowns
+            setShowTopNotesOptions(false);
+            setShowTopBookmarkOptions(false);
+            // Close main popups (using Memo handlers from parent which already call closeAllPopups)
+            setShowTOCMemo(false);
+            setShowThumbnailBarMemo(false);
+            setShowGalleryPopupMemo(false);
+            setShowSoundPopupMemo(false);
+            setShowProfilePopup(false);
         }
-        return s;
-    }, [pages]);
-
-    const progressHoverRef = useRef(null);
-    const progressRef = useRef(null);
-    const [progressHover, setProgressHover] = useState({
-        visible: false,
-        x: 0,
-        pageIndex: 0,
-        spread: null
-    });
-
-    const handleProgressMouseMove = (e) => {
-        if (!progressRef.current || pagesCount <= 1) return;
-        const rect = progressRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-
-        if (progressHoverRef.current) cancelAnimationFrame(progressHoverRef.current);
-        progressHoverRef.current = requestAnimationFrame(() => {
-            const boundedX = Math.max(0, Math.min(x, rect.width));
-            const percentage = boundedX / rect.width;
-            let targetIdx = Math.round(percentage * (pagesCount - 1));
-
-            const activeSpread = spreads.find(s => s.indices.includes(targetIdx)) || spreads[0];
-
-            setProgressHover({
-                visible: true,
-                x: boundedX,
-                pageIndex: targetIdx,
-                spread: activeSpread
-            });
-        });
-    };
-
-    const handleProgressClick = (e) => {
-        if (!progressRef.current || pagesCount <= 1) return;
-        const rect = progressRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percentage = Math.max(0, Math.min(1, x / rect.width));
-        const targetIdx = Math.round(percentage * (pagesCount - 1));
-        onPageClick(targetIdx);
+        setter(next);
     };
 
     // Scroll active thumbnail into view when panel opens
@@ -382,36 +297,52 @@ const Grid8Layout = ({
         }
     }, [showThumbnails, currentPage]);
 
+    // Ensure perfect alignment of thumbnails popup with its button during sidebar transitions
+    useEffect(() => {
+        if (!showThumbnails) return;
+
+        let animationFrameId;
+
+        const syncPosition = () => {
+            const currentBtn = document.getElementById('layout8-thumbnails-btn');
+            const currentPopup = document.getElementById('layout8-thumb-panel');
+            const currentLayout = layoutRef.current;
+
+            if (currentBtn && currentPopup && currentLayout) {
+                const btnRect = currentBtn.getBoundingClientRect();
+                const layoutRect = currentLayout.getBoundingClientRect();
+                const relativeLeft = btnRect.left - layoutRect.left + (btnRect.width / 2);
+                currentPopup.style.left = `${relativeLeft}px`;
+            }
+            animationFrameId = requestAnimationFrame(syncPosition);
+        };
+
+        syncPosition();
+
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [showThumbnails]);
+
+
+
     const primaryColor = layoutColors?.primary || '#575C9C';
     const baseBgColor = layoutColors?.secondary || '#E3E4EF';
 
-    const hexToRgba = (hex, opacity = 100) => {
-        const h = hex.replace('#', '');
-        const r = parseInt(h.substring(0, 2), 16);
-        const g = parseInt(h.substring(2, 4), 16);
-        const b = parseInt(h.substring(4, 6), 16);
-        const a = 0.4 + (Math.max(0, Math.min(1, opacity / 100)) * 0.6);
-        return a >= 1 ? hex : `rgba(${r},${g},${b},${a})`;
-    };
-
     const getLayoutColor = (id, defaultColor) => {
-        if (!layoutColors) return `var(--${id}, ${defaultColor})`;
+        if (!layoutColors) return defaultColor;
 
         // If layoutColors is an array directly for this layout
         if (Array.isArray(layoutColors)) {
             const colorObj = layoutColors.find(c => c.id === id);
-            if (!colorObj) return `var(--${id}, ${defaultColor})`;
-            return hexToRgba(colorObj.hex, colorObj.opacity ?? 100);
+            return colorObj ? colorObj.hex : defaultColor;
         }
 
         // If layoutColors is the global container (indexed by layout ID)
-        if (layoutColors[8] && Array.isArray(layoutColors[8])) {
-            const colorObj = layoutColors[8].find(c => c.id === id);
-            if (!colorObj) return `var(--${id}, ${defaultColor})`;
-            return hexToRgba(colorObj.hex, colorObj.opacity ?? 100);
+        if (layoutColors[9] && Array.isArray(layoutColors[9])) {
+            const colorObj = layoutColors[9].find(c => c.id === id);
+            return colorObj ? colorObj.hex : defaultColor;
         }
 
-        return `var(--${id}, ${defaultColor})`;
+        return defaultColor;
     };
 
     const getLayoutOpacity = (id, defaultOpacity) => {
@@ -420,71 +351,170 @@ const Grid8Layout = ({
         // If layoutColors is an array directly for this layout
         if (Array.isArray(layoutColors)) {
             const colorObj = layoutColors.find(c => c.id === id);
-            return colorObj ? Math.max(0.4, colorObj.opacity / 100) : defaultOpacity;
+            return colorObj ? colorObj.opacity / 100 : defaultOpacity;
         }
 
         // If layoutColors is the global container (indexed by layout ID)
-        if (layoutColors[8] && Array.isArray(layoutColors[8])) {
-            const colorObj = layoutColors[8].find(c => c.id === id);
-            return colorObj ? Math.max(0.4, colorObj.opacity / 100) : defaultOpacity;
+        if (layoutColors[9] && Array.isArray(layoutColors[9])) {
+            const colorObj = layoutColors[9].find(c => c.id === id);
+            return colorObj ? colorObj.opacity / 100 : defaultOpacity;
         }
 
         return defaultOpacity;
+    };
+
+    const getLayoutColorRgba = (id, defaultHex, defaultOpacity) => {
+        let hex = getLayoutColor(id, defaultHex);
+        let opacity = getLayoutOpacity(id, defaultOpacity);
+
+        // Convert to rgba string safely
+        if (!hex || !hex.startsWith('#')) return `rgba(87, 92, 156, ${opacity})`;
+
+        let c = hex.substring(1).split('');
+        if (c.length === 3) c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+        if (c.length !== 6) return hex;
+
+        const val = parseInt(c.join(''), 16);
+        return `rgba(${(val >> 16) & 255}, ${(val >> 8) & 255}, ${val & 255}, ${opacity})`;
+    };
+
+    const isLightColor = (hex) => {
+        if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return false;
+        let c = hex.substring(1).toUpperCase();
+        if (c.length === 3) c = c.split('').map(x => x + x).join('');
+        if (c.length !== 6) return false;
+        const r = parseInt(c.substring(0, 2), 16);
+        const g = parseInt(c.substring(2, 4), 16);
+        const b = parseInt(c.substring(4, 6), 16);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.7;
+    };
+
+    const bodyTextColor = (() => {
+        const dropBgHex = getLayoutColor('dropdown-bg', primaryColor);
+        const dropTextHex = getLayoutColor('dropdown-text', '#FFFFFF');
+        return isLightColor(dropBgHex) ? (dropTextHex === '#FFFFFF' ? '#2D2D2D' : dropTextHex) : dropBgHex;
+    })();
+
+    // Sound Popup States
+    const flipSoundMasterEnabled = otherSetupSettings?.sound?.flipSoundEnabled !== false;
+    const bgSoundMasterEnabled = otherSetupSettings?.sound?.bgSoundEnabled !== false;
+    const isFlipActive = flipSoundMasterEnabled && !isFlipMuted;
+    const isBgActive = bgSoundMasterEnabled && !isMuted;
+    const flipWidth = flipSoundMasterEnabled ? (isFlipActive ? '60%' : '15%') : '0%';
+    const bgWidth = bgSoundMasterEnabled ? (isBgActive ? '80%' : '15%') : '0%';
+
+    const handleFlipClick = (e) => {
+        e.stopPropagation();
+        if (flipSoundMasterEnabled && setIsFlipMuted) {
+            setIsFlipMuted(!isFlipMuted);
+        }
+    };
+
+    const handleBgClick = (e) => {
+        e.stopPropagation();
+        if (bgSoundMasterEnabled && onToggleAudio) {
+            onToggleAudio();
+        }
     };
 
     // Toolbar display settings
     const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons ?? false;
     const textFont = settings?.toolbar?.textProperties?.font || 'inherit';
 
-    // Bottom bar sizes: keep consistent regardless of fullscreen mode
-    const bbHeight = isTablet ? 'h-[5.5vh]' : 'h-[7vh]';
-    const bbPt = 'pb-[1.5vh]';
-    const bbGap = 'gap-[1.3vw]';
-    const bbMb = addTextBelowIcons ? 'mb-[0vh] mt-[1.2vh]' : 'mb-[0vh] mt-[2.5vh]';
-    const bbIconSm = isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]';
-    const bbIconMid = isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.15vw] h-[1.15vw]';
-    const bbIconLg = isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]';
-    const bbIconFul = isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]';
-
-    if (isTablet) {
-        return <div className="w-full h-full bg-transparent flex items-center justify-center"></div>;
-    }
+    const toolbarProps = { primaryColor, getLayoutColor, isSidebarOpen, isTablet, addTextBelowIcons, textFont };
 
     return (
         <div
-            className="h-full w-full font-sans overflow-hidden relative"
-            style={backgroundStyle}
-            onClick={() => {
-                setRecommendations([]);
-                setShowSuggestions(false);
-                setShowBookmarkOptions(false);
-                setShowNotesOptions(false);
-                closeAllPopups();
-            }}
+            ref={layoutRef}
+            className="flex flex-col h-full w-full font-sans overflow-hidden relative"
+            style={{ backgroundColor: backgroundSettings?.color || baseBgColor, ...backgroundStyle }}
+            onClick={() => setRecommendations([])}
         >
-            {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[80] bg-transparent" onClick={() => setShowSuggestions(false)} />}
-            {/* Top Overlay Area */}
+            {/* ═══════════ Global Click Overlay Dropdowns ═══════════ */}
+            {/* Captures clicks reliably before they hit the flipbook which swallows propagation */}
+            {!isTablet && (showTopBookmarkOptions || showTopNotesOptions) && (
+                <div
+                    className="absolute inset-0 z-[40]"
+                    onClick={() => {
+                        setShowTopBookmarkOptions(false);
+                        setShowTopNotesOptions(false);
+                    }}
+                />
+            )}
+
+            {/* ═══════════ Top Overlay Area ═══════════ */}
+            {!isTablet && (
             <div
-                className={`absolute ${isTablet ? 'top-[2vh]' : 'top-[3vh]'} left-[2vw] right-[2vw] flex items-center justify-between z-[100] pointer-events-none transition-all duration-500 ease-in-out`}
+                className="absolute top-[2vh] left-[2vw] right-[2vw] flex items-center justify-between z-[100] pointer-events-none transition-all duration-500 ease-in-out"
                 style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
             >
 
-                {/* Left: Search & Zoom */}
-                <div className="flex-1 flex justify-start items-center gap-[1vw] pointer-events-auto">
+                {/* Left: Quick Search */}
+                <div className="flex-1 flex justify-start pointer-events-auto">
                     {settings?.interaction?.search !== false && !isPdfProject && (
-                        <div className={`relative ${showSuggestions && recommendations.length > 0 ? 'z-[90]' : 'z-50'}`} onClick={(e) => e.stopPropagation()}>
+                        <div className={`relative z-50 transition-transform duration-300 ${isSidebarOpen ? '-translate-x-[0.8vw]' : ''}`} onClick={(e) => e.stopPropagation()}>
+                            {/* Purple Background & Dropdown Container */}
+                            <AnimatePresence>
+                                {recommendations.length > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -5 }}
+                                        className={`absolute left-0 z-0 shadow-2xl flex flex-col w-full ${isTablet ? 'top-[1.8vh]' : 'top-[2.1vh]'}`}
+                                        style={{
+                                            backgroundColor: getLayoutColor('dropdown-bg', primaryColor),
+                                            borderBottomLeftRadius: '1.2vw',
+                                            borderBottomRightRadius: '1.2vw',
+                                            paddingBottom: '0.6vw'
+                                        }}
+                                    >
+                                        {/* Invisible spacer to push suggestions below the input */}
+                                        <div className={`${isTablet ? 'h-[1.8vh]' : 'h-[2.1vh]'} shrink-0`} />
+
+                                        {/* Suggestions White Box */}
+                                        <div className="mx-[0.6vw] mt-[0.6vw] bg-white flex flex-col py-[0.5vh] overflow-hidden" style={{ borderRadius: '0.8vw' }}>
+                                            {recommendations.map((rec, idx) => (
+                                                <button
+                                                    key={`${rec.word}-${rec.pageNumber}-${idx}`}
+                                                    className="flex items-center justify-between px-[1.2vw] py-[0.8vh] hover:bg-gray-50 transition-colors group"
+                                                    style={{ color: getLayoutColor('dropdown-bg', primaryColor) }}
+                                                    onClick={() => {
+                                                        onPageClick(rec.pageNumber - 1);
+                                                        const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
+                                                        setLocalSearchQuery(fullQuery);
+                                                        setSearchQuery(fullQuery);
+                                                        setRecommendations([]);
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
+                                                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
+                                                            <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 600 }}>{rec.word}</span>
+                                                            {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[0.8vw] font-medium opacity-50 tabular-nums shrink-0">Pg {rec.pageNumber}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
                             <div
-                                className={`flex items-center rounded-full px-[1vw] py-[0.5vh] ${isTablet ? 'h-[3.2vh]' : 'h-[4vh]'} shadow-sm transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[7vw]' : 'w-[9vw]') : (isTablet ? 'w-[13vw]' : 'w-[16vw]')}`}
-                                style={{ backgroundColor: '#FFFFFF' }}
+                                className={`relative z-10 flex items-center rounded-full px-[1vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'} transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[10vw]' : 'w-[12vw]') : (isTablet ? 'w-[11vw]' : 'w-[14vw]')}`}
+                                style={{
+                                    backgroundColor: recommendations.length > 0 ? '#ffffff' : getLayoutColor('search-bg-v2', '#ffffff'),
+                                    border: recommendations.length > 0 ? 'none' : `1px solid ${getLayoutColor('search-text-v1', primaryColor)}30`
+                                }}
                             >
-                                <Icon icon="lucide:search" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`} style={{ color: getLayoutColor('search-text-v1', primaryColor) }} />
+                                <Icon icon="lucide:search" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '1.0vw') : (isTablet ? '1.0vw' : '1.1vw'), height: isSidebarOpen ? (isTablet ? '0.9vw' : '1.0vw') : (isTablet ? '1.0vw' : '1.1vw') }} color={getLayoutColor('search-text-v1', primaryColor)} />
                                 <input
-                                    type="text"
+                                    type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                     value={localSearchQuery}
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         setLocalSearchQuery(val);
-                                        setShowSuggestions(true);
                                         if (val.length >= 1) {
                                             const results = [];
                                             const lowerQuery = val.toLowerCase();
@@ -523,108 +553,208 @@ const Grid8Layout = ({
                                             setSearchQuery(localSearchQuery);
                                             handleQuickSearch(localSearchQuery);
                                             setRecommendations([]);
-                                            setShowSuggestions(false);
                                         }
                                     }}
-                                    onFocus={() => { if (recommendations.length > 0) setShowSuggestions(true); }}
                                     placeholder="Quick Search..."
                                     className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-medium`}
                                     style={{ color: getLayoutColor('search-text-v1', primaryColor) }}
                                 />
                             </div>
+                        </div>
+                    )}
+                </div>
 
-                            <AnimatePresence>
-                                {showSuggestions && recommendations.length > 0 && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -5 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -5 }}
-                                        className="absolute top-[5vh] left-0 bg-white rounded-[0.4vw] shadow-2xl w-[16vw] overflow-hidden border border-gray-100"
-                                        onClick={(e) => e.stopPropagation()}
+                {/* ═══════════ Center: Top Toolbar ═══════════ */}
+                <div className="flex-shrink-0 pointer-events-auto relative z-[4000]">
+                    <div
+                        className={`flex items-center ${isSidebarOpen ? 'gap-[0.8vw]' : (isTablet ? 'gap-[0.4vw]' : 'gap-[0.8vw]')} rounded-full px-[0.8vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'}`}
+                    >
+                        {/* TOC */}
+                        {(settings?.navigation?.tableOfContents ?? true) && (
+                            <ToolbarBtn toolbarProps={toolbarProps}
+                                id="layout8-toc-btn"
+                                icon="fluent:text-bullet-list-24-filled"
+                                label="TOC"
+                                onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowTOCMemo, showTOC, e, 'toc'); }}
+                                isActive={showTOC}
+                            />
+                        )}
+                        {/* Thumbnails */}
+                        {(settings?.navigation?.pageThumbnails ?? true) && (
+                            <ToolbarBtn toolbarProps={toolbarProps}
+                                id="layout8-thumbnails-btn"
+                                icon="ph:squares-four-fill"
+                                label="Thumbnails"
+                                onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowThumbnailBarMemo, showThumbnails, e, 'thumbnails'); }}
+                                isActive={showThumbnails}
+                            />
+                        )}
+
+                        {/* Play/Pause */}
+                        {(settings?.media?.autoFlip ?? true) && (
+                            <ToolbarBtn toolbarProps={toolbarProps}
+                                icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"}
+                                label={isAutoFlipping ? 'Pause' : 'Play'}
+                                onClick={() => setIsPlaying(!isAutoFlipping)}
+                                isActive={isAutoFlipping}
+                            />
+                        )}
+                        {/* Gallery */}
+                        {(settings?.interaction?.gallery ?? true) && (
+                            <ToolbarBtn toolbarProps={toolbarProps}
+                                icon="clarity:image-gallery-solid"
+                                label="Gallery"
+                                onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowGalleryPopupMemo, showGalleryPopup, e, 'gallery'); }}
+                                isActive={showGalleryPopup}
+                            />
+                        )}
+                        <div className="relative" id="layout8-sound-icon-anchor">
+                            {(settings?.media?.backgroundAudio ?? true) && (
+                                <ToolbarBtn toolbarProps={toolbarProps}
+                                    icon="solar:music-notes-bold"
+                                    label="Sound"
+                                    onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowSoundPopupMemo, showSoundPopup, e, 'sound'); }}
+                                    isActive={showSoundPopup}
+                                    className="relative z-[999]"
+                                />
+                            )}
+                        </div>
+
+                        {/* Divider */}
+                        <div className="w-[1px] h-[2vh] bg-white mx-[0.2vw] opacity-40" />
+
+                        {/* Search / Zoom controls */}
+                        {(settings?.viewing?.zoom ?? true) && (
+                            <div className={`flex items-center rounded-full px-[0.2vw] ${isSidebarOpen ? 'gap-[0.1vw]' : 'gap-[0.2vw]'} ${isSidebarOpen ? (isTablet ? 'h-[1.7vw]' : 'h-[1.85vw]') : (isTablet ? 'h-[2.1vw]' : 'h-[2.3vw]')}`} style={{ backgroundColor: `${primaryColor}33`, border: `1px solid ${getLayoutColor('toolbar-bg', primaryColor)}20` }}>
+                                <div className="group relative flex items-center justify-center h-full">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); zoomOut(); }}
+                                        className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : (isTablet ? 'w-[2.1vw] h-[2.1vw]' : 'w-[2.3vw] h-[2.3vw]')} rounded-full flex items-center justify-center transition-all shadow-sm`}
+                                        style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                                     >
-                                        <div className="px-[1vw] py-[0.8vh] border-b border-gray-100 bg-gray-50/50">
-                                            <span className="text-[0.9vw] font-bold" style={{ color: primaryColor }}>Suggestion</span>
-                                        </div>
-                                        <div className="flex flex-col py-[0.5vh]">
-                                            {recommendations.map((rec, idx) => (
-                                                <button
-                                                    key={`${rec.word}-${rec.pageNumber}-${idx}`}
-                                                    className="flex items-center justify-between px-[1.2vw] py-[0.8vh] hover:bg-gray-50 transition-colors group"
-                                                    style={{ color: primaryColor }}
-                                                    onClick={() => {
-                                                        onPageClick(rec.pageNumber - 1);
-                                                        const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
-                                                        setLocalSearchQuery(fullQuery);
-                                                        setSearchQuery(fullQuery);
-                                                        setRecommendations([]);
-                                                        setShowSuggestions(false);
-                                                    }}
-                                                >
-                                                    <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
-                                                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
-                                                            <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 800 }}>{rec.word}</span>
-                                                            {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
-                                                        </span>
-                                                    </div>
-                                                    <span className="text-[0.8vw] font-medium opacity-50 tabular-nums shrink-0">Pg {rec.pageNumber}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                    )}
+                                        <Icon icon="lucide:zoom-out" style={{ width: isSidebarOpen ? '0.9vw' : '1.1vw', height: isSidebarOpen ? '0.9vw' : '1.1vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                                    </button>
+                                    <div className="absolute top-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                        style={{
+                                            background: 'rgba(10, 10, 12, 0.55)',
+                                            backdropFilter: 'blur(30px)',
+                                            WebkitBackdropFilter: 'blur(30px)',
+                                            transform: 'translateZ(0)',
+                                            isolation: 'isolate',
+                                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                                            color: '#ffffff',
+                                            padding: '0.25vw 0.5vw',
+                                            borderRadius: '0.3vw',
+                                            fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                        }}>
+                                        Zoom Out
+                                        <div className="absolute bottom-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-b-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                    </div>
+                                </div>
+                                <span className={`${isSidebarOpen ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold ${isSidebarOpen ? 'min-w-[2vw]' : 'min-w-[2.5vw]'} text-center`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
+                                    {Math.round((dimWidth / initialWidth) * 100)}%
+                                </span>
+                                <div className="group relative flex items-center justify-center h-full">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); zoomIn(); }}
+                                        className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : (isTablet ? 'w-[2.1vw] h-[2.1vw]' : 'w-[2.3vw] h-[2.3vw]')} rounded-full flex items-center justify-center transition-all shadow-sm`}
+                                        style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                                    >
+                                        <Icon icon="lucide:zoom-in" style={{ width: isSidebarOpen ? '0.9vw' : '1.1vw', height: isSidebarOpen ? '0.9vw' : '1.1vw' }} />
+                                    </button>
+                                    <div className="absolute top-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                        style={{
+                                            background: 'rgba(10, 10, 12, 0.55)',
+                                            backdropFilter: 'blur(30px)',
+                                            WebkitBackdropFilter: 'blur(30px)',
+                                            transform: 'translateZ(0)',
+                                            isolation: 'isolate',
+                                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                                            color: '#ffffff',
+                                            padding: '0.25vw 0.5vw',
+                                            borderRadius: '0.3vw',
+                                            fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                        }}>
+                                        Zoom In
+                                        <div className="absolute bottom-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-b-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                    </div>
+                                </div>
+                                <div className="group relative flex items-center justify-center h-full">
+                                    <button
+                                        onClick={() => {
+                                            setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
+                                            setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
+                                        }}
+                                        className={`text-[0.7vw] font-bold px-[0.8vw] ${isSidebarOpen ? (isTablet ? 'h-[1.3vw]' : 'h-[1.45vw]') : (isTablet ? 'h-[1.7vw]' : 'h-[1.9vw]')} rounded-full flex items-center justify-center transition-all shadow-sm`}
+                                        style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), color: getLayoutColor('toolbar-bg', primaryColor) }}
+                                    >
+                                        Reset
+                                    </button>
+                                    <div className="absolute top-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                        style={{
+                                            background: 'rgba(10, 10, 12, 0.55)',
+                                            backdropFilter: 'blur(30px)',
+                                            WebkitBackdropFilter: 'blur(30px)',
+                                            transform: 'translateZ(0)',
+                                            isolation: 'isolate',
+                                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                                            color: '#ffffff',
+                                            padding: '0.25vw 0.5vw',
+                                            borderRadius: '0.3vw',
+                                            fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                        }}>
+                                        Reset Zoom
+                                        <div className="absolute bottom-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-b-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
-                    {/* Zoom Pill */}
-                    {(settings?.viewing?.zoom ?? true) && (
-                        <div
-                            className={`flex items-center rounded-full px-[0.4vw] py-[0.5vh] ${isTablet ? 'h-[3.2vh]' : 'h-[4vh]'} shadow-sm pointer-events-auto`}
-                            style={{ backgroundColor: 'rgba(0, 0, 0, 0.03)' }}
-                        >
-                            <button
-                                onClick={(e) => { e.stopPropagation(); zoomOut(); }}
-                                className="hover:scale-110 ml-[0.5vw] transition-transform"
-                                style={{ color: getLayoutColor('search-text-v1', primaryColor) }}
-                            >
-                                <Icon icon="lucide:zoom-out" className={`${isTablet ? 'w-[0.75vw] h-[0.75vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />
-                            </button>
-                            <span className={`font-medium ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} min-w-[3vw] text-center pt-[0.1vh]`} style={{ color: getLayoutColor('search-text-v1', primaryColor) }}>
-                                {Math.round((dimWidth / initialWidth) * 100)}%
-                            </span>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); zoomIn(); }}
-                                className="hover:scale-110 mr-[0.5vw] transition-transform"
-                                style={{ color: getLayoutColor('search-text-v1', primaryColor) }}
-                            >
-                                <Icon icon="lucide:zoom-in" className={`${isTablet ? 'w-[0.75vw] h-[0.75vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
-                                    setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
-                                }}
-                                className={`bg-white ${isTablet ? 'text-[0.65vw] px-[0.6vw]' : 'text-[0.8vw] px-[0.8vw]'} font-bold ${isTablet ? 'h-[2.4vh]' : 'h-[3vh]'} rounded-full flex items-center justify-center hover:bg-gray-50 transition-all shadow-sm`}
-                                style={{ color: getLayoutColor('search-text-v1', primaryColor) }}
-                            >
-                                Reset
-                            </button>
-                        </div>
-                    )}
+                        {/* Divider */}
+                        <div className="w-[1px] h-[2vh] bg-white mx-[0.2vw] opacity-40" />
+
+                        {/* Profile */}
+                        <ToolbarBtn toolbarProps={toolbarProps}
+                            id="layout8-profile-btn"
+                            icon="fluent:person-24-filled"
+                            label="Profile"
+                            onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowProfilePopup, showProfilePopup, e, 'profile'); }}
+                            isActive={showProfilePopup}
+                        />
+                        {/* Share */}
+                        {(settings?.shareExport?.share ?? true) && (
+                            <ToolbarBtn toolbarProps={toolbarProps}
+                                icon="mage:share-fill"
+                                label="Share"
+                                onClick={handleShare}
+                            />
+                        )}
+                        {/* Download */}
+                        {(settings?.shareExport?.download ?? true) && (
+                            <ToolbarBtn toolbarProps={toolbarProps}
+                                icon="meteor-icons:download"
+                                label="Download"
+                                onClick={handleDownload}
+                            />
+                        )}
+                        {/* Fullscreen */}
+                        {(settings?.viewing?.fullScreen ?? true) && <ToolbarBtn toolbarProps={toolbarProps}
+                            icon={isFullscreen ? "lucide:minimize" : "lucide:fullscreen"}
+                            label={isFullscreen ? 'Exit' : 'Fullscreen'}
+                            onClick={handleFullScreen}
+                            isActive={isFullscreen}
+                        />}
+                    </div>
                 </div>
 
-                {/* Center Title */}
-                <div className="flex-shrink-0 flex justify-center pointer-events-auto px-[1vw] max-w-[30vw]">
-                    <h1 className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-bold tracking-wide truncate`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        {/* bookName hidden */}
-                    </h1>
-                </div>
-
-                {/* Right Logo */}
-                <div className="flex-1 flex items-center justify-end pointer-events-auto shrink-0 min-w-[10vw]">
+                {/* Right: Logo */}
+                <div className="flex-1 flex justify-end items-center gap-[1vw] pointer-events-auto pr-[1vw]">
                     {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
                         logoSettings.url ? (
-                            <a 
+                            <a
                                 href={logoSettings.url.startsWith('http') ? logoSettings.url : `https://${logoSettings.url}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -633,7 +763,7 @@ const Grid8Layout = ({
                                 <img
                                     src={logoSettings.src}
                                     alt="Logo"
-                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity mr-[0.5vw]`}
+                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity`}
                                     style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
                                 />
                             </a>
@@ -642,7 +772,7 @@ const Grid8Layout = ({
                                 <img
                                     src={logoSettings.src}
                                     alt="Logo"
-                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity mr-[0.5vw]`}
+                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity`}
                                     style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
                                 />
                             </button>
@@ -650,10 +780,11 @@ const Grid8Layout = ({
                     )}
                 </div>
             </div>
+            )}
 
 
-            {/* Main Canvas */}
-            <div className="absolute inset-0 flex justify-center items-center z-10 pt-[8vh] pb-[9vh]"
+            {/* ═══════════ Main Book Canvas ═══════════ */}
+            <div className="flex-1 flex justify-center items-center w-full z-10 pt-[8vh] pb-[12vh]"
                 onMouseMove={(e) => {
                     if (!isFullscreen) return;
                     const rect = e.currentTarget.getBoundingClientRect();
@@ -667,461 +798,345 @@ const Grid8Layout = ({
                 onMouseLeave={() => isFullscreen && setIsCanvasHovered(false)}
             >
                 <div
-                    className="transition-all duration-600 ease-in-out relative"
+                    className="transition-all duration-600 ease-in-out"
                     style={{
                         transform: `translateX(${localOffset}px) scale(1)`,
                         transformOrigin: 'center center'
                     }}
                 >
                     {modifiedChildren}
-
-                    {/* Left Navigate Button — hugs the visible page's left edge */}
-                    {(settings?.navigation?.nextPrevButtons ?? true) && (
-                        <button
-                            className="absolute top-1/2 -translate-y-1/2 -translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
-                            style={{ left: localOffset < 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                            onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
-                        >
-                            <Icon icon="lucide:chevron-left" strokeWidth={1} className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.5vw] h-[2.5vw]'} hover:-translate-x-1 transition-transform`} />
-                        </button>
-                    )}
-
-                    {/* Right Navigate Button — hugs the visible page's right edge */}
-                    {(settings?.navigation?.nextPrevButtons ?? true) && (
-                        <button
-                            className="absolute top-1/2 -translate-y-1/2 translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
-                            style={{ right: localOffset > 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                            onClick={() => bookRef.current?.pageFlip()?.flipNext()}
-                        >
-                            <Icon icon="lucide:chevron-right" strokeWidth={1} className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.5vw] h-[2.5vw]'} hover:translate-x-1 transition-transform`} />
-                        </button>
-                    )}
                 </div>
             </div>
 
-            {/* Page Info Pill (Bottom Left) */}
-            {(settings?.navigation?.pageQuickAccess ?? true) && (
-                <div
-                    className={`absolute left-[3vw] ${isTablet ? 'bottom-[9vh]' : 'bottom-[12vh]'} rounded-[0.4vw] px-[1.2vw] py-[0.6vh] shadow-sm z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
-                    style={{
-                        backgroundColor: getLayoutColor('page-number-bg', getLayoutColor('toolbar-bg', '#575C9C')),
-                        opacity: isFullscreen && isCanvasHovered ? 0 : 1
-                    }}
-                >
-                    <span className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-medium`} style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')) }}>Page </span>
-                    <input
-                        type="text"
-                        value={pageInputValue}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '' || /^\d+$/.test(val)) {
-                                setPageInputValue(val);
-                            }
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                const pageNum = parseInt(pageInputValue, 10);
-                                if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
-                                    onPageClick(pageNum - 1);
-                                } else {
-                                    setPageInputValue(String(currentPage + 1));
-                                }
-                                e.target.blur();
-                            }
-                        }}
-                        onBlur={() => {
-                            const pageNum = parseInt(pageInputValue, 10);
-                            if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
-                                onPageClick(pageNum - 1);
-                            } else {
-                                setPageInputValue(String(currentPage + 1));
-                            }
-                        }}
-                        className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-medium bg-transparent border-none outline-none text-center`}
-                        style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')), width: `${String(pages.length).length + 1}ch` }}
-                    />
-                    <span className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-medium`} style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')) }}> / {totalPages}</span>
-                </div>
-            )}
+            {/* ═══════════ Page Numbers Below Pages Removed ═══════════ */}
+
+            {/* ═══════════ Floating Action Buttons Removed ═══════════ */}
 
 
-
-
-            {/* Bottom Menu Bar — z-[105] so it sits on top of the thumbnail panel and tooltips work */}
-            <div
-                className={`absolute bottom-0 left-0 right-0 ${bbHeight} flex flex-col justify-center items-center ${bbPt} z-[105] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'} shadow-[0_-5px_20px_rgba(0,0,0,0.05)]`}
-                style={{
-                    backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
-                    opacity: isFullscreen && isCanvasHovered ? 0 : 1
-                }}
-                onMouseMove={(e) => setDockMousePos({ x: e.clientX, y: e.clientY })}
-                onMouseLeave={() => setDockMousePos(null)}
-            >
-                <div className={`flex items-center ${bbGap} ${bbMb}`}>
-                    {(settings?.navigation?.tableOfContents ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="fluent:text-bullet-list-24-filled" className={bbIconSm} />}
-                            label="TOC"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const wasOpen = showTOC;
-                                closeAllPopups();
-                                if (!wasOpen) setShowTOCMemo?.(true);
-                            }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-                    {(settings?.navigation?.pageThumbnails ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="ph:squares-four-fill" className={bbIconSm} />}
-                            label="Thumbnails"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const wasOpen = showThumbnails;
-                                closeAllPopups();
-                                if (!wasOpen) setShowThumbnails(true);
-                            }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-                    {(settings?.interaction?.gallery ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="clarity:image-gallery-solid" className={bbIconSm} />}
-                            label="Gallery"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const wasOpen = showGalleryPopup;
-                                closeAllPopups();
-                                if (!wasOpen) setShowGalleryPopupMemo?.(true);
-                            }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-
-                    <div className="w-[0.5vw]" />
-
-                    {(settings?.navigation?.startEndNav ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="ph:skip-back" className={bbIconMid} />}
-                            label="First Page"
-                            onClick={() => { closeAllPopups(); onPageClick(0); }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-                    {(settings?.media?.autoFlip ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={bbIconLg} />}
-                            label={isAutoFlipping ? 'Pause' : 'Play'}
-                            onClick={() => { closeAllPopups(); setIsPlaying(!isAutoFlipping); }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-                    {(settings?.navigation?.startEndNav ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="ph:skip-forward" className={bbIconMid} />}
-                            label="Last Page"
-                            onClick={() => { closeAllPopups(); onPageClick(totalPages - 1); }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-
-                    <div className="w-[0.5vw]" />
-
-                    {(settings?.media?.backgroundAudio ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="solar:music-notes-bold" className={bbIconSm} />}
-                            label="Sound"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const wasOpen = showSoundPopup;
-                                closeAllPopups();
-                                if (!wasOpen) setShowSoundPopupMemo?.(true);
-                            }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-                    {(settings?.brandingProfile?.profile ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="fluent:person-24-filled" className={bbIconSm} />}
-                            label="Profile"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const wasOpen = showProfilePopup;
-                                closeAllPopups();
-                                if (!wasOpen) setShowProfilePopup?.(true);
-                            }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-                    {(settings?.shareExport?.share ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="mage:share-fill" className={bbIconSm} />}
-                            label="Share"
-                            onClick={(e) => { e.stopPropagation(); closeAllPopups(); handleShare(); }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-                    {(settings?.shareExport?.download ?? true) && (
-                        <MagneticDockBtn
-                            iconEl={<Icon icon="meteor-icons:download" className={bbIconSm} />}
-                            label="Download"
-                            onClick={(e) => { e.stopPropagation(); closeAllPopups(); handleDownload(); }}
-                            extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                            mousePos={dockMousePos}
-                            isTablet={isTablet}
-                            addTextBelowIcons={addTextBelowIcons}
-                            textFont={textFont}
-                        />
-                    )}
-                    {(settings?.viewing?.fullScreen ?? true) && <MagneticDockBtn
-                        iconEl={<Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={bbIconFul} />}
-                        label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                        onClick={(e) => { e.stopPropagation(); closeAllPopups(); handleFullScreen(); }}
-                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                        mousePos={dockMousePos}
-                        isTablet={isTablet}
-                        addTextBelowIcons={addTextBelowIcons}
-                        textFont={textFont}
-                    />}
-                </div>
-
-                {/* Progress Bar */}
-                <div
-                    ref={progressRef}
-                    className={`${isTablet ? 'w-[30vw]' : 'w-[40vw]'} ${addTextBelowIcons ? 'mt-[0.2vw]' : 'mt-0'} h-[2vw] flex items-center relative cursor-pointer`}
-                    onMouseMove={handleProgressMouseMove}
-                    onMouseLeave={() => {
-                        if (progressHoverRef.current) cancelAnimationFrame(progressHoverRef.current);
-                        setProgressHover(prev => ({ ...prev, visible: false }));
-                    }}
-                    onClick={handleProgressClick}
-                >
-                    <div className="w-full h-[0.5vh] rounded-full relative overflow-visible">
-                        {/* Track Underlay (before fill) — matches Layout 1 shade */}
+            {/* ═══════════ Top Thumbnail Bar ═══════════ */}
+            <>
+                {!isTablet && showThumbnails && (
+                    <>
+                        {/* Invisible click-to-close overlay */}
                         <div
-                            className="absolute inset-0 rounded-full transition-colors duration-300"
-                            style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 0.3 }}
+                            className="fixed inset-0 z-[44] cursor-default"
+                            onClick={() => setShowThumbnails(false)}
                         />
-                        {/* Progress Fill (after fill) — matches Layout 1 */}
                         <div
-                            className="absolute top-0 left-0 h-full rounded-full transition-all duration-300 pointer-events-none z-10"
-                            style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), width: `${progressPercentage}%` }}
-                        />
-
-                        {/* Hover Popup - Style matches attached screenshot 1 */}
-                        <AnimatePresence>
-                            {progressHover.visible && progressHover.spread && (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className={`absolute z-[100] bottom-[calc(100%+1.5vw)] pointer-events-none`}
-                                    style={{ left: `${progressHover.x}px` }}
-                                >
-                                    <div
-                                        className={`absolute bottom-0 flex flex-col items-center shadow-[0_10px_40px_rgba(0,0,0,0.3)] overflow-hidden`}
-                                        style={{
-                                            borderRadius: isTablet ? '0.6vw' : '0.8vw',
-                                            transform: progressHover.pageIndex === 0 ? 'translateX(-25%)' : 'translateX(-50%)',
-                                            minWidth: isTablet ? '7vw' : '9vw',
-                                            backgroundColor: 'white'
-                                        }}
-                                    >
-                                        {/* Header Bar - Dark Blue as in screenshot 1 */}
-                                        <div
-                                            className="w-full flex justify-center items-center py-[0.5vh] px-[1vw]"
-                                            style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
-                                        >
-                                            <span
-                                                className="font-bold whitespace-nowrap text-white"
-                                                style={{ fontSize: isTablet ? '0.7vw' : '0.85vw' }}
-                                            >
-                                                {progressHover.spread.label}
-                                            </span>
-                                        </div>
-
-                                        {/* Body Area with Thumbnail */}
-                                        <div className="p-[0.5vw] flex flex-col items-center">
-                                            <div
-                                                className="flex justify-center overflow-hidden rounded-[0.3vw] shadow-inner"
-                                                style={{
-                                                    width: `${(400 * (isTablet ? 50 : 70) / 566) * 2 + 1}px`,
-                                                    backgroundColor: '#f3f4f6'
-                                                }}
-                                            >
-                                                <div className="flex gap-[1px] bg-gray-100 p-[1px]">
-                                                    {progressHover.spread.pages.map((page, pIdx) => {
-                                                        const boxHeight = isTablet ? 50 : 70;
-                                                        const scale = boxHeight / 566;
-                                                        const boxWidth = 400 * scale;
-                                                        return (
-                                                            <div
-                                                                key={`${progressHover.spread.indices[0]}-${pIdx}`}
-                                                                className="bg-white overflow-hidden relative flex items-center justify-center border border-gray-100"
-                                                                style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}
-                                                            >
-                                                                <PageThumbnail
-                                                                    html={page.html || page.content}
-                                                                    index={progressHover.spread.indices[pIdx]}
-                                                                    scale={scale}
-                                                                />
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Downward Arrow */}
-                                        <div
-                                            className="absolute top-[99%] left-1/2 -translateX-1/2 pointer-events-none"
-                                            style={{
-                                                width: isTablet ? '1vw' : '1.3vw',
-                                                height: isTablet ? '0.7vw' : '0.9vw',
-                                                filter: 'drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.15))'
-                                            }}
-                                        >
-                                            <svg width="100%" height="100%" viewBox="0 0 20 15" preserveAspectRatio="none">
-                                                <path
-                                                    d="M0 0 L10 15 L20 0"
-                                                    fill="white"
-                                                />
-                                            </svg>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </div>
-            </div>
-
-            {/* ── Thumbnail Panel — moved to end of DOM to prevent flex flow interference ── */}
-            <AnimatePresence>
-                {showThumbnails && (
-                    <motion.div
-                        key="thumb-panel"
-                        initial={{ y: '100%' }}
-                        animate={{ y: 0 }}
-                        exit={{ y: '100%' }}
-                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="fixed z-[101] rounded-t-[0.8vw] overflow-hidden"
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            left: isFullscreen ? '25vw' : (isSidebarOpen ? '43.5vw' : '34vw'),
-                            right: isFullscreen ? '25vw' : (isSidebarOpen ? '6.5vw' : '16vw'),
-                            bottom: isTablet ? '7.5vh' : '9vh',
-                            backgroundColor: '#FFFFFF',
-                            maxHeight: '45vh',
-                            boxShadow: '0 -10px 40px rgba(0,0,0,0.3)',
-                            backdropFilter: 'none',
-                            opacity: 1,
-                            transition: 'left 0.3s ease, right 0.3s ease'
-                        }}
-                    >
-                        {/* Header */}
-                        <div
-                            className="flex items-center justify-between px-[1.5vw] py-[0.8vh] relative"
-                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}
+                            key="thumb-panel"
+                            id="layout8-thumb-panel"
+                            className="absolute w-max max-w-[56.5vw] z-[45] pointer-events-auto"
+                            style={{
+                                top: addTextBelowIcons
+                                    ? (isFullscreen ? (isTablet ? 'calc(4.2vh + 0.5vw)' : 'calc(4.8vh + 0.5vw)') : (isTablet ? 'calc(5.6vh + 0.5vw)' : 'calc(6.2vh + 0.5vw)'))
+                                    : (isFullscreen ? (isTablet ? 'calc(4.2vh + 0.7vw)' : 'calc(4.8vh + 0.7vw)') : (isTablet ? 'calc(5.6vh + 0.7vw)' : 'calc(6.2vh + 0.7vw)')),
+                                left: popupPositions['thumbnails'] ? `${popupPositions['thumbnails']}px` : '50%',
+                                transform: `translateX(-30%)`
+                            }}
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            <span className="text-[0.9vw] font-semibold tracking-wide" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Thumbnails</span>
-
-                            {/* Drag handle */}
-                            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2">
-                                <div className="w-[3vw] h-[0.22vh] rounded-full" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.3 }} />
+                            {/* Connector Tab for Thumbnail Icon - Exact geometry from Rectangle 7411.svg */}
+                            <div className="absolute bottom-[98%] w-[5.2vw] h-[3.4vw] z-0" style={{ left: '30%', transform: 'translateX(-50%)' }}>
+                                <svg width="100%" height="100%" viewBox="0 0 113 67" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M24.8182 33.0909C24.8182 14.8153 39.6335 0 57.9091 0C76.1847 0 91 14.8153 91 33.0909V41.7377C91.0109 60.2573 94.967 66.6391 113 67H0C18.7515 67 24.8182 52.7213 24.8182 41.7377V33.0909Z"
+                                        fill={getLayoutColor('dropdown-bg', primaryColor)}
+                                        fillOpacity="0.8"
+                                    />
+                                </svg>
                             </div>
 
-                            <button
-                                onClick={() => setShowThumbnails(false)}
-                                className="hover:scale-110 transition-all"
-                                style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.7 }}
+                            <div
+                                className={`w-full ${isTablet ? 'h-[10vh]' : 'h-[12vh]'} rounded-[1vw] flex items-center relative px-[1vw] shadow-2xl backdrop-blur-md`}
+                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', primaryColor, 0.8) }}
                             >
-                                <Icon icon="lucide:x" className="w-[1.1vw] h-[1.1vw]" />
-                            </button>
-                        </div>
-
-                        {/* Scrollable thumbnail row */}
-                        <div
-                            ref={thumbScrollRef}
-                            className="flex flex-wrap gap-[1vw] px-[1.2vw] py-[1.5vh] pb-[2vh] overflow-y-auto max-h-[35vh]"
-                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}
-                        >
-                            {pages.map((page, idx) => (
-                                <div
-                                    key={idx}
-                                    data-thumb-index={idx}
-                                    onClick={() => { onPageClick(idx); setShowThumbnails(false); }}
-                                    className="flex-shrink-0 flex flex-col items-center gap-[0.5vh] cursor-pointer group"
-                                >
-                                    <div
-                                        className="rounded-[0.3vw] overflow-hidden transition-all duration-200"
-                                        style={{
-                                            width: '6.5vw',
-                                            height: '4.5vw',
-                                            border: idx === currentPage ? `0.15vw solid ${getLayoutColor('dropdown-bg', '#575C9C')}` : '0.15vw solid transparent',
-                                            boxShadow: idx === currentPage ? `0 0 0 0.15vw ${getLayoutColor('dropdown-bg', '#575C9C')}` : '0 0.2vw 0.5vw rgba(0,0,0,0.15)',
-                                            padding: '0.15vw',
-                                            backgroundColor: 'white'
-                                        }}
+                                {/* Left Arrow */}
+                                {Math.ceil(pages.length / 2) > 6 && (
+                                    <button
+                                        onClick={() => thumbScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
+                                        className="z-10 transition-opacity p-[0.5vw] hover:opacity-80"
+                                        style={{ color: isLightColor(getLayoutColor('dropdown-bg', primaryColor)) ? bodyTextColor : getLayoutColor('dropdown-text', '#FFFFFF') }}
                                     >
-                                        <div className="w-full h-full overflow-hidden bg-white rounded-[0.15vw] relative flex items-center justify-center">
-                                            <PageThumbnail
-                                                html={page.html || page.content || ''}
-                                                index={idx}
-                                                scale={0.11}
-                                            />
-                                        </div>
-                                    </div>
-                                    <span className="text-[0.65vw] font-medium transition-colors" style={{ color: getLayoutColor('dropdown-bg', '#575C9C'), opacity: idx === currentPage ? 1 : 0.6 }}>
-                                        Page {idx + 1}
-                                    </span>
+                                        <Icon icon="lucide:arrow-left" className="w-[1.8vw] h-[1.8vw]" />
+                                    </button>
+                                )}
+
+                                {/* Scrollable thumbnail row - Showing Double Spreads */}
+                                <div
+                                    ref={thumbScrollRef}
+                                    className="flex-1 flex gap-[1.5vw] px-[1.5vw] items-center overflow-x-auto custom-scrollbar h-full py-[0.5vh]"
+                                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                                >
+                                    {Array.from({ length: Math.ceil(pages.length / 2) }).map((_, spreadIdx) => {
+                                        const p1Idx = spreadIdx * 2;
+                                        const p2Idx = p1Idx + 1;
+                                        const isCurrent = currentPage === p1Idx || currentPage === p2Idx;
+
+                                        return (
+                                            <div
+                                                key={spreadIdx}
+                                                data-thumb-index={p1Idx}
+                                                onClick={() => { onPageClick(p1Idx); }}
+                                                className="flex-shrink-0 flex flex-col items-center cursor-pointer group py-[0.5vh]"
+                                            >
+                                                <div
+                                                    className="rounded-[0.5vw] overflow-hidden transition-all duration-300 bg-white shadow-lg flex flex-col items-center px-[0.3vw] pt-[0.3vw] pb-[0.2vw]"
+                                                    style={{
+                                                        width: '6.3vw',
+                                                        height: '4.8vw',
+                                                        border: isCurrent ? `0.12vw solid ${getLayoutColor('dropdown-bg', primaryColor)}` : 'none',
+                                                        transform: isCurrent ? 'scale(1.04)' : 'scale(1)'
+                                                    }}
+                                                >
+                                                    {/* Pages Spread container */}
+                                                    <div className="flex w-full flex-1 gap-[0.1vw] items-center justify-center overflow-hidden">
+                                                        <div className="w-[45%] h-[75%] overflow-hidden bg-white shadow-sm flex items-center justify-center rounded-[0.1vw]">
+                                                            <PageThumbnail
+                                                                html={pages[p1Idx]?.html || pages[p1Idx]?.content || ''}
+                                                                index={p1Idx}
+                                                                scale={0.045}
+                                                            />
+                                                        </div>
+                                                        {p2Idx < pages.length ? (
+                                                            <div className="w-[45%] h-[75%] overflow-hidden bg-white shadow-sm flex items-center justify-center rounded-[0.1vw]">
+                                                                <PageThumbnail
+                                                                    html={pages[p2Idx]?.html || pages[p2Idx]?.content || ''}
+                                                                    index={p2Idx}
+                                                                    scale={0.045}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-[45%] h-[75%] bg-gray-50 rounded-[0.1vw]" />
+                                                        )}
+                                                    </div>
+
+                                                    <div className="w-full flex justify-center py-[0.1vw] border-t border-gray-50">
+                                                        <span className="text-[0.6vw] font-bold tracking-tight" style={{ color: bodyTextColor }}>
+                                                            Page {p1Idx + 1}{p2Idx < pages.length ? `-${p2Idx + 1}` : ''}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            ))}
+
+                                {/* Right Arrow */}
+                                {Math.ceil(pages.length / 2) > 6 && (
+                                    <button
+                                        onClick={() => thumbScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
+                                        className="z-10 transition-opacity p-[0.5vw] hover:opacity-80"
+                                        style={{ color: isLightColor(getLayoutColor('dropdown-bg', primaryColor)) ? bodyTextColor : getLayoutColor('dropdown-text', '#FFFFFF') }}
+                                    >
+                                        <Icon icon="lucide:arrow-right" className={`${isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.8vw] h-[1.8vw]'}`} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                    </motion.div>
+                    </>
                 )}
-            </AnimatePresence>
+            </>
+
+            {/* ═══════════ Bottom Navigation Bar ═══════════ */}
+            {!isTablet && (
+            <div
+                className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex items-center z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
+            >
+                <div className="w-full flex items-center justify-between px-[2vw]">
+                    {/* Left: Book Name */}
+                    {/* Left: Book Name */}
+                    <div className="flex-1 flex justify-start pointer-events-auto">
+                        <span className="font-bold tracking-wide truncate max-w-[80%]" style={{ 
+                            color: (() => {
+                                const c1 = getLayoutColor('toolbar-bg', primaryColor);
+                                const c2 = getLayoutColor('toolbar-text-main', '#575C9C');
+                                const isWhite = (c) => typeof c === 'string' && (c.toLowerCase() === '#ffffff' || c.replace(/\s/g, '') === 'rgb(255,255,255)' || c.replace(/\s/g, '') === 'rgba(255,255,255,1)');
+                                return isWhite(c1) ? c2 : c1;
+                            })(), 
+                            fontSize: isTablet ? '1vw' : '1.2vw' 
+                        }}>
+                            {/* bookName hidden */}
+                        </span>
+                    </div>
+
+                    {/* Center: Controls */}
+                    <div className="flex items-center gap-[1.2vw] shrink-0 pointer-events-auto">
+                    {/* First Page */}
+                    {(settings?.navigation?.startEndNav ?? true) && (
+                        <div className="group relative">
+                            <button
+                                onClick={() => onPageClick(0)}
+                                className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
+                                style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
+                            >
+                                <Icon icon="ph:skip-back-fill" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.1vw', height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.1vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                            </button>
+                            <div className="absolute bottom-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                First Page
+                                <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-t-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderTopColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Prev Page */}
+                    {(settings?.navigation?.nextPrevButtons ?? true) && (
+                        <div className="group relative">
+                            <button
+                                onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
+                                className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
+                                style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
+                            >
+                                <Icon icon="lucide:chevron-left" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.2vw', height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.2vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                            </button>
+                            <div className="absolute bottom-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Previous Page
+                                <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-t-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderTopColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Page Info Pill */}
+                    {(settings?.navigation?.pageQuickAccess ?? true) && (
+                        <div
+                            className="rounded-full px-[1.8vw] py-[0.6vh] flex items-center shadow-md"
+                            style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
+                        >
+                            <span className={`text-[0.75vw] lg:text-[0.85vw] font-medium tracking-wide`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
+                                Page –
+                            </span>
+                            <input
+                                type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
+                                value={pageInputValue}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || /^\d+$/.test(val)) {
+                                        setPageInputValue(val);
+                                    }
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const pageNum = parseInt(pageInputValue, 10);
+                                        if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
+                                            onPageClick(pageNum - 1);
+                                        } else {
+                                            setPageInputValue(String(currentPage + 1));
+                                        }
+                                        e.target.blur();
+                                    }
+                                }}
+                                onBlur={() => {
+                                    const pageNum = parseInt(pageInputValue, 10);
+                                    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
+                                        onPageClick(pageNum - 1);
+                                    } else {
+                                        setPageInputValue(String(currentPage + 1));
+                                    }
+                                }}
+                                className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} font-medium tracking-wide bg-transparent border-none outline-none text-center ml-[0.3vw]`}
+                                style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), width: `${String(pages.length).length + 1}ch` }}
+                            />
+                            <span className={`text-[0.75vw] lg:text-[0.85vw] font-medium tracking-wide`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
+                                / {totalPages}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Next Page */}
+                    {(settings?.navigation?.nextPrevButtons ?? true) && (
+                        <div className="group relative">
+                            <button
+                                onClick={() => bookRef.current?.pageFlip()?.flipNext()}
+                                className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
+                                style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
+                            >
+                                <Icon icon="lucide:chevron-right" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.2vw', height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.2vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                            </button>
+                            <div className="absolute bottom-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Next Page
+                                <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-t-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderTopColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Last Page */}
+                    {(settings?.navigation?.startEndNav ?? true) && (
+                        <div className="group relative">
+                            <button
+                                onClick={() => onPageClick(totalPages - 1)}
+                                className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
+                                style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
+                            >
+                                <Icon icon="ph:skip-forward-fill" style={{ width: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.1vw', height: isSidebarOpen ? (isTablet ? '0.9vw' : '0.95vw') : '1.1vw' }} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                            </button>
+                            <div className="absolute bottom-[calc(100%+0.5vw)] left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Last Page
+                                <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-t-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderTopColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </div>
+                    )}
+                    </div>
+
+                    {/* Right: Spacer for balance */}
+                    <div className="flex-1 pointer-events-none"></div>
+                </div>
+            </div>
+            )}
+
         </div>
     );
 };
 
 export default Grid8Layout;
-
-

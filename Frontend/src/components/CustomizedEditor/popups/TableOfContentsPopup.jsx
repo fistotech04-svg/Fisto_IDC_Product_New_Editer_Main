@@ -13,6 +13,61 @@ const isLightColor = (hex) => {
 };
 
 const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, isEditor, layoutColors, isMobileLandscape, isFullscreen, isMobilePortraitOverride, addTextBelowIcons = false }) => {
+    const speakText = (text) => {
+        if ('speechSynthesis' in window && text) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            const useMaleVoice = settings?.useMaleVoice || settings?.tocSettings?.useMaleVoice;
+            
+            const playVoice = () => {
+                const voices = window.speechSynthesis.getVoices();
+                let preferredVoice;
+                if (useMaleVoice) {
+                    preferredVoice = voices.find(voice => 
+                        voice.name.includes('David') || 
+                        voice.name.includes('Daniel') || 
+                        voice.name.includes('Alex') ||
+                        voice.name.includes('Mark') ||
+                        voice.name.includes('George') ||
+                        voice.name.includes('Guy') ||
+                        voice.name.includes('Male')
+                    );
+                    if (!preferredVoice) {
+                        preferredVoice = voices.find(voice => 
+                            !voice.name.toLowerCase().includes('zira') && 
+                            !voice.name.toLowerCase().includes('samantha') && 
+                            !voice.name.toLowerCase().includes('susan') &&
+                            !voice.name.toLowerCase().includes('hazel') &&
+                            !voice.name.toLowerCase().includes('female')
+                        );
+                    }
+                } else {
+                    preferredVoice = voices.find(voice => 
+                        voice.name.includes('Google') || 
+                        voice.name.includes('Samantha') || 
+                        voice.name.includes('Zira') ||
+                        voice.name.includes('Female')
+                    );
+                }
+
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice;
+                }
+
+                utterance.rate = 0.85; 
+                utterance.pitch = useMaleVoice ? 0.9 : 1.15; 
+
+                window.speechSynthesis.speak(utterance);
+            };
+
+            if (window.speechSynthesis.getVoices().length === 0) {
+                window.speechSynthesis.addEventListener('voiceschanged', playVoice, { once: true });
+                setTimeout(playVoice, 200);
+            } else {
+                playVoice();
+            }
+        }
+    };
     // Ensure settings is at least an empty object if it's null
     const safeSettings = settings || {};
 
@@ -60,9 +115,9 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
     const isLayout2 = Number(activeLayout) === 2 || activeLayout === 'Layout2';
     const isLayout1 = Number(activeLayout) === 1 || activeLayout === 'Layout1';
     const isLayout3 = Number(activeLayout) === 3 || activeLayout === 'Layout3';
-    const isLayout8 = Number(activeLayout) === 8 || activeLayout === 'Layout8';
-    const isLayout9 = Number(activeLayout) === 9 || activeLayout === 'Layout9';
     const isLayout7 = Number(activeLayout) === 7 || activeLayout === 'Layout7';
+    const isLayout8 = Number(activeLayout) === 8 || activeLayout === 'Layout8';
+    const isLayout6 = Number(activeLayout) === 6 || activeLayout === 'Layout6';
 
     const scrollContainerRef = useRef(null);
     const [initialHeight, setInitialHeight] = useState('auto');
@@ -78,14 +133,14 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
     }, [initialHeight]);
 
     useEffect(() => {
-        if (!isLayout9) return;
+        if (!isLayout8) return;
         
         let animationFrameId;
 
         const syncPosition = () => {
-            const btn = document.getElementById('layout9-toc-btn');
+            const btn = document.getElementById('layout8-toc-btn');
             const root = document.getElementById('preview-area-root');
-            const popup = document.getElementById('layout9-toc-panel');
+            const popup = document.getElementById('layout8-toc-panel');
             
             if (btn && root && popup) {
                 const btnRect = btn.getBoundingClientRect();
@@ -101,7 +156,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         syncPosition();
 
         return () => cancelAnimationFrame(animationFrameId);
-    }, [isLayout9]);
+    }, [isLayout8]);
 
     const [expandedSections, setExpandedSections] = useState({});
 
@@ -123,7 +178,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         }));
     };
 
-    if (isLayout9) {
+    if (isLayout8) {
         if (isMobile && !isLandscape) {
             return (
                 <>
@@ -173,7 +228,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         return (
                                             <div key={sectionId} className="flex flex-col gap-[3px]">
                                                 <div
-                                                    onClick={() => { if (onNavigate) onNavigate(heading.page - 1); }}
+                                                    onClick={() => { if (onNavigate) { speakText(heading.title); onNavigate(heading.page - 1); } }}
                                                     className="rounded-full px-[10px] py-[4px] flex items-center justify-between cursor-pointer hover:bg-white/30 active:scale-[0.98] transition-all shadow-sm group border border-white/10"
                                                     style={{ backgroundColor: 'rgba(255, 255, 255, 0.25)' }}
                                                 >
@@ -190,7 +245,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                         {heading.subheadings.map((sub, sIdx) => (
                                                             <div
                                                                 key={sub.id || sIdx}
-                                                                onClick={(e) => { e.stopPropagation(); if (onNavigate) onNavigate(sub.page - 1); }}
+                                                                onClick={(e) => { e.stopPropagation(); if (onNavigate) { speakText(sub.title); onNavigate(sub.page - 1); } }}
                                                                 className="rounded-full px-[8px] py-[3px] flex items-center justify-between cursor-pointer hover:bg-white/20 active:scale-[0.98] transition-all ml-auto w-[85%] border border-white/10"
                                                                 style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)' }}
                                                             >
@@ -224,7 +279,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
             <>
                 <div className="fixed inset-0 z-[40] pointer-events-auto bg-transparent" onClick={onClose} />
                 <div
-                    id={isLayout9 ? "layout9-toc-panel" : undefined}
+                    id={isLayout8 ? "layout8-toc-panel" : undefined}
                     className={`absolute z-[45] pointer-events-auto origin-top-right`}
                     style={{
                         top: addTextBelowIcons ? '0.7vh' : '1.2vh',
@@ -294,7 +349,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                             {/* Main Heading Pill */}
                                             <div
                                                 onClick={() => {
-                                                    if (onNavigate) onNavigate(heading.page - 1);
+                                                    if (onNavigate) { speakText(heading.title); onNavigate(heading.page - 1); }
                                                 }}
                                                 className="rounded-full px-[1vw] py-[0.35vw] flex items-center justify-between cursor-pointer hover:bg-white/30 active:scale-[0.98] transition-all shadow-md group border border-white/10"
                                                 style={{ backgroundColor: 'rgba(255, 255, 255, 0.25)' }}
@@ -317,7 +372,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                             key={sub.id || sIdx}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (onNavigate) onNavigate(sub.page - 1);
+                                                                if (onNavigate) { speakText(sub.title); onNavigate(sub.page - 1); }
                                                             }}
                                                             className="rounded-full px-[0.8vw] py-[0.3vw] flex items-center justify-between cursor-pointer hover:bg-white/20 active:scale-[0.98] transition-all shadow-sm ml-auto w-[85%] border border-white/10"
                                                             style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)' }}
@@ -348,7 +403,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         );
     }
 
-    if (isLayout7) {
+    if (isLayout6) {
         return (
             <>
                 <div className="fixed inset-0 z-[1000] pointer-events-auto bg-transparent" onClick={onClose} />
@@ -407,7 +462,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                             <div
                                                 className={`flex items-center justify-between ${isMobile && !isLandscape ? 'py-1.5 px-2.5' : (isTablet ? 'py-[0.5vh] px-[0.6vw]' : 'py-[0.8vh] px-[0.8vw]')} hover:bg-white/10 rounded-[0.5vw] cursor-pointer transition-all group`}
                                                 style={{ color: getLayoutColor('toc-text', '#575C9C') }}
-                                                onClick={() => { onNavigate && onNavigate(item.page - 1); onClose(); }}
+                                                onClick={() => { speakText(item.title); onNavigate && onNavigate(item.page - 1); onClose(); }}
                                             >
                                                 <div className="flex items-center gap-[0.4vw] truncate pr-[0.5vw]">
                                                     {addSerialNumberHeading && (
@@ -430,7 +485,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                             key={sIdx}
                                                             className={`flex items-center justify-between ${isMobile && !isLandscape ? 'py-1 px-2.5 pl-6' : 'py-[0.6vh] px-[0.8vw] pl-[1.5vw]'} hover:bg-white/10 rounded-[0.5vw] cursor-pointer transition-all group`}
                                                             style={{ color: getLayoutColor('toc-text', '#575C9C') }}
-                                                            onClick={() => { onPageClick(sub.page - 1); onClose(); }}
+                                                            onClick={() => { speakText(sub.title); onNavigate && onNavigate(sub.page - 1); onClose(); }}
                                                         >
                                                             <div className="flex items-center gap-[0.4vw] truncate pr-[0.5vw]">
                                                                 {addSerialNumberSubheading && (
@@ -465,7 +520,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         );
     }
 
-    if (isMobile && !isLandscape && isLayout8) {
+    if (isMobile && !isLandscape && isLayout7) {
         return (
             <>
                 <div className="fixed inset-0 z-[1000] pointer-events-auto" onClick={onClose} />
@@ -518,7 +573,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         <div
                                             key={heading.id}
                                             className="flex items-center justify-between px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer group"
-                                            onClick={() => { if (onNavigate) onNavigate(heading.page - 1); }}
+                                            onClick={() => { if (onNavigate) { speakText(heading.title); onNavigate(heading.page - 1); } }}
                                         >
                                             <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                 <span className="text-[11px] font-bold truncate"
@@ -548,7 +603,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         );
     }
 
-    if (isLayout8) {
+    if (isLayout7) {
         return (
             <>
                 <div className="fixed inset-0 z-[190] pointer-events-auto bg-transparent" onClick={onClose} />
@@ -598,7 +653,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                     <React.Fragment key={heading.id}>
                                         <div
                                             className="flex items-center justify-between px-[0.5vw] py-[0.4vw] hover:bg-gray-50 rounded-[0.3vw] transition-colors cursor-pointer group"
-                                            onClick={() => { if (onNavigate) onNavigate(heading.page - 1); }}
+                                            onClick={() => { if (onNavigate) { speakText(heading.title); onNavigate(heading.page - 1); } }}
                                         >
                                             <div className="flex items-center gap-[0.4vw] truncate flex-1 min-w-0">
                                                 <span className="text-[0.75vw] font-bold truncate"
@@ -620,7 +675,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                             <div
                                                 key={sub.id}
                                                 className="flex items-center justify-between px-[0.5vw] py-[0.3vw] hover:bg-gray-50 rounded-[0.3vw] transition-colors cursor-pointer group pl-[1.2vw]"
-                                                onClick={() => { if (onNavigate) onNavigate(sub.page - 1); }}
+                                                onClick={() => { if (onNavigate) { speakText(sub.title); onNavigate(sub.page - 1); } }}
                                             >
                                                 <div className="flex items-center gap-[0.4vw] truncate flex-1 min-w-0">
                                                     <span className="text-[0.68vw] font-medium truncate"
@@ -669,7 +724,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                 const isRealMobileView = window.innerWidth <= 768;
                 return { top: isRealMobileView ? '125px' : '165px', left: '8px' };
             }
-            if (Number(activeLayout) === 7) return { top: '120px', left: '52px' };
+            if (Number(activeLayout) === 6) return { top: '120px', left: '52px' };
             return { top: '6.5rem', left: '50%', transform: 'translateX(-50%)' };
         }
         if (activeLayout === 1 || activeLayout === 'Layout1') return isTablet ? { bottom: '3.8vw', left: '2.2vw' } : { bottom: '8vh', left: '1vw' };
@@ -696,7 +751,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         if (activeLayout === 6 || activeLayout === 'Layout6') return { top: '8.5vh', left: '2.2vw' };
         if (activeLayout === 5) return { bottom: '11.5vh', left: 'calc(50% - 1vw)', transform: 'translateX(-50%)' };
         if (activeLayout === 4) return { top: '10.5vh', left: '4.5vw' };
-        if (activeLayout === 9) return { top: '8.5vh', left: 'calc(50% - 10vw)', transform: 'translateX(-50%)' };
+        if (activeLayout === 8) return { top: '8.5vh', left: 'calc(50% - 10vw)', transform: 'translateX(-50%)' };
         return isTablet ? { bottom: '3.8vw', left: '2vw' } : { bottom: '8vh', left: '1vw' };
     };
 
@@ -759,7 +814,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         <React.Fragment key={heading.id}>
                                             <div
                                                 className="flex items-center justify-between px-[0.6vw] py-[0.4vw] hover:bg-white/10 rounded-md transition-colors cursor-pointer group"
-                                                onClick={() => onNavigate && onNavigate(heading.page - 1)}
+                                                onClick={() => { speakText(heading.title); onNavigate && onNavigate(heading.page - 1); }}
                                             >
                                                 <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                     <span className="text-[0.85vw] font-bold truncate" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}>
@@ -777,7 +832,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                 <div
                                                     key={sub.id}
                                                     className="flex items-center justify-between px-[0.6vw] py-[0.3vw] ml-[1.2vw] hover:bg-white/10 rounded-md transition-colors cursor-pointer group"
-                                                    onClick={() => onNavigate && onNavigate(sub.page - 1)}
+                                                    onClick={() => { speakText(sub.title); onNavigate && onNavigate(sub.page - 1); }}
                                                 >
                                                     <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                         <span className="text-[0.78vw] font-semibold truncate" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}>
@@ -988,7 +1043,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                     <React.Fragment key={heading.id}>
                                         <div
                                             className={`flex items-center justify-between ${isMobile ? 'px-2 py-2' : isTablet ? 'px-[8px] py-[6px]' : 'px-[0.6vw] py-[0.4vw]'} hover:bg-white/10 rounded-md transition-colors cursor-pointer group`}
-                                            onClick={() => onNavigate && onNavigate(heading.page - 1)}
+                                            onClick={() => { speakText(heading.title); onNavigate && onNavigate(heading.page - 1); }}
                                         >
                                             <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                 <span className={`${isMobile ? 'text-[14px]' : isTablet ? 'text-[11px]' : 'text-[0.85vw]'} font-bold truncate`}
@@ -1010,7 +1065,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                             <div
                                                 key={sub.id}
                                                 className={`flex items-center justify-between ${isMobile ? 'px-2 py-1.5 ml-4' : isTablet ? 'px-[8px] py-[4px] ml-[14px]' : 'px-[0.6vw] py-[0.4vw] ml-[1.2vw]'} hover:bg-white/10 rounded-md transition-colors cursor-pointer group`}
-                                                onClick={() => onNavigate && onNavigate(sub.page - 1)}
+                                                onClick={() => { speakText(sub.title); onNavigate && onNavigate(sub.page - 1); }}
                                             >
                                                 <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                     <span className={`${isMobile ? 'text-[12px]' : isTablet ? 'text-[10px]' : 'text-[10px]'} font-medium truncate`}
@@ -1141,7 +1196,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                     <React.Fragment key={heading.id}>
                                                         <div
                                                             className={`flex items-center justify-between ${isMobile && isLandscape ? 'px-[0.4vw] py-[0.3vw]' : isMobile ? 'px-2 py-1' : 'px-[0.6vw] py-[0.4vw]'} hover:bg-black/5 rounded-md transition-colors cursor-pointer group`}
-                                                            onClick={() => onNavigate && onNavigate(heading.page - 1)}
+                                                            onClick={() => { speakText(heading.title); onNavigate && onNavigate(heading.page - 1); }}
                                                         >
                                                             <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                                 <span className={`${isMobile && isLandscape ? 'text-[0.7vw]' : isMobile ? 'text-[11px]' : 'text-[0.85vw]'} ${isLayout2 ? 'font-light' : 'font-bold'} truncate`}
@@ -1166,7 +1221,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                             <div
                                                                 key={sub.id}
                                                                 className={`flex items-center justify-between ${isMobile && isLandscape ? 'px-[0.4vw] py-[0.2vw] ml-[1vw]' : isMobile ? 'px-2 py-0.5 ml-4' : 'px-[0.6vw] py-[0.4vw] ml-[1.2vw]'} hover:bg-white/10 rounded-md transition-colors cursor-pointer group`}
-                                                                onClick={() => onNavigate && onNavigate(sub.page - 1)}
+                                                                onClick={() => { speakText(sub.title); onNavigate && onNavigate(sub.page - 1); }}
                                                             >
                                                                 <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                                     <span className={`${isMobile && isLandscape ? 'text-[0.65vw]' : isMobile ? 'text-[10px]' : 'text-[10px]'} ${isLayout2 ? 'font-light' : 'font-medium'} truncate flex items-center`}

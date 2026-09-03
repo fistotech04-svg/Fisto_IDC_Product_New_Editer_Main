@@ -19,6 +19,7 @@ import {
 import HotspotPresetPopup from './HotspotPresetPopup';
 import { generateHotspotSVG } from './HotspotCustomizationPopup';
 import { CropController, isElementCropped } from './Crop';
+import { useToast } from '../CustomToast';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -308,7 +309,7 @@ export const getCanvasBounds = (svgElement, baseWidth = 210, baseHeight = 297) =
 
 // Global style to ensure injected SVGs always fill their container perfectly
 const svgGlobalStyles = `
-  .page-svg-container svg {
+  .page-svg-container svg:not(.svg-icon-override) {
     width: 100% !important;
     height: 100% !important;
     display: block !important;
@@ -634,6 +635,7 @@ const MainEditor = ({
   isPopupEditor = false
 }) => {
   usePreventBrowserZoom();
+  const toast = useToast();
   const { width: baseWidth, height: baseHeight } = flipbookDimensions || { width: 210, height: 297 };
   const canvasAspectRatio = baseWidth && baseHeight ? `${baseWidth} / ${baseHeight}` : '210 / 297';
 
@@ -1832,7 +1834,8 @@ const MainEditor = ({
           if (dlBtn) dlBtn.style.display = showDownloadButton ? '' : 'none';
           if (progC) progC.style.display = showProgressBar ? '' : 'none';
 
-          bar.style.display = showControls ? 'flex' : 'none';
+          const showControls = video.getAttribute('data-show-controls') !== 'false';
+          bar.style.display = (showControls || showPlayPause || showFullscreenButton || showDownloadButton) ? 'flex' : 'none';
         }
 
         if (!bar) {
@@ -2369,7 +2372,10 @@ const MainEditor = ({
 
         // Re-evaluate display visibility at the very end
         const shouldShowControls = video.getAttribute('data-show-controls') !== 'false';
-        bar.style.display = shouldShowControls ? 'flex' : 'none';
+        const sp = video.getAttribute('data-show-play-pause') !== 'false';
+        const sf = video.getAttribute('data-show-fullscreen-button') !== 'false';
+        const sd = video.getAttribute('data-show-download-button') !== 'false';
+        bar.style.display = (shouldShowControls || sp || sf || sd) ? 'flex' : 'none';
       });
 
       // Cleanup orphan controls
@@ -2769,11 +2775,11 @@ const MainEditor = ({
       g.setAttribute('transform', `translate(${centerX - 12}, ${centerY - 12}) scale(0.5)`);
       g.setAttribute('data-is-hotspot', 'true');
       g.setAttribute('data-show-highlight', 'false');
-      
+
       const currentPresetId = e.detail.presetId || (icon && icon.presetId);
       if (currentPresetId) {
         g.setAttribute('data-preset-id', currentPresetId);
-        
+
         const actionMap = {
           'youtube': 'open-link',
           'instagram': 'open-link',
@@ -2795,7 +2801,7 @@ const MainEditor = ({
           '3d-viewer': '3d-viewer',
           'interactive-button': 'open-link'
         };
-        
+
         const actionType = actionMap[currentPresetId];
         if (actionType) {
           g.setAttribute('data-interaction', actionType);
@@ -2827,7 +2833,7 @@ const MainEditor = ({
 
       updatePageHtml(targetPageIndex, svg.outerHTML);
       setSelectedLayerId(newId);
-      
+
       if (e.detail.isHotspot && typeof setActiveTopTool === 'function') {
         setActiveTopTool('interaction');
       }
@@ -2894,7 +2900,7 @@ const MainEditor = ({
       const svgW = (svg.getAttribute('width') && !svg.getAttribute('width').includes('%') ? parseFloat(svg.getAttribute('width')) : 0) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || (typeof baseWidth === 'number' ? baseWidth : parseFloat(baseWidth || 794)) || 794;
       const svgH = (svg.getAttribute('height') && !svg.getAttribute('height').includes('%') ? parseFloat(svg.getAttribute('height')) : 0) || (svg.viewBox?.baseVal?.height ? svg.viewBox.baseVal.height : 0) || (typeof baseHeight === 'number' ? baseHeight : parseFloat(baseHeight || 1123)) || 1123;
 
-      let displayWidth = Math.round(svgW * 0.9);
+      let displayWidth = Math.round(svgW * 0.5);
       let displayHeight = Math.round(displayWidth * (9 / 16));
 
       // We use foreignObject to host the video/iframe element in SVG
@@ -2968,7 +2974,7 @@ const MainEditor = ({
                 newH = Math.round(svgH * 0.65);
                 newW = Math.round(newH * aspect);
               } else { // Landscape
-                newW = Math.round(svgW * 0.9);
+                newW = Math.round(svgW * 0.5);
                 newH = Math.round(newW / aspect);
               }
               fo.setAttribute('width', newW.toString());
@@ -6633,7 +6639,7 @@ const MainEditor = ({
           }
           window.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeType: initNodeType, segIdx: 0, selectedCount: 1, canJoin: false, isLineSelected: false } }));
         }
-      } catch (_) {}
+      } catch (_) { }
     } catch (err) {
       console.warn('[NodeEditMode] Failed to enter node edit mode:', err);
     }
@@ -7651,7 +7657,7 @@ const MainEditor = ({
             // Define anchor point in local space (opposite point)
             let localAnchor;
             const isInteractiveBtn = el.getAttribute('data-is-hotspot') === 'true' && el.querySelector('rect') && (el.querySelector('text') || el.querySelector('[data-type="text"]'));
-            
+
             if (isInteractiveBtn && ['e', 'w', 'n', 's'].includes(dir)) {
               localAnchor = { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
             } else if (dir === 'se') localAnchor = { x: bbox.x, y: bbox.y };
@@ -7930,7 +7936,7 @@ const MainEditor = ({
                 try {
                   const textEl = el.querySelector('text');
                   if (textEl) textWidth = textEl.getBBox().width;
-                } catch(e) {}
+                } catch (e) { }
                 originalDroppedWidth = Math.max(textWidth + 30, 80);
                 el.setAttribute('data-dropped-width', originalDroppedWidth);
               } else {
@@ -8422,7 +8428,7 @@ const MainEditor = ({
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
-                        
+
                         if (child.classList?.contains('gif-inner-content')) {
                           const innerImg = child.querySelector('image, foreignObject');
                           if (innerImg) {
@@ -8628,10 +8634,10 @@ const MainEditor = ({
                   if (isHotspot) {
                     const rectData = state.childrenData.find(c => c.child.tagName.toLowerCase() === 'rect');
                     const textData = state.childrenData.find(c => c.child.tagName.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
-                    
+
                     if (rectData && textData) {
-                      const rectBound = rectData.bound; 
-                      
+                      const rectBound = rectData.bound;
+
                       let myAnchorX = la.x;
                       let myAnchorY = la.y;
                       let myScaleX = scaleX;
@@ -8654,17 +8660,17 @@ const MainEditor = ({
                         myScaleX = newMyScale;
                         myScaleY = newMyScale;
                       }
-                      
+
                       const newMinX = myAnchorX + (rectBound.x - myAnchorX) * myScaleX;
                       const newMaxX = myAnchorX + (rectBound.x + rectBound.width - myAnchorX) * myScaleX;
                       const newMinY = myAnchorY + (rectBound.y - myAnchorY) * myScaleY;
                       const newMaxY = myAnchorY + (rectBound.y + rectBound.height - myAnchorY) * myScaleY;
-                      
+
                       const newRectX = Math.min(newMinX, newMaxX);
                       const newRectW = Math.abs(newMaxX - newMinX);
                       const newRectY = Math.min(newMinY, newMaxY);
                       const newRectH = Math.abs(newMaxY - newMinY);
-                      
+
                       const textEl = textData.child;
                       textEl.setAttribute('x', newRectX + newRectW / 2);
                       textEl.setAttribute('y', newRectY + newRectH / 2);
@@ -11694,10 +11700,9 @@ const MainEditor = ({
       return;
     }
 
-    const isCropModeMedia = target && (
+    const isCropModeMedia = target && !target.closest?.('[data-is-gif-group="true"]') && (
       (target.getAttribute('data-object-fit') === 'Crop') ||
-      (target.closest?.('[data-object-fit="Crop"]')) ||
-      target.closest?.('[data-is-gif-group="true"]')
+      (target.closest?.('[data-object-fit="Crop"]'))
     );
 
     if (isCropModeMedia) {
@@ -12389,7 +12394,7 @@ const MainEditor = ({
                 {showHotspotPopup && (
                   <HotspotPresetPopup
                     onClose={() => setShowHotspotPopup(false)}
-                    onSelectPreset={() => {}} // No functionality for now as requested
+                    onSelectPreset={() => { }} // No functionality for now as requested
                   />
                 )}
               </div>
@@ -12835,7 +12840,7 @@ const MainEditor = ({
                         const isTypeActive = activeMainTool === 'type';
 
                         const pageHtml = pages[displayIndex]?.html;
-                        const isPageEmpty = !pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0));
+                        const isPageEmpty = !pages[displayIndex]?.isHidden && (!pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0)));
 
                         return (
                           <div
@@ -12844,6 +12849,7 @@ const MainEditor = ({
                           >
                             {pageHtml && (
                               <div
+                                key={`canvas-content-${displayIndex}`}
                                 id={`canvas-content-${displayIndex}`}
                                 className="w-full h-full flex items-center justify-center"
                                 ref={(el) => {
@@ -12941,6 +12947,7 @@ const MainEditor = ({
                                     // 3. Try reading external files dropped directly from Desktop / File Explorer
                                     if (!data && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                                       const files = Array.from(e.dataTransfer.files);
+                                      let hasUnsupported = false;
                                       files.forEach(async (file, idx) => {
                                         const fileUrl = URL.createObjectURL(file);
                                         const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
@@ -12970,8 +12977,13 @@ const MainEditor = ({
                                               dropPoint: offsetPoint
                                             }
                                           }));
+                                        } else {
+                                          hasUnsupported = true;
                                         }
                                       });
+                                      if (hasUnsupported) {
+                                        toast.error('Only Image, Video, and GIF formats are allowed.');
+                                      }
                                       return;
                                     }
 
@@ -13034,33 +13046,45 @@ const MainEditor = ({
                                 onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
                               />
                             )}
-                            {/* Selection Overlay (Overlay rotated element perfectly) */}
-                            <svg
-                              id={`highlight-overlay-${displayIndex}`}
-                              className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
-                              style={{ overflow: 'visible', pointerEvents: 'none' }}
-                            />
-
-                            {/* HTML Overlay for Resize Handles (Clickable) */}
-                            <div
-                              id={`highlight-overlay-html-${displayIndex}`}
-                              className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
-                              style={{ overflow: 'visible', pointerEvents: 'none' }}
-                            />
-                            <AnimatePresence>
-                              {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
-                                <SelectionTooltip
-                                  selectedId={selectedLayerId}
-                                  multiSelectedIds={multiSelectedIds}
-                                  zoom={zoom}
-                                  setActiveTopTool={setActiveTopTool}
-                                  pageIndex={displayIndex}
-                                  activePageIndex={activePageIndex}
-                                  updateElementAttribute={updateElementAttribute}
-                                  activeTopTool={activeTopTool}
+                            {pages[displayIndex]?.isHidden && (
+                              <div key={`hidden-placeholder-${displayIndex}`} className="w-full h-full flex flex-col items-center justify-center bg-white/70 backdrop-blur-[1px] z-20 absolute inset-0 pointer-events-auto">
+                                <Icon icon="ant-design:eye-invisible-outlined" width="3vw" height="3vw" style={{ strokeWidth: 0.2 }} className="text-gray-500 mb-[1vw] svg-icon-override" />
+                                <span className="text-gray-700 font-semibold text-[1.2vw]">This page is hidden</span>
+                                <span className="text-gray-500 text-[0.85vw] mt-[0.5vw]">It will not be shown in the flipbook.</span>
+                              </div>
+                            )}
+                            
+                            {!pages[displayIndex]?.isHidden && (
+                              <>
+                                {/* Selection Overlay (Overlay rotated element perfectly) */}
+                                <svg
+                                  id={`highlight-overlay-${displayIndex}`}
+                                  className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
+                                  style={{ overflow: 'visible', pointerEvents: 'none' }}
                                 />
-                              )}
-                            </AnimatePresence>
+
+                                {/* HTML Overlay for Resize Handles (Clickable) */}
+                                <div
+                                  id={`highlight-overlay-html-${displayIndex}`}
+                                  className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`}
+                                  style={{ overflow: 'visible', pointerEvents: 'none' }}
+                                />
+                                <AnimatePresence>
+                                  {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                                    <SelectionTooltip
+                                      selectedId={selectedLayerId}
+                                      multiSelectedIds={multiSelectedIds}
+                                      zoom={zoom}
+                                      setActiveTopTool={setActiveTopTool}
+                                      pageIndex={displayIndex}
+                                      activePageIndex={activePageIndex}
+                                      updateElementAttribute={updateElementAttribute}
+                                      activeTopTool={activeTopTool}
+                                    />
+                                  )}
+                                </AnimatePresence>
+                              </>
+                            )}
 
                             {/* Marquee Selection Box */}
                             <div
@@ -13117,8 +13141,8 @@ const MainEditor = ({
                   disabled={activePageIndex === 0}
                   onClick={handlePrevPage}
                   className={`flex items-center justify-center transition-all duration-200 group ${activePageIndex === 0
-                      ? 'opacity-25 cursor-not-allowed'
-                      : 'cursor-pointer hover:scale-110 active:scale-95'
+                    ? 'opacity-25 cursor-not-allowed'
+                    : 'cursor-pointer hover:scale-110 active:scale-95'
                     }`}
                   title="Previous Page"
                 >
