@@ -391,7 +391,7 @@ const CustomizedEditor = () => {
   const [menuBarSettings, setMenuBarSettings] = useState({
     navigation: {
       nextPrevButtons: true,
-      mouseWheel: true,
+      mouseWheel: false,
       dragToTurn: true,
       pageQuickAccess: true,
       tableOfContents: true,

@@ -469,11 +469,11 @@ const Grid1Layout = React.memo((props) => {
         };
 
         window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('wheel', handleWheel, { passive: false });
+        // window.addEventListener('wheel', handleWheel, { passive: false });
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('wheel', handleWheel);
+            // window.removeEventListener('wheel', handleWheel);
         };
     }, [zoomIn, zoomOut, bookRef, closeAllPopups]);
 

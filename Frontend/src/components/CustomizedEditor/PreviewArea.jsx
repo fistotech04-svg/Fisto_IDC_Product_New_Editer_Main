@@ -2812,7 +2812,7 @@ const PreviewArea = React.memo(({
 
     const settings = React.useMemo(() => {
         const defaultMenuBarSettings = {
-            navigation: { nextPrevButtons: true, mouseWheel: true, dragToTurn: true, pageQuickAccess: true, tableOfContents: true, pageThumbnails: true, bookmark: true, startEndNav: true },
+            navigation: { nextPrevButtons: true, mouseWheel: false, dragToTurn: true, pageQuickAccess: true, tableOfContents: true, pageThumbnails: true, bookmark: true, startEndNav: true },
             viewing: { zoom: true, fullScreen: true },
             interaction: { search: true, notes: true, gallery: true },
             media: { autoFlip: true, backgroundAudio: true },
@@ -2997,18 +2997,6 @@ const PreviewArea = React.memo(({
     }, [zoom]);
 
     useEffect(() => {
-        // ── Scroll wheel: zoom directly (no Ctrl needed for turn.js) ──────────
-        const handleWheel = (e) => {
-            const isInsideFlipbook = e.target.closest?.('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book');
-            if (!isInsideFlipbook) return;
-            e.preventDefault();
-            e.stopPropagation();
-            setManualZoom(prev => {
-                const delta = e.deltaY < 0 ? 0.05 : -0.05;
-                return Math.max(0.5, Math.min(prev + delta, 4));
-            });
-        };
-
         // ── Keyboard: Ctrl+= / Ctrl+- ──────────────────────────────────────────
         const handleKeyDown = (e) => {
             if (e.ctrlKey && (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '0')) {
@@ -3058,7 +3046,6 @@ const PreviewArea = React.memo(({
 
         const container = containerRef.current;
         if (container) {
-            container.addEventListener('wheel', handleWheel, { passive: false });
             container.addEventListener('touchstart', handleTouchStart, { passive: true });
             container.addEventListener('touchmove', handleTouchMove, { passive: false });
             container.addEventListener('touchend', handleTouchEnd);
@@ -3067,7 +3054,6 @@ const PreviewArea = React.memo(({
 
         return () => {
             if (container) {
-                container.removeEventListener('wheel', handleWheel);
                 container.removeEventListener('touchstart', handleTouchStart);
                 container.removeEventListener('touchmove', handleTouchMove);
                 container.removeEventListener('touchend', handleTouchEnd);
@@ -3075,6 +3061,44 @@ const PreviewArea = React.memo(({
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, []);
+
+    useEffect(() => {
+        // ── Scroll wheel: navigation (if enabled) ──────────
+        const handleWheel = (e) => {
+            if (!settings?.navigation?.mouseWheel) return;
+            
+            const target = e.target;
+            const isInsideFlipbook = target.closest?.('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book, .fbe-wrapper, .preview-area-container, [data-fbe]');
+            if (!isInsideFlipbook) return;
+            
+            // Only flip on significant scroll to avoid accidental flips
+            if (Math.abs(e.deltaY) < 10) return;
+
+            if (isFlippingRef.current) {
+                e.preventDefault();
+                return;
+            }
+            
+            e.preventDefault();
+            
+            if (e.deltaY > 0) {
+                bookRef.current?.pageFlip()?.flipNext();
+            } else if (e.deltaY < 0) {
+                bookRef.current?.pageFlip()?.flipPrev();
+            }
+            
+            isFlippingRef.current = true;
+            setTimeout(() => {
+                isFlippingRef.current = false;
+            }, 300);
+        };
+
+        window.addEventListener('wheel', handleWheel, { passive: false });
+        
+        return () => {
+            window.removeEventListener('wheel', handleWheel);
+        };
+    }, [settings?.navigation?.mouseWheel]);
 
     useEffect(() => {
         if (!screenRef.current) {
