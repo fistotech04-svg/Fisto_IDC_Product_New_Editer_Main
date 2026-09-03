@@ -4,8 +4,10 @@ import { Icon } from '@iconify/react';
 import axios from 'axios';
 import { checkIsAnimatedWebp } from './editorUtils';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
+import { useToast } from '../CustomToast';
 
 const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGalleryType, imageOnly = false }) => {
+  const toast = useToast();
   const [galleryType, setGalleryType] = useState(() => {
     return initialGalleryType || (imageOnly ? 'Image Gallery' : 'All');
   });
@@ -14,10 +16,17 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [activeGalleryDropdown, setActiveGalleryDropdown] = useState(null);
   const [itemToReplaceId, setItemToReplaceId] = useState(null);
+  const [renamingItemId, setRenamingItemId] = useState(null);
+  const [renameInput, setRenameInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
   const fileInputRef = useRef(null);
   const fileInputRefReplaceItem = useRef(null);
   const dropdownRef = useRef(null);
+  const sortDropdownRef = useRef(null);
   const popupRef = useRef(null);
 
   useEffect(() => {
@@ -45,10 +54,18 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
         });
 
         if (res.data.assets) {
-          const formatted = res.data.assets.map((asset) => {
+          const validAssets = res.data.assets.filter(asset => {
+            const urlLower = (asset.url || '').toLowerCase();
+            const is3D = asset.type === '3d' || urlLower.endsWith('.glb') || urlLower.endsWith('.gltf');
+            const isPDF = asset.type === 'pdf' || urlLower.endsWith('.pdf');
+            return !is3D && !isPDF;
+          });
+
+          const formatted = validAssets.map((asset) => {
+            const urlLower = (asset.url || '').toLowerCase();
             const fullUrl = resolveUploadsPath(asset.url);
-            const isVideo = asset.type === 'video';
-            const isAnimated = asset.type === 'gif' || (asset.url && asset.url.toLowerCase().endsWith('.gif'));
+            const isVideo = asset.type === 'video' || urlLower.endsWith('.mp4') || urlLower.endsWith('.mkv');
+            const isAnimated = asset.type === 'gif' || urlLower.endsWith('.gif');
             return {
               id: asset.id || asset.name,
               name: (asset.name || 'Asset').replace(/\.[^/.]+$/, ''),
@@ -56,7 +73,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
               rawUrl: asset.url,
               type: isVideo ? 'video' : 'image',
               isAnimated,
-              uploadedAt: asset.uploadedAt
+              uploadedAt: asset.uploadedAt || asset.created_at || new Date().toISOString()
             };
           });
           setGalleryAssets(formatted);
@@ -76,12 +93,15 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target)) {
+        setIsSortDropdownOpen(false);
+      }
     };
-    if (isDropdownOpen) {
+    if (isDropdownOpen || isSortDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDropdownOpen]);
+  }, [isDropdownOpen, isSortDropdownOpen]);
 
   useEffect(() => {
     const handlePopupClickOutside = (event) => {
@@ -99,14 +119,27 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
   }, [isOpen, onClose, anchorRef]);
 
   const filteredAssets = React.useMemo(() => {
-    return galleryAssets.filter(asset => {
+    let result = galleryAssets.filter(asset => {
       if (galleryType === 'All') return true;
       if (galleryType === 'Image Gallery' && asset.type === 'image' && !asset.isAnimated) return true;
       if (galleryType === 'Video Gallery' && asset.type === 'video') return true;
       if (galleryType === 'GIF Gallery' && asset.isAnimated) return true;
       return false;
     });
-  }, [galleryAssets, galleryType]);
+    
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      result = result.filter(asset => asset.name.toLowerCase().includes(lowerQuery));
+    }
+    
+    result.sort((a, b) => {
+      const timeA = new Date(a.uploadedAt).getTime();
+      const timeB = new Date(b.uploadedAt).getTime();
+      return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+    });
+    
+    return result;
+  }, [galleryAssets, galleryType, searchQuery, sortOrder]);
 
   if (!isOpen) return null;
 
@@ -120,7 +153,22 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
       const user = storedUser ? JSON.parse(storedUser) : null;
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
-      const newAssetsPromises = Array.from(e.target.files).map(async newFile => {
+      const validFiles = [];
+      for (let i = 0; i < e.target.files.length; i++) {
+        const file = e.target.files[i];
+        const lowerName = file.name.toLowerCase();
+        const isAllowedType = file.type.startsWith('image/') || file.type.startsWith('video/');
+        if (!isAllowedType || lowerName.endsWith('.glb') || lowerName.endsWith('.gltf') || lowerName.endsWith('.pdf')) {
+          toast.error('Only Image, Video, and GIF formats are allowed.');
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      if (validFiles.length === 0) return;
+
+      setIsUploading(true);
+      const newAssetsPromises = validFiles.map(async newFile => {
         const objectUrl = URL.createObjectURL(newFile);
         const isVideo = newFile.type.startsWith('video/');
         let isAnimated = false;
@@ -186,12 +234,19 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
 
       const newAssets = await Promise.all(newAssetsPromises);
       setGalleryAssets(prev => [...newAssets, ...prev]);
+      setIsUploading(false);
     }
   };
 
   const handleReplaceFileChange = async (e) => {
     if (e.target.files?.length && itemToReplaceId) {
       const newFile = e.target.files[0];
+      const lowerName = newFile.name.toLowerCase();
+      const isAllowedType = newFile.type.startsWith('image/') || newFile.type.startsWith('video/');
+      if (!isAllowedType || lowerName.endsWith('.glb') || lowerName.endsWith('.gltf') || lowerName.endsWith('.pdf')) {
+        toast.error('Only Image, Video, and GIF formats are allowed.');
+        return;
+      }
       const newUrl = URL.createObjectURL(newFile);
       const isVideo = newFile.type.startsWith('video/');
       let isAnimated = false;
@@ -274,6 +329,40 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
     }
   };
 
+  const handleRenameSubmit = async (item) => {
+    if (!renameInput.trim() || renameInput === item.name) {
+      setRenamingItemId(null);
+      return;
+    }
+    
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      
+      try {
+        const res = await axios.post(`${backendUrl}/api/flipbook/rename-gallery-asset`, {
+          emailId: user.emailId,
+          file_v_id: item.file_v_id,
+          fileName: item.id || item.name,
+          newName: renameInput.trim()
+        });
+        
+        if (res.data.success) {
+          setGalleryAssets(prev => prev.map(g => g.id === item.id ? { ...g, name: res.data.name } : g));
+          if (selectedAsset?.id === item.id) {
+            setSelectedAsset(prev => ({ ...prev, name: res.data.name }));
+          }
+          toast.success("Renamed successfully");
+        }
+      } catch (err) {
+        console.error('Failed to rename asset:', err);
+        toast.error("Failed to rename asset");
+      }
+    }
+    setRenamingItemId(null);
+  };
+
   let popupStyle = {
     position: 'fixed',
     top: '50%',
@@ -309,6 +398,9 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
       className="bg-white rounded-[0.8vw] w-[24vw] min-w-[320px] max-w-[90vw] shadow-2xl border border-gray-300 flex flex-col font-sans relative z-[100000]" 
       onClick={(e) => {
         e.stopPropagation();
+        if (!e.target.closest('.rename-input')) {
+          setRenamingItemId(null);
+        }
         setSelectedAsset(null);
         setActiveGalleryDropdown(null);
       }}
@@ -327,53 +419,102 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
       <div className="px-[1.5vw] pb-[1.5vw] pt-0 h-[19vw] flex flex-col">
         <div className="flex flex-col flex-1 min-h-0">
           {/* Toolbar */}
-          <div className="flex items-center justify-between mb-[1vw] pb-[1vw] px-[1.5vw] -mx-[1.5vw] border-b border-gray-100 shrink-0">
-            {/* Dropdown */}
-            <div className="relative inline-block cursor-pointer" ref={dropdownRef}>
-              <div 
-                className="flex items-center justify-between gap-[0.3vw] w-[7vw] bg-white border border-gray-200 rounded-[0.4vw] px-[0.55vw] py-[0.3vw] shadow-sm hover:bg-gray-50 transition-colors"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              >
-                <span className="text-[0.7vw] font-medium text-gray-700 truncate">{galleryType}</span>
-                <Icon icon="lucide:chevron-down" className="w-[0.75vw] h-[0.75vw] text-gray-500 shrink-0" />
+          <div className="flex flex-col gap-[0.75vw] mb-[1vw] pb-[1vw] px-[1.5vw] -mx-[1.5vw] border-b border-gray-100 shrink-0">
+            {/* Search and Sort Row */}
+            <div className="flex items-center justify-between gap-[0.5vw]">
+              {/* Search */}
+              <div className="flex-1 relative">
+                <Icon icon="lucide:search" className="absolute left-[0.5vw] top-1/2 -translate-y-1/2 w-[0.8vw] h-[0.8vw] text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search media..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-[1.8vw] pr-[0.5vw] py-[0.3vw] text-[0.75vw] border border-gray-200 rounded-[0.5vw] outline-none focus:border-[#4D47FF]"
+                />
               </div>
-              
-              {isDropdownOpen && (
-                <div className="absolute top-full left-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 overflow-hidden">
-                  {galleryOptions.map(option => (
-                    <div 
-                      key={option}
-                      className={`px-[0.55vw] py-[0.45vw] text-[0.7vw] font-medium cursor-pointer transition-colors ${galleryType === option ? 'bg-[#F3F4F6] text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
-                      onClick={() => {
-                        setGalleryType(option);
-                        setIsDropdownOpen(false);
-                      }}
-                    >
-                      {option}
-                    </div>
-                  ))}
+              {/* Sort Dropdown */}
+              <div className="relative inline-block cursor-pointer shrink-0" ref={sortDropdownRef}>
+                <div 
+                  className="flex items-center justify-between gap-[0.3vw] w-[6.5vw] bg-white border border-gray-200 rounded-[0.4vw] px-[0.55vw] py-[0.3vw] shadow-sm hover:bg-gray-50 transition-colors"
+                  onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                >
+                  <Icon icon="lucide:arrow-up-down" className="w-[0.75vw] h-[0.75vw] text-gray-500" />
+                  <span className="text-[0.7vw] font-medium ml-[-0.8vw] text-gray-700 truncate flex-1 text-center">{sortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
+                  <Icon icon="lucide:chevron-down" className="w-[0.75vw] h-[0.75vw] text-gray-500 shrink-0" />
                 </div>
-              )}
+                
+                {isSortDropdownOpen && (
+                  <div className="absolute top-full right-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 overflow-hidden">
+                    {['Newest', 'Oldest'].map(option => (
+                      <div 
+                        key={option}
+                        className={`px-[0.55vw] py-[0.45vw] text-[0.7vw] font-medium cursor-pointer transition-colors ${
+                          (sortOrder === 'desc' && option === 'Newest') || (sortOrder === 'asc' && option === 'Oldest') 
+                            ? 'bg-[#F3F4F6] text-gray-900' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          setSortOrder(option === 'Newest' ? 'desc' : 'asc');
+                          setIsSortDropdownOpen(false);
+                        }}
+                      >
+                        {option}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Browse Files Button */}
-            <div className="bg-[#4D47FF] hover:bg-[#3D38CC] rounded-[0.4vw] p-[0.15vw] shadow-sm transition-colors cursor-pointer inline-block">
-              <div 
-                className="flex items-center justify-center gap-[0.45vw] cursor-pointer text-white px-[0.7vw] py-[0.2vw] rounded-[0.3vw] border-[1.5px] border-dashed border-white/60 hover:border-white transition-colors"
-                onClick={handleUploadClick}
-              >
-                <Icon icon="lucide:upload" className="w-[0.75vw] h-[0.75vw] stroke-[2]" />
-                <span className="text-[0.7vw] font-medium">Browse Files</span>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,video/mp4,image/svg+xml,video/x-matroska,image/gif" multiple onChange={handleFileChange} onClick={(e) => { e.target.value = null; }} />
+            <div className="flex items-center justify-between">
+              {/* Dropdown */}
+              <div className="relative inline-block cursor-pointer" ref={dropdownRef}>
+                <div 
+                  className="flex items-center justify-between gap-[0.3vw] w-[7vw] bg-white border border-gray-200 rounded-[0.4vw] px-[0.55vw] py-[0.3vw] shadow-sm hover:bg-gray-50 transition-colors"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                >
+                  <span className="text-[0.7vw] font-medium text-gray-700 truncate">{galleryType}</span>
+                  <Icon icon="lucide:chevron-down" className="w-[0.75vw] h-[0.75vw] text-gray-500 shrink-0" />
+                </div>
+                
+                {isDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 overflow-hidden">
+                    {galleryOptions.map(option => (
+                      <div 
+                        key={option}
+                        className={`px-[0.55vw] py-[0.45vw] text-[0.7vw] font-medium cursor-pointer transition-colors ${galleryType === option ? 'bg-[#F3F4F6] text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
+                        onClick={() => {
+                          setGalleryType(option);
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        {option}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Browse Files Button */}
+              <div className="bg-[#4D47FF] hover:bg-[#3D38CC] rounded-[0.4vw] p-[0.15vw] shadow-sm transition-colors cursor-pointer inline-block">
+                <div 
+                  className="flex items-center justify-center gap-[0.45vw] cursor-pointer text-white px-[0.7vw] py-[0.2vw] rounded-[0.3vw] border-[1.5px] border-dashed border-white/60 hover:border-white transition-colors"
+                  onClick={handleUploadClick}
+                >
+                  <Icon icon="lucide:upload" className="w-[0.75vw] h-[0.75vw] stroke-[2]" />
+                  <span className="text-[0.7vw] font-medium">Browse Files</span>
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,video/mp4,image/svg+xml,video/x-matroska,image/gif" multiple onChange={handleFileChange} onClick={(e) => { e.target.value = null; }} />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Grid */}
           <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pr-[0.5vw] will-change-scroll" onClick={() => { setSelectedAsset(null); setActiveGalleryDropdown(null); }}>
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full text-gray-400 text-[0.8vw]">
-                Loading media...
+            {isLoading || isUploading ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-[0.5vw]">
+                <Icon icon="lucide:loader-2" className="w-[2vw] h-[2vw] animate-spin text-[#4D47FF]" />
+                <span className="text-[0.8vw] font-medium">{isUploading ? 'Uploading media...' : 'Loading media...'}</span>
               </div>
             ) : (
               <div className="grid grid-cols-4 gap-[1vw]">
@@ -381,7 +522,12 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
                   <div key={item.id || idx} className="flex flex-col gap-[0.4vw] relative">
                     <div 
                       className={`group cursor-pointer w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${selectedAsset?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}
-                      onClick={(e) => { e.stopPropagation(); selectedAsset?.id === item.id ? setSelectedAsset(null) : setSelectedAsset(item); setActiveGalleryDropdown(null); }}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (renamingItemId === item.id) return;
+                        selectedAsset?.id === item.id ? setSelectedAsset(null) : setSelectedAsset(item); 
+                        setActiveGalleryDropdown(null); 
+                      }}
                     >
                       {item.type === 'video' ? (
                         <video src={item.url} preload="metadata" muted playsInline className="w-full h-full object-cover pointer-events-none" />
@@ -404,7 +550,18 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
 
                     {/* Dropdown Menu */}
                     {activeGalleryDropdown === item.id && (
-                      <div className={`absolute top-[1.5vw] ${idx % 4 < 2 ? 'left-0' : 'right-0'} bg-white rounded-[0.3vw] shadow-lg border border-gray-200 py-[0.2vw] w-[6.5vw] z-20 flex flex-col overflow-hidden`}>
+                      <div className={`absolute top-[1.5vw] ${idx % 4 < 2 ? 'left-0' : 'right-0'} bg-white rounded-[0.3vw] shadow-lg border border-gray-200 py-[0.2vw] w-[6vw] z-20 flex flex-col overflow-hidden`}>
+                        <button 
+                          className="text-[0.7vw] font-medium text-gray-700 hover:bg-gray-50 text-left px-[0.5vw] py-[0.3vw]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingItemId(item.id);
+                            setRenameInput(item.name);
+                            setActiveGalleryDropdown(null);
+                          }}
+                        >
+                          Rename
+                        </button>
                         <button 
                           className="text-[0.7vw] font-medium text-gray-700 hover:bg-gray-50 text-left px-[0.5vw] py-[0.3vw]"
                           onClick={(e) => {
@@ -431,8 +588,10 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
                                   fileName: item.id || item.name,
                                   file_v_id: item.file_v_id
                                 });
+                                toast.error("Deleted successfully");
                               } catch (err) {
                                 console.error('Failed to delete global asset:', err);
+                                toast.error("Failed to delete asset");
                               }
                             }
                             setGalleryAssets(prev => prev.filter(g => g.id !== item.id));
@@ -447,7 +606,27 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
                       </div>
                     )}
                     
-                    <span className="text-center text-[0.7vw] font-medium text-gray-500 truncate w-full px-[0.2vw]">{item.name}</span>
+                    {renamingItemId === item.id ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={renameInput}
+                        onChange={(e) => setRenameInput(e.target.value)}
+                        onBlur={() => handleRenameSubmit(item)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleRenameSubmit(item);
+                          } else if (e.key === 'Escape') {
+                            setRenamingItemId(null);
+                          }
+                        }}
+                        className="rename-input text-center text-[0.7vw] font-medium text-gray-900 border border-[#4D47FF] rounded-[0.2vw] px-[0.2vw] py-0 outline-none w-full"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className="text-center text-[0.7vw] font-medium text-gray-500 truncate w-full px-[0.2vw]">{item.name}</span>
+                    )}
                   </div>
                 )) : (
                   <div className="col-span-4 flex items-center justify-center text-center text-gray-400 py-[2vw] text-[0.8vw]">

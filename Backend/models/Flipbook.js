@@ -22,6 +22,7 @@ const flipbookSchema = new mongoose.Schema(
         fileName: { type: String, required: true }, // Actual file name
         v_id: { type: String, required: true }, // Unique ID for finding assets
         size: { type: Number, default: 0 }, // Size in bytes
+        hide: { type: Number, default: 0 }, // 1 means hidden, 0 means visible
       },
     ],
     fileSize: {
@@ -411,9 +412,9 @@ flipbookSchema.index(
 const Flipbook = mongoose.model("Flipbook", flipbookSchema);
 
 // Auto-drop problematic legacy non-sparse unique index share.shareId_1 if it exists in MongoDB
-Flipbook.collection.dropIndex("share.shareId_1").catch(() => {});
+Flipbook.collection.dropIndex("share.shareId_1").catch(() => { });
 Flipbook.collection
   .dropIndex("Customized_Settings.Visibility.shareId_1")
-  .catch(() => {});
+  .catch(() => { });
 
 export default Flipbook;

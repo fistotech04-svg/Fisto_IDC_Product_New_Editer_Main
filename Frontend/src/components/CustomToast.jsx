@@ -118,7 +118,7 @@ export const ToastProvider = ({ children }) => {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed top-[1vw] right-[1vw] z-[2147483647] flex flex-col w-full max-w-[20vw] space-y-[0.5vw] pointer-events-none overflow-hidden pr-[0.1vw] py-[0.1vw]">
+      <div className="fixed top-[9vh] right-[1vw] z-[2147483647] flex flex-col w-full max-w-[20vw] space-y-[0.5vw] pointer-events-none overflow-hidden pr-[0.1vw] py-[0.1vw]">
         {/* Pointer events none on container, auto on items. Overflow hidden to prevent scrollbars during animation if needed */}
         <div className="pointer-events-auto">
             {toasts.map((toast) => (

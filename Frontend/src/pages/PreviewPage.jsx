@@ -57,7 +57,7 @@ const PreviewPage = () => {
 
           const bUrl = processedData.meta?.baseUrl ? resolveUploadsPath(processedData.meta.baseUrl) : '';
 
-          processedData.pages = (processedData.pages || []).map(p => {
+          processedData.pages = (processedData.pages || []).filter(p => String(p.hide) !== '1' && p.isHidden !== true && String(p.isHidden) !== 'true').map(p => {
             let html = p.html || p.content || '';
             if (html.includes('nullassets/') && bUrl) html = html.split('nullassets/').join(`${bUrl}assets/`);
             if (html.includes('./assets/') && bUrl) html = html.split('./assets/').join(`${bUrl}assets/`);
