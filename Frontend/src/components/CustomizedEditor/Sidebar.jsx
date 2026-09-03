@@ -374,20 +374,20 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
         />
 
         <SidebarItem
-          id="section-menubar"
-          icon="mingcute:menu-fill"
-          label="Menu Bar"
-          isActive={activeSubView === 'menubar'}
-          onClick={() => setActiveSubView('menubar')}
-          hasDropdown={false}
-        />
-
-        <SidebarItem
           id="section-layout"
           icon="lucide:layout-panel-left"
           label="Layout"
           isActive={activeSubView === 'layout'}
           onClick={() => setActiveSubView('layout')}
+          hasDropdown={false}
+        />
+
+        <SidebarItem
+          id="section-menubar"
+          icon="mingcute:menu-fill"
+          label="Menu Bar"
+          isActive={activeSubView === 'menubar'}
+          onClick={() => setActiveSubView('menubar')}
           hasDropdown={false}
         />
 

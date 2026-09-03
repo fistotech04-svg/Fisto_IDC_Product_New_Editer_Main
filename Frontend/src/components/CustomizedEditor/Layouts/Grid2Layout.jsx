@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from
 
 import TableOfContentsPopup from '../popups/TableOfContentsPopup';
 
-const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
+const PageThumbnail = React.memo(({ html, index, scale = 0.15, baseWidth = 400, baseHeight = 566 }) => {
     const cleanHtml = (html || '')
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<video\b[^<]*(?:(?!<\/video>)<[^<]*)*<\/video>/gi, '<div style="width:100%;height:100%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9ca3af">Video</div>')
@@ -18,15 +18,14 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
             <head>
                 <meta charset="UTF-8">
                 <style>
-                    body { margin: 0; padding: 0; overflow: hidden; background: white; width: 400px; height: 566px; position: relative; }
+                    body { margin: 0; padding: 0; overflow: hidden; background: white; width: ${baseWidth}px; height: ${baseHeight}px; position: relative; }
                     * { box-sizing: border-box; }
                     ::-webkit-scrollbar { width: 0px; background: transparent; }
                     img { max-width: 100%; height: auto; display: block; }
                 </style>
-                </style>
             </head>
             <body>
-                 <div style="width: 400px; height: 566px; overflow: hidden; position: relative; background: white;">
+                 <div style="width: ${baseWidth}px; height: ${baseHeight}px; overflow: hidden; position: relative; background: white;">
                     ${cleanHtml}
                 </div>
             </body>
@@ -41,8 +40,8 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                 title={`Thumb ${index}`}
                 loading="lazy"
                 style={{
-                    width: '400px',
-                    height: '566px',
+                    width: `${baseWidth}px`,
+                    height: `${baseHeight}px`,
                     transform: `scale(${scale})`,
                     transformOrigin: 'center center',
                     backgroundColor: 'white'
@@ -1243,27 +1242,46 @@ const Grid2Layout = ({
                                 <div className="relative w-full h-full flex items-center justify-center">
                                     <div className="absolute z-[150] flex items-center" style={{ transform: 'translateX(-5vh)' }}>
                                         <div className="w-[1vw] h-[1vw] bg-white rotate-45 -mr-[0.5vw] rounded-[0.08vw]" />
-                                        <div className="w-[10vw] h-[7vw] bg-white rounded-[0.4vw] p-[0.3vw] flex items-center justify-center border border-gray-100/80">
-                                            <div className="w-full h-full bg-gray-50 flex items-center justify-center relative overflow-hidden rounded-[0.25vw]">
-                                                {(() => {
-                                                    if (!displaySpreads || displaySpreads.length === 0) return null;
-                                                    const rawFocusIdx = Math.round(activeSpreadIdx + radialScroll);
-                                                    const mappedFocusIdx = ((rawFocusIdx % displaySpreads.length) + displaySpreads.length) % displaySpreads.length;
-                                                    const hubSpreadIdx = hoveredIdx !== null ? (hoveredIdx % spreads.length) : (displaySpreads[mappedFocusIdx] ? (mappedFocusIdx % spreads.length) : 0);
-                                                    const hubSpread = spreads[hubSpreadIdx] || spreads[0];
-                                                    if (!hubSpread || !hubSpread.pages) return null;
-                                                    return (
-                                                        <div className="flex w-full h-full gap-[0.2vw] items-center justify-center bg-gray-50">
-                                                            {hubSpread.pages.map((p, pIdx) => (
-                                                                <div key={pIdx} className="flex-1 max-w-[50%] h-full bg-white rounded-[0.2vw] overflow-hidden relative border border-gray-200">
-                                                                    <PageThumbnail html={p?.html || p?.content || ''} index={hubSpread.indices[pIdx]} scale={0.2} />
+                                        {(() => {
+                                            if (!displaySpreads || displaySpreads.length === 0) return null;
+                                            const rawFocusIdx = Math.round(activeSpreadIdx + radialScroll);
+                                            const activeIdx = ((rawFocusIdx % displaySpreads.length) + displaySpreads.length) % displaySpreads.length;
+                                            const spread = hoveredIdx !== null ? displaySpreads[hoveredIdx] : displaySpreads[activeIdx];
+                                            
+                                            // Dynamic size calculation
+                                            const baseHeightVW = 4.5; 
+                                            let spreadRatio = (dimWidth * spread.pages.length) / dimHeight;
+                                            if (spread.pages.length > 1) spreadRatio = spreadRatio * 0.75;
+                                            if (spreadRatio > 2.5) spreadRatio = 2.5;
+                                            let boxWidthVW = baseHeightVW * spreadRatio;
+                                            
+                                            return (
+                                                <div 
+                                                    className="bg-white rounded-[0.4vw] p-[0.3vw] flex items-center justify-center border border-gray-100/80 shadow-lg"
+                                                    style={{ width: `${boxWidthVW}vw`, height: `${baseHeightVW}vw` }}
+                                                >
+                                                    <div className="w-full h-full bg-gray-200 flex items-center justify-center relative overflow-hidden rounded-[0.25vw] gap-[1px]">
+                                                        {spread.pages.map((p, pIdx) => {
+                                                            const availableWidthPx = (boxWidthVW * window.innerWidth / 100) / spread.pages.length;
+                                                            const availableHeightPx = (baseHeightVW * window.innerWidth / 100);
+                                                            const thumbScale = Math.min(availableWidthPx / dimWidth, availableHeightPx / dimHeight);
+                                                            
+                                                            return (
+                                                                <div key={pIdx} className={`flex-1 ${spread.pages.length > 1 ? 'max-w-[50%]' : 'max-w-full'} h-full bg-white overflow-hidden relative flex items-center justify-center`}>
+                                                                    <PageThumbnail 
+                                                                        html={p?.html || p?.content || ''} 
+                                                                        index={spread.indices[pIdx]} 
+                                                                        scale={thumbScale} 
+                                                                        baseWidth={dimWidth} 
+                                                                        baseHeight={dimHeight} 
+                                                                    />
                                                                 </div>
-                                                            ))}
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </motion.div>

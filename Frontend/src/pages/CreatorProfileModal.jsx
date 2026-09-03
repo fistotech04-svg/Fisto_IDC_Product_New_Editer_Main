@@ -301,7 +301,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     );
 };
 
-export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false }) {
+export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false, isMobile = false, isTablet = false }) {
     const [viewMode, setViewMode] = useState('shelf');
     const [profileData, setProfileData] = useState(null);
     const [booksData, setBooksData] = useState([]);
@@ -530,6 +530,187 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
         }
     };
 
+    if (isMobile) {
+        return (
+            <AnimatePresence>
+                {isOpen && (
+                    <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] p-4">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-[#f8f9fa] w-[90%] max-w-[400px] h-auto max-h-[85vh] rounded-2xl flex flex-col relative shadow-2xl overflow-hidden p-2"
+                        >
+                            <div className="flex flex-col flex-1 h-full min-h-0 bg-white relative overflow-y-auto no-scrollbar rounded-xl shadow-sm border border-gray-100">
+                                {/* Banner */}
+                                <div className="relative w-full h-[110px] rounded-t-xl shrink-0">
+                                    {isLoading ? (
+                                        <div className="absolute inset-0 rounded-t-xl bg-gray-200 animate-pulse"></div>
+                                    ) : (
+                                        <div
+                                            className="absolute inset-0 rounded-t-xl overflow-hidden"
+                                            style={{
+                                                background: profileUser?.bannerBg?.type === 'solid' ? profileUser?.bannerBg?.value : undefined,
+                                                backgroundImage: (profileUser?.bannerBg?.type === 'gradient' || profileUser?.bannerBg?.type === 'media')
+                                                    ? profileUser?.bannerBg?.value
+                                                    : (profileUser?.bannerBg?.value || 'linear-gradient(120deg, #9fe6cb 0%, #72ceaf 50%, #9fe6cb 100%)'),
+                                                backgroundSize: profileUser?.bannerBg?.type === 'media' ? 'cover' : undefined,
+                                                backgroundPosition: 'center'
+                                            }}
+                                        >
+                                            <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 30% 150%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 70% -50%, rgba(255,255,255,0.4) 0%, transparent 50%)' }}></div>
+                                        </div>
+                                    )}
+                                    {/* Close Button */}
+                                    <button
+                                        onClick={onClose}
+                                        className="absolute top-3 right-3 z-50 bg-white/50 hover:bg-white rounded-md p-1 shadow-sm transition-colors border border-gray-900/10 cursor-pointer"
+                                    >
+                                        <Icon icon="mingcute:close-fill" className="w-4 h-4 text-gray-600" />
+                                    </button>
+                                </div>
+
+                                {/* Avatar & Actions Wrapper */}
+                                <div className="relative flex flex-col items-center">
+                                    {/* Avatar */}
+                                    <div className="absolute -top-10 flex justify-center z-30">
+                                        <div className="w-[84px] h-[84px] rounded-full bg-white p-1.5 flex items-center justify-center">
+                                            {isLoading ? (
+                                                <div className="w-full h-full rounded-full bg-gray-200 animate-pulse shadow-inner"></div>
+                                            ) : (
+                                                <div
+                                                    className="w-full h-full rounded-full overflow-hidden relative shadow-inner flex items-center justify-center"
+                                                    style={{ backgroundColor: (profileUser?.picture && profileUser?.picture !== 'color_only') ? '#ffffff' : getAvatarColor(profileUser?.name || profileUser?.email, profileUser?.avatarBgColor) }}
+                                                >
+                                                    {(profileUser?.picture && profileUser?.picture !== 'color_only') ? (
+                                                        <img src={profileUser?.picture.startsWith('blob:') || profileUser?.picture.startsWith('data:') ? profileUser?.picture : resolveUploadsPath(profileUser?.picture)} alt={profileUser?.name || "Profile Avatar"} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-white text-3xl font-bold drop-shadow-md">
+                                                            {profileUser?.name ? profileUser?.name.charAt(0).toUpperCase() : 'U'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Share Button */}
+                                    {!isLoading && (
+                                        <div className="w-full flex justify-end px-3 pt-2">
+                                            <button className="flex items-center gap-1 px-2 py-1 text-[13px] font-semibold text-gray-700 cursor-pointer">
+                                                <Icon icon="ic:round-share" className="w-[16px] h-[16px]" /> Share
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Name & Details */}
+                                    <div className="flex flex-col items-center w-full px-4 mt-6 pb-6">
+                                        {isLoading ? (
+                                            <div className="flex flex-col items-center gap-2 w-full">
+                                                <div className="h-5 w-32 bg-gray-200 rounded animate-pulse"></div>
+                                                <div className="h-3 w-24 bg-gray-100 rounded animate-pulse"></div>
+                                                <div className="h-3 w-32 bg-gray-100 rounded animate-pulse mt-1"></div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <h2 className="text-[18px] font-bold text-gray-900 text-center truncate w-full">{profileUser?.name || 'Creator'}</h2>
+                                                {profileUser?.email && (
+                                                    <p className="text-[11px] text-gray-400 text-center truncate w-full">{profileUser?.email}</p>
+                                                )}
+                                                {/* Followers & Following Stats */}
+                                                <div className="flex items-center justify-center gap-4 mt-2">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[13px] font-bold text-gray-900 leading-none">
+                                                            {profileUser?.followers?.length || 0}
+                                                        </span>
+                                                        <span className="text-[11px] text-gray-500 font-medium leading-none">Followers</span>
+                                                    </div>
+                                                    <div className="w-[1px] h-3 bg-gray-300"></div>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[13px] font-bold text-gray-900 leading-none">
+                                                            {profileUser?.following?.length || 0}
+                                                        </span>
+                                                        <span className="text-[11px] text-gray-500 font-medium leading-none">Following</span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Additional Details Container */}
+                                    {!isLoading && (
+                                        <div className="w-full flex flex-col pb-8">
+                                            {/* About */}
+                                            <div className="px-4 py-3">
+                                                <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700 mb-1.5">
+                                                    <Icon icon="mdi:information" className="w-4 h-4 text-gray-600" /> About
+                                                </h3>
+                                                <p className="text-[11px] text-gray-500 leading-relaxed whitespace-pre-wrap pl-5 pr-2">
+                                                    {profileUser?.about || "“Bring your content to life with a real, interactive experience”"}
+                                                </p>
+                                            </div>
+
+                                            {/* Contact Number */}
+                                            {profileUser?.mobile ? (
+                                                <div className="px-4 py-3 bg-[#FAFAFA]">
+                                                    <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700 mb-1.5">
+                                                        <Icon icon="ph:phone-call-fill" className="w-4 h-4 text-gray-600" /> Contact Number
+                                                    </h3>
+                                                    <p className="text-[11px] text-gray-500 pl-5">{profileUser?.mobile}</p>
+                                                </div>
+                                            ) : null}
+
+                                            {/* Company Details */}
+                                            <div className="px-4 py-3">
+                                                <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700 mb-2">
+                                                    {profileUser?.companyLogo ? (
+                                                        <img src={profileUser.companyLogo} alt="Company Logo" className="w-4 h-4 object-contain rounded-sm" />
+                                                    ) : (
+                                                        <Icon icon="mingcute:qrcode-2-fill" className="w-4 h-4 text-gray-600" />
+                                                    )}
+                                                    Company / Organization Details
+                                                </h3>
+                                                <div className="flex flex-col gap-1.5 text-[11px] pl-5 pr-2">
+                                                    <p><span className="font-semibold text-gray-700">Name :</span> <span className="text-gray-500">{profileUser?.companyName || 'Not specified'}</span></p>
+                                                    <p><span className="font-semibold text-gray-700">Industry Type :</span> <span className="text-gray-500">{profileUser?.industryType || 'Not specified'}</span></p>
+                                                    <p><span className="font-semibold text-gray-700">Gmail :</span> <span className="text-gray-500">{profileUser?.companyEmail || profileUser?.email || 'Not specified'}</span></p>
+                                                    {profileUser?.website ? (
+                                                        <p><span className="font-semibold text-gray-700">Website :</span> <a href={profileUser?.website.startsWith('http') ? profileUser?.website : `https://${profileUser?.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">{profileUser?.website}</a></p>
+                                                    ) : (
+                                                        <p><span className="font-semibold text-gray-700">Website :</span> <span className="text-gray-500">Not specified</span></p>
+                                                    )}
+                                                    <p><span className="font-semibold text-gray-700">Services :</span> <span className="text-gray-500">{Array.isArray(profileUser?.services) && profileUser?.services.length > 0 ? profileUser?.services.join(', ') : (typeof profileUser?.services === 'string' && profileUser?.services ? profileUser?.services : 'Not specified')}</span></p>
+                                                </div>
+                                            </div>
+
+                                            {/* Address */}
+                                            {(profileUser?.address1 || profileUser?.address2 || profileUser?.city || profileUser?.state) ? (
+                                                <div className="px-4 py-3 bg-[#FAFAFA] rounded-b-xl">
+                                                    <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700 mb-1.5">
+                                                        <Icon icon="carbon:location-filled" className="w-4 h-4 text-gray-600" /> Address
+                                                    </h3>
+                                                    <div className="text-[11px] flex flex-col gap-1 text-gray-500 pl-5">
+                                                        {profileUser?.address1 && <div>{profileUser?.address1}</div>}
+                                                        {profileUser?.address2 && <div>{profileUser?.address2}</div>}
+                                                        <div>{[profileUser?.city, profileUser?.state, profileUser?.pincode].filter(Boolean).join(', ')}</div>
+                                                        {profileUser?.country && <div>{profileUser?.country}</div>}
+                                                    </div>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* Bottom Fade Shadow for scroll effect */}
+                                <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-white to-transparent pointer-events-none rounded-b-xl z-50"></div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        );
+    }
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -544,8 +725,8 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                         exit={{ opacity: 0 }}
                         className={
                             isPreview
-                                ? "bg-[#f8f9fa] w-full h-full p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
-                                : "bg-[#f8f9fa] w-[85vw] h-[85vh] p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden"
+                                ? `bg-[#f8f9fa] w-full ${isMobile ? 'h-[75%]' : 'h-full'} p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden`
+                                : `bg-[#f8f9fa] ${isMobile ? 'w-[95vw] h-[75vh]' : 'w-[85vw] h-[85vh]'} p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden`
                         }
                         style={isPreview ? { zoom: 0.95 } : {}}
                     >
@@ -592,7 +773,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                 <div className="flex flex-col md:flex-row relative gap-[1vw] flex-1 min-h-0 min-w-0 w-full z-[40]" style={{ marginTop: `${1 - 0.35 * scrollProgress}vw`, willChange: 'margin-top' }}>
 
                                     {/* Left Column (Avatar + Info) */}
-                                    <div className="w-[19vw] flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0">
+                                    <div className={`${isMobile ? 'w-full' : 'w-full md:w-[19vw]'} flex-shrink-0 h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative flex flex-col min-h-0`}>
                                         {/* Bottom Fade Shadow */}
                                         <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50 rounded-b-[1vw]"></div>
 
@@ -800,7 +981,7 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
                                     </div>
 
                                     {/* Right Content Area */}
-                                    <div className="flex-1 flex flex-col h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative overflow-hidden">
+                                    <div className={`${isMobile ? 'hidden' : 'hidden md:flex'} flex-1 flex-col h-full bg-white border border-gray-200 rounded-[1vw] shadow-sm relative overflow-hidden`}>
                                         {/* Bottom Fade Shadow */}
                                         <div className="absolute bottom-0 left-0 w-full h-[2vw] bg-gradient-to-t from-black/20 to-transparent pointer-events-none z-50"></div>
 

@@ -82,7 +82,14 @@ const CustomizedEditor = () => {
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [pages, setPages] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
-  const [targetPage, setTargetPage] = useState(0);
+  const [devicePages, setDevicePages] = useState({ Desktop: 0, Tablet: 0, Mobile: 0 });
+  const targetPage = devicePages[activeDevice || 'Desktop'] || 0;
+  const setTargetPage = useCallback((pageNum) => {
+    setDevicePages(prev => ({
+      ...prev,
+      [activeDevice || 'Desktop']: pageNum
+    }));
+  }, [activeDevice]);
   const [projectBaseUrl, setProjectBaseUrl] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [notes, setNotes] = useState([]);

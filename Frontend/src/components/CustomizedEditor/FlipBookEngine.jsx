@@ -186,6 +186,27 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     const [ready, setReady] = useState(false);
     const [currentPage, setCurrentPage] = useState(startPage);
 
+    const [mobileShadowSide, setMobileShadowSide] = useState('left');
+    const prevPageRef = useRef(currentPage);
+
+    useEffect(() => {
+        if (!singlePage) return;
+
+        const lastPageLogical = pages.length - (pages[pages.length - 1]?.isPad ? 2 : 1);
+        const prev = prevPageRef.current;
+        const current = currentPage;
+
+        setMobileShadowSide(currentSide => {
+            if (current === 0) return 'left';
+            if (current >= lastPageLogical) return 'right';
+            if (current > prev) return 'left';
+            if (current < prev) return currentSide;
+            return currentSide;
+        });
+
+        prevPageRef.current = current;
+    }, [currentPage, singlePage, pages]);
+
     // Keep the ref in sync every render so turn.js always calls the latest onFlip
     useEffect(() => { onFlipRef.current = onFlip; }, [onFlip]);
     useEffect(() => { onTurningRef.current = onTurning; }, [onTurning]);
@@ -257,12 +278,15 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
         let startX = 0;
         let startY = 0;
+        
+        const isLastPage = (i === augmentedPages.length - 1 || (i === augmentedPages.length - 2 && augmentedPages[i + 1]?.isPad));
+        const directionClass = i % 2 === 0 ? 'right' : 'left';
 
         return (
             <div
                 key={i}
                 data-density={isHardPage ? 'hard' : 'soft'}
-                className={`fbe-react-page fbe-react-page--${i % 2 === 0 ? 'right' : 'left'} ${i === 0 ? 'fbe-page--first' : ''} ${(i === augmentedPages.length - 1 || (i === augmentedPages.length - 2 && augmentedPages[i + 1]?.isPad)) ? 'fbe-page--last' : ''}`}
+                className={`fbe-react-page fbe-react-page--${directionClass} ${i === 0 ? 'fbe-page--first' : ''} ${isLastPage ? 'fbe-page--last' : ''}`}
                 style={{
                     backgroundColor: page.isPad ? 'transparent' : '#fff',
                     opacity: pageOpacity
@@ -316,19 +340,17 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                 }}
                             />
                         )}
-                        <div
-                            className="fbe-drag-overlay"
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                bottom: 0,
-                                [i % 2 === 0 ? 'right' : 'left']: 0,
-                                width: '10px',
-                                zIndex: 20,
-                                cursor: 'grab',
-                                pointerEvents: 'auto'
-                            }}
-                        />
+                        {singlePage ? (
+                            <>
+                                <div className="fbe-drag-overlay" style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: '10px', zIndex: 20, cursor: 'grab', pointerEvents: 'auto' }} />
+                                <div className="fbe-drag-overlay" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '10px', zIndex: 20, cursor: 'grab', pointerEvents: 'auto' }} />
+                            </>
+                        ) : (
+                            <div
+                                className="fbe-drag-overlay"
+                                style={{ position: 'absolute', top: 0, bottom: 0, [directionClass]: 0, width: '10px', zIndex: 20, cursor: 'grab', pointerEvents: 'auto' }}
+                            />
+                        )}
                     </>
                 )}
             </div>
@@ -464,16 +486,17 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             const isFirst = i === 0;
             const isLast = i === augmented.length - 1 || (i === augmented.length - 2 && augmented[i + 1]?.isPad);
             const positionClass = `${isFirst ? 'fbe-page--first' : ''} ${isLast ? 'fbe-page--last' : ''}`.trim();
+            const directionClass = i % 2 === 0 ? 'right' : 'left';
 
             if (isPageHard) {
-                pageDiv.className = `hard cover fbe-page ${i % 2 === 0 ? 'fbe-page--right' : 'fbe-page--left'} ${positionClass}`;
+                pageDiv.className = `hard cover fbe-page fbe-page--${directionClass} ${positionClass}`;
                 pageDiv.setAttribute('data-density', 'hard');
                 pageDiv.style.backgroundColor = '#ffffff';
-                pageDiv.style.borderRadius = i % 2 === 0 ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
+                pageDiv.style.borderRadius = directionClass === 'right' ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
                 pageDiv.style.transition = 'border-radius 0.5s ease';
             } else {
-                pageDiv.className = `fbe-page fbe-page--soft ${i % 2 === 0 ? 'fbe-page--right' : 'fbe-page--left'} ${positionClass}`;
-                pageDiv.style.borderRadius = i % 2 === 0 ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
+                pageDiv.className = `fbe-page fbe-page--soft fbe-page--${directionClass} ${positionClass}`;
+                pageDiv.style.borderRadius = directionClass === 'right' ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
                 pageDiv.style.transition = 'border-radius 0.5s ease';
             }
 
@@ -798,6 +821,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     return (
         <div
             className={`fbe-wrapper ${className}`}
+            data-single-page={singlePage}
+            data-mobile-shadow={mobileShadowSide}
             style={{
                 width: singlePage ? width : width * 2, height, position: 'relative',
                 background: 'transparent',
@@ -1002,6 +1027,28 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     background: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.02) 20%, rgba(0,0,0,0.06) 45%, rgba(0,0,0,0.15) 75%, rgba(0,0,0,0.4) 100%);
                     pointer-events: none;
                     z-index: 20;
+                }
+
+                .fbe-wrapper[data-single-page="true"][data-mobile-shadow="left"] .fbe-react-page,
+                .fbe-wrapper[data-single-page="true"][data-mobile-shadow="left"] .fbe-page {
+                    border-radius: 0 ${cornerRadius} ${cornerRadius} 0 !important;
+                }
+                .fbe-wrapper[data-single-page="true"][data-mobile-shadow="left"] .fbe-react-page::after,
+                .fbe-wrapper[data-single-page="true"][data-mobile-shadow="left"] .fbe-page::after {
+                    left: 0 !important;
+                    right: auto !important;
+                    background: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.02) 20%, rgba(0,0,0,0.06) 45%, rgba(0,0,0,0.15) 75%, rgba(0,0,0,0.4) 100%) !important;
+                }
+
+                .fbe-wrapper[data-single-page="true"][data-mobile-shadow="right"] .fbe-react-page,
+                .fbe-wrapper[data-single-page="true"][data-mobile-shadow="right"] .fbe-page {
+                    border-radius: ${cornerRadius} 0 0 ${cornerRadius} !important;
+                }
+                .fbe-wrapper[data-single-page="true"][data-mobile-shadow="right"] .fbe-react-page::after,
+                .fbe-wrapper[data-single-page="true"][data-mobile-shadow="right"] .fbe-page::after {
+                    right: 0 !important;
+                    left: auto !important;
+                    background: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.02) 20%, rgba(0,0,0,0.06) 45%, rgba(0,0,0,0.15) 75%, rgba(0,0,0,0.4) 100%) !important;
                 }
 
                 .fbe-page--first::after, .fbe-page--last::after {
