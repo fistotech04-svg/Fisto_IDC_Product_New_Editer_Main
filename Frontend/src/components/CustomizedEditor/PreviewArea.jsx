@@ -3208,7 +3208,7 @@ const PreviewArea = React.memo(({
     // Augmented pages for turn.js centering logic
     const augmentedPages = useMemo(() => {
         if (!pages || pages.length === 0) return [];
-        return [...pages];
+        return pages.filter(p => !p.isHidden);
     }, [pages]);
 
     useEffect(() => {

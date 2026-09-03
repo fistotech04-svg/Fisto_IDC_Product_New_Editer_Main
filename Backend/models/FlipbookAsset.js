@@ -18,6 +18,17 @@ const FlipbookAssetSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  originalName: {
+    type: String
+  },
+  userEmail: {
+    type: String,
+    index: true
+  },
+  isGallery: {
+    type: Boolean,
+    default: false
+  },
   page_v_id: {
     type: String,
     required: true

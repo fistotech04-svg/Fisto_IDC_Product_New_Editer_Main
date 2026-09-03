@@ -1280,7 +1280,8 @@ const CustomizedEditor = () => {
               id: p.id || i,
               name: p.name || `Page ${i + 1}`,
               html: p.html || p.content || '',
-              content: p.html || p.content || ''
+              content: p.html || p.content || '',
+              isHidden: p.isHidden || p.hide === 1
             })));
             if (data.pageName && (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book')) {
               setBookName(data.pageName);
@@ -1378,7 +1379,8 @@ const CustomizedEditor = () => {
                     id: p.id || i,
                     content: rawHTML,
                     name: p.name || `Page ${i + 1}`,
-                    html: rawHTML
+                    html: rawHTML,
+                    isHidden: p.hide === 1 || p.isHidden
                   };
                 }));
                 setPages(mappedPages);
@@ -1802,7 +1804,7 @@ const CustomizedEditor = () => {
             setActiveSubView={setActiveSubView}
             isPanelCollapsed={isPanelCollapsed}
             setIsPanelCollapsed={setIsPanelCollapsed}
-            pageCount={pages.length}
+            pageCount={pages.filter(p => !p.isHidden).length}
             visibilitySettings={visibilitySettings}
             onUpdateVisibility={setVisibilitySettings}
             onPreview={stablePreviewHandler}
@@ -1903,7 +1905,7 @@ const CustomizedEditor = () => {
           )}
           <PreviewArea
             bookName={bookName}
-            pages={pages}
+            pages={pages.filter(p => !p.isHidden)}
             targetPage={targetPage}
             logoSettings={logoSettings}
             watermarkSettings={watermarkSettings}

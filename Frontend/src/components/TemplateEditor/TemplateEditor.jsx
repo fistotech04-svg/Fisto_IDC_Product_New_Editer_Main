@@ -962,6 +962,7 @@ const TemplateEditor = () => {
         const payloadPages = pagesToSave.map((p, index) => ({
           pageName: p.name || `Page ${index + 1}`,
           content: undefined,
+          hide: p.isHidden ? 1 : 0,
           v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
         }));
 
@@ -1030,6 +1031,7 @@ const TemplateEditor = () => {
             pageName: p.name || `Page ${index + 1}`,
             content,
             contentChunkId,
+            hide: p.isHidden ? 1 : 0,
             v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
           };
         }));
@@ -4294,6 +4296,7 @@ const TemplateEditor = () => {
                 id: p.v_id || i + 1,
                 v_id: p.v_id,
                 name: name,
+                isHidden: p.hide == 1 || String(p.hide) === '1',
                 html: updatedHtml,
                 layers: layers
               };

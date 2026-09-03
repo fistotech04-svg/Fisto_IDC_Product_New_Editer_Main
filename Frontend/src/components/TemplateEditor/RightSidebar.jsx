@@ -22,7 +22,7 @@ import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import { createPortal } from 'react-dom';
 import { useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
-
+import { useToast } from '../CustomToast';
 const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, className }) => {
   const [localVal, setLocalVal] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -256,6 +256,7 @@ const RightSidebar = ({
     };
   };
   const fileInputRef = useRef(null);
+  const toast = useToast();
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
   const [dimensionUnit, setDimensionUnit] = useState('mm');
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
@@ -524,6 +525,12 @@ const RightSidebar = ({
     }
     const isSvg = file.type === 'image/svg+xml';
     
+    if (!file.type.startsWith('image/') && !isVideo && !isGif && !isSvg) {
+        toast.error('Only Image, Video, and GIF formats are allowed.');
+        e.target.value = '';
+        return;
+    }
+    
     const storedUser = localStorage.getItem('user');
     const user = storedUser ? JSON.parse(storedUser) : null;
     
@@ -776,7 +783,7 @@ const RightSidebar = ({
         const urlWithoutQuery = src.split('?')[0].toLowerCase();
         const isGifFile = urlWithoutQuery.endsWith('.gif') || dataType === 'gif' || src.toLowerCase().startsWith('data:image/gif');
 
-        const isPdfBackground = lowerDataName.includes('pdf background') || lowerId.includes('background') || dataType === 'pdf-background';
+        const isPdfBackground = lowerDataName.includes('pdf background') || lowerDataName.endsWith('-pdf') || lowerId.includes('background') || dataType === 'pdf-background';
         
         const isGif = isGifFile || lowerDataName.includes('gif') || lowerId.includes('gif') || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif';
 

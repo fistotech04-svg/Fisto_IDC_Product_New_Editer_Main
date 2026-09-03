@@ -19,6 +19,7 @@ import {
 import HotspotPresetPopup from './HotspotPresetPopup';
 import { generateHotspotSVG } from './HotspotCustomizationPopup';
 import { CropController, isElementCropped } from './Crop';
+import { useToast } from '../CustomToast';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -634,6 +635,7 @@ const MainEditor = ({
   isPopupEditor = false
 }) => {
   usePreventBrowserZoom();
+  const toast = useToast();
   const { width: baseWidth, height: baseHeight } = flipbookDimensions || { width: 210, height: 297 };
   const canvasAspectRatio = baseWidth && baseHeight ? `${baseWidth} / ${baseHeight}` : '210 / 297';
 
@@ -12945,6 +12947,7 @@ const MainEditor = ({
                                     // 3. Try reading external files dropped directly from Desktop / File Explorer
                                     if (!data && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                                       const files = Array.from(e.dataTransfer.files);
+                                      let hasUnsupported = false;
                                       files.forEach(async (file, idx) => {
                                         const fileUrl = URL.createObjectURL(file);
                                         const offsetPoint = { x: dropPoint.x + idx * 20, y: dropPoint.y + idx * 20 };
@@ -12974,8 +12977,13 @@ const MainEditor = ({
                                               dropPoint: offsetPoint
                                             }
                                           }));
+                                        } else {
+                                          hasUnsupported = true;
                                         }
                                       });
+                                      if (hasUnsupported) {
+                                        toast.error('Only Image, Video, and GIF formats are allowed.');
+                                      }
                                       return;
                                     }
 
@@ -13040,9 +13048,9 @@ const MainEditor = ({
                             )}
                             {pages[displayIndex]?.isHidden && (
                               <div key={`hidden-placeholder-${displayIndex}`} className="w-full h-full flex flex-col items-center justify-center bg-white/70 backdrop-blur-[1px] z-20 absolute inset-0 pointer-events-auto">
-                                <Icon icon="lucide:eye-off" width="3vw" height="3vw" style={{ strokeWidth: 0.2 }} className="text-gray-600 mb-[1vw] svg-icon-override" />
+                                <Icon icon="ant-design:eye-invisible-outlined" width="3vw" height="3vw" style={{ strokeWidth: 0.2 }} className="text-gray-500 mb-[1vw] svg-icon-override" />
                                 <span className="text-gray-700 font-semibold text-[1.2vw]">This page is hidden</span>
-                                <span className="text-gray-600 text-[0.85vw] mt-[0.5vw]">It will not be shown in the flipbook.</span>
+                                <span className="text-gray-500 text-[0.85vw] mt-[0.5vw]">It will not be shown in the flipbook.</span>
                               </div>
                             )}
                             

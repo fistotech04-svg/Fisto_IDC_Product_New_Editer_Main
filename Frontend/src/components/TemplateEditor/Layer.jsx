@@ -154,8 +154,11 @@ const LayerItem = ({
     }
   };
 
+  const isPdfBackgroundLayer = (layer.name && layer.name.toLowerCase().endsWith('-pdf')) || layer.name === 'PDF Background' || layer['data-type'] === 'pdf-background';
+
   const handleItemClick = (e) => {
     e.stopPropagation();
+    if (isPdfBackgroundLayer) return;
     
     const targetId = layer.isVirtualImageChild ? layer.parentId : layer.id;
 
@@ -176,6 +179,7 @@ const LayerItem = ({
 const handleContextMenu = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isPdfBackgroundLayer) return;
     if (onLayerContextMenu) {
       const targetId = layer.isVirtualImageChild ? layer.parentId : layer.id;
       onLayerContextMenu(targetId, e.clientX, e.clientY);
@@ -183,7 +187,7 @@ const handleContextMenu = (e) => {
   };
 
   const handleDragStart = (e) => {
-    if (layer.isVirtualImageChild) {
+    if (layer.isVirtualImageChild || isPdfBackgroundLayer) {
       e.preventDefault();
       return;
     }
@@ -212,7 +216,7 @@ const handleContextMenu = (e) => {
 
   const handleDoubleClick = (e) => {
     e.stopPropagation();
-    if (layer.isVirtualImageChild) return; // Disallow renaming effect layers
+    if (layer.isVirtualImageChild || isPdfBackgroundLayer) return; // Disallow renaming effect layers and PDF Backgrounds
     setIsEditing(true);
   };
 
@@ -239,7 +243,7 @@ const handleContextMenu = (e) => {
     <div className="flex flex-col select-none">
       <div
         ref={itemRef}
-        draggable={!isEditing}
+        draggable={!isEditing && !isPdfBackgroundLayer}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -251,7 +255,9 @@ const handleContextMenu = (e) => {
               ? 'bg-[#F5F3FF] border-l-[#A78BFA] ring-1 ring-dashed ring-[#A78BFA]/50' // Entered Frame style
               : isMultiOnly
                 ? 'bg-[#EEF2FF]'                             // part of multi-set — lighter tint
-                : 'hover:bg-[#F3F4F6]'
+                : isPdfBackgroundLayer
+                  ? 'opacity-60 cursor-not-allowed bg-gray-50' // Unselectable styling for PDF Background
+                  : 'hover:bg-[#F3F4F6] cursor-pointer'
           }`}
         style={{ paddingLeft: `${depth * 0.8 + 0.5}vw` }}
         onClick={handleItemClick}
@@ -1344,7 +1350,7 @@ const Layer = ({
                                 )}
                                 {page.isHidden && (
                                   <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 pointer-events-none">
-                                    <Icon icon="lucide:eye-off" width="2vw" height="2vw" style={{ strokeWidth: 2.5 }} className="text-gray-600 svg-icon-override" />
+                                    <Icon icon="ant-design:eye-invisible-outlined" width="2vw" height="2vw" style={{ strokeWidth: 2.5 }} className="text-gray-500 svg-icon-override" />
                                   </div>
                                 )}
                               </div>
