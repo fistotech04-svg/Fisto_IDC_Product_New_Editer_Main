@@ -180,7 +180,7 @@ const assetStorage = multer.diskStorage({
 const assetUpload = multer({
   storage: assetStorage,
   limits: {
-    fileSize: 30 * 1024 * 1024, // 30MB limit
+    fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
     const { assetType } = req.body;
@@ -1144,7 +1144,7 @@ router.post("/save-pages-batch", async (req, res) => {
     const newFlipbookAssets = [];
     const savedBase64Map = new Map();
 
-    for (const page of pages) {
+    const uploadResults = await Promise.all(pages.map(async (page) => {
       const { pageName, content, pageNumber, v_id: pageVId } = page;
       const fileName = pageName.endsWith(".html") ? pageName : `${pageName}.html`;
 
@@ -1166,19 +1166,28 @@ router.post("/save-pages-batch", async (req, res) => {
       await uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err));
 
       const pageSize = pageBuffer.length;
-      // Update or insert into DB pages array
-      const existingPageIdx = doc.pages.findIndex((p) => p.name === pageName);
+      return {
+        pageName,
+        fileName,
+        pageNumber,
+        pageVId,
+        pageSize
+      };
+    }));
+
+    for (const res of uploadResults) {
+      const existingPageIdx = doc.pages.findIndex((p) => p.name === res.pageName);
       if (existingPageIdx >= 0) {
-        doc.pages[existingPageIdx].fileName = fileName;
-        if (pageNumber !== undefined) doc.pages[existingPageIdx].pageNumber = pageNumber;
-        doc.pages[existingPageIdx].size = pageSize;
+        doc.pages[existingPageIdx].fileName = res.fileName;
+        if (res.pageNumber !== undefined) doc.pages[existingPageIdx].pageNumber = res.pageNumber;
+        doc.pages[existingPageIdx].size = res.pageSize;
       } else {
         doc.pages.push({
-          pageNumber: pageNumber || doc.pages.length + 1,
-          name: pageName,
-          fileName,
-          v_id: pageVId || `page_${Math.random().toString(36).substr(2, 9)}`,
-          size: pageSize,
+          pageNumber: res.pageNumber || doc.pages.length + 1,
+          name: res.pageName,
+          fileName: res.fileName,
+          v_id: res.pageVId || `page_${Math.random().toString(36).substr(2, 9)}`,
+          size: res.pageSize,
         });
       }
     }

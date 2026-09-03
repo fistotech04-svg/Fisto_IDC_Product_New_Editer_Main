@@ -572,7 +572,9 @@ const ShareViewBook = () => {
                 // Extract and set tempSettings immediately so the custom preloader works while image preloading happens
                 const extractedSettings = {
                     ...(processedData?.meta || {}),
-                    ...(processedData?.settings || {})
+                    ...(processedData?.Customized_Settings || {}),
+                    ...(processedData?.settings || {}),
+                    preloader: processedData?.Customized_Settings?.Branding?.preloaderSettings || processedData?.settings?.Branding?.preloaderSettings || processedData?.settings?.preloader || processedData?.settings?.preloaderSettings || processedData?.meta?.preloaderSettings
                 };
                 setTempSettings(extractedSettings);
 

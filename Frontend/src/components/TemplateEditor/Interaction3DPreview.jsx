@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Environment, Center, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { CustomQRCode } from './Model3DEditor';
@@ -16,9 +16,87 @@ const ModelScene = ({
   lockMaxZoom = true,
   maxZoom = 4.5
 }) => {
-  const { scene } = useGLTF(url);
+  const { scene, animations } = useGLTF(url);
   const { camera, controls } = useThree();
   const [modelBounds, setModelBounds] = useState({ radius: 1.5, height: 1 });
+  const mixerRef = useRef(null);
+
+  useEffect(() => {
+    if (!scene) return;
+    const animClips = (animations && animations.length > 0) ? animations : (scene.animations || []);
+    if (!animClips || animClips.length === 0) {
+      if (mixerRef.current) {
+        try {
+          mixerRef.current.stopAllAction();
+          mixerRef.current.uncacheRoot(scene);
+        } catch (_) {}
+        mixerRef.current = null;
+      }
+      return;
+    }
+
+    scene.traverse((child) => {
+      if (child.isMesh || child.isSkinnedMesh) {
+        child.frustumCulled = false;
+      }
+    });
+
+    const mixer = new THREE.AnimationMixer(scene);
+    mixerRef.current = mixer;
+
+    // Filter overlapping tracks so distinct full-body clips don't fight each other
+    const targetedProperties = new Set();
+    const clipsToPlay = [];
+
+    for (const clip of animClips) {
+      if (!clip || !Array.isArray(clip.tracks) || clip.tracks.length === 0) continue;
+      let hasConflict = false;
+      const currentClipProps = new Set();
+      for (const track of clip.tracks) {
+        const propKey = track.name;
+        if (targetedProperties.has(propKey)) {
+          hasConflict = true;
+          break;
+        }
+        currentClipProps.add(propKey);
+      }
+
+      if (clipsToPlay.length === 0 || !hasConflict) {
+        clipsToPlay.push(clip);
+        currentClipProps.forEach(p => targetedProperties.add(p));
+      }
+    }
+
+    clipsToPlay.forEach((clip) => {
+      try {
+        const action = mixer.clipAction(clip);
+        action.reset();
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.clampWhenFinished = false;
+        action.enabled = true;
+        action.setEffectiveTimeScale(1);
+        action.setEffectiveWeight(1);
+        action.play();
+      } catch (e) {
+        console.warn("[Interaction3DPreview] Error playing clip:", clip.name, e);
+      }
+    });
+
+    return () => {
+      try {
+        mixer.stopAllAction();
+        mixer.uncacheRoot(scene);
+      } catch (e) {}
+      mixerRef.current = null;
+    };
+  }, [scene, animations]);
+
+  useFrame((state, delta) => {
+    if (mixerRef.current) {
+      const safeDelta = Math.min(delta, 0.1);
+      mixerRef.current.update(safeDelta);
+    }
+  });
 
   // Set initial camera framing ONLY when model url/scene changes
   React.useEffect(() => {
