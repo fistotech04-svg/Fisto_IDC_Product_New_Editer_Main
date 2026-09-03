@@ -172,24 +172,7 @@ const CustomizedEditor = () => {
     const p = cb.preloaderSettings || cb.preloader || location.state?.preloaderSettings || location.state?.preloader;
     if (p && typeof p === 'object' && Object.keys(p).length > 0) return p;
 
-    if (v_id) {
-      try {
-        const cached = localStorage.getItem(`flipbook_preloader_${v_id}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) return parsed;
-        }
-      } catch (e) {}
-    }
-
-    return {
-      // text: 'Loading Modal Please Wait....',
-      // bgColor: '#2D2F33',
-      // textColor: '#ffffff',
-      // spinnerColor: '#3B3C8A',
-      // showPercentage: true,
-      // layout: 'spinner'
-    };
+    return {};
   });
 
   const [profileSettings, setProfileSettings] = useState(() => {
@@ -1320,7 +1303,6 @@ const CustomizedEditor = () => {
         if (branding) {
           if (branding.logo) setLogoSettings(branding.logo);
           if (branding.watermark) setWatermarkSettings(branding.watermark);
-          if (branding.preloader) setPreloaderSettings(branding.preloader);
           if (branding.profile) setProfileSettings(branding.profile);
         }
 
@@ -1406,11 +1388,6 @@ const CustomizedEditor = () => {
             const pVal = cb.preloaderSettings || cb.preloader || cs.preloaderSettings || cs.preloader || res.data.preloaderSettings || res.data.preloader;
             if (pVal && typeof pVal === 'object') {
               setPreloaderSettings(pVal);
-              if (v_id) {
-                try {
-                  localStorage.setItem(`flipbook_preloader_${v_id}`, JSON.stringify(pVal));
-                } catch (e) {}
-              }
             }
 
             const prVal = cb.profileSettings || cb.profile || cs.profileSettings || cs.profile || res.data.profileSettings || res.data.profile;

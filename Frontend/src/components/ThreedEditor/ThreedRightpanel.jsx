@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import MaterialProperties from "./Customized";
+import { process3DDropEvent } from "./utils/modelDropHandler";
 
 export default function RightPanel({ 
     onFileProcess, 
@@ -27,7 +28,7 @@ export default function RightPanel({
   const fileRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
         onFileProcess(file);
@@ -35,16 +36,24 @@ export default function RightPanel({
     }
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
     
     if (isLoading) return;
 
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
+    try {
+      const dropResult = await process3DDropEvent(e.dataTransfer);
+      if (dropResult && dropResult.file) {
+        onFileProcess(dropResult.file, dropResult);
+      }
+    } catch (err) {
+      console.error("Drop processing error:", err);
+      const file = e.dataTransfer.files?.[0];
+      if (file) {
         onFileProcess(file);
+      }
     }
   };
 
@@ -111,36 +120,34 @@ export default function RightPanel({
 
             {/* Upload Area */}
             <div
-              onClick={() => !isLoading && fileRef.current.click()}
+              onClick={() => fileRef.current?.click()}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              className={`w-[90%] mx-auto h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm 
-                ${isLoading 
-                    ? "opacity-50 cursor-not-allowed bg-gray-50 border-gray-300 grayscale" 
-                    : isDragOver 
-                        ? "border-blue-500 bg-blue-50 cursor-copy scale-[1.02]" 
-                        : "border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
-                }`}
+              className={`w-[90%] mx-auto min-h-[11vw] border-[0.12vw] border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1.5vw] transition-all cursor-pointer group shadow-sm select-none ${
+                isDragOver 
+                    ? "border-[#5d5efc] bg-[#5d5efc]/5 cursor-copy scale-[1.02]" 
+                    : "border-gray-300 hover:border-[#5d5efc] hover:bg-gray-50/50 hover:shadow-md"
+              }`}
             >
-              <div className="text-[0.75vw] font-semibold text-gray-500 mb-[1.5vw] tracking-tight">
+              <div className="text-[0.85vw] font-semibold text-gray-500 mb-[1.2vw] tracking-tight group-hover:text-gray-700 transition-colors">
                 {isDragOver ? (
-                    <span className="text-blue-600 font-bold">Drop to Upload</span>
+                    <span className="text-[#5d5efc] font-bold">Drop File or Folder to Upload</span>
                 ) : (
-                    <>Drag & Drop or <span className="text-blue-600 font-bold">Upload</span></>
+                    <>Drag & Drop File / Folder or <span className="text-[#5d5efc] font-bold">Upload</span></>
                 )}
               </div>
 
-              <div className={`mb-[1.5vw] transition-colors ${isDragOver ? "text-blue-600" : "text-gray-400 group-hover:text-blue-500"}`}>
-                <Icon icon="heroicons:arrow-up-tray" width="2vw" />
+              <div className={`mb-[1.2vw] transition-all duration-200 group-hover:scale-110 ${isDragOver ? "text-[#5d5efc]" : "text-gray-400 group-hover:text-[#5d5efc]"}`}>
+                <Icon icon="solar:upload-linear" width="2.5vw" height="2.5vw" />
               </div>
 
               <div className="text-center">
-                <div className="text-[0.65vw] font-bold text-gray-600 uppercase tracking-wide mb-[0.25vw]">
-                  Supported File
+                <div className="text-[0.65vw] font-bold text-gray-500 uppercase tracking-wide mb-[0.25vw]">
+                  Supported Formats
                 </div>
-                <div className="text-[0.55vw] text-gray-400 leading-relaxed uppercase max-w-[12vw] font-medium text-center">
-                  STEP, OBJ, FBX, GLB, GLTF
+                <div className="text-[0.55vw] text-gray-400 leading-relaxed uppercase max-w-[15vw] font-medium text-center">
+                  GLB, GLTF, OBJ, FBX, STL, STEP, STP, 3DS, LWO, IGES, IGS, ZIP
                 </div>
               </div>
             </div>
@@ -148,8 +155,8 @@ export default function RightPanel({
             <input
               ref={fileRef}
               type="file"
-              accept=".glb,.gltf,.obj,.fbx,.stl,.step,.stp"
-              hidden
+              accept=".glb,.gltf,.obj,.fbx,.stl,.step,.stp,.3ds,.lwo,.low,.iges,.igs,.zip"
+              className="hidden"
               onChange={handleFileChange}
             />
           </div>

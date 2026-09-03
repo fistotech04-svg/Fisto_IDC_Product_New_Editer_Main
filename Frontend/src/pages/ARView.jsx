@@ -107,6 +107,7 @@ const ARView = () => {
         ar-modes="webxr scene-viewer quick-look"
         camera-controls
         auto-rotate
+        autoplay
         camera-orbit="0deg 75deg 180%"
         field-of-view="35deg"
         min-camera-orbit="auto auto 30%"

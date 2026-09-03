@@ -15,31 +15,98 @@ export const getPdfPageCount = async (file) => {
 };
 
 /**
- * Converts a PDF file into an array of SVGs (Blobs).
+ * Reads page count, dimensions (mm), and checks dimension uniformity for a PDF file.
+ * @param {File} file 
+ * @returns {Promise<{count: number, width: number, height: number, isUniform: boolean, pages: Array<{pageNumber: number, width: number, height: number}>}>}
+ */
+export const getPdfDetails = async (file) => {
+  const arrayBuffer = await file.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+  const doc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
+  const count = doc.countPages();
+  const pages = [];
+  const ptToMm = 25.4 / 96;
+
+  for (let i = 0; i < count; i++) {
+    const page = doc.loadPage(i);
+    const bounds = page.getBounds(); // [x0, y0, x1, y1]
+    const widthPt = bounds[2] - bounds[0];
+    const heightPt = bounds[3] - bounds[1];
+    pages.push({
+      pageNumber: i + 1,
+      width: widthPt * ptToMm,
+      height: heightPt * ptToMm,
+      widthPt,
+      heightPt
+    });
+    page.destroy();
+  }
+  doc.destroy();
+
+  if (count === 0) {
+    return {
+      count: 0,
+      width: 0,
+      height: 0,
+      isUniform: false,
+      pages: []
+    };
+  }
+
+  const firstPage = pages[0];
+  const isUniform = pages.every(
+    (p) => Math.abs(p.width - firstPage.width) < 1 && Math.abs(p.height - firstPage.height) < 1
+  );
+
+  return {
+    count,
+    width: firstPage.width,
+    height: firstPage.height,
+    isUniform,
+    pages
+  };
+};
+
+/**
+ * Fast helper to convert an SVG string to a data URL without FileReader overhead.
+ * @param {string} svgString 
+ * @returns {string}
+ */
+export const svgToDataUrl = (svgString) => {
+  try {
+    return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgString)))}`;
+  } catch (e) {
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
+  }
+};
+
+/**
+ * Converts a PDF file into an array of SVGs (Blobs and strings) with high performance.
  * @param {File} file - The PDF file to convert.
- * @param {number} scale - Rendering scale for the raster background (default 2 for high quality zoom).
- * @returns {Promise<Array<{blob: Blob, width: number, height: number}>>}
+ * @param {number} scale - Rendering scale if raster fallback is needed.
+ * @param {number} maxPages - Max pages to convert.
+ * @returns {Promise<Array<{blob: Blob, svgString: string, width: number, height: number}>>}
  */
 export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) => {
   const arrayBuffer = await file.arrayBuffer();
   const uint8Array = new Uint8Array(arrayBuffer);
   
-  // Get numPages first, then destroy doc to free initial memory
-  let initialDoc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
-  const numPages = Math.min(initialDoc.countPages(), maxPages);
-  initialDoc.destroy();
+  const doc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
+  const totalPages = doc.countPages();
+  const numPages = Math.min(totalPages, maxPages);
 
   const images = [];
+  const ptToMm = 25.4 / 96;
 
   for (let i = 0; i < numPages; i++) {
-    let doc = null;
+    let page = null;
+    let writer = null;
+    let device = null;
+    let buf = null;
     try {
-      // Re-open document per page with a fresh slice of the buffer to prevent WASM stream consumption/corruption
-      doc = mupdf.Document.openDocument(uint8Array.slice(), 'application/pdf');
-      const page = doc.loadPage(i);
+      page = doc.loadPage(i);
       const bounds = page.getBounds(); // [x0, y0, x1, y1]
       
-      // Bounds are in points (72 points = 1 inch). We convert to mm.
       const widthPt = bounds[2] - bounds[0];
       const heightPt = bounds[3] - bounds[1];
       
@@ -48,65 +115,50 @@ export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) =
       const widthMm = widthPt * ptToMm;
       const heightMm = heightPt * ptToMm;
 
-      // 1. Render perfectly colored background image using Pixmap (handles Decode arrays and ICC correctly)
-      const pixmapMatrix = mupdf.Matrix.scale(scale, scale);
-      const pixmap = page.toPixmap(pixmapMatrix, mupdf.ColorSpace.DeviceRGB, false, true);
-      const pngBytes = pixmap.asPNG();
-      
-      // Convert Uint8Array to base64 safely and fast without crashing the stack
-      let binary = '';
-      const chunkSize = 8192; // Process in 8KB chunks
-      for (let j = 0; j < pngBytes.length; j += chunkSize) {
-        binary += String.fromCharCode.apply(null, pngBytes.subarray(j, j + chunkSize));
-      }
-      const pngDataUrl = 'data:image/png;base64,' + btoa(binary);
-      
-      pixmap.destroy();
-
-      // 2. Render real vector SVG paths using DocumentWriter to ensure vector format
-      const buf = new mupdf.Buffer();
-      const writer = new mupdf.DocumentWriter(buf, 'svg', 'image-format=png');
-      const device = writer.beginPage(bounds);
-      
+      // Render vector SVG directly using native C WASM DocumentWriter
+      buf = new mupdf.Buffer();
+      writer = new mupdf.DocumentWriter(buf, 'svg', 'image-format=png');
+      device = writer.beginPage(bounds);
       page.run(device, mupdf.Matrix.identity);
       writer.endPage();
       writer.close();
       
       let svgString = buf.asString();
-      
-      // Check if the page is essentially just an image (e.g. scanned page or comic book)
-      const imageCount = (svgString.match(/<image\b/gi) || []).length;
-      const textCount = (svgString.match(/<text\b/gi) || []).length;
-      const pathCount = (svgString.match(/<path\b/gi) || []).length;
-      
-      // If there's exactly 1 image (user requested), or if it's purely images without text
-      if (imageCount === 1 || (imageCount > 0 && textCount === 0 && pathCount < 10)) {
-        svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPt}" height="${heightPt}" viewBox="0 0 ${widthPt} ${heightPt}">
-          <image href="${pngDataUrl}" x="0" y="0" width="${widthPt}" height="${heightPt}" preserveAspectRatio="none" />
-        </svg>`;
+
+      // Fallback: If SVG output is somehow empty, rasterize cleanly
+      if (!svgString || svgString.length < 50) {
+        const pixmapMatrix = mupdf.Matrix.scale(scale, scale);
+        const pixmap = page.toPixmap(pixmapMatrix, mupdf.ColorSpace.DeviceRGB, false, true);
+        const pngBytes = pixmap.asPNG();
+        let binary = '';
+        const chunkSize = 16384;
+        for (let j = 0; j < pngBytes.length; j += chunkSize) {
+          binary += String.fromCharCode.apply(null, pngBytes.subarray(j, j + chunkSize));
+        }
+        const pngDataUrl = 'data:image/png;base64,' + btoa(binary);
+        pixmap.destroy();
+        svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPt}" height="${heightPt}" viewBox="0 0 ${widthPt} ${heightPt}"><image href="${pngDataUrl}" x="0" y="0" width="${widthPt}" height="${heightPt}" preserveAspectRatio="none" /></svg>`;
       }
-      
-      buf.destroy();
-      writer.destroy();
-      device.destroy();
-      page.destroy();
 
       const blob = new Blob([svgString], { type: 'image/svg+xml' });
 
       images.push({
         blob,
+        svgString,
         width: widthMm,
         height: heightMm,
       });
     } catch (err) {
       console.error(`Error converting page ${i}:`, err);
     } finally {
-      if (doc) {
-        doc.destroy();
-      }
+      if (buf) buf.destroy();
+      if (writer) writer.destroy();
+      if (device) device.destroy();
+      if (page) page.destroy();
     }
   }
 
+  doc.destroy();
   return images;
 };
 

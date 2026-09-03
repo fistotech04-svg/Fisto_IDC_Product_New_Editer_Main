@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useLayoutEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import * as THREE from "three";
+import { useFrame } from "@react-three/fiber";
 import { TransformControls } from "@react-three/drei";
 import { GLTFExporter } from "three-stdlib";
 import { OBJExporter } from "three-stdlib";
@@ -46,7 +47,7 @@ const getTextureSource = (tex) => {
     }
 };
 
-const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures }, ref) => {
+const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures }, ref) => {
   const [position, setPosition] = useState(() => scene?.userData?.normalization?.position || [0, 0, 0]);
   const [scale, setScale] = useState(() => scene?.userData?.normalization?.scale || 1);
   const groupRef = React.useRef(null);
@@ -55,9 +56,118 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
   const activeTextureRef = React.useRef(selectedTexture);
   activeTextureRef.current = selectedTexture;
 
-  // Live toggle for Texture Inclusion in Export Preview
+  React.useImperativeHandle(ref, () => scene, [scene]);
+
+  // Animation Playback Support for GLB / FBX models
+  const mixerRef = useRef(null);
+
   useEffect(() => {
-      if (!scene || includeTextures === undefined) return;
+      if (!scene) return;
+
+      // Stop any existing mixer
+      if (mixerRef.current) {
+          try {
+              mixerRef.current.stopAllAction();
+              mixerRef.current.uncacheRoot(scene);
+          } catch(_) {}
+          mixerRef.current = null;
+      }
+
+      // Collect all AnimationClips from every possible source
+      const allClips = [];
+      const seen = new Set();
+      const add = (c) => {
+          if (!c || !Array.isArray(c.tracks) || c.tracks.length === 0) return;
+          const id = c.uuid || c.name || Math.random().toString();
+          if (seen.has(id)) return;
+          seen.add(id);
+          allClips.push(c);
+      };
+
+      // 1. Directly passed animations prop
+      if (Array.isArray(animations)) animations.forEach(add);
+      // 2. Animations stored on the scene root (set by GLBModel / FBXModel)
+      if (Array.isArray(scene.animations)) scene.animations.forEach(add);
+      // 3. Animations stored on any child node
+      scene.traverse(child => {
+          if (Array.isArray(child.animations)) child.animations.forEach(add);
+      });
+
+      if (allClips.length === 0) return;
+
+      // Ensure all animated and skinned meshes never get culled when moving
+      scene.traverse((child) => {
+          if (child.isMesh || child.isSkinnedMesh) {
+              child.frustumCulled = false;
+          }
+      });
+
+      console.log(`[GenericModel] Playing ${allClips.length} animation clip(s) on scene:`, allClips.map(c => c.name));
+
+      const mixer = new THREE.AnimationMixer(scene);
+
+      // Smart clip conflict filter:
+      // If clips target overlapping bone/property tracks (e.g. Idle vs Walk vs Run),
+      // playing them all at once distorts the model. We play the primary action (first clip)
+      // or all non-conflicting clips (e.g., separate parts of a multi-component model).
+      const targetedProperties = new Set();
+      const clipsToPlay = [];
+
+      for (const clip of allClips) {
+          let hasConflict = false;
+          const currentClipProps = new Set();
+          for (const track of clip.tracks) {
+              const propKey = track.name;
+              if (targetedProperties.has(propKey)) {
+                  hasConflict = true;
+                  break;
+              }
+              currentClipProps.add(propKey);
+          }
+
+          if (clipsToPlay.length === 0 || !hasConflict) {
+              clipsToPlay.push(clip);
+              currentClipProps.forEach(p => targetedProperties.add(p));
+          }
+      }
+
+      clipsToPlay.forEach(clip => {
+          try {
+              const action = mixer.clipAction(clip);
+              action.reset();
+              action.setLoop(THREE.LoopRepeat, Infinity);
+              action.clampWhenFinished = false;
+              action.enabled = true;
+              action.setEffectiveTimeScale(1);
+              action.setEffectiveWeight(1);
+              action.play();
+          } catch(e) {
+              console.warn("[GenericModel] Could not play animation clip:", clip.name, e);
+          }
+      });
+
+      mixerRef.current = mixer;
+
+      return () => {
+          try {
+              mixer.stopAllAction();
+              mixer.uncacheRoot(scene);
+          } catch(_) {}
+          mixerRef.current = null;
+      };
+  }, [scene, animations]);
+
+  useFrame((state, delta) => {
+      if (mixerRef.current) {
+          // Cap delta to prevent large frame jumps on lag / tab blur
+          const safeDelta = Math.min(delta, 0.1);
+          mixerRef.current.update(safeDelta);
+      }
+  });
+
+  // Snapshot and preserve all original default textures and material properties on load
+  useEffect(() => {
+      if (!scene) return;
       const TEX_KEYS = ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','alphaMap','bumpMap','displacementMap'];
       scene.traverse((child) => {
           if (child.isMesh && child.material) {
@@ -65,8 +175,21 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
               mats.forEach((mat) => {
                   if (!mat.userData.origTexturesSnap) {
                       const snap = {};
-                      TEX_KEYS.forEach(k => { snap[k] = mat[k]; });
+                      TEX_KEYS.forEach(k => { if (mat[k]) snap[k] = mat[k]; });
                       mat.userData.origTexturesSnap = snap;
+                      mat.userData.originalMap = mat.map;
+                      mat.userData.originalNormalMap = mat.normalMap;
+                      mat.userData.originalRoughnessMap = mat.roughnessMap;
+                      mat.userData.originalMetalnessMap = mat.metalnessMap;
+                      mat.userData.originalAoMap = mat.aoMap;
+                      mat.userData.originalEmissiveMap = mat.emissiveMap;
+                      mat.userData.originalAlphaMap = mat.alphaMap;
+                      mat.userData.originalBumpMap = mat.bumpMap;
+                      mat.userData.originalDisplacementMap = mat.displacementMap;
+                      if (mat.color) mat.userData.originalColor = mat.color.clone();
+                      mat.userData.originalRoughness = mat.roughness;
+                      mat.userData.originalMetalness = mat.metalness;
+                      mat.userData.originalOpacity = mat.opacity;
                   }
 
                   if (includeTextures === false) {
@@ -538,9 +661,37 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     // Reset position and scale to calculate true bounding box
     scene.position.set(0, 0, 0);
     scene.scale.set(1, 1, 1);
+    scene.rotation.set(0, 0, 0);
     scene.updateMatrixWorld(true);
 
-    const box = new THREE.Box3().setFromObject(scene);
+    let box = new THREE.Box3();
+    
+    // Compute accurate bounding box from all renderable geometry
+    scene.traverse((child) => {
+      if ((child.isMesh || child.isSkinnedMesh) && child.geometry) {
+        if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+        if (child.geometry.boundingBox) {
+          const geomBox = child.geometry.boundingBox.clone().applyMatrix4(child.matrixWorld);
+          if (!geomBox.isEmpty() && isFinite(geomBox.min.x)) {
+            box.union(geomBox);
+          }
+        }
+      }
+    });
+
+    if (box.isEmpty()) {
+      try {
+        box.setFromObject(scene);
+      } catch (e) {
+        console.warn("[GenericModel] Bounding box computation notice:", e);
+      }
+    }
+
+    if (box.isEmpty() || !isFinite(box.min.x)) {
+      box.min.set(-1, -1, -1);
+      box.max.set(1, 1, 1);
+    }
+
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
     
@@ -548,19 +699,20 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     box.getCenter(center);
 
     const maxDim = Math.max(size.x, size.y, size.z);
-    let targetScale = 1;
+    
+    // Target size 3.5 units for clear, large, prominent framing in the viewport
+    const TARGET_SIZE = 3.5;
+    let targetScale = maxDim > 0 ? (TARGET_SIZE / maxDim) : 1;
 
-    if (maxDim > 0) {
-        targetScale = 3 / maxDim;
-    }
-
+    // Center on X and Z, and place the bottom at exactly Y = 0 on the base grid (no floating)
     const centeredX = -center.x * targetScale;
     const centeredZ = -center.z * targetScale;
     const bottomY = -box.min.y * targetScale; 
 
-    // Apply normalized scale and position directly to scene object immediately so it never shows unnormalized at scale 1
-    scene.scale.set(targetScale, targetScale, targetScale);
-    scene.position.set(centeredX, bottomY, centeredZ);
+    // DO NOT scale or move the child scene directly to prevent double-scaling!
+    // The parent <group> handles scale and position cleanly.
+    scene.position.set(0, 0, 0);
+    scene.scale.set(1, 1, 1);
     scene.updateMatrixWorld(true);
 
     setScale(targetScale);
@@ -584,7 +736,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     const meshIndex = new Map();
 
     scene.traverse((child) => {
-      if (child.isMesh) {
+      if (child.isMesh || child.isSkinnedMesh) {
+        child.frustumCulled = false;
         // Build Mesh Index for fast lookups later
         if (child.material) {
             const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -702,71 +855,176 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         }
     }
 
-    // Construct Structured List
-    const structuredList = [];
-    
-    // Add Groups
-    const sortedGroups = Array.from(groupMap.keys()).sort();
-    sortedGroups.forEach(grp => {
-        structuredList.push({
-            group: grp,
-            materials: Array.from(groupMap.get(grp)).sort()
-        });
-    });
+    // Build recursive scene hierarchy tree (Folder & Mesh tree)
+    const buildHierarchyNode = (obj) => {
+      if (!obj) return null;
+      if (
+        obj.isLight ||
+        obj.isCamera ||
+        obj.isHelper ||
+        obj.name?.toLowerCase().includes("transformcontrols") ||
+        obj.name?.toLowerCase().includes("gizmo")
+      ) {
+        return null;
+      }
 
-    if (ungroupedMats.size > 0) {
-        if (structuredList.length > 0) {
-             structuredList.push({
-                 group: "Ungrouped",
-                 materials: Array.from(ungroupedMats).sort()
-             });
+      const isMesh = obj.isMesh || obj.isSkinnedMesh || obj.isLine || obj.isPoints;
+      const childNodes = [];
+
+      if (obj.children && obj.children.length > 0) {
+        for (const child of obj.children) {
+          const childTree = buildHierarchyNode(child);
+          if (childTree) {
+            if (Array.isArray(childTree)) childNodes.push(...childTree);
+            else childNodes.push(childTree);
+          }
         }
+      }
+
+      if (isMesh) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        const matNames = mats.map((m) => m?.name).filter(Boolean);
+        const primaryMat = matNames[0] || "Default";
+        const meshName = (obj.name && obj.name !== "Scene") ? obj.name : primaryMat;
+
+        return {
+          id: obj.uuid,
+          name: meshName,
+          isMesh: true,
+          isGroup: false,
+          material: primaryMat,
+          materials: matNames,
+          meshUuid: obj.uuid,
+          children: childNodes
+        };
+      }
+
+      if (childNodes.length > 0) {
+        const allDescendantMaterials = new Set();
+        const collectDescendantMats = (nodeItem) => {
+          if (nodeItem.materials) nodeItem.materials.forEach((m) => allDescendantMaterials.add(m));
+          if (nodeItem.children) nodeItem.children.forEach(collectDescendantMats);
+        };
+        childNodes.forEach(collectDescendantMats);
+
+        const groupName = (obj.name && obj.name !== "Scene") ? obj.name : "Group";
+
+        return {
+          id: obj.uuid,
+          name: groupName,
+          isMesh: false,
+          isGroup: true,
+          materials: Array.from(allDescendantMaterials),
+          children: childNodes
+        };
+      }
+
+      return null;
+    };
+
+    // Simplify single-child redundant dummy wrapper nodes (e.g. RootNode -> FBX_Root)
+    const simplifyHierarchy = (nodes) => {
+      if (!Array.isArray(nodes)) return [];
+
+      const isGenericWrapper = (name) => /^(rootnode|root|scene|object3d|sketchfab_model|model|group_\d+|null)$/i.test((name || "").trim());
+
+      const cleanNode = (n) => {
+        if (!n) return null;
+        if (n.isMesh) return n;
+
+        let cleanChildren = [];
+        if (n.children && n.children.length > 0) {
+          n.children.forEach((c) => {
+            const cleaned = cleanNode(c);
+            if (cleaned) {
+              if (Array.isArray(cleaned)) cleanChildren.push(...cleaned);
+              else cleanChildren.push(cleaned);
+            }
+          });
+        }
+
+        if (cleanChildren.length === 0) return null;
+
+        // Unwrap repeated single-child group chains: e.g. A -> B -> C -> D -> Mesh
+        let currentNodeName = n.name;
+        while (cleanChildren.length === 1 && cleanChildren[0].isGroup) {
+          const onlyChild = cleanChildren[0];
+          if (!isGenericWrapper(currentNodeName) && isGenericWrapper(onlyChild.name)) {
+            onlyChild.name = currentNodeName;
+          }
+          cleanChildren = onlyChild.children || [];
+        }
+
+        if (isGenericWrapper(currentNodeName) && cleanChildren.length === 1) {
+          return cleanChildren[0];
+        }
+
+        return {
+          ...n,
+          name: currentNodeName,
+          children: cleanChildren
+        };
+      };
+
+      const result = [];
+      nodes.forEach((n) => {
+        const cleaned = cleanNode(n);
+        if (cleaned) {
+          if (Array.isArray(cleaned)) result.push(...cleaned);
+          else result.push(cleaned);
+        }
+      });
+      return result;
+    };
+
+    // Extract root hierarchy nodes
+    const rawHierarchy = [];
+    if (scene.children && scene.children.length > 0) {
+      for (const rootChild of scene.children) {
+        const node = buildHierarchyNode(rootChild);
+        if (node) {
+          if (Array.isArray(node)) rawHierarchy.push(...node);
+          else rawHierarchy.push(node);
+        }
+      }
     }
-    
+
+    const fullHierarchy = simplifyHierarchy(rawHierarchy);
+
     // Extract deep material data for property panel initialization
     const materialDataMap = {};
     scene.traverse((child) => {
-        if (child.isMesh && child.material) {
-            const mats = Array.isArray(child.material) ? child.material : [child.material];
-            mats.forEach(m => {
-                if (m.name && !materialDataMap[m.name]) {
-                    const extractTexture = (tex) => {
-                        return getTextureSource(tex);
-                    };
-
-                    materialDataMap[m.name] = {
-                        color: '#' + m.color.getHexString(),
-                        metallic: m.metalness !== undefined ? m.metalness * 100 : 0,
-                        roughness: m.roughness !== undefined ? m.roughness * 100 : 50,
-                        opacity: m.opacity !== undefined ? m.opacity * 100 : 100,
-                        scale: (m.map && m.map.repeat) ? Math.round(100 / (m.map.repeat.x || 1)) : 100,
-                        maps: {
-                            map: extractTexture(m.map),
-                            normalMap: extractTexture(m.normalMap),
-                            roughnessMap: extractTexture(m.roughnessMap),
-                            metalnessMap: extractTexture(m.metalnessMap),
-                            emissiveMap: extractTexture(m.emissiveMap),
-                            aoMap: extractTexture(m.aoMap),
-                            bumpMap: extractTexture(m.bumpMap)
-                        }
-                    };
-                }
-            });
-        }
+      if (child.isMesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((m) => {
+          if (m.name && !materialDataMap[m.name]) {
+            const extractTexture = (tex) => getTextureSource(tex);
+            materialDataMap[m.name] = {
+              color: '#' + (m.color ? m.color.getHexString() : 'ffffff'),
+              metallic: m.metalness !== undefined ? m.metalness * 100 : 0,
+              roughness: m.roughness !== undefined ? m.roughness * 100 : 50,
+              opacity: m.opacity !== undefined ? m.opacity * 100 : 100,
+              scale: m.map && m.map.repeat ? Math.round(100 / (m.map.repeat.x || 1)) : 100,
+              maps: {
+                map: extractTexture(m.map),
+                normalMap: extractTexture(m.normalMap),
+                roughnessMap: extractTexture(m.roughnessMap),
+                metalnessMap: extractTexture(m.metalnessMap),
+                emissiveMap: extractTexture(m.emissiveMap),
+                aoMap: extractTexture(m.aoMap),
+                bumpMap: extractTexture(m.bumpMap)
+              }
+            };
+          }
+        });
+      }
     });
-    
-    if (structuredList.length === 0) {
-         if (typeof setMaterialList === 'function') setMaterialList(Array.from(ungroupedMats).sort(), materialDataMap);
-    } else {
-         if (ungroupedMats.size > 0 && !structuredList.find(x => x.group === "Ungrouped")) {
-             structuredList.push({
-                 group: "Models", // Better name than Ungrouped
-                 materials: Array.from(ungroupedMats).sort()
-             });
-         }
-         if (typeof setMaterialList === 'function') setMaterialList(structuredList, materialDataMap);
-    }
 
+    if (fullHierarchy.length > 0) {
+      if (typeof setMaterialList === 'function') setMaterialList(fullHierarchy, materialDataMap);
+    } else {
+      if (typeof setMaterialList === 'function') setMaterialList(Array.from(ungroupedMats).sort(), materialDataMap);
+    }
 
     if (typeof setModelStats === 'function') {
         setModelStats({
@@ -776,7 +1034,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
             dimensions: `${Math.round(size.x * 100) / 100} X ${Math.round(size.y * 100) / 100} X ${Math.round(size.z * 100) / 100} unit`
         });
     }
-
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
@@ -834,7 +1091,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
              } else if (isGroup) {
                   isTarget = groupMaterials.includes(m.name);
              } else {
-                  isTarget = m.name === targetName;
+                  isTarget = m.name === targetName || (selectedMaterial.material && selectedMaterial.material === m.name);
              }
         }
 
@@ -1089,14 +1346,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     scene.traverse((child) => {
         if (child.isMesh && child.material) {
             const materials = Array.isArray(child.material) ? child.material : [child.material];
-            
             materials.forEach(m => {
                 let isMatch = false;
                 if (selMat && !isFullModel) {
                      if (selMat.isGroup && Array.isArray(selMat.materials)) {
-                         isMatch = selMat.materials.includes(m.name);
+                          isMatch = selMat.materials.includes(m.name);
                      } else {
-                         isMatch = m.name === targetMatName;
+                          isMatch = m.name === targetMatName || (selMat.material && selMat.material === m.name);
                      }
                 } else if (isFullModel) {
                      // In Full Model mode, we only apply overrides if they are explicitly enabled 
@@ -1590,11 +1846,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         // Reset the root scene object
         if (scene.userData.normalization) {
             const norm = scene.userData.normalization;
-            const normScale = norm.scale ?? 1;
-            scene.position.set(norm.position[0], norm.position[1], norm.position[2]);
+            scene.position.set(0, 0, 0);
             scene.rotation.set(0, 0, 0);
-            scene.scale.set(normScale, normScale, normScale);
-            scene.updateMatrix();
+            scene.scale.set(1, 1, 1);
+            scene.updateMatrixWorld(true);
             setPosition(norm.position);
             setScale(norm.scale);
         } else if (scene.userData.originalTransform) {
@@ -1809,6 +2064,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
          )}
         <group 
             ref={setModelGroup}
+            scale={scale}
+            position={position}
             onPointerDown={(e) => {
                 e.stopPropagation();
                 
@@ -1859,8 +2116,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         >
             <primitive 
                 object={scene} 
-                scale={scale} 
-                position={position} 
             />
         </group>
     </>

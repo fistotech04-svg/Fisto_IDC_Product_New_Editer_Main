@@ -43,7 +43,6 @@ const AttachedCurve = ({ position }) => {
 import Interaction3DPreview from './Interaction3DPreview';
 
 const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
-  let cachedPreloader = null;
   let cachedLogo = null;
   let cachedWatermark = null;
   let cachedProfile = null;
@@ -60,7 +59,6 @@ const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
       const bSaved = localStorage.getItem(`customized_editor_branding_${v_id}`);
       if (bSaved) {
         const parsed = JSON.parse(bSaved);
-        cachedPreloader = parsed.preloader || parsed.preloaderSettings || parsed.Branding?.preloaderSettings;
         cachedLogo = parsed.logo || parsed.logoSettings || parsed.Branding?.logoSettings;
         cachedWatermark = parsed.watermark || parsed.watermarkSettings || parsed.Branding?.watermarkSettings;
         cachedProfile = parsed.profile || parsed.profileSettings || parsed.Branding?.profileSettings;
@@ -76,7 +74,7 @@ const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
     ...(inputSettings || {}),
     logo: inputSettings?.logo || inputSettings?.logoSettings || bObj.logoSettings || cachedLogo,
     watermark: inputSettings?.watermark || inputSettings?.watermarkSettings || bObj.watermarkSettings || cachedWatermark,
-    preloader: inputSettings?.preloader || inputSettings?.preloaderSettings || bObj.preloaderSettings || cachedPreloader,
+    preloader: inputSettings?.preloader || inputSettings?.preloaderSettings || bObj.preloaderSettings || bObj.preloader || inputSettings?.Customized_Settings?.Branding?.preloaderSettings || null,
     profile: inputSettings?.profile || inputSettings?.profileSettings || bObj.profileSettings || cachedProfile,
     appearance: appObj,
     bookAppearanceSettings: appObj,
@@ -193,7 +191,6 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             if (branding) {
               if (branding.logoSettings) finalSettings.logo = branding.logoSettings;
               if (branding.watermarkSettings) finalSettings.watermark = branding.watermarkSettings;
-              if (branding.preloaderSettings) finalSettings.preloader = branding.preloaderSettings;
             }
             const setup = await getFromDB(`customized_editor_setup_${v_id || 'default'}`);
             if (setup) {
@@ -213,7 +210,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         }
 
         // If we didn't get them from local DB, fallback to backend if v_id exists
-        if ((!finalSettings.appearance || !finalSettings.logo) && v_id) {
+        if ((!finalSettings.appearance || !finalSettings.logo || !finalSettings.preloader) && v_id) {
           const storedUser = localStorage.getItem('user');
           if (storedUser) {
             const user = JSON.parse(storedUser);
@@ -231,17 +228,11 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                 ...(res.data.settings || {}),
                 logo: finalSettings.logo || backendBranding.logoSettings || res.data.settings?.logo || res.data.settings?.logoSettings,
                 watermark: finalSettings.watermark || backendBranding.watermarkSettings || res.data.settings?.watermark || res.data.settings?.watermarkSettings,
-                preloader: finalSettings.preloader || backendBranding.preloaderSettings || res.data.settings?.preloader || res.data.settings?.preloaderSettings,
+                preloader: finalSettings.preloader || backendBranding.preloaderSettings || res.data.Customized_Settings?.Branding?.preloaderSettings || res.data.settings?.preloader || res.data.settings?.preloaderSettings,
                 profile: finalSettings.profile || backendBranding.profileSettings || res.data.settings?.profile || res.data.settings?.profileSettings
               };
             }
           }
-        }
-
-        if (finalSettings.preloader && v_id) {
-          try {
-            localStorage.setItem(`flipbook_preloader_${v_id}`, JSON.stringify(finalSettings.preloader));
-          } catch (e) {}
         }
 
         if (Object.keys(finalSettings).length > 0) {

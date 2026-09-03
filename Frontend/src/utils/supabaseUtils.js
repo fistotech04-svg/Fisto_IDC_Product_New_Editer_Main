@@ -60,9 +60,15 @@ export function resolveUploadsPath(path) {
     cleanPath = cleanPath.replace(/^https?:\/\/[^/]+\/uploads\//i, '/uploads/');
   }
 
-  // If it's already a full external URL (like direct supabase URL), return it directly
+  // If it's already a full external URL (like direct supabase or http/https URL), return it directly
   if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
     return cleanPath;
+  }
+
+  // Route /temp_uploads to backend server
+  if (cleanPath.startsWith('/temp_uploads') || cleanPath.startsWith('temp_uploads/')) {
+    const slash = cleanPath.startsWith('/') ? '' : '/';
+    return `${BACKEND_URL}${slash}${cleanPath}`;
   }
 
   // Check if this is an upload path

@@ -8,6 +8,30 @@ import AlertModal from "../../AlertModal";
 import { useToast } from "../../../components/CustomToast";
 import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 
+class ThumbnailErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+    }
+    static getDerivedStateFromError() {
+        return { hasError: true };
+    }
+    componentDidCatch(err) {
+        console.warn("[GalleryThumbnail] Model preview error:", err?.message || err);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <mesh>
+                    <boxGeometry args={[1, 1, 1]} />
+                    <meshStandardMaterial color="#888888" roughness={0.5} />
+                </mesh>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 // Internal component for 3D thumbnail with support for static images
 const ModelThumbnail = React.memo(({ model }) => {
     const viewRef = useRef();
@@ -74,12 +98,14 @@ const ModelThumbnail = React.memo(({ model }) => {
                         <directionalLight position={[-5, 5, 5]} intensity={1} />
                         
                         <group position={[0, -0.6, 0]}>
-                            <RenderModel
-                                type={model.type}
-                                url={fullUrl}
-                                isSelectionDisabled={true}
-                                shouldClone={true}
-                            />
+                            <ThumbnailErrorBoundary>
+                                <RenderModel
+                                    type={model.type}
+                                    url={fullUrl}
+                                    isSelectionDisabled={true}
+                                    shouldClone={true}
+                                />
+                            </ThumbnailErrorBoundary>
                         </group>
                         
                         <Environment preset="studio" />
