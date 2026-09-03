@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import FlipbookSharePopup from '../../popups/FlipbookSharePopup';
+import TableOfContentsPopup from '../../popups/TableOfContentsPopup';
 
 
 
@@ -8,8 +10,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
-import FlipbookSharePopup from '../../popups/FlipbookSharePopup';
-import TableOfContentsPopup from '../../popups/TableOfContentsPopup';
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     const cleanHtml = (html || '')
@@ -39,15 +39,16 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     `;
 
     return (
-        <div className="w-full h-full relative overflow-hidden bg-white">
+        <div className="w-full h-full relative overflow-hidden bg-white flex items-center justify-center">
             <iframe
-                className="absolute top-1/2 left-1/2 border-none pointer-events-none"
+                className="border-none pointer-events-none"
                 srcDoc={srcDoc}
                 title={`Thumb ${index}`}
+                loading="lazy"
                 style={{
                     width: '400px',
                     height: '566px',
-                    transform: `translate(-50%, -50%) scale(${scale})`,
+                    transform: `scale(${scale})`,
                     transformOrigin: 'center center',
                     backgroundColor: 'white'
                 }}
@@ -56,161 +57,150 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
-const getLayoutColor = (id, defaultColor) => {
-    return `var(--${id}, ${defaultColor})`;
-};
-
-const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) => {
-    return `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
-};
-
 const MobileLayout7 = (props) => {
     const {
         children,
-        settings,
-        bookName,
-        activeLayout,
-        searchQuery,
-        setSearchQuery,
-        handleQuickSearch,
-        logoSettings,
-        onPageClick,
+        pages,
         currentPage,
-        pages = [],
-        bookRef,
-        showBookmarkMenu,
-        setShowBookmarkMenu,
-        showMoreMenu,
-        setShowMoreMenu,
-        showThumbnailBar,
-        setShowThumbnailBar,
-        showTOC,
-        setShowTOC,
-        setShowAddNotesPopup,
-        showAddNotesPopup,
-        onAddNote,
-        setShowAddBookmarkPopup,
-        showAddBookmarkPopup,
-        onAddBookmark,
-        bookmarkSettings,
-        setShowNotesViewer,
-        showNotesViewer,
+        onPageClick,
+        bookName,
+        settings,
+        logoSettings,
         notes,
-        setShowViewBookmarkPopup,
-        showViewBookmarkPopup,
+        onAddNote,
+        onDeleteNote,
         bookmarks,
+        onAddBookmark,
         onDeleteBookmark,
         onUpdateBookmark,
-        setShowProfilePopup,
-        showProfilePopup,
-        profileSettings,
-        isAutoFlipping,
-        setIsPlaying,
-        handleFullScreen,
-        handleShare,
-        handleDownload,
-        showSoundPopup,
-        setShowSoundPopup,
-        otherSetupSettings,
-        onUpdateOtherSetup,
+        bookmarkSettings,
         isMuted,
         setIsMuted,
         isFlipMuted,
         setIsFlipMuted,
         flipTrigger,
+        otherSetupSettings,
+        onUpdateOtherSetup,
+
+        activeLayout,
+        showTOC,
+        setShowTOC,
+        showAddNotesPopup,
+        setShowAddNotesPopup,
+        showNotesViewer,
+        setShowNotesViewer,
+        showAddBookmarkPopup,
+        setShowAddBookmarkPopup,
+        showViewBookmarkPopup,
+        setShowViewBookmarkPopup,
+        showProfilePopup,
+        setShowProfilePopup,
+        showSoundPopup,
+        setShowSoundPopup,
         showExportPopup,
         setShowExportPopup,
         showSharePopup,
         setShowSharePopup,
-        offset = 0,
-        layoutColors = [],
+        setSearchQuery,
+        handleQuickSearch,
+        isAutoFlipping,
+        setIsPlaying,
     } = props;
 
-    const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
-    const [recommendations, setRecommendations] = useState([]);
+    const [localSearchQuery, setLocalSearchQuery] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const progressRef = useRef(null);
-    const scrollRef = useRef(null);
-
-    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
-    const [showNotesOptions, setShowNotesOptions] = useState(false);
+    const [recommendations, setRecommendations] = useState([]);
     const [showThumbnails, setShowThumbnails] = useState(false);
     const [localShowTOC, setLocalShowTOC] = useState(false);
     const [localShowProfile, setLocalShowProfile] = useState(false);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [showNotesOptions, setShowNotesOptions] = useState(false);
+    const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
+
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    const scrollRef = useRef(null);
+    const bookRef = useRef(null);
 
     const spreads = useMemo(() => {
         const result = [];
-        if (pages && pages.length > 0) {
-            result.push({ pages: [pages[0]], indices: [0], label: "Page 1" });
-            for (let i = 1; i < pages.length; i += 2) {
-                const spreadIndices = [i];
-                const spreadPages = [pages[i]];
-                if (i + 1 < pages.length) {
-                    spreadIndices.push(i + 1);
-                    spreadPages.push(pages[i + 1]);
-                }
+        for (let i = 0; i < pages.length; i += 2) {
+            if (i === 0) {
                 result.push({
-                    pages: spreadPages,
-                    indices: spreadIndices,
-                    label: spreadIndices.length === 1 ? `Page ${spreadIndices[0] + 1}` : `Page ${spreadIndices[0] + 1}-${spreadIndices[1] + 1}`
+                    pages: [pages[0]],
+                    indices: [0],
+                    label: 'Page 01'
                 });
+            } else {
+                const p1 = pages[i - 1];
+                const p2 = pages[i];
+                if (p1 && p2) {
+                    result.push({
+                        pages: [p1, p2],
+                        indices: [i - 1, i],
+                        label: `Page ${String(i).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
+                    });
+                } else if (p1) {
+                    result.push({
+                        pages: [p1],
+                        indices: [i - 1],
+                        label: `Page ${String(i).padStart(2, '0')}`
+                    });
+                }
             }
         }
         return result;
     }, [pages]);
 
-    useEffect(() => {
-        if (showThumbnailBar && scrollRef.current) {
-            const activeElem = scrollRef.current.querySelector('.active-thumbnail');
-            if (activeElem) {
-                activeElem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-        }
-    }, [currentPage, showThumbnailBar]);
-
-    const progressPercentage = pages.length > 1 ? (currentPage / (pages.length - 1)) * 100 : 0;
-
-    const handleProgressClick = (e) => {
-        if (!progressRef.current || pages.length <= 1) return;
-        const rect = progressRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percentage = Math.max(0, Math.min(1, x / rect.width));
-        const targetIdx = Math.round(percentage * (pages.length - 1));
-        onPageClick(targetIdx);
+    const getLayoutColor = (id, defaultColor) => {
+        const colorObj = settings?.layoutColors?.find(c => c.id === id);
+        return colorObj ? colorObj.hex : defaultColor;
     };
 
     const layoutVariables = useMemo(() => {
         return {
-            '--toolbar-bg-rgb': activeLayout?.toolbarBgRgb || '87, 92, 156',
-            '--toolbar-bg-opacity': activeLayout?.toolbarBgOpacity || '1',
-            '--toolbar-text': activeLayout?.toolbarText || '#FFFFFF',
-            '--toolbar-icon': activeLayout?.toolbarIcon || '#FFFFFF',
-            '--toolbar-icon-hover': activeLayout?.toolbarIconHover || '#E0E0E0',
-            '--toolbar-search-bg': activeLayout?.toolbarSearchBg || '#D7D8E8',
-            '--toolbar-search-text': activeLayout?.toolbarSearchText || '#575C9C',
-            '--toolbar-search-placeholder': activeLayout?.toolbarSearchPlaceholder || '#575C9C',
-            '--toolbar-search-icon': activeLayout?.toolbarSearchIcon || '#575C9C',
-            '--page-bg': activeLayout?.pageBg || '#BDC3D9',
-            '--progress-bar-bg': activeLayout?.progressBarBg || '#FFFFFF',
-            '--progress-bar-fill': activeLayout?.progressBarFill || '#575C9C',
-            '--play-button-bg': activeLayout?.playButtonBg || '#FFFFFF',
-            '--play-button-icon': activeLayout?.playButtonIcon || '#575C9C',
-            '--play-button-border': activeLayout?.playButtonBorder || '#FFFFFF',
+            '--toolbar-bg': getLayoutColor('toolbar-bg', '#575C9C'),
+            '--toolbar-icon': getLayoutColor('toolbar-icon', '#FFFFFF'),
+            '--page-bg': getLayoutColor('page-bg', '#BDC3D9'),
+            '--accent-color': getLayoutColor('accent-color', '#575C9C'),
         };
-    }, [activeLayout]);
+    }, [settings]);
 
     const renderPopups = () => (
         <div className="absolute inset-0 pointer-events-none z-[2000]">
+            <AnimatePresence>
+                {localShowTOC && (
+                    <TableOfContentsPopup
+                        onClose={() => setLocalShowTOC(false)}
+                        settings={settings?.tocSettings}
+                        activeLayout={8}
+                        isMobile={true}
+                        onNavigate={(pageIndex) => {
+                            onPageClick(pageIndex);
+                            setLocalShowTOC(false);
+                        }}
+                    />
+                )}
+            </AnimatePresence>
 
+            
+            
+            
+            
 
-
-
-
-
-
+            <Sound
+                isOpen={showSoundPopup}
+                onClose={() => setShowSoundPopup(false)}
+                activeLayout={activeLayout}
+                otherSetupSettings={otherSetupSettings}
+                onUpdateOtherSetup={onUpdateOtherSetup}
+                isMuted={isMuted}
+                setIsMuted={setIsMuted}
+                isFlipMuted={isFlipMuted}
+                setIsFlipMuted={setIsFlipMuted}
+                flipTrigger={flipTrigger}
+                settings={settings}
+                isMobile={true}
+            />
 
             {showExportPopup && (
                 <Export
@@ -242,37 +232,26 @@ const MobileLayout7 = (props) => {
             {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header */}
-            <header className="z-50 px-4 pt-2 pb-4 flex flex-col gap-4 shadow-sm relative shrink-0" style={{ backgroundColor: "transparent" }}>
-                <div className="flex items-center justify-between px-1 mt-1">
-                    <span className="text-white text-[13px] font-medium opacity-90 truncate flex-1">{/* {bookName} */}</span>
-                    <div className="flex items-center">
-                        {settings?.brandingProfile?.logo && logoSettings?.src && (
-                            <img
-                                src={logoSettings.src}
-                                alt="Logo"
-                                className="h-4.5 w-auto transition-all mix-blend-screen"
-                                style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
-                            />
-                        )}
-                    </div>
+            <header className="z-50 px-4 pt-0 pb-4 flex flex-col gap-4 shadow-md shrink-0 bg-white/20 backdrop-blur-sm">
+                <div className="flex items-center justify-between px-1">
+                    <span className="text-[#575C9C] text-[15px] font-bold truncate flex-1">{/* bookName hidden */}</span>
+                    {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
+                        <img
+                            src={logoSettings.src}
+                            alt="Logo"
+                            className="h-5 w-auto"
+                        />
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* Menu Toggle Button */}
-                    <button
-                        className="flex items-center justify-center shrink-0 w-10 h-10 bg-white/20 rounded-lg border border-white/20 text-white transition-all active:scale-95"
-                        onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    >
-                        <Icon icon={isMenuOpen ? "lucide:x" : "lucide:menu"} className="w-6 h-6" />
-                    </button>
-
-                    <div className="flex-1 bg-white/20 rounded-lg px-3 py-2 flex items-center gap-3 shadow-inner relative border border-white/10"
-                    >
-                        <Icon icon="lucide:search" className="text-white/70 w-5 h-5" />
+                    {/* Search Bar */}
+                    <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center gap-3 shadow-sm relative border border-gray-100">
+                        <Icon icon="lucide:search" className="text-gray-400 w-5 h-5" />
                         <input
                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
-                            className="bg-transparent text-white placeholder-white/60 text-[13px] outline-none w-full font-medium"
+                            className="bg-transparent text-gray-700 placeholder-gray-400 text-[13px] outline-none w-full font-medium"
                             value={localSearchQuery}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -300,15 +279,6 @@ const MobileLayout7 = (props) => {
                                     setRecommendations([]);
                                 }
                             }}
-                            onFocus={() => { if (recommendations.length > 0) setShowSuggestions(true); }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    setSearchQuery(localSearchQuery);
-                                    handleQuickSearch(localSearchQuery);
-                                    setRecommendations([]);
-                                    setShowSuggestions(false);
-                                }
-                            }}
                         />
                         <AnimatePresence>
                             {showSuggestions && recommendations.length > 0 && (
@@ -316,7 +286,7 @@ const MobileLayout7 = (props) => {
                                     initial={{ opacity: 0, y: -5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -5 }}
-                                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl border border-gray-100 z-[100] overflow-hidden"
+                                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 z-[100] overflow-hidden"
                                 >
                                     <div className="flex flex-col py-1.5">
                                         {recommendations.map((rec, idx) => (
@@ -339,197 +309,181 @@ const MobileLayout7 = (props) => {
                             )}
                         </AnimatePresence>
                     </div>
+
+
                 </div>
             </header>
 
-            <div className="flex-1 relative flex overflow-hidden">
-                {/* Vertical Toolbar on Left */}
-                {isMenuOpen && (
-                    <div
-                        className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-[80%] flex flex-col items-center justify-evenly py-6 shadow-2xl z-40 rounded-xl"
-                        style={{ backgroundColor: "transparent" }}
-                    >
-                        <button onClick={() => {
-                            const willShow = !showThumbnails;
-                            setShowThumbnails(willShow);
-                            if (willShow) { setLocalShowTOC(false); setShowSoundPopup(false); setLocalShowProfile(false); }
-                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="ph:squares-four-fill" className="w-[18px] h-[18px]" />
-                        </button>
-                        <button onClick={() => {
-                            const willShow = !localShowTOC;
-                            setLocalShowTOC(willShow);
-                            if (willShow) { setShowThumbnails(false); setShowSoundPopup(false); setLocalShowProfile(false); }
-                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="fluent:text-bullet-list-24-filled" className="w-[18px] h-[18px]" />
-                        </button>
+            {/* Main Content */}
+            <main className="flex-1 relative flex flex-col overflow-hidden">
+                {/* Navigation Arrows */}
+                <button
+                    className="absolute left-[2%] top-1/2 -translate-y-1/2 z-20 text-[#575C9C] active:scale-90 transition-transform"
+                    onClick={() => onPageClick(Math.max(0, currentPage - 1))}
+                >
+                    <Icon icon="ph:caret-left-light" className="w-10 h-10 opacity-60" strokeWidth="4" />
+                </button>
+                <button
+                    className="absolute right-[2%] top-1/2 -translate-y-1/2 z-20 text-[#575C9C] active:scale-90 transition-transform"
+                    onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))}
+                >
+                    <Icon icon="ph:caret-right-light" className="w-10 h-10 opacity-60" strokeWidth="4" />
+                </button>
 
-                        <button onClick={() => { 
-                            if (props.setShowGalleryPopup) props.setShowGalleryPopup(true); 
-                            setShowThumbnails(false); setLocalShowTOC(false); setShowSoundPopup(false); setLocalShowProfile(false);
-                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
-                        </button>
-                        {(settings?.media?.backgroundAudio ?? true) && (
-                            <button onClick={() => {
-                                const willShow = !showSoundPopup;
-                                setShowSoundPopup(willShow);
-                                if (willShow) { setShowThumbnails(false); setLocalShowTOC(false); setLocalShowProfile(false); }
-                            }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                                <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
-                            </button>
-                        )}
-                        <button onClick={() => {
-                            setShowProfilePopup(true);
-                            setShowThumbnails(false); setLocalShowTOC(false); setShowSoundPopup(false);
-                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="fluent:person-24-filled" className="w-[18px] h-[18px]" />
-                        </button>
-                        <button onClick={() => handleShare()} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="mage:share-fill" className="w-[17px] h-[17px]" />
-                        </button>
-                        <button onClick={() => handleDownload()} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="meteor-icons:download" className="w-[17px] h-[17px]" />
-                        </button>
-                        <button onClick={() => handleFullScreen()} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="lucide:scan" className="w-[17px] h-[17px]" />
-                        </button>
-                    </div>
-                )}
-
-                {/* Main Content Area */}
-                <div className="flex-1 relative overflow-hidden flex flex-col bg-[#BDC3D9]">
-                    {/* Navigation Arrows */}
-                    <button
-                        className="absolute left-[2%] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1 active:scale-90 transition-transform"
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                        onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
-                    >
-                        <Icon icon="ph:caret-left-light" strokeWidth="4" className="w-8 h-8 opacity-70" />
-                    </button>
-                    <button
-                        className="absolute right-[2%] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1 active:scale-90 transition-transform"
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                        onClick={() => bookRef.current?.pageFlip()?.flipNext()}
-                    >
-                        <Icon icon="ph:caret-right-light" strokeWidth="4" className="w-8 h-8 opacity-70" />
-                    </button>
-
-                    {/* Flipbook Canvas */}
-                    <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-white/20">
-                        <div className="relative shadow-2xl">
-                            <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
-                                {children}
-                            </div>
+                {/* Flipbook Area */}
+                <div className="flex-1 flex items-center justify-center relative overflow-hidden px-10 py-8">
+                    <div className="relative shadow-2xl">
+                        <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
+                            {children}
                         </div>
                     </div>
-
-                    <AnimatePresence>
-                        {localShowTOC && (
-                            <TableOfContentsPopup
-                                onClose={() => setLocalShowTOC(false)}
-                                settings={settings?.tocSettings}
-                                activeLayout={7}
-                                isMobile={true}
-                                onNavigate={(pageIndex) => {
-                                    onPageClick(pageIndex);
-                                    setLocalShowTOC(false);
-                                }}
-                            />
-                        )}
-                    </AnimatePresence>
-
-
-
-
-                    {/* Thumbnail Popup (Floating) */}
-                    <AnimatePresence>
-                        {showThumbnails && (
-                            <motion.div
-                                initial={{ opacity: 0, y: '100%' }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: '100%' }}
-                                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                                className="absolute right-4 top-[10%] bottom-0 w-[280px] z-[170] flex flex-col shadow-2xl rounded-t-[20px] overflow-hidden border border-white/20 bg-white/50 backdrop-blur-xl"
-                                style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}
-                            >
-                                <div className="flex items-center justify-between px-5 py-4 border-b border-[#575C9C]/10 shrink-0">
-                                    <span className="text-[16px] font-extrabold text-[#575C9C] tracking-tight">Thumbnails</span>
-                                    <button onClick={() => setShowThumbnails(false)} className="bg-[#575C9C]/10 p-1.5 rounded-full hover:bg-[#575C9C]/20 transition-colors">
-                                        <Icon icon="lucide:x" className="w-5 h-5 text-[#575C9C]" />
-                                    </button>
-                                </div>
-                                <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-3 py-4">
-                                    <div className="grid grid-cols-2 gap-x-3 gap-y-8 items-start">
-                                        {spreads.map((spread, idx) => {
-                                            const isSelected = spread.indices.includes(currentPage);
-                                            return (
-                                                <div
-                                                    key={idx}
-                                                    className={`bg-white rounded-lg flex flex-col cursor-pointer transition-all p-1.5 shadow-sm border ${isSelected ? 'border-[#575C9C] ring-1 ring-[#575C9C]/30 bg-[#575C9C]/5' : 'border-gray-100 hover:border-[#575C9C]/30'} ${idx % 2 !== 0 ? 'mt-8' : ''}`}
-                                                    onClick={() => { onPageClick(spread.indices[0]); setShowThumbnails(false); }}
-                                                >
-                                                    <div className="w-full aspect-[1.4/1] rounded-md overflow-hidden bg-gray-50 flex gap-0.5 border border-gray-50">
-                                                        {spread.pages.map((page, pIdx) => (
-                                                            <div key={pIdx} className="flex-1 h-full relative">
-                                                                <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={0.12} />
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    <div className="flex justify-center mt-1">
-                                                        <span className={`text-[9px] font-bold ${isSelected ? 'text-[#575C9C]' : 'text-gray-400'}`}>
-                                                            {spread.label}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
                 </div>
-            </div>
+
+            </main>
 
             {/* Footer */}
-            <footer className="z-50 shrink-0 flex flex-col pt-3 pb-8 relative" style={{ backgroundColor: "transparent" }}>
-                {/* Row 1: Page info and Zoom */}
-                <div className="flex items-center justify-between px-6 mb-5">
-                    <div />
-                    <div className="flex items-center gap-2 bg-white/20 px-2.5 py-1 rounded-md border border-white/10 shadow-sm backdrop-blur-sm">
-                        <Icon icon="lucide:zoom-out" className="w-3.5 h-3.5 text-white cursor-pointer active:scale-90 transition-transform" />
-                        <span className="text-[11px] text-white font-medium min-w-[28px] text-center">100%</span>
-                        <Icon icon="lucide:zoom-in" className="w-3.5 h-3.5 text-white cursor-pointer active:scale-90 transition-transform" />
-                        <button className="bg-white text-[#575C9C] text-[10px] font-bold px-1.5 py-0.5 ml-1 rounded active:scale-95 transition-transform">Reset</button>
+            <footer
+                className="z-50 px-4 pt-6 pb-8 flex flex-col gap-6 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] shrink-0"
+                style={{ backgroundColor: "transparent" }}
+            >
+                {/* Icon Row */}
+                <div className="flex items-center justify-between px-2">
+                    <button onClick={() => {
+                        const willShow = !localShowTOC;
+                        setLocalShowTOC(willShow);
+                        if (willShow) { setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                    }} className="text-white/80 hover:text-white transition-colors">
+                        <Icon icon="fluent:text-bullet-list-24-filled" className="w-6 h-6" />
+                    </button>
+                    <button onClick={() => {
+                        const willShow = !showThumbnails;
+                        setShowThumbnails(willShow);
+                        if (willShow) { setLocalShowTOC(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                    }} className="text-white/80 hover:text-white transition-colors">
+                        <Icon icon="ph:squares-four-fill" className="w-6 h-6" />
+                    </button>
+
+                    <button onClick={() => {
+                        if (props.setShowGalleryPopup) props.setShowGalleryPopup(true);
+                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false);
+                    }} className="text-white/80 hover:text-white transition-colors">
+                        <Icon icon="clarity:image-gallery-solid" className="w-6 h-6" />
+                    </button>
+                    <button onClick={() => {
+                        setShowProfilePopup(true);
+                        setLocalShowTOC(false); setShowThumbnails(false); setShowSharePopup(false); setShowExportPopup(false);
+                    }} className="text-white/80 hover:text-white transition-colors">
+                        <Icon icon="ph:user-fill" className="w-6 h-6" />
+                    </button>
+                    <button onClick={() => {
+                        setShowSharePopup(true);
+                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowExportPopup(false);
+                    }} className="text-white/80 hover:text-white transition-colors">
+                        <Icon icon="mage:share-fill" className="w-6 h-6" />
+                    </button>
+                    <button onClick={() => {
+                        setShowExportPopup(true);
+                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false);
+                    }} className="text-white/80 hover:text-white transition-colors">
+                        <Icon icon="meteor-icons:download" className="w-6 h-6" />
+                    </button>
+                </div>
+
+                {/* Progress Row */}
+                <div className="px-2">
+                    <div className="relative w-full h-1 bg-white/20 rounded-full overflow-hidden">
+                        <div
+                            className="absolute left-0 top-0 h-full bg-white transition-all duration-300"
+                            style={{ width: `${((currentPage + 1) / pages.length) * 100}%` }}
+                        />
                     </div>
                 </div>
-                {/* Row 2: Playback & Slider */}
-                <div className="flex items-center px-6 gap-6 w-full">
-                    <div className="flex items-center gap-6 shrink-0">
-                        <button onClick={() => onPageClick(0)} className="active:scale-90 transition-transform text-white">
-                            <Icon icon="lucide:skip-back" strokeWidth="3" className="w-5 h-5" />
+
+                {/* Control Row */}
+                <div className="flex items-center justify-between px-2">
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <button onClick={() => {
+                            const willShow = !showSoundPopup;
+                            setShowSoundPopup(willShow);
+                            if (willShow) { setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                        }} className="text-white/80 hover:text-white transition-colors">
+                            <Icon icon="solar:music-notes-bold" className="w-7 h-7" />
                         </button>
-                        <button onClick={() => setIsPlaying(!isAutoFlipping)} className="active:scale-90 transition-transform text-white">
-                            <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-8 h-8" />
+                    )}
+
+                    <div className="flex items-center gap-8">
+                        <button onClick={() => onPageClick(0)} className="text-white hover:scale-110 active:scale-95 transition-all">
+                            <Icon icon="fluent:previous-24-filled" className="w-7 h-7" />
                         </button>
-                        <button onClick={() => onPageClick(pages.length - 1)} className="active:scale-90 transition-transform text-white">
-                            <Icon icon="lucide:skip-forward" strokeWidth="3" className="w-5 h-5" />
+                        <button 
+                            onClick={() => setIsPlaying(!isAutoFlipping)}
+                            className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#575C9C] shadow-lg hover:scale-110 active:scale-95 transition-all"
+                        >
+                            <Icon icon={isAutoFlipping ? "fluent:pause-24-filled" : "fluent:play-24-filled"} className="w-7 h-7" />
+                        </button>
+                        <button onClick={() => onPageClick(pages.length - 1)} className="text-white hover:scale-110 active:scale-95 transition-all">
+                            <Icon icon="fluent:next-24-filled" className="w-7 h-7" />
                         </button>
                     </div>
 
-                    <div className="flex-1 flex items-center">
-                        <div ref={progressRef} className="h-3 w-full rounded-full cursor-pointer relative overflow-hidden bg-white/20 border border-white/5"
-                            onClick={handleProgressClick}>
-                            <div
-                                className="absolute left-0 top-0 h-full transition-all duration-300 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.6)]"
-                                style={{ width: `${Math.max(1, progressPercentage)}%` }}
-                            />
-                        </div>
-                    </div>
+                    <button className="text-white/80 hover:text-white transition-colors">
+                        <Icon icon="lucide:scan" className="w-6 h-6" />
+                    </button>
                 </div>
             </footer>
 
+            {/* Thumbnail Sidebar */}
+            <AnimatePresence>
+                {showThumbnails && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute left-3 right-3 bottom-[188px] z-[170] flex flex-col shadow-2xl rounded-t-xl overflow-hidden bg-white border border-gray-200/50 border-b-0 max-h-[350px]"
+                    >
+                        <div
+                            className="flex items-center justify-between px-4 py-2.5 shrink-0 relative"
+                            style={{ backgroundColor: "transparent" }}
+                        >
+                            <span className="text-[12px] font-bold text-white tracking-wide">Thumbnails</span>
+                            {/* Drag handle line in center */}
+                            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/50 rounded-full" />
+
+                            <button onClick={() => setShowThumbnails(false)} className="p-1 rounded-full hover:bg-white/10 transition-colors">
+                                <Icon icon="lucide:x" className="w-4 h-4 text-white" />
+                            </button>
+                        </div>
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 bg-white">
+                            <div className="grid grid-cols-4 gap-3">
+                                {spreads.map((spread, idx) => {
+                                    const isSelected = spread.indices.includes(currentPage);
+                                    return (
+                                        <div
+                                            key={idx}
+                                            className={`bg-white rounded-md flex flex-col cursor-pointer transition-all p-1 border ${isSelected ? 'border-[#575C9C] shadow-sm bg-[#575C9C]/5' : 'border-gray-100 hover:border-gray-200'}`}
+                                            onClick={() => { onPageClick(spread.indices[0]); setShowThumbnails(false); }}
+                                        >
+                                            <div className="aspect-[1.4/1] rounded-[3px] overflow-hidden bg-gray-50 flex gap-[1px]">
+                                                {spread.pages.map((page, pIdx) => (
+                                                    <div key={pIdx} className="flex-1 h-full relative">
+                                                        <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={0.1} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-center mt-1.5">
+                                                <span className="text-[8px] font-bold text-[#575C9C]">
+                                                    {spread.label}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

@@ -4,16 +4,16 @@ import LayoutColorCustomizer from './LayoutColorCustomizer';
 import ColorPicker from './ColorPallet';
 import AlertModal from '../AlertModal';
 
-import layout1 from '../../assets/layout/Layout1.jpg';
-import layout2 from '../../assets/layout/Layout2.jpg';
-import layout3 from '../../assets/layout/Layout3.jpg';
-import layout4 from '../../assets/layout/Layout4.jpg';
-import layout5 from '../../assets/layout/Layout5.jpg';
-import layout7 from '../../assets/layout/Layout7.png';
-import layout8 from '../../assets/layout/Layout8.png'; // Assuming a Layout8.png exists or this name works
-import layout9 from '../../assets/layout/Layout9.png';
+import layout1 from '../../assets/layout/Layout1.webp';
+import layout2 from '../../assets/layout/Layout2.webp';
+import layout3 from '../../assets/layout/Layout3.webp';
+import layout4 from '../../assets/layout/Layout4.webp';
+import layout5 from '../../assets/layout/Layout5.webp';
+import layout6 from '../../assets/layout/Layout6.webp';
+import layout7 from '../../assets/layout/Layout7.webp'; // Assuming a Layout7.webp exists or this name works
+import layout8 from '../../assets/layout/Layout8.webp';
 
-const layoutImages = [layout1, layout2, layout3, layout4, layout5, layout7, layout8, layout9];
+const layoutImages = [layout1, layout2, layout3, layout4, layout5, layout6, layout7, layout8];
 
 
 // ─────────────────────────────────────────────────────────────────────────────

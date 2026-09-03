@@ -457,6 +457,9 @@ const MobileLayout1 = (props) => {
                         <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="absolute top-[10.8rem] right-3 w-[190px] rounded-xl shadow-2xl z-[160] overflow-hidden border border-white/10 backdrop-blur-md pointer-events-auto" style={{ backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.8) }}>
                             <div className="flex flex-col p-1.5 gap-1">
                                 <MenuBtn icon="mdi:table-of-contents" label="Table of Contents" onClick={() => { closeAllPopups(); setShowTOC(true); }} />
+                                {settings?.interaction?.gallery !== false && (
+                                    <MenuBtn icon="clarity:image-gallery-solid" label="Gallery" onClick={() => { closeAllPopups(); props.setShowGalleryPopup?.(true); }} />
+                                )}
                                 <MenuBtn icon="ep:menu" label="Thumbnails" onClick={() => { const wasOpen = showThumbnailBar; closeAllPopups(); if (!wasOpen) setShowThumbnailBar(true); }} />
                                 {profileSettings?.enabled !== false && (
                                     <MenuBtn icon="solar:user-bold" label="Profile" onClick={() => { closeAllPopups(); setShowProfilePopup(true); }} />
@@ -573,13 +576,13 @@ const MobileLayout1 = (props) => {
                         </>
                     )}
                     {settings?.interaction?.search !== false && !isPdfProject && (
-                    <div className="flex-1 rounded-full h-9 px-4 flex items-center gap-2 relative" style={{ backgroundColor: "transparent" }}>
-                        <Icon icon="ph:magnifying-glass" className="w-4.5 h-4.5" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
+                    <div className="flex-1 rounded-full h-9 px-4 flex items-center gap-2 relative" style={{ backgroundColor: getLayoutColor('toolbar-search-bg', 'rgba(255,255,255,0.1)') }}>
+                        <Icon icon="ph:magnifying-glass" className="w-[18px] h-[18px]" style={{ color: getLayoutColor('toolbar-search-icon', '#FFFFFF') }} />
                         <input
                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search.."
-                            className="bg-transparent placeholder-current text-[11px] outline-none w-full font-bold"
-                            style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
+                            className="bg-transparent placeholder-current text-[13px] outline-none w-full font-medium"
+                            style={{ color: getLayoutColor('toolbar-search-text', '#FFFFFF') }}
                             value={localSearchQuery}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -739,7 +742,7 @@ const MobileLayout1 = (props) => {
                     <div ref={progressRef} className="h-[3px] w-full bg-white/20 rounded-full cursor-pointer relative overflow-hidden" onClick={handleProgressClick}>
                         <div
                             className="absolute left-0 top-0 h-full rounded-full transition-all duration-300"
-                            style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: "transparent" }}
+                            style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF') }}
                         />
                     </div>
                 </div>

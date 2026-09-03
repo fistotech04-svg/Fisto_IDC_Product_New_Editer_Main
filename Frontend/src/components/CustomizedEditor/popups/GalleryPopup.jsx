@@ -5,7 +5,7 @@ import { NavIconRenderer } from './NavIconStylesPopup';
 const TRANSITION_DURATION = 450; // ms
 
 /* ─── Main Component ─────────────────────────────────────────────────────────── */
-const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) => {
+const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet, isMobile }) => {
   const images = settings.images || [];
   const effectiveAutoPlay = settings.autoPlay ?? true;
   const speed = settings.speed || 3;
@@ -112,12 +112,12 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
   if (!images || images.length === 0) {
     return (
       <div
-        className={`absolute inset-0 z-[200] flex flex-col items-center justify-center ${isTablet ? 'p-[1vw]' : 'p-[2vw]'}`}
+        className={`absolute inset-0 z-[200] flex flex-col items-center justify-center ${isMobile ? 'p-[15px]' : isTablet ? 'p-[1vw]' : 'p-[2vw]'}`}
         style={{ backgroundColor: overlayBgColor, backdropFilter: 'blur(5px)' }}
         onClick={onClose}
       >
         <div
-          className={`relative w-full shadow-2xl flex flex-col items-center justify-center ${isTablet ? 'max-w-[50vw] h-[55vh] rounded-[0.4vw]' : 'max-w-[85vw] h-[75vh] rounded-[0.5vw]'}`}
+          className={`relative w-full shadow-2xl flex flex-col items-center justify-center ${isMobile ? 'w-[95%] h-[55%] rounded-[16px]' : isTablet ? 'max-w-[50vw] h-[55vh] rounded-[0.4vw]' : 'max-w-[85vw] h-[75vh] rounded-[0.5vw]'}`}
           style={{
             backgroundColor: popupBgColor,
             backdropFilter: 'blur(12px)',
@@ -128,10 +128,10 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            className={`absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer ${isTablet ? 'top-[0.8vw] right-[0.8vw] w-[1.5vw] h-[1.5vw] rounded-[0.25vw]' : 'top-[1vw] right-[1vw] w-[1.8vw] h-[1.8vw] rounded-[0.3vw]'}`}
+            className={`absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer ${isMobile ? 'top-[12px] right-[12px] w-[28px] h-[28px] rounded-[6px]' : isTablet ? 'top-[0.8vw] right-[0.8vw] w-[1.5vw] h-[1.5vw] rounded-[0.25vw]' : 'top-[1vw] right-[1vw] w-[1.8vw] h-[1.8vw] rounded-[0.3vw]'}`}
             onClick={(e) => { e.stopPropagation(); onClose(); }}
           >
-            <X size={isTablet ? "0.8vw" : "1vw"} strokeWidth={2} />
+            <X size={isMobile ? '16px' : isTablet ? '0.8vw' : '1vw'} strokeWidth={2} />
           </button>
           <p className="text-gray-500 font-medium text-lg">Images are not not found</p>
         </div>
@@ -141,13 +141,13 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
 
   return (
     <div
-      className={`absolute inset-0 z-[200] flex flex-col items-center justify-center ${isTablet ? 'p-[1vw]' : 'p-[2vw]'}`}
+      className={`absolute inset-0 z-[200] flex flex-col items-center justify-center ${isMobile ? 'p-[15px]' : isTablet ? 'p-[1vw]' : 'p-[2vw]'}`}
       style={{ backgroundColor: overlayBgColor, backdropFilter: 'blur(5px)' }}
       onClick={onClose}
     >
       {/* The White Box */}
       <div
-        className={`relative w-full shadow-2xl flex flex-col overflow-hidden ${isTablet ? 'max-w-[50vw] h-[55vh] rounded-[0.4vw]' : 'max-w-[85vw] h-[75vh] rounded-[0.5vw]'}`}
+        className={`relative w-full shadow-2xl flex flex-col overflow-hidden ${isMobile ? 'w-[95%] h-[55%] rounded-[16px]' : isTablet ? 'max-w-[50vw] h-[55vh] rounded-[0.4vw]' : 'max-w-[85vw] h-[75vh] rounded-[0.5vw]'}`}
         style={{
           backgroundColor: popupBgColor,
           backdropFilter: 'blur(12px)',
@@ -159,15 +159,15 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
       >
         {/* Close Button at top-right */}
         <button
-          className={`absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer ${isTablet ? 'top-[0.8vw] right-[0.8vw] w-[1.5vw] h-[1.5vw] rounded-[0.25vw]' : 'top-[1vw] right-[1vw] w-[1.8vw] h-[1.8vw] rounded-[0.3vw]'}`}
+          className={`absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer ${isMobile ? 'top-[12px] right-[12px] w-[28px] h-[28px] rounded-[6px]' : isTablet ? 'top-[0.8vw] right-[0.8vw] w-[1.5vw] h-[1.5vw] rounded-[0.25vw]' : 'top-[1vw] right-[1vw] w-[1.8vw] h-[1.8vw] rounded-[0.3vw]'}`}
           onClick={(e) => { e.stopPropagation(); onClose(); }}
         >
-          <X size={isTablet ? "0.8vw" : "1vw"} strokeWidth={2} />
+          <X size={isMobile ? '16px' : isTablet ? '0.8vw' : '1vw'} strokeWidth={2} />
         </button>
 
         {/* Carousel Area */}
         <div
-          className={`flex-1 w-full relative flex items-center justify-center ${isTablet ? 'mt-[0.5vw]' : 'mt-[1vw]'}`}
+          className={`flex-1 w-full relative flex items-center justify-center ${isMobile ? 'mt-[15px]' : isTablet ? 'mt-[0.5vw]' : 'mt-[1vw]'}`}
           ref={containerRef}
           onMouseDown={handleDragStart}
           onMouseUp={handleDragEnd}
@@ -176,13 +176,13 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
         >
           {images.length > 1 && (
             <button
-              className={`absolute z-[210] transition-all cursor-pointer ${isTablet ? 'left-[2vw] p-[0.4vw]' : 'left-[3vw] p-[0.5vw]'}`}
+              className={`absolute z-[210] transition-all cursor-pointer ${isMobile ? 'left-[10px] p-[8px]' : isTablet ? 'left-[2vw] p-[0.4vw]' : 'left-[3vw] p-[0.5vw]'}`}
               style={{ color: primaryColor, backgroundColor: 'transparent' }}
               onClick={(e) => { e.stopPropagation(); goPrev(); setIsPlaying(false); }}
             >
               {NavIconRenderer({
                 styleId: settings.navStyle || 1,
-                size: isTablet ? "2vw" : "2.5vw",
+                size: isMobile ? '32px' : isTablet ? '2vw' : '2.5vw',
                 color: primaryColor
               }).left}
             </button>
@@ -238,15 +238,15 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
                   zIndex = 10;
                   opacity = 1;
                 } else if (isPrev) {
-                  transform = `translateX(${isTablet ? '-15vw' : '-22vw'}) scale(0.65)`;
+                  transform = `translateX(${isMobile ? '-80%' : isTablet ? '-15vw' : '-22vw'}) scale(0.65)`;
                   zIndex = 5;
                   opacity = 0.8;
                 } else if (isNext) {
-                  transform = `translateX(${isTablet ? '15vw' : '22vw'}) scale(0.65)`;
+                  transform = `translateX(${isMobile ? '80%' : isTablet ? '15vw' : '22vw'}) scale(0.65)`;
                   zIndex = 5;
                   opacity = 0.8;
                 } else {
-                  transform = `translateX(${direction > 0 ? (isTablet ? '15vw' : '22vw') : (isTablet ? '-18vw' : '-22vw')}) scale(0.65)`;
+                  transform = `translateX(${direction > 0 ? (isMobile ? '80%' : isTablet ? '15vw' : '22vw') : (isMobile ? '-90%' : isTablet ? '-18vw' : '-22vw')}) scale(0.65)`;
                   zIndex = 0;
                   opacity = 0;
                 }
@@ -261,15 +261,15 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
                     transform,
                     zIndex,
                     opacity,
-                    width: isTablet ? '20vw' : '30vw',
-                    height: isTablet ? '30vh' : '40vh',
+                    width: isMobile ? '75%' : isTablet ? '20vw' : '30vw',
+                    height: isMobile ? '40%' : isTablet ? '30vh' : '40vh',
                     pointerEvents: isCurrent ? 'auto' : 'none'
                   }}
                 >
                   <img
                     src={img.url}
                     alt={img.name || `Slide ${index + 1}`}
-                    className={`w-full h-full ${isTablet ? 'rounded-[0.5vw]' : 'rounded-[1vw]'}`}
+                    className={`w-full h-full ${isMobile ? 'rounded-[12px]' : isTablet ? 'rounded-[0.5vw]' : 'rounded-[1vw]'}`}
                     style={{ objectFit: imageFit, display: 'block', userSelect: 'none' }}
                     draggable={false}
                   />
@@ -280,13 +280,13 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
 
           {images.length > 1 && (
             <button
-              className={`absolute z-[210] transition-all cursor-pointer ${isTablet ? 'right-[2.5vw] p-[0.4vw]' : 'right-[3vw] p-[0.5vw]'}`}
+              className={`absolute z-[210] transition-all cursor-pointer ${isMobile ? 'right-[10px] p-[8px]' : isTablet ? 'right-[2.5vw] p-[0.4vw]' : 'right-[3vw] p-[0.5vw]'}`}
               style={{ color: primaryColor, backgroundColor: 'transparent' }}
               onClick={(e) => { e.stopPropagation(); goNext(); setIsPlaying(false); }}
             >
               {NavIconRenderer({
                 styleId: settings.navStyle || 1,
-                size: isTablet ? "2vw" : "2.5vw",
+                size: isMobile ? '32px' : isTablet ? '2vw' : '2.5vw',
                 color: primaryColor
               }).right}
             </button>
@@ -295,15 +295,15 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
 
         {/* Dots (Centered Below Image) */}
         {showDots && images.length > 1 && (
-          <div className={`flex justify-center items-center z-[210] ${isTablet ? 'gap-[0.4vw] mb-[1.5vw]' : 'gap-[0.5vw] mb-[2vw]'}`}>
+          <div className={`flex justify-center items-center z-[210] ${isMobile ? 'gap-[8px] mb-[20px]' : isTablet ? 'gap-[0.4vw] mb-[1.5vw]' : 'gap-[0.5vw] mb-[2vw]'}`}>
             {images.map((_, i) => (
               <button
                 key={i}
                 onClick={() => { goTo(i); setIsPlaying(false); }}
                 className="rounded-full transition-all duration-300 cursor-pointer"
                 style={{
-                  width: isTablet ? '0.5vw' : '0.6vw',
-                  height: isTablet ? '0.5vw' : '0.6vw',
+                  width: isMobile ? '8px' : isTablet ? '0.5vw' : '0.6vw',
+                  height: isMobile ? '8px' : isTablet ? '0.5vw' : '0.6vw',
                   backgroundColor: i === currentIndex ? primaryColor : secondaryColor,
                   border: 'none'
                 }}
@@ -313,21 +313,21 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
         )}
 
         {/* Bottom Bar: Play, Progress, Counter */}
-        <div className={`w-full flex items-center justify-between ${isTablet ? 'h-[2.5vw] px-[2.5vw] pb-[1.2vw]' : 'h-[3vw] px-[3vw] pb-[1.5vw]'}`}>
-          <div className={`flex items-center flex-1 ${isTablet ? 'gap-[1.2vw]' : 'gap-[1.5vw]'}`}>
+        <div className={`w-full flex items-center justify-between ${isMobile ? 'h-[40px] px-[20px] pb-[16px]' : isTablet ? 'h-[2.5vw] px-[2.5vw] pb-[1.2vw]' : 'h-[3vw] px-[3vw] pb-[1.5vw]'}`}>
+          <div className={`flex items-center flex-1 ${isMobile ? 'gap-[16px]' : isTablet ? 'gap-[1.2vw]' : 'gap-[1.5vw]'}`}>
             {images.length > 1 && (
               <button
                 className="transition-colors cursor-pointer"
                 style={{ color: primaryColor }}
                 onClick={() => setIsPlaying(!isPlaying)}
               >
-                {isPlaying ? <Pause fill="currentColor" size={isTablet ? "1vw" : "1.2vw"} /> : <Play fill="currentColor" size={isTablet ? "1vw" : "1.2vw"} />}
+                {isPlaying ? <Pause fill="currentColor" size={isMobile ? '20px' : isTablet ? '1vw' : '1.2vw'} /> : <Play fill="currentColor" size={isMobile ? '20px' : isTablet ? '1vw' : '1.2vw'} />}
               </button>
             )}
 
             {/* Progress Bar */}
             <div
-              className={`relative flex-1 rounded-full overflow-hidden ${isTablet ? 'h-[0.25vw] mr-[2.5vw]' : 'h-[0.3vw] mr-[3vw]'}`}
+              className={`relative flex-1 rounded-full overflow-hidden ${isMobile ? 'h-[4px] mr-[16px]' : isTablet ? 'h-[0.25vw] mr-[2.5vw]' : 'h-[0.3vw] mr-[3vw]'}`}
               style={{ backgroundColor: secondaryColor }}
             >
               <div
@@ -337,7 +337,7 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
             </div>
           </div>
 
-          <div className={`font-medium text-gray-700 font-sans min-w-max ${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'}`}>
+          <div className={`font-medium text-gray-700 font-sans min-w-max ${isMobile ? 'text-[12px]' : isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'}`}>
             Image {currentIndex + 1} / {images.length}
           </div>
         </div>

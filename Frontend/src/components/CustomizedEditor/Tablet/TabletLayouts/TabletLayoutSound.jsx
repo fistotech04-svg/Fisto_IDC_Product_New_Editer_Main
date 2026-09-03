@@ -17,13 +17,13 @@ const TabletLayoutSound = ({
     const isLayout2 = activeLayout == 2;
     const isLayout3 = activeLayout == 3;
     const isLayout4 = activeLayout == 4;
-    const isLayout7 = activeLayout == 7;
-    const isLayout9 = activeLayout == 9;
+    const isLayout6 = activeLayout == 7;
+    const isLayout8 = activeLayout == 9;
     if (activeLayout != 1 && activeLayout != 2 && activeLayout != 3 && activeLayout != 4 && activeLayout != 5 && activeLayout != 7 && activeLayout != 8 && activeLayout != 9) return null;
 
-    if (isLayout9) {
-        const getLayout9Color = (id, defaultColor) => {
-            const value = localStorage.getItem('Layout9Style');
+    if (isLayout8) {
+        const getLayout8Color = (id, defaultColor) => {
+            const value = localStorage.getItem('Layout8Style');
             if (value) {
                 try {
                     const parsed = JSON.parse(value);
@@ -42,8 +42,8 @@ const TabletLayoutSound = ({
             }
             return `var(--${id}, ${defaultColor})`;
         };
-        const bgColor = getLayout9Color('dropdown-bg', '#575C9C');
-        const textColor = getLayout9Color('dropdown-text', '#FFFFFF');
+        const bgColor = getLayout8Color('dropdown-bg', '#575C9C');
+        const textColor = getLayout8Color('dropdown-text', '#FFFFFF');
 
         return (
             <div

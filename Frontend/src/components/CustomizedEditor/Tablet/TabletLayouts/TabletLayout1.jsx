@@ -66,7 +66,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
         const rect = sliderRef.current.getBoundingClientRect();
         const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
         const percentage = x / rect.width;
-        setCurrentZoom(1 + percentage * 2);
+        setCurrentZoom(0.2 + percentage * 1.6);
     };
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
@@ -374,7 +374,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
 
                     {/* The Book (Placeholder or Children) */}
                     <div
-                        style={{ transform: `translateX(${offset}px)`, transition: 'transform 0.5s ease-out' }}
+                        style={{ transform: `translateX(${offset}px) scale(${currentZoom})`, transition: 'transform 0.5s ease-out', transformOrigin: 'center center' }}
                         className="flex items-center justify-center shrink-0 max-w-[calc(100%-14cqw)]"
                     >
                         {children ? (
@@ -704,7 +704,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                                 className="absolute left-0 h-[0.3cqw] rounded-full transition-all duration-75 z-10"
                                 style={{
                                     backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                    width: `${Math.max(0, Math.min(100, ((currentZoom - 1) / 2) * 100))}%`
+                                    width: `${Math.max(0, Math.min(100, ((currentZoom - 0.2) / 1.6) * 100))}%`
                                 }}
                             />
                             {/* Thumb (Pointer) */}
@@ -712,7 +712,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                                 className="absolute top-1/2 -translate-y-1/2 w-[1cqw] h-[1cqw] rounded-full shadow-md transition-all duration-75 z-20"
                                 style={{
                                     backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                    left: `calc(${Math.max(0, Math.min(100, ((currentZoom - 1) / 2) * 100))}% - 0.5cqw)`
+                                    left: `calc(${Math.max(0, Math.min(100, ((currentZoom - 0.2) / 1.6) * 100))}% - 0.5cqw)`
                                 }}
                             />
                         </div>

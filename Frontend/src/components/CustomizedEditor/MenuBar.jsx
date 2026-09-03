@@ -471,11 +471,11 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
             enabled={settings.navigation?.nextPrevButtons}
             onChange={(val) => updateSection('navigation', 'nextPrevButtons', val)}
           />
-          {/* <MenuItem
+          <MenuItem
             label="Mouse Wheel Navigation"
             enabled={settings.navigation?.mouseWheel}
             onChange={(val) => updateSection('navigation', 'mouseWheel', val)}
-          /> */}
+          />
           <MenuItem
             label="Drag to Turn Pages"
             enabled={settings.navigation?.dragToTurn}
@@ -539,6 +539,14 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                         <Switch
                           enabled={Boolean(activeTocSettings.addSerialNumberSubheading)}
                           onChange={(val) => updateRootSetting('tocSettings', 'addSerialNumberSubheading', val)}
+                          variant="secondary"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-[0.85vw]">
+                        <span className="text-[0.75vw] font-semibold text-gray-700">Read TOC with Male Voice</span>
+                        <Switch
+                          enabled={Boolean(activeTocSettings.useMaleVoice)}
+                          onChange={(val) => updateRootSetting('tocSettings', 'useMaleVoice', val)}
                           variant="secondary"
                         />
                       </div>

@@ -617,7 +617,7 @@ const Layout5 = ({
     </div>
 );
 
-const Layout6 = ({
+const Layout6_OLD = ({
     flipSoundMasterEnabled, isFlipActive, handleFlipClick, flipWidth,
     bgSoundMasterEnabled, isBgActive, handleBgClick, bgWidth, handleVolumeDrag, isTablet, isMobile
 }) => (
@@ -716,7 +716,7 @@ const Layout6 = ({
     </div>
 );
 
-const Layout7 = ({
+const Layout6 = ({
     flipSoundMasterEnabled, isFlipActive, handleFlipClick, flipWidth,
     bgSoundMasterEnabled, isBgActive, handleBgClick, bgWidth, handleVolumeDrag, isTablet, activeLayout, isMobile
 }) => (
@@ -801,7 +801,7 @@ const Layout7 = ({
     </div>
 );
 
-const Layout8 = ({
+const Layout7 = ({
     flipSoundMasterEnabled, isFlipActive, handleFlipClick, flipWidth,
     bgSoundMasterEnabled, isBgActive, handleBgClick, bgWidth, handleVolumeDrag, isTablet, isMobile
 }) => (
@@ -864,7 +864,7 @@ const Layout8 = ({
     </div>
 );
 
-const Layout9 = ({
+const Layout8 = ({
     flipSoundMasterEnabled, isFlipActive, handleFlipClick, flipWidth,
     bgSoundMasterEnabled, isBgActive, handleBgClick, bgWidth, handleVolumeDrag, isTablet
 }) => (
@@ -1370,9 +1370,9 @@ const Sound = ({
     const [anchorPos, setAnchorPos] = useState(null);
 
     useEffect(() => {
-        if (isOpen && layout === 9) {
+        if (isOpen && layout === 7) {
             const updatePos = () => {
-                const anchor = document.getElementById('layout9-sound-icon-anchor');
+                const anchor = document.getElementById('layout8-sound-icon-anchor');
                 if (anchor) {
                     const rect = anchor.getBoundingClientRect();
                     setAnchorPos({
@@ -1391,7 +1391,7 @@ const Sound = ({
 
     const getInlineStyle = () => {
         const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons;
-        if (layout === 9) {
+        if (layout === 7) {
             if (anchorPos) {
                 return {
                     position: 'fixed',
@@ -1416,10 +1416,10 @@ const Sound = ({
             return isSidebarOpen ? `bottom-[4.2vw] left-[calc(50%_+_3.5vw)] -translate-x-1/2` : `bottom-[4.2vw] left-[calc(50%_+_13.5vw)] -translate-x-1/2`;
         }
         if (layout === 6) return isTablet ? 'top-[37vh] right-[80px] -translate-y-1/2' : 'top-[34vh] right-[4vw] -translate-y-1/2';
-        if (layout === 7) return 'top-[42%] left-[5.5vw] -translate-y-1/2';
-        if (layout === 8) return isTablet ? 'bottom-[10.5vh] left-[calc(50%_+_96px)] -translate-x-1/2' : 'bottom-[10.5vh] left-[calc(50%_+_6.5vw)] -translate-x-1/2';
+        if (layout === 6) return 'top-[42%] left-[5.5vw] -translate-y-1/2';
+        if (layout === 6) return isTablet ? 'bottom-[10.5vh] left-[calc(50%_+_96px)] -translate-x-1/2' : 'bottom-[10.5vh] left-[calc(50%_+_6.5vw)] -translate-x-1/2';
         const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons;
-        if (layout === 9) return addTextBelowIcons ? 'top-[2.5vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2' : 'top-[2vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2';
+        if (layout === 7) return addTextBelowIcons ? 'top-[2.5vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2' : 'top-[2vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2';
 
         // Default (Layout 1)
         return isTablet ? 'bottom-[3vw] right-[17vw]' : (isSidebarOpen ? 'bottom-[3.8vw] right-[18vw]' : 'bottom-[3.8vw] right-[25vw]');
@@ -1567,11 +1567,28 @@ const Sound = ({
                 );
             }
 
+            const isLayout6_OLD = activeLayout == 6;
+            if (isLayout6_OLD) {
+                return (
+                    <div
+                        className={`absolute inset-0 z-[3000] flex justify-start items-center ${isLandscape ? 'pl-[55px]' : 'pl-[55px]'} pointer-events-auto`}
+                        onClick={onClose}
+                    >
+                        <div
+                            className="pointer-events-auto animate-in slide-in-from-left-4 duration-200"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <Layout6_OLD {...commonProps} isMobile={true} />
+                        </div>
+                    </div>
+                );
+            }
+
             const isLayout6 = activeLayout == 6;
             if (isLayout6) {
                 return (
                     <div
-                        className={`absolute inset-0 z-[3000] flex justify-start items-center ${isLandscape ? 'pl-[55px]' : 'pl-[55px]'} pointer-events-auto`}
+                        className={`absolute inset-0 z-[3000] flex justify-start items-center pl-[70px] pointer-events-auto`}
                         onClick={onClose}
                     >
                         <div
@@ -1583,24 +1600,7 @@ const Sound = ({
                     </div>
                 );
             }
-
-            const isLayout7 = activeLayout == 7;
-            if (isLayout7) {
-                return (
-                    <div
-                        className={`absolute inset-0 z-[3000] flex justify-start items-center pl-[70px] pointer-events-auto`}
-                        onClick={onClose}
-                    >
-                        <div
-                            className="pointer-events-auto animate-in slide-in-from-left-4 duration-200"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <Layout7 {...commonProps} isMobile={true} />
-                        </div>
-                    </div>
-                );
-            }
-            if (activeLayout == 8 && isMobile && !isLandscape) {
+            if (activeLayout == 7 && isMobile && !isLandscape) {
                 return (
                     <div
                         className="absolute inset-0 z-[3000] pointer-events-auto"
@@ -1610,7 +1610,7 @@ const Sound = ({
                             className="absolute bottom-[95px] left-[30px] pointer-events-auto"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <Layout8 {...commonProps} isMobile={true} />
+                            <Layout7 {...commonProps} isMobile={true} />
                         </div>
                     </div>
                 );
@@ -1667,17 +1667,17 @@ const Sound = ({
                 case 3: return <Layout3 {...commonProps} />;
                 case 4: return <Layout4 {...commonProps} />;
                 case 5: return <Layout5 {...commonProps} />;
+                case 666: return <Layout6_OLD {...commonProps} />;
                 case 6: return <Layout6 {...commonProps} />;
                 case 7: return <Layout7 {...commonProps} />;
                 case 8: return <Layout8 {...commonProps} />;
-                case 9: return <Layout9 {...commonProps} />;
                 default: return <LayoutDefault {...commonProps} />;
             }
         })();
 
-        if (layout === 9) {
+        if (layout === 7) {
             const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons;
-            const anchor = document.getElementById('layout9-sound-icon-anchor');
+            const anchor = document.getElementById('layout8-sound-icon-anchor');
             if (anchor) {
                 const isTabletLocal = window.innerWidth >= 768 && window.innerWidth <= 1024;
                 return ReactDOM.createPortal(

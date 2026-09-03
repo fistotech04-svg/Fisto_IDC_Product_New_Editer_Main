@@ -604,7 +604,7 @@ const MobileLayout3 = (props) => {
                         title="Gallery"
                         icon="clarity:image-gallery-solid"
                         className="text-white p-1"
-                        onClick={(e) => { e.stopPropagation(); toggleThumbnailBar(true); }}
+                        onClick={(e) => { e.stopPropagation(); props.setShowGalleryPopup?.(true); }}
                     />
                     {(settings?.media?.backgroundAudio ?? true) && (
                         <TooltipBtn
