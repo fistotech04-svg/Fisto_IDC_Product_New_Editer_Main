@@ -79,6 +79,7 @@ const SettingsLayout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('user_profile');
     localStorage.removeItem('last_active_folder');
+    localStorage.removeItem('token');
     if (window.google?.accounts?.id) {
       window.google.accounts.id.disableAutoSelect();
     }

@@ -460,22 +460,45 @@ const Grid1Layout = React.memo((props) => {
             }
         };
 
+        let lastWheelTime = 0;
         const handleWheel = (e) => {
             if (e.ctrlKey) {
                 e.preventDefault();
                 if (e.deltaY < 0) zoomIn();
                 else zoomOut();
+            } else if (settings?.navigation?.mouseWheel) {
+                // Prevent flipping if scrolling inside a naturally scrollable element
+                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                    return;
+                }
+                
+                const now = Date.now();
+                if (now - lastWheelTime < 600) return; // Debounce to prevent rapid flipping
+                
+                if (e.deltaY > 0) {
+                    bookRef.current?.pageFlip()?.flipNext();
+                    lastWheelTime = now;
+                } else if (e.deltaY < 0) {
+                    bookRef.current?.pageFlip()?.flipPrev();
+                    lastWheelTime = now;
+                }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
-        // window.addEventListener('wheel', handleWheel, { passive: false });
+        
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+        }
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
-            // window.removeEventListener('wheel', handleWheel);
+            if (container) {
+                container.removeEventListener('wheel', handleWheel);
+            }
         };
-    }, [zoomIn, zoomOut, bookRef, closeAllPopups]);
+    }, [zoomIn, zoomOut, bookRef, closeAllPopups, settings?.navigation?.mouseWheel]);
 
     const [recommendations, setRecommendations] = React.useState([]);
     const scrollRef = React.useRef(null);

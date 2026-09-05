@@ -21,7 +21,7 @@ const getIconsForAction = (actionId) => {
   
   const folderMap = {
     'whatsapp': 'whatsapp',
-    'open-link': 'open link',
+    'open-link': 'open_link',
     'video': 'video',
     'instagram': 'instagram',
     'facebook': 'facebook',
@@ -151,14 +151,15 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
 
   // Draw the original image or the recolored inline SVG
   if (inlinedSvgInfo) {
-    let innerSvgAttrs = `x="0" y="0" width="48" height="48"`;
+    let innerSvgAttrs = `x="4" y="4" width="40" height="40"`; // Scaled down to create a comfortable gap from outer preset circles
     let extraBg = '';
     let fillAttr = '';
     let strokeAttr = '';
     
     if (inlinedSvgInfo.isRawIcon) {
-      extraBg = `<circle cx="24" cy="24" r="20" fill="${bgFill}" />`;
-      innerSvgAttrs = `x="12" y="12" width="24" height="24"`;
+      // Scale down raw icon background circle to match non-raw icon size perfectly
+      extraBg = `<circle cx="24" cy="24" r="16" fill="${bgFill}" />`;
+      innerSvgAttrs = `x="14" y="14" width="20" height="20"`;
       
       const origFill = inlinedSvgInfo.svgTagFill;
       const origStroke = inlinedSvgInfo.svgTagStroke;
@@ -263,11 +264,11 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
   const [customSrc, setCustomSrc] = useState(null);
   const [selectedIconStyle, setSelectedIconStyle] = useState(null);
   const [iconStyles, setIconStyles] = useState([]);
-  const [selectedPreset, setSelectedPreset] = useState(PRESETS[2].id);
-  const [iconColor, setIconColor] = useState('#FFFFFF');
-  const [iconOpacity, setIconOpacity] = useState(100);
-  const [bgColor, setBgColor] = useState('#359CFD');
-  const [bgOpacity, setBgOpacity] = useState(100);
+  const [selectedPreset, setSelectedPreset] = useState(initialData?.preset || PRESETS[2].id);
+  const [iconColor, setIconColor] = useState(initialData?.iconColor ? (initialData.iconColor.length === 9 && initialData.iconColor.startsWith('#') ? initialData.iconColor.substring(0, 7) : initialData.iconColor) : '#FFFFFF');
+  const [iconOpacity, setIconOpacity] = useState(initialData?.iconColor && initialData.iconColor.length === 9 && initialData.iconColor.startsWith('#') ? Math.round((parseInt(initialData.iconColor.substring(7, 9), 16) / 255) * 100) : 100);
+  const [bgColor, setBgColor] = useState(initialData?.bgColor ? (initialData.bgColor.length === 9 && initialData.bgColor.startsWith('#') ? initialData.bgColor.substring(0, 7) : initialData.bgColor) : '#359CFD');
+  const [bgOpacity, setBgOpacity] = useState(initialData?.bgColor && initialData.bgColor.length === 9 && initialData.bgColor.startsWith('#') ? Math.round((parseInt(initialData.bgColor.substring(7, 9), 16) / 255) * 100) : 100);
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'icon' or 'bg'
 
   const [fetchedSvgDoc, setFetchedSvgDoc] = useState(null);
@@ -436,7 +437,20 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
     const bgInfo = generateSvgGradient(bg, 'svgBg');
     const fgInfo = generateSvgGradient(fg, 'svgFg');
 
-    const isRawIcon = selectedIconStyle !== 'default';
+    let isRawIcon = selectedIconStyle !== 'default';
+    if (selectedIconStyle === 'default' && initialData?.src) {
+      let originalPath = initialData.src;
+      for (const [path, url] of Object.entries(ALL_ICON_ASSETS)) {
+          if (url === initialData.src) {
+              originalPath = path;
+              break;
+          }
+      }
+      // Base presets are strictly from the /icons/ folder
+      const isBasePreset = originalPath.toLowerCase().includes('/icons/');
+      isRawIcon = !isBasePreset;
+    }
+
     const allShapes = Array.from(svg.querySelectorAll('g, rect, circle, path, ellipse, polygon'));
 
     if (isRawIcon) {
@@ -569,11 +583,18 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
       // uses an 'Instagram' icon, we show Instagram styles instead of Link styles.
       if (initialData.src && typeof initialData.src === 'string') {
         const srcLower = initialData.src.toLowerCase();
+        let originalPathLower = srcLower;
         
+        // If the src is a data URI or hashed URL, reverse-lookup the original path in our assets
+        for (const [path, url] of Object.entries(ALL_ICON_ASSETS)) {
+            if (url === initialData.src) {
+                originalPathLower = path.toLowerCase();
+                break;
+            }
+        }
+
         const fileToActionMap = {
             'whatsapp': 'whatsapp',
-            'openlink': 'open-link',
-            '/open link/': 'open-link',
             'video': 'video',
             'vedio': 'video',
             'instagram': 'instagram',
@@ -591,13 +612,37 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
             'call': 'call',
             'location': 'location',
             'navigation': 'navigate-to',
-            '/navigation page/': 'navigate-to'
+            '/navigation page/': 'navigate-to',
+            'openlink': 'open-link',
+            '/open_link/': 'open-link'
         };
 
-        for (const [key, action] of Object.entries(fileToActionMap)) {
-            if (srcLower.includes(key)) {
-                lookupKey = action;
+        // Prioritize specific icons (like social media presets) so they don't fall back to generic interaction types
+        let foundMatch = false;
+        
+        // 1. First, check for specific icon names in the URL or original path
+        const specificIcons = ['instagram', 'facebook', 'linkedin', 'youtube', 'yotube', 'whatsapp'];
+        for (const icon of specificIcons) {
+            if (originalPathLower.includes(icon)) {
+                lookupKey = icon === 'yotube' ? 'youtube' : icon;
+                foundMatch = true;
                 break;
+            }
+        }
+
+        // 2. Check for X (Twitter) specifically
+        if (!foundMatch && (originalPathLower.includes('x.svg') || originalPathLower.includes('/x/'))) {
+            lookupKey = 'x';
+            foundMatch = true;
+        }
+
+        // 3. Fallback to the rest of the map (including open-link)
+        if (!foundMatch) {
+            for (const [key, action] of Object.entries(fileToActionMap)) {
+                if (originalPathLower.includes(key)) {
+                    lookupKey = action;
+                    break;
+                }
             }
         }
       }
@@ -862,7 +907,7 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                           <div className="absolute top-[-11vw] left-[8vw] z-50">
                             <div className="fixed inset-0" onClick={(e) => { e.stopPropagation(); setActiveColorPicker(null); }} />
                             <div className="relative">
-                              <ColorPicker color={btnIconColor} onChange={setBtnIconColor} opacity={100} onOpacityChange={() => {}} onClose={() => setActiveColorPicker(null)} />
+                              <ColorPicker color={btnIconColor} onChange={setBtnIconColor} opacity={100} onOpacityChange={() => {}} onClose={() => setActiveColorPicker(null)} disableGradient={true} />
                             </div>
                           </div>
                         )}
@@ -913,7 +958,7 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                       <div className="absolute top-[-11vw] left-[8vw] z-50">
                         <div className="fixed inset-0" onClick={(e) => { e.stopPropagation(); setActiveColorPicker(null); }} />
                         <div className="relative">
-                          <ColorPicker color={iconColor} onChange={setIconColor} opacity={iconOpacity} onOpacityChange={setIconOpacity} onClose={() => setActiveColorPicker(null)} />
+                          <ColorPicker color={iconColor} onChange={setIconColor} opacity={iconOpacity} onOpacityChange={setIconOpacity} onClose={() => setActiveColorPicker(null)} disableGradient={true} />
                         </div>
                       </div>
                     )}
@@ -947,7 +992,7 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                       <div className="absolute top-[-15vw] left-[8vw] z-50">
                         <div className="fixed inset-0" onClick={(e) => { e.stopPropagation(); setActiveColorPicker(null); }} />
                         <div className="relative">
-                          <ColorPicker color={bgColor} onChange={setBgColor} opacity={bgOpacity} onOpacityChange={setBgOpacity} onClose={() => setActiveColorPicker(null)} />
+                          <ColorPicker color={bgColor} onChange={setBgColor} opacity={bgOpacity} onOpacityChange={setBgOpacity} onClose={() => setActiveColorPicker(null)} disableGradient={true} />
                         </div>
                       </div>
                     )}
@@ -1050,7 +1095,7 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
               )}
             </div>
             {/* Action Buttons (Moved inside Right Controls with mt-auto for alignment) */}
-            <div className="flex justify-end gap-[0.8vw] mt-auto">
+            <div className="flex justify-end gap-[0.8vw] mt-auto pt-[2.5vh]">
               <button 
                 className="px-[1.5vw] py-[0.8vh] text-[0.8vw] font-medium text-gray-700 bg-white border border-gray-200 rounded-[0.4vw] hover:bg-gray-50 flex items-center gap-[0.4vw] transition-colors"
                 onClick={onClose}

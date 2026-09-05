@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import axios from 'axios';
@@ -20,6 +20,20 @@ export default function Signin() {
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user && user.isLoggedIn) {
+          navigate('/home'); 
+        }
+      } catch (e) {
+        // invalid JSON
+      }
+    }
+  }, [navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -160,6 +174,9 @@ export default function Signin() {
       });
       
       if (res.data.user) {
+        if (res.data.token) {
+          localStorage.setItem('token', res.data.token);
+        }
         const userData = {
           ...res.data.user,
           isLoggedIn: true
