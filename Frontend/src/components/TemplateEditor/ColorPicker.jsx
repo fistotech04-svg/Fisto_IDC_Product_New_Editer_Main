@@ -89,13 +89,35 @@ export const parseGradient = (gradientStr) => {
 
   // Extract stops
   const stops = [];
-  const stopRegex = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)\s+([\d.]+)%/g;
+  // Match rgba? or hex colors
+  const stopRegex = /(rgba?\([\d\s,.]+\)|#[0-9a-fA-F]{3,8})\s+([\d.]+)%/g;
   let match;
   while ((match = stopRegex.exec(parseStr)) !== null) {
+    let colorStr = match[1];
+    let opacity = 100;
+    let hexColor = '#FFFFFF';
+
+    if (colorStr.startsWith('#')) {
+      hexColor = colorStr.substring(0, 7).toUpperCase(); // Extract base hex (ignore alpha if 8 chars)
+      if (colorStr.length === 9) { // 8-char hex
+        opacity = Math.round((parseInt(colorStr.substring(7, 9), 16) / 255) * 100);
+      } else if (colorStr.length === 5) { // 4-char hex
+        opacity = Math.round((parseInt(colorStr.substring(4, 5) + colorStr.substring(4, 5), 16) / 255) * 100);
+      }
+    } else {
+      const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+      if (rgbMatch) {
+        hexColor = rgbToHex(parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3]));
+        if (rgbMatch[4]) {
+          opacity = Math.round(parseFloat(rgbMatch[4]) * 100);
+        }
+      }
+    }
+
     stops.push({
-      color: rgbToHex(parseInt(match[1]), parseInt(match[2]), parseInt(match[3])),
-      offset: parseFloat(match[5]),
-      opacity: match[4] ? Math.round(parseFloat(match[4]) * 100) : 100
+      color: hexColor,
+      offset: parseFloat(match[2]),
+      opacity: opacity
     });
   }
 
@@ -233,9 +255,9 @@ const handleLocalScrub = (e, initialVal, updateFn, sensitivity = 5) => {
   window.addEventListener('pointerup', onMouseUp);
 };
 
-export default function ColorPicker({ color, onChange, opacity, onOpacityChange, onClose, className, style, colorsOnPage = [], hidePalette = false, disableGradient = false, ...props }) {
+export default function ColorPicker({ color, onChange, opacity, onOpacityChange, onClose, className, style, colorsOnPage = [], hidePalette = false, disableGradient = false, disableSolid = false, ...props }) {
   const [view, setView] = useState(hidePalette ? "custom" : "palette"); // "palette" or "custom"
-  const [mode, setMode] = useState(color?.includes("gradient") && !disableGradient ? "gradient" : "solid");
+  const [mode, setMode] = useState(disableSolid ? "gradient" : (color?.includes("gradient") && !disableGradient ? "gradient" : "solid"));
   const [hsv, setHsv] = useState(() => hexToHsv(color || "#ffffff"));
 
   // Gradient state
@@ -706,7 +728,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
           <div className="flex flex-col gap-[1vw]">
             {/* Header Controls */}
             <div className="flex items-center justify-between w-full mb-[0.5vw]">
-              {!disableGradient ? (
+              {!disableGradient && !disableSolid ? (
                 <PremiumDropdown
                   options={['Solid', 'Gradient']}
                   value={mode.charAt(0).toUpperCase() + mode.slice(1)}
@@ -723,7 +745,9 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                   align="left"
                 />
               ) : (
-                <div className="text-[0.85vw] font-semibold text-gray-900 px-1 w-[5.5vw]">Solid</div>
+                <div className="text-[0.85vw] font-semibold text-gray-900 px-1 w-[5.5vw]">
+                  {disableSolid ? 'Gradient' : 'Solid'}
+                </div>
               )}
 
               {mode === 'gradient' && (

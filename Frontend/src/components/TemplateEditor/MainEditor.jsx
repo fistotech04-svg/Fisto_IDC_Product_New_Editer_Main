@@ -12206,7 +12206,7 @@ const MainEditor = ({
         {/* Top Group: Selection & Primary Tools - Independent Position */}
         {/* Top Group: Selection & Primary Tools - Independent Position */}
         {!isPdfProject && !isPopupEditor && (
-          <div className="absolute right-[1.05vw] top-[6vh] z-50">
+          <div className={`absolute right-[1.05vw] top-[6vh] z-50 ${pages[activePageIndex]?.isHidden ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="bg-[#F1F3F4] rounded-[0.5vw] border border-gray-300 p-[0.3vw] flex flex-col items-center w-[2.7vw] gap-[0.7vh] shadow-sm">
               {/* Black Edit Icon Button */}
               <div className="relative group/tool flex items-center">
@@ -12252,7 +12252,7 @@ const MainEditor = ({
 
         {/* Floating Menu Button (Top Right Edge for Popup Editor) */}
         {!isPdfProject && isPopupEditor && activeTopTool !== 'animation' && activeTopTool !== 'interaction' && (
-          <div className="absolute right-0 top-[6.5vh] z-50">
+          <div className={`absolute right-0 top-[6.5vh] z-50 ${pages[activePageIndex]?.isHidden ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
               {/* Perfect Inverted Corner Top */}
               <div className="absolute -top-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] border-gray-300 pointer-events-none">
@@ -12321,7 +12321,7 @@ const MainEditor = ({
 
         {/* Interaction Group: Sub Tools */}
         {activeTopTool === 'interaction' && (
-          <div className="absolute right-0 top-[25vh] z-50">
+          <div className={`absolute right-0 top-[25vh] z-50 ${pages[activePageIndex]?.isHidden ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
 
               {/* Cover Top Border */}
@@ -12405,7 +12405,7 @@ const MainEditor = ({
 
         {/* Bottom Group: Creation & Widgets - HIDDEN for PDF projects */}
         {!isPdfProject && activeTopTool === 'editor' && (
-          <div className="absolute right-0 top-[25vh] z-50">
+          <div className={`absolute right-0 top-[25vh] z-50 ${pages[activePageIndex]?.isHidden ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
 
               {/* Perfect Inverted Corner Top */}
