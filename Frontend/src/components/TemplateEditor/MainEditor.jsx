@@ -2527,21 +2527,23 @@ const MainEditor = ({
         }
 
         if (pos === 'Inside') {
-          let clip = defs.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
+          const safeElId = (el.id || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '_');
+          let clip = defs.querySelector(`clipPath[id="clip-shape-${safeElId}"]`);
           if (!clip) {
             clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-            clip.id = `clip-shape-${el.id}`;
+            clip.id = `clip-shape-${safeElId}`;
             const clipShape = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
             clip.appendChild(clipShape);
             defs.appendChild(clip);
           }
-          overlay.setAttribute('clip-path', `url(#clip-shape-${el.id})`);
+          overlay.setAttribute('clip-path', `url(#clip-shape-${safeElId})`);
           overlay.removeAttribute('mask');
         } else {
-          let mask = defs.querySelector(`mask[id="mask-shape-${el.id}"]`);
+          const safeElId = (el.id || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '_');
+          let mask = defs.querySelector(`mask[id="mask-shape-${safeElId}"]`);
           if (!mask) {
             mask = document.createElementNS('http://www.w3.org/2000/svg', 'mask');
-            mask.id = `mask-shape-${el.id}`;
+            mask.id = `mask-shape-${safeElId}`;
             const maskBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             maskBg.setAttribute('x', '-500%');
             maskBg.setAttribute('y', '-500%');
@@ -2554,7 +2556,7 @@ const MainEditor = ({
             mask.appendChild(maskShape);
             defs.appendChild(mask);
           }
-          overlay.setAttribute('mask', `url(#mask-shape-${el.id})`);
+          overlay.setAttribute('mask', `url(#mask-shape-${safeElId})`);
           overlay.removeAttribute('clip-path');
         }
 
@@ -2643,6 +2645,43 @@ const MainEditor = ({
             const scaleY = foH / origH;
             iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
             iframe.style.setProperty('transform-origin', '0 0', 'important');
+          }
+        }
+      });
+
+      // Sync Image Masks
+      svg.querySelectorAll('[data-masked-image-url]').forEach(shapeEl => {
+        const shapeId = shapeEl.id;
+        if (!shapeId) return;
+        const imgEl = svg.querySelector(`[id="masked-img-${shapeId}"]`);
+        const clipPath = defs?.querySelector(`clipPath[id="clip-shape-${shapeId}"]`);
+        if (imgEl && clipPath) {
+          const clipShape = clipPath.firstElementChild;
+          if (clipShape) {
+            // Sync geometry attributes (NO transform)
+            const attrsToSync = ['x', 'y', 'width', 'height', 'cx', 'cy', 'r', 'rx', 'ry', 'd', 'points'];
+            attrsToSync.forEach(attr => {
+              const val = shapeEl.getAttribute(attr);
+              if (val !== null) clipShape.setAttribute(attr, val);
+              else clipShape.removeAttribute(attr);
+            });
+          }
+          
+          // Sync Image properties
+          const transform = shapeEl.getAttribute('transform');
+          if (transform) imgEl.setAttribute('transform', transform);
+          else imgEl.removeAttribute('transform');
+
+          if (typeof shapeEl.getBBox === 'function') {
+             try {
+                const bbox = shapeEl.getBBox();
+                if (bbox && bbox.width > 0 && bbox.height > 0) {
+                   imgEl.setAttribute('x', bbox.x);
+                   imgEl.setAttribute('y', bbox.y);
+                   imgEl.setAttribute('width', bbox.width);
+                   imgEl.setAttribute('height', bbox.height);
+                }
+             } catch(e) {}
           }
         }
       });
@@ -3043,12 +3082,12 @@ const MainEditor = ({
     };
 
     const handleAddImage = (e) => {
-      const { url, gifUrl, pageIndex, dropPoint, type } = e.detail || {};
+      const { url, gifUrl, pageIndex, dropPoint, type, targetShapeId } = e.detail || {};
       const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
       const mediaUrl = gifUrl || url;
       if (!mediaUrl) return;
       const dataType = type || (gifUrl || mediaUrl.toLowerCase().endsWith('.gif') ? 'gif' : 'image');
-      insertImageIntoPage(targetPageIndex, mediaUrl, dataType, dropPoint);
+      insertImageIntoPage(targetPageIndex, mediaUrl, dataType, dropPoint, targetShapeId);
     };
 
     window.addEventListener('add-icon-to-editor', handleAddIcon);
@@ -6255,7 +6294,7 @@ const MainEditor = ({
     return () => observer.disconnect();
   }, [handleAutoFitZoom]);
 
-  const insertImageIntoPage = (pageIdx, rawDataUrl, dataType = 'image', dropPoint = null) => {
+  const insertImageIntoPage = (pageIdx, rawDataUrl, dataType = 'image', dropPoint = null, targetShapeId = null) => {
     if (!rawDataUrl) return;
 
     // 0. Clean & sanitize URL (handle HTML snippets, newlines in text/uri-list, quotes)
@@ -6319,6 +6358,122 @@ const MainEditor = ({
     const placeImageInFrame = (imgWidth = 100, imgHeight = 100) => {
       if (inserted) return;
       inserted = true;
+
+      if (targetShapeId && dataType === 'image') {
+        const shapeEl = svg.querySelector(`[id="${targetShapeId}"]`);
+        if (shapeEl) {
+          try {
+            // Check if it already has a fill, to store it
+            if (!shapeEl.hasAttribute('data-original-fill')) {
+              shapeEl.setAttribute('data-original-fill', shapeEl.getAttribute('fill') || '#d0ccff');
+            }
+            shapeEl.setAttribute('data-masked-image-url', dataUrl);
+            shapeEl.setAttribute('data-masked-image-type', dataType);
+
+            let defs = svg.querySelector('defs');
+            if (!defs) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              svg.insertBefore(defs, svg.firstChild);
+            }
+
+            const safeShapeId = (targetShapeId || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '_');
+            const clipId = `clip-shape-${safeShapeId}`;
+            let clip = defs.querySelector(`clipPath[id="${clipId}"]`);
+            if (!clip) {
+              clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+              clip.id = clipId;
+              defs.appendChild(clip);
+            } else {
+              clip.innerHTML = '';
+            }
+
+            // Clone the shape for the clip path, removing visual attributes
+            const clipShape = shapeEl.cloneNode(true);
+            clipShape.removeAttribute('id');
+            clipShape.removeAttribute('fill');
+            clipShape.removeAttribute('stroke');
+            clipShape.removeAttribute('stroke-width');
+            clipShape.removeAttribute('data-masked-image-url');
+            clipShape.removeAttribute('data-name');
+            // Keep the transform on the clipShape so it matches the shape's exact geometry and position
+            clip.appendChild(clipShape);
+
+            const imageId = `masked-img-${safeShapeId}`;
+            let imageEl = svg.querySelector(`image[id="${imageId}"]`);
+            if (!imageEl) {
+              imageEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+              imageEl.id = imageId;
+              // Insert the image immediately before the shape so it renders underneath the shape's stroke
+              shapeEl.parentNode.insertBefore(imageEl, shapeEl);
+            }
+
+            // The image should cover the bounding box of the shape.
+            // Since the clipShape already has the transform, if we apply the same transform to the image,
+            // the clip path will be transformed TWICE.
+            // Wait, clipPath contents are evaluated in the coordinate system of the referencing element!
+            // If the referencing element (imageEl) has no transform, but the clipShape DOES have a transform,
+            // the clip region will correctly match the shape's global position.
+            // But we need the image to be large enough to cover the clip region.
+            try {
+              const bbox = shapeEl.getBBox();
+              imageEl.setAttribute('x', bbox.x);
+              imageEl.setAttribute('y', bbox.y);
+              imageEl.setAttribute('width', bbox.width);
+              imageEl.setAttribute('height', bbox.height);
+              
+              // We must also apply the shape's transform to the image, BUT if we do, the clipPath (which has the transform)
+              // would be double-transformed. So we must NOT put the transform on the clipShape!
+              
+              // Actually, wait, let's reset the clip path content:
+              clip.innerHTML = '';
+              const cleanClipShape = shapeEl.cloneNode(true);
+              cleanClipShape.removeAttribute('id');
+              cleanClipShape.removeAttribute('fill');
+              cleanClipShape.removeAttribute('stroke');
+              cleanClipShape.removeAttribute('stroke-width');
+              cleanClipShape.removeAttribute('transform'); // REMOVE transform from clip path
+              clip.appendChild(cleanClipShape);
+              
+              // Apply the shape's transform to the image
+              const transform = shapeEl.getAttribute('transform');
+              if (transform) {
+                imageEl.setAttribute('transform', transform);
+              } else {
+                imageEl.removeAttribute('transform');
+              }
+            } catch (e) {
+              // Fallback if getBBox fails
+              imageEl.setAttribute('x', '0');
+              imageEl.setAttribute('y', '0');
+              imageEl.setAttribute('width', '100%');
+              imageEl.setAttribute('height', '100%');
+            }
+
+            imageEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
+            imageEl.setAttribute('href', dataUrl);
+            imageEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+            imageEl.setAttribute('clip-path', `url(#${clipId})`);
+            imageEl.setAttribute('data-is-mask-image', 'true');
+            imageEl.setAttribute('data-target-shape', safeShapeId);
+
+            // Set shape fill to none so image shows through
+            shapeEl.setAttribute('fill', 'none');
+
+            // Find and clean up any old pattern to avoid clutter
+            const patternId = `pattern-shape-${safeShapeId}`;
+            const oldPattern = defs.querySelector(`pattern[id="${patternId}"]`);
+            if (oldPattern) oldPattern.remove();
+
+            if (updatePageHtml) {
+              saveModifiedPageHtml(pageIdx, svg);
+            }
+            if (setSelectedLayerId) setSelectedLayerId(targetShapeId);
+            return;
+          } catch (err) {
+            console.error('[MainEditor] Masking image failed:', err);
+          }
+        }
+      }
 
       // Append to root frame
       const topFrames = getTopLevelFrames(svg);
@@ -12901,6 +13056,14 @@ const MainEditor = ({
                                     const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
                                     const dropPoint = { x: svgP.x, y: svgP.y };
 
+                                    let targetShapeId = undefined;
+                                    if (e.target) {
+                                      const leaf = e.target.closest('[data-type="shape"], [data-type="vector-path"], [data-shape-type]');
+                                      if (leaf && leaf.id && !leaf.id.includes('mask') && !leaf.id.includes('clip')) {
+                                        targetShapeId = leaf.id;
+                                      }
+                                    }
+
                                     let data = null;
 
                                     // 1. Try reading JSON data
@@ -12964,7 +13127,8 @@ const MainEditor = ({
                                               gifUrl: isGif ? fileUrl : undefined,
                                               name: file.name,
                                               type: isGif ? 'gif' : 'image',
-                                              dropPoint: offsetPoint
+                                              dropPoint: offsetPoint,
+                                              targetShapeId
                                             }
                                           }));
                                         } else if (file.type.startsWith('video/')) {
@@ -13014,7 +13178,8 @@ const MainEditor = ({
                                           url: data.url || data.src,
                                           name: data.name || 'Image',
                                           type: 'image',
-                                          dropPoint
+                                          dropPoint,
+                                          targetShapeId
                                         }
                                       }));
                                     } else if (data.type === 'gif') {
@@ -13025,7 +13190,8 @@ const MainEditor = ({
                                           gifUrl: data.url || data.src,
                                           name: data.name || 'GIF',
                                           type: 'gif',
-                                          dropPoint
+                                          dropPoint,
+                                          targetShapeId
                                         }
                                       }));
                                     } else if (data.type === 'video') {
@@ -13205,7 +13371,7 @@ const MainEditor = ({
       </div>
 
       {/* Hidden container to pre-render all pages for instant switching */}
-      <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none', visibility: 'hidden', opacity: 0 }}>
+      <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }}>
         {pages.map((p, i) => (
           <div key={i} dangerouslySetInnerHTML={{ __html: p.html }} />
         ))}

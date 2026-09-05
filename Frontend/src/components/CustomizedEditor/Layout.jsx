@@ -500,7 +500,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
         setColorPopup({ layoutIndex: layoutIdx });
     };
 
-    const layoutNames = { 1: 'Layout 1', 2: 'Layout 2', 3: 'Layout 3', 4: 'Layout 4', 5: 'Layout 5', 7: 'Layout 6', 8: 'Layout 7', 9: 'Layout 8' };
+    const layoutNames = { 1: 'Layout 1', 2: 'Layout 2', 3: 'Layout 3', 4: 'Layout 4', 5: 'Layout 5', 6: 'Layout 6', 7: 'Layout 7', 8: 'Layout 8' };
 
     // ─────────────────────────────────────────────────────────────────────
     return (
@@ -535,7 +535,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
             {activeTab === 'Layouts' && (
                 <div className="px-[1vw] pb-[1vw] grid grid-cols-2 gap-[0.8vw] relative z-[10]">
                     {layoutImages.map((img, index) => {
-                        const layoutIds = [1, 2, 3, 4, 5, 7, 8, 9];
+                        const layoutIds = [1, 2, 3, 4, 5, 6, 7, 8];
                         const layoutNum = layoutIds[index];
                         const isActive = activeLayout === layoutNum;
                         const layoutColorsList = colors[layoutNum] || [];

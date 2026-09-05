@@ -3549,8 +3549,21 @@ const InteractionPanel = ({
       {editingHotspotId && (() => {
         const item = interactiveElementsList.find(i => i.id === editingHotspotId);
         
-        // Helper to get default color based on action type
-        const getDefaultBgColor = (actionId) => {
+        // Helper to get default color based on action type or icon src
+        const getDefaultBgColor = (actionId, iconSrc) => {
+          if (iconSrc) {
+            const lowerSrc = iconSrc.toLowerCase();
+            if (lowerSrc.includes('youtube') || lowerSrc.includes('yotube')) return '#FF0000';
+            if (lowerSrc.includes('instagram')) return 'linear-gradient(45deg, rgba(255, 221, 85, 1) 0%, rgba(255, 84, 62, 1) 50%, rgba(200, 55, 171, 1) 100%)';
+            if (lowerSrc.includes('facebook')) return '#3D5A98';
+            if (lowerSrc.includes('linkedin')) return '#0A66C2';
+            if (lowerSrc.includes('whatsapp')) return '#25D366';
+            if (lowerSrc.includes('x.svg') || lowerSrc.includes('twitter')) return '#000000';
+            if (lowerSrc.includes('slideshow')) return '#22C55E';
+            if (lowerSrc.includes('popup')) return '#14B8A6';
+            if (lowerSrc.includes('call')) return '#19B2AB';
+            if (lowerSrc.includes('download')) return '#F3326A';
+          }
           const colorMap = {
             'whatsapp': '#34A853',
             'instagram': 'linear-gradient(45deg, rgba(255, 221, 85, 1) 0%, rgba(255, 84, 62, 1) 50%, rgba(200, 55, 171, 1) 100%)',
@@ -3577,7 +3590,7 @@ const InteractionPanel = ({
             initialData={{
                preset: item?.presetId || 'preset3',
                iconColor: item?.iconColor || '#FFFFFF',
-               bgColor: item?.bgColor || getDefaultBgColor(item?.presetId || item?.actionId),
+               bgColor: item?.bgColor || getDefaultBgColor(item?.presetId || item?.actionId, item?.hotspotIconSrc),
                iconStyle: 'style1',
                src: item?.hotspotIconSrc || null,
                actionId: item?.actionId,

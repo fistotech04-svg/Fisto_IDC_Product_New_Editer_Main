@@ -742,6 +742,9 @@ const getInteractionScript = (pageNumber) => `
             const handleStart = (e) => {
                const el = findInteractionEl(e.target);
                if (el) {
+                   e.preventDefault();
+                   e.stopPropagation();
+
                    const now = Date.now();
                    if (now - lastInteractionTime < 300) return;
                    lastInteractionTime = now;
@@ -1027,6 +1030,14 @@ const getInteractionScript = (pageNumber) => `
                             pageNumber: window._pageNumber
                         }, '*');
                     } catch (err) {}
+               } else if (e.type === 'click') {
+                   const interactionEls = document.querySelectorAll('[data-interaction]');
+                   interactionEls.forEach(interactionEl => {
+                       const showHighlight = interactionEl.getAttribute('data-show-highlight');
+                       if (showHighlight !== 'false') {
+                           playHighlightBlink(interactionEl);
+                       }
+                   });
                }
                 }
             };
@@ -1049,6 +1060,11 @@ const getInteractionScript = (pageNumber) => `
             };
 
             const handleEnd = (e) => {
+                const el = findInteractionEl(e.target);
+                if (el) {
+                    e.stopPropagation();
+                    return;
+                }
                 if (!window._isIframeDragging) return;
                 window._isIframeDragging = false;
                 try {
@@ -1113,7 +1129,7 @@ const getInteractionScript = (pageNumber) => `
             });
             document.addEventListener('mouseout', (e) => handleHover(e, false));
 
-            const playHighlightBlink = (el) => {
+            function playHighlightBlink(el) {
                 if (el.__isBlinking) return;
                 el.__isBlinking = true;
                 
@@ -1154,17 +1170,18 @@ const getInteractionScript = (pageNumber) => `
 
             window.addEventListener('message', function(e) {
                 if (!e.data) return;
-                if (e.data.type === 'PAGE_TURNED') {
-                    const visiblePages = e.data.visiblePages || [];
-                    if (visiblePages.includes(window._pageNumber)) {
-                        const interactionEls = document.querySelectorAll('[data-interaction]');
-                        interactionEls.forEach(el => {
-                            const showHighlight = el.getAttribute('data-show-highlight');
-                            if (showHighlight !== 'false') {
-                                playHighlightBlink(el);
-                            }
-                        });
+                if (e.data.type === 'PAGE_TURNED' || e.data.type === 'BLINK_INTERACTIONS') {
+                    if (e.data.type === 'PAGE_TURNED') {
+                        const visiblePages = e.data.visiblePages || [];
+                        if (!visiblePages.includes(window._pageNumber)) return;
                     }
+                    const interactionEls = document.querySelectorAll('[data-interaction]');
+                    interactionEls.forEach(el => {
+                        const showHighlight = el.getAttribute('data-show-highlight');
+                        if (showHighlight !== 'false') {
+                            playHighlightBlink(el);
+                        }
+                    });
                 }
             });
         };
@@ -2909,6 +2926,26 @@ const PreviewArea = React.memo(({
 
     const isMobileLandscape = isMobile && isLandscape;
 
+    // Listen for clicks outside the flipbook to trigger interaction blinks
+    useEffect(() => {
+        const handleGlobalClick = (e) => {
+            // Prevent blinking if clicking on toolbars or interactive UI elements (buttons/inputs)
+            const target = e.target;
+            if (target.closest('button') || target.closest('input') || target.closest('a') || target.closest('.toolbar')) {
+                return;
+            }
+            
+            const iframes = document.querySelectorAll('iframe');
+            iframes.forEach(iframe => {
+                try {
+                    iframe.contentWindow.postMessage({ type: 'BLINK_INTERACTIONS' }, '*');
+                } catch(err) {}
+            });
+        };
+
+        document.addEventListener('click', handleGlobalClick);
+        return () => document.removeEventListener('click', handleGlobalClick);
+    }, []);
 
     // Responsive scaling logic
     const [deviceZoom, setDeviceZoom] = useState({ Desktop: zoom, Tablet: zoom, Mobile: zoom });
@@ -4703,6 +4740,7 @@ const PreviewArea = React.memo(({
         searchQuery,
         setSearchQuery,
         handleQuickSearch,
+        isPublished: isPublishedPreview,
         logoSettings,
         logoObjectFit,
         logoCropStyle,
