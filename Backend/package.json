@@ -30,6 +30,8 @@
     "multer": "^2.2.0",
     "nanoid": "^5.1.6",
     "nodemailer": "^9.0.5",
+    "adm-zip": "^0.5.16",
+    "opencascade.js": "^1.1.1",
     "resend": "^6.12.2"
   }
 }

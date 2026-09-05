@@ -70,8 +70,8 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "50mb" }));
-app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
+app.use(express.json({ limit: "500mb" }));
+app.use(bodyParser.urlencoded({ limit: "500mb", extended: true }));
 
 // Serve /uploads by redirecting directly to Supabase Storage CDN (zero memory usage on Render)
 app.use("/uploads", (req, res) => {
@@ -113,6 +113,8 @@ app.use("/api/explore", exploreRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/activity", activityRoutes);
 
+import { startBackgroundTempCleaner } from "./utils/tempCleaner.js";
+
 const PORT = process.env.PORT || 5000;
 
 // Global Error Handler
@@ -129,4 +131,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  // Start automatic cleaner for temp uploads (purges files older than 10 minutes)
+  startBackgroundTempCleaner(path.join(__dirname, "temp_uploads"));
 });

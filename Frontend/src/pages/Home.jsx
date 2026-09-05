@@ -828,7 +828,7 @@ export default function Home() {
       setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
       const placeholderPages = allImages.map((_, i) => ({
         pageName: `Page ${i + 1}`,
-        content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxWidth} ${maxHeight}" width="100%" height="100%"></svg>`
+        pageNumber: i + 1
       }));
 
       const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {

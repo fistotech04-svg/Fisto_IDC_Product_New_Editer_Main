@@ -6,6 +6,8 @@ import multer from "multer";
 import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { uploadFileToSupabase, uploadBufferToSupabase, downloadFileFromSupabase, deleteFileFromSupabase, renamePathInSupabase } from "../../config/supabase.js";
+import { convertWithAssimp, is3DFormat, isGlbFormat } from "../../utils/assimpConverter.js";
+import { scheduleTempCleanup, scheduleSupabaseCleanup } from "../../utils/tempCleaner.js";
 
 
 const router = express.Router();
@@ -54,8 +56,96 @@ const chunkStorage = multer.diskStorage({
 });
 const uploadChunk = multer({ storage: chunkStorage });
 
+// @route   POST /api/3d-models/convert-model
+// @desc    Convert any 3D model file to GLB using Assimp and upload directly to Supabase in user's 3D_Converter folder
+// @access  Public
+router.post("/convert-model", (req, res) => {
+  upload.single("model")(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      console.error("Multer Error in convert-model:", err);
+      return res.status(413).json({ message: `Upload error: ${err.message}` });
+    } else if (err) {
+      console.error("Unknown Upload Error in convert-model:", err);
+      return res.status(500).json({ message: err.message || "Server error during upload" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No 3D model file uploaded" });
+    }
+
+    const emailId = req.body.emailId || req.query.emailId || "guest_user";
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+
+    const inputPath = req.file.path;
+    const originalExt = path.extname(req.file.originalname).toLowerCase();
+    const baseName = path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9_-]/g, "_");
+    
+    const convertedDir = path.join(__dirname, "../../temp_uploads/converted_models");
+    if (!fs.existsSync(convertedDir)) {
+      fs.mkdirSync(convertedDir, { recursive: true });
+    }
+
+    const outputGlbName = `${baseName}_converted_${Date.now()}.glb`;
+    const outputGlbPath = path.join(convertedDir, outputGlbName);
+    const destinationPath = `${sanitizedEmail}/3D_Converter/${outputGlbName}`;
+
+    try {
+      // If already a GLB file, copy to convertedDir
+      if (originalExt === ".glb") {
+        fs.copyFileSync(inputPath, outputGlbPath);
+      } else {
+        console.log(`[Assimp] Converting uploaded file: ${req.file.originalname} -> ${outputGlbName}`);
+        await convertWithAssimp(inputPath, outputGlbPath);
+      }
+
+      if (!fs.existsSync(outputGlbPath) || fs.statSync(outputGlbPath).size === 0) {
+        throw new Error("Conversion finished but output GLB file was not created or is empty.");
+      }
+
+      const fileStats = fs.statSync(outputGlbPath);
+      const sizeInMB = (fileStats.size / (1024 * 1024)).toFixed(2);
+
+      // Upload converted GLB directly to Supabase Storage in 3D_Converter folder
+      console.log(`[Supabase] Uploading converted GLB to: ${destinationPath}`);
+      const supabaseUrl = await uploadFileToSupabase(outputGlbPath, destinationPath);
+
+      // Clean up local temp files immediately (no local storage kept)
+      try { if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath); } catch (e) {}
+      try { if (fs.existsSync(outputGlbPath)) fs.unlinkSync(outputGlbPath); } catch (e) {}
+
+      // Schedule auto-removal from Supabase 3D_Converter folder after 1 hour (3600000 ms)
+      scheduleSupabaseCleanup(destinationPath, 60 * 60 * 1000);
+
+      const finalUrl = supabaseUrl || `/uploads/${destinationPath}`;
+
+      res.setHeader("Access-Control-Allow-Origin", "*");
+
+      return res.status(200).json({
+        success: true,
+        url: finalUrl,
+        name: baseName,
+        sizeInMB: sizeInMB
+      });
+    } catch (convErr) {
+      console.error("[Assimp] Conversion error:", convErr);
+      try { if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath); } catch (e) {}
+      try { if (fs.existsSync(outputGlbPath)) fs.unlinkSync(outputGlbPath); } catch (e) {}
+      
+      let clientMsg = `Failed to convert ${originalExt.toUpperCase()} file to GLB: ${convErr.message}`;
+      if (originalExt === ".blend") {
+        clientMsg = "This .blend file contains complex Blender mesh modifiers/BMesh data that Assimp cannot parse directly. Please open Blender and export your model as .GLB (glTF 2.0), .FBX, or .OBJ (File > Export), which are fully supported.";
+      }
+
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.status(422).json({ 
+        message: clientMsg 
+      });
+    }
+  });
+});
+
 // @route   POST /api/3d-models/upload-model
-// @desc    Upload a 3D model to the user's 3D_Modals folder
+// @desc    Upload a 3D model to the user's 3D_Modals folder (converts non-GLB to GLB with Assimp)
 // @access  Public
 router.post("/upload-model", (req, res) => {
   upload.single("model")(req, res, async (err) => {
@@ -78,22 +168,37 @@ router.post("/upload-model", (req, res) => {
       }
 
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-      let relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+      let fileToUploadPath = req.file.path;
+      let finalFilename = req.file.filename;
+      let convertedGlbPath = null;
+
+      // If not already a .glb file, convert to .glb with Assimp
+      if (!isGlbFormat(req.file.filename)) {
+        const baseName = path.basename(req.file.filename, path.extname(req.file.filename)).replace(/[^a-zA-Z0-9_-]/g, "_");
+        finalFilename = `${baseName}.glb`;
+        convertedGlbPath = path.join(path.dirname(req.file.path), `${baseName}_converted_${Date.now()}.glb`);
+        
+        console.log(`[Upload] Converting ${req.file.filename} to GLB via Assimp...`);
+        await convertWithAssimp(req.file.path, convertedGlbPath);
+        fileToUploadPath = convertedGlbPath;
+      }
+
+      let relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${finalFilename}`;
 
       // Upload file to Supabase Storage
-      const destinationPath = `${sanitizedEmail}/3D_Modals/${req.file.filename}`;
-      const supabaseUrl = await uploadFileToSupabase(req.file.path, destinationPath);
+      const destinationPath = `${sanitizedEmail}/3D_Modals/${finalFilename}`;
+      const supabaseUrl = await uploadFileToSupabase(fileToUploadPath, destinationPath);
       if (supabaseUrl) {
         relativeUrl = supabaseUrl;
       }
 
-      const type = path.extname(req.file.filename).slice(1);
-      const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
+      const stats = fs.statSync(fileToUploadPath);
+      const type = "glb";
+      const sizeStr = (stats.size / (1024 * 1024)).toFixed(2) + " MB";
 
       let model;
       let interactionModel = null;
       let finalRelativeUrl = relativeUrl;
-
 
       if (modelId) {
           model = await ThreedModel.findOne({ modelId, userEmail: emailId });
@@ -104,15 +209,15 @@ router.post("/upload-model", (req, res) => {
 
       if (model) {
           // Update ThreedModel
-          model.name = req.file.filename;
+          model.name = finalFilename;
           model.url = finalRelativeUrl;
           model.type = type;
           model.size = sizeStr;
           await model.save();
       } else if (interactionModel) {
           // Update InteractionThreedModel
-          interactionModel.fileName = req.file.filename;
-          interactionModel.url = `./assets/3D_Model/${req.file.filename}`;
+          interactionModel.fileName = finalFilename;
+          interactionModel.url = `./assets/3D_Model/${finalFilename}`;
           interactionModel.type = type;
           interactionModel.size = sizeStr;
           await interactionModel.save();
@@ -121,12 +226,12 @@ router.post("/upload-model", (req, res) => {
 
           // Upload 3D model to Supabase Storage in flipbook assets/3D_Model
           const interactionSupabasePath = `${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
-          uploadFileToSupabase(req.file.path, interactionSupabasePath).catch(err => console.warn("[Supabase] 3D Model asset upload warning:", err));
+          uploadFileToSupabase(fileToUploadPath, interactionSupabasePath).catch(err => console.warn("[Supabase] 3D Model asset upload warning:", err));
       } else {
           // Save as new ThreedModel (Global)
           model = new ThreedModel({
             userEmail: emailId,
-            name: req.file.filename,
+            name: finalFilename,
             url: finalRelativeUrl,
             type: type,
             size: sizeStr
@@ -134,15 +239,18 @@ router.post("/upload-model", (req, res) => {
           await model.save();
       }
 
-      // Cleanup local temp file after uploading to Supabase
+      // Cleanup local temp files after uploading to Supabase
       if (req.file && req.file.path && fs.existsSync(req.file.path)) {
         try { fs.unlinkSync(req.file.path); } catch(e) {}
+      }
+      if (convertedGlbPath && fs.existsSync(convertedGlbPath)) {
+        try { fs.unlinkSync(convertedGlbPath); } catch(e) {}
       }
 
       res.status(200).json({
         message: modelId ? "Model updated successfully" : "Model uploaded successfully",
         url: finalRelativeUrl,
-        name: req.file.filename,
+        name: finalFilename,
         type: type,
         size: sizeStr,
         modelId: model ? model.modelId : (interactionModel ? interactionModel.v_id : null)
@@ -152,20 +260,20 @@ router.post("/upload-model", (req, res) => {
         try { fs.unlinkSync(req.file.path); } catch(e) {}
       }
       console.error("Error processing 3D model:", error);
-      res.status(500).json({ message: "Server error during processing" });
+      res.status(500).json({ message: "Server error during processing: " + error.message });
     }
   });
 });
 
 // @route   POST /api/3d-models/upload-chunk
-// @desc    Receive a file chunk and merge if last
+// @desc    Receive a file chunk and merge if last (converts to GLB if needed)
 // @access  Public
 router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
   try {
     const { uploadId, chunkIndex, totalChunks, fileName, emailId, modelId } = req.body;
 
-    if (!uploadId || !emailId || !fileName) {
-      return res.status(400).json({ message: "Missing required chunk metadata" });
+    if (!uploadId || !fileName) {
+      return res.status(400).json({ message: "Missing required chunk metadata (uploadId, fileName)" });
     }
 
     const curIndex = parseInt(chunkIndex);
@@ -174,7 +282,7 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
     // If it's the last chunk, start merging in tempDir
     if (curIndex === total - 1) {
       const tempDir = path.join(__dirname, "../../temp_uploads/3d_models/temp", uploadId);
-      const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+      const sanitizedEmail = (emailId || "guest_user").replace(/[@.]/g, "_");
 
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
@@ -204,71 +312,108 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
       }
       writeStream.end();
 
-      writeStream.on("finish", () => {
-        const stats = fs.statSync(finalPath);
-        const type = path.extname(fileName).slice(1);
-        const sizeStr = (stats.size / (1024 * 1024)).toFixed(2) + " MB";
+      writeStream.on("finish", async () => {
+        try {
+          let uploadFilePath = finalPath;
+          let finalFileName = fileName;
 
-        // Save to Database & Supabase
-        const saveToDb = async () => {
-             const destinationPath = `${sanitizedEmail}/3D_Modals/${fileName}`;
-             const supabaseUrl = await uploadFileToSupabase(finalPath, destinationPath);
-             const modelUrl = supabaseUrl || `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`;
+          const isConverter = req.body.isConverter === "true" || req.body.isConverter === true;
+          const baseName = path.basename(fileName, path.extname(fileName)).replace(/[^a-zA-Z0-9_-]/g, "_");
 
-             let existing = null;
-             if (modelId) {
-               existing = await ThreedModel.findOne({ modelId, userEmail: emailId });
-             }
-             if (!existing) {
-               existing = await ThreedModel.findOne({ userEmail: emailId, name: fileName });
-             }
+          // Convert to GLB if not already GLB
+          if (!isGlbFormat(fileName)) {
+            finalFileName = isConverter ? `${baseName}_converted_${Date.now()}.glb` : `${baseName}.glb`;
+            const convertedGlbPath = path.join(tempDir, finalFileName);
+            
+            console.log(`[Chunk Upload] Converting merged ${fileName} to GLB via Assimp...`);
+            await convertWithAssimp(finalPath, convertedGlbPath);
+            uploadFilePath = convertedGlbPath;
+          }
 
-             if (!existing) {
-                 const newModel = new ThreedModel({
-                     userEmail: emailId,
-                     name: fileName,
-                     url: modelUrl,
-                     type: type,
-                     size: sizeStr
-                 });
-                 await newModel.save();
-                 return newModel;
-             } else {
-                 existing.name = fileName;
-                 existing.url = modelUrl;
-                 existing.type = type;
-                 existing.size = sizeStr;
-                 await existing.save();
-                 return existing;
-             }
-        };
+          const stats = fs.statSync(uploadFilePath);
+          const type = "glb";
+          const sizeStr = (stats.size / (1024 * 1024)).toFixed(2) + " MB";
 
-        saveToDb().then(model => {
-            // Clean up merged file and temp directory
-            try {
-              if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
-            } catch (e) {
-              console.error("Error cleaning up temp dir:", e);
-            }
+          if (isConverter) {
+            // Save to temporary 3D_Converter in Supabase with 1-hour auto cleanup
+            const destinationPath = `${sanitizedEmail}/3D_Converter/${finalFileName}`;
+            console.log(`[Chunk Upload] Uploading converted GLB to Supabase: ${destinationPath}`);
+            const supabaseUrl = await uploadFileToSupabase(uploadFilePath, destinationPath);
+            
+            // Immediately clean up local temporary directory
+            try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
 
-            res.status(200).json({
-                message: "Model uploaded and merged successfully",
-                url: model.url,
-                name: fileName,
-                modelId: model.modelId
+            // Auto delete from Supabase 3D_Converter after 1 hour (3600000 ms)
+            scheduleSupabaseCleanup(destinationPath, 60 * 60 * 1000);
+
+            const finalModelUrl = supabaseUrl || `/uploads/${destinationPath}`;
+
+            return res.status(200).json({
+                success: true,
+                message: "Model converted successfully",
+                url: finalModelUrl,
+                name: baseName,
+                sizeInMB: (stats.size / (1024 * 1024)).toFixed(2)
             });
-        }).catch(err => {
-            try {
-              if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
-            } catch (e) {}
-            console.error("DB Save Error:", err);
-            res.status(200).json({
-                message: "Model merged but DB save failed",
-                url: `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`,
-                name: fileName
-            });
-        });
+          }
 
+          // Saving to permanent user 3D_Modals folder in Supabase
+          const destinationPath = `${sanitizedEmail}/3D_Modals/${finalFileName}`;
+          const supabaseUrl = await uploadFileToSupabase(uploadFilePath, destinationPath);
+          const modelUrl = supabaseUrl || `/uploads/${sanitizedEmail}/3D_Modals/${finalFileName}`;
+
+          // Immediately clean up local temporary directory
+          try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+
+          let existing = null;
+          if (modelId) {
+            existing = await ThreedModel.findOne({ modelId, userEmail: emailId });
+          }
+          if (!existing) {
+            existing = await ThreedModel.findOne({ userEmail: emailId, name: finalFileName });
+          }
+
+          let savedModel;
+          if (!existing) {
+              const newModel = new ThreedModel({
+                  userEmail: emailId,
+                  name: finalFileName,
+                  url: modelUrl,
+                  type: type,
+                  size: sizeStr
+              });
+              await newModel.save();
+              savedModel = newModel;
+          } else {
+              existing.name = finalFileName;
+              existing.url = modelUrl;
+              existing.type = type;
+              existing.size = sizeStr;
+              await existing.save();
+              savedModel = existing;
+          }
+
+          res.status(200).json({
+              success: true,
+              message: "Model uploaded and saved successfully",
+              url: savedModel.url,
+              name: finalFileName,
+              modelId: savedModel.modelId
+          });
+        } catch (mergeErr) {
+          try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+          console.error("Chunk Merge / Conversion Error:", mergeErr);
+          
+          let clientMsg = `Model conversion failed: ${mergeErr.message}`;
+          if (fileName && fileName.toLowerCase().endsWith(".blend")) {
+            clientMsg = "This .blend file contains complex Blender mesh modifiers/BMesh data that Assimp cannot parse directly. Please open Blender and export your model as .GLB (glTF 2.0), .FBX, or .OBJ (File > Export), which are fully supported.";
+          }
+
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          res.status(422).json({
+              message: clientMsg
+          });
+        }
       });
 
       writeStream.on("error", (err) => {

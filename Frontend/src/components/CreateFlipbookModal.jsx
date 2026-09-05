@@ -3,7 +3,7 @@ import { X, Upload, ChevronLeft, ChevronRight, Minus, Plus, GripVertical } from 
 import { Icon } from '@iconify/react';
 import { useModernToast } from './ModernToast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getPdfPageCount } from '../utils/pdfUtils';
+import { getPdfPageCount, getPdfDetails } from '../utils/pdfUtils';
 import AlertModal from './AlertModal';
 
 const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate', existingFlipbooks = [], initialFiles = null }) => {
@@ -153,9 +153,18 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     }
   }, [uploadedFiles]);
 
-  const handleFileChange = (event) => {
-    const files = Array.from(event.target.files);
-    const MAX_TOTAL_SIZE = 20 * 1024 * 1024; // 20MB Total
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
+
+  const handleFileChange = async (event) => {
+    const files = Array.from(event?.target?.files || []);
+    if (!files.length) return;
+
+    // Clear input so same file can be selected again
+    if (event?.target && event.target.value !== undefined) {
+      event.target.value = '';
+    }
+
+    const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB Total
 
     // Calculate current total size
     const currentTotalSize = uploadedFiles.reduce((sum, f) => sum + f.file.size, 0);
@@ -164,37 +173,106 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     const validFiles = [];
     for (const file of files) {
       if (newTotalSize + file.size > MAX_TOTAL_SIZE) {
-        toast.error(`Total size exceeds 20MB limit. Skipping ${file.name}`);
+        toast.error(`Total size exceeds 50MB limit. Skipping ${file.name}`);
         continue;
       }
       validFiles.push(file);
       newTotalSize += file.size;
     }
 
-    if (validFiles.length > 0) {
-      const newFiles = validFiles.map(file => ({
-        file,
-        id: Math.random().toString(36).substr(2, 9),
-        progress: 0,
-        pages: null
-      }));
-      setUploadedFiles(prev => [...prev, ...newFiles]);
+    if (validFiles.length === 0) return;
 
-      // Fetch actual page count for each PDF
-      newFiles.forEach(async (f) => {
+    setIsProcessingFiles(true);
+
+    try {
+      // Determine baseline dimensions from existing uploaded files, if any
+      let baselineWidth = uploadedFiles.length > 0 && uploadedFiles[0].width ? uploadedFiles[0].width : null;
+      let baselineHeight = uploadedFiles.length > 0 && uploadedFiles[0].height ? uploadedFiles[0].height : null;
+
+      const acceptedFiles = [];
+
+      for (const file of validFiles) {
+        let details;
         try {
-          const pages = await getPdfPageCount(f.file);
-          setUploadedFiles(prev => prev.map(item => item.id === f.id ? { ...item, pages } : item));
-        } catch (e) {
-          console.error("Error reading PDF pages", e);
-          setUploadedFiles(prev => prev.map(item => item.id === f.id ? { ...item, pages: '?' } : item));
+          details = await getPdfDetails(file);
+        } catch (err) {
+          console.error("Error inspecting PDF:", err);
+          setAlertState({
+            isOpen: true,
+            title: 'Invalid PDF',
+            message: `Could not read the PDF file "${file.name}". Please make sure it is a valid, unprotected PDF.`,
+            type: 'error',
+            showCancel: false,
+            confirmText: 'Okay',
+            onConfirm: () => setAlertState(prev => ({ ...prev, isOpen: false }))
+          });
+          return;
         }
-      });
-    }
 
-    // Clear input so same file can be selected again
-    if (event.target && event.target.value !== undefined) {
-      event.target.value = '';
+        if (!details || details.count === 0) {
+          setAlertState({
+            isOpen: true,
+            title: 'Empty PDF',
+            message: `The PDF file "${file.name}" contains no pages.`,
+            type: 'error',
+            showCancel: false,
+            confirmText: 'Okay',
+            onConfirm: () => setAlertState(prev => ({ ...prev, isOpen: false }))
+          });
+          return;
+        }
+
+        // 1. Check internal uniformity of this PDF's pages
+        if (!details.isUniform) {
+          setAlertState({
+            isOpen: true,
+            title: 'Uniformity Error',
+            message: `The PDF "${file.name}" contains pages with different dimensions. All pages in a flipbook must have the same size to ensure a professional layout.`,
+            type: 'error',
+            showCancel: false,
+            confirmText: 'Okay',
+            onConfirm: () => setAlertState(prev => ({ ...prev, isOpen: false }))
+          });
+          return;
+        }
+
+        // 2. Check if this PDF matches baseline dimensions
+        if (baselineWidth !== null && baselineHeight !== null) {
+          const widthMatch = Math.abs(details.width - baselineWidth) < 1;
+          const heightMatch = Math.abs(details.height - baselineHeight) < 1;
+
+          if (!widthMatch || !heightMatch) {
+            setAlertState({
+              isOpen: true,
+              title: 'Dimension Mismatch',
+              message: `The PDF "${file.name}" has page dimensions (${details.width.toFixed(1)} × ${details.height.toFixed(1)} mm) that do not match the existing uploaded PDF(s) (${baselineWidth.toFixed(1)} × ${baselineHeight.toFixed(1)} mm). All pages must have identical dimensions.`,
+              type: 'error',
+              showCancel: false,
+              confirmText: 'Okay',
+              onConfirm: () => setAlertState(prev => ({ ...prev, isOpen: false }))
+            });
+            return;
+          }
+        } else {
+          baselineWidth = details.width;
+          baselineHeight = details.height;
+        }
+
+        acceptedFiles.push({
+          file,
+          id: Math.random().toString(36).substr(2, 9),
+          progress: 0,
+          pages: details.count,
+          width: details.width,
+          height: details.height
+        });
+      }
+
+      if (acceptedFiles.length > 0) {
+        setUploadedFiles(prev => [...prev, ...acceptedFiles]);
+      }
+    } finally {
+      setIsProcessingFiles(false);
     }
   };
 
@@ -323,12 +401,18 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
 
       {/* Drag & Drop Box */}
       <div
-        className={`w-full border-[0.15vw] border-dashed rounded-[0.75vw] flex flex-col items-center justify-center py-[1.25vw] mb-[1vw] cursor-pointer transition-colors ${isDragActive ? 'border-green-500 bg-green-50/50 scale-[1.02]' : 'border-[#4c5add] hover:bg-blue-50/50'}`}
-        onClick={handleUploadClick}
-        onDragEnter={handleDragEnterBox}
-        onDragLeave={handleDragLeaveBox}
-        onDragOver={handleDragOverBox}
-        onDrop={handleDropBox}
+        className={`w-full border-[0.15vw] border-dashed rounded-[0.75vw] flex flex-col items-center justify-center py-[1.25vw] mb-[1vw] transition-colors ${
+          isProcessingFiles
+            ? 'border-indigo-300 bg-indigo-50/40 cursor-wait'
+            : isDragActive
+            ? 'border-green-500 bg-green-50/50 scale-[1.02] cursor-pointer'
+            : 'border-[#4c5add] hover:bg-blue-50/50 cursor-pointer'
+        }`}
+        onClick={isProcessingFiles ? undefined : handleUploadClick}
+        onDragEnter={isProcessingFiles ? undefined : handleDragEnterBox}
+        onDragLeave={isProcessingFiles ? undefined : handleDragLeaveBox}
+        onDragOver={isProcessingFiles ? undefined : handleDragOverBox}
+        onDrop={isProcessingFiles ? undefined : handleDropBox}
       >
         <input
           type="file"
@@ -337,17 +421,27 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           accept="application/pdf"
           onChange={handleFileChange}
           multiple
+          disabled={isProcessingFiles}
         />
-        <Upload size="1.5vw" className="text-gray-400 mb-[0.25vw]" strokeWidth={1.5} />
-        <p className="text-[0.75vw] text-gray-500 mb-[0.5vw]">Drag & Drop or <span className="text-[#4c5add] font-medium">Upload</span></p>
-        <div className="flex items-center gap-[0.5vw] text-[0.6vw] text-gray-600">
-          Supported File format-
-          <div className="flex items-center gap-[0.4vw] ml-[0.25vw]">
-            <Icon icon="vscode-icons:file-type-pdf2" className="w-[1.1vw] h-[1.1vw]" />
-            <Icon icon="vscode-icons:file-type-word" className="w-[1.1vw] h-[1.1vw]" />
-            <Icon icon="vscode-icons:file-type-powerpoint" className="w-[1.1vw] h-[1.1vw]" />
+        {isProcessingFiles ? (
+          <div className="flex flex-col items-center justify-center py-[0.2vw]">
+            <div className="w-[1.4vw] h-[1.4vw] border-[0.18vw] border-indigo-200 border-t-[#4c5add] rounded-full animate-spin mb-[0.4vw]" />
+            <p className="text-[0.72vw] text-indigo-600 font-medium">Checking PDF dimensions...</p>
           </div>
-        </div>
+        ) : (
+          <>
+            <Upload size="1.5vw" className="text-gray-400 mb-[0.25vw]" strokeWidth={1.5} />
+            <p className="text-[0.75vw] text-gray-500 mb-[0.5vw]">Drag & Drop or <span className="text-[#4c5add] font-medium">Upload</span></p>
+            <div className="flex items-center gap-[0.5vw] text-[0.6vw] text-gray-600">
+              Supported File format-
+              <div className="flex items-center gap-[0.4vw] ml-[0.25vw]">
+                <Icon icon="vscode-icons:file-type-pdf2" className="w-[1.1vw] h-[1.1vw]" />
+                <Icon icon="vscode-icons:file-type-word" className="w-[1.1vw] h-[1.1vw]" />
+                <Icon icon="vscode-icons:file-type-powerpoint" className="w-[1.1vw] h-[1.1vw]" />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Flipbook Name */}
@@ -440,11 +534,12 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
         </button>
         <button
           onClick={handleCreateFlipbook}
-          disabled={uploadedFiles.length === 0 || !uploadedFiles.every(f => f.progress === 100) || nameError || !flipbookName.trim()}
-          className={`flex-1 py-[0.6vw] font-semibold cursor-pointer rounded-[0.5vw] text-[0.85vw] transition-all ${uploadedFiles.length > 0 && uploadedFiles.every(f => f.progress === 100) && !nameError && flipbookName.trim()
+          disabled={isProcessingFiles || uploadedFiles.length === 0 || !uploadedFiles.every(f => f.progress === 100) || nameError || !flipbookName.trim()}
+          className={`flex-1 py-[0.6vw] font-semibold cursor-pointer rounded-[0.5vw] text-[0.85vw] transition-all ${
+            !isProcessingFiles && uploadedFiles.length > 0 && uploadedFiles.every(f => f.progress === 100) && !nameError && flipbookName.trim()
               ? 'bg-[#4F46E5] text-white hover:bg-[#4338ca] shadow-lg shadow-indigo-500/30 active:scale-95'
               : 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
-            }`}
+          }`}
         >
           Create Flipbook
         </button>

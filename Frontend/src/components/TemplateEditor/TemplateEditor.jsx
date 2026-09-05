@@ -9,7 +9,7 @@ import RightSidebar from './RightSidebar';
 import TooltipCustomization from './TooltipCustomization';
 import TemplateModal from './TemplateModal';
 import FlipbookPreview from './FlipbookPreview';
-import { convertPdfToImages, generatePdfPageSvg } from '../../utils/pdfUtils';
+import { convertPdfToImages, generatePdfPageSvg, svgToDataUrl } from '../../utils/pdfUtils';
 import AlertModal from '../AlertModal';
 import PdfProcessingLoader from '../PdfProcessingLoader';
 import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
@@ -2159,7 +2159,7 @@ const TemplateEditor = () => {
         return;
       }
 
-      const base64Data = await new Promise((resolve, reject) => {
+      const base64Data = image.svgString ? svgToDataUrl(image.svgString) : await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
         reader.onerror = reject;
@@ -2318,7 +2318,7 @@ const TemplateEditor = () => {
       let completed = 0;
       const uploadPromises = images.map(async (image, i) => {
         const newPageVId = 'page_' + Math.random().toString(36).substr(2, 9);
-        const base64Data = await new Promise((resolve, reject) => {
+        const base64Data = image.svgString ? svgToDataUrl(image.svgString) : await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result);
           reader.onerror = reject;
@@ -3405,6 +3405,13 @@ const TemplateEditor = () => {
         const snippetDoc = parser.parseFromString(svgSnippet, 'image/svg+xml');
         const newElement = doc.importNode(snippetDoc.documentElement, true);
         newElement.setAttribute('id', newLayer.id);
+
+        // Apply an offset to the duplicated/pasted element so it doesn't perfectly overlap
+        // Avoid offsetting structural elements like 'g' that are marked as 'frame' (folders)
+        if (newElement.tagName !== 'g' || newElement.getAttribute('data-type') !== 'frame') {
+          const currentTransform = newElement.getAttribute('transform') || '';
+          newElement.setAttribute('transform', (currentTransform + ' translate(20, 20)').trim());
+        }
 
         if (newLayer.type === 'g') {
           const updateRecursiveIds = (el, meta) => {
