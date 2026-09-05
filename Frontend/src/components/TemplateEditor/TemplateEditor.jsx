@@ -3406,6 +3406,13 @@ const TemplateEditor = () => {
         const newElement = doc.importNode(snippetDoc.documentElement, true);
         newElement.setAttribute('id', newLayer.id);
 
+        // Apply an offset to the duplicated/pasted element so it doesn't perfectly overlap
+        // Avoid offsetting structural elements like 'g' that are marked as 'frame' (folders)
+        if (newElement.tagName !== 'g' || newElement.getAttribute('data-type') !== 'frame') {
+          const currentTransform = newElement.getAttribute('transform') || '';
+          newElement.setAttribute('transform', (currentTransform + ' translate(20, 20)').trim());
+        }
+
         if (newLayer.type === 'g') {
           const updateRecursiveIds = (el, meta) => {
             if (meta.children) {

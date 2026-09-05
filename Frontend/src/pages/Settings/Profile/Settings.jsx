@@ -131,9 +131,6 @@ const SettingsLayout = () => {
                   ...(p.socials || {})
                 }
               };
-              try {
-                localStorage.setItem('user_profile', JSON.stringify(updated));
-              } catch (e) {}
               return updated;
             });
           }
@@ -141,6 +138,13 @@ const SettingsLayout = () => {
         .catch(err => console.error("Error loading profile in settings:", err));
     }
   }, []);
+
+  // Sync user state to localStorage when it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('user_profile', JSON.stringify(user));
+    } catch (e) {}
+  }, [user]);
 
   const userEmail = user?.emailId || user?.email || '';
   const profilePath = userEmail ? `profile/${encodeURIComponent(userEmail)}` : 'profile';
