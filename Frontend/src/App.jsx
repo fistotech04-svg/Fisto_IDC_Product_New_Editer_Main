@@ -1,6 +1,5 @@
 //App.jsx
 import './App.css';
-import './utils/axiosConfig';
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Signin from './pages/Signin';

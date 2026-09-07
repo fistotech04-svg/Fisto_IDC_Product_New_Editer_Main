@@ -2396,9 +2396,10 @@ router.get("/public/get/:shareId", async (req, res) => {
     const dbDoc = await Flipbook.findOne({
       $or: [
         { "Customized_Settings.Visibility.shareId": shareId },
-        { "share.shareId": shareId }
+        { "share.shareId": shareId },
+        { v_id: shareId }  // fallback: editor preview passes v_id when no shareId is configured
       ]
-    });
+    }).lean();
     if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
 
     const vis = dbDoc.Customized_Settings?.Visibility || dbDoc.share || {};
@@ -2516,6 +2517,7 @@ router.get("/public/get/:shareId", async (req, res) => {
     );
 
     // AUTO-HEAL: If DB has no pages but files exist on disk, populate it
+    // Note: dbDoc is a lean plain object, so we use Flipbook.updateOne() instead of dbDoc.save()
     if (!dbDoc.pages || dbDoc.pages.length === 0) {
       if (fs.existsSync(bookPath)) {
         try {
@@ -2535,7 +2537,8 @@ router.get("/public/get/:shareId", async (req, res) => {
             }));
 
             dbDoc.pages = autoHealedPages;
-            await dbDoc.save();
+            // Use updateOne since dbDoc is a lean plain object (no .save())
+            await Flipbook.updateOne({ _id: dbDoc._id }, { $set: { pages: autoHealedPages } });
           }
         } catch (e) {
           console.error(`[PublicGet] Auto-heal failed for v_id: ${dbDoc.v_id}`, e);
@@ -2580,7 +2583,15 @@ router.get("/public/get/:shareId", async (req, res) => {
       }
     });
 
-    let pages = (await Promise.all(pagePromises)).filter(Boolean);
+    // Run Profile fetch in parallel with page downloads for speed
+    const profilePromise = dbDoc.userEmail
+      ? Profile.findOne({ emailId: new RegExp(`^${dbDoc.userEmail.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`, 'i') }).lean().catch(() => null)
+      : Promise.resolve(null);
+
+    let [pages, authorProfile] = await Promise.all([
+      Promise.all(pagePromises).then(p => p.filter(Boolean)),
+      profilePromise
+    ]);
 
     // Fallback: If pages returned no content, map DB metadata pages
     if (pages.length === 0 && dbDoc.pages && dbDoc.pages.length > 0) {
@@ -2598,14 +2609,6 @@ router.get("/public/get/:shareId", async (req, res) => {
     const docSettings = { ...(dbDoc.Customized_Settings || dbDoc.settings || {}) };
     delete docSettings.FlipbookInfo;
     delete docSettings.visibility;
-
-    // Fetch author profile info if available
-    let authorProfile = null;
-    try {
-      if (dbDoc.userEmail) {
-        authorProfile = await Profile.findOne({ emailId: new RegExp(`^${dbDoc.userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }).lean();
-      }
-    } catch(e) {}
 
     const ratings = dbDoc.bookRating || [];
     const totalRatings = ratings.length;
@@ -2641,6 +2644,7 @@ router.get("/public/get/:shareId", async (req, res) => {
       flipbookName: dbDoc.flipbookName,
       folderName: effectiveFolderName,
       userEmail: dbDoc.userEmail,
+      isOwner,  // allow frontend to skip a separate check-owner call
       pages,
       Customized_Settings: docSettings,
       settings: docSettings,
@@ -2986,9 +2990,10 @@ router.get("/check-owner/:shareId", async (req, res) => {
     const dbDoc = await Flipbook.findOne({
       $or: [
         { "Customized_Settings.Visibility.shareId": shareId },
-        { "share.shareId": shareId }
+        { "share.shareId": shareId },
+        { v_id: shareId }  // fallback for editor preview passing v_id
       ]
-    });
+    }).lean();
     if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
 
     if (dbDoc.userEmail !== emailId) {

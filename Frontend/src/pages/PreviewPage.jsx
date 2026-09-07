@@ -42,12 +42,9 @@ const PreviewPage = () => {
           return;
         }
 
-        const [res, checkRes] = await Promise.all([
-          axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, { params }),
-          axios.get(`${backendUrl}/api/flipbook/check-owner/${shareId}?emailId=${encodeURIComponent(currentUserEmail)}`).catch(() => ({ data: { isOwner: false } }))
-        ]);
+        const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, { params });
 
-        if (!checkRes.data || !checkRes.data.isOwner) {
+        if (!res.data?.isOwner) {
           setData({ error: true, errorMessage: "You do not have permission to preview another user's flipbook." });
           return;
         }
