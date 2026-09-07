@@ -160,9 +160,6 @@ export default function Signin() {
       });
       
       if (res.data.user) {
-        if (res.data.token) {
-          localStorage.setItem('token', res.data.token);
-        }
         const userData = {
           ...res.data.user,
           isLoggedIn: true
