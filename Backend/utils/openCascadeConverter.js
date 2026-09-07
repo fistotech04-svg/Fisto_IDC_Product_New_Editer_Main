@@ -11,8 +11,10 @@ let occInitPromise = null;
 
 /**
  * Supported CAD formats for OpenCASCADE conversion
+ * Specifically: STL, STP, STEP, IGS, IGES
  */
 export const CAD_EXTENSIONS = [
+  ".stl",
   ".step",
   ".stp",
   ".iges",
@@ -28,6 +30,101 @@ export const isCadFormat = (filename) => {
   if (!filename) return false;
   const ext = path.extname(filename).toLowerCase();
   return CAD_EXTENSIONS.includes(ext);
+};
+
+/**
+ * Parses binary or ASCII STL file data into mesh buffers (positions, normals, indices)
+ * @param {Buffer|Uint8Array} buffer 
+ * @returns {{ positions: Float32Array, normals: Float32Array, indices: Uint16Array|Uint32Array, vertexCount: number, indexCount: number }}
+ */
+export const parseStlBuffer = (buffer) => {
+  const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+
+  let isBinary = false;
+  if (buf.length >= 84) {
+    const numTriangles = buf.readUInt32LE(80);
+    const expectedSize = 84 + numTriangles * 50;
+    if (expectedSize === buf.length) {
+      isBinary = true;
+    } else {
+      const checkLen = Math.min(512, buf.length);
+      let nullCount = 0;
+      for (let i = 0; i < checkLen; i++) {
+        if (buf[i] === 0) nullCount++;
+      }
+      if (nullCount > 0) isBinary = true;
+    }
+  }
+
+  const positions = [];
+  const normals = [];
+  const indices = [];
+  let vertexIndex = 0;
+
+  if (isBinary) {
+    const numTriangles = buf.readUInt32LE(80);
+    let offset = 84;
+    for (let i = 0; i < numTriangles && offset + 50 <= buf.length; i++) {
+      const nx = buf.readFloatLE(offset);
+      const ny = buf.readFloatLE(offset + 4);
+      const nz = buf.readFloatLE(offset + 8);
+      offset += 12;
+
+      for (let v = 0; v < 3; v++) {
+        const vx = buf.readFloatLE(offset);
+        const vy = buf.readFloatLE(offset + 4);
+        const vz = buf.readFloatLE(offset + 8);
+        offset += 12;
+
+        positions.push(vx, vy, vz);
+        normals.push(nx, ny, nz);
+        indices.push(vertexIndex++);
+      }
+
+      offset += 2; // attribute byte count
+    }
+  } else {
+    // ASCII STL
+    const text = buf.toString("utf8");
+    const lines = text.split(/\r?\n/);
+    let curNx = 0, curNy = 0, curNz = 1;
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (line.startsWith("facet normal")) {
+        const parts = line.split(/\s+/);
+        if (parts.length >= 5) {
+          curNx = parseFloat(parts[2]) || 0;
+          curNy = parseFloat(parts[3]) || 0;
+          curNz = parseFloat(parts[4]) || 1;
+        }
+      } else if (line.startsWith("vertex")) {
+        const parts = line.split(/\s+/);
+        if (parts.length >= 4) {
+          const vx = parseFloat(parts[1]) || 0;
+          const vy = parseFloat(parts[2]) || 0;
+          const vz = parseFloat(parts[3]) || 0;
+          positions.push(vx, vy, vz);
+          normals.push(curNx, curNy, curNz);
+          indices.push(vertexIndex++);
+        }
+      }
+    }
+  }
+
+  if (positions.length === 0) {
+    throw new Error("Invalid or empty STL model file.");
+  }
+
+  const vertexCount = positions.length / 3;
+  const indexCount = indices.length;
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: vertexCount > 65535 ? new Uint32Array(indices) : new Uint16Array(indices),
+    vertexCount,
+    indexCount
+  };
 };
 
 /**
@@ -63,10 +160,10 @@ export const getOpenCascade = async () => {
 };
 
 /**
- * Reads a CAD shape from an in-memory buffer (STEP, IGES, or BREP)
+ * Reads a CAD shape from an in-memory buffer (STEP, STP, IGES, IGS, STL, or BREP)
  * @param {Object} occ - OpenCascade instance
  * @param {Buffer|Uint8Array} fileBuffer - CAD file data
- * @param {string} ext - File extension (e.g. '.step', '.iges', '.brep')
+ * @param {string} ext - File extension (e.g. '.step', '.stp', '.iges', '.igs', '.stl', '.brep')
  * @returns {Object} TopoDS_Shape
  */
 export const readCadShape = (occ, fileBuffer, ext) => {
@@ -81,15 +178,68 @@ export const readCadShape = (occ, fileBuffer, ext) => {
 
   try {
     if (normalizedExt === "step" || normalizedExt === "stp") {
-      const reader = new occ.STEPControl_Reader_1();
-      const status = reader.ReadFile(vPath);
+      const ReaderClass = occ.STEPControl_Reader_1 || occ.STEPControl_Reader;
+      const reader = new ReaderClass();
+      const status = (reader.ReadFile_1 || reader.ReadFile).call(reader, vPath);
       reader.TransferRoots();
       shape = reader.OneShape();
     } else if (normalizedExt === "iges" || normalizedExt === "igs") {
-      const reader = new occ.IGESControl_Reader_1();
-      const status = reader.ReadFile(vPath);
-      reader.TransferRoots();
-      shape = reader.OneShape();
+      const ReaderClass = occ.IGESControl_Reader_1 || occ.IGESControl_Reader;
+      if (typeof ReaderClass === "function") {
+        const reader = new ReaderClass();
+        const status = (reader.ReadFile_1 || reader.ReadFile).call(reader, vPath);
+        reader.TransferRoots();
+        shape = reader.OneShape();
+      } else {
+        throw new Error("IGESControl_Reader is not available in backend OpenCascade WASM build.");
+      }
+    } else if (normalizedExt === "stl") {
+      shape = new occ.TopoDS_Shape();
+      let readSuccess = false;
+      const StlReader = occ.StlAPI_Reader_1 || occ.StlAPI_Reader;
+      if (typeof StlReader === "function") {
+        try {
+          const reader = new StlReader();
+          if (typeof reader.Read_1 === "function") {
+            readSuccess = reader.Read_1(shape, vPath);
+          } else if (typeof reader.Read === "function") {
+            readSuccess = reader.Read(shape, vPath);
+          }
+        } catch (stlErr) {
+          console.warn("[OpenCASCADE] StlAPI_Reader notice:", stlErr.message);
+        }
+      }
+
+      if (!readSuccess || !shape || (typeof shape.IsNull === "function" && shape.IsNull())) {
+        try {
+          const RWStlClass = occ.RWStl;
+          const readFn = RWStlClass?.ReadFile_1 || RWStlClass?.ReadFile;
+          if (typeof readFn === "function") {
+            const StrClass = occ.TCollection_AsciiString_2 || occ.TCollection_AsciiString_1 || occ.TCollection_AsciiString;
+            const aPath = StrClass ? new StrClass(vPath) : vPath;
+            const polyTri = readFn(aPath);
+            if (polyTri && (typeof polyTri.IsNull !== "function" || !polyTri.IsNull())) {
+              const builder = new occ.BRep_Builder();
+              const face = new occ.TopoDS_Face();
+              if (typeof builder.MakeFace_1 === "function") {
+                builder.MakeFace_1(face);
+              } else if (typeof builder.MakeFace === "function") {
+                builder.MakeFace(face);
+              }
+              const triVal = typeof polyTri.get === "function" ? polyTri.get() : polyTri;
+              if (typeof builder.UpdateFace_1 === "function") {
+                builder.UpdateFace_1(face, triVal);
+              } else if (typeof builder.UpdateFace === "function") {
+                builder.UpdateFace(face, triVal);
+              }
+              shape = face;
+              readSuccess = true;
+            }
+          }
+        } catch (rwErr) {
+          console.warn("[OpenCASCADE] RWStl notice:", rwErr.message);
+        }
+      }
     } else if (normalizedExt === "brep" || normalizedExt === "brp") {
       shape = new occ.TopoDS_Shape();
       const builder = new occ.BRep_Builder();
@@ -127,14 +277,21 @@ export const extractMeshFromShape = (occ, shape, options = {}) => {
   const linearDeflection = options.linearDeflection || 0.1;
   const angularDeflection = options.angularDeflection || 0.5;
 
-  // Triangulate shape with deflection
-  new occ.BRepMesh_IncrementalMesh_2(
-    shape,
-    linearDeflection,
-    false,
-    angularDeflection,
-    true
-  );
+  // Triangulate shape with deflection if not already triangulated
+  try {
+    const MeshClass = occ.BRepMesh_IncrementalMesh_2 || occ.BRepMesh_IncrementalMesh;
+    if (typeof MeshClass === "function") {
+      new MeshClass(
+        shape,
+        linearDeflection,
+        false,
+        angularDeflection,
+        true
+      );
+    }
+  } catch (meshErr) {
+    console.warn("[OpenCASCADE] Incremental mesh notice:", meshErr.message);
+  }
 
   const positions = [];
   const indices = [];
@@ -417,13 +574,31 @@ export const buildGlbBuffer = (meshData, options = {}) => {
 };
 
 /**
- * Converts a CAD file buffer (STEP, IGES, or BREP) directly to a GLB Buffer
+ * Converts a CAD file buffer (STEP, STP, IGES, IGS, STL, or BREP) directly to a GLB Buffer
  * @param {Buffer|Uint8Array} fileBuffer 
- * @param {string} ext - Extension like '.step', '.iges', '.brep'
+ * @param {string} ext - Extension like '.stl', '.step', '.stp', '.iges', '.igs', '.brep'
  * @param {Object} [options]
  * @returns {Promise<Buffer>} GLB Buffer
  */
 export const convertCadBufferToGlb = async (fileBuffer, ext, options = {}) => {
+  const normalizedExt = (ext || "").toLowerCase().replace(/^\./, "");
+
+  if (normalizedExt === "stl") {
+    // OpenCASCADE STL conversion: try native OpenCASCADE reader first, or parse mesh directly
+    try {
+      const occ = await getOpenCascade();
+      const shape = readCadShape(occ, fileBuffer, ext);
+      if (shape && (typeof shape.IsNull !== "function" || !shape.IsNull())) {
+        const meshData = extractMeshFromShape(occ, shape, options);
+        return buildGlbBuffer(meshData, options);
+      }
+    } catch (occErr) {
+      console.warn("[OpenCASCADE] Native shape meshing notice for STL, using direct mesh extraction:", occErr.message);
+    }
+    const meshData = parseStlBuffer(fileBuffer);
+    return buildGlbBuffer(meshData, options);
+  }
+
   const occ = await getOpenCascade();
   const shape = readCadShape(occ, fileBuffer, ext);
   const meshData = extractMeshFromShape(occ, shape, options);
@@ -432,7 +607,7 @@ export const convertCadBufferToGlb = async (fileBuffer, ext, options = {}) => {
 };
 
 /**
- * Converts a STEP / IGES / BREP CAD file on disk to a .glb file
+ * Converts a CAD file (STL, STEP, STP, IGES, IGS, BREP) on disk to a .glb file using OpenCASCADE
  * @param {string} inputPath - Path to input CAD file
  * @param {string} outputPath - Path to output .glb file
  * @param {Object} [options]
@@ -471,6 +646,7 @@ export const convertCadFileToGlb = async (inputPath, outputPath, options = {}) =
 export default {
   CAD_EXTENSIONS,
   isCadFormat,
+  parseStlBuffer,
   getOpenCascade,
   readCadShape,
   extractMeshFromShape,
@@ -478,3 +654,4 @@ export default {
   convertCadBufferToGlb,
   convertCadFileToGlb
 };
+

@@ -28,6 +28,7 @@ const parseLayersFromSVG = (element) => {
     .filter(child => {
       if (['defs', 'metadata', 'style', 'title', 'desc', 'parsererror'].includes(child.tagName.toLowerCase())) return false;
       if (child.getAttribute('data-name') === 'Overlay') return false;
+      if (child.getAttribute('style')?.includes('display:none') || child.getAttribute('style')?.includes('display: none')) return false;
       if (child.classList.contains('svg-drop-shadow-caster')) return false;
       if (child.classList.contains('internal-crop-rect')) return false;
       if (child.classList.contains('internal-crop-pattern')) return false;
@@ -72,7 +73,9 @@ const parseLayersFromSVG = (element) => {
         child.getAttribute('data-is-video-group') === 'true' ||
         child.getAttribute('data-is-gif-group') === 'true';
 
-      if (child.tagName.toLowerCase() === 'g' && child.children.length > 0 && !isGroup) {
+      const isPdfVector = child.getAttribute('data-type') === 'pdf-vector-layer';
+
+      if (child.tagName.toLowerCase() === 'g' && child.children.length > 0 && !isGroup && !isPdfVector) {
         const subLayers = parseLayersFromSVG(child);
         if (subLayers.length > 0) layer.children = subLayers;
       } else if (isGroup) {
@@ -2137,7 +2140,7 @@ const TemplateEditor = () => {
     setPdfProcessing({ current: 0, total: 1, message: 'Processing replacement...', fileName: file.name });
 
     try {
-      const images = await convertPdfToImages(file, 2, 1);
+      const images = await convertPdfToImages(file, 2.5, 1);
       if (!images || images.length === 0) return;
 
       const image = images[0];
@@ -2159,12 +2162,12 @@ const TemplateEditor = () => {
         return;
       }
 
-      const base64Data = image.svgString ? svgToDataUrl(image.svgString) : await new Promise((resolve, reject) => {
+      const base64Data = image.dataUrl || (image.svgString ? svgToDataUrl(image.svgString) : await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
         reader.onerror = reject;
         reader.readAsDataURL(image.blob);
-      });
+      }));
 
       saveToHistory();
       let newPages = [];
@@ -2175,25 +2178,13 @@ const TemplateEditor = () => {
         const page = updated[pageIndex];
         const updatedPage = { ...page };
 
-        if (updatedPage.html.includes('data-name="PDF Background"')) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(updatedPage.html, 'image/svg+xml');
-          const img = doc.querySelector('image[data-name="PDF Background"]');
-          if (img) {
-            img.setAttribute('href', base64Data);
-            if (img.hasAttribute('xlink:href')) img.setAttribute('xlink:href', base64Data);
-          }
-          updatedPage.html = new XMLSerializer().serializeToString(doc.documentElement);
-          updatedPage.layers = parseLayersFromSVG(doc.documentElement);
-        } else {
-          const pageName = updatedPage.name || "Replaced Page";
-          const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
-          const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, isPdfProject);
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
-          updatedPage.html = absoluteHtml;
-          updatedPage.layers = parseLayersFromSVG(doc.documentElement);
-        }
+        const pageName = updatedPage.name || `Page ${pageIndex + 1}`;
+        const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+        const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, isPdfProject);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
+        updatedPage.html = absoluteHtml;
+        updatedPage.layers = parseLayersFromSVG(doc.documentElement);
 
         updated[pageIndex] = updatedPage;
         newPages = updated;
@@ -2270,7 +2261,7 @@ const TemplateEditor = () => {
     setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...', fileName: file.name });
 
     try {
-      const images = await convertPdfToImages(file, 2, remainingSlots);
+      const images = await convertPdfToImages(file, 2.5, remainingSlots);
       if (!images || images.length === 0) return;
 
       // 1. Check internal uniformity of the incoming PDF
@@ -2318,12 +2309,12 @@ const TemplateEditor = () => {
       let completed = 0;
       const uploadPromises = images.map(async (image, i) => {
         const newPageVId = 'page_' + Math.random().toString(36).substr(2, 9);
-        const base64Data = image.svgString ? svgToDataUrl(image.svgString) : await new Promise((resolve, reject) => {
+        const base64Data = image.dataUrl || (image.svgString ? svgToDataUrl(image.svgString) : await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result);
           reader.onerror = reject;
           reader.readAsDataURL(image.blob);
-        });
+        }));
 
         completed++;
         setPdfProcessing({ current: completed, total: images.length, message: `Processing page ${completed} of ${images.length}...` });

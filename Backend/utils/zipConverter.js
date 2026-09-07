@@ -1,8 +1,11 @@
 import fs from "fs";
 import path from "path";
 import zlib from "zlib";
+import { execFileSync } from "child_process";
+import AdmZip from "adm-zip";
 import { convertWithAssimp, SUPPORTED_3D_EXTENSIONS } from "./assimpConverter.js";
 import { convertCadFileToGlb, isCadFormat } from "./openCascadeConverter.js";
+import { prepareTexturesForModel } from "./texturePreprocessor.js";
 
 /**
  * Pure Node.js ZIP decompressor using Central Directory & zlib (Zero external dependency requirement)
@@ -192,30 +195,164 @@ const cleanDir = (dirPath) => {
  * Extracts a ZIP archive, preserves directory structure & external texture links,
  * converts the primary 3D model to GLB with embedded textures, and returns conversion result.
  * 
- * @param {string} zipFilePath - Absolute path to input .zip file
+/**
+ * Universal archive decompressor supporting .zip, .rar, .7z, .tar, .gz, .tgz, .bz2
+ * Uses Windows built-in tar.exe (libarchive), 7-Zip, WinRAR, AdmZip, and native zlib
+ * 
+ * @param {string} archivePath - Path to the archive file on disk
+ * @param {string} targetDir - Directory to unpack files into
+ */
+export const extractArchive = (archivePath, targetDir) => {
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  const ext = path.extname(archivePath).toLowerCase();
+  const baseName = path.basename(archivePath).toLowerCase();
+
+  // 1. If it's a .zip file, try AdmZip first (fast in-process JS)
+  if (ext === ".zip") {
+    try {
+      const zip = new AdmZip(archivePath);
+      zip.extractAllTo(targetDir, true);
+      const items = fs.readdirSync(targetDir);
+      if (items.length > 0) {
+        console.log(`[Archive] AdmZip unpacked ${items.length} items from ${path.basename(archivePath)}`);
+        return;
+      }
+    } catch (admErr) {
+      console.warn("[Archive] AdmZip notice, trying alternative extractors:", admErr.message);
+    }
+  }
+
+  // 2. Try Windows built-in tar.exe (System32/tar.exe based on libarchive bsdtar)
+  // Extracts .zip, .tar, .tar.gz, .tgz, .gz, .bz2, .7z, and .rar natively!
+  const tarExecutables = [
+    "tar",
+    "C:\\Windows\\System32\\tar.exe"
+  ];
+
+  for (const tarCmd of tarExecutables) {
+    try {
+      console.log(`[Archive] Extracting with tar.exe (${path.basename(archivePath)})...`);
+      execFileSync(tarCmd, ["-xf", archivePath, "-C", targetDir], {
+        timeout: 300000,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"]
+      });
+      const items = fs.readdirSync(targetDir);
+      if (items.length > 0) {
+        console.log(`[Archive] tar.exe successfully unpacked ${items.length} items.`);
+        return;
+      }
+    } catch (tarErr) {
+      console.warn(`[Archive] tar.exe notice for ${path.basename(archivePath)}:`, tarErr.message);
+    }
+  }
+
+  // 3. Try 7-Zip if installed (handles RAR5, 7z, and all archive types with maximum fidelity)
+  const sevenZipExecutables = [
+    "C:\\Program Files\\7-Zip\\7z.exe",
+    "C:\\Program Files (x86)\\7-Zip\\7z.exe",
+    "7z"
+  ];
+
+  for (const szCmd of sevenZipExecutables) {
+    if (szCmd === "7z" || fs.existsSync(szCmd)) {
+      try {
+        console.log(`[Archive] Extracting with 7-Zip (${path.basename(archivePath)})...`);
+        execFileSync(szCmd, ["x", archivePath, `-o${targetDir}`, "-y", "-bso0", "-bsp0"], {
+          timeout: 300000,
+          windowsHide: true,
+          stdio: ["ignore", "pipe", "pipe"]
+        });
+        const items = fs.readdirSync(targetDir);
+        if (items.length > 0) {
+          console.log(`[Archive] 7-Zip successfully unpacked ${items.length} items.`);
+          return;
+        }
+      } catch (szErr) {
+        console.warn(`[Archive] 7-Zip notice for ${path.basename(archivePath)}:`, szErr.message);
+      }
+    }
+  }
+
+  // 4. Try WinRAR if available (for .rar archives)
+  if (ext === ".rar") {
+    const winrarExecutables = [
+      "C:\\Program Files\\WinRAR\\WinRAR.exe",
+      "C:\\Program Files\\WinRAR\\Rar.exe",
+      "C:\\Program Files (x86)\\WinRAR\\WinRAR.exe",
+      "C:\\Program Files (x86)\\WinRAR\\Rar.exe"
+    ];
+
+    for (const wrCmd of winrarExecutables) {
+      if (fs.existsSync(wrCmd)) {
+        try {
+          console.log(`[Archive] Extracting with WinRAR (${path.basename(archivePath)})...`);
+          execFileSync(wrCmd, ["x", "-y", "-ibck", archivePath, targetDir], {
+            timeout: 300000,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"]
+          });
+          const items = fs.readdirSync(targetDir);
+          if (items.length > 0) {
+            console.log(`[Archive] WinRAR successfully unpacked ${items.length} items.`);
+            return;
+          }
+        } catch (wrErr) {
+          console.warn(`[Archive] WinRAR notice:`, wrErr.message);
+        }
+      }
+    }
+  }
+
+  // 5. If it's a .zip file, try our custom pure-JS extractZipArchive as final fallback
+  if (ext === ".zip") {
+    try {
+      extractZipArchive(archivePath, targetDir);
+      const items = fs.readdirSync(targetDir);
+      if (items.length > 0) return;
+    } catch (zipErr) {
+      console.warn("[Archive] Pure JS ZIP fallback notice:", zipErr.message);
+    }
+  }
+
+  const finalCheck = fs.existsSync(targetDir) ? fs.readdirSync(targetDir) : [];
+  if (finalCheck.length === 0) {
+    throw new Error(`Unable to extract compressed archive "${path.basename(archivePath)}". Please verify the file is not corrupted or password-protected.`);
+  }
+};
+
+/**
+ * Extracts a compressed archive (.zip, .rar, .7z, .tar, .gz, .tgz, .bz2), preserves directory structure
+ * & external texture links, converts the primary 3D model to GLB with embedded textures, and returns conversion result.
+ * 
+ * @param {string} archiveFilePath - Absolute path to input archive file (.zip, .rar, .7z, .tar, etc.)
  * @param {string} outputGlbPath - Absolute path to output .glb file
  * @param {Object} [options] - Additional conversion options
  * @returns {Promise<{ success: boolean, outputPath: string, modelName: string, primaryModelExt: string }>}
  */
-export const convertZipToGlb = async (zipFilePath, outputGlbPath, options = {}) => {
+export const convertArchiveToGlb = async (archiveFilePath, outputGlbPath, options = {}) => {
   const tempUnpackDir = path.join(
     path.dirname(outputGlbPath),
     `unpacked_${Date.now()}_${Math.random().toString(36).substring(7)}`
   );
 
   try {
-    console.log(`[zipConverter] Unpacking ZIP archive: ${path.basename(zipFilePath)} -> ${tempUnpackDir}`);
-    extractZipArchive(zipFilePath, tempUnpackDir);
+    const archiveExt = path.extname(archiveFilePath).toUpperCase();
+    console.log(`[ArchiveConverter] Unpacking ${archiveExt} archive: ${path.basename(archiveFilePath)} -> ${tempUnpackDir}`);
+    extractArchive(archiveFilePath, tempUnpackDir);
 
     const modelFiles = find3DModelFilesInDirectory(tempUnpackDir);
     if (modelFiles.length === 0) {
       throw new Error(
-        "No supported 3D model file (.glb, .gltf, .obj, .fbx, .stl, .step, .stp, .3ds, .lwo, .iges, .igs) was found in the ZIP archive or folder."
+        `No supported 3D model file (.glb, .gltf, .obj, .fbx, .stl, .step, .stp, .3ds, .lwo, .iges, .igs) was found in the ${archiveExt} archive.`
       );
     }
 
     const primaryModel = pickPrimary3DModelFile(modelFiles);
-    console.log(`[zipConverter] Identified primary 3D model: ${primaryModel.name} (${primaryModel.ext}) at ${primaryModel.filePath}`);
+    console.log(`[ArchiveConverter] Identified primary 3D model: ${primaryModel.name} (${primaryModel.ext}) at ${primaryModel.filePath}`);
 
     // If primary model is already a GLB
     if (primaryModel.ext === ".glb") {
@@ -229,9 +366,9 @@ export const convertZipToGlb = async (zipFilePath, outputGlbPath, options = {}) 
       };
     }
 
-    // If primary model is a CAD format (STEP, IGES)
+    // If primary model is an OpenCASCADE format (STL, STEP, STP, IGES, IGS)
     if (isCadFormat(primaryModel.filePath)) {
-      console.log(`[zipConverter] Converting CAD file from ZIP with OpenCASCADE: ${primaryModel.name}`);
+      console.log(`[ArchiveConverter] Converting ${primaryModel.ext.toUpperCase()} from archive with OpenCASCADE: ${primaryModel.name}`);
       const cadRes = await convertCadFileToGlb(primaryModel.filePath, outputGlbPath, options);
       cleanDir(tempUnpackDir);
       return {
@@ -242,8 +379,12 @@ export const convertZipToGlb = async (zipFilePath, outputGlbPath, options = {}) 
       };
     }
 
-    // Standard 3D formats (OBJ + MTL + textures, GLTF + BIN + textures, FBX + textures, 3DS, LWO, STL)
-    console.log(`[zipConverter] Converting ${primaryModel.ext.toUpperCase()} with Assimp (embedding external textures)...`);
+    // 1. Prepare, transcode (TGA/BMP to PNG), consolidate textures, and sanitize MTL/OBJ/FBX paths
+    console.log(`[ArchiveConverter] Preparing and mapping textures for ${primaryModel.name}...`);
+    prepareTexturesForModel(tempUnpackDir, primaryModel.filePath);
+
+    // 2. Other 3D formats use Assimp (OBJ + MTL + textures, GLTF + BIN + textures, FBX + textures, 3DS, LWO, etc.)
+    console.log(`[ArchiveConverter] Converting ${primaryModel.ext.toUpperCase()} with Assimp (embedding external textures)...`);
     const assimpRes = await convertWithAssimp(primaryModel.filePath, outputGlbPath, options);
 
     cleanDir(tempUnpackDir);
@@ -259,3 +400,6 @@ export const convertZipToGlb = async (zipFilePath, outputGlbPath, options = {}) 
     throw err;
   }
 };
+
+// Backwards compatibility alias
+export const convertZipToGlb = convertArchiveToGlb;
