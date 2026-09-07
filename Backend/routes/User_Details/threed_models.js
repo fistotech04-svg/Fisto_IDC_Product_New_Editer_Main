@@ -6,7 +6,7 @@ import multer from "multer";
 import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { uploadFileToSupabase, uploadBufferToSupabase, downloadFileFromSupabase, deleteFileFromSupabase, renamePathInSupabase } from "../../config/supabase.js";
-import { convertWithAssimp, is3DFormat, isGlbFormat } from "../../utils/assimpConverter.js";
+import { convertWithAssimp, is3DFormat, isGlbFormat, isCadFormat } from "../../utils/assimpConverter.js";
 import { scheduleTempCleanup, scheduleSupabaseCleanup } from "../../utils/tempCleaner.js";
 
 
@@ -94,7 +94,8 @@ router.post("/convert-model", (req, res) => {
       if (originalExt === ".glb") {
         fs.copyFileSync(inputPath, outputGlbPath);
       } else {
-        console.log(`[Assimp] Converting uploaded file: ${req.file.originalname} -> ${outputGlbName}`);
+        const engine = isCadFormat(req.file.originalname) ? "OpenCASCADE" : "Assimp";
+        console.log(`[${engine}] Converting uploaded file: ${req.file.originalname} -> ${outputGlbName}`);
         await convertWithAssimp(inputPath, outputGlbPath);
       }
 
@@ -105,18 +106,24 @@ router.post("/convert-model", (req, res) => {
       const fileStats = fs.statSync(outputGlbPath);
       const sizeInMB = (fileStats.size / (1024 * 1024)).toFixed(2);
 
-      // Upload converted GLB directly to Supabase Storage in 3D_Converter folder
-      console.log(`[Supabase] Uploading converted GLB to: ${destinationPath}`);
-      const supabaseUrl = await uploadFileToSupabase(outputGlbPath, destinationPath);
-
-      // Clean up local temp files immediately (no local storage kept)
+      // Immediately preserve in local converted directory for 1-hour with instant HTTP delivery
+      scheduleTempCleanup(outputGlbPath, 60 * 60 * 1000);
       try { if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath); } catch (e) {}
-      try { if (fs.existsSync(outputGlbPath)) fs.unlinkSync(outputGlbPath); } catch (e) {}
 
-      // Schedule auto-removal from Supabase 3D_Converter folder after 1 hour (3600000 ms)
-      scheduleSupabaseCleanup(destinationPath, 60 * 60 * 1000);
+      // Fast local serving URL (loads in ~100ms instead of waiting for cloud upload)
+      const finalUrl = `/api/3d-models/converted/${outputGlbName}`;
 
-      const finalUrl = supabaseUrl || `/uploads/${destinationPath}`;
+      // Asynchronously sync to Supabase in background (non-blocking)
+      uploadFileToSupabase(outputGlbPath, destinationPath)
+        .then((supabaseUrl) => {
+          if (supabaseUrl) {
+            scheduleSupabaseCleanup(destinationPath, 60 * 60 * 1000);
+            console.log(`[Supabase Background Sync] Stored converted GLB: ${destinationPath}`);
+          }
+        })
+        .catch((sbErr) => {
+          console.warn("[Supabase Background Sync Notice]:", sbErr.message);
+        });
 
       res.setHeader("Access-Control-Allow-Origin", "*");
 
@@ -127,7 +134,8 @@ router.post("/convert-model", (req, res) => {
         sizeInMB: sizeInMB
       });
     } catch (convErr) {
-      console.error("[Assimp] Conversion error:", convErr);
+      const engine = isCadFormat(req.file?.originalname) ? "OpenCASCADE" : "Assimp";
+      console.error(`[${engine}] Conversion error:`, convErr);
       try { if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath); } catch (e) {}
       try { if (fs.existsSync(outputGlbPath)) fs.unlinkSync(outputGlbPath); } catch (e) {}
       
@@ -142,6 +150,21 @@ router.post("/convert-model", (req, res) => {
       });
     }
   });
+});
+
+// @route   GET /api/3d-models/converted/:filename
+// @desc    Directly serve locally converted GLB models
+// @access  Public
+router.get("/converted/:filename", (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(__dirname, "../../temp_uploads/converted_models", filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ message: "Converted model not found or expired" });
+  }
+  res.setHeader("Content-Type", "model/gltf-binary");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  return res.sendFile(filePath);
 });
 
 // @route   POST /api/3d-models/upload-model
@@ -178,7 +201,8 @@ router.post("/upload-model", (req, res) => {
         finalFilename = `${baseName}.glb`;
         convertedGlbPath = path.join(path.dirname(req.file.path), `${baseName}_converted_${Date.now()}.glb`);
         
-        console.log(`[Upload] Converting ${req.file.filename} to GLB via Assimp...`);
+        const engine = isCadFormat(req.file.filename) ? "OpenCASCADE" : "Assimp";
+        console.log(`[Upload] Converting ${req.file.filename} to GLB via ${engine}...`);
         await convertWithAssimp(req.file.path, convertedGlbPath);
         fileToUploadPath = convertedGlbPath;
       }
@@ -325,7 +349,8 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
             finalFileName = isConverter ? `${baseName}_converted_${Date.now()}.glb` : `${baseName}.glb`;
             const convertedGlbPath = path.join(tempDir, finalFileName);
             
-            console.log(`[Chunk Upload] Converting merged ${fileName} to GLB via Assimp...`);
+            const engine = isCadFormat(fileName) ? "OpenCASCADE" : "Assimp";
+            console.log(`[Chunk Upload] Converting merged ${fileName} to GLB via ${engine}...`);
             await convertWithAssimp(finalPath, convertedGlbPath);
             uploadFilePath = convertedGlbPath;
           }
@@ -335,18 +360,26 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
           const sizeStr = (stats.size / (1024 * 1024)).toFixed(2) + " MB";
 
           if (isConverter) {
-            // Save to temporary 3D_Converter in Supabase with 1-hour auto cleanup
-            const destinationPath = `${sanitizedEmail}/3D_Converter/${finalFileName}`;
-            console.log(`[Chunk Upload] Uploading converted GLB to Supabase: ${destinationPath}`);
-            const supabaseUrl = await uploadFileToSupabase(uploadFilePath, destinationPath);
-            
-            // Immediately clean up local temporary directory
+            // Save converted file locally for instant fast delivery
+            const convertedDir = path.join(__dirname, "../../temp_uploads/converted_models");
+            if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
+            const localSavedPath = path.join(convertedDir, finalFileName);
+            try { fs.copyFileSync(uploadFilePath, localSavedPath); } catch (e) {}
+            scheduleTempCleanup(localSavedPath, 60 * 60 * 1000);
             try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+            
+            const finalModelUrl = `/api/3d-models/converted/${finalFileName}`;
 
-            // Auto delete from Supabase 3D_Converter after 1 hour (3600000 ms)
-            scheduleSupabaseCleanup(destinationPath, 60 * 60 * 1000);
-
-            const finalModelUrl = supabaseUrl || `/uploads/${destinationPath}`;
+            // Background sync to Supabase (non-blocking)
+            const destinationPath = `${sanitizedEmail}/3D_Converter/${finalFileName}`;
+            uploadFileToSupabase(localSavedPath, destinationPath)
+              .then((sbUrl) => {
+                if (sbUrl) {
+                  scheduleSupabaseCleanup(destinationPath, 60 * 60 * 1000);
+                  console.log(`[Chunk Upload Background Sync] Stored in Supabase: ${destinationPath}`);
+                }
+              })
+              .catch((sbErr) => console.warn("[Chunk Upload Background Sync Notice]:", sbErr.message));
 
             return res.status(200).json({
                 success: true,
