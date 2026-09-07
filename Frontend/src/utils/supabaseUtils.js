@@ -93,14 +93,24 @@ export function resolveUploadsPath(path) {
 export function rewriteHtmlUploadsToSupabase(html) {
   if (!html || !SUPABASE_URL) return html;
   const cdnBase = `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/`;
-  let rewritten = html
-    .replace(/(src|href|xlink:href)=(['"])(\/uploads\/|uploads\/)/g, `$1=$2${cdnBase}`)
-    .replace(/(['"\s(])(\/uploads\/|uploads\/)/g, `$1${cdnBase}`)
-    .replace(/(src|href|xlink:href)=(['"])https?:\/\/[^/]+\/uploads\//g, `$1=$2${cdnBase}`)
-    .replace(/(url\(\s*['"]?)https?:\/\/[^/]+\/uploads\//g, `$1${cdnBase}`);
 
-  rewritten = rewritten.replace(/([^:])\/{2,}/g, '$1/');
-  return rewritten;
+  // Split on data: URI boundaries so we NEVER touch base64 content.
+  // Only the segments between data: URIs are rewritten.
+  const DATA_URI_RE = /(data:[^;]+;base64,[A-Za-z0-9+/=\s]+)/g;
+  const parts = html.split(DATA_URI_RE);
+
+  for (let i = 0; i < parts.length; i++) {
+    // Even-indexed parts are normal HTML; odd-indexed parts are data: URIs — skip those.
+    if (i % 2 !== 0) continue;
+
+    parts[i] = parts[i]
+      .replace(/(src|href|xlink:href)=(['"])(\/uploads\/|uploads\/)/g, `$1=$2${cdnBase}`)
+      .replace(/(['"\s(])(\/uploads\/|uploads\/)/g, `$1${cdnBase}`)
+      .replace(/(src|href|xlink:href)=(['"])https?:\/\/[^/]+\/uploads\//g, `$1=$2${cdnBase}`)
+      .replace(/(url\(\s*['"]?)https?:\/\/[^/]+\/uploads\//g, `$1${cdnBase}`);
+  }
+
+  return parts.join('');
 }
 
 export { SUPABASE_URL, SUPABASE_BUCKET, BACKEND_URL };

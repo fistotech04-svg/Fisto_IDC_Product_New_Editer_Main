@@ -1359,7 +1359,7 @@ export default function MyFlipbooks() {
                                 <Trash2 size="1.1vw" />
                                 <span>Trash</span>
                             </div>
-                            <span className="text-[0.75vw] font-semibold">2</span>
+                            <span className="text-[0.75vw] font-semibold">0</span>
                         </div>
                     </div>
                 </div>
