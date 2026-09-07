@@ -454,6 +454,17 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
     const allShapes = Array.from(svg.querySelectorAll('g, rect, circle, path, ellipse, polygon'));
 
     if (isRawIcon) {
+      const styleTags = svg.querySelectorAll('style');
+      styleTags.forEach(styleTag => {
+        let text = styleTag.textContent;
+        text = text.replace(/#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/g, (match) => {
+            const m = match.toLowerCase();
+            return (m === '#ffffff' || m === '#fff') ? 'none' : fgInfo.fillValue;
+        });
+        text = text.replace(/\bblack\b/gi, fgInfo.fillValue);
+        styleTag.textContent = text;
+      });
+
       allShapes.forEach(el => {
         const fill = el.getAttribute('fill') || el.style.fill;
         const stroke = el.getAttribute('stroke') || el.style.stroke;
@@ -466,10 +477,16 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
              el.setAttribute('fill', fgInfo.fillValue);
            }
            el.style.fill = '';
+        } else if (!fill && !stroke && (!el.hasAttribute('class') || styleTags.length === 0) && el.tagName.toLowerCase() !== 'g') {
+           el.setAttribute('fill', fgInfo.fillValue);
         }
         
         if (stroke && stroke.toLowerCase() !== 'none') {
-           el.setAttribute('stroke', fgInfo.fillValue);
+           if (isWhite(stroke)) {
+             el.setAttribute('stroke', 'none');
+           } else {
+             el.setAttribute('stroke', fgInfo.fillValue);
+           }
            el.style.stroke = '';
         }
       });
