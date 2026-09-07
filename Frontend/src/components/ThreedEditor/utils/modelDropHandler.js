@@ -15,6 +15,16 @@ export const SUPPORTED_MODEL_EXTENSIONS = [
   "igs"
 ];
 
+export const SUPPORTED_ARCHIVE_EXTENSIONS = [
+  "zip",
+  "rar",
+  "7z",
+  "tar",
+  "gz",
+  "tgz",
+  "bz2"
+];
+
 export const SUPPORTED_TEXTURE_EXTENSIONS = [
   "png",
   "jpg",
@@ -26,6 +36,8 @@ export const SUPPORTED_TEXTURE_EXTENSIONS = [
   "svg",
   "hdr",
   "exr",
+  "tif",
+  "tiff",
   "mtl",
   "bin"
 ];
@@ -137,9 +149,25 @@ export const findPrimary3DModelFile = (fileEntries) => {
 export const packageFilesToZip = async (fileEntries, zipName = "model_package.zip", onProgress) => {
   const zip = new JSZip();
 
-  fileEntries.forEach(({ file, path }) => {
-    // Sanitize path (strip leading slash)
-    const cleanPath = path.replace(/^\/+/, "");
+  // 1. Sanitize all paths: convert Windows backslashes to forward slashes and strip leading slashes
+  const sanitized = fileEntries.map(({ file, path }) => ({
+    file,
+    path: (path || file.name).replace(/\\/g, "/").replace(/^\/+/, "")
+  }));
+
+  // 2. If all files share a common top-level root folder prefix (e.g. "Dragon/model.obj", "Dragon/textures/..."),
+  // strip that top folder name so the primary model and relative texture folders sit directly at archive root
+  let commonPrefix = "";
+  const firstSlashIdxs = sanitized.map(e => e.path.indexOf("/"));
+  if (sanitized.length > 1 && firstSlashIdxs.every(idx => idx > 0)) {
+    const candidatePrefix = sanitized[0].path.substring(0, firstSlashIdxs[0] + 1);
+    if (sanitized.every(e => e.path.startsWith(candidatePrefix))) {
+      commonPrefix = candidatePrefix;
+    }
+  }
+
+  sanitized.forEach(({ file, path }) => {
+    const cleanPath = commonPrefix ? path.substring(commonPrefix.length) : path;
     zip.file(cleanPath, file);
   });
 
@@ -199,13 +227,13 @@ export const process3DDropEvent = async (source, options = {}) => {
     const ext = single.name.split(".").pop().toLowerCase();
     const baseName = single.name.replace(/\.[^/.]+$/, "");
 
-    if (ext === "zip") {
+    if (SUPPORTED_ARCHIVE_EXTENSIONS.includes(ext)) {
       return {
         file: single,
         name: baseName,
         isZip: true,
         isFolder: false,
-        primaryExt: "zip"
+        primaryExt: ext
       };
     }
 
@@ -220,7 +248,7 @@ export const process3DDropEvent = async (source, options = {}) => {
     }
 
     throw new Error(
-      `File format ".${ext}" is not supported. Please drop a 3D model (${SUPPORTED_MODEL_EXTENSIONS.join(", ").toUpperCase()}), a folder with textures, or a .ZIP archive.`
+      `File format ".${ext}" is not supported. Please drop a 3D model (${SUPPORTED_MODEL_EXTENSIONS.join(", ").toUpperCase()}), a folder with textures, or an archive (.ZIP, .RAR, .7Z, .TAR, .GZ).`
     );
   }
 

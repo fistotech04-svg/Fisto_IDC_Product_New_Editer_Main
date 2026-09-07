@@ -8,14 +8,36 @@ export default function AddModelModal({ isOpen, onClose, onAdd }) {
     const [errorModal, setErrorModal] = useState({ isOpen: false, message: '' });
     const [isPackaging, setIsPackaging] = useState(false);
 
-    const validExtensions = ['glb', 'gltf', 'obj', 'fbx', 'stl', 'step', 'stp', '3ds', 'lwo', 'low', 'iges', 'igs', 'zip'];
+    const validExtensions = ['glb', 'gltf', 'obj', 'fbx', 'stl', 'step', 'stp', '3ds', 'lwo', 'low', 'iges', 'igs', 'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2'];
 
     if (!isOpen) return null;
 
-    const handleFile = (file) => {
-        if (!file) return;
+    const handleFile = async (source) => {
+        if (!source) return;
 
-        const ext = file.name.split('.').pop().toLowerCase();
+        let fileToProcess = source;
+
+        if (source instanceof FileList) {
+            if (source.length === 0) return;
+            if (source.length > 1) {
+                try {
+                    setIsPackaging(true);
+                    const dropResult = await process3DDropEvent(source);
+                    setIsPackaging(false);
+                    if (dropResult?.file) {
+                        onAdd(dropResult.file);
+                        onClose();
+                        return;
+                    }
+                } catch (err) {
+                    setIsPackaging(false);
+                    console.error("Multi-file package notice:", err);
+                }
+            }
+            fileToProcess = source[0];
+        }
+
+        const ext = fileToProcess.name.split('.').pop().toLowerCase();
         if (!validExtensions.includes(ext)) {
             setErrorModal({
                 isOpen: true,
@@ -24,7 +46,7 @@ export default function AddModelModal({ isOpen, onClose, onAdd }) {
             return;
         }
 
-        onAdd(file);
+        onAdd(fileToProcess);
         onClose();
     };
 
@@ -93,8 +115,9 @@ export default function AddModelModal({ isOpen, onClose, onAdd }) {
                         type="file" 
                         id="add-model-input" 
                         className="hidden" 
-                        onChange={(e) => handleFile(e.target.files[0])}
-                        accept=".glb,.gltf,.obj,.fbx,.stl,.step,.stp,.3ds,.lwo,.low,.iges,.igs,.zip"
+                        multiple
+                        onChange={(e) => handleFile(e.target.files)}
+                        accept=".glb,.gltf,.obj,.fbx,.stl,.step,.stp,.3ds,.lwo,.low,.iges,.igs,.zip,.rar,.7z,.tar,.gz,.tgz,.bz2"
                     />
                     
                     <div className="text-[0.9vw] font-semibold text-gray-500 tracking-tight transition-colors mb-[1.2vw]">

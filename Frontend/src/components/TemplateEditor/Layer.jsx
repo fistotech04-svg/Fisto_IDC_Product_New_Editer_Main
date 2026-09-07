@@ -1339,6 +1339,7 @@ const Layer = ({
                                     alt={page.name}
                                     className="w-full h-full object-contain pointer-events-none"
                                     loading="lazy"
+                                    decoding="async"
                                   />
                                 ) : (
                                   <div

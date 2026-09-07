@@ -29,11 +29,23 @@ export default function RightPanel({
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-        onFileProcess(file);
-        e.target.value = null; // Reset input
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (files.length === 1) {
+      onFileProcess(files[0]);
+    } else {
+      try {
+        const dropResult = await process3DDropEvent(files);
+        if (dropResult && dropResult.file) {
+          onFileProcess(dropResult.file, dropResult);
+        }
+      } catch (err) {
+        console.error("Multi-file processing error:", err);
+        onFileProcess(files[0]);
+      }
     }
+    e.target.value = null; // Reset input
   };
 
   const handleDrop = async (e) => {
@@ -124,13 +136,13 @@ export default function RightPanel({
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              className={`w-[90%] mx-auto min-h-[11vw] border-[0.12vw] border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1.5vw] transition-all cursor-pointer group shadow-sm select-none ${
+              className={`w-full min-h-[11vw] border-[0.12vw] border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1.5vw] transition-all cursor-pointer group shadow-sm select-none ${
                 isDragOver 
                     ? "border-[#5d5efc] bg-[#5d5efc]/5 cursor-copy scale-[1.02]" 
                     : "border-gray-300 hover:border-[#5d5efc] hover:bg-gray-50/50 hover:shadow-md"
               }`}
             >
-              <div className="text-[0.85vw] font-semibold text-gray-500 mb-[1.2vw] tracking-tight group-hover:text-gray-700 transition-colors">
+              <div className="text-[0.85vw] font-semibold text-gray-500 mb-[1.2vw] tracking-tight group-hover:text-gray-700 transition-colors text-center">
                 {isDragOver ? (
                     <span className="text-[#5d5efc] font-bold">Drop File or Folder to Upload</span>
                 ) : (
@@ -138,16 +150,16 @@ export default function RightPanel({
                 )}
               </div>
 
-              <div className={`mb-[1.2vw] transition-all duration-200 group-hover:scale-110 ${isDragOver ? "text-[#5d5efc]" : "text-gray-400 group-hover:text-[#5d5efc]"}`}>
+              <div className={`mb-[1.2vw] transition-all duration-200 group-hover:scale-110 flex items-center justify-center ${isDragOver ? "text-[#5d5efc]" : "text-gray-400 group-hover:text-[#5d5efc]"}`}>
                 <Icon icon="solar:upload-linear" width="2.5vw" height="2.5vw" />
               </div>
 
-              <div className="text-center">
-                <div className="text-[0.65vw] font-bold text-gray-500 uppercase tracking-wide mb-[0.25vw]">
+              <div className="text-center flex flex-col items-center">
+                <div className="text-[0.65vw] font-bold text-gray-500 uppercase tracking-wide mb-[0.25vw] text-center">
                   Supported Formats
                 </div>
                 <div className="text-[0.55vw] text-gray-400 leading-relaxed uppercase max-w-[15vw] font-medium text-center">
-                  GLB, GLTF, OBJ, FBX, STL, STEP, STP, 3DS, LWO, IGES, IGS, ZIP
+                  GLB, GLTF, OBJ, FBX, STL, STEP, STP, 3DS, LWO, IGES, IGS, ZIP, RAR, 7Z, TAR
                 </div>
               </div>
             </div>
@@ -155,7 +167,8 @@ export default function RightPanel({
             <input
               ref={fileRef}
               type="file"
-              accept=".glb,.gltf,.obj,.fbx,.stl,.step,.stp,.3ds,.lwo,.low,.iges,.igs,.zip"
+              multiple
+              accept=".glb,.gltf,.obj,.fbx,.stl,.step,.stp,.3ds,.lwo,.low,.iges,.igs,.zip,.rar,.7z,.tar,.gz,.tgz,.bz2"
               className="hidden"
               onChange={handleFileChange}
             />

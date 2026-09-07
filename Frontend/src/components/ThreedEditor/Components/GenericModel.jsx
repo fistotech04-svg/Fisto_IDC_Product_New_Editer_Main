@@ -47,7 +47,44 @@ const getTextureSource = (tex) => {
     }
 };
 
-const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures }, ref) => {
+// Safe helper to compute tangents without throwing or logging errors on non-indexed or attribute-deficient geometries
+const safeComputeTangents = (geometry) => {
+  if (!geometry || !geometry.isBufferGeometry || !geometry.attributes) return;
+  if (geometry.attributes.tangent) return;
+
+  const pos = geometry.attributes.position;
+  const uv = geometry.attributes.uv;
+  if (!pos || !uv || pos.count === 0 || uv.count === 0) return;
+
+  if (!geometry.attributes.normal) {
+    try { geometry.computeVertexNormals(); } catch (_) { return; }
+  }
+  if (!geometry.attributes.normal) return;
+
+  // Synthesize sequential indices for non-indexed triangle meshes so computeTangents can calculate per-triangle tangents
+  if (!geometry.index) {
+    const count = pos.count;
+    if (count && count >= 3 && count % 3 === 0) {
+      try {
+        const indices = count > 65535 ? new Uint32Array(count) : new Uint16Array(count);
+        for (let i = 0; i < count; i++) indices[i] = i;
+        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      } catch (_) {
+        return;
+      }
+    } else {
+      return;
+    }
+  }
+
+  if (geometry.index && geometry.attributes.position && geometry.attributes.normal && geometry.attributes.uv) {
+    try {
+      geometry.computeTangents();
+    } catch (_) {}
+  }
+};
+
+const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady }, ref) => {
   const [position, setPosition] = useState(() => scene?.userData?.normalization?.position || [0, 0, 0]);
   const [scale, setScale] = useState(() => scene?.userData?.normalization?.scale || 1);
   const groupRef = React.useRef(null);
@@ -765,10 +802,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
               applyBoxUV(child);
           }
 
-          // Compute tangents for smooth normal mapping if UVs exist and they don't already exist
-          if (newGeom?.attributes?.uv && !newGeom?.attributes?.tangent && newGeom?.computeTangents) {
-              try { newGeom?.computeTangents(); } catch(e) { console.warn("Tangents skip:", e?.message); }
-          }
+          // Compute tangents safely for smooth normal mapping if UVs exist and they don't already exist
+          safeComputeTangents(newGeom);
 
           if (newGeom.attributes.normal) newGeom.attributes.normal.needsUpdate = true;
 
@@ -883,7 +918,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
       if (isMesh) {
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        const matNames = mats.map((m) => m?.name).filter(Boolean);
+        const matNames = mats.map((m, idx) => {
+          if (!m) return null;
+          if (!m.name) m.name = `Material_${idx + 1}`;
+          return m.name;
+        }).filter(Boolean);
         const primaryMat = matNames[0] || "Default";
         const meshName = (obj.name && obj.name !== "Scene") ? obj.name : primaryMat;
 
@@ -996,8 +1035,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     scene.traverse((child) => {
       if (child.isMesh && child.material) {
         const mats = Array.isArray(child.material) ? child.material : [child.material];
-        mats.forEach((m) => {
-          if (m.name && !materialDataMap[m.name]) {
+        mats.forEach((m, mIdx) => {
+          if (!m) return;
+          if (!m.name) m.name = `Material_${mIdx + 1}`;
+          if (!materialDataMap[m.name]) {
             const extractTexture = (tex) => getTextureSource(tex);
             materialDataMap[m.name] = {
               color: '#' + (m.color ? m.color.getHexString() : 'ffffff'),
@@ -1032,6 +1073,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
             polygonCount: Math.round(polyCount).toLocaleString(),
             materialCount: processedMaterials.size,
             dimensions: `${Math.round(size.x * 100) / 100} X ${Math.round(size.y * 100) / 100} X ${Math.round(size.z * 100) / 100} unit`
+        });
+    }
+
+    if (typeof onModelReady === 'function') {
+        // Double RAF ensures Three.js has committed geometry transforms and rendered the frame
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                onModelReady();
+            });
         });
     }
 
@@ -1940,10 +1990,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       geometry.setAttribute('uv', uvAttribute);
       geometry.attributes.uv.needsUpdate = true;
       
-      // Re-compute tangents if normal mapping is expected
-      if (geometry.computeTangents && geometry.attributes.normal && geometry.attributes.uv) {
-           try { geometry.computeTangents(); } catch(e) {}
-      }
+      // Re-compute tangents safely if normal mapping is expected
+      safeComputeTangents(geometry);
   };
 
   useEffect(() => {

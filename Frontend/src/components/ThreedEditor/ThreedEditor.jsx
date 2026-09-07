@@ -12,21 +12,38 @@ import TopToolbar from "./TopToolbar";
 import AnimatedGizmo from "./Components/AnimatedGizmo";
 import { GlobalLoader } from "./Components/GlobalLoader";
 import RenderModel from "./Components/ModelLoaders";
+import SmoothOrbitControls from "./Components/SmoothOrbitControls";
 import useModalHistory from "./hooks/useModalHistory";
 import Export3DModal from "./Components/Export3DModal";
 import AddModelModal from "./Components/AddModelModal";
 import ModelGalleryModal from "./Components/ModelGalleryModal";
 import AlertModal from "../AlertModal";
 import { GLTFExporter, STLExporter, OBJLoader, FBXLoader, STLLoader } from "three-stdlib";
+import { LWOLoader } from "three/examples/jsm/loaders/LWOLoader.js";
+import { TDSLoader } from "three/examples/jsm/loaders/TDSLoader.js";
 import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import { MeshoptEncoder } from "meshoptimizer";
 import initOCCT from "occt-import-js";
 import CameraModal from "./Components/CameraModal";
 import AddMaterial from "./Components/AddMaterial";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
+import { process3DDropEvent } from "./utils/modelDropHandler";
 import { useOutletContext } from "react-router-dom";
 import axios from "axios";
 import { useToast } from "../../components/CustomToast";
+
+// Safe GLTFExporter patch to guarantee options.animations is always a valid Array and never undefined
+if (GLTFExporter && GLTFExporter.prototype && !GLTFExporter.prototype._isSafeExporterPatched) {
+  GLTFExporter.prototype._isSafeExporterPatched = true;
+  const originalParse = GLTFExporter.prototype.parse;
+  GLTFExporter.prototype.parse = function (input, onDone, onError, options = {}) {
+    const safeOptions = { ...(options || {}) };
+    if (!Array.isArray(safeOptions.animations)) {
+      safeOptions.animations = [];
+    }
+    return originalParse.call(this, input, onDone, onError, safeOptions);
+  };
+}
 
 
 export default function ThreedEditor() {
@@ -62,27 +79,130 @@ export default function ThreedEditor() {
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingModelInfo, setLoadingModelInfo] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const loadingTimerRef = useRef(null);
+  const isCompletingRef = useRef(false);
+  const pendingModelIdRef = useRef(null);
+  const modelsRef = useRef(models);
 
-  // Sync manual loading with useProgress active state
+  useEffect(() => {
+    modelsRef.current = models;
+  }, [models]);
+
   const { active, progress } = useProgress();
-  
-  // Clear manual loading once Three.js loading manager takes over
-  React.useEffect(() => {
-    if (active) {
-        // Three.js has picked up loading — our manual flag is no longer needed
-        setManualLoading(false);
-    }
-  }, [active]);
 
-  // Safety: if manualLoading stays true and nothing is happening, clear it after 60s
-  React.useEffect(() => {
+  // Unified startModelLoading coordinator
+  const startModelLoading = useCallback((modelInfo) => {
+    if (loadingTimerRef.current) clearInterval(loadingTimerRef.current);
+    isCompletingRef.current = false;
+    pendingModelIdRef.current = modelInfo?.id ? String(modelInfo.id) : null;
+
+    setLoadingModelInfo(modelInfo || null);
+    const ext = (modelInfo?.type || modelInfo?.name?.split('.').pop() || '').toLowerCase();
+    const isCad = ['step', 'stp', 'iges', 'igs'].includes(ext);
+    const isArchive = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2'].some(e => (modelInfo?.name || '').toLowerCase().endsWith(e));
+
+    setLoadingText(
+      isArchive
+        ? "Unpacking 3D model archive & textures..."
+        : (isCad
+            ? "Preparing CAD model & tessellation engine..."
+            : "Reading 3D model file...")
+    );
+    setLoadingProgress(8);
+    setManualLoading(true);
+
+    // Smooth progressive ticker: smoothly glides from 8% up to 93% while Three.js loads & positions the model
+    let current = 8;
+    loadingTimerRef.current = setInterval(() => {
+      if (isCompletingRef.current) return;
+
+      if (current < 30) {
+        current += Math.random() * 5 + 3;
+        setLoadingText(prev => isCad ? "Initializing CAD OpenCASCADE engine..." : "Parsing 3D geometry...");
+      } else if (current < 60) {
+        current += Math.random() * 3 + 2;
+        setLoadingText(prev => isCad ? "Tessellating CAD surfaces & facets..." : "Processing materials & meshes...");
+      } else if (current < 85) {
+        current += Math.random() * 2 + 1;
+        setLoadingText("Calculating bounds & normalizing scale...");
+      } else if (current < 94) {
+        current += 0.35;
+        setLoadingText("Positioning model on base grid...");
+      }
+
+      current = Math.min(94, current);
+      setLoadingProgress(Math.round(current));
+    }, 110);
+  }, []);
+
+  // Update progress from sub-loaders (e.g. CadModel)
+  const handleModelProgress = useCallback((modelId, progressPct, stageText) => {
+    if (pendingModelIdRef.current && modelId && String(pendingModelIdRef.current) !== String(modelId) && (modelsRef.current?.length > 1)) return;
+    if (isCompletingRef.current) return;
+
+    if (stageText) setLoadingText(stageText);
+    if (typeof progressPct === 'number' && !isNaN(progressPct)) {
+      setLoadingProgress(prev => Math.max(prev, Math.min(95, Math.round(progressPct))));
+    }
+  }, []);
+
+  // Completion hook: triggered by GenericModel after double-RAF base positioning
+  const handleModelReady = useCallback((modelId) => {
+    if (isCompletingRef.current) return;
+    // Guard against non-pending model ONLY if there are multiple models loaded and IDs explicitly conflict
+    if (pendingModelIdRef.current && modelId && String(pendingModelIdRef.current) !== String(modelId) && (modelsRef.current?.length > 1)) {
+      console.warn(`[ThreedEditor] Skipping onModelReady for non-pending model: ${modelId} (pending: ${pendingModelIdRef.current})`);
+      return;
+    }
+
+    isCompletingRef.current = true;
+    if (loadingTimerRef.current) {
+      clearInterval(loadingTimerRef.current);
+      loadingTimerRef.current = null;
+    }
+
+    // Set 100% and notify user the model is on base
+    setLoadingProgress(100);
+    setLoadingText("Model ready on base!");
+
+    // Hold at 100% for 380ms for visual satisfaction, then cleanly dismiss
+    setTimeout(() => {
+      setManualLoading(false);
+      setLoadingProgress(0);
+      setLoadingText("");
+      setLoadingModelInfo(null);
+      pendingModelIdRef.current = null;
+      isCompletingRef.current = false;
+    }, 380);
+  }, []);
+
+  // Sync with Drei useProgress if active (for external textures and secondary downloads)
+  useEffect(() => {
+    if (active && manualLoading && !isCompletingRef.current) {
+      const mapped = Math.round(25 + (progress * 0.67));
+      setLoadingProgress(prev => Math.max(prev, Math.min(93, mapped)));
+    }
+  }, [active, progress, manualLoading]);
+
+  // Safety stuck timer: only auto-dismiss if loading has stalled for 15 minutes (aligned with converter timeout & GlobalLoader)
+  useEffect(() => {
     if (!manualLoading) return;
     const t = setTimeout(() => {
-        console.warn("[ThreedEditor] manualLoading safety timeout hit — forcing clear.");
-        setManualLoading(false);
-        setLoadingText("");
-    }, 60000);
+      console.warn("[ThreedEditor] Loading safety limit reached (15m) — clearing loader.");
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+      setManualLoading(false);
+      setLoadingProgress(0);
+      setLoadingText("");
+      setLoadingModelInfo(null);
+      pendingModelIdRef.current = null;
+      isCompletingRef.current = false;
+    }, 15 * 60 * 1000);
     return () => clearTimeout(t);
   }, [manualLoading]);
 
@@ -102,6 +222,25 @@ export default function ThreedEditor() {
 
   // Target Position State
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0 });
+
+  const handleControlsChange = useCallback((e) => {
+    const target = e?.target?.target;
+    if (!target) return;
+    const now = Date.now();
+    if (now - lastUpdateRef.current > 50) {
+      const nx = parseFloat(target.x.toFixed(2));
+      const ny = parseFloat(target.y.toFixed(2));
+      const nz = parseFloat(target.z.toFixed(2));
+      setTargetPosition((prev) => {
+        if (prev && prev.x === nx && prev.y === ny && prev.z === nz) {
+          return prev;
+        }
+        return { x: nx, y: ny, z: nz };
+      });
+      lastUpdateRef.current = now;
+    }
+  }, []);
+
   const [modelMaterialLists, setModelMaterialLists] = useState({});
   const [modelMaterialDataMap, setModelMaterialDataMap] = useState({});
   const sceneWrapperRef = useRef(null);
@@ -200,7 +339,7 @@ export default function ThreedEditor() {
   const [isScreenshotOpen, setIsScreenshotOpen] = useState(false);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [formatErrorModal, setFormatErrorModal] = useState({ isOpen: false, message: '' });
+  const [formatErrorModal, setFormatErrorModal] = useState({ isOpen: false, title: 'Invalid Model Format', message: '' });
 
   const { 
     state: historyState, 
@@ -259,11 +398,17 @@ export default function ThreedEditor() {
         const storedUser = localStorage.getItem('user');
         if (!storedUser) return;
         const user = JSON.parse(storedUser);
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const rawBackendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const backendUrl = rawBackendUrl.trim().replace(/\/+$/, '');
 
         // 1. If we have a specific ID in the URL, load THAT model
         if (urlModelId) {
           console.log("Loading specific model from URL ID:", urlModelId);
+          startModelLoading({
+            id: urlModelId,
+            name: "Loading 3D Model...",
+            type: "glb"
+          });
           try {
             const res = await axios.get(`${backendUrl}/api/3d-models/get-model/${urlModelId}`);
             if (res.data) {
@@ -271,11 +416,11 @@ export default function ThreedEditor() {
               const fullUrl = resolveUploadsPath(modelData.url);
 
               const newModel = {
-                id: Date.now().toString(),
-                modelId: modelData.modelId,
+                id: urlModelId,
+                modelId: modelData.modelId || urlModelId,
                 url: fullUrl,
                 file: null,
-                type: modelData.type || 'glb',
+                type: modelData.type || (['step', 'stp', 'iges', 'igs', 'obj', 'fbx', 'stl', 'low', 'lwo', '3ds'].includes((fullUrl || '').split('?')[0].split('.').pop().toLowerCase()) ? (fullUrl || '').split('?')[0].split('.').pop().toLowerCase() : 'glb'),
                 name: (modelData.name || "Model").replace(/\.[^/.]+$/, ""),
                 fileName: modelData.fileName,
                 displayName: modelData.displayName
@@ -297,6 +442,9 @@ export default function ThreedEditor() {
             }
           } catch (err) {
             console.error("Specified model not found, redirecting to 404...", err);
+            setManualLoading(false);
+            setLoadingProgress(0);
+            setLoadingText("");
             navigate('/not-found', { replace: true });
           }
         }
@@ -306,15 +454,21 @@ export default function ThreedEditor() {
         if (tempThreedEditModelStr) {
           try {
             const parsed = JSON.parse(tempThreedEditModelStr);
+            const tempId = parsed.id ? String(parsed.id) : Date.now().toString();
+            startModelLoading({
+              id: tempId,
+              name: parsed.name || "Loading 3D Model...",
+              type: parsed.type || "glb"
+            });
             const fullUrl = parsed.url.startsWith('http') || parsed.url.startsWith('blob:') || parsed.url.startsWith('data:') 
               ? parsed.url 
               : `${backendUrl}${parsed.url}`;
             const newModel = {
-              id: Date.now().toString(),
-              modelId: null,
+              id: tempId,
+              modelId: parsed.modelId || null,
               url: fullUrl,
               file: null,
-              type: parsed.type || 'glb',
+              type: parsed.type || (['step', 'stp', 'iges', 'igs', 'obj', 'fbx', 'stl', 'low', 'lwo', '3ds'].includes((fullUrl || '').split('?')[0].split('.').pop().toLowerCase()) ? (fullUrl || '').split('?')[0].split('.').pop().toLowerCase() : 'glb'),
               name: parsed.name.replace(/\.[^/.]+$/, "")
             };
             setModels([newModel]);
@@ -334,6 +488,9 @@ export default function ThreedEditor() {
             return; // End here for temp model load
           } catch(e) {
             console.error("Failed to parse tempThreedEditModel", e);
+            setManualLoading(false);
+            setLoadingProgress(0);
+            setLoadingText("");
             localStorage.removeItem('tempThreedEditModel');
           }
         }
@@ -554,7 +711,7 @@ export default function ThreedEditor() {
                 binary: true, 
                 forceIndices: true, 
                 embedImages: true,
-                animations: exportAnimations.length > 0 ? exportAnimations : undefined
+                animations: (exportAnimations && exportAnimations.length > 0) ? exportAnimations : []
               };
 
               const glbBuffer = await new Promise((resolve, reject) => {
@@ -719,20 +876,69 @@ export default function ThreedEditor() {
       setHasUnsavedChanges(hasLocalModels || historyChanged);
   }, [models, past.length, setHasUnsavedChanges]);
 
-  const convertStepToGlbBlob = async (file) => {
-    setLoadingText("Parsing STEP model with OpenCASCADE...");
+  const convertCadToGlbBlob = async (file, ext = 'step') => {
+    const isIges = ext === 'iges' || ext === 'igs' || file.name.toLowerCase().endsWith('.iges') || file.name.toLowerCase().endsWith('.igs');
+    const fileSizeMB = file.size ? (file.size / (1024 * 1024)) : 0;
+    
+    setLoadingText(`Reading ${isIges ? 'IGES' : 'STEP'} CAD file (${fileSizeMB > 0 ? fileSizeMB.toFixed(1) + ' MB' : ''})...`);
+    await new Promise(r => setTimeout(r, 60));
+
     const buffer = await file.arrayBuffer();
+    
+    setLoadingText("Initializing OpenCASCADE WASM...");
+    await new Promise(r => setTimeout(r, 60));
+
     const occt = await initOCCT({
       locateFile: () => '/occt-import-js.wasm'
     });
+
+    // Adaptive deflection for fast tessellation without freezing:
+    // 0.001 (the default) causes hundreds of thousands of micro-facets on large CAD models, taking minutes.
+    // 0.02 - 0.025 gives crisp surface quality and triangulates in just a few seconds!
+    const deflection = fileSizeMB > 10 ? 0.025 : (fileSizeMB > 3 ? 0.018 : 0.01);
+    const params = {
+      linearUnit: 'millimeter',
+      linearDeflectionType: 'bounding_box_ratio',
+      linearDeflection: deflection,
+      angularDeflection: 0.65
+    };
+
+    setLoadingText(`Tessellating ${isIges ? 'IGES' : 'STEP'} geometry with OpenCASCADE...`);
+    await new Promise(r => setTimeout(r, 60));
+
     const fileData = new Uint8Array(buffer);
-    const result = occt.ReadStepFile(fileData, null);
-    if (!result || !result.meshes || result.meshes.length === 0) {
-      throw new Error("No meshes found in STEP file.");
+    let result = null;
+    try {
+      result = isIges
+        ? occt.ReadIgesFile(fileData, params)
+        : occt.ReadStepFile(fileData, params);
+    } catch (readErr) {
+      console.warn("Fast CAD conversion failed:", readErr);
     }
+
+    if (!result || !result.meshes || result.meshes.length === 0) {
+      console.warn("Retrying CAD read with default parameters...");
+      try {
+        result = isIges
+          ? occt.ReadIgesFile(fileData, null)
+          : occt.ReadStepFile(fileData, null);
+      } catch (fallbackErr) {
+        console.error("CAD fallback read failed:", fallbackErr);
+      }
+    }
+
+    if (!result || !result.meshes || result.meshes.length === 0) {
+      throw new Error(`No meshes found in ${isIges ? 'IGES' : 'STEP'} file.`);
+    }
+
+    setLoadingText(`Processing ${result.meshes.length} geometry components...`);
+    await new Promise(r => setTimeout(r, 60));
 
     const group = new THREE.Group();
     let matIndex = 1;
+    // Shared material cache by color to prevent creating thousands of redundant materials
+    const materialCache = new Map();
+
     for (const meshData of result.meshes) {
       const geometry = new THREE.BufferGeometry();
       if (meshData.attributes.position) {
@@ -745,7 +951,10 @@ export default function ThreedEditor() {
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(meshData.attributes.uv.array, 2));
       }
       if (meshData.index) {
-        geometry.setIndex(new THREE.Uint16BufferAttribute(meshData.index.array, 1));
+        const is32Bit = meshData.attributes.position && (meshData.attributes.position.array.length / 3) > 65535;
+        geometry.setIndex(is32Bit 
+          ? new THREE.Uint32BufferAttribute(meshData.index.array, 1)
+          : new THREE.Uint16BufferAttribute(meshData.index.array, 1));
       }
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
@@ -753,39 +962,52 @@ export default function ThreedEditor() {
         geometry.computeVertexNormals();
       }
 
-      let color = '#a0a0a0';
-      const suffix = String(matIndex++).padStart(2, '0');
-      let matName = meshData.name ? `${meshData.name}_Mat` : `Material_${suffix}`;
+      let colorKey = 'default';
       if (meshData.color) {
         const c = meshData.color;
-        color = new THREE.Color(c[0], c[1], c[2]);
+        colorKey = `${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)}`;
       }
-      const material = new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.5,
-        metalness: 0.1,
-        side: THREE.DoubleSide,
-        name: matName
-      });
+
+      let material = materialCache.get(colorKey);
+      if (!material) {
+        let color = '#a0a0a0';
+        if (meshData.color) {
+          const c = meshData.color;
+          color = new THREE.Color(c[0], c[1], c[2]);
+        }
+        material = new THREE.MeshStandardMaterial({
+          color,
+          roughness: 0.5,
+          metalness: 0.1,
+          side: THREE.DoubleSide,
+          name: meshData.name ? `${meshData.name}_Mat` : `Material_${String(matIndex++).padStart(2, '0')}`
+        });
+        materialCache.set(colorKey, material);
+      }
+
       const mesh = new THREE.Mesh(geometry, material);
       if (meshData.name) mesh.name = meshData.name;
       group.add(mesh);
     }
     group.updateMatrixWorld(true);
 
-    setLoadingText("Generating GLB from STEP model...");
+    setLoadingText("Compiling 3D model...");
+    await new Promise(r => setTimeout(r, 60));
+
     const exporter = new GLTFExporter();
     const glbBuffer = await new Promise((resolve, reject) => {
       exporter.parse(
         group,
         (res) => resolve(res instanceof ArrayBuffer ? res : new TextEncoder().encode(JSON.stringify(res)).buffer),
         reject,
-        { binary: true, forceIndices: true, embedImages: true }
+        { binary: true, forceIndices: true, embedImages: false, animations: [] }
       );
     });
 
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
+
+  const convertStepToGlbBlob = (file) => convertCadToGlbBlob(file, 'step');
 
   const convertObjToGlbBlob = async (file) => {
     setLoadingText("Parsing OBJ model in browser...");
@@ -800,33 +1022,169 @@ export default function ThreedEditor() {
         obj,
         (res) => resolve(res instanceof ArrayBuffer ? res : new TextEncoder().encode(JSON.stringify(res)).buffer),
         reject,
-        { binary: true, embedImages: true }
+        { binary: true, embedImages: true, animations: [] }
       );
     });
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
+  const checkFbxLegacyVersion = async (file) => {
+    if (!file || !file.name || !file.name.toLowerCase().endsWith('.fbx')) return null;
+    try {
+      const slice = file.slice(0, 64);
+      const buffer = await slice.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      const text = new TextDecoder().decode(bytes.subarray(0, 18));
+      if (text.startsWith('Kaydara FBX Binary')) {
+        const view = new DataView(buffer);
+        const version = view.getUint32(23, true); // little-endian
+        if (version < 7100) {
+          return version;
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
   const convertFbxToGlbBlob = async (file) => {
     setLoadingText("Parsing FBX model in browser...");
+    setLoadingProgress(30);
     const buffer = await file.arrayBuffer();
-    const loader = new FBXLoader();
-    const fbx = loader.parse(buffer, '');
-    
+
+    // Isolated loading manager so texture fetches do not pollute Drei useProgress
+    const isolatedManager = new THREE.LoadingManager();
+    isolatedManager.onError = (url) => {
+      console.warn("[FBX in-browser converter] Sub-resource notice:", url);
+    };
+
+    const loader = new FBXLoader(isolatedManager);
+    let fbx;
+    try {
+      fbx = loader.parse(buffer, '');
+    } catch (parseErr) {
+      console.error("[FBXLoader] Browser parse error:", parseErr);
+      throw new Error(`Browser FBX parsing failed: ${parseErr.message}. If this FBX was saved in an older format (FBX 6.x or ASCII), please export as modern binary FBX (2014-2020) or GLB.`);
+    }
+
+    setLoadingText("Optimizing FBX geometry and materials...");
+    setLoadingProgress(60);
+
+    // Helper to safely validate texture images before GLTFExporter processes them
+    const isValidTexture = (tex) => {
+      if (!tex) return false;
+      const img = tex.image;
+      if (!img) return false;
+      if (img instanceof HTMLImageElement) {
+        return img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+      }
+      if ((img.width && img.width > 0) || (img.videoWidth && img.videoWidth > 0)) {
+        return true;
+      }
+      if (img.data && img.data.length > 0 && img.width > 0) {
+        return true;
+      }
+      return false;
+    };
+
+    const textureMapKeys = [
+      'map', 'normalMap', 'roughnessMap', 'metalnessMap',
+      'bumpMap', 'aoMap', 'emissiveMap', 'specularMap',
+      'alphaMap', 'displacementMap', 'lightMap', 'envMap'
+    ];
+
+    // Sanitize materials, textures, and normals so GLTFExporter doesn't crash on invalid images or missing attributes
+    fbx.traverse((child) => {
+      if (child.isMesh) {
+        // Ensure vertex normals exist
+        if (child.geometry && !child.geometry.attributes.normal) {
+          try { child.geometry.computeVertexNormals(); } catch (e) {}
+        }
+
+        if (child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          const sanitizedMats = mats.map((m) => {
+            if (!m) return new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.5, metalness: 0.1 });
+
+            // Remove any textures that failed to load or have zero dimensions (prevents canvas drawImage crashes)
+            textureMapKeys.forEach((key) => {
+              if (m[key] && !isValidTexture(m[key])) {
+                m[key] = null;
+              }
+            });
+
+            // If material is legacy Phong or Lambert, convert to MeshStandardMaterial with DoubleSide
+            if (!m.isMeshStandardMaterial && !m.isMeshPhysicalMaterial) {
+              return new THREE.MeshStandardMaterial({
+                name: m.name || 'FBX_Material',
+                color: m.color ? m.color.clone() : new THREE.Color(0xffffff),
+                map: isValidTexture(m.map) ? m.map : null,
+                normalMap: isValidTexture(m.normalMap) ? m.normalMap : null,
+                roughness: m.shininess ? Math.max(0.1, Math.min(1.0, 1.0 - (m.shininess / 100))) : 0.6,
+                metalness: 0.1,
+                transparent: m.transparent || (m.opacity < 1),
+                opacity: typeof m.opacity === 'number' ? m.opacity : 1,
+                side: THREE.DoubleSide
+              });
+            } else {
+              m.side = THREE.DoubleSide;
+              return m;
+            }
+          });
+
+          child.material = Array.isArray(child.material) ? sanitizedMats : sanitizedMats[0];
+        }
+      }
+    });
+
     setLoadingText("Generating GLB from FBX model...");
+    setLoadingProgress(75);
+
     const fbxAnimations = (fbx.animations || []).filter(a => a && Array.isArray(a.tracks) && a.tracks.length > 0);
     const exporter = new GLTFExporter();
-    const glbBuffer = await new Promise((resolve, reject) => {
-      exporter.parse(
-        fbx,
-        (res) => resolve(res instanceof ArrayBuffer ? res : new TextEncoder().encode(JSON.stringify(res)).buffer),
-        reject,
-        { 
-          binary: true, 
-          embedImages: true, 
-          animations: fbxAnimations.length > 0 ? fbxAnimations : undefined 
-        }
-      );
-    });
+
+    const runGltfExport = (options) => {
+      return new Promise((resolve, reject) => {
+        exporter.parse(
+          fbx,
+          (res) => resolve(res instanceof ArrayBuffer ? res : new TextEncoder().encode(JSON.stringify(res)).buffer),
+          reject,
+          { animations: [], ...(options || {}) }
+        );
+      });
+    };
+
+    let glbBuffer;
+    try {
+      // Tier 1: Export with animations & textures
+      glbBuffer = await runGltfExport({
+        binary: true,
+        embedImages: true,
+        animations: fbxAnimations.length > 0 ? fbxAnimations : []
+      });
+    } catch (animErr) {
+      console.warn("[FBX Exporter] Tier 1 export notice, trying without animations:", animErr.message);
+      try {
+        // Tier 2: Retry without animations in case animation tracks had invalid bone references
+        glbBuffer = await runGltfExport({
+          binary: true,
+          embedImages: true,
+          animations: []
+        });
+      } catch (texErr) {
+        console.warn("[FBX Exporter] Tier 2 export notice, trying without external texture embedding:", texErr.message);
+        // Tier 3: Retry without embedding images in case texture formats were incompatible
+        glbBuffer = await runGltfExport({
+          binary: true,
+          embedImages: false,
+          animations: []
+        });
+      }
+    }
+
+    setLoadingText("FBX converted to GLB successfully!");
+    setLoadingProgress(90);
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
@@ -845,103 +1203,67 @@ export default function ThreedEditor() {
         mesh,
         (res) => resolve(res instanceof ArrayBuffer ? res : new TextEncoder().encode(JSON.stringify(res)).buffer),
         reject,
-        { binary: true }
+        { binary: true, animations: [] }
       );
     });
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
-  const convertModelFileIfNeeded = async (file) => {
-    const ext = file.name.split('.').pop().toLowerCase();
-    const baseName = file.name.replace(/\.[^/.]+$/, "");
-
-    if (ext === 'glb' || ext === 'gltf') {
-      return {
-        file,
-        url: URL.createObjectURL(file),
-        type: 'glb',
-        name: baseName,
-        sizeInMB: (file.size / (1024 * 1024)).toFixed(2)
-      };
+  const convertLwoToGlbBlob = async (file) => {
+    setLoadingText("Parsing LWO model in browser...");
+    const buffer = await file.arrayBuffer();
+    const loader = new LWOLoader();
+    const lwoData = loader.parse(buffer, '', file.name.split('.')[0]);
+    const group = new THREE.Group();
+    if (lwoData?.meshes && Array.isArray(lwoData.meshes)) {
+      lwoData.meshes.forEach(m => group.add(m));
     }
+    group.updateMatrixWorld(true);
 
-    setManualLoading(true);
+    setLoadingText("Generating GLB from LWO model...");
+    const exporter = new GLTFExporter();
+    const glbBuffer = await new Promise((resolve, reject) => {
+      exporter.parse(
+        group,
+        (res) => resolve(res instanceof ArrayBuffer ? res : new TextEncoder().encode(JSON.stringify(res)).buffer),
+        reject,
+        { binary: true, animations: [] }
+      );
+    });
+    return new Blob([glbBuffer], { type: 'model/gltf-binary' });
+  };
 
-    // 1. In-browser instant conversion using Three.js & OpenCASCADE WASM -> GLTFExporter
-    if (ext === 'step' || ext === 'stp') {
-      try {
-        const glbBlob = await convertStepToGlbBlob(file);
-        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
-        const glbUrl = URL.createObjectURL(glbBlob);
-        return {
-          file: glbFile,
-          url: glbUrl,
-          type: 'glb',
-          name: baseName,
-          sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2)
-        };
-      } catch (err) {
-        console.warn("Client STEP conversion failed, attempting backend fallback:", err);
-      }
-    }
+  const convert3dsToGlbBlob = async (file) => {
+    setLoadingText("Parsing 3DS model in browser...");
+    const buffer = await file.arrayBuffer();
+    const loader = new TDSLoader();
+    const group = loader.parse(buffer, '');
+    group.updateMatrixWorld(true);
 
-    if (ext === 'obj') {
-      try {
-        const glbBlob = await convertObjToGlbBlob(file);
-        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
-        const glbUrl = URL.createObjectURL(glbBlob);
-        return {
-          file: glbFile,
-          url: glbUrl,
-          type: 'glb',
-          name: baseName,
-          sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2)
-        };
-      } catch (err) {
-        console.warn("Client OBJ conversion failed, attempting backend fallback:", err);
-      }
-    }
+    setLoadingText("Generating GLB from 3DS model...");
+    const exporter = new GLTFExporter();
+    const glbBuffer = await new Promise((resolve, reject) => {
+      exporter.parse(
+        group,
+        (res) => resolve(res instanceof ArrayBuffer ? res : new TextEncoder().encode(JSON.stringify(res)).buffer),
+        reject,
+        { binary: true, animations: [] }
+      );
+    });
+    return new Blob([glbBuffer], { type: 'model/gltf-binary' });
+  };
 
-    if (ext === 'fbx') {
-      try {
-        const glbBlob = await convertFbxToGlbBlob(file);
-        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
-        const glbUrl = URL.createObjectURL(glbBlob);
-        return {
-          file: glbFile,
-          url: glbUrl,
-          type: 'glb',
-          name: baseName,
-          sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2)
-        };
-      } catch (err) {
-        console.warn("Client FBX conversion failed, attempting backend fallback:", err);
-      }
-    }
-
-    if (ext === 'stl') {
-      try {
-        const glbBlob = await convertStlToGlbBlob(file);
-        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
-        const glbUrl = URL.createObjectURL(glbBlob);
-        return {
-          file: glbFile,
-          url: glbUrl,
-          type: 'glb',
-          name: baseName,
-          sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2)
-        };
-      } catch (err) {
-        console.warn("Client STL conversion failed, attempting backend fallback:", err);
-      }
-    }
-
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const convertModelViaBackend = async (file, ext, baseName) => {
+    const rawBackendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = rawBackendUrl.trim().replace(/\/+$/, '');
     const storedUser = localStorage.getItem('user');
     const user = storedUser ? JSON.parse(storedUser) : { emailId: 'guest_user' };
     const emailId = user.emailId || 'guest_user';
 
-    // 2. Heavy files (> 15MB): Use chunked upload to prevent socket timeouts & proxy drops
+    const isCad = ['step', 'stp', 'iges', 'igs', 'stl'].includes(ext);
+    const engineName = isCad ? "OpenCASCADE" : "Assimp";
+
+    // Heavy files (> 15MB): Use chunked upload to prevent socket timeouts & proxy drops
     const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
     if (file.size > 15 * 1024 * 1024) {
       const fileSize = file.size;
@@ -955,7 +1277,8 @@ export default function ThreedEditor() {
         const chunk = file.slice(start, end);
 
         const percent = Math.round(((chunkIndex + 1) / totalChunks) * 100);
-        setLoadingText(`Uploading heavy ${ext.toUpperCase()} file (${percent}% - chunk ${chunkIndex + 1}/${totalChunks})...`);
+        setLoadingText(`Uploading heavy ${ext.toUpperCase()} (${percent}% - chunk ${chunkIndex + 1}/${totalChunks})...`);
+        setLoadingProgress(Math.min(75, Math.round(percent * 0.7)));
 
         const chunkFormData = new FormData();
         chunkFormData.append('uploadId', uploadId);
@@ -966,15 +1289,23 @@ export default function ThreedEditor() {
         chunkFormData.append('isConverter', 'true');
         chunkFormData.append('chunk', chunk);
 
-        lastRes = await axios.post(`${backendUrl}/api/3d-models/upload-chunk`, chunkFormData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 600000,
-          maxContentLength: Infinity,
-          maxBodyLength: Infinity
-        });
+        try {
+          lastRes = await axios.post(`${backendUrl}/api/3d-models/upload-chunk`, chunkFormData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 1200000, // 20 minutes extended timeout for heavy 3D conversions
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
+          });
+        } catch (chunkErr) {
+          const errMsg = chunkErr.response?.data?.message || chunkErr.message;
+          const customErr = new Error(errMsg);
+          customErr.response = chunkErr.response;
+          throw customErr;
+        }
       }
 
-      setLoadingText("Converting heavy model to GLB on backend...");
+      setLoadingText(`Converting heavy ${ext.toUpperCase()} to GLB with ${engineName}...`);
+      setLoadingProgress(80);
 
       if (lastRes && lastRes.data && lastRes.data.url) {
         const rawUrl = lastRes.data.url;
@@ -992,8 +1323,9 @@ export default function ThreedEditor() {
       }
     }
 
-    // 3. Standard files (<= 15MB): Single upload with fast direct URL response
-    setLoadingText(`Converting ${ext.toUpperCase()} model to GLB...`);
+    // Standard files (<= 15MB): Single upload with fast direct URL response
+    setLoadingText(`Converting ${ext.toUpperCase()} model to GLB with ${engineName}...`);
+    setLoadingProgress(25);
     const formData = new FormData();
     formData.append('model', file);
     formData.append('emailId', emailId);
@@ -1001,16 +1333,20 @@ export default function ThreedEditor() {
     try {
       const response = await axios.post(`${backendUrl}/api/3d-models/convert-model`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 600000, // 10 minutes timeout
+        timeout: 1200000, // 20 minutes extended timeout for heavy conversions
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
             setLoadingText(`Uploading ${ext.toUpperCase()} (${percent}%)...`);
+            setLoadingProgress(Math.min(75, Math.max(15, Math.round(percent * 0.7))));
           }
         }
       });
+
+      setLoadingText(`Loading converted ${ext.toUpperCase()} model into editor...`);
+      setLoadingProgress(90);
 
       if (response.data && response.data.url) {
         const rawUrl = response.data.url;
@@ -1037,26 +1373,162 @@ export default function ThreedEditor() {
     }
   };
 
+  const convertModelFileIfNeeded = async (file) => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const baseName = file.name.replace(/\.[^/.]+$/, "");
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+
+    // Direct browser rendering formats: only valid standalone glTF 2.0 binaries / jsons
+    const directFormats = {
+      'glb': 'glb',
+      'gltf': 'glb'
+    };
+
+    if (directFormats[ext]) {
+      return {
+        file,
+        url: URL.createObjectURL(file),
+        type: directFormats[ext],
+        name: baseName,
+        sizeInMB
+      };
+    }
+
+    setManualLoading(true);
+
+    // 1. In-browser instant conversion using Three.js & OpenCASCADE WASM (STEP, STP, IGES, IGS)
+    if (ext === 'step' || ext === 'stp' || ext === 'iges' || ext === 'igs') {
+      try {
+        const glbBlob = await convertCadToGlbBlob(file, ext);
+        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
+        const glbUrl = URL.createObjectURL(glbBlob);
+        return {
+          file: glbFile,
+          url: glbUrl,
+          type: 'glb',
+          name: baseName,
+          sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2)
+        };
+      } catch (err) {
+        console.warn(`In-browser ${ext.toUpperCase()} conversion notice, using backend OpenCASCADE:`, err.message);
+        return await convertModelViaBackend(file, ext, baseName);
+      }
+    }
+
+    // 2. STL format (use OpenCASCADE / STLLoader)
+    if (ext === 'stl') {
+      try {
+        const glbBlob = await convertStlToGlbBlob(file);
+        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
+        const glbUrl = URL.createObjectURL(glbBlob);
+        return {
+          file: glbFile,
+          url: glbUrl,
+          type: 'glb',
+          name: baseName,
+          sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2)
+        };
+      } catch (err) {
+        console.warn("In-browser STL conversion notice, using backend OpenCASCADE:", err.message);
+        return await convertModelViaBackend(file, ext, baseName);
+      }
+    }
+
+    // 3. FBX format (Assimp converter with in-browser fallback)
+    if (ext === 'fbx') {
+      try {
+        setLoadingText("Converting FBX model to GLB with Assimp...");
+        setLoadingProgress(20);
+        return await convertModelViaBackend(file, ext, baseName);
+      } catch (backendErr) {
+        console.warn("Backend Assimp FBX conversion notice, inspecting fallback:", backendErr.message);
+
+        // If it is a known legacy FBX version (6100 / < 7100), browser FBXLoader will also fail
+        if (backendErr.message.includes("6100") || backendErr.message.includes("legacy FBX") || backendErr.message.includes("FileVersion")) {
+          throw backendErr;
+        }
+
+        try {
+          const glbBlob = await convertFbxToGlbBlob(file);
+          const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
+          const glbUrl = URL.createObjectURL(glbBlob);
+          return {
+            file: glbFile,
+            url: glbUrl,
+            type: 'glb',
+            name: baseName,
+            sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2)
+          };
+        } catch (clientErr) {
+          console.error("All FBX conversion attempts failed:", clientErr);
+          const finalMsg = (backendErr.message && !backendErr.message.includes("status code"))
+            ? backendErr.message
+            : clientErr.message;
+          throw new Error(finalMsg);
+        }
+      }
+    }
+
+    // 4. Other models (OBJ, 3DS, LWO, LOW): use Assimp backend with client fallbacks
+    try {
+      return await convertModelViaBackend(file, ext, baseName);
+    } catch (backendErr) {
+      if (ext === 'obj') {
+        const glbBlob = await convertObjToGlbBlob(file);
+        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
+        return { file: glbFile, url: URL.createObjectURL(glbBlob), type: 'glb', name: baseName, sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2) };
+      }
+      if (ext === '3ds') {
+        const glbBlob = await convert3dsToGlbBlob(file);
+        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
+        return { file: glbFile, url: URL.createObjectURL(glbBlob), type: 'glb', name: baseName, sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2) };
+      }
+      if (ext === 'lwo' || ext === 'low') {
+        const glbBlob = await convertLwoToGlbBlob(file);
+        const glbFile = new File([glbBlob], `${baseName}.glb`, { type: 'model/gltf-binary' });
+        return { file: glbFile, url: URL.createObjectURL(glbBlob), type: 'glb', name: baseName, sizeInMB: (glbBlob.size / (1024 * 1024)).toFixed(2) };
+      }
+      throw backendErr;
+    }
+  };
+
   const handleAddModel = async (file) => {
       if (!file) return;
 
+      const legacyFbxVer = await checkFbxLegacyVersion(file);
+      if (legacyFbxVer) {
+          setFormatErrorModal({
+              isOpen: true,
+              title: `Legacy FBX Format (${legacyFbxVer === 6100 ? "FBX 6.1" : `v${legacyFbxVer}`})`,
+              message: `This FBX model was exported using legacy Autodesk FBX ${legacyFbxVer === 6100 ? '6.1 (FileVersion: 6100)' : `v${legacyFbxVer}`} (pre-2011 binary format).\n\nModern 3D web engines (Three.js / WebGL) and Assimp require modern binary FBX 7.1+ (2013-2020) or .GLB / glTF.\n\nHow to fix:\n1. Open your model in Blender, Maya, 3ds Max, or Cinema 4D.\n2. Go to File > Export > FBX.\n3. In export settings, select modern FBX (2014-2020 binary) or export directly as .GLB / glTF.\n4. Upload the newly exported file.`
+          });
+          return;
+      }
+
+      const modelId = Date.now().toString();
+      const ext = file.name.split('.').pop().toLowerCase();
+      const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+
+      startModelLoading({
+          id: modelId,
+          name: file.name,
+          size: `${sizeInMB} MB`,
+          type: ext
+      });
+
       try {
-          setManualLoading(true);
-          setLoadingText("Processing 3D model...");
           const converted = await convertModelFileIfNeeded(file);
 
           const newModel = {
-              id: Date.now().toString(),
+              id: modelId,
               url: converted.url,
               file: converted.file,
-              type: 'glb',
+              type: converted.type || 'glb',
               name: converted.name
           };
 
           const nextModels = [...models, newModel];
           setModels(nextModels);
-          setManualLoading(true);
-          setLoadingText("");
 
           let nextModelName = modelName;
           // If this is the first model, set global name
@@ -1079,12 +1551,27 @@ export default function ThreedEditor() {
           }
 
           setIsSidebarCollapsed(false);
+          // Loader remains active while Three.js loads, calculates bounding box, and positions the model on base.
+          // handleModelReady() is called once the model has physically rendered on the base!
       } catch (err) {
           console.error("Error adding/converting model:", err);
-          toast.error(err.response?.data?.message || err.message || "Failed to convert 3D model with Assimp");
-      } finally {
+          if (loadingTimerRef.current) clearInterval(loadingTimerRef.current);
           setManualLoading(false);
+          setLoadingProgress(0);
           setLoadingText("");
+          setLoadingModelInfo(null);
+          pendingModelIdRef.current = null;
+          
+          const errMsg = err.response?.data?.message || err.message || "Failed to add 3D model";
+          if (errMsg.includes("6100") || errMsg.includes("legacy FBX") || errMsg.includes("FileVersion")) {
+              setFormatErrorModal({
+                  isOpen: true,
+                  title: "Legacy FBX Format (FileVersion: 6100)",
+                  message: errMsg
+              });
+          } else {
+              toast.error(errMsg);
+          }
       }
   };
 
@@ -1336,7 +1823,7 @@ export default function ThreedEditor() {
                 maxTextureSize: qualityTextureSize, 
                 embedImages: embedTextures, 
                 includeCustomExtensions: false,
-                animations: sanitizedExportAnimations.length > 0 ? sanitizedExportAnimations : undefined
+                animations: (sanitizedExportAnimations && sanitizedExportAnimations.length > 0) ? sanitizedExportAnimations : []
             }
         );
     });
@@ -1403,22 +1890,27 @@ export default function ThreedEditor() {
     } finally {
         restoreAll();
         
-        // Memory Cleanup: Dispose of the cloned scene resources to prevent browser crashes (STATUS_ACCESS_VIOLATION)
-        scene.traverse((obj) => {
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-                mats.forEach(m => {
-                    // Dispose textures (including those created during downscaling)
-                    TEX_KEYS.forEach(k => { 
-                        if (m[k] && m[k].isTexture && m[k].image instanceof HTMLCanvasElement) {
-                            m[k].dispose(); 
-                        }
-                    });
-                    m.dispose();
+        // Memory Cleanup: Dispose of cloned materials and temporary downscaled canvas textures ONLY
+        // CRITICAL: NEVER call obj.geometry.dispose() here because SkeletonUtils.clone shares
+        // geometries with the live scene by reference. Disposing geometries crashes the WebGL renderer
+        // with "THREE.WebGLRenderer: Context Lost"!
+        clonedMaterials.forEach((m) => {
+            if (m) {
+                TEX_KEYS.forEach(k => { 
+                    if (m[k] && m[k].isTexture && m[k].image instanceof HTMLCanvasElement) {
+                        m[k].dispose(); 
+                    }
                 });
+                m.dispose();
             }
         });
+        clonedMaterials.clear();
+        originalTextures.clear();
+        visibilityMap.clear();
+
+        try {
+            scene.clear();
+        } catch (_) {}
 
         setManualLoading(false);
         setLoadingText("");
@@ -1893,19 +2385,39 @@ export default function ThreedEditor() {
     if (!file) return;
 
     const name = file.name.toLowerCase();
-    const validExtensions = ['.glb', '.gltf', '.obj', '.fbx', '.stl', '.step', '.stp', '.3ds', '.lwo', '.low', '.iges', '.igs', '.zip'];
+    const validExtensions = ['.glb', '.gltf', '.obj', '.fbx', '.stl', '.step', '.stp', '.3ds', '.lwo', '.low', '.iges', '.igs', '.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2'];
     
     if (!validExtensions.some(ext => name.endsWith(ext))) {
         setFormatErrorModal({
             isOpen: true,
+            title: "Unsupported File Format",
             message: `The file format ".${name.split('.').pop()}" is not supported. Please upload one of the following: ${validExtensions.map(e => e.toUpperCase().replace('.', '')).join(', ')}`
         });
         return;
     } 
 
+    const legacyFbxVer = await checkFbxLegacyVersion(file);
+    if (legacyFbxVer) {
+        setFormatErrorModal({
+            isOpen: true,
+            title: `Legacy FBX Format (${legacyFbxVer === 6100 ? "FBX 6.1" : `v${legacyFbxVer}`})`,
+            message: `This FBX model was exported using legacy Autodesk FBX ${legacyFbxVer === 6100 ? '6.1 (FileVersion: 6100)' : `v${legacyFbxVer}`} (pre-2011 binary format).\n\nModern 3D web engines (Three.js / WebGL) and Assimp require modern binary FBX 7.1+ (2013-2020) or .GLB / glTF.\n\nHow to fix:\n1. Open your model in Blender, Maya, 3ds Max, or Cinema 4D.\n2. Go to File > Export > FBX.\n3. In export settings, select modern FBX (2014-2020 binary) or export directly as .GLB / glTF.\n4. Upload the newly exported file.`
+        });
+        return;
+    }
+
+    const modelId = Date.now().toString();
+    const ext = name.split('.').pop();
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+
+    startModelLoading({
+        id: modelId,
+        name: file.name,
+        size: `${sizeInMB} MB`,
+        type: ext
+    });
+
     try {
-        setManualLoading(true);
-        setLoadingText(name.endsWith('.zip') ? "Unpacking 3D model folder & embedding external textures..." : "Processing 3D model file...");
         const converted = await convertModelFileIfNeeded(file);
 
         setModelStats({ fileSize: `${converted.sizeInMB} MB` });
@@ -1917,10 +2429,10 @@ export default function ThreedEditor() {
         }
 
         const newModel = {
-            id: Date.now().toString(),
+            id: modelId,
             url: converted.url,
             file: converted.file,
-            type: 'glb',
+            type: converted.type || 'glb',
             name: converted.name
         };
 
@@ -1930,7 +2442,7 @@ export default function ThreedEditor() {
         // Kept for backward compat
         setModelUrl(converted.url);
         setModelFile(converted.file);
-        setModelType('glb');
+        setModelType(converted.type || 'glb');
         const nextModelName = newModel.name;
         setModelName(nextModelName);
         
@@ -1965,23 +2477,43 @@ export default function ThreedEditor() {
         });
 
         setIsSidebarCollapsed(false); 
+        // NOTE: Loader remains active while Three.js mounts and GenericModel base positioning calls handleModelReady!
     } catch (err) {
         console.error("Error processing/converting 3D model:", err);
-        toast.error(err.response?.data?.message || err.message || "Failed to convert 3D model with Assimp");
-    } finally {
+        if (loadingTimerRef.current) clearInterval(loadingTimerRef.current);
         setManualLoading(false);
+        setLoadingProgress(0);
         setLoadingText("");
+        setLoadingModelInfo(null);
+        pendingModelIdRef.current = null;
+        
+        const errMsg = err.response?.data?.message || err.message || "Failed to process 3D model";
+        if (errMsg.includes("6100") || errMsg.includes("legacy FBX") || errMsg.includes("FileVersion")) {
+            setFormatErrorModal({
+                isOpen: true,
+                title: "Legacy FBX Format (FileVersion: 6100)",
+                message: errMsg
+            });
+        } else {
+            toast.error(errMsg);
+        }
     }
   };
 
   const handleSelectGalleryModel = async (model) => {
     if (!model) return;
 
-    setManualLoading(true);
+    const modelId = Date.now().toString();
+    startModelLoading({
+        id: modelId,
+        name: model.name,
+        size: model.size || "Unknown",
+        type: model.type || 'glb'
+    });
+
     const fullUrl = (model.url && (model.url.startsWith('http://') || model.url.startsWith('https://')))
       ? model.url
       : `${backendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`;
-
 
     // Clear existing models if we are 'replacing'
     if (models.length > 0) {
@@ -1991,7 +2523,7 @@ export default function ThreedEditor() {
     }
 
     const newModel = {
-        id: Date.now().toString(),
+        id: modelId,
         url: fullUrl,
         file: null, // No local file object
         type: model.type,
@@ -2049,11 +2581,24 @@ export default function ThreedEditor() {
     e.dataTransfer.dropEffect = 'copy';
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const file = e.dataTransfer.files[0];
-    processFile(file);
+    try {
+      const dropResult = await process3DDropEvent(e.dataTransfer, {
+        onProgressText: (txt) => {
+          setLoadingText(txt);
+          setManualLoading(true);
+        }
+      });
+      if (dropResult?.file) {
+        processFile(dropResult.file);
+      }
+    } catch (err) {
+      console.warn("Drop processing fallback:", err.message);
+      const file = e.dataTransfer?.files?.[0];
+      if (file) processFile(file);
+    }
   };
 
   const handleClearModel = async () => {
@@ -2061,6 +2606,17 @@ export default function ThreedEditor() {
     models.forEach(m => {
          if (m.url) URL.revokeObjectURL(m.url);
     });
+
+    if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+    }
+    setManualLoading(false);
+    setLoadingProgress(0);
+    setLoadingText("");
+    setLoadingModelInfo(null);
+    pendingModelIdRef.current = null;
+    isCompletingRef.current = false;
 
     const defaultTransform = {
         position: { x: 0, y: 0, z: 0 },
@@ -2509,7 +3065,14 @@ export default function ThreedEditor() {
         onDragOver={handleDragOver}
         onDrop={handleDrop}
     >
-      {!showModelGalleryModal && <GlobalLoader manualLoading={manualLoading || isSyncing} text={loadingText} />}
+      {!showModelGalleryModal && (
+        <GlobalLoader
+          manualLoading={manualLoading || isSyncing}
+          progress={loadingProgress}
+          stage={loadingText}
+          modelInfo={loadingModelInfo}
+        />
+      )}
       
 
 
@@ -2748,6 +3311,8 @@ export default function ThreedEditor() {
                         onTransformStart={handleTransformStart}
                         onTransformEnd={handleTransformEnd}
                         onTransformChange={handleTransformChange}
+                        onModelReady={() => handleModelReady(model.id)}
+                        onProgress={(pct, stage) => handleModelProgress(model.id, pct, stage)}
                     />
                   ))}
                 </group>
@@ -2813,27 +3378,13 @@ export default function ThreedEditor() {
                  </mesh>
               )}
 
-              <OrbitControls
+              <SmoothOrbitControls
                 ref={controlsRef}
                 autoRotate={autoRotate}
-                makeDefault
-                enableDamping={true}
-                dampingFactor={0.05}
-                onChange={(e) => {
-                  // Throttle UI updates to prevent "hanging" (lag) caused by excessive re-renders
-                  const now = Date.now();
-                  if (now - lastUpdateRef.current > 60) {
-                     if (e?.target?.target) {
-                        const { x, y, z } = e.target.target;
-                        setTargetPosition({
-                          x: parseFloat(x.toFixed(2)),
-                          y: parseFloat(y.toFixed(2)),
-                          z: parseFloat(z.toFixed(2))
-                        });
-                     }
-                     lastUpdateRef.current = now;
-                  }
-                }}
+                dampingFactor={0.08}
+                momentumFriction={0.95}
+                rotateSpeed={1.0}
+                onChange={handleControlsChange}
               />
 
               {/* GIZMO HELPER - Also hide during capture */}
@@ -2944,9 +3495,9 @@ export default function ThreedEditor() {
 
           <AlertModal
               isOpen={formatErrorModal.isOpen}
-              onClose={() => setFormatErrorModal({ isOpen: false, message: '' })}
+              onClose={() => setFormatErrorModal({ isOpen: false, title: 'Invalid Model Format', message: '' })}
               type="error"
-              title="Invalid Model Format"
+              title={formatErrorModal.title || "Invalid Model Format"}
               message={formatErrorModal.message}
               confirmText="Got it"
           />

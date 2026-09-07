@@ -129,8 +129,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   // Start automatic cleaner for temp uploads (purges files older than 10 minutes)
   startBackgroundTempCleaner(path.join(__dirname, "temp_uploads"));
 });
+
+// Extend server timeouts to 20 minutes for heavy 3D CAD/model conversions
+server.timeout = 20 * 60 * 1000;
+server.keepAliveTimeout = 65 * 1000;
+server.headersTimeout = 70 * 1000;
+if (server.requestTimeout !== undefined) {
+  server.requestTimeout = 20 * 60 * 1000;
+}

@@ -794,7 +794,7 @@ export default function Home() {
           message: `Extracting pages from ${file.name}...`
         });
 
-        const images = await convertPdfToImages(file, 2, remainingPages);
+        const images = await convertPdfToImages(file, 2.5, remainingPages);
         if (isUploadCancelledRef.current) return;
         allImages = [...allImages, ...images];
       }
@@ -865,8 +865,8 @@ export default function Home() {
         // Encode the batch of pages concurrently
         const batchPages = await Promise.all(batch.map(async (img, idx) => {
           const pageIndex = i + idx + 1;
-          const base64Url = await blobToBase64(img.blob);
-          const html = generatePdfPageSvg(base64Url, `Page ${pageIndex}`, maxWidth, maxHeight);
+          const base64Url = img.dataUrl || await blobToBase64(img.blob);
+          const html = generatePdfPageSvg(base64Url, `Page ${pageIndex}`, maxWidth, maxHeight, true);
           return {
             pageName: `Page ${pageIndex}`,
             content: html,
