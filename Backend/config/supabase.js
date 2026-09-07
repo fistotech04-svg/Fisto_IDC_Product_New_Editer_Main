@@ -36,20 +36,32 @@ export const rewriteUploadsToSupabase = (html, baseUrlPrefix = "") => {
 
   const cdnBase = `${supabaseUrl}/storage/v1/object/public/${SUPABASE_BUCKET}/`;
 
-  let result = html
-    .replace(/(?<!\/storage\/v1\/object\/public\/uploads)(?<!\/storage\/v1\/object\/public)(['"\s(^])(\/uploads\/)/g, (match, prefix, _) => `${prefix}${cdnBase}`)
-    .replace(/(href|src|url)=(["']?)(\/uploads\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}`);
+  // Split on data: URI boundaries to NEVER corrupt base64 content (e.g. data:image/jpeg;base64,...).
+  // Even-indexed segments are normal HTML; odd-indexed are data: URIs — leave those untouched.
+  const DATA_URI_RE = /(data:[^;]+;base64,[A-Za-z0-9+/=\s]+)/g;
+  const parts = html.split(DATA_URI_RE);
 
-  if (baseUrlPrefix) {
-    const cleanPrefix = baseUrlPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
-    result = result
-      .replace(/(href|src|url)=(["']?)(\.\/assets\/|assets\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}${cleanPrefix}/assets/`)
-      .replace(/(['"\s(])(\.\/assets\/|assets\/)/g, (match, prefix, _) => `${prefix}${cdnBase}${cleanPrefix}/assets/`)
-      .replace(/(href|src|url)=(["']?)(\.\/customized_assets\/|customized_assets\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}${cleanPrefix}/customized_assets/`)
-      .replace(/(['"\s(])(\.\/customized_assets\/|customized_assets\/)/g, (match, prefix, _) => `${prefix}${cdnBase}${cleanPrefix}/customized_assets/`);
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 !== 0) continue; // skip data: URI segments
+
+    let seg = parts[i];
+    seg = seg
+      .replace(/(?<!\/storage\/v1\/object\/public\/uploads)(?<!\/storage\/v1\/object\/public)(['"\s(^])(\/uploads\/)/g, (match, prefix, _) => `${prefix}${cdnBase}`)
+      .replace(/(href|src|url)=([""]?)(\/uploads\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}`);
+
+    if (baseUrlPrefix) {
+      const cleanPrefix = baseUrlPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+      seg = seg
+        .replace(/(href|src|url)=([""]?)(\.\/assets\/|assets\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}${cleanPrefix}/assets/`)
+        .replace(/(['"\s(])(\.\/assets\/|assets\/)/g, (match, prefix, _) => `${prefix}${cdnBase}${cleanPrefix}/assets/`)
+        .replace(/(href|src|url)=([""]?)(\.\/customized_assets\/|customized_assets\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}${cleanPrefix}/customized_assets/`)
+        .replace(/(['"\s(])(\.\/customized_assets\/|customized_assets\/)/g, (match, prefix, _) => `${prefix}${cdnBase}${cleanPrefix}/customized_assets/`);
+    }
+
+    parts[i] = seg;
   }
 
-  return result;
+  return parts.join('');
 };
 
 

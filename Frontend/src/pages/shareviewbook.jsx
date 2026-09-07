@@ -636,7 +636,6 @@ const ShareViewBook = () => {
                     : '';
 
                 if (processedData.pages) {
-                    let imageUrls = [];
                     processedData.pages = processedData.pages.filter(p => String(p.hide) !== '1' && p.isHidden !== true && String(p.isHidden) !== 'true').map(p => {
                         let html = p.html || p.content || '';
 
@@ -653,38 +652,9 @@ const ShareViewBook = () => {
                         // Rewrite all /uploads/ to Supabase CDN URLs if configured
                         html = rewriteHtmlUploadsToSupabase(html);
 
-                        // Extract URLs for preloading
-                        const matches = html.match(/(?:src|href|xlink:href)=["'](.*?)["']/g);
-                        if (matches) {
-                            matches.forEach(m => {
-                                const urlMatch = m.match(/(?:src|href|xlink:href)=["'](.*?)["']/);
-                                if (urlMatch && urlMatch[1] && !urlMatch[1].startsWith('data:')) {
-                                    imageUrls.push(urlMatch[1]);
-                                }
-                            });
-                        }
-
                         return { ...p, html };
                     });
-
-                    // Preload all extracted images before showing the book
-                    if (imageUrls.length > 0) {
-                        imageUrls = [...new Set(imageUrls)]; // unique urls
-                        const loadPromises = imageUrls.map(url => {
-                            return new Promise(resolve => {
-                                const img = new Image();
-                                img.onload = resolve;
-                                img.onerror = resolve; // resolve on error to not block forever
-                                img.src = url;
-                            });
-                        });
-
-                        // Wait for images up to 10 seconds (failsafe for slow network)
-                        await Promise.race([
-                            Promise.all(loadPromises),
-                            new Promise(r => setTimeout(r, 10000))
-                        ]);
-                    }
+                    // Images load naturally as pages are viewed — no preloading block needed
                 }
 
                 // Sync URL path to match actual access mode (e.g. /share=public/ vs /share=private/)

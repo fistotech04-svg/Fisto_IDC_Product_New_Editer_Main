@@ -519,9 +519,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 const iframe = document.createElement('iframe');
                 iframe.setAttribute('frameBorder', '0');
                 iframe.srcdoc = (externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1);
-                iframe.style.cssText = 'position:absolute;inset:0;border:none;outline:none;width:100%;height:100%;pointer-events:auto;opacity:0.01;transition:opacity 0.3s ease;border-radius:inherit;';
+                // Start visible immediately — static background is already showing the page content
+                // so there's no blank flash. Images load lazily inside the iframe.
+                iframe.style.cssText = 'position:absolute;inset:0;border:none;outline:none;width:100%;height:100%;pointer-events:auto;opacity:1;border-radius:inherit;';
                 iframe.onload = () => {
-                    iframe.style.opacity = '1';
                     try {
                         if (iframe.contentDocument) {
                             initGifRunner(iframe.contentDocument);
