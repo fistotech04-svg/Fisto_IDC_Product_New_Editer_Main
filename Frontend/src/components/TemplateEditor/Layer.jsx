@@ -1171,9 +1171,9 @@ const Layer = ({
                                 className="w-full text-left text-[0.85vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
                               />
                             ) : (
-                              <span className={`text-[0.85vw] font-semibold truncate tracking-tight transition-colors duration-300 ${page.isHidden ? 'text-gray-400 line-through' : (isExpanded ? 'text-[#111827]' : 'text-[#4B5563]')}`}>
-                                {page.name}
-                              </span>
+                                <span className={`text-[0.85vw] font-semibold truncate tracking-tight transition-colors duration-300 ${page.isHidden ? 'text-gray-400' : (isExpanded ? 'text-[#111827]' : 'text-[#4B5563]')}`}>
+                                  {page.name}
+                                </span>
                             )}
                           </div>
 
@@ -1304,7 +1304,7 @@ const Layer = ({
                                     className="w-full text-left text-[0.8vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
                                   />
                                 ) : (
-                                  <span className={`text-[0.8vw] font-semibold text-gray-900 truncate block ${page.isHidden ? 'text-gray-400 line-through' : ''}`}>
+                                  <span className={`text-[0.8vw] font-semibold text-gray-900 truncate block ${page.isHidden ? 'text-gray-400' : ''}`}>
                                     {page.name}
                                   </span>
                                 )}

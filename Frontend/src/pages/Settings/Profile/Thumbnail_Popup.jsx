@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 import ColorPallet from '../../../components/CustomizedEditor/ColorPallet';
+import ColorPicker from '../../../components/TemplateEditor/ColorPicker';
 import { resolveUploadsPath } from '../../../utils/supabaseUtils';
 
 const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
   const [isColorPalletOpen, setIsColorPalletOpen] = useState(false);
+  const [isGradientPickerOpen, setIsGradientPickerOpen] = useState(false);
   const [customColor, setCustomColor] = useState('#E8D4C8');
+  const [customGradient, setCustomGradient] = useState('linear-gradient(to right, #597810ff  0%, #e6f0d0ff 100%)');
   const [uploadedImage, setUploadedImage] = useState(null);
 
   if (!isOpen) return null;
@@ -88,7 +91,7 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
                    <ColorPallet 
                       inline={true}
                       smallMode={false}
-                      color={customColor}
+                      color={bannerBg?.type === 'solid' ? bannerBg.value : customColor}
                       opacity={100}
                       onChange={(c) => {
                          setUploadedImage(null);
@@ -111,18 +114,37 @@ const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
               key={index}
               onClick={() => {
                 setUploadedImage(null);
+                setCustomGradient(gradient);
                 setBannerBg({ type: 'gradient', value: gradient });
               }}
               className="w-[2vw] h-[2vw] rounded-full border border-gray-200 overflow-hidden hover:scale-110 transition-transform shadow-sm flex items-center justify-center flex-shrink-0"
               style={{ background: gradient }}
             />
           ))}
-          <button 
-             type="button"
-             className="w-[2vw] h-[2vw] rounded-full border border-gray-200 hover:scale-110 transition-transform shadow-sm bg-gray-50 flex items-center justify-center cursor-pointer flex-shrink-0"
-          >
-             <Icon icon="mdi:pencil" className="text-gray-500 w-[1.2vw] h-[1.2vw]" />
-          </button>
+          <div className="relative">
+            <button 
+               type="button"
+               onClick={() => setIsGradientPickerOpen(!isGradientPickerOpen)}
+               className="w-[2vw] h-[2vw] rounded-full border border-gray-200 hover:scale-110 transition-transform shadow-sm bg-gray-50 flex items-center justify-center cursor-pointer flex-shrink-0"
+            >
+               <Icon icon="mdi:pencil" className="text-gray-500 w-[1.2vw] h-[1.2vw]" />
+            </button>
+            
+            {isGradientPickerOpen && (
+               <div className="absolute top-[-10vw] right-[10vw] z-[100]">
+                  <ColorPicker 
+                     color={bannerBg?.type === 'gradient' ? bannerBg.value : customGradient}
+                     disableSolid={true}
+                     onChange={(c) => {
+                        setUploadedImage(null);
+                        setCustomGradient(c);
+                        setBannerBg({ type: 'gradient', value: c });
+                     }}
+                     onClose={() => setIsGradientPickerOpen(false)}
+                  />
+               </div>
+            )}
+          </div>
         </div>
       </div>
 

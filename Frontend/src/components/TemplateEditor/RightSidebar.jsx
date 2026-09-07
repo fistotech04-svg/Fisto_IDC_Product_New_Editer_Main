@@ -36,47 +36,47 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
 
     let frameId;
     const poll = () => {
-       const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-       const el = editorDoc.getElementById(targetId);
-       if (el && typeof el.getBBox === 'function') {
-          try {
-             let bbox;
-             if (el.getAttribute('data-is-hotspot') === 'true') {
-                 bbox = { x: 0, y: 0, width: 52, height: 52 };
-             } else {
-                 bbox = getVisualBBox(el);
-             }
-             let rawVal = 0;
-             let m = [1, 0, 0, 1, 0, 0];
-             const transform = el.getAttribute('transform');
-             if (transform && transform.includes('matrix')) {
-                const match = transform.match(/matrix\(([^)]+)\)/);
-                if (match) {
-                   const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-                   if (parsedM.length === 6) m = parsedM;
-                }
-             }
+      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+      const el = editorDoc.getElementById(targetId);
+      if (el && typeof el.getBBox === 'function') {
+        try {
+          let bbox;
+          if (el.getAttribute('data-is-hotspot') === 'true') {
+            bbox = { x: 0, y: 0, width: 52, height: 52 };
+          } else {
+            bbox = getVisualBBox(el);
+          }
+          let rawVal = 0;
+          let m = [1, 0, 0, 1, 0, 0];
+          const transform = el.getAttribute('transform');
+          if (transform && transform.includes('matrix')) {
+            const match = transform.match(/matrix\(([^)]+)\)/);
+            if (match) {
+              const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+              if (parsedM.length === 6) m = parsedM;
+            }
+          }
 
-             if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
-             else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
-             else if (targetAttr === 'x') rawVal = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
-             else if (targetAttr === 'y') rawVal = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
+          if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
+          else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
+          else if (targetAttr === 'x') rawVal = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
+          else if (targetAttr === 'y') rawVal = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
 
-             if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
-                 const r = parseFloat(el.getAttribute('r')) || 0;
-                 if (targetAttr === 'width' || targetAttr === 'height') rawVal = r * 2;
-                 else if (targetAttr === 'x') rawVal = (parseFloat(el.getAttribute('cx')) || 0) - r;
-                 else if (targetAttr === 'y') rawVal = (parseFloat(el.getAttribute('cy')) || 0) - r;
-             }
+          if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
+            const r = parseFloat(el.getAttribute('r')) || 0;
+            if (targetAttr === 'width' || targetAttr === 'height') rawVal = r * 2;
+            else if (targetAttr === 'x') rawVal = (parseFloat(el.getAttribute('cx')) || 0) - r;
+            else if (targetAttr === 'y') rawVal = (parseFloat(el.getAttribute('cy')) || 0) - r;
+          }
 
-             const finalLiveVal = Number(rawVal.toFixed(1)).toString();
-             
-             setLiveVal((prev) => (prev !== finalLiveVal ? finalLiveVal : prev));
-          } catch (e) {}
-       } else {
-          setLiveVal(null);
-       }
-       frameId = requestAnimationFrame(poll);
+          const finalLiveVal = Number(rawVal.toFixed(1)).toString();
+
+          setLiveVal((prev) => (prev !== finalLiveVal ? finalLiveVal : prev));
+        } catch (e) { }
+      } else {
+        setLiveVal(null);
+      }
+      frameId = requestAnimationFrame(poll);
     };
     poll();
     return () => cancelAnimationFrame(frameId);
@@ -132,7 +132,7 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
         if (readOnly) return;
         setIsEditing(false);
         if (localVal !== '' && localVal !== (liveVal !== null ? liveVal : value).toString()) {
-           onChange(localVal);
+          onChange(localVal);
         }
       }}
       onChange={(e) => {
@@ -147,9 +147,9 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
   );
 };
 
-const RightSidebar = ({ 
-  isDoublePage, 
-  setIsDoublePage, 
+const RightSidebar = ({
+  isDoublePage,
+  setIsDoublePage,
   isRulerEnabled,
   setIsRulerEnabled,
   activeMainTool,
@@ -173,7 +173,7 @@ const RightSidebar = ({
   onCustomizePopup,
   onApplyPopupChanges,
   onCancelPopupChanges,
-  is3DModalOpen, 
+  is3DModalOpen,
   setIs3DModalOpen,
   preview3DDataUrl,
   setCurrent3DItem,
@@ -186,7 +186,7 @@ const RightSidebar = ({
   bgType, setBgType,
   bgColor, setBgColor,
   customBg, setCustomBg,
-    enableAR, setEnableAR,
+  enableAR, setEnableAR,
   qrText, setQrText, qrColor, setQrColor, qrBgType, setQrBgType, qrBgColor, setQrBgColor, qrLevel, setQrLevel, qrDotType, setQrDotType, qrCornerSquareType, setQrCornerSquareType, qrCornerDotType, setQrCornerDotType, qrLogo, setQrLogo,
   topText, setTopText, bottomText, setBottomText,
   current3DVId,
@@ -271,179 +271,179 @@ const RightSidebar = ({
   const interactionMenuRef = useRef(null);
 
   const updatePosition = (val, targetAttr) => {
-     if (activeTopTool === 'interaction' || activeTopTool === 'animation') return;
-     if (!selectedElementProps) return;
-     const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-     const el = editorDoc.getElementById(selectedLayerId);
-     if (!el) return;
-     
-     let newVal = parseFloat(val);
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation') return;
+    if (!selectedElementProps) return;
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    const el = editorDoc.getElementById(selectedLayerId);
+    if (!el) return;
 
-     const transform = el.getAttribute('transform');
-     if (transform && transform.includes('matrix')) {
-         const match = transform.match(/matrix\(([^)]+)\)/);
-         if (match) {
-             const m = match[1].split(/[\s,]+/).map(parseFloat);
-             if (m.length === 6) {
-                 const bbox = getVisualBBox(el);
-                 const bounds = getCanvasBounds(el, flipbookDimensions?.width, flipbookDimensions?.height);
-                 const visW = bbox.width * Math.abs(m[0]);
-                 const visH = bbox.height * Math.abs(m[3]);
+    let newVal = parseFloat(val);
 
-                 if (targetAttr === 'x') {
-                     newVal = Math.max(bounds.minX, Math.min(bounds.maxX - visW, newVal));
-                     const offsetX = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0);
-                     m[4] = newVal - offsetX;
-                     updateElementAttribute(activePageIndex, selectedLayerId, {
-                        'transform': `matrix(${m.join(', ')})`,
-                        'data-x': m[4].toString()
-                     });
-                 } else {
-                     newVal = Math.max(bounds.minY, Math.min(bounds.maxY - visH, newVal));
-                     const offsetY = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0);
-                     m[5] = newVal - offsetY;
-                     updateElementAttribute(activePageIndex, selectedLayerId, {
-                        'transform': `matrix(${m.join(', ')})`,
-                        'data-y': m[5].toString()
-                     });
-                 }
-                 setTimeout(() => {
-                    if (typeof window.drawOverlayHighlight === 'function') {
-                       window.drawOverlayHighlight(el, 'selected');
-                    }
-                 }, 50);
-                 return;
-             }
-         }
-     }
+    const transform = el.getAttribute('transform');
+    if (transform && transform.includes('matrix')) {
+      const match = transform.match(/matrix\(([^)]+)\)/);
+      if (match) {
+        const m = match[1].split(/[\s,]+/).map(parseFloat);
+        if (m.length === 6) {
+          const bbox = getVisualBBox(el);
+          const bounds = getCanvasBounds(el, flipbookDimensions?.width, flipbookDimensions?.height);
+          const visW = bbox.width * Math.abs(m[0]);
+          const visH = bbox.height * Math.abs(m[3]);
 
-     if (targetAttr === 'x') {
-         if (selectedElementProps.tagName === 'circle' || selectedElementProps.tagName === 'ellipse') {
-             const radius = parseFloat(selectedElementProps.tagName === 'circle' ? el.getAttribute('r') : el.getAttribute('rx')) || 0;
-             updateElementAttribute(activePageIndex, selectedLayerId, 'cx', (newVal + radius).toString());
-         } else {
-             updateElementAttribute(activePageIndex, selectedLayerId, 'x', newVal.toString());
-         }
-     } else {
-         if (selectedElementProps.tagName === 'circle' || selectedElementProps.tagName === 'ellipse') {
-             const radius = parseFloat(selectedElementProps.tagName === 'circle' ? el.getAttribute('r') : el.getAttribute('ry')) || 0;
-             updateElementAttribute(activePageIndex, selectedLayerId, 'cy', (newVal + radius).toString());
-         } else {
-             updateElementAttribute(activePageIndex, selectedLayerId, 'y', newVal.toString());
-         }
-     }
+          if (targetAttr === 'x') {
+            newVal = Math.max(bounds.minX, Math.min(bounds.maxX - visW, newVal));
+            const offsetX = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0);
+            m[4] = newVal - offsetX;
+            updateElementAttribute(activePageIndex, selectedLayerId, {
+              'transform': `matrix(${m.join(', ')})`,
+              'data-x': m[4].toString()
+            });
+          } else {
+            newVal = Math.max(bounds.minY, Math.min(bounds.maxY - visH, newVal));
+            const offsetY = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0);
+            m[5] = newVal - offsetY;
+            updateElementAttribute(activePageIndex, selectedLayerId, {
+              'transform': `matrix(${m.join(', ')})`,
+              'data-y': m[5].toString()
+            });
+          }
+          setTimeout(() => {
+            if (typeof window.drawOverlayHighlight === 'function') {
+              window.drawOverlayHighlight(el, 'selected');
+            }
+          }, 50);
+          return;
+        }
+      }
+    }
+
+    if (targetAttr === 'x') {
+      if (selectedElementProps.tagName === 'circle' || selectedElementProps.tagName === 'ellipse') {
+        const radius = parseFloat(selectedElementProps.tagName === 'circle' ? el.getAttribute('r') : el.getAttribute('rx')) || 0;
+        updateElementAttribute(activePageIndex, selectedLayerId, 'cx', (newVal + radius).toString());
+      } else {
+        updateElementAttribute(activePageIndex, selectedLayerId, 'x', newVal.toString());
+      }
+    } else {
+      if (selectedElementProps.tagName === 'circle' || selectedElementProps.tagName === 'ellipse') {
+        const radius = parseFloat(selectedElementProps.tagName === 'circle' ? el.getAttribute('r') : el.getAttribute('ry')) || 0;
+        updateElementAttribute(activePageIndex, selectedLayerId, 'cy', (newVal + radius).toString());
+      } else {
+        updateElementAttribute(activePageIndex, selectedLayerId, 'y', newVal.toString());
+      }
+    }
   };
 
   const convertValue = (mmValue) => {
-     const val = parseFloat(mmValue || 0);
-     if (dimensionUnit === 'px') return Math.round(val * 96 / 25.4);
-     if (dimensionUnit === 'cm') return (val / 10).toFixed(2);
-     return Number(val.toFixed(1)); // mm
+    const val = parseFloat(mmValue || 0);
+    if (dimensionUnit === 'px') return Math.round(val * 96 / 25.4);
+    if (dimensionUnit === 'cm') return (val / 10).toFixed(2);
+    return Number(val.toFixed(1)); // mm
   };
 
   const updateDimensionWithScale = (val, targetAttr) => {
-     if (activeTopTool === 'interaction' || activeTopTool === 'animation') return;
-     if (!selectedElementProps) return;
-     let scale = 1;
-     let m = [1, 0, 0, 1, 0, 0];
-     let hasMatrix = false;
-     const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-     const el = editorDoc.getElementById(selectedLayerId);
-     if (el) {
-        const transform = el.getAttribute('transform');
-        if (transform && transform.includes('matrix')) {
-           const match = transform.match(/matrix\(([^)]+)\)/);
-           if (match) {
-              const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-              if (parsedM.length === 6) {
-                 m = parsedM;
-                 hasMatrix = true;
-                 scale = Math.abs(targetAttr === 'width' ? m[0] : m[3]);
-              }
-           }
-        }
-     }
-     const tag = selectedElementProps.tagName;
-
-     if (tag === 'line') {
-       if (!el) return;
-       const x1 = parseFloat(el.getAttribute('x1')) || 0;
-       const y1 = parseFloat(el.getAttribute('y1')) || 0;
-       const x2 = parseFloat(el.getAttribute('x2')) || 0;
-       const y2 = parseFloat(el.getAttribute('y2')) || 0;
-       
-       const unscaledVal = parseFloat(val) / scale;
-       
-       if (targetAttr === 'width') {
-         // Preserve direction if line was drawn right-to-left
-         const direction = x2 >= x1 ? 1 : -1;
-         updateElementAttribute(activePageIndex, selectedLayerId, 'x2', (x1 + direction * unscaledVal).toString());
-       } else if (targetAttr === 'height') {
-         // Preserve direction if line was drawn bottom-to-top
-         const direction = y2 >= y1 ? 1 : -1;
-         updateElementAttribute(activePageIndex, selectedLayerId, 'y2', (y1 + direction * unscaledVal).toString());
-       }
-       return;
-     }
-
-     if (tag === 'ellipse' || tag === 'circle') {
-       const unscaledVal = parseFloat(val) / scale;
-       if (targetAttr === 'width') {
-         updateElementAttribute(activePageIndex, selectedLayerId, 'rx', (unscaledVal / 2).toString());
-         // also try 'r' just in case it's a true circle without rx
-         if (tag === 'circle' && el && el.hasAttribute('r')) updateElementAttribute(activePageIndex, selectedLayerId, 'r', (unscaledVal / 2).toString());
-       } else if (targetAttr === 'height') {
-         updateElementAttribute(activePageIndex, selectedLayerId, 'ry', (unscaledVal / 2).toString());
-       }
-       return;
-     }
-
-     if (tag === 'path' || tag === 'polygon' || tag === 'g' || tag === 'rect' || tag === 'image' || tag === 'foreignobject' || hasMatrix) {
-       if (!el) return;
-       const bbox = getVisualBBox(el);
-       const targetVal = parseFloat(val);
-       if (targetVal <= 0 || bbox.width === 0 || bbox.height === 0) return;
-
-       if (targetAttr === 'width') {
-         // Current world X of top-left (account for negative scale when flipped)
-         const oldWorldX = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
-         // New m[0] scale (preserve sign for flip)
-         const newM0 = (m[0] >= 0 ? 1 : -1) * (targetVal / bbox.width);
-         // New m[4] translation to keep top-left fixed
-         const newM4 = oldWorldX - (bbox.x * newM0 + (newM0 < 0 ? bbox.width * newM0 : 0));
-         m[0] = newM0;
-         m[4] = newM4;
-       } else if (targetAttr === 'height') {
-         // Current world Y of top-left (account for negative scale when flipped)
-         const oldWorldY = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
-         // New m[3] scale (preserve sign for flip)
-         const newM3 = (m[3] >= 0 ? 1 : -1) * (targetVal / bbox.height);
-         // New m[5] translation to keep top-left fixed
-         const newM5 = oldWorldY - (bbox.y * newM3 + (newM3 < 0 ? bbox.height * newM3 : 0));
-         m[3] = newM3;
-         m[5] = newM5;
-       }
-       
-       updateElementAttribute(activePageIndex, selectedLayerId, 'transform', `matrix(${m.join(', ')})`);
-       
-       // Trigger overlay highlight update
-       setTimeout(() => {
-          if (typeof window.drawOverlayHighlight === 'function') {
-             window.drawOverlayHighlight(el, 'selected');
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation') return;
+    if (!selectedElementProps) return;
+    let scale = 1;
+    let m = [1, 0, 0, 1, 0, 0];
+    let hasMatrix = false;
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    const el = editorDoc.getElementById(selectedLayerId);
+    if (el) {
+      const transform = el.getAttribute('transform');
+      if (transform && transform.includes('matrix')) {
+        const match = transform.match(/matrix\(([^)]+)\)/);
+        if (match) {
+          const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+          if (parsedM.length === 6) {
+            m = parsedM;
+            hasMatrix = true;
+            scale = Math.abs(targetAttr === 'width' ? m[0] : m[3]);
           }
-       }, 50);
-       return;
-     }
+        }
+      }
+    }
+    const tag = selectedElementProps.tagName;
 
-     const elementAttr = targetAttr;
-     
-     // Note: for a circle, 'val' is the diameter. We want the unscaled radius.
-     // For other elements, 'val' is the width/height. We want the unscaled width/height.
-     const finalVal = tag === 'circle' 
-        ? (parseFloat(val) / 2 / scale).toString() 
-        : (parseFloat(val) / scale).toString();
-     
-     updateElementAttribute(activePageIndex, selectedLayerId, elementAttr, finalVal);
+    if (tag === 'line') {
+      if (!el) return;
+      const x1 = parseFloat(el.getAttribute('x1')) || 0;
+      const y1 = parseFloat(el.getAttribute('y1')) || 0;
+      const x2 = parseFloat(el.getAttribute('x2')) || 0;
+      const y2 = parseFloat(el.getAttribute('y2')) || 0;
+
+      const unscaledVal = parseFloat(val) / scale;
+
+      if (targetAttr === 'width') {
+        // Preserve direction if line was drawn right-to-left
+        const direction = x2 >= x1 ? 1 : -1;
+        updateElementAttribute(activePageIndex, selectedLayerId, 'x2', (x1 + direction * unscaledVal).toString());
+      } else if (targetAttr === 'height') {
+        // Preserve direction if line was drawn bottom-to-top
+        const direction = y2 >= y1 ? 1 : -1;
+        updateElementAttribute(activePageIndex, selectedLayerId, 'y2', (y1 + direction * unscaledVal).toString());
+      }
+      return;
+    }
+
+    if (tag === 'ellipse' || tag === 'circle') {
+      const unscaledVal = parseFloat(val) / scale;
+      if (targetAttr === 'width') {
+        updateElementAttribute(activePageIndex, selectedLayerId, 'rx', (unscaledVal / 2).toString());
+        // also try 'r' just in case it's a true circle without rx
+        if (tag === 'circle' && el && el.hasAttribute('r')) updateElementAttribute(activePageIndex, selectedLayerId, 'r', (unscaledVal / 2).toString());
+      } else if (targetAttr === 'height') {
+        updateElementAttribute(activePageIndex, selectedLayerId, 'ry', (unscaledVal / 2).toString());
+      }
+      return;
+    }
+
+    if (tag === 'path' || tag === 'polygon' || tag === 'g' || tag === 'rect' || tag === 'image' || tag === 'foreignobject' || hasMatrix) {
+      if (!el) return;
+      const bbox = getVisualBBox(el);
+      const targetVal = parseFloat(val);
+      if (targetVal <= 0 || bbox.width === 0 || bbox.height === 0) return;
+
+      if (targetAttr === 'width') {
+        // Current world X of top-left (account for negative scale when flipped)
+        const oldWorldX = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
+        // New m[0] scale (preserve sign for flip)
+        const newM0 = (m[0] >= 0 ? 1 : -1) * (targetVal / bbox.width);
+        // New m[4] translation to keep top-left fixed
+        const newM4 = oldWorldX - (bbox.x * newM0 + (newM0 < 0 ? bbox.width * newM0 : 0));
+        m[0] = newM0;
+        m[4] = newM4;
+      } else if (targetAttr === 'height') {
+        // Current world Y of top-left (account for negative scale when flipped)
+        const oldWorldY = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
+        // New m[3] scale (preserve sign for flip)
+        const newM3 = (m[3] >= 0 ? 1 : -1) * (targetVal / bbox.height);
+        // New m[5] translation to keep top-left fixed
+        const newM5 = oldWorldY - (bbox.y * newM3 + (newM3 < 0 ? bbox.height * newM3 : 0));
+        m[3] = newM3;
+        m[5] = newM5;
+      }
+
+      updateElementAttribute(activePageIndex, selectedLayerId, 'transform', `matrix(${m.join(', ')})`);
+
+      // Trigger overlay highlight update
+      setTimeout(() => {
+        if (typeof window.drawOverlayHighlight === 'function') {
+          window.drawOverlayHighlight(el, 'selected');
+        }
+      }, 50);
+      return;
+    }
+
+    const elementAttr = targetAttr;
+
+    // Note: for a circle, 'val' is the diameter. We want the unscaled radius.
+    // For other elements, 'val' is the width/height. We want the unscaled width/height.
+    const finalVal = tag === 'circle'
+      ? (parseFloat(val) / 2 / scale).toString()
+      : (parseFloat(val) / scale).toString();
+
+    updateElementAttribute(activePageIndex, selectedLayerId, elementAttr, finalVal);
   };
 
   // Close unit dropdown on click outside
@@ -513,9 +513,9 @@ const RightSidebar = ({
 
     // Optional: Limit raw file size to 15MB
     if (file.size > 20 * 1024 * 1024) {
-        alert("File is too large! Please upload images smaller than 20MB.");
-        e.target.value = '';
-        return;
+      alert("File is too large! Please upload images smaller than 20MB.");
+      e.target.value = '';
+      return;
     }
 
     const isVideo = file.type.startsWith('video/');
@@ -524,16 +524,16 @@ const RightSidebar = ({
       isGif = await checkIsAnimatedWebp(file);
     }
     const isSvg = file.type === 'image/svg+xml';
-    
+
     if (!file.type.startsWith('image/') && !isVideo && !isGif && !isSvg) {
-        toast.error('Only Image, Video, and GIF formats are allowed.');
-        e.target.value = '';
-        return;
+      toast.error('Only Image, Video, and GIF formats are allowed.');
+      e.target.value = '';
+      return;
     }
-    
+
     const storedUser = localStorage.getItem('user');
     const user = storedUser ? JSON.parse(storedUser) : null;
-    
+
     if ((isVideo || isGif) && !user) {
       alert(`You must be logged in to upload ${isVideo ? 'videos' : 'GIFs'}.`);
       e.target.value = '';
@@ -554,10 +554,10 @@ const RightSidebar = ({
         const tempVid = document.createElement('video');
         tempVid.onloadedmetadata = () => {
           window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
-            detail: { 
-              videoUrl: finalUrl, 
-              pageIndex: activePageIndex, 
-              file, 
+            detail: {
+              videoUrl: finalUrl,
+              pageIndex: activePageIndex,
+              file,
               isTemporary: true,
               videoWidth: tempVid.videoWidth,
               videoHeight: tempVid.videoHeight,
@@ -574,8 +574,8 @@ const RightSidebar = ({
       } else {
         // Dispatch event to MainEditor
         window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
-          detail: { 
-            dataUrl: finalUrl, 
+          detail: {
+            dataUrl: finalUrl,
             pageIndex: activePageIndex,
             dataType: isSvg ? 'svg' : (isGif ? 'gif' : 'image')
           }
@@ -597,13 +597,13 @@ const RightSidebar = ({
 
         // If it's already small enough, no need to downscale
         if (width <= maxWidth && height <= maxHeight) {
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.75));
-            return;
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.75));
+          return;
         }
 
         if (width > maxWidth) {
@@ -633,81 +633,81 @@ const RightSidebar = ({
       const parser = new DOMParser();
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
       const el = doc.getElementById(selectedLayerId);
-      
+
       const rootId = doc.querySelector('svg > g')?.id;
       const overlayId = doc.querySelector('[data-name="Overlay"]')?.id;
       const isPageSelected = !selectedLayerId || selectedLayerId === rootId || selectedLayerId === overlayId;
-      
+
       if (el && !isPageSelected) {
         let w = '0', h = '0', x = '0', y = '0', r = '0';
-        
+
         // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
         const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
         const actualEl = editorDoc.getElementById(selectedLayerId);
         let measuredFromDom = false;
         if (actualEl && typeof actualEl.getBBox === 'function') {
-           try {
-              const bbox = getVisualBBox(actualEl);
-              let m = [1, 0, 0, 1, 0, 0];
-              const transform = actualEl.getAttribute('transform');
-              if (transform && transform.includes('matrix')) {
-                 const match = transform.match(/matrix\(([^)]+)\)/);
-                 if (match) {
-                    const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-                    if (parsedM.length === 6) m = parsedM;
-                 }
+          try {
+            const bbox = getVisualBBox(actualEl);
+            let m = [1, 0, 0, 1, 0, 0];
+            const transform = actualEl.getAttribute('transform');
+            if (transform && transform.includes('matrix')) {
+              const match = transform.match(/matrix\(([^)]+)\)/);
+              if (match) {
+                const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+                if (parsedM.length === 6) m = parsedM;
               }
-              w = (bbox.width * Math.abs(m[0])).toString();
-              h = (bbox.height * Math.abs(m[3])).toString();
-              x = (bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4]).toString();
-              y = (bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5]).toString();
-              measuredFromDom = true;
-           } catch (e) {
-              console.warn("Failed to get BBox for element", e);
-           }
+            }
+            w = (bbox.width * Math.abs(m[0])).toString();
+            h = (bbox.height * Math.abs(m[3])).toString();
+            x = (bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4]).toString();
+            y = (bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5]).toString();
+            measuredFromDom = true;
+          } catch (e) {
+            console.warn("Failed to get BBox for element", e);
+          }
         }
 
         // --- FALLBACK / OVERRIDE: Tags that have preferred source of truth ---
         if (!measuredFromDom || (parseFloat(w) === 0 && parseFloat(h) === 0)) {
-           if (el.tagName === 'rect') {
-              if (!el.getAttribute('transform')) {
-                 w = el.getAttribute('width') || w;
-                 h = el.getAttribute('height') || h;
-                 x = el.getAttribute('x') || x;
-                 y = el.getAttribute('y') || y;
-              }
-           } else if (el.tagName === 'circle') {
-              const radius = parseFloat(el.getAttribute('r')) || 0;
-              w = (radius * 2).toString();
-              h = w;
-              if (!el.getAttribute('transform')) {
-                 x = (parseFloat(el.getAttribute('cx') || '0') - radius).toString();
-                 y = (parseFloat(el.getAttribute('cy') || '0') - radius).toString();
-              }
-           } else if (el.tagName === 'ellipse') {
-              const rx = parseFloat(el.getAttribute('rx')) || 0;
-              const ry = parseFloat(el.getAttribute('ry')) || 0;
-              w = (rx * 2).toString();
-              h = (ry * 2).toString();
-              if (!el.getAttribute('transform')) {
-                 x = (parseFloat(el.getAttribute('cx') || '0') - rx).toString();
-                 y = (parseFloat(el.getAttribute('cy') || '0') - ry).toString();
-              }
-           } else if (el.tagName === 'text') {
-              if (!el.getAttribute('transform')) {
-                 x = el.getAttribute('x') || x;
-                 y = el.getAttribute('y') || y;
-              }
-           } else if (el.tagName === 'image' || el.tagName === 'path' || el.tagName === 'g') {
-              if (parseFloat(w) === 0) w = el.getAttribute('width') || '0';
-              if (parseFloat(h) === 0) h = el.getAttribute('height') || '0';
-              if (parseFloat(x) === 0) x = el.getAttribute('x') || '0';
-              if (parseFloat(y) === 0) y = el.getAttribute('y') || '0';
-           }
+          if (el.tagName === 'rect') {
+            if (!el.getAttribute('transform')) {
+              w = el.getAttribute('width') || w;
+              h = el.getAttribute('height') || h;
+              x = el.getAttribute('x') || x;
+              y = el.getAttribute('y') || y;
+            }
+          } else if (el.tagName === 'circle') {
+            const radius = parseFloat(el.getAttribute('r')) || 0;
+            w = (radius * 2).toString();
+            h = w;
+            if (!el.getAttribute('transform')) {
+              x = (parseFloat(el.getAttribute('cx') || '0') - radius).toString();
+              y = (parseFloat(el.getAttribute('cy') || '0') - radius).toString();
+            }
+          } else if (el.tagName === 'ellipse') {
+            const rx = parseFloat(el.getAttribute('rx')) || 0;
+            const ry = parseFloat(el.getAttribute('ry')) || 0;
+            w = (rx * 2).toString();
+            h = (ry * 2).toString();
+            if (!el.getAttribute('transform')) {
+              x = (parseFloat(el.getAttribute('cx') || '0') - rx).toString();
+              y = (parseFloat(el.getAttribute('cy') || '0') - ry).toString();
+            }
+          } else if (el.tagName === 'text') {
+            if (!el.getAttribute('transform')) {
+              x = el.getAttribute('x') || x;
+              y = el.getAttribute('y') || y;
+            }
+          } else if (el.tagName === 'image' || el.tagName === 'path' || el.tagName === 'g') {
+            if (parseFloat(w) === 0) w = el.getAttribute('width') || '0';
+            if (parseFloat(h) === 0) h = el.getAttribute('height') || '0';
+            if (parseFloat(x) === 0) x = el.getAttribute('x') || '0';
+            if (parseFloat(y) === 0) y = el.getAttribute('y') || '0';
+          }
         }
 
         if (el.tagName === 'rect') {
-           r = el.getAttribute('rx') || '0';
+          r = el.getAttribute('rx') || '0';
         }
 
         let fillStyle = el.getAttribute('fill') || '#000000';
@@ -755,25 +755,25 @@ const RightSidebar = ({
         const dataType = el.getAttribute('data-type');
         const dataName = el.getAttribute('data-name');
         const fillValue = el.getAttribute('fill') || '';
-        
+
         // Detect if it's a shape filled with a pattern containing an image
         let isPatternImage = false;
         if (fillValue.startsWith('url(#')) {
-            const patternId = fillValue.match(/url\(#([^)]+)\)/)?.[1];
-            if (patternId) {
-                // Try finding the pattern in the document
-                const pattern = doc.getElementById(patternId) || doc.querySelector(`pattern[id="${patternId}"], [id="${patternId}"]`);
-                if (pattern) {
-                    // Templates often use <use xlink:href="#imageId"> inside <pattern>
-                    const hasUse = pattern.querySelector('use') !== null;
-                    const hasImage = pattern.querySelector('image, img') !== null;
-                    if (hasImage || hasUse) {
-                        isPatternImage = true;
-                    }
-                }
+          const patternId = fillValue.match(/url\(#([^)]+)\)/)?.[1];
+          if (patternId) {
+            // Try finding the pattern in the document
+            const pattern = doc.getElementById(patternId) || doc.querySelector(`pattern[id="${patternId}"], [id="${patternId}"]`);
+            if (pattern) {
+              // Templates often use <use xlink:href="#imageId"> inside <pattern>
+              const hasUse = pattern.querySelector('use') !== null;
+              const hasImage = pattern.querySelector('image, img') !== null;
+              if (hasImage || hasUse) {
+                isPatternImage = true;
+              }
             }
+          }
         }
-        
+
         // Check if it's an image or a group containing an image (very common in templates)
         const hasImageChild = el.querySelector('image, img') !== null;
         const lowerTagName = props.tagName.toLowerCase();
@@ -784,25 +784,25 @@ const RightSidebar = ({
         const isGifFile = urlWithoutQuery.endsWith('.gif') || dataType === 'gif' || src.toLowerCase().startsWith('data:image/gif');
 
         const isPdfBackground = lowerDataName.includes('pdf background') || lowerDataName.endsWith('-pdf') || lowerId.includes('background') || dataType === 'pdf-background';
-        
+
         const isGif = isGifFile || lowerDataName.includes('gif') || lowerId.includes('gif') || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif';
 
         const isUserGroup = lowerTagName === 'g' && (
-          dataType === 'group' || 
-          lowerDataName === 'group' || 
-          lowerId.startsWith('group-') || 
+          dataType === 'group' ||
+          lowerDataName === 'group' ||
+          lowerId.startsWith('group-') ||
           el.getAttribute('data-type') === 'group' ||
           (!el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group'))
         ) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true' && el.getAttribute('data-is-gif-group') !== 'true';
 
-        const isImage = !isUserGroup && (lowerTagName.includes('image') || 
-                        lowerTagName === 'img' || 
-                        dataType === 'image' ||
-                        lowerDataName.includes('image') ||
-                        lowerId.includes('image') || 
-                        !!(el.getAttribute('href') || el.getAttribute('xlink:href')) ||
-                        (lowerTagName === 'g' && hasImageChild && el.getAttribute('data-is-image-group') === 'true') ||
-                        isPatternImage) && !isGif && !isPdfBackground;
+        const isImage = !isUserGroup && (lowerTagName.includes('image') ||
+          lowerTagName === 'img' ||
+          dataType === 'image' ||
+          lowerDataName.includes('image') ||
+          lowerId.includes('image') ||
+          !!(el.getAttribute('href') || el.getAttribute('xlink:href')) ||
+          (lowerTagName === 'g' && hasImageChild && el.getAttribute('data-is-image-group') === 'true') ||
+          isPatternImage) && !isGif && !isPdfBackground;
 
         const isVideo = lowerTagName === 'video' || lowerTagName === 'iframe' || dataType === 'video' || lowerDataName.includes('video') || lowerId.includes('video') || (lowerTagName === 'foreignobject' && el.querySelector('video, iframe'));
         const isText = (lowerTagName === 'text' || lowerTagName === 'tspan' || (lowerTagName === 'foreignobject' && !isVideo)) || dataType === 'text' || lowerDataName.includes('text') || lowerId.includes('text');
@@ -825,7 +825,7 @@ const RightSidebar = ({
   const isDimensionDisabled = !selectedElementProps || selectedElementProps.isPdfBackground || activeTopTool === 'interaction' || activeTopTool === 'animation';
 
   return (
-    <div 
+    <div
       className="bg-white border-l border-[#EEEEEE] flex flex-col overflow-hidden select-none flex-shrink-0 h-[92vh]"
       style={{ width: '24vw' }}
       onMouseDown={() => {
@@ -835,9 +835,9 @@ const RightSidebar = ({
       }}
     >
       {activeMainTool === 'grid' && (
-        <IconGallery 
+        <IconGallery
           isOpen={true}
-          onClose={() => setActiveMainTool('select')} 
+          onClose={() => setActiveMainTool('select')}
           onSelect={(icon) => {
             window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
               detail: {
@@ -878,179 +878,179 @@ const RightSidebar = ({
         <div className="bg-white px-[1.5vw] pt-[1.4vw] pb-[1vw] border-b border-gray-100 flex-shrink-0">
           <div className="space-y-[0.8vw]">
             <div className="flex flex-col gap-[1vw]">
-               {/* Position Row */}
-               <div className="flex items-center gap-[2vw]">
-                  <span className="text-[0.9vw] font-medium text-gray-800 whitespace-nowrap w-[4vw]">Position :</span>
-                  <div className="flex items-center gap-[1.5vw]">
-                      {/* X Input */}
-                      <div className="flex items-center gap-[0.2vw]">
-                          {!isDimensionDisabled ? (
-                             <ChevronLeft 
-                                size="0.85vw" 
-                                className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                                onClick={() => {
-                                   const val = parseFloat(selectedElementProps?.x || 0) - 1;
-                                   updatePosition(val.toString(), 'x');
-                                }}
-                             />
-                          ) : (
-                             <ChevronLeft size="0.85vw" className="text-transparent" />
-                          )}
-                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
-                             <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">X</span>
-                             <DimensionInput 
-                                targetId={selectedLayerId}
-                                targetAttr="x"
-                                className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
-                                value={convertValue(selectedElementProps?.x || 0)}
-                                readOnly={isDimensionDisabled}
-                                onChange={(val) => updatePosition(val, 'x')}
-                             />
-                          </div>
-                          {!isDimensionDisabled ? (
-                             <ChevronRight 
-                                size="0.85vw" 
-                                className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                                onClick={() => {
-                                   const val = parseFloat(selectedElementProps?.x || 0) + 1;
-                                   updatePosition(val.toString(), 'x');
-                                }}
-                             />
-                          ) : (
-                             <ChevronRight size="0.85vw" className="text-transparent" />
-                          )}
-                      </div>
-
-                      {/* Y Input */}
-                      <div className="flex items-center gap-[0.2vw]">
-                          {!isDimensionDisabled ? (
-                             <ChevronLeft 
-                                size="0.85vw" 
-                                className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                                onClick={() => {
-                                   const val = parseFloat(selectedElementProps?.y || 0) - 1;
-                                   updatePosition(val.toString(), 'y');
-                                }}
-                             />
-                          ) : (
-                             <ChevronLeft size="0.85vw" className="text-transparent" />
-                          )}
-                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
-                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">Y</span>
-                             <DimensionInput 
-                                targetId={selectedLayerId}
-                                targetAttr="y"
-                                className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
-                                value={convertValue(selectedElementProps?.y || 0)}
-                                readOnly={isDimensionDisabled}
-                                onChange={(val) => updatePosition(val, 'y')}
-                             />
-                          </div>
-                          {!isDimensionDisabled ? (
-                             <ChevronRight 
-                                size="0.85vw" 
-                                className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                                onClick={() => {
-                                   const val = parseFloat(selectedElementProps?.y || 0) + 1;
-                                   updatePosition(val.toString(), 'y');
-                                }}
-                             />
-                          ) : (
-                             <ChevronRight size="0.85vw" className="text-transparent" />
-                          )}
-                      </div>
+              {/* Position Row */}
+              <div className="flex items-center gap-[2vw]">
+                <span className="text-[0.9vw] font-medium text-gray-800 whitespace-nowrap w-[4vw]">Position :</span>
+                <div className="flex items-center gap-[1.5vw]">
+                  {/* X Input */}
+                  <div className="flex items-center gap-[0.2vw]">
+                    {!isDimensionDisabled ? (
+                      <ChevronLeft
+                        size="0.85vw"
+                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                        onClick={() => {
+                          const val = parseFloat(selectedElementProps?.x || 0) - 1;
+                          updatePosition(val.toString(), 'x');
+                        }}
+                      />
+                    ) : (
+                      <ChevronLeft size="0.85vw" className="text-transparent" />
+                    )}
+                    <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
+                      <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">X</span>
+                      <DimensionInput
+                        targetId={selectedLayerId}
+                        targetAttr="x"
+                        className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
+                        value={convertValue(selectedElementProps?.x || 0)}
+                        readOnly={isDimensionDisabled}
+                        onChange={(val) => updatePosition(val, 'x')}
+                      />
+                    </div>
+                    {!isDimensionDisabled ? (
+                      <ChevronRight
+                        size="0.85vw"
+                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                        onClick={() => {
+                          const val = parseFloat(selectedElementProps?.x || 0) + 1;
+                          updatePosition(val.toString(), 'x');
+                        }}
+                      />
+                    ) : (
+                      <ChevronRight size="0.85vw" className="text-transparent" />
+                    )}
                   </div>
-               </div>
 
-               {/* Resizing Row */}
-               <div className="flex items-center gap-[2vw]">
-                  <span className="text-[0.9vw] font-medium text-gray-800 whitespace-nowrap w-[4vw]">Resizing :</span>
-                  <div className="flex items-center gap-[1.5vw]">
-                      {/* W Input */}
-                      <div className="flex items-center gap-[0.2vw]">
-                          {!isDimensionDisabled ? (
-                             <ChevronLeft 
-                                size="0.85vw" 
-                                className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                                onClick={() => {
-                                   const val = parseFloat(selectedElementProps?.w || 0) - 1;
-                                   updateDimensionWithScale(val.toString(), 'width');
-                                }}
-                             />
-                          ) : (
-                             <ChevronLeft size="0.85vw" className="text-transparent" />
-                          )}
-                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
-                             <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">W</span>
-                             <DimensionInput 
-                                targetId={selectedLayerId}
-                                targetAttr="width"
-                                className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
-                                value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
-                                readOnly={isDimensionDisabled}
-                                onChange={(val) => updateDimensionWithScale(val, 'width')}
-                             />
-                          </div>
-                          {!isDimensionDisabled ? (
-                             <ChevronRight 
-                                size="0.85vw" 
-                                className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                                onClick={() => {
-                                   const val = parseFloat(selectedElementProps?.w || 0) + 1;
-                                   updateDimensionWithScale(val.toString(), 'width');
-                                }}
-                             />
-                          ) : (
-                             <ChevronRight size="0.85vw" className="text-transparent" />
-                          )}
-                      </div>
-
-                      {/* H Input */}
-                      <div className="flex items-center gap-[0.2vw]">
-                          {!isDimensionDisabled ? (
-                             <ChevronLeft 
-                                size="0.85vw" 
-                                className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                                onClick={() => {
-                                   const val = parseFloat(selectedElementProps?.h || 0) - 1;
-                                   updateDimensionWithScale(val.toString(), 'height');
-                                }}
-                             />
-                          ) : (
-                             <ChevronLeft size="0.85vw" className="text-transparent" />
-                          )}
-                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
-                             <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">H</span>
-                             <DimensionInput 
-                                targetId={selectedLayerId}
-                                targetAttr="height"
-                                className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
-                                value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
-                                readOnly={isDimensionDisabled}
-                                onChange={(val) => updateDimensionWithScale(val, 'height')}
-                             />
-                          </div>
-                          {!isDimensionDisabled ? (
-                             <ChevronRight 
-                                size="0.85vw" 
-                                className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                                onClick={() => {
-                                   const val = parseFloat(selectedElementProps?.h || 0) + 1;
-                                   updateDimensionWithScale(val.toString(), 'height');
-                                }}
-                             />
-                          ) : (
-                             <ChevronRight size="0.85vw" className="text-transparent" />
-                          )}
-                      </div>
+                  {/* Y Input */}
+                  <div className="flex items-center gap-[0.2vw]">
+                    {!isDimensionDisabled ? (
+                      <ChevronLeft
+                        size="0.85vw"
+                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                        onClick={() => {
+                          const val = parseFloat(selectedElementProps?.y || 0) - 1;
+                          updatePosition(val.toString(), 'y');
+                        }}
+                      />
+                    ) : (
+                      <ChevronLeft size="0.85vw" className="text-transparent" />
+                    )}
+                    <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
+                      <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">Y</span>
+                      <DimensionInput
+                        targetId={selectedLayerId}
+                        targetAttr="y"
+                        className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
+                        value={convertValue(selectedElementProps?.y || 0)}
+                        readOnly={isDimensionDisabled}
+                        onChange={(val) => updatePosition(val, 'y')}
+                      />
+                    </div>
+                    {!isDimensionDisabled ? (
+                      <ChevronRight
+                        size="0.85vw"
+                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                        onClick={() => {
+                          const val = parseFloat(selectedElementProps?.y || 0) + 1;
+                          updatePosition(val.toString(), 'y');
+                        }}
+                      />
+                    ) : (
+                      <ChevronRight size="0.85vw" className="text-transparent" />
+                    )}
                   </div>
-               </div>
+                </div>
+              </div>
+
+              {/* Resizing Row */}
+              <div className="flex items-center gap-[2vw]">
+                <span className="text-[0.9vw] font-medium text-gray-800 whitespace-nowrap w-[4vw]">Resizing :</span>
+                <div className="flex items-center gap-[1.5vw]">
+                  {/* W Input */}
+                  <div className="flex items-center gap-[0.2vw]">
+                    {!isDimensionDisabled ? (
+                      <ChevronLeft
+                        size="0.85vw"
+                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                        onClick={() => {
+                          const val = parseFloat(selectedElementProps?.w || 0) - 1;
+                          updateDimensionWithScale(val.toString(), 'width');
+                        }}
+                      />
+                    ) : (
+                      <ChevronLeft size="0.85vw" className="text-transparent" />
+                    )}
+                    <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
+                      <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">W</span>
+                      <DimensionInput
+                        targetId={selectedLayerId}
+                        targetAttr="width"
+                        className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
+                        value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
+                        readOnly={isDimensionDisabled}
+                        onChange={(val) => updateDimensionWithScale(val, 'width')}
+                      />
+                    </div>
+                    {!isDimensionDisabled ? (
+                      <ChevronRight
+                        size="0.85vw"
+                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                        onClick={() => {
+                          const val = parseFloat(selectedElementProps?.w || 0) + 1;
+                          updateDimensionWithScale(val.toString(), 'width');
+                        }}
+                      />
+                    ) : (
+                      <ChevronRight size="0.85vw" className="text-transparent" />
+                    )}
+                  </div>
+
+                  {/* H Input */}
+                  <div className="flex items-center gap-[0.2vw]">
+                    {!isDimensionDisabled ? (
+                      <ChevronLeft
+                        size="0.85vw"
+                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                        onClick={() => {
+                          const val = parseFloat(selectedElementProps?.h || 0) - 1;
+                          updateDimensionWithScale(val.toString(), 'height');
+                        }}
+                      />
+                    ) : (
+                      <ChevronLeft size="0.85vw" className="text-transparent" />
+                    )}
+                    <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
+                      <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">H</span>
+                      <DimensionInput
+                        targetId={selectedLayerId}
+                        targetAttr="height"
+                        className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
+                        value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
+                        readOnly={isDimensionDisabled}
+                        onChange={(val) => updateDimensionWithScale(val, 'height')}
+                      />
+                    </div>
+                    {!isDimensionDisabled ? (
+                      <ChevronRight
+                        size="0.85vw"
+                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                        onClick={() => {
+                          const val = parseFloat(selectedElementProps?.h || 0) + 1;
+                          updateDimensionWithScale(val.toString(), 'height');
+                        }}
+                      />
+                    ) : (
+                      <ChevronRight size="0.85vw" className="text-transparent" />
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#fbfbfb]">
+      <div className={`flex-1 flex flex-col overflow-hidden bg-[#fbfbfb] ${pages[activePageIndex]?.isHidden ? 'opacity-50 pointer-events-none' : ''}`}>
         {is3DModalOpen ? (
           <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar">
             <Model3DEditor
@@ -1099,12 +1099,12 @@ const RightSidebar = ({
                   }}
                   className="w-full border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-[#4c5add] hover:bg-gray-50/50 group shadow-sm"
                 >
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept="image/*,video/*,.gif,.svg" 
-                    onChange={handleFileChange} 
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*,video/*,.gif,.svg"
+                    onChange={handleFileChange}
                   />
                   <div className="text-[0.75vw] font-medium text-gray-700 mb-[0.5vw]">
                     Drag & Drop or <span className="text-[#4c5add] font-bold">Upload</span>
@@ -1214,7 +1214,7 @@ const RightSidebar = ({
           ) : (
             <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar">
               {isPdfProject ? (
-                <InteractionPanel 
+                <InteractionPanel
                   selectedElementProps={selectedElementProps}
                   activePageIndex={activePageIndex}
                   selectedLayerId={selectedLayerId}
@@ -1285,7 +1285,7 @@ const RightSidebar = ({
                           setMultiSelectedIds={setMultiSelectedIds}
                         />
                       ) : selectedElementProps?.isImage ? (
-                        <ImageEditor 
+                        <ImageEditor
                           selectedElement={(() => {
                             const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
                             return editorDoc.getElementById(selectedLayerId);
@@ -1305,7 +1305,7 @@ const RightSidebar = ({
                                   const canvasContent = container.querySelector('[id^="canvas-content-"]');
                                   return canvasContent ? canvasContent.querySelector('svg') : container.querySelector('svg');
                                 }
-                                
+
                                 let node = el;
                                 let lastSvg = null;
                                 while (node) {
@@ -1353,7 +1353,7 @@ const RightSidebar = ({
                                 if (!el) return null;
                                 const container = el.closest('.page-svg-container');
                                 if (container) return container.querySelector('svg');
-                                
+
                                 let node = el;
                                 let lastSvg = null;
                                 while (node) {
@@ -1393,7 +1393,7 @@ const RightSidebar = ({
                                 if (!el) return null;
                                 const container = el.closest('.page-svg-container');
                                 if (container) return container.querySelector('svg');
-                                
+
                                 let node = el;
                                 let lastSvg = null;
                                 while (node) {
@@ -1435,7 +1435,7 @@ const RightSidebar = ({
                                 if (!el) return null;
                                 const container = el.closest('.page-svg-container');
                                 if (container) return container.querySelector('svg');
-                                
+
                                 let node = el;
                                 let lastSvg = null;
                                 while (node) {
@@ -1467,20 +1467,20 @@ const RightSidebar = ({
                             isNodeEditActive={isNodeEditActive}
                             isPenChosen={activeMainTool === 'pen'}
                           />
-                          <ShapeProperties 
-                             selectedElementProps={selectedElementProps || { 
-                               fill: '#6366F1', 
-                               opacity: '1', 
-                               stroke: 'none', 
-                               strokeWidth: '0', 
-                               tagName: 'g',
-                               isIcon: true 
-                             }}
-                             activePageIndex={activePageIndex}
-                             selectedLayerId={selectedLayerId}
-                             updateElementAttribute={updateElementAttribute}
-                             activeMainTool={activeMainTool}
-                           />
+                          <ShapeProperties
+                            selectedElementProps={selectedElementProps || {
+                              fill: '#6366F1',
+                              opacity: '1',
+                              stroke: 'none',
+                              strokeWidth: '0',
+                              tagName: 'g',
+                              isIcon: true
+                            }}
+                            activePageIndex={activePageIndex}
+                            selectedLayerId={selectedLayerId}
+                            updateElementAttribute={updateElementAttribute}
+                            activeMainTool={activeMainTool}
+                          />
                         </>
                       )}
                     </div>
@@ -1493,7 +1493,7 @@ const RightSidebar = ({
                       const overlay = doc.querySelector('[data-name="Overlay"]');
                       const currentBg = overlay?.getAttribute('fill') || '#ffffff';
                       const fillType = overlay?.getAttribute('fill-type') || 'solid';
-                      
+
                       let currentBgStr = currentBg;
                       if (fillType === 'gradient' || currentBg.toLowerCase().includes('url(#')) {
                         const stopsJson = overlay?.getAttribute('fill-stops');
@@ -1522,7 +1522,7 @@ const RightSidebar = ({
                             <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
                               <div className="flex items-center justify-between mb-[1.5vh]">
                                 <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
-                                <div 
+                                <div
                                   className="flex items-center gap-[0.5vw] cursor-pointer hover:bg-gray-50 p-[0.3vw] rounded-[0.4vw] transition-colors"
                                   onClick={() => setIsPageBgPickerOpen(!isPageBgPickerOpen)}
                                 >
@@ -1549,7 +1549,7 @@ const RightSidebar = ({
                                   />
                                 ))}
                               </div>
-                              
+
                               {isPageBgPickerOpen && createPortal(
                                 <div
                                   className="fixed z-[5000]"
@@ -1632,7 +1632,7 @@ const RightSidebar = ({
             </div>
           )
         ) : activeTopTool === 'interaction' ? (
-          <InteractionPanel 
+          <InteractionPanel
             selectedElementProps={selectedElementProps}
             activePageIndex={activePageIndex}
             selectedLayerId={selectedLayerId}
@@ -1648,21 +1648,21 @@ const RightSidebar = ({
         ) : (
           /* Animation Mode */
           <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar p-[1.5vw]">
-            <AnimationPanel 
-               selectedElementProps={selectedElementProps}
-               flipbookDimensions={flipbookDimensions}
-               selectedLayerId={selectedLayerId}
-               selectedElement={(() => {
-                 if (!selectedLayerId) return null;
-                 const container = document.querySelector(`.page-svg-container [id="${selectedLayerId}"]`);
-                 if (container) return container;
-                 return document.getElementById(selectedLayerId) || null;
-               })()}
-               onUpdate={(elementId, attr, value) => {
-                  if (elementId && attr) {
-                      updateElementAttribute(activePageIndex, elementId, attr, value);
-                  }
-               }}
+            <AnimationPanel
+              selectedElementProps={selectedElementProps}
+              flipbookDimensions={flipbookDimensions}
+              selectedLayerId={selectedLayerId}
+              selectedElement={(() => {
+                if (!selectedLayerId) return null;
+                const container = document.querySelector(`.page-svg-container [id="${selectedLayerId}"]`);
+                if (container) return container;
+                return document.getElementById(selectedLayerId) || null;
+              })()}
+              onUpdate={(elementId, attr, value) => {
+                if (elementId && attr) {
+                  updateElementAttribute(activePageIndex, elementId, attr, value);
+                }
+              }}
             />
           </div>
         )}
@@ -1675,7 +1675,7 @@ const RightSidebar = ({
         activePageIndex={activePageIndex}
       />
 
-      <MediaGalleryPopup 
+      <MediaGalleryPopup
         isOpen={isMediaGalleryOpen}
         onClose={() => setIsMediaGalleryOpen(false)}
         anchorRef={browseGalleryBtnRef}

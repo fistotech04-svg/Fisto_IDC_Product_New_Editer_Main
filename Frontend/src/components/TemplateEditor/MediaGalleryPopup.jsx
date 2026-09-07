@@ -521,6 +521,26 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
                 {filteredAssets.length > 0 ? filteredAssets.map((item, idx) => (
                   <div key={item.id || idx} className="flex flex-col gap-[0.4vw] relative">
                     <div 
+                      draggable="true"
+                      onDragStart={(e) => {
+                        const dragData = {
+                          type: item.type === 'video' ? 'video' : (item.isAnimated ? 'gif' : 'image'),
+                          url: item.url,
+                          name: item.name
+                        };
+                        e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+                        e.dataTransfer.effectAllowed = 'copy';
+                        
+                        // Hide dots menu for drag ghost
+                        const dots = e.currentTarget.querySelector('.dots-menu-btn');
+                        if (dots) {
+                           dots.style.opacity = '0';
+                           setTimeout(() => {
+                               dots.style.opacity = '1';
+                           }, 0);
+                        }
+                      }}
+                      onDragEnd={() => onClose()}
                       className={`group cursor-pointer w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${selectedAsset?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}
                       onClick={(e) => { 
                         e.stopPropagation(); 
@@ -538,7 +558,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
 
                       {/* Hover Three Dots */}
                       <div 
-                        className={`absolute top-[0.3vw] right-[0.3vw] bg-white/90 rounded-[0.2vw] p-[0.2vw] shadow-sm hover:bg-white z-10 ${activeGalleryDropdown === item.id ? 'block' : 'hidden group-hover:block'}`}
+                        className={`absolute top-[0.3vw] right-[0.3vw] bg-white/90 rounded-[0.2vw] p-[0.2vw] shadow-sm hover:bg-white z-10 dots-menu-btn ${activeGalleryDropdown === item.id ? 'block' : 'hidden group-hover:block'}`}
                         onClick={(e) => { 
                           e.stopPropagation(); 
                           setActiveGalleryDropdown(activeGalleryDropdown === item.id ? null : item.id); 

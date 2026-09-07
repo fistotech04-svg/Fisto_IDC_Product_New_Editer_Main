@@ -258,42 +258,29 @@ const Profile = () => {
         });
         const p = res.data?.profile || (res.data?.emailId ? res.data : null);
         if (p) {
-          setUser(prev => {
-            const updated = {
-              ...defaultProfile,
-              ...prev,
-              ...p,
-              email: p.emailId || prev.email || effectiveEmail,
-              emailId: p.emailId || prev.emailId || effectiveEmail,
-              name: p.name || prev.name || (effectiveEmail.split('@')[0]),
-              picture: p.picture || prev.picture || null,
-              company_logo_url: p.company_logo_url || p.companyLogo || prev.company_logo_url || prev.companyLogo || '',
-              companyLogo: p.company_logo_url || p.companyLogo || prev.company_logo_url || prev.companyLogo || '',
-              avatarBgColor: p.avatarBgColor || prev.avatarBgColor || '#E8D4C8',
-              services: p.services || prev.services || [],
-              followers: p.followers || prev.followers || [],
-              following: p.following || prev.following || [],
-              socials: {
-                ...defaultProfile.socials,
-                ...(prev.socials || {}),
-                ...(p.socials || {})
-              }
-            };
-            try {
-              localStorage.setItem('user_profile', JSON.stringify(updated));
-              const stored = localStorage.getItem('user');
-              const parsed = stored ? JSON.parse(stored) : {};
-              localStorage.setItem('user', JSON.stringify({
-                ...parsed,
-                name: updated.name,
-                emailId: updated.emailId,
-                picture: updated.picture,
-                avatarBgColor: updated.avatarBgColor
-              }));
-              window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
-            } catch (e) {}
-            return updated;
-          });
+            setUser(prev => {
+              const updated = {
+                ...defaultProfile,
+                ...prev,
+                ...p,
+                email: p.emailId || prev.email || effectiveEmail,
+                emailId: p.emailId || prev.emailId || effectiveEmail,
+                name: p.name || prev.name || (effectiveEmail.split('@')[0]),
+                picture: p.picture || prev.picture || null,
+                company_logo_url: p.company_logo_url || p.companyLogo || prev.company_logo_url || prev.companyLogo || '',
+                companyLogo: p.company_logo_url || p.companyLogo || prev.company_logo_url || prev.companyLogo || '',
+                avatarBgColor: p.avatarBgColor || prev.avatarBgColor || '#E8D4C8',
+                services: p.services || prev.services || [],
+                followers: p.followers || prev.followers || [],
+                following: p.following || prev.following || [],
+                socials: {
+                  ...defaultProfile.socials,
+                  ...(prev.socials || {}),
+                  ...(p.socials || {})
+                }
+              };
+              return updated;
+            });
           if (p.bannerBg) {
             setBannerBg(p.bannerBg);
           }
@@ -365,10 +352,6 @@ const Profile = () => {
       const objectUrl = URL.createObjectURL(avatarOrFile);
       setUser(prev => {
         const updated = { ...prev, picture: objectUrl };
-        try {
-          localStorage.setItem('user_profile', JSON.stringify(updated));
-          window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
-        } catch (e) {}
         return updated;
       });
       if (!effectiveEmail) return;
@@ -383,13 +366,6 @@ const Profile = () => {
           const newPic = res.data.picture || null;
           setUser(prev => {
             const updated = { ...prev, picture: newPic };
-            try {
-              localStorage.setItem('user_profile', JSON.stringify(updated));
-              const stored = localStorage.getItem('user');
-              const parsed = stored ? JSON.parse(stored) : {};
-              localStorage.setItem('user', JSON.stringify({ ...parsed, picture: newPic }));
-              window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
-            } catch (e) {}
             return updated;
           });
         }
@@ -404,10 +380,6 @@ const Profile = () => {
 
       setUser(prev => {
         const updated = { ...prev, picture: isDeleting ? null : avatarOrFile, avatarBgColor: targetColor };
-        try {
-          localStorage.setItem('user_profile', JSON.stringify(updated));
-          window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
-        } catch (e) {}
         return updated;
       });
       if (!effectiveEmail) return;
@@ -422,13 +394,6 @@ const Profile = () => {
           const newColor = res.data.avatarBgColor || targetColor;
           setUser(prev => {
             const updated = { ...prev, picture: newPic, avatarBgColor: newColor };
-            try {
-              localStorage.setItem('user_profile', JSON.stringify(updated));
-              const stored = localStorage.getItem('user');
-              const parsed = stored ? JSON.parse(stored) : {};
-              localStorage.setItem('user', JSON.stringify({ ...parsed, picture: newPic, avatarBgColor: newColor }));
-              window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
-            } catch (e) {}
             return updated;
           });
         }
@@ -441,13 +406,6 @@ const Profile = () => {
   const handleSelectColor = async (color) => {
     setUser(prev => {
       const updated = { ...prev, picture: 'color_only', avatarBgColor: color };
-      try {
-        localStorage.setItem('user_profile', JSON.stringify(updated));
-        const stored = localStorage.getItem('user');
-        const parsed = stored ? JSON.parse(stored) : {};
-        localStorage.setItem('user', JSON.stringify({ ...parsed, picture: 'color_only', avatarBgColor: color }));
-        window.dispatchEvent(new CustomEvent('profileUpdate', { detail: updated }));
-      } catch (e) {}
       return updated;
     });
     if (!effectiveEmail) return;
@@ -502,6 +460,23 @@ const Profile = () => {
 
     fetchUserFlipbooks();
   }, [effectiveEmail, backendUrl]);
+
+  // Sync user state to localStorage and dispatch update events
+  useEffect(() => {
+    try {
+      localStorage.setItem('user_profile', JSON.stringify(user));
+      const stored = localStorage.getItem('user');
+      const parsed = stored ? JSON.parse(stored) : {};
+      localStorage.setItem('user', JSON.stringify({
+        ...parsed,
+        name: user.name,
+        emailId: user.emailId || user.email,
+        picture: user.picture,
+        avatarBgColor: user.avatarBgColor
+      }));
+      window.dispatchEvent(new CustomEvent('profileUpdate', { detail: user }));
+    } catch (e) {}
+  }, [user]);
 
   useEffect(() => {
     const handleScroll = () => {

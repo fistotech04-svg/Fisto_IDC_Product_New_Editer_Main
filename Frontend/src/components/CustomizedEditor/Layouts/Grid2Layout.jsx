@@ -280,6 +280,71 @@ const Grid2Layout = ({
         });
     };
 
+    // Keyboard and Mouse Wheel Actions
+    React.useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+            switch (e.key) {
+                case 'ArrowRight':
+                    bookRef.current?.pageFlip()?.flipNext();
+                    break;
+                case 'ArrowLeft':
+                    bookRef.current?.pageFlip()?.flipPrev();
+                    break;
+                case 'ArrowUp':
+                case '+':
+                    zoomIn();
+                    break;
+                case 'ArrowDown':
+                case '-':
+                    zoomOut();
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        let lastWheelTime = 0;
+        const handleWheel = (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                if (e.deltaY < 0) zoomIn();
+                else zoomOut();
+            } else if (settings?.navigation?.mouseWheel) {
+                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                    return;
+                }
+                const now = Date.now();
+                if (now - lastWheelTime < 600) return;
+                
+                if (e.deltaY > 0) {
+                    bookRef.current?.pageFlip()?.flipNext();
+                    lastWheelTime = now;
+                } else if (e.deltaY < 0) {
+                    bookRef.current?.pageFlip()?.flipPrev();
+                    lastWheelTime = now;
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        const container = containerRef?.current;
+        if (container) {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+        } else {
+            window.addEventListener('wheel', handleWheel, { passive: false });
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            if (container) {
+                container.removeEventListener('wheel', handleWheel);
+            } else {
+                window.removeEventListener('wheel', handleWheel);
+            }
+        };
+    }, [zoomIn, zoomOut, bookRef, settings?.navigation?.mouseWheel]);
+
     const localOffset = React.useMemo(() => {
         if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover

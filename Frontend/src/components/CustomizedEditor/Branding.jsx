@@ -935,13 +935,13 @@ const Branding = ({
                         <div
                           className="h-full rounded-full animate-pulse"
                           style={{
-                            width: '60%',
+                            width: '0%',
                             backgroundColor: displayPreloader?.spinnerColor || '#3B3C8A'
                           }}
                         ></div>
                       </div>
                       {displayPreloader?.showPercentage && (
-                        <span className="text-[0.7vw] font-semibold">60%</span>
+                        <span className="text-[0.7vw] font-semibold">0%</span>
                       )}
                     </div>
                   ) : displayPreloader?.layout === 'dots' ? (
@@ -952,7 +952,7 @@ const Branding = ({
                         <div className="w-[0.5vw] h-[0.5vw] rounded-full animate-bounce" style={{ backgroundColor: displayPreloader?.spinnerColor || '#3B3C8A' }}></div>
                       </div>
                       {displayPreloader?.showPercentage && (
-                        <span className="text-[0.7vw] font-semibold">20%</span>
+                        <span className="text-[0.7vw] font-semibold">0%</span>
                       )}
                     </div>
                   ) : (
@@ -965,7 +965,7 @@ const Branding = ({
                         }}
                       ></div>
                       {displayPreloader?.showPercentage && (
-                        <span className="absolute text-[0.6vw] font-bold">20%</span>
+                        <span className="absolute text-[0.6vw] font-bold">0%</span>
                       )}
                     </div>
                   )}

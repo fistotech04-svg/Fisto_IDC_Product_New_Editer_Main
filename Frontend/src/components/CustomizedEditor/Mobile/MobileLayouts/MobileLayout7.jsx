@@ -57,6 +57,14 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
+const getLayoutColor = (id, defaultColor) => {
+    return `var(--${id}, ${defaultColor})`;
+};
+
+const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) => {
+    return `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
+};
+
 const MobileLayout7 = (props) => {
     const {
         children,
@@ -151,19 +159,25 @@ const MobileLayout7 = (props) => {
         return result;
     }, [pages]);
 
-    const getLayoutColor = (id, defaultColor) => {
-        const colorObj = settings?.layoutColors?.find(c => c.id === id);
-        return colorObj ? colorObj.hex : defaultColor;
-    };
-
     const layoutVariables = useMemo(() => {
         return {
-            '--toolbar-bg': getLayoutColor('toolbar-bg', '#575C9C'),
-            '--toolbar-icon': getLayoutColor('toolbar-icon', '#FFFFFF'),
-            '--page-bg': getLayoutColor('page-bg', '#BDC3D9'),
-            '--accent-color': getLayoutColor('accent-color', '#575C9C'),
+            '--toolbar-bg-rgb': activeLayout?.toolbarBgRgb || '87, 92, 156',
+            '--toolbar-bg-opacity': activeLayout?.toolbarBgOpacity || '1',
+            '--toolbar-text': activeLayout?.toolbarText || '#FFFFFF',
+            '--toolbar-icon': activeLayout?.toolbarIcon || '#FFFFFF',
+            '--toolbar-icon-hover': activeLayout?.toolbarIconHover || '#E0E0E0',
+            '--toolbar-search-bg': activeLayout?.toolbarSearchBg || '#D7D8E8',
+            '--toolbar-search-text': activeLayout?.toolbarSearchText || '#575C9C',
+            '--toolbar-search-placeholder': activeLayout?.toolbarSearchPlaceholder || '#575C9C',
+            '--toolbar-search-icon': activeLayout?.toolbarSearchIcon || '#575C9C',
+            '--page-bg': activeLayout?.pageBg || '#BDC3D9',
+            '--progress-bar-bg': activeLayout?.progressBarBg || '#FFFFFF',
+            '--progress-bar-fill': activeLayout?.progressBarFill || '#575C9C',
+            '--play-button-bg': activeLayout?.playButtonBg || '#FFFFFF',
+            '--play-button-icon': activeLayout?.playButtonIcon || '#575C9C',
+            '--play-button-border': activeLayout?.playButtonBorder || '#FFFFFF',
         };
-    }, [settings]);
+    }, [activeLayout]);
 
     const renderPopups = () => (
         <div className="absolute inset-0 pointer-events-none z-[2000]">
@@ -225,16 +239,16 @@ const MobileLayout7 = (props) => {
     );
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: getLayoutColor('page-bg', '#BDC3D9') }}>
             {renderPopups()}
 
             {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
             {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header */}
-            <header className="z-50 px-4 pt-0 pb-4 flex flex-col gap-4 shadow-md shrink-0 bg-white/20 backdrop-blur-sm">
+            <header className="z-50 px-4 pt-0 pb-4 flex flex-col gap-4 shadow-md shrink-0" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}>
                 <div className="flex items-center justify-between px-1">
-                    <span className="text-[#575C9C] text-[15px] font-bold truncate flex-1">{/* bookName hidden */}</span>
+                    <span className="text-[15px] font-bold truncate flex-1" style={{ color: getLayoutColor('toolbar-text', '#FFFFFF') }}>{/* bookName hidden */}</span>
                     {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
                         <img
                             src={logoSettings.src}
@@ -246,12 +260,13 @@ const MobileLayout7 = (props) => {
 
                 <div className="flex items-center gap-3">
                     {/* Search Bar */}
-                    <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center gap-3 shadow-sm relative border border-gray-100">
-                        <Icon icon="lucide:search" className="text-gray-400 w-5 h-5" />
+                    <div className="flex-1 rounded-full px-4 py-2 flex items-center gap-3 shadow-sm relative border border-gray-100" style={{ backgroundColor: getLayoutColor('toolbar-search-bg', '#FFFFFF') }}>
+                        <Icon icon="lucide:search" className="w-5 h-5" style={{ color: getLayoutColor('toolbar-search-icon', '#9ca3af') }} />
                         <input
                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
-                            className="bg-transparent text-gray-700 placeholder-gray-400 text-[13px] outline-none w-full font-medium"
+                            className="bg-transparent text-[13px] outline-none w-full font-medium"
+                            style={{ color: getLayoutColor('toolbar-search-text', '#374151') }}
                             value={localSearchQuery}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -318,13 +333,15 @@ const MobileLayout7 = (props) => {
             <main className="flex-1 relative flex flex-col overflow-hidden">
                 {/* Navigation Arrows */}
                 <button
-                    className="absolute left-[2%] top-1/2 -translate-y-1/2 z-20 text-[#575C9C] active:scale-90 transition-transform"
+                    className="absolute left-[2%] top-1/2 -translate-y-1/2 z-20 active:scale-90 transition-transform"
+                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                     onClick={() => onPageClick(Math.max(0, currentPage - 1))}
                 >
                     <Icon icon="ph:caret-left-light" className="w-10 h-10 opacity-60" strokeWidth="4" />
                 </button>
                 <button
-                    className="absolute right-[2%] top-1/2 -translate-y-1/2 z-20 text-[#575C9C] active:scale-90 transition-transform"
+                    className="absolute right-[2%] top-1/2 -translate-y-1/2 z-20 active:scale-90 transition-transform"
+                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                     onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))}
                 >
                     <Icon icon="ph:caret-right-light" className="w-10 h-10 opacity-60" strokeWidth="4" />
@@ -344,7 +361,7 @@ const MobileLayout7 = (props) => {
             {/* Footer */}
             <footer
                 className="z-50 px-4 pt-6 pb-8 flex flex-col gap-6 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] shrink-0"
-                style={{ backgroundColor: "transparent" }}
+                style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}
             >
                 {/* Icon Row */}
                 <div className="flex items-center justify-between px-2">
@@ -391,10 +408,10 @@ const MobileLayout7 = (props) => {
 
                 {/* Progress Row */}
                 <div className="px-2">
-                    <div className="relative w-full h-1 bg-white/20 rounded-full overflow-hidden">
+                    <div className="relative w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: getLayoutColor('progress-bar-bg', 'rgba(255,255,255,0.2)') }}>
                         <div
-                            className="absolute left-0 top-0 h-full bg-white transition-all duration-300"
-                            style={{ width: `${((currentPage + 1) / pages.length) * 100}%` }}
+                            className="absolute left-0 top-0 h-full transition-all duration-300"
+                            style={{ width: `${((currentPage + 1) / pages?.length || 1) * 100}%`, backgroundColor: getLayoutColor('progress-bar-fill', '#FFFFFF') }}
                         />
                     </div>
                 </div>
@@ -412,16 +429,17 @@ const MobileLayout7 = (props) => {
                     )}
 
                     <div className="flex items-center gap-8">
-                        <button onClick={() => onPageClick(0)} className="text-white hover:scale-110 active:scale-95 transition-all">
+                        <button onClick={() => onPageClick(0)} className="hover:scale-110 active:scale-95 transition-all" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="fluent:previous-24-filled" className="w-7 h-7" />
                         </button>
                         <button 
                             onClick={() => setIsPlaying(!isAutoFlipping)}
-                            className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#575C9C] shadow-lg hover:scale-110 active:scale-95 transition-all"
+                            className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all"
+                            style={{ backgroundColor: getLayoutColor('play-button-bg', '#FFFFFF'), color: getLayoutColor('play-button-icon', '#575C9C') }}
                         >
                             <Icon icon={isAutoFlipping ? "fluent:pause-24-filled" : "fluent:play-24-filled"} className="w-7 h-7" />
                         </button>
-                        <button onClick={() => onPageClick(pages.length - 1)} className="text-white hover:scale-110 active:scale-95 transition-all">
+                        <button onClick={() => onPageClick(pages.length - 1)} className="hover:scale-110 active:scale-95 transition-all" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="fluent:next-24-filled" className="w-7 h-7" />
                         </button>
                     </div>
@@ -444,7 +462,7 @@ const MobileLayout7 = (props) => {
                     >
                         <div
                             className="flex items-center justify-between px-4 py-2.5 shrink-0 relative"
-                            style={{ backgroundColor: "transparent" }}
+                            style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}
                         >
                             <span className="text-[12px] font-bold text-white tracking-wide">Thumbnails</span>
                             {/* Drag handle line in center */}

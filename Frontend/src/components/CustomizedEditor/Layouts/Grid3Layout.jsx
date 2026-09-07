@@ -483,20 +483,46 @@ const Grid3Layout = ({
             }
         };
 
+        let lastWheelTime = 0;
         const handleWheel = (e) => {
             if (e.ctrlKey) {
                 e.preventDefault();
                 if (e.deltaY < 0) zoomIn();
                 else zoomOut();
+            } else if (settings?.navigation?.mouseWheel) {
+                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                    return;
+                }
+                
+                const now = Date.now();
+                if (now - lastWheelTime < 600) return;
+                
+                if (e.deltaY > 0) {
+                    bookRef.current?.pageFlip()?.flipNext();
+                    lastWheelTime = now;
+                } else if (e.deltaY < 0) {
+                    bookRef.current?.pageFlip()?.flipPrev();
+                    lastWheelTime = now;
+                }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('wheel', handleWheel, { passive: false });
+        
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+        } else {
+            window.addEventListener('wheel', handleWheel, { passive: false });
+        }
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('wheel', handleWheel);
+            if (container) {
+                container.removeEventListener('wheel', handleWheel);
+            } else {
+                window.removeEventListener('wheel', handleWheel);
+            }
         };
     }, [zoomIn, zoomOut, bookRef]);
 
