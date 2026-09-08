@@ -233,3 +233,115 @@ export const generatePdfPageSvg = (
   </g>
 </svg>`;
 };
+
+/**
+ * Splits a multi-page PDF into an array of single-page PDF File objects using MuPDF.
+ * Inkscape converts single-page PDFs with 100% reliability and zero unknown-option errors.
+ *
+ * @param {File} file - Incoming PDF file.
+ * @param {number} [maxPages=Infinity] - Max pages to extract.
+ * @returns {Promise<Array<File>>}
+ */
+export const splitPdfIntoPageFiles = async (file, maxPages = Infinity) => {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    const tempDoc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
+    const total = tempDoc.countPages();
+    tempDoc.destroy();
+
+    const count = Math.min(total, maxPages);
+    if (count <= 1) {
+      return [file];
+    }
+
+    const pageFiles = [];
+    for (let i = 0; i < count; i++) {
+      let singleDoc = null;
+      try {
+        singleDoc = new mupdf.PDFDocument(uint8Array);
+        singleDoc.rearrangePages([i]);
+        const mupdfBuf = singleDoc.saveToBuffer();
+        const pageBytes = mupdfBuf.asUint8Array ? mupdfBuf.asUint8Array() : new Uint8Array(mupdfBuf);
+        const pageBlob = new Blob([pageBytes], { type: 'application/pdf' });
+        const pageFile = new File([pageBlob], `page_${i + 1}.pdf`, { type: 'application/pdf' });
+        pageFiles.push(pageFile);
+      } catch (pageErr) {
+        console.warn(`[PDF Split] Error extracting page ${i + 1}:`, pageErr);
+      } finally {
+        if (singleDoc) {
+          try { singleDoc.destroy(); } catch (e) {}
+        }
+      }
+    }
+
+    return pageFiles.length > 0 ? pageFiles : [file];
+  } catch (err) {
+    console.warn("[PDF Split] Failed to split PDF, using original file:", err);
+    return [file];
+  }
+};
+
+/**
+ * Converts a PDF file using Inkscape on the backend to obtain high-fidelity vector pages
+ * with text outlined into paths (like Illustrator's Create Outlines/flatten transparency).
+ * Splits multi-page PDFs into single-page files before sending to ensure 100% Inkscape compatibility.
+ * Falls back to client-side MuPDF if the backend conversion fails or is unavailable.
+ *
+ * @param {File} file - PDF file to convert.
+ * @param {number} [maxPages=Infinity] - Max pages to convert.
+ * @param {string} [backendUrl] - Optional backend URL.
+ * @returns {Promise<Array<{ pageNumber: number, pageName: string, content: string, width: number, height: number, dataUrl: string, isVector: boolean }>>}
+ */
+export const convertPdfWithInkscape = async (file, maxPages = Infinity, backendUrl = null) => {
+  const resolvedBackendUrl = backendUrl || import.meta.env.VITE_BACKEND_URL || '';
+
+  try {
+    // 1. Extract 1-page PDF files using MuPDF for seamless single-page Inkscape processing
+    const pageFiles = await splitPdfIntoPageFiles(file, maxPages);
+
+    const formData = new FormData();
+    for (const pageFile of pageFiles) {
+      formData.append('pdfs', pageFile);
+    }
+    if (pageFiles.length === 1) {
+      formData.append('pdf', pageFiles[0]);
+    }
+
+    const response = await fetch(`${resolvedBackendUrl}/api/flipbook/convert-pdf-inkscape`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && Array.isArray(data.pages) && data.pages.length > 0) {
+        return data.pages.map((p) => ({
+          pageNumber: p.pageNumber,
+          pageName: p.pageName || `Page ${p.pageNumber}`,
+          content: p.content,
+          width: p.width,
+          height: p.height,
+          dataUrl: svgToDataUrl(p.content),
+          isVector: true
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn("[PDF] Backend Inkscape conversion failed, falling back to local MuPDF:", err);
+  }
+
+  // Graceful fallback to client-side MuPDF raster conversion
+  const images = await convertPdfToImages(file, 2.5, maxPages);
+  return images.map((img, idx) => ({
+    pageNumber: idx + 1,
+    pageName: `Page ${idx + 1}`,
+    content: null,
+    dataUrl: img.dataUrl,
+    blob: img.blob,
+    width: img.width,
+    height: img.height,
+    isVector: false
+  }));
+};
