@@ -23,7 +23,8 @@ const flipbookSchema = new mongoose.Schema(
         v_id: { type: String, required: true }, // Unique ID for finding assets
         size: { type: Number, default: 0 }, // Size in bytes
         hide: { type: Number, default: 0 }, // 1 means hidden, 0 means visible
-      },
+        brandwatermark: { type: Number, default: 0 } // 1 means hidden, 0 means visible
+    },
     ],
     fileSize: {
       type: Number,
@@ -367,6 +368,7 @@ const flipbookSchema = new mongoose.Schema(
           ],
         },
       },
+      otherSetup: { type: mongoose.Schema.Types.Mixed, default: {} },
     },
     viewsCount: {
       type: Number,

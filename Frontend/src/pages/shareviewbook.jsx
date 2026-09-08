@@ -833,7 +833,7 @@ const ShareViewBook = () => {
     );
 
     if (accessMode === 'password') return (
-        <div className="relative w-screen h-screen overflow-hidden select-none bg-slate-950">
+        <div onContextMenu={(e) => e.preventDefault()} className="relative w-screen h-screen overflow-hidden select-none bg-slate-950">
             {/* Background Flipbook with Blur */}
             {bookData && bookData.pages && bookData.pages.length > 0 ? (
                 <div className="absolute inset-0 filter blur-[10px] opacity-40 scale-105 pointer-events-none overflow-hidden select-none" style={varsObject}>
@@ -917,7 +917,7 @@ const ShareViewBook = () => {
     );
 
     if (accessMode === 'login') return (
-        <div className="relative w-screen h-screen overflow-hidden select-none bg-slate-950">
+        <div onContextMenu={(e) => e.preventDefault()} className="relative w-screen h-screen overflow-hidden select-none bg-slate-950">
             {/* Background Flipbook with Blur */}
             {bookData && bookData.pages && bookData.pages.length > 0 ? (
                 <div className="absolute inset-0 filter blur-[10px] opacity-40 scale-105 pointer-events-none overflow-hidden select-none" style={varsObject}>
@@ -1106,6 +1106,7 @@ const ShareViewBook = () => {
 
     return (
         <div
+            onContextMenu={(e) => e.preventDefault()}
             className="relative h-screen w-screen overflow-hidden bg-white flex flex-col"
             style={varsObject}
         >

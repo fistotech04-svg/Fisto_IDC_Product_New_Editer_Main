@@ -4469,7 +4469,7 @@ const TemplateEditor = () => {
   })();
 
   return (
-    <div className="flex h-[92vh] w-full bg-white overflow-hidden relative">
+    <div onContextMenu={(e) => e.preventDefault()} className="flex h-[92vh] w-full bg-white overflow-hidden relative">
       {!isLoading && isPasswordProtected && !isUnlocked && (
         <PasswordProtectModal
           v_id={v_id}

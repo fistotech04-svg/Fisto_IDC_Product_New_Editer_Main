@@ -1768,6 +1768,7 @@ const CustomizedEditor = () => {
 
   return (
     <div
+      onContextMenu={(e) => e.preventDefault()}
       className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans select-none relative"
       style={layoutColorVars ? Object.fromEntries(layoutColorVars.split(';').filter(v => v.trim()).map(v => {
         const i = v.indexOf(':');
