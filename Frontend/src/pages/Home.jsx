@@ -30,7 +30,7 @@ import CreateFlipbookModal from '../components/CreateFlipbookModal';
 import AlertModal from '../components/AlertModal';
 import PdfProcessingLoader from '../components/PdfProcessingLoader';
 import Footer from './Footer';
-import { convertPdfToImages, generatePdfPageSvg } from '../utils/pdfUtils';
+import { convertPdfToImages, convertPdfWithInkscape, generatePdfPageSvg } from '../utils/pdfUtils';
 import shelfImg from '../assets/Home/shelf.png';
 import page1 from '../assets/Home/A4_1.png';
 import page2 from '../assets/Home/A4_2.png';
@@ -794,7 +794,7 @@ export default function Home() {
           message: `Extracting pages from ${file.name}...`
         });
 
-        const images = await convertPdfToImages(file, 2.5, remainingPages);
+        const images = await convertPdfWithInkscape(file, remainingPages, backendUrl);
         if (isUploadCancelledRef.current) return;
         allImages = [...allImages, ...images];
       }
@@ -865,8 +865,8 @@ export default function Home() {
         // Encode the batch of pages concurrently
         const batchPages = await Promise.all(batch.map(async (img, idx) => {
           const pageIndex = i + idx + 1;
-          const base64Url = img.dataUrl || await blobToBase64(img.blob);
-          const html = generatePdfPageSvg(base64Url, `Page ${pageIndex}`, maxWidth, maxHeight, true);
+          const base64Url = img.dataUrl || (img.blob ? await blobToBase64(img.blob) : "");
+          const html = img.content || generatePdfPageSvg(base64Url, `Page ${pageIndex}`, maxWidth, maxHeight, true);
           return {
             pageName: `Page ${pageIndex}`,
             content: html,
