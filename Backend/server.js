@@ -28,8 +28,17 @@ connectDB();
 
 
 import { SUPABASE_BUCKET, getSupabasePublicUrl, downloadFileFromSupabase } from "./config/supabase.js";
+import { checkInkscapeVersion } from "./utils/inkscapeConverter.js";
 
 console.log(`[Supabase] Storage integration initialized for bucket '${SUPABASE_BUCKET}'.`);
+
+checkInkscapeVersion().then((status) => {
+  if (status.available) {
+    console.log(`[Inkscape] Connected successfully! Version: ${status.version} (${status.path}) | Node Package: ${status.hasNodePackage ? 'Loaded' : 'Pending npm i'}`);
+  } else {
+    console.warn(`[Inkscape] Warning: Not connected. ${status.error || ''}`);
+  }
+}).catch(() => {});
 
 const mimeTypes = {
   ".glb": "model/gltf-binary",

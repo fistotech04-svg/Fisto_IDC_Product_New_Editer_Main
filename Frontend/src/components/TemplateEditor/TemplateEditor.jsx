@@ -9,7 +9,7 @@ import RightSidebar from './RightSidebar';
 import TooltipCustomization from './TooltipCustomization';
 import TemplateModal from './TemplateModal';
 import FlipbookPreview from './FlipbookPreview';
-import { convertPdfToImages, generatePdfPageSvg, svgToDataUrl } from '../../utils/pdfUtils';
+import { convertPdfToImages, convertPdfWithInkscape, generatePdfPageSvg, svgToDataUrl } from '../../utils/pdfUtils';
 import AlertModal from '../AlertModal';
 import PdfProcessingLoader from '../PdfProcessingLoader';
 import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
@@ -2140,7 +2140,7 @@ const TemplateEditor = () => {
     setPdfProcessing({ current: 0, total: 1, message: 'Processing replacement...', fileName: file.name });
 
     try {
-      const images = await convertPdfToImages(file, 2.5, 1);
+      const images = await convertPdfWithInkscape(file, 1);
       if (!images || images.length === 0) return;
 
       const image = images[0];
@@ -2180,7 +2180,7 @@ const TemplateEditor = () => {
 
         const pageName = updatedPage.name || `Page ${pageIndex + 1}`;
         const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
-        const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, isPdfProject);
+        const absoluteHtml = image.content || generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, isPdfProject);
         const parser = new DOMParser();
         const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
         updatedPage.html = absoluteHtml;
@@ -2261,7 +2261,7 @@ const TemplateEditor = () => {
     setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...', fileName: file.name });
 
     try {
-      const images = await convertPdfToImages(file, 2.5, remainingSlots);
+      const images = await convertPdfWithInkscape(file, remainingSlots);
       if (!images || images.length === 0) return;
 
       // 1. Check internal uniformity of the incoming PDF
@@ -2332,7 +2332,7 @@ const TemplateEditor = () => {
         const shouldBePdfBg = isDefaultBlankCurrent || isPdfProjectCurrent;
 
         const pageName = shouldBePdfBg ? `PDF Page ${startNum + i}` : `Page ${startNum + i}`;
-        const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, shouldBePdfBg);
+        const absoluteHtml = image.content || generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, shouldBePdfBg);
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');

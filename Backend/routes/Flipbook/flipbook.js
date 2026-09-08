@@ -30,6 +30,7 @@ import { promisify } from "util";
 import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase, getFolderSizeFromSupabase, getSupabasePublicUrl } from "../../config/supabase.js";
 import { calculateActiveUserStorage } from "../User_Details/usersetting.js";
 import { logActivity } from "../../utils/activityLogger.js";
+import { convertPdfWithInkscape, checkInkscapeVersion } from "../../utils/inkscapeConverter.js";
 
 // Helper to get Gmail Transporter
 const getTransporter = () => {
@@ -265,6 +266,36 @@ const brandingUpload = multer({
       cb(null, true);
     } else {
       cb(new Error(`Invalid image file type for branding asset. Allowed: ${allowed.join(", ")}`));
+    }
+  },
+});
+
+// Configure multer for PDF uploads in temp_uploads (for vector Inkscape conversion)
+const pdfStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const tempDir = path.join(__dirname, "../../temp_uploads/pdf_uploads");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    cb(null, tempDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".pdf";
+    const uniqueName = `pdf_${nanoid()}${ext}`;
+    cb(null, uniqueName);
+  },
+});
+
+const pdfUpload = multer({
+  storage: pdfStorage,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB limit for high-res vector PDFs
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF files are allowed for vector flipbook conversion."));
     }
   },
 });
@@ -1248,6 +1279,60 @@ const formatSize = (bytes) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
+
+// @route   GET /api/flipbook/inkscape-status
+// @desc    Check if Inkscape node package / executable is connected and available
+router.get("/inkscape-status", async (req, res) => {
+  try {
+    const status = await checkInkscapeVersion();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ available: false, error: err.message });
+  }
+});
+
+// @route   POST /api/flipbook/convert-pdf-inkscape
+// @desc    Convert uploaded PDF(s) into SVG pages with text outlined via Inkscape node package / CLI
+router.post("/convert-pdf-inkscape", (req, res) => {
+  pdfUpload.any()(req, res, async (err) => {
+    if (err) {
+      console.error("[Flipbook] Multer PDF upload error:", err);
+      return res.status(400).json({ success: false, message: err.message });
+    }
+
+    const files = req.files || (req.file ? [req.file] : []);
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: "No PDF file uploaded" });
+    }
+
+    const tempPdfPaths = files.map((f) => f.path);
+    try {
+      const maxPages = req.body.maxPages ? parseInt(req.body.maxPages, 10) : Infinity;
+      const result = await convertPdfWithInkscape(tempPdfPaths, { maxPages });
+
+      return res.json({
+        success: true,
+        pages: result.pages,
+        width: result.width,
+        height: result.height,
+        isUniform: result.isUniform,
+        totalPages: result.totalPages
+      });
+    } catch (conversionErr) {
+      console.error("[Flipbook] Inkscape conversion error:", conversionErr);
+      return res.status(500).json({
+        success: false,
+        message: conversionErr.message || "Failed to convert PDF with Inkscape"
+      });
+    } finally {
+      tempPdfPaths.forEach((p) => {
+        if (fs.existsSync(p)) {
+          try { fs.unlinkSync(p); } catch (e) {}
+        }
+      });
+    }
+  });
+});
 
 // @route   GET /api/flipbook/list
 // @desc    Get all flipbooks with metadata
