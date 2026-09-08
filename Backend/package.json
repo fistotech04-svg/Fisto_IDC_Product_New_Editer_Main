@@ -33,7 +33,7 @@
     "adm-zip": "^0.5.16",
     "inkscape": "^3.1.1",
     "opencascade.js": "^1.1.1",
-    "pdf-lib": "^1.17.9",
+    "pdf-lib": "^1.17.1",
     "resend": "^6.12.2"
   }
 }
