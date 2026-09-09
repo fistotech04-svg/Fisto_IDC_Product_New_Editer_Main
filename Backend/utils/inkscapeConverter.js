@@ -606,3 +606,150 @@ export const convertPdfWithInkscape = async (pdfPaths, options = {}) => {
     }
   }
 };
+
+/**
+ * Exports one or more SVG pages into a high-fidelity vector PDF using Inkscape.
+ * Uses --export-text-to-path to outline all text into vector bezier curves,
+ * ensuring Adobe Illustrator opens the PDF with 100% vector fidelity and zero font errors.
+ * If multiple pages are provided, merges them using pdf-lib.
+ *
+ * @param {Array<{ svgString: string, pageNumber?: number, width?: number, height?: number }>} pages
+ * @param {Object} options
+ * @returns {Promise<Buffer>}
+ */
+export const exportSvgsToVectorPdf = async (pages, options = {}) => {
+  const binaryPath = getInkscapePath();
+  if (!binaryPath || !fs.existsSync(binaryPath)) {
+    throw new Error(`Inkscape executable not found at: "${binaryPath || ''}". Please verify INKSCAPE_PATH in .env`);
+  }
+
+  if (!pages || !Array.isArray(pages) || pages.length === 0) {
+    throw new Error("No SVG pages provided for PDF export");
+  }
+
+  const randomId = Math.random().toString(36).substring(2, 9) + Date.now();
+  const tempDir = path.join(os.tmpdir(), `vector_export_${randomId}`);
+  fs.mkdirSync(tempDir, { recursive: true });
+
+  const generatedFiles = [];
+  const singlePdfPaths = [];
+
+  try {
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      let svg = page.svgString || page.content || page.html || "";
+      if (!svg || typeof svg !== "string") {
+        console.warn(`[Vector PDF Export] Page ${i + 1} has empty SVG content, skipping.`);
+        continue;
+      }
+
+      // 1. Sanitize SVG for Inkscape vector export
+      // Remove any editor overlay artifacts (free frame, selection outlines)
+      svg = svg.replace(/<[^>]+data-name="Free Frame"[^>]*>.*?<\/[^>]+>/gis, "");
+      svg = svg.replace(/<[^>]+data-name="Free Frame"[^>]*\/>/gi, "");
+      svg = svg.replace(/<sodipodi:namedview[^>]*>.*?<\/sodipodi:namedview>/gis, "");
+      svg = svg.replace(/<sodipodi:namedview[^>]*\/>/gi, "");
+
+      // If SVG contains any residual foreignObject, convert to SVG text so Inkscape renders it
+      if (svg.includes("<foreignObject") || svg.includes("<foreignobject")) {
+        svg = svg.replace(/<foreignObject([^>]*?)>(.*?)<\/foreignObject>/gis, (_match, foAttrs, foInner) => {
+          const xMatch = foAttrs.match(/\bx\s*=\s*["']([^"']+)["']/i);
+          const yMatch = foAttrs.match(/\by\s*=\s*["']([^"']+)["']/i);
+          const x = xMatch ? parseFloat(xMatch[1]) : 0;
+          const y = yMatch ? parseFloat(yMatch[1]) : 0;
+          const textContent = foInner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          if (!textContent) return "";
+          return `<text x="${x}" y="${y + 16}" font-family="Poppins, sans-serif" font-size="16" fill="#000000">${textContent}</text>`;
+        });
+      }
+
+      // Normalize viewBox and physical dimensions
+      const vbMatch = svg.match(/viewBox\s*=\s*["']([^"']+)["']/i);
+      let nativeW = 0;
+      let nativeH = 0;
+      if (vbMatch) {
+        const parts = vbMatch[1].trim().split(/[\s,]+/);
+        if (parts.length >= 4) {
+          nativeW = parseFloat(parts[2]);
+          nativeH = parseFloat(parts[3]);
+        }
+      }
+
+      // If dimensions in root <svg> are missing or in huge raster pixels, normalize
+      if (nativeW > 0 && nativeH > 0) {
+        svg = svg.replace(/<svg([^>]*?)>/i, (_m, attrs) => {
+          const cleaned = attrs
+            .replace(/\s+width\s*=\s*["'][^"']*["']/gi, "")
+            .replace(/\s+height\s*=\s*["'][^"']*["']/gi, "");
+          // If native dimensions look like mm (e.g. 210x297), keep as mm
+          const unit = (nativeW <= 500 && nativeH <= 500) ? "mm" : "pt";
+          return `<svg${cleaned} width="${nativeW}${unit}" height="${nativeH}${unit}">`;
+        });
+      }
+
+      const svgPath = path.join(tempDir, `page_${i + 1}.svg`);
+      const pdfPath = path.join(tempDir, `page_${i + 1}.pdf`);
+      fs.writeFileSync(svgPath, svg, "utf8");
+      generatedFiles.push(svgPath, pdfPath);
+
+      // 2. Export page using Inkscape CLI
+      // --export-type=pdf: Pure vector PDF output
+      // --export-text-to-path: Converts all font text to vector bezier paths (<path d="...">)
+      // --export-area-page: Preserves exact physical page margins
+      const args = [
+        svgPath,
+        `--export-filename=${pdfPath}`,
+        "--export-type=pdf",
+        "--export-text-to-path",
+        "--export-area-page"
+      ];
+
+      console.log(`[Vector PDF Export] Converting page ${i + 1}/${pages.length} via Inkscape...`);
+      await execFileAsync(binaryPath, args, {
+        windowsHide: true,
+        timeout: 90000,
+        maxBuffer: 50 * 1024 * 1024
+      });
+
+      if (!fs.existsSync(pdfPath) || fs.statSync(pdfPath).size === 0) {
+        throw new Error(`Inkscape failed to produce PDF for page ${i + 1}`);
+      }
+
+      singlePdfPaths.push(pdfPath);
+    }
+
+    if (singlePdfPaths.length === 0) {
+      throw new Error("No pages could be converted to vector PDF.");
+    }
+
+    // 3. Single page -> return directly
+    if (singlePdfPaths.length === 1) {
+      return fs.readFileSync(singlePdfPaths[0]);
+    }
+
+    // 4. Multi-page -> merge using pdf-lib
+    const pdfLibInstance = PDFLib || require("pdf-lib");
+    const mergedDoc = await pdfLibInstance.PDFDocument.create();
+
+    for (const singlePdfPath of singlePdfPaths) {
+      const pageBytes = fs.readFileSync(singlePdfPath);
+      const srcDoc = await pdfLibInstance.PDFDocument.load(pageBytes);
+      const copiedPages = await mergedDoc.copyPages(srcDoc, srcDoc.getPageIndices());
+      copiedPages.forEach((p) => mergedDoc.addPage(p));
+    }
+
+    const mergedBytes = await mergedDoc.save();
+    return Buffer.from(mergedBytes);
+  } finally {
+    // Cleanup temporary files
+    for (const f of generatedFiles) {
+      if (fs.existsSync(f)) {
+        try { fs.unlinkSync(f); } catch (e) {}
+      }
+    }
+    if (fs.existsSync(tempDir)) {
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+    }
+  }
+};
+

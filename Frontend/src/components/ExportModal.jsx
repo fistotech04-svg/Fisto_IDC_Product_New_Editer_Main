@@ -10,6 +10,7 @@ import domtoimage from 'dom-to-image-more';
 import ColorPicker from './ThreedEditor/ColorPicker';
 import TemplateColorPicker from './TemplateEditor/ColorPicker';
 import { getSupabaseBaseUrl } from '../utils/supabaseUtils';
+import { convertSvgTextToOutlines } from '../utils/vectorTextConverter';
 
 
 const SCRIBBLE_ICONS = {
@@ -1161,7 +1162,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
    * - Injects a comprehensive CSS reset to fix text borders/alignment in foreignObject
    * Returns { svgString, targetW, targetH, nativeW, nativeH, isPdfPage } or null.
    */
-  const buildExportSvg = (pageIndex, maxPx) => {
+  const buildExportSvg = (pageIndex, maxPx, isVectorPdf = false) => {
     const page = modalPages[pageIndex];
     if (!page?.html) return null;
 
@@ -1186,7 +1187,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       }
     }
 
-    // Scale so longest side = maxPx
+    // Scale so longest side = maxPx (for raster image export)
     let targetW = maxPx, targetH = maxPx;
     if (nativeW > 0 && nativeH > 0) {
       const scale = maxPx / Math.max(nativeW, nativeH);
@@ -1194,11 +1195,17 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       targetH = Math.round(nativeH * scale);
     }
 
-    // Rewrite the root <svg> tag: strip old width/height, add explicit px values
+    // Rewrite the root <svg> tag:
+    // For vector PDF: preserve physical dimension units (mm or pt) matching the viewBox!
+    // For raster images: set explicit pixel targetW/targetH for high-resolution rendering
     svg = svg.replace(/<svg([^>]*?)>/i, (_match, attrs) => {
       const cleaned = attrs
         .replace(/\s+width\s*=\s*["'][^"']*["']/gi, '')
         .replace(/\s+height\s*=\s*["'][^"']*["']/gi, '');
+      if (isVectorPdf && nativeW > 0 && nativeH > 0) {
+        const unit = (nativeW <= 500 && nativeH <= 500) ? 'mm' : 'pt';
+        return `<svg${cleaned} width="${nativeW}${unit}" height="${nativeH}${unit}">`;
+      }
       return `<svg${cleaned} width="${targetW}" height="${targetH}">`;
     });
 
@@ -1525,113 +1532,124 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     try {
 
       if (format === 'PDF') {
-        // ── PDF: all pages in one file — TRUE VECTOR output ──────
-        // Strategy: embed the SVG directly into jsPDF using its built-in svg() renderer.
-        // This produces genuine vector PDF (shapes, gradients, paths are all vector).
-        // Text inside <foreignObject> is rasterized at the chosen quality DPI and
-        // composited on top so fonts are perfectly preserved.
-        // Physical page size always uses original native dimensions (in pt).
-        let pdf = null;
-        let first = true;
+        // ── TRUE VECTOR PDF EXPORT FOR ADOBE ILLUSTRATOR ──────────
+        // 1. Prepare each page's SVG:
+        //    - Inline referenced images to Base64
+        //    - Convert <foreignObject> text into pure vector <path> outlines (opentype.js)
+        //      or clean SVG <text> elements (so Inkscape --export-text-to-path outlines them)
+        //    - Preserve exact physical dimensions (mm/pt) matching the viewBox
+        const preparedPages = [];
 
         for (const idx of indices) {
-          const res = buildExportSvg(idx, maxPx);
+          const res = buildExportSvg(idx, maxPx, true);
           if (!res) continue;
-          const { svgString, targetW, targetH, nativeW, nativeH, isPdfPage } = res;
-
-          // ── PDF page dimensions ──────────────────────────────────
-          // The SVG viewBox coordinate system used in this project is MILLIMETRES.
-          // Template pages: default 210 × 297 mm (A4), stored directly as the viewBox.
-          // PDF-origin pages: pdfUtils stores px × (25.4/96) → also mm.
-          //
-          // jsPDF uses 'pt' (points) as the unit.
-          //   1 mm = 72/25.4 pt  ≈ 2.8346 pt
-          //   A4 in pt: 595.28 × 841.89
-          //
-          // So we must ALWAYS convert:  pdfDim = nativeMm * (72 / 25.4)
-          //
-          // Guard: if nativeW/H look like pixel values (> 500) rather than mm values,
-          // convert from px → pt using the screen DPI factor (1 px = 72/96 pt).
-          const MM_TO_PT  = 72 / 25.4;   // 2.8346…
-          const PX_TO_PT  = 72 / 96;     // 0.75
-          const looksLikePx = nativeW > 500 || nativeH > 500;
-          const pdfW = nativeW > 0
-            ? Math.round(looksLikePx ? nativeW * PX_TO_PT : nativeW * MM_TO_PT)
-            : Math.round(targetW * PX_TO_PT);
-          const pdfH = nativeH > 0
-            ? Math.round(looksLikePx ? nativeH * PX_TO_PT : nativeH * MM_TO_PT)
-            : Math.round(targetH * PX_TO_PT);
+          let { svgString, nativeW, nativeH } = res;
 
           // 1. Inline all referenced images in the SVG to Base64
-          const inlinedSvg = await inlineSvgImages(svgString);
+          let inlinedSvg = await inlineSvgImages(svgString);
 
-          // 2. Set up the PDF page
-          if (first) {
-            pdf = new jsPDF({
-              orientation: pdfW > pdfH ? 'landscape' : 'portrait',
-              unit: 'pt',
-              format: [pdfW, pdfH],
-              compress: true,
-            });
-          } else {
-            pdf.addPage([pdfW, pdfH], pdfW > pdfH ? 'landscape' : 'portrait');
+          // 2. Convert <foreignObject> text into vector outlines / clean SVG text
+          inlinedSvg = await convertSvgTextToOutlines(inlinedSvg);
+
+          preparedPages.push({
+            svgString: inlinedSvg,
+            pageNumber: idx + 1,
+            width: nativeW,
+            height: nativeH,
+          });
+        }
+
+        if (preparedPages.length === 0) {
+          throw new Error('No pages available for PDF export');
+        }
+
+        const pdfName = indices.length === 1
+          ? `${bookName}_${(modalPages[indices[0]]?.name || `Page_${indices[0]+1}`).replace(/\s+/g,'_')}.pdf`
+          : `${bookName}_${indices.length}_pages.pdf`;
+
+        // 3. Primary Strategy: Backend Vector PDF Export via Inkscape CLI
+        //    Inkscape uses --export-type=pdf --export-text-to-path --export-area-page
+        //    Result: 100% vector PDF, all text glyphs are bezier outlines (<path d="...">)
+        //    Zero missing font errors in Adobe Illustrator, zero pixelation!
+        let backendExportSucceeded = false;
+        try {
+          const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+          const response = await axios.post(
+            `${backendUrl}/api/flipbook/export-vector-pdf`,
+            {
+              pages: preparedPages,
+              bookName: bookName,
+            },
+            {
+              responseType: 'blob',
+              timeout: 120000,
+            }
+          );
+
+          if (response.data && response.data.size > 0) {
+            saveAs(response.data, pdfName);
+            backendExportSucceeded = true;
           }
+        } catch (backendErr) {
+          console.warn('Backend vector PDF export unavailable, using client-side vector engine:', backendErr);
+        }
 
-          // 3. Try vector SVG embedding via jsPDF svg() API
-          //    jsPDF v4 supports SVG natively — shapes, gradients, images become vector PDF objects.
-          //    foreignObject elements are silently skipped (they are HTML and not SVG-spec).
-          let vectorEmbedOk = false;
-          try {
-            // svg() renders the SVG as vector into the current page.
-            // We provide the page dimensions so it fills exactly.
-            await pdf.svg(new DOMParser().parseFromString(inlinedSvg, 'image/svg+xml').documentElement, {
-              x: 0,
-              y: 0,
-              width: pdfW,
-              height: pdfH,
-            });
-            vectorEmbedOk = true;
-          } catch (svgErr) {
-            console.warn('jsPDF svg() failed, falling back to raster:', svgErr);
-          }
+        // 4. Client-side Fallback (if backend is offline)
+        if (!backendExportSucceeded) {
+          console.log('Generating vector PDF on client side...');
+          let pdf = null;
+          let first = true;
 
-          if (!vectorEmbedOk) {
-            // Fallback: rasterize the whole page as a high-res PNG
-            const imgBlob = await svgToBlob(inlinedSvg, 'image/png', targetW, targetH);
-            const dataUrl = await new Promise((ok) => {
-              const r = new FileReader();
-              r.onload = () => ok(r.result);
-              r.readAsDataURL(imgBlob);
-            });
-            pdf.addImage(dataUrl, 'PNG', 0, 0, pdfW, pdfH);
-          } else {
-            // 4. Overlay rasterized foreignObject content on top of the vector layer.
-            //    This ensures text blocks are perfectly rendered with correct fonts/alignment.
-            const hasForeignObject = inlinedSvg.includes('<foreignObject');
-            if (hasForeignObject) {
-              // Build a transparent-background PNG of just the rasterized page
-              // (the SVG CSS already hides all non-foreignObject borders)
-              const overlayBlob = await svgToBlob(inlinedSvg, 'image/png', targetW, targetH);
-              const overlayDataUrl = await new Promise((ok) => {
+          for (const p of preparedPages) {
+            const MM_TO_PT  = 72 / 25.4;
+            const PX_TO_PT  = 72 / 96;
+            const looksLikePx = p.width > 500 || p.height > 500;
+            const pdfW = p.width > 0
+              ? Math.round(looksLikePx ? p.width * PX_TO_PT : p.width * MM_TO_PT)
+              : 595;
+            const pdfH = p.height > 0
+              ? Math.round(looksLikePx ? p.height * PX_TO_PT : p.height * MM_TO_PT)
+              : 842;
+
+            if (first) {
+              pdf = new jsPDF({
+                orientation: pdfW > pdfH ? 'landscape' : 'portrait',
+                unit: 'pt',
+                format: [pdfW, pdfH],
+                compress: true,
+              });
+            } else {
+              pdf.addPage([pdfW, pdfH], pdfW > pdfH ? 'landscape' : 'portrait');
+            }
+
+            // Since text was already outlined to <path> by convertSvgTextToOutlines,
+            // pdf.svg() embeds true vector bezier paths without crashing on foreignObject!
+            try {
+              await pdf.svg(new DOMParser().parseFromString(p.svgString, 'image/svg+xml').documentElement, {
+                x: 0,
+                y: 0,
+                width: pdfW,
+                height: pdfH,
+              });
+            } catch (svgErr) {
+              console.warn('Client-side vector embed error:', svgErr);
+              const imgBlob = await svgToBlob(p.svgString, 'image/png', pdfW * 2, pdfH * 2);
+              const dataUrl = await new Promise((ok) => {
                 const r = new FileReader();
                 r.onload = () => ok(r.result);
-                r.readAsDataURL(overlayBlob);
+                r.readAsDataURL(imgBlob);
               });
-              // Place overlay at full page size
-              pdf.addImage(overlayDataUrl, 'PNG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+              pdf.addImage(dataUrl, 'PNG', 0, 0, pdfW, pdfH);
             }
+
+            first = false;
           }
 
-          first = false;
-        }
-        
-        if (pdf) {
-          const pdfName = indices.length === 1
-            ? `${bookName}_${(modalPages[indices[0]]?.name || `Page_${indices[0]+1}`).replace(/\s+/g,'_')}.pdf`
-            : `${bookName}_${indices.length}_pages.pdf`;
-          pdf.save(pdfName);
-        } else {
-          throw new Error('Failed to generate PDF document');
+          if (pdf) {
+            pdf.save(pdfName);
+          } else {
+            throw new Error('Failed to generate PDF document');
+          }
         }
 
       } else if (indices.length === 1) {
