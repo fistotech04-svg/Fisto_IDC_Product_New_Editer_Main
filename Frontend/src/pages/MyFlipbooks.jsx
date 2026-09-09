@@ -7,7 +7,7 @@ import { Icon } from '@iconify/react';
 
 import AlertModal from '../components/AlertModal';
 import CreateFlipbookModal from '../components/CreateFlipbookModal';
-import { convertPdfToImages, convertPdfWithInkscape, getPdfPageCount, generatePdfPageSvg } from '../utils/pdfUtils';
+import { convertPdfToImages, convertPdfWithInkscape, getPdfPageCount, getDocumentDetails, generatePdfPageSvg } from '../utils/pdfUtils';
 import PdfProcessingLoader from '../components/PdfProcessingLoader';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
@@ -366,10 +366,19 @@ export default function MyFlipbooks() {
             for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
                 if (isUploadCancelledRef.current) return;
                 const file = files[fileIndex];
+
+                let detectedCount = 1;
+                try {
+                    const docInfo = await getDocumentDetails(file, backendUrl);
+                    if (docInfo && docInfo.count > 0) detectedCount = docInfo.count;
+                } catch (e) {}
+
                 setProcessingProgress({
                     current: 0,
-                    total: 1,
-                    message: `Extracting pages from ${file.name}...`
+                    total: detectedCount,
+                    message: `Extracting pages from ${file.name}...`,
+                    fileName: file.name,
+                    stage: 'converting'
                 });
                 const images = await convertPdfWithInkscape(file, Infinity, backendUrl);
                 if (isUploadCancelledRef.current) return;
@@ -401,17 +410,51 @@ export default function MyFlipbooks() {
             const uniqueName = customName || `PDF_Flipbook_${timeString}`;
             const targetFolder = activeFolder === 'Recent Book' ? 'My_Flipbooks' : activeFolder;
 
-            // Step 2 — Create the flipbook record with placeholder pages to get a v_id
-            setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
-            const placeholderPages = allImages.map((_, i) => ({
-                pageName: `Page ${i + 1}`,
-                pageNumber: i + 1
+            // Step 2 — Encode pages and save flipbook in a single high-speed request
+            setProcessingProgress({ current: 0, total: allImages.length, message: 'Saving flipbook...', fileName: uniqueName, stage: 'saving' });
+            const allPages = await Promise.all(allImages.map(async (img, idx) => {
+                const pageIndex = idx + 1;
+                const base64Url = img.dataUrl || (img.blob ? await blobToBase64(img.blob) : "");
+                const html = img.content || generatePdfPageSvg(base64Url, `Page ${pageIndex}`, maxWidth, maxHeight, true);
+                return {
+                    pageName: `Page ${pageIndex}`,
+                    content: html,
+                    pageNumber: pageIndex
+                };
             }));
 
+            if (isUploadCancelledRef.current) return;
+
+            // For standard flipbooks (up to 20 pages), save in a single request!
+            if (allPages.length <= 20) {
+                setProcessingProgress({ current: allPages.length, total: allPages.length, message: 'Saving flipbook...', fileName: uniqueName, stage: 'saving' });
+                const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {
+                    emailId,
+                    flipbookName: uniqueName,
+                    pages: allPages,
+                    overwrite: true,
+                    folderName: targetFolder,
+                    fileSize: totalPdfSize || allImages.reduce((sum, img) => sum + (img.blob?.size || 0), 0)
+                });
+                const v_id = createRes.data.v_id;
+                createdFlipbookVIdRef.current = v_id;
+
+                if (isUploadCancelledRef.current) {
+                    axios.delete(`${backendUrl}/api/flipbook/delete/${v_id}`, { params: { emailId } }).catch(() => {});
+                    return;
+                }
+
+                // Navigate to the customized editor
+                navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${v_id}`);
+                return;
+            }
+
+            // For extra large flipbooks (> 20 pages), save initial batch then batch remaining
+            const initialBatch = allPages.slice(0, 20);
             const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {
                 emailId,
                 flipbookName: uniqueName,
-                pages: placeholderPages,
+                pages: initialBatch,
                 overwrite: true,
                 folderName: targetFolder,
                 fileSize: totalPdfSize || allImages.reduce((sum, img) => sum + (img.blob?.size || 0), 0)
@@ -419,39 +462,18 @@ export default function MyFlipbooks() {
             const v_id = createRes.data.v_id;
             createdFlipbookVIdRef.current = v_id;
 
-            if (isUploadCancelledRef.current) {
-                axios.delete(`${backendUrl}/api/flipbook/delete/${v_id}`, { params: { emailId } }).catch(() => {});
-                return;
-            }
-
-            // Step 3 — Process pages in batches to speed up upload while avoiding huge payload limits
-            const BATCH_SIZE = 5;
-            for (let i = 0; i < allImages.length; i += BATCH_SIZE) {
+            const BATCH_SIZE = 15;
+            for (let i = 20; i < allPages.length; i += BATCH_SIZE) {
                 if (isUploadCancelledRef.current) {
                     axios.delete(`${backendUrl}/api/flipbook/delete/${v_id}`, { params: { emailId } }).catch(() => {});
                     return;
                 }
-                const batch = allImages.slice(i, i + BATCH_SIZE);
-                
+                const batchPages = allPages.slice(i, i + BATCH_SIZE);
                 setProcessingProgress({
-                    current: Math.min(i + BATCH_SIZE, allImages.length),
-                    total: allImages.length,
-                    message: `Saving pages ${i + 1} to ${Math.min(i + BATCH_SIZE, allImages.length)} of ${allImages.length}...`
+                    current: Math.min(i + BATCH_SIZE, allPages.length),
+                    total: allPages.length,
+                    message: `Saving pages ${i + 1} to ${Math.min(i + BATCH_SIZE, allPages.length)} of ${allPages.length}...`
                 });
-
-                // Encode the batch of pages concurrently
-                const batchPages = await Promise.all(batch.map(async (img, idx) => {
-                    const pageIndex = i + idx + 1;
-                    const base64Url = img.dataUrl || (img.blob ? await blobToBase64(img.blob) : "");
-                    const html = img.content || generatePdfPageSvg(base64Url, `Page ${pageIndex}`, maxWidth, maxHeight, true);
-                    return {
-                        pageName: `Page ${pageIndex}`,
-                        content: html,
-                        pageNumber: pageIndex
-                    };
-                }));
-
-                // POST the batch
                 await axios.post(`${backendUrl}/api/flipbook/save-pages-batch`, {
                     emailId,
                     v_id,

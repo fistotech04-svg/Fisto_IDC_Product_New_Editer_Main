@@ -29,6 +29,7 @@ connectDB();
 
 import { SUPABASE_BUCKET, getSupabasePublicUrl, downloadFileFromSupabase } from "./config/supabase.js";
 import { checkInkscapeVersion } from "./utils/inkscapeConverter.js";
+import { checkLibreOfficeStatus } from "./utils/documentConverter.js";
 
 console.log(`[Supabase] Storage integration initialized for bucket '${SUPABASE_BUCKET}'.`);
 
@@ -37,6 +38,14 @@ checkInkscapeVersion().then((status) => {
     console.log(`[Inkscape] Connected successfully! Version: ${status.version} (${status.path}) | Node Package: ${status.hasNodePackage ? 'Loaded' : 'Pending npm i'}`);
   } else {
     console.warn(`[Inkscape] Warning: Not connected. ${status.error || ''}`);
+  }
+}).catch(() => {});
+
+checkLibreOfficeStatus().then((status) => {
+  if (status.available) {
+    console.log(`[LibreOffice] Connected successfully! Version: ${status.version} (${status.path})`);
+  } else {
+    console.warn(`[LibreOffice] Note: soffice CLI not detected. Word/PowerPoint conversion requires LibreOffice installed.`);
   }
 }).catch(() => {});
 

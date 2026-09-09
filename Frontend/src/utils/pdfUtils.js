@@ -1,4 +1,5 @@
 import * as mupdf from 'mupdf';
+import JSZip from 'jszip';
 
 /**
  * Gets the number of pages in a PDF file.
@@ -19,51 +20,102 @@ export const getPdfPageCount = async (file) => {
  * @param {File} file 
  * @returns {Promise<{count: number, width: number, height: number, isUniform: boolean, pages: Array<{pageNumber: number, width: number, height: number}>}>}
  */
-export const getPdfDetails = async (file) => {
-  const arrayBuffer = await file.arrayBuffer();
-  const uint8Array = new Uint8Array(arrayBuffer);
-  const doc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
-  const count = doc.countPages();
-  const pages = [];
+export const getPdfDetails = async (file, backendUrl = null) => {
   const ptToMm = 25.4 / 72;
 
-  for (let i = 0; i < count; i++) {
-    const page = doc.loadPage(i);
-    const bounds = page.getBounds(); // [x0, y0, x1, y1]
-    const widthPt = bounds[2] - bounds[0];
-    const heightPt = bounds[3] - bounds[1];
-    pages.push({
-      pageNumber: i + 1,
-      width: widthPt * ptToMm,
-      height: heightPt * ptToMm,
-      widthPt,
-      heightPt
-    });
-    page.destroy();
-  }
-  doc.destroy();
+  // 1. Try Client-side MuPDF WASM
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const doc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
+    const count = doc.countPages();
+    
+    if (count > 0) {
+      const pages = [];
+      for (let i = 0; i < count; i++) {
+        const page = doc.loadPage(i);
+        const bounds = page.getBounds(); // [x0, y0, x1, y1]
+        let widthPt = bounds[2] - bounds[0];
+        let heightPt = bounds[3] - bounds[1];
 
-  if (count === 0) {
-    return {
-      count: 0,
-      width: 0,
-      height: 0,
-      isUniform: false,
-      pages: []
-    };
+        // Check page rotation if available
+        try {
+          if (typeof page.getRotation === 'function') {
+            const rot = page.getRotation();
+            if (rot === 90 || rot === 270) {
+              const tmp = widthPt;
+              widthPt = heightPt;
+              heightPt = tmp;
+            }
+          }
+        } catch (e) {}
+
+        pages.push({
+          pageNumber: i + 1,
+          width: Math.round(widthPt * ptToMm * 10) / 10,
+          height: Math.round(heightPt * ptToMm * 10) / 10,
+          widthPt,
+          heightPt
+        });
+        page.destroy();
+      }
+      doc.destroy();
+
+      const firstPage = pages[0];
+      const isUniform = pages.every(
+        (p) => Math.abs(p.width - firstPage.width) < 1 && Math.abs(p.height - firstPage.height) < 1
+      );
+
+      return {
+        count,
+        width: firstPage.width,
+        height: firstPage.height,
+        isUniform,
+        pages
+      };
+    }
+  } catch (mupdfErr) {
+    console.warn("[PDF Inspector] MuPDF client parsing failed, trying backend fallback:", mupdfErr);
   }
 
-  const firstPage = pages[0];
-  const isUniform = pages.every(
-    (p) => Math.abs(p.width - firstPage.width) < 1 && Math.abs(p.height - firstPage.height) < 1
-  );
+  // 2. Try Backend Inspection with pdf-lib as authoritative fallback
+  try {
+    const backendDetails = await inspectDocumentViaBackend(file, backendUrl);
+    if (backendDetails && backendDetails.count > 0) {
+      return backendDetails;
+    }
+  } catch (backendErr) {
+    console.warn("[PDF Inspector] Backend inspection fallback failed:", backendErr.message);
+  }
+
+  // 3. Binary regex fallback for page count
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const decoder = new TextDecoder('latin1');
+    const text = decoder.decode(arrayBuffer);
+    const pageMatches = text.match(/\/Type\s*\/Page\b/g);
+    if (pageMatches && pageMatches.length > 0) {
+      const count = pageMatches.length;
+      return {
+        count,
+        width: 210,
+        height: 297,
+        isUniform: true,
+        pages: Array.from({ length: count }, (_, i) => ({
+          pageNumber: i + 1,
+          width: 210,
+          height: 297
+        }))
+      };
+    }
+  } catch (e) {}
 
   return {
-    count,
-    width: firstPage.width,
-    height: firstPage.height,
-    isUniform,
-    pages
+    count: 1,
+    width: 210,
+    height: 297,
+    isUniform: true,
+    pages: [{ pageNumber: 1, width: 210, height: 297 }]
   };
 };
 
@@ -284,29 +336,334 @@ export const splitPdfIntoPageFiles = async (file, maxPages = Infinity) => {
 };
 
 /**
- * Converts a PDF file using Inkscape on the backend to obtain high-fidelity vector pages
- * with text outlined into paths (like Illustrator's Create Outlines/flatten transparency).
- * Splits multi-page PDFs into single-page files before sending to ensure 100% Inkscape compatibility.
- * Falls back to client-side MuPDF if the backend conversion fails or is unavailable.
+ * Checks if a file is a Word or PowerPoint document.
+ * @param {string} filename
+ * @returns {boolean}
+ */
+export const isOfficeDocument = (filename) => {
+  if (!filename) return false;
+  const ext = filename.toLowerCase();
+  return ext.endsWith('.doc') || ext.endsWith('.docx') || ext.endsWith('.ppt') || ext.endsWith('.pptx');
+};
+
+/**
+ * Returns the document category: 'pdf', 'word', 'powerpoint', or 'unknown'.
+ * @param {string} filename
+ * @returns {'pdf'|'word'|'powerpoint'|'unknown'}
+ */
+export const getOfficeDocType = (filename) => {
+  if (!filename) return 'unknown';
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'word';
+  if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) return 'powerpoint';
+  if (lower.endsWith('.pdf')) return 'pdf';
+  return 'unknown';
+};
+
+/**
+ * Queries the backend inspect-document route for exact LibreOffice / pdf-lib page counting and dimensions.
+ * @param {File} file 
+ * @param {string} [backendUrl] 
+ * @returns {Promise<{count: number, width: number, height: number, isUniform: boolean, pages: Array}>}
+ */
+export const inspectDocumentViaBackend = async (file, backendUrl = null) => {
+  const resolvedBackendUrl = backendUrl || import.meta.env.VITE_BACKEND_URL || '';
+  const formData = new FormData();
+  formData.append('document', file);
+
+  const response = await fetch(`${resolvedBackendUrl}/api/flipbook/inspect-document`, {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error(`Backend inspection failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data.success && data.count > 0) {
+    return {
+      count: data.count,
+      width: data.width,
+      height: data.height,
+      isUniform: data.isUniform,
+      pages: data.pages || Array.from({ length: data.count }, (_, i) => ({
+        pageNumber: i + 1,
+        width: data.width,
+        height: data.height
+      }))
+    };
+  }
+  throw new Error("Backend returned invalid inspection result");
+};
+
+/**
+ * Scans a PowerPoint 97-2003 (.ppt) binary file for RT_Slide (0x03EE) container records.
+ * @param {Uint8Array} uint8Array 
+ * @returns {number}
+ */
+export const getPptSlideCountFromBinary = (uint8Array) => {
+  let slideCount = 0;
+  // Look for RT_Slide (0x03EE) container records in PowerPoint 97-2003 binary format
+  // Header: recVer (4 bits) + recInstance (12 bits) [2 bytes], recType [2 bytes: 0xEE, 0x03], recLen [4 bytes uint32]
+  const len = uint8Array.length - 8;
+  for (let i = 0; i < len; i++) {
+    if (uint8Array[i + 2] === 0xEE && uint8Array[i + 3] === 0x03) {
+      const recVer = uint8Array[i] & 0x0F;
+      if (recVer === 0x0F) { // Container record
+        const recLen = (uint8Array[i + 4]) | (uint8Array[i + 5] << 8) | (uint8Array[i + 6] << 16) | (uint8Array[i + 7] << 24);
+        // Valid slide record length typically > 32 bytes and < file length
+        if (recLen > 32 && recLen < uint8Array.length) {
+          slideCount++;
+        }
+      }
+    }
+  }
+  return slideCount;
+};
+
+/**
+ * Inspects a Word (.doc, .docx) or PowerPoint (.ppt, .pptx) file.
+ * Multi-tier: uses browser zip/binary parsing for instant response,
+ * and calls backend LibreOffice inspection for 100% authoritative counts.
  *
- * @param {File} file - PDF file to convert.
+ * @param {File} file
+ * @param {string} [backendUrl]
+ * @returns {Promise<{count: number, width: number, height: number, isUniform: boolean, pages: Array<{pageNumber: number, width: number, height: number}>}>}
+ */
+export const getOfficeDocDetails = async (file, backendUrl = null) => {
+  const ext = file.name.toLowerCase();
+  const isPptx = ext.endsWith('.pptx');
+  const isDocx = ext.endsWith('.docx');
+  const isPpt = ext.endsWith('.ppt');
+  const isDoc = ext.endsWith('.doc');
+
+  // Default dimensions
+  let defaultWidth = (isPptx || isPpt) ? 297 : 210;
+  let defaultHeight = (isPptx || isPpt) ? 167 : 297;
+  let count = 0;
+
+  // 1. FAST CLIENT-SIDE PASS FOR PPTX (ZIP)
+  if (isPptx) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(arrayBuffer);
+
+      // Count actual slide files: ppt/slides/slide1.xml, etc.
+      const slideFiles = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide\d+\.xml$/i.test(name));
+      if (slideFiles.length > 0) {
+        count = slideFiles.length;
+      }
+
+      // Also check presentation.xml for <p:sldId>
+      if (count === 0) {
+        const presXmlFile = zip.file('ppt/presentation.xml');
+        if (presXmlFile) {
+          const presText = await presXmlFile.async('text');
+          const sldMatches = presText.match(/<[a-z0-9:]*sldId\b/gi);
+          if (sldMatches && sldMatches.length > 0) {
+            count = sldMatches.length;
+          }
+        }
+      }
+
+      // Read exact slide dimensions from presentation.xml
+      const presXmlFile = zip.file('ppt/presentation.xml');
+      if (presXmlFile) {
+        const presText = await presXmlFile.async('text');
+        const cxMatch = presText.match(/<[a-z0-9:]*sldSz[^>]*cx=["'](\d+)["']/i);
+        const cyMatch = presText.match(/<[a-z0-9:]*sldSz[^>]*cy=["'](\d+)["']/i);
+        if (cxMatch && cyMatch) {
+          const cx = parseInt(cxMatch[1], 10);
+          const cy = parseInt(cyMatch[1], 10);
+          if (!isNaN(cx) && !isNaN(cy) && cx > 0 && cy > 0) {
+            defaultWidth = Math.round((cx / 36000) * 10) / 10;
+            defaultHeight = Math.round((cy / 36000) * 10) / 10;
+          }
+        }
+      }
+
+      if (count > 0) {
+        return {
+          count,
+          width: defaultWidth,
+          height: defaultHeight,
+          isUniform: true,
+          pages: Array.from({ length: count }, (_, i) => ({
+            pageNumber: i + 1,
+            width: defaultWidth,
+            height: defaultHeight
+          }))
+        };
+      }
+    } catch (e) {
+      console.warn(`[Office Inspector] Client PPTX zip parsing failed for ${file.name}:`, e);
+    }
+  }
+
+  // 2. FAST CLIENT-SIDE PASS FOR DOCX (ZIP)
+  if (isDocx) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(arrayBuffer);
+
+      // Check app.xml for <Pages>
+      const appXmlFile = zip.file('docProps/app.xml');
+      if (appXmlFile) {
+        const appXmlText = await appXmlFile.async('text');
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(appXmlText, 'application/xml');
+        const pagesNode = xmlDoc.getElementsByTagName('Pages')[0];
+        if (pagesNode && pagesNode.textContent) {
+          const parsed = parseInt(pagesNode.textContent.trim(), 10);
+          if (!isNaN(parsed) && parsed > 1) {
+            count = parsed;
+          }
+        }
+      }
+
+      // Check document.xml for page breaks
+      const docXmlFile = zip.file('word/document.xml');
+      if (docXmlFile) {
+        const docText = await docXmlFile.async('text');
+        const breaks = docText.match(/<w:lastRenderedPageBreak\b|<w:br[^>]*w:type=["']page["']/gi);
+        const breakCount = breaks ? breaks.length + 1 : 1;
+        if (breakCount > count) {
+          count = breakCount;
+        }
+      }
+
+      if (count > 1) {
+        return {
+          count,
+          width: defaultWidth,
+          height: defaultHeight,
+          isUniform: true,
+          pages: Array.from({ length: count }, (_, i) => ({
+            pageNumber: i + 1,
+            width: defaultWidth,
+            height: defaultHeight
+          }))
+        };
+      }
+    } catch (e) {
+      console.warn(`[Office Inspector] Client DOCX zip parsing failed for ${file.name}:`, e);
+    }
+  }
+
+  // 3. FAST CLIENT-SIDE BINARY SCAN FOR PPT
+  if (isPpt) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const binarySlideCount = getPptSlideCountFromBinary(bytes);
+      if (binarySlideCount > 0) {
+        count = binarySlideCount;
+      }
+    } catch (e) {
+      console.warn(`[Office Inspector] Binary PPT scan failed for ${file.name}:`, e);
+    }
+  }
+
+  // 4. AUTHORITATIVE BACKEND INSPECTION (via LibreOffice + pdf-lib)
+  // Essential for .ppt, .doc, and single-page docx to get 100% exact page count and dimensions
+  try {
+    const backendDetails = await inspectDocumentViaBackend(file, backendUrl);
+    if (backendDetails && backendDetails.count > 0) {
+      return backendDetails;
+    }
+  } catch (backendErr) {
+    console.warn(`[Office Inspector] Backend document inspection unavailable for ${file.name}, using local fallback:`, backendErr.message);
+  }
+
+  // 5. FINAL FALLBACK
+  const finalCount = count > 0 ? count : 1;
+  return {
+    count: finalCount,
+    width: defaultWidth,
+    height: defaultHeight,
+    isUniform: true,
+    pages: Array.from({ length: finalCount }, (_, i) => ({
+      pageNumber: i + 1,
+      width: defaultWidth,
+      height: defaultHeight
+    }))
+  };
+};
+
+/**
+ * Unified inspector: returns page/slide count and dimensions for PDF, DOC, DOCX, PPT, PPTX.
+ *
+ * @param {File} file
+ * @param {string} [backendUrl]
+ * @returns {Promise<{count: number, width: number, height: number, isUniform: boolean, pages: Array}>}
+ */
+export const getDocumentDetails = async (file, backendUrl = null) => {
+  const ext = file.name.toLowerCase();
+  if (ext.endsWith('.pdf')) {
+    return await getPdfDetails(file, backendUrl);
+  }
+  return await getOfficeDocDetails(file, backendUrl);
+};
+
+/**
+ * Converts a Word (.doc, .docx) or PowerPoint (.ppt, .pptx) file to a PDF via backend.
+ *
+ * @param {File} file - Incoming document file.
+ * @param {string} [backendUrl] - Optional backend URL.
+ * @returns {Promise<File>} - Converted PDF File object.
+ */
+export const convertOfficeDocumentToPdf = async (file, backendUrl = null) => {
+  const resolvedBackendUrl = backendUrl || import.meta.env.VITE_BACKEND_URL || '';
+  const formData = new FormData();
+  formData.append('document', file);
+
+  const response = await fetch(`${resolvedBackendUrl}/api/flipbook/convert-office-to-pdf`, {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.message || `Failed to convert ${file.name} to PDF`);
+  }
+
+  const blob = await response.blob();
+  const pdfName = file.name.replace(/\.[^/.]+$/, "") + ".pdf";
+  return new File([blob], pdfName, { type: "application/pdf" });
+};
+
+/**
+ * Converts a PDF, Word, or PowerPoint file using Inkscape on the backend
+ * to obtain high-fidelity vector pages with text outlined into paths.
+ * Automatically converts Office documents (.doc, .docx, .ppt, .pptx) to PDF first.
+ * Splits multi-page PDFs into single-page files before sending to ensure 100% Inkscape compatibility.
+ * Falls back to client-side MuPDF if backend conversion is unavailable.
+ *
+ * @param {File} file - PDF or Office document file to convert.
  * @param {number} [maxPages=Infinity] - Max pages to convert.
  * @param {string} [backendUrl] - Optional backend URL.
  * @returns {Promise<Array<{ pageNumber: number, pageName: string, content: string, width: number, height: number, dataUrl: string, isVector: boolean }>>}
  */
 export const convertPdfWithInkscape = async (file, maxPages = Infinity, backendUrl = null) => {
   const resolvedBackendUrl = backendUrl || import.meta.env.VITE_BACKEND_URL || '';
+  let targetFile = file;
 
   try {
-    // 1. Extract 1-page PDF files using MuPDF for seamless single-page Inkscape processing
-    const pageFiles = await splitPdfIntoPageFiles(file, maxPages);
-
-    const formData = new FormData();
-    for (const pageFile of pageFiles) {
-      formData.append('pdfs', pageFile);
+    // 0. If the file is a Word or PowerPoint document, convert to PDF first
+    if (isOfficeDocument(file.name)) {
+      try {
+        targetFile = await convertOfficeDocumentToPdf(file, resolvedBackendUrl);
+      } catch (convErr) {
+        console.warn(`[Document] Direct office-to-pdf failed, passing document directly:`, convErr);
+      }
     }
-    if (pageFiles.length === 1) {
-      formData.append('pdf', pageFiles[0]);
+
+    // 1. Send the file directly to backend (backend splits with pdf-lib in ~50ms, avoiding browser WASM freezing)
+    const formData = new FormData();
+    formData.append('pdf', targetFile);
+    if (maxPages && isFinite(maxPages)) {
+      formData.append('maxPages', maxPages.toString());
     }
 
     const response = await fetch(`${resolvedBackendUrl}/api/flipbook/convert-pdf-inkscape`, {
@@ -329,19 +686,23 @@ export const convertPdfWithInkscape = async (file, maxPages = Infinity, backendU
       }
     }
   } catch (err) {
-    console.warn("[PDF] Backend Inkscape conversion failed, falling back to local MuPDF:", err);
+    console.warn("[PDF/Doc] Backend Inkscape conversion failed, falling back to local MuPDF:", err);
   }
 
-  // Graceful fallback to client-side MuPDF raster conversion
-  const images = await convertPdfToImages(file, 2.5, maxPages);
-  return images.map((img, idx) => ({
-    pageNumber: idx + 1,
-    pageName: `Page ${idx + 1}`,
-    content: null,
-    dataUrl: img.dataUrl,
-    blob: img.blob,
-    width: img.width,
-    height: img.height,
-    isVector: false
-  }));
+  // Graceful fallback to client-side MuPDF raster conversion (if file is or was converted to PDF)
+  try {
+    const images = await convertPdfToImages(targetFile, 2.5, maxPages);
+    return images.map((img, idx) => ({
+      pageNumber: idx + 1,
+      pageName: `Page ${idx + 1}`,
+      content: null,
+      dataUrl: img.dataUrl,
+      blob: img.blob,
+      width: img.width,
+      height: img.height,
+      isVector: false
+    }));
+  } catch (rasterErr) {
+    throw new Error(`Unable to convert file ${file.name}. Please ensure LibreOffice is installed or use a PDF.`);
+  }
 };

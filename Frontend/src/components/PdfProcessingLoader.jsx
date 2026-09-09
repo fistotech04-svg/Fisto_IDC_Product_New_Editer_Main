@@ -1,12 +1,57 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 
 const PdfProcessingLoader = ({ progress, onCancel }) => {
     if (!progress) return null;
 
-    const { current, total, message, fileName } = progress;
-    const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+    const { current, total, message, fileName, stage } = progress;
+
+    // Fluid progress value (starts moving immediately, never stays stuck at 0%)
+    const [fluidPercent, setFluidPercent] = useState(15);
+
+    // Reset when a new file begins
+    useEffect(() => {
+        setFluidPercent(15);
+    }, [fileName]);
+
+    useEffect(() => {
+        // If explicit 100% or all pages processed
+        if (total > 0 && current >= total && current > 0) {
+            setFluidPercent(100);
+            return;
+        }
+
+        if (stage === 'saving') {
+            setFluidPercent(prev => Math.max(prev, 85));
+        }
+
+        const interval = setInterval(() => {
+            setFluidPercent(prev => {
+                if (prev < 35) return prev + Math.random() * 3 + 1.5;
+                if (prev < 65) return prev + Math.random() * 2 + 0.8;
+                if (prev < 85) return prev + Math.random() * 1.2 + 0.4;
+                if (prev < 96) return prev + Math.random() * 0.3 + 0.1;
+                return prev;
+            });
+        }, 250);
+
+        return () => clearInterval(interval);
+    }, [current, total, stage]);
+
+    // Calculate effective percentage
+    const backendPercent = (total > 0 && current > 0) ? Math.round((current / total) * 100) : 0;
+    const displayPercent = Math.min(100, Math.round(Math.max(fluidPercent, backendPercent)));
+
+    // Dynamic message based on progress stage
+    const getDynamicMessage = () => {
+        if (displayPercent >= 100) return 'Opening flipbook...';
+        if (stage === 'saving') return message || 'Saving pages & binding flipbook...';
+        if (displayPercent < 35) return message || `Extracting pages from ${fileName || 'document'}...`;
+        if (displayPercent < 65) return 'Converting vector graphics & fonts...';
+        if (displayPercent < 88) return 'Optimizing flipbook layout...';
+        return 'Saving pages & binding flipbook...';
+    };
 
     return (
         <AnimatePresence>
@@ -30,35 +75,30 @@ const PdfProcessingLoader = ({ progress, onCancel }) => {
 
                     {/* Dynamic Message */}
                     <p className="text-[0.95vw] font-semibold text-gray-700 mb-[0.4vw]">
-                        {message || (current === 0 
-                            ? `Extracting pages from ${fileName || 'PDF'}...` 
-                            : `Uploading page ${current} of ${total}...`
-                        )}
+                        {getDynamicMessage()}
                     </p>
 
                     {/* Progress Bar */}
-                    {total > 0 && (
-                        <div className="w-full mt-[0.6vw]">
-                            <div className="w-full h-[0.45vw] bg-gray-100 rounded-full overflow-hidden">
-                                <motion.div 
-                                    className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full"
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${percentage}%` }}
-                                    transition={{ duration: 0.3, ease: 'easeOut' }}
-                                />
-                            </div>
-
-                            {/* Progress Info Row */}
-                            <div className="flex items-center justify-between mt-[0.4vw]">
-                                <span className="text-[0.7vw] font-medium text-gray-400">
-                                    {total > 1 ? `${current} of ${total} pages` : 'Processing...'}
-                                </span>
-                                <span className="text-[0.75vw] font-bold text-indigo-600">
-                                    {percentage}%
-                                </span>
-                            </div>
+                    <div className="w-full mt-[0.6vw]">
+                        <div className="w-full h-[0.45vw] bg-gray-100 rounded-full overflow-hidden relative">
+                            <motion.div 
+                                className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full"
+                                initial={{ width: '15%' }}
+                                animate={{ width: `${displayPercent}%` }}
+                                transition={{ duration: 0.35, ease: 'easeOut' }}
+                            />
                         </div>
-                    )}
+
+                        {/* Progress Info Row */}
+                        <div className="flex items-center justify-between mt-[0.4vw]">
+                            <span className="text-[0.7vw] font-medium text-gray-400">
+                                {total > 1 ? (current > 0 ? `${current} of ${total} pages` : `${total} pages`) : 'Processing document...'}
+                            </span>
+                            <span className="text-[0.75vw] font-bold text-indigo-600">
+                                {displayPercent}%
+                            </span>
+                        </div>
+                    </div>
 
                     {/* Cancel Button */}
                     {onCancel && (

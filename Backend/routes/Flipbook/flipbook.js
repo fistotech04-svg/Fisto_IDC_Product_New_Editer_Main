@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import Flipbook from "../../models/Flipbook.js"; // Import Model
 import Profile from "../../models/Profile.js"; // Import Profile Model
 import { nanoid } from "nanoid";
+import { PDFDocument } from "pdf-lib";
 
 const compareKeys = async (input, stored) => {
   if (!input || !stored) return false;
@@ -31,6 +32,7 @@ import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, d
 import { calculateActiveUserStorage } from "../User_Details/usersetting.js";
 import { logActivity } from "../../utils/activityLogger.js";
 import { convertPdfWithInkscape, checkInkscapeVersion } from "../../utils/inkscapeConverter.js";
+import { convertOfficeToPdf, isOfficeDocument, checkLibreOfficeStatus } from "../../utils/documentConverter.js";
 
 // Helper to get Gmail Transporter
 const getTransporter = () => {
@@ -292,10 +294,12 @@ const pdfUpload = multer({
     fileSize: 500 * 1024 * 1024, // 500MB limit for high-res vector PDFs
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf")) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = [".pdf", ".doc", ".docx", ".ppt", ".pptx", ".odt", ".odp", ".rtf", ".txt"];
+    if (allowedExts.includes(ext) || file.mimetype === "application/pdf") {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF files are allowed for vector flipbook conversion."));
+      cb(new Error("Allowed formats: PDF, Word (.doc, .docx), and PowerPoint (.ppt, .pptx)."));
     }
   },
 });
@@ -533,6 +537,7 @@ router.post("/save", async (req, res) => {
     const savedBase64Map = new Map();
     const newFlipbookAssets = [];
     const pendingUploadPromises = [];
+    const pageUploadPromises = [];
     const flipbook_v_id = req.body.v_id || (existingDoc ? existingDoc.v_id : nanoid(20));
 
     const extractBase64AndSave = (htmlContent, pageVId) => {
@@ -583,7 +588,7 @@ router.post("/save", async (req, res) => {
       if (content !== undefined && content !== null) {
         processedContent = extractBase64AndSave(content, pageVId);
         const pageBuffer = Buffer.from(processedContent, "utf8");
-        await uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err));
+        pageUploadPromises.push(uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err)));
       } else if (page.contentChunkId) {
         // Reassemble from chunks in temp_uploads
         const tempDir = path.join(__dirname, "../../temp_uploads", page.contentChunkId);
@@ -599,7 +604,7 @@ router.post("/save", async (req, res) => {
           
           processedContent = extractBase64AndSave(assembledContent, pageVId);
           const pageBuffer = Buffer.from(processedContent, "utf8");
-          await uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err));
+          pageUploadPromises.push(uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err)));
           
           // Cleanup chunks after save
           try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
@@ -631,10 +636,11 @@ router.post("/save", async (req, res) => {
       });
     }
 
-    // Await all base64 Supabase asset uploads before proceeding to database updates
-    if (pendingUploadPromises.length > 0) {
-      await Promise.all(pendingUploadPromises);
-      console.log(`[Save] Awaited and stored ${pendingUploadPromises.length} extracted assets in Supabase.`);
+    // Await all base64 Supabase asset uploads and page HTML uploads concurrently
+    const allPendingUploads = [...pendingUploadPromises, ...pageUploadPromises];
+    if (allPendingUploads.length > 0) {
+      await Promise.all(allPendingUploads);
+      console.log(`[Save] Awaited and stored ${pendingUploadPromises.length} extracted assets and ${pageUploadPromises.length} pages in Supabase.`);
     }
 
     const incomingFlipbookInfo = req.body.FlipbookInfo || req.body.Customized_Settings?.FlipbookInfo || req.body.meta || {};
@@ -1291,24 +1297,249 @@ router.get("/inkscape-status", async (req, res) => {
   }
 });
 
-// @route   POST /api/flipbook/convert-pdf-inkscape
-// @desc    Convert uploaded PDF(s) into SVG pages with text outlined via Inkscape node package / CLI
-router.post("/convert-pdf-inkscape", (req, res) => {
-  pdfUpload.any()(req, res, async (err) => {
+// @route   GET /api/flipbook/office-status
+// @desc    Check if LibreOffice / document converter is connected and available
+router.get("/office-status", async (req, res) => {
+  try {
+    const status = await checkLibreOfficeStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ available: false, error: err.message });
+  }
+});
+
+// @route   POST /api/flipbook/convert-office-to-pdf
+// @desc    Convert uploaded Word (.doc, .docx) or PowerPoint (.ppt, .pptx) file to PDF
+router.post("/convert-office-to-pdf", (req, res) => {
+  pdfUpload.single("document")(req, res, async (err) => {
     if (err) {
-      console.error("[Flipbook] Multer PDF upload error:", err);
+      console.error("[Flipbook] Multer office upload error:", err);
       return res.status(400).json({ success: false, message: err.message });
     }
 
-    const files = req.files || (req.file ? [req.file] : []);
-    if (!files || files.length === 0) {
-      return res.status(400).json({ success: false, message: "No PDF file uploaded" });
+    const file = req.file || (req.files && req.files[0]);
+    if (!file) {
+      return res.status(400).json({ success: false, message: "No document file uploaded" });
     }
 
-    const tempPdfPaths = files.map((f) => f.path);
+    const tempDocPath = file.path;
+    const tempPdfPath = path.join(
+      path.dirname(tempDocPath),
+      `converted_${nanoid()}.pdf`
+    );
+
+    try {
+      await convertOfficeToPdf(tempDocPath, tempPdfPath);
+
+      if (!fs.existsSync(tempPdfPath) || fs.statSync(tempPdfPath).size === 0) {
+        throw new Error("Conversion failed: Output PDF is empty");
+      }
+
+      const origName = file.originalname.replace(/\.[^/.]+$/, "") + ".pdf";
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(origName)}"`);
+
+      const readStream = fs.createReadStream(tempPdfPath);
+      readStream.pipe(res);
+
+      readStream.on("close", () => {
+        if (fs.existsSync(tempPdfPath)) {
+          try { fs.unlinkSync(tempPdfPath); } catch (e) {}
+        }
+      });
+    } catch (convErr) {
+      console.error("[Flipbook] Document to PDF conversion error:", convErr);
+      if (fs.existsSync(tempPdfPath)) {
+        try { fs.unlinkSync(tempPdfPath); } catch (e) {}
+      }
+      return res.status(500).json({
+        success: false,
+        message: convErr.message || "Failed to convert document to PDF"
+      });
+    } finally {
+      if (fs.existsSync(tempDocPath)) {
+        try { fs.unlinkSync(tempDocPath); } catch (e) {}
+      }
+    }
+  });
+});
+
+// @route   POST /api/flipbook/inspect-document
+// @desc    Inspect uploaded PDF, Word (.doc, .docx), or PowerPoint (.ppt, .pptx) to get exact page/slide count and dimensions
+router.post("/inspect-document", (req, res) => {
+  pdfUpload.single("document")(req, res, async (err) => {
+    if (err) {
+      console.error("[Flipbook] Multer inspect upload error:", err);
+      return res.status(400).json({ success: false, message: err.message });
+    }
+
+    const file = req.file || (req.files && req.files[0]);
+    if (!file) {
+      return res.status(400).json({ success: false, message: "No document file uploaded" });
+    }
+
+    const tempPath = file.path;
+    const ext = path.extname(file.originalname).toLowerCase();
+    let tempPdfPath = null;
+
+    try {
+      let targetPdfPath = tempPath;
+
+      // 1. Fast-path: for PPTX, count slide XML files inside the zip directly in memory (~5ms)
+      if (ext === ".pptx") {
+        try {
+          const AdmZipModule = await import("adm-zip");
+          const AdmZip = AdmZipModule.default || AdmZipModule;
+          const zip = new AdmZip(tempPath);
+          const zipEntries = zip.getEntries();
+          const slideEntries = zipEntries.filter((e) => /^ppt\/slides\/slide\d+\.xml$/i.test(e.entryName));
+          if (slideEntries.length > 0) {
+            let width = 297, height = 167;
+            const presEntry = zip.getEntry("ppt/presentation.xml");
+            if (presEntry) {
+              const presXml = presEntry.getData().toString("utf8");
+              const cxMatch = presXml.match(/<[a-z0-9:]*sldSz[^>]*cx=["'](\d+)["']/i);
+              const cyMatch = presXml.match(/<[a-z0-9:]*sldSz[^>]*cy=["'](\d+)["']/i);
+              if (cxMatch && cyMatch) {
+                const cx = parseInt(cxMatch[1], 10);
+                const cy = parseInt(cyMatch[1], 10);
+                if (cx > 0 && cy > 0) {
+                  width = Math.round((cx / 36000) * 10) / 10;
+                  height = Math.round((cy / 36000) * 10) / 10;
+                }
+              }
+            }
+            return res.json({
+              success: true,
+              count: slideEntries.length,
+              width,
+              height,
+              isUniform: true,
+              pages: Array.from({ length: slideEntries.length }, (_, i) => ({
+                pageNumber: i + 1,
+                width,
+                height
+              }))
+            });
+          }
+        } catch (zipErr) {
+          console.warn("[Inspect] Fast PPTX inspection failed, falling back to LibreOffice:", zipErr.message);
+        }
+      }
+
+      // 2. If it's an Office document (.doc, .docx, .ppt), convert to PDF first via LibreOffice
+      if (isOfficeDocument(file.originalname)) {
+        tempPdfPath = path.join(path.dirname(tempPath), `inspect_${nanoid()}.pdf`);
+        await convertOfficeToPdf(tempPath, tempPdfPath);
+        targetPdfPath = tempPdfPath;
+      }
+
+      // 3. Verify PDF exists and has content
+      if (!fs.existsSync(targetPdfPath) || fs.statSync(targetPdfPath).size === 0) {
+        throw new Error("Unable to parse document: output PDF was empty");
+      }
+
+      // 4. Read PDF using pdf-lib for 100% exact page count & dimensions
+      const pdfBytes = fs.readFileSync(targetPdfPath);
+      const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      const count = pdfDoc.getPageCount();
+      const pages = [];
+      const ptToMm = 25.4 / 72;
+
+      for (let i = 0; i < count; i++) {
+        const page = pdfDoc.getPage(i);
+        const { width: widthPt, height: heightPt } = page.getSize();
+        const rotation = page.getRotation().angle;
+        const isRotated = rotation === 90 || rotation === 270;
+        const finalWidthPt = isRotated ? heightPt : widthPt;
+        const finalHeightPt = isRotated ? widthPt : heightPt;
+        const widthMm = Math.round(finalWidthPt * ptToMm * 10) / 10;
+        const heightMm = Math.round(finalHeightPt * ptToMm * 10) / 10;
+        pages.push({
+          pageNumber: i + 1,
+          width: widthMm,
+          height: heightMm
+        });
+      }
+
+      const firstPage = pages[0] || { width: 210, height: 297 };
+      const isUniform = pages.every(
+        (p) => Math.abs(p.width - firstPage.width) < 1 && Math.abs(p.height - firstPage.height) < 1
+      );
+
+      return res.json({
+        success: true,
+        count,
+        width: firstPage.width,
+        height: firstPage.height,
+        isUniform,
+        pages
+      });
+    } catch (inspectErr) {
+      console.error("[Flipbook] Document inspection error:", inspectErr);
+      return res.status(500).json({
+        success: false,
+        message: inspectErr.message || "Failed to inspect document"
+      });
+    } finally {
+      if (fs.existsSync(tempPath)) {
+        try { fs.unlinkSync(tempPath); } catch (e) {}
+      }
+      if (tempPdfPath && fs.existsSync(tempPdfPath)) {
+        try { fs.unlinkSync(tempPdfPath); } catch (e) {}
+      }
+    }
+  });
+});
+
+// @route   POST /api/flipbook/convert-pdf-inkscape
+// @desc    Convert uploaded PDF(s), Word, or PowerPoint into SVG pages with text outlined via Inkscape
+router.post("/convert-pdf-inkscape", (req, res) => {
+  pdfUpload.any()(req, res, async (err) => {
+    if (err) {
+      console.error("[Flipbook] Multer PDF/Document upload error:", err);
+      return res.status(400).json({ success: false, message: err.message });
+    }
+
+    let files = req.files || (req.file ? [req.file] : []);
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: "No PDF or document file uploaded" });
+    }
+
+    // Deduplicate in case client sent the same file under multiple field names (e.g. 'pdf' and 'pdfs')
+    const seenFiles = new Set();
+    files = files.filter((f) => {
+      const key = `${f.originalname}_${f.size}`;
+      if (seenFiles.has(key)) {
+        if (fs.existsSync(f.path)) {
+          try { fs.unlinkSync(f.path); } catch (e) {}
+        }
+        return false;
+      }
+      seenFiles.add(key);
+      return true;
+    });
+
+    const tempFilePaths = files.map((f) => f.path);
+    const intermediatePdfs = [];
+
     try {
       const maxPages = req.body.maxPages ? parseInt(req.body.maxPages, 10) : Infinity;
-      const result = await convertPdfWithInkscape(tempPdfPaths, { maxPages });
+
+      // If any file is a Word or PowerPoint document, convert it to PDF first
+      const processedPdfPaths = [];
+      for (const p of tempFilePaths) {
+        if (isOfficeDocument(p)) {
+          const outPdf = path.join(path.dirname(p), `doc_to_pdf_${nanoid()}.pdf`);
+          await convertOfficeToPdf(p, outPdf);
+          processedPdfPaths.push(outPdf);
+          intermediatePdfs.push(outPdf);
+        } else {
+          processedPdfPaths.push(p);
+        }
+      }
+
+      const result = await convertPdfWithInkscape(processedPdfPaths, { maxPages });
 
       return res.json({
         success: true,
@@ -1319,13 +1550,18 @@ router.post("/convert-pdf-inkscape", (req, res) => {
         totalPages: result.totalPages
       });
     } catch (conversionErr) {
-      console.error("[Flipbook] Inkscape conversion error:", conversionErr);
+      console.error("[Flipbook] Inkscape / Document conversion error:", conversionErr);
       return res.status(500).json({
         success: false,
-        message: conversionErr.message || "Failed to convert PDF with Inkscape"
+        message: conversionErr.message || "Failed to convert document with Inkscape"
       });
     } finally {
-      tempPdfPaths.forEach((p) => {
+      tempFilePaths.forEach((p) => {
+        if (fs.existsSync(p)) {
+          try { fs.unlinkSync(p); } catch (e) {}
+        }
+      });
+      intermediatePdfs.forEach((p) => {
         if (fs.existsSync(p)) {
           try { fs.unlinkSync(p); } catch (e) {}
         }
