@@ -31,7 +31,7 @@ import { promisify } from "util";
 import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder, getUserStorageSizeFromSupabase, getFolderSizeFromSupabase, getSupabasePublicUrl } from "../../config/supabase.js";
 import { calculateActiveUserStorage } from "../User_Details/usersetting.js";
 import { logActivity } from "../../utils/activityLogger.js";
-import { convertPdfWithInkscape, checkInkscapeVersion } from "../../utils/inkscapeConverter.js";
+import { convertPdfWithInkscape, checkInkscapeVersion, exportSvgsToVectorPdf } from "../../utils/inkscapeConverter.js";
 import { convertOfficeToPdf, isOfficeDocument, checkLibreOfficeStatus } from "../../utils/documentConverter.js";
 
 // Helper to get Gmail Transporter
@@ -1726,6 +1726,33 @@ router.post("/convert-pdf-inkscape", (req, res) => {
       });
     }
   });
+});
+
+// @route   POST /api/flipbook/export-vector-pdf
+// @desc    Export SVG page(s) into a true vector PDF via Inkscape with text outlined into vector paths
+router.post("/export-vector-pdf", async (req, res) => {
+  try {
+    const { pages, bookName } = req.body;
+    if (!pages || !Array.isArray(pages) || pages.length === 0) {
+      return res.status(400).json({ success: false, message: "No SVG pages provided for PDF export" });
+    }
+
+    const sanitizedBookName = (bookName || "flipbook").replace(/[^a-zA-Z0-9_-]/g, "_");
+    console.log(`[Flipbook] Generating true vector PDF export for "${sanitizedBookName}" (${pages.length} pages)...`);
+
+    const pdfBuffer = await exportSvgsToVectorPdf(pages, { bookName: sanitizedBookName });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${sanitizedBookName}.pdf"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    return res.end(pdfBuffer);
+  } catch (err) {
+    console.error("[Flipbook] Vector PDF export error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to generate vector PDF"
+    });
+  }
 });
 
 // @route   GET /api/flipbook/list
