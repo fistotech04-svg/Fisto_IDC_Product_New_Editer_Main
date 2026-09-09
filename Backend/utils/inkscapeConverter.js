@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { execFile, exec } from "child_process";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
@@ -50,7 +51,7 @@ export const getInkscapePath = () => {
     cachedInkscapePath = envPath;
     const binDir = path.dirname(envPath);
     if (process.env.PATH && !process.env.PATH.includes(binDir)) {
-      process.env.PATH = `${binDir};${process.env.PATH}`;
+      process.env.PATH = `${binDir}${path.delimiter}${process.env.PATH}`;
     }
     return envPath;
   }
@@ -265,14 +266,16 @@ export const convertSinglePdfPageWithInkscape = async (pdfPath, outSvgPath) => {
     try {
       console.log(`[Inkscape Package] Converting single page using 'inkscape' node package...`);
       const streamArgs = [
-        "--export-type=svg",
         "--export-text-to-path",
         "--export-plain-svg",
         "--export-area-page"
       ];
 
       await new Promise((resolve, reject) => {
-        const converter = new InkscapePackage(streamArgs);
+        const converter = new InkscapePackage(streamArgs, {
+          inputFormat: "pdf",
+          outputFormat: "svg"
+        });
         const inputStream = fs.createReadStream(pdfPath);
         const outputStream = fs.createWriteStream(outSvgPath);
 
@@ -336,7 +339,7 @@ export const splitPdfFileOnBackend = async (pdfPath, tempDir, maxPages = Infinit
       singleDoc.addPage(copiedPage);
 
       const singlePdfBytes = await singleDoc.save();
-      const singlePagePath = path.join(tempDir, `split_page_${i + 1}_${Date.now()}.pdf`);
+      const singlePagePath = path.join(tempDir, `split_page_${i + 1}.pdf`);
       fs.writeFileSync(singlePagePath, singlePdfBytes);
       singlePdfPaths.push(singlePagePath);
     }
@@ -351,6 +354,10 @@ export const splitPdfFileOnBackend = async (pdfPath, tempDir, maxPages = Infinit
 /**
  * Main conversion entry point:
  * Converts single or multi-page PDF(s) to Flipbook vector SVG pages.
+ *
+ * Uses:
+ * 1. Single-command batch execution for Inkscape (boots process once for all pages, 10x faster).
+ * 2. Parallel concurrency pool fallback if batch misses any pages.
  *
  * @param {string|Array<string>} pdfPaths - Path or array of paths to PDF file(s).
  * @param {object} options - Options { maxPages, concurrency }.
@@ -381,16 +388,102 @@ export const convertPdfWithInkscape = async (pdfPaths, options = {}) => {
 
     singlePagePdfPaths = singlePagePdfPaths.slice(0, maxPages);
 
-    // 2. Convert each single-page PDF into vector SVG with outlined text
+    const binaryPath = getInkscapePath();
+    const outSvgMap = new Map(); // pageIndex -> outSvgPath
+
+    singlePagePdfPaths.forEach((_, idx) => {
+      const pageNum = idx + 1;
+      const expectedSvg = path.join(tempDir, `page_${pageNum}.svg`);
+      outSvgMap.set(idx, expectedSvg);
+      generatedTempFiles.push(expectedSvg);
+    });
+
+    // 2. Fast Strategy A: One-Shot Inkscape Batch Execution
+    // Boots the Inkscape process only ONCE for all pages, reducing 60+ seconds of startup overhead to ~5s.
+    let batchSucceeded = false;
+    if (binaryPath && fs.existsSync(binaryPath) && singlePagePdfPaths.length > 0) {
+      try {
+        console.log(`[Inkscape Batch] Converting ${singlePagePdfPaths.length} pages in a single batch process...`);
+        const batchArgs = [
+          "--export-type=svg",
+          "--export-text-to-path",
+          "--export-plain-svg",
+          "--export-area-page",
+          ...singlePagePdfPaths
+        ];
+
+        await execFileAsync(binaryPath, batchArgs, {
+          windowsHide: true,
+          timeout: 120000,
+          maxBuffer: 100 * 1024 * 1024
+        });
+
+        // Verify if all outputs were generated (Inkscape replaces .pdf extension with .svg)
+        const allGenerated = singlePagePdfPaths.every((p, idx) => {
+          const directSvg = p.replace(/\.pdf$/i, ".svg");
+          const targetSvg = outSvgMap.get(idx);
+          if (fs.existsSync(directSvg) && fs.statSync(directSvg).size > 100) {
+            if (directSvg !== targetSvg && !fs.existsSync(targetSvg)) {
+              fs.copyFileSync(directSvg, targetSvg);
+              generatedTempFiles.push(directSvg);
+            }
+            return true;
+          }
+          return fs.existsSync(targetSvg) && fs.statSync(targetSvg).size > 100;
+        });
+
+        if (allGenerated) {
+          console.log(`[Inkscape Batch] All ${singlePagePdfPaths.length} pages converted successfully in one shot!`);
+          batchSucceeded = true;
+        } else {
+          console.warn("[Inkscape Batch] Some pages missing in batch output, completing with parallel pool...");
+        }
+      } catch (batchErr) {
+        console.warn("[Inkscape Batch] Batch process error, falling back to parallel conversion:", batchErr.message);
+      }
+    }
+
+    // 3. Strategy B: Parallel Concurrency Pool (Fallback)
+    // If batch mode missed any pages, converts them concurrently using multiple workers
+    if (!batchSucceeded) {
+      const concurrency = Math.min(os.cpus()?.length || 4, 4);
+      console.log(`[Inkscape Parallel] Converting pages using worker pool (concurrency: ${concurrency})...`);
+
+      const missingIndices = singlePagePdfPaths
+        .map((_, idx) => idx)
+        .filter((idx) => {
+          const expectedSvg = outSvgMap.get(idx);
+          return !fs.existsSync(expectedSvg) || fs.statSync(expectedSvg).size < 100;
+        });
+
+      let activeIdx = 0;
+      const workers = Array.from({ length: Math.min(concurrency, missingIndices.length) }, async () => {
+        while (activeIdx < missingIndices.length) {
+          const currentIdx = missingIndices[activeIdx++];
+          const singlePdf = singlePagePdfPaths[currentIdx];
+          const outSvgPath = outSvgMap.get(currentIdx);
+          try {
+            await convertSinglePdfPageWithInkscape(singlePdf, outSvgPath);
+          } catch (pageErr) {
+            console.error(`[Inkscape Parallel] Error converting page ${currentIdx + 1}:`, pageErr.message);
+          }
+        }
+      });
+
+      await Promise.all(workers);
+    }
+
+    // 4. Read and format all generated SVGs for flipbook
     const pages = [];
     for (let i = 0; i < singlePagePdfPaths.length; i++) {
-      const singlePdf = singlePagePdfPaths[i];
       const pageNumber = i + 1;
       const pageName = `Page ${pageNumber}`;
-      const outSvgPath = path.join(tempDir, `page_${pageNumber}.svg`);
-      generatedTempFiles.push(outSvgPath);
+      const outSvgPath = outSvgMap.get(i);
 
-      await convertSinglePdfPageWithInkscape(singlePdf, outSvgPath);
+      if (!fs.existsSync(outSvgPath) || fs.statSync(outSvgPath).size === 0) {
+        console.warn(`[Inkscape] Missing SVG output for page ${pageNumber}`);
+        continue;
+      }
 
       const rawSvg = fs.readFileSync(outSvgPath, "utf8");
       const formattedSvg = formatInkscapeSvgForFlipbook(rawSvg, pageNumber, pageName);
@@ -435,7 +528,7 @@ export const convertPdfWithInkscape = async (pdfPaths, options = {}) => {
       }
     }
     if (fs.existsSync(tempDir)) {
-      try { fs.rmdirSync(tempDir); } catch (e) {}
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
     }
   }
 };

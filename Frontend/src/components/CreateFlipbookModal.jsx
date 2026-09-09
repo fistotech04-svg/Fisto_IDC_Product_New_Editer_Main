@@ -3,7 +3,7 @@ import { X, Upload, ChevronLeft, ChevronRight, Minus, Plus, GripVertical } from 
 import { Icon } from '@iconify/react';
 import { useModernToast } from './ModernToast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getPdfPageCount, getPdfDetails } from '../utils/pdfUtils';
+import { getPdfPageCount, getPdfDetails, getDocumentDetails, isOfficeDocument, getOfficeDocType } from '../utils/pdfUtils';
 import AlertModal from './AlertModal';
 
 const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate', existingFlipbooks = [], initialFiles = null }) => {
@@ -192,15 +192,18 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
       const acceptedFiles = [];
 
       for (const file of validFiles) {
+        const docType = getOfficeDocType(file.name);
+        const docLabel = docType === 'word' ? 'Word document' : docType === 'powerpoint' ? 'PowerPoint presentation' : 'PDF';
+
         let details;
         try {
-          details = await getPdfDetails(file);
+          details = await getDocumentDetails(file);
         } catch (err) {
-          console.error("Error inspecting PDF:", err);
+          console.error("Error inspecting document:", err);
           setAlertState({
             isOpen: true,
-            title: 'Invalid PDF',
-            message: `Could not read the PDF file "${file.name}". Please make sure it is a valid, unprotected PDF.`,
+            title: `Invalid ${docLabel}`,
+            message: `Could not read the file "${file.name}". Please make sure it is a valid, unprotected ${docLabel}.`,
             type: 'error',
             showCancel: false,
             confirmText: 'Okay',
@@ -212,8 +215,8 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
         if (!details || details.count === 0) {
           setAlertState({
             isOpen: true,
-            title: 'Empty PDF',
-            message: `The PDF file "${file.name}" contains no pages.`,
+            title: `Empty ${docLabel}`,
+            message: `The ${docLabel} "${file.name}" contains no ${docType === 'powerpoint' ? 'slides' : 'pages'}.`,
             type: 'error',
             showCancel: false,
             confirmText: 'Okay',
@@ -222,12 +225,12 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           return;
         }
 
-        // 1. Check internal uniformity of this PDF's pages
+        // 1. Check internal uniformity of this document's pages
         if (!details.isUniform) {
           setAlertState({
             isOpen: true,
             title: 'Uniformity Error',
-            message: `The PDF "${file.name}" contains pages with different dimensions. All pages in a flipbook must have the same size to ensure a professional layout.`,
+            message: `The file "${file.name}" contains ${docType === 'powerpoint' ? 'slides' : 'pages'} with different dimensions. All pages in a flipbook must have the same size to ensure a professional layout.`,
             type: 'error',
             showCancel: false,
             confirmText: 'Okay',
@@ -236,7 +239,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           return;
         }
 
-        // 2. Check if this PDF matches baseline dimensions
+        // 2. Check if this document matches baseline dimensions
         if (baselineWidth !== null && baselineHeight !== null) {
           const widthMatch = Math.abs(details.width - baselineWidth) < 1;
           const heightMatch = Math.abs(details.height - baselineHeight) < 1;
@@ -245,7 +248,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
             setAlertState({
               isOpen: true,
               title: 'Dimension Mismatch',
-              message: `The PDF "${file.name}" has page dimensions (${details.width.toFixed(1)} × ${details.height.toFixed(1)} mm) that do not match the existing uploaded PDF(s) (${baselineWidth.toFixed(1)} × ${baselineHeight.toFixed(1)} mm). All pages must have identical dimensions.`,
+              message: `The file "${file.name}" has dimensions (${details.width.toFixed(1)} × ${details.height.toFixed(1)} mm) that do not match the existing uploaded file(s) (${baselineWidth.toFixed(1)} × ${baselineHeight.toFixed(1)} mm). All pages must have identical dimensions.`,
               type: 'error',
               showCancel: false,
               confirmText: 'Okay',
@@ -264,11 +267,19 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           progress: 0,
           pages: details.count,
           width: details.width,
-          height: details.height
+          height: details.height,
+          docType: docType
         });
       }
 
       if (acceptedFiles.length > 0) {
+        if (uploadedFiles.length === 0 && flipbookName === initialFlipbookName) {
+          const firstType = acceptedFiles[0].docType;
+          const prefix = firstType === 'word' ? 'Word_Flipbook_' : firstType === 'powerpoint' ? 'PPT_Flipbook_' : 'PDF_Flipbook_';
+          const newDefName = `${prefix}${getFormattedDateTime()}`;
+          setFlipbookName(newDefName);
+          setInitialFlipbookName(newDefName);
+        }
         setUploadedFiles(prev => [...prev, ...acceptedFiles]);
       }
     } finally {
@@ -385,7 +396,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
 
       {/* Header */}
       <div className="flex items-center justify-between pb-[0.75vw] mb-[0.5vw] border-b border-gray-200">
-        <h2 className="text-[1.25vw] font-bold text-gray-900">Upload PDF</h2>
+        <h2 className="text-[1.25vw] font-bold text-gray-900">Upload Document</h2>
         <button
           onClick={onClose}
           className="absolute top-[1vw] right-[1vw] text-red-500 hover:text-red-700 transition-colors z-50 p-[0.15vw] hover:bg-red-50 rounded-[0.3vw] border border-red-500"
@@ -396,7 +407,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
 
       {/* Subtitle */}
       <p className="text-[0.65vw] text-gray-500 mb-[1vw] leading-relaxed pr-[1vw]">
-        Free plan supports up to <span className="font-bold text-gray-700">12 pages</span> per flipbook. If your PDF exceeds the limit, extra pages will be automatically removed.
+        Free plan supports up to <span className="font-bold text-gray-700">12 pages</span> per flipbook. If your document exceeds the limit, extra pages will be automatically removed.
       </p>
 
       {/* Drag & Drop Box */}
@@ -418,7 +429,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           type="file"
           ref={fileInputRef}
           className="hidden"
-          accept="application/pdf"
+          accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
           onChange={handleFileChange}
           multiple
           disabled={isProcessingFiles}
@@ -426,7 +437,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
         {isProcessingFiles ? (
           <div className="flex flex-col items-center justify-center py-[0.2vw]">
             <div className="w-[1.4vw] h-[1.4vw] border-[0.18vw] border-indigo-200 border-t-[#4c5add] rounded-full animate-spin mb-[0.4vw]" />
-            <p className="text-[0.72vw] text-indigo-600 font-medium">Checking PDF dimensions...</p>
+            <p className="text-[0.72vw] text-indigo-600 font-medium">Checking document dimensions...</p>
           </div>
         ) : (
           <>
@@ -482,13 +493,19 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
                   </div>
                   
                   <div className="flex items-center gap-[0.75vw] transition-transform duration-300 ease-in-out group-hover:translate-x-[1vw]">
-                    <Icon icon="bi:file-earmark-pdf-fill" className="text-[#FF4444] w-[1.25vw] h-[1.25vw] flex-shrink-0" />
+                    {fileObj.docType === 'word' ? (
+                      <Icon icon="vscode-icons:file-type-word" className="w-[1.25vw] h-[1.25vw] flex-shrink-0" />
+                    ) : fileObj.docType === 'powerpoint' ? (
+                      <Icon icon="vscode-icons:file-type-powerpoint" className="w-[1.25vw] h-[1.25vw] flex-shrink-0" />
+                    ) : (
+                      <Icon icon="bi:file-earmark-pdf-fill" className="text-[#FF4444] w-[1.25vw] h-[1.25vw] flex-shrink-0" />
+                    )}
                     <div className="flex flex-col min-w-0">
                       <span className="text-[0.75vw] font-bold text-gray-900 block truncate" title={fileObj.file?.name}>
                         {fileObj.file?.name?.length > 35 ? fileObj.file?.name.substring(0, 35) + '...' : fileObj.file?.name}
                       </span>
                       <span className="text-[0.55vw] text-gray-500 font-medium">
-                        {(fileObj.file.size / (1024 * 1024)).toFixed(2)} MB - {fileObj.pages ? `${fileObj.pages} Pages` : 'Loading pages...'}
+                        {(fileObj.file.size / (1024 * 1024)).toFixed(2)} MB - {fileObj.pages ? `${fileObj.pages} ${fileObj.docType === 'powerpoint' ? (fileObj.pages === 1 ? 'Slide' : 'Slides') : (fileObj.pages === 1 ? 'Page' : 'Pages')}` : 'Loading...'}
                       </span>
                     </div>
                   </div>
