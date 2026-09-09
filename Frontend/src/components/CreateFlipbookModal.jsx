@@ -200,10 +200,13 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           details = await getDocumentDetails(file);
         } catch (err) {
           console.error("Error inspecting document:", err);
+          const isCorrupt = /corrupt|damaged|unreadable|password|could not be loaded|broken/i.test(err?.message || '');
           setAlertState({
             isOpen: true,
-            title: `Invalid ${docLabel}`,
-            message: `Could not read the file "${file.name}". Please make sure it is a valid, unprotected ${docLabel}.`,
+            title: isCorrupt ? 'File Corrupted' : `Invalid ${docLabel}`,
+            message: (err?.message && (isCorrupt || err.message.toLowerCase().includes('corrupt')))
+              ? err.message
+              : `Your file "${file.name}" is corrupted, unreadable, or password-protected. Please check your document and try again.`,
             type: 'error',
             showCancel: false,
             confirmText: 'Okay',
@@ -241,8 +244,8 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
 
         // 2. Check if this document matches baseline dimensions
         if (baselineWidth !== null && baselineHeight !== null) {
-          const widthMatch = Math.abs(details.width - baselineWidth) < 1;
-          const heightMatch = Math.abs(details.height - baselineHeight) < 1;
+          const widthMatch = Math.abs(details.width - baselineWidth) <= 2;
+          const heightMatch = Math.abs(details.height - baselineHeight) <= 2;
 
           if (!widthMatch || !heightMatch) {
             setAlertState({
@@ -321,7 +324,13 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   const handleCreateFlipbook = () => {
     if (nameError || !flipbookName.trim()) return;
     confirmCreation(() => {
-      onUpload(uploadedFiles.map(f => f.file), flipbookName.trim());
+      onUpload(uploadedFiles.map(f => {
+        f.file._pageCount = f.pages;
+        f.file._docWidth = f.width;
+        f.file._docHeight = f.height;
+        f.file._docType = f.docType;
+        return f.file;
+      }), flipbookName.trim());
     });
   };
 
@@ -360,7 +369,10 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   };
 
   const handleUploadClick = () => {
-    fileInputRef.current?.click();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
   };
 
   const handleDragEnterBox = (e) => {
@@ -429,7 +441,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           type="file"
           ref={fileInputRef}
           className="hidden"
-          accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          accept=".pdf,.ppt,.pptx,.doc,.docx"
           onChange={handleFileChange}
           multiple
           disabled={isProcessingFiles}

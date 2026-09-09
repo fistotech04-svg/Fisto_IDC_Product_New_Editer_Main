@@ -5,52 +5,155 @@ import { X } from 'lucide-react';
 const PdfProcessingLoader = ({ progress, onCancel }) => {
     if (!progress) return null;
 
-    const { current, total, message, fileName, stage } = progress;
+    const {
+        current = 0,
+        total = 0,
+        fileIndex = 0,
+        totalFiles = (progress.totalFiles || progress.total || 1),
+        pageCount = 0,
+        message = '',
+        fileName = '',
+        stage = 'converting',
+        percent: explicitPercent
+    } = progress;
 
-    // Fluid progress value (starts moving immediately, never stays stuck at 0%)
-    const [fluidPercent, setFluidPercent] = useState(15);
+    const isPpt = fileName && (fileName.toLowerCase().endsWith('.ppt') || fileName.toLowerCase().endsWith('.pptx'));
+    const isWord = fileName && (fileName.toLowerCase().endsWith('.doc') || fileName.toLowerCase().endsWith('.docx'));
 
-    // Reset when a new file begins
+    // Dynamic rotating sub-phase ticker so user sees active progress during multi-second conversions
+    const [tickerIndex, setTickerIndex] = useState(0);
+    const convertingPhases = isPpt ? [
+        'Analyzing slide structures & shapes...',
+        'Converting vector paths and typography...',
+        'Rendering high-fidelity vector slides...',
+        'Optimizing slide graphics for sharp zoom...',
+        'Assembling flipbook slides, almost ready...'
+    ] : isWord ? [
+        'Reading document pages & margins...',
+        'Converting layout & typography...',
+        'Optimizing text paths for crisp zoom...',
+        'Rendering vector page elements...',
+        'Assembling flipbook pages, almost ready...'
+    ] : [
+        'Reading document structure & fonts...',
+        'Outlining fonts into clean vector paths...',
+        'Rendering razor-sharp vector graphics...',
+        'Optimizing vector layers for smooth zoom...',
+        'Finalizing vector pages, almost ready...'
+    ];
+
     useEffect(() => {
-        setFluidPercent(15);
-    }, [fileName]);
+        if (stage === 'done') return;
+        const timer = setInterval(() => {
+            setTickerIndex(prev => (prev + 1) % convertingPhases.length);
+        }, 2600);
+        return () => clearInterval(timer);
+    }, [stage, convertingPhases.length]);
+
+    // Fluid continuous progress value:
+    // - Starts at 15% immediately on upload so user sees instant responsiveness
+    // - Smoothly and continuously glides forward through 50% -> 75% -> 85% -> 92% -> 94.5%
+    // - NEVER gets stuck at 78% or any static ceiling
+    // - Advances to 95% -> 98% during saving, and 100% on done
+    const [fluidPercent, setFluidPercent] = useState(() => {
+        if (stage === 'done') return 100;
+        if (stage === 'saving') return 88;
+        return 15;
+    });
 
     useEffect(() => {
-        // If explicit 100% or all pages processed
-        if (total > 0 && current >= total && current > 0) {
+        if (stage === 'done') {
             setFluidPercent(100);
             return;
         }
 
-        if (stage === 'saving') {
-            setFluidPercent(prev => Math.max(prev, 85));
+        if (explicitPercent !== undefined && explicitPercent !== null) {
+            setFluidPercent(prev => Math.max(prev, Math.min(100, Math.round(explicitPercent))));
+            return;
         }
 
         const interval = setInterval(() => {
             setFluidPercent(prev => {
-                if (prev < 35) return prev + Math.random() * 3 + 1.5;
-                if (prev < 65) return prev + Math.random() * 2 + 0.8;
-                if (prev < 85) return prev + Math.random() * 1.2 + 0.4;
-                if (prev < 96) return prev + Math.random() * 0.3 + 0.1;
-                return prev;
+                if (prev >= 98 && stage !== 'done') return prev;
+
+                if (stage === 'saving') {
+                    const targetCap = 98;
+                    const remaining = targetCap - prev;
+                    if (remaining <= 0.1) return targetCap;
+                    const step = Math.max(0.25, remaining * 0.12);
+                    return Math.min(targetCap, Math.round((prev + step) * 10) / 10);
+                }
+
+                // Stage is 'converting' or default
+                if (totalFiles > 1) {
+                    const effectiveIdx = Math.max(0, fileIndex);
+                    const slice = 78 / totalFiles;
+                    const sliceStart = 8 + (effectiveIdx * slice);
+                    const sliceCap = sliceStart + (slice * 0.94);
+
+                    if (prev < sliceStart) return Math.round(sliceStart);
+                    if (prev < sliceCap) {
+                        const remaining = sliceCap - prev;
+                        const step = Math.max(0.12, remaining * 0.08);
+                        return Math.min(sliceCap, Math.round((prev + step) * 10) / 10);
+                    }
+                    return prev;
+                } else {
+                    // Single file conversion: NEVER gets stuck at 78%!
+                    // Continuous asymptotic glide from 15% towards 94.8%
+                    let step;
+                    if (prev < 45) {
+                        step = 0.85; // Initial steady movement
+                    } else if (prev < 70) {
+                        step = 0.52; // Steady advance
+                    } else if (prev < 85) {
+                        step = 0.32; // Glides smoothly past 78% without stopping!
+                    } else if (prev < 92) {
+                        step = 0.16; // Continual progression
+                    } else if (prev < 94.8) {
+                        step = 0.06; // Persistent live creep (92% -> 93% -> 94% -> 94.8%)
+                    } else {
+                        return prev;
+                    }
+                    return Math.round((prev + step) * 10) / 10;
+                }
             });
-        }, 250);
+        }, 180);
 
         return () => clearInterval(interval);
-    }, [current, total, stage]);
+    }, [stage, fileIndex, totalFiles, explicitPercent]);
 
-    // Calculate effective percentage
-    const backendPercent = (total > 0 && current > 0) ? Math.round((current / total) * 100) : 0;
-    const displayPercent = Math.min(100, Math.round(Math.max(fluidPercent, backendPercent)));
+    const displayPercent = Math.min(100, Math.max(1, Math.round(fluidPercent)));
 
-    // Dynamic message based on progress stage
+    // Dynamic message based on progress stage & caller's custom message
     const getDynamicMessage = () => {
-        if (displayPercent >= 100) return 'Opening flipbook...';
-        if (stage === 'saving') return message || 'Saving pages & binding flipbook...';
-        if (displayPercent < 35) return message || `Extracting pages from ${fileName || 'document'}...`;
-        if (displayPercent < 65) return 'Converting vector graphics & fonts...';
-        if (displayPercent < 88) return 'Optimizing flipbook layout...';
-        return 'Saving pages & binding flipbook...';
+        if (stage === 'done' || displayPercent >= 100) return 'Opening flipbook...';
+        if (stage === 'saving') return 'Saving pages & binding flipbook...';
+        if (message) return message;
+        if (totalFiles > 1) {
+            return `Converting file ${fileIndex + 1} of ${totalFiles} (${fileName || 'document'})...`;
+        }
+        return `Converting ${fileName || 'document'}...`;
+    };
+
+    // Sub-info row calculation with live micro-phase
+    const getSubInfo = () => {
+        if (stage === 'done' || displayPercent >= 100) return 'Ready';
+        if (stage === 'saving') return 'Binding flipbook pages...';
+
+        const unit = isPpt ? 'slides' : 'pages';
+        const phaseText = convertingPhases[tickerIndex] || 'Converting vector graphics...';
+
+        if (totalFiles > 1) {
+            return `${fileIndex + 1} of ${totalFiles} files • ${phaseText}`;
+        }
+        if (pageCount > 0) {
+            return `${pageCount} ${unit} • ${phaseText}`;
+        }
+        if (total > 1) {
+            return current > 0 ? `${current} of ${total} ${unit} • ${phaseText}` : `${total} ${unit} • ${phaseText}`;
+        }
+        return phaseText;
     };
 
     return (
@@ -78,23 +181,30 @@ const PdfProcessingLoader = ({ progress, onCancel }) => {
                         {getDynamicMessage()}
                     </p>
 
-                    {/* Progress Bar */}
+                    {/* Progress Bar with Active Shimmer */}
                     <div className="w-full mt-[0.6vw]">
                         <div className="w-full h-[0.45vw] bg-gray-100 rounded-full overflow-hidden relative">
                             <motion.div 
-                                className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full"
-                                initial={{ width: '15%' }}
+                                className="h-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-indigo-500 rounded-full relative overflow-hidden"
                                 animate={{ width: `${displayPercent}%` }}
                                 transition={{ duration: 0.35, ease: 'easeOut' }}
-                            />
+                            >
+                                {/* Active shimmering light wave across the bar */}
+                                <motion.div
+                                    className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/35 to-transparent"
+                                    initial={{ x: '-100%' }}
+                                    animate={{ x: '100%' }}
+                                    transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}
+                                />
+                            </motion.div>
                         </div>
 
                         {/* Progress Info Row */}
                         <div className="flex items-center justify-between mt-[0.4vw]">
-                            <span className="text-[0.7vw] font-medium text-gray-400">
-                                {total > 1 ? (current > 0 ? `${current} of ${total} pages` : `${total} pages`) : 'Processing document...'}
-                            </span>
-                            <span className="text-[0.75vw] font-bold text-indigo-600">
+                            <div className="flex items-center text-[0.7vw] font-medium text-gray-500 max-w-[20vw] truncate">
+                                <span className="truncate">{getSubInfo()}</span>
+                            </div>
+                            <span className="text-[0.75vw] font-bold text-indigo-600 flex-shrink-0 ml-[0.5vw]">
                                 {displayPercent}%
                             </span>
                         </div>
@@ -118,3 +228,4 @@ const PdfProcessingLoader = ({ progress, onCancel }) => {
 };
 
 export default PdfProcessingLoader;
+

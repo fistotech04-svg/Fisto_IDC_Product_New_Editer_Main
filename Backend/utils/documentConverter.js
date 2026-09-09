@@ -57,6 +57,49 @@ const toFileUri = (localPath) => {
 };
 
 /**
+ * Build a file:/// URI for a directory from a local filesystem path.
+ * In LibreOffice UNO URL specification, directory URLs MUST end with a slash '/'.
+ */
+const toDirUri = (localPath) => {
+  let uri = "file:///" + localPath.replace(/\\/g, "/").replace(/^\//, "");
+  if (!uri.endsWith("/")) uri += "/";
+  return uri;
+};
+
+/**
+ * Returns a sanitized environment for running LibreOffice headlessly.
+ * Strips conflicting Python environment variables (e.g. system Python / Anaconda / VS Code)
+ * that cause LibreOffice's internal Python to crash with:
+ * "Could not find platform independent libraries <prefix>"
+ */
+const getCleanLibreOfficeEnv = (binaryPath) => {
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.PYTHONHOME;
+  delete cleanEnv.PYTHONPATH;
+  delete cleanEnv.PYTHONSTARTUP;
+  delete cleanEnv.PYTHONEXECUTABLE;
+  delete cleanEnv.PYTHONIOENCODING;
+  delete cleanEnv.PYTHONUTF8;
+
+  const binDir = path.dirname(binaryPath);
+  cleanEnv.PATH = `${binDir}${path.delimiter}${cleanEnv.PATH || ""}`;
+  return cleanEnv;
+};
+
+/**
+ * Standard execution options for LibreOffice child processes.
+ * Setting cwd to path.dirname(binaryPath) (C:\Program Files\LibreOffice\program)
+ * ensures that relative path lookups for python-core and DLLs succeed.
+ */
+const getExecOptions = (binaryPath, timeout = 45000) => ({
+  cwd: path.dirname(binaryPath),
+  env: getCleanLibreOfficeEnv(binaryPath),
+  windowsHide: true,
+  timeout,
+  maxBuffer: 50 * 1024 * 1024
+});
+
+/**
  * Find the most-recently-modified PDF file in a directory.
  * Returns null if no PDF files exist.
  */
@@ -86,34 +129,16 @@ let cachedLibreOfficePath = null;
 
 const CANDIDATE_SOFFICE_PATHS = [
   process.env.LIBREOFFICE_PATH,
-  "C:\\Program Files\\LibreOffice\\program\\soffice.com",
   "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
+  "C:\\Program Files\\LibreOffice\\program\\soffice.com",
   "/usr/bin/soffice",
   "/usr/local/bin/soffice",
   "/usr/bin/libreoffice",
+  "soffice.exe",
   "soffice.com",
   "soffice",
   "libreoffice"
 ].filter(Boolean);
-
-/**
- * On Windows, soffice.exe is a GUI application that allocates a console window
- * and prompts "Press Enter to continue..." when invoked for CLI operations.
- * soffice.com is the native console application that runs 100% silently and headlessly
- * without any popup window or interactive prompt.
- */
-const resolveComWrapper = (rawPath) => {
-  if (!rawPath) return rawPath;
-  if (process.platform === "win32") {
-    if (/soffice\.exe$/i.test(rawPath)) {
-      const comPath = rawPath.replace(/soffice\.exe$/i, "soffice.com");
-      if (fs.existsSync(comPath)) {
-        return comPath;
-      }
-    }
-  }
-  return rawPath;
-};
 
 /**
  * Resolves the path to the LibreOffice / soffice binary using LIBREOFFICE_PATH configured in .env,
@@ -125,33 +150,29 @@ export const getLibreOfficePath = () => {
   }
 
   const envPath = process.env.LIBREOFFICE_PATH;
-  if (envPath) {
-    const preferredEnv = resolveComWrapper(envPath);
-    if (fs.existsSync(preferredEnv)) {
-      cachedLibreOfficePath = preferredEnv;
-      const binDir = path.dirname(preferredEnv);
-      if (process.env.PATH && !process.env.PATH.includes(binDir)) {
-        process.env.PATH = `${binDir}${path.delimiter}${process.env.PATH}`;
-      }
-      return preferredEnv;
+  if (envPath && fs.existsSync(envPath)) {
+    cachedLibreOfficePath = envPath;
+    const binDir = path.dirname(envPath);
+    if (process.env.PATH && !process.env.PATH.includes(binDir)) {
+      process.env.PATH = `${binDir}${path.delimiter}${process.env.PATH}`;
     }
+    return envPath;
   }
 
   for (const candidate of CANDIDATE_SOFFICE_PATHS) {
     try {
-      const preferred = resolveComWrapper(candidate);
-      if (fs.existsSync(preferred)) {
-        cachedLibreOfficePath = preferred;
-        const binDir = path.dirname(preferred);
+      if (fs.existsSync(candidate)) {
+        cachedLibreOfficePath = candidate;
+        const binDir = path.dirname(candidate);
         if (process.env.PATH && !process.env.PATH.includes(binDir)) {
           process.env.PATH = `${binDir}${path.delimiter}${process.env.PATH}`;
         }
-        return preferred;
+        return candidate;
       }
     } catch (e) {}
   }
 
-  const fallback = process.platform === "win32" ? "soffice.com" : "soffice";
+  const fallback = process.platform === "win32" ? "C:\\Program Files\\LibreOffice\\program\\soffice.exe" : "soffice";
   cachedLibreOfficePath = fallback;
   return fallback;
 };
@@ -163,10 +184,7 @@ export const checkLibreOfficeStatus = async () => {
   const binaryPath = getLibreOfficePath();
 
   try {
-    const { stdout } = await execFileAsync(binaryPath, ["--headless", "--invisible", "--nologo", "--version"], {
-      windowsHide: true,
-      timeout: 10000
-    });
+    const { stdout } = await execFileAsync(binaryPath, ["--headless", "--invisible", "--nologo", "--version"], getExecOptions(binaryPath, 10000));
     return {
       available: true,
       hasWasm: !!WasmLibreConverter,
@@ -179,6 +197,8 @@ export const checkLibreOfficeStatus = async () => {
         ? "soffice.com --headless --invisible --nologo --version"
         : "soffice --headless --invisible --nologo --version";
       const { stdout } = await execAsync(fallbackCmd, {
+        cwd: path.dirname(binaryPath),
+        env: getCleanLibreOfficeEnv(binaryPath),
         windowsHide: true,
         timeout: 8000
       });
@@ -235,97 +255,273 @@ export const isOfficeDocument = (filename) => {
  *     then run LibreOffice against that local file.
  *  4. WASM converter as last-resort fallback.
  *  5. Cleanup: remove local work dir + Supabase Temp_data/<jobId>/.
+/**
+ * Sequential FIFO Queue for LibreOffice conversions.
+ * Ensures only 1 LibreOffice process runs at a time to prevent:
+ *  - Windows .lock file collision in user profile
+ *  - Multi-process memory and CPU starvation
+ *  - Headless crashes when multiple PPT/DOC files are uploaded
+ */
+class OfficeConversionQueue {
+  constructor() {
+    this.queue = [];
+    this.isProcessing = false;
+  }
+
+  enqueue(task, label = "Document") {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ task, resolve, reject, label, enqueuedAt: Date.now() });
+      console.log(`[Document Queue] Enqueued "${label}". Pending tasks in queue: ${this.queue.length}`);
+      this.processNext();
+    });
+  }
+
+  async processNext() {
+    if (this.isProcessing || this.queue.length === 0) return;
+    this.isProcessing = true;
+
+    const { task, resolve, reject, label, enqueuedAt } = this.queue.shift();
+    const waitTime = Date.now() - enqueuedAt;
+    console.log(`[Document Queue] Starting "${label}" (waited ${waitTime}ms in queue, ${this.queue.length} remaining)...`);
+
+    try {
+      const result = await task();
+      resolve(result);
+    } catch (err) {
+      reject(err);
+    } finally {
+      this.isProcessing = false;
+      // Brief pause to allow OS file handles, locks, and child processes to clean up
+      setTimeout(() => this.processNext(), 100);
+    }
+  }
+
+  get length() {
+    return this.queue.length;
+  }
+}
+
+export const officeQueue = new OfficeConversionQueue();
+
+/**
+ * Converts a Word (.doc, .docx) or PowerPoint (.ppt, .pptx) file into a PDF.
+ * Automatically queued via officeQueue to prevent concurrent LibreOffice crashes.
  *
  * @param {string} inputDocPath - Path to input document.
  * @param {string} outputPdfPath - Desired output path for the converted PDF.
  * @returns {Promise<string>} - Resolves with outputPdfPath on success.
  */
-export const convertOfficeToPdf = async (inputDocPath, outputPdfPath) => {
+export const convertOfficeToPdf = (inputDocPath, outputPdfPath) => {
+  const label = path.basename(inputDocPath);
+  return officeQueue.enqueue(() => executeOfficeConversion(inputDocPath, outputPdfPath), label);
+};
+
+/**
+ * Convert PowerPoint or Word document to PDF using LibreOffice with isolated profile.
+ * Exactly implements the user's tested function:
+ * - Creates a temporary profileDir using fs.promises.mkdtemp(path.join(os.tmpdir(), 'lo-profile-'))
+ * - Passes -env:UserInstallation=file:///${profileDir.replace(/\\/g, '/')} as the first argument
+ * - Uses --headless, --nologo, --nodefault, --nofirststartwizard, --norestore, --convert-to, filter, --outdir, outputDir, inputFile
+ * - Runs 'C:\\Program Files\\LibreOffice\\program\\soffice.exe'
+ * - Cleans up profileDir in finally block
+ *
+ * @param {string} inputFile - Path to input presentation or document file.
+ * @param {string} outputDir - Directory where converted PDF should be generated.
+ * @param {string} [filter] - Optional filter name (e.g. 'pdf:impress_pdf_Export' or 'pdf:writer_pdf_Export').
+ * @returns {Promise<string>} - Path to the created PDF file.
+ */
+export async function convertPptxToPdf(inputFile, outputDir, filter = null) {
+  const profileDir = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), 'lo-profile-')
+  );
+
+  const ext = path.extname(inputFile).toLowerCase();
+  const isPresentation = [".ppt", ".pptx", ".odp"].includes(ext);
+  const isWordDoc = [".doc", ".docx", ".odt", ".rtf", ".txt"].includes(ext);
+  const targetFilter = filter || (isPresentation ? "pdf:impress_pdf_Export" : (isWordDoc ? "pdf:writer_pdf_Export" : "pdf"));
+
+  const args = [
+    `-env:UserInstallation=file:///${profileDir.replace(/\\/g, '/')}`,
+    '--headless',
+    '--nologo',
+    '--nodefault',
+    '--nofirststartwizard',
+    '--norestore',
+    '--convert-to',
+    targetFilter,
+    '--outdir',
+    outputDir,
+    inputFile
+  ];
+
+  const binaryPath = (process.platform === "win32" && fs.existsSync("C:\\Program Files\\LibreOffice\\program\\soffice.exe"))
+    ? "C:\\Program Files\\LibreOffice\\program\\soffice.exe"
+    : getLibreOfficePath();
+
+  try {
+    console.log(`[Document Converter] Running convertPptxToPdf on ${path.basename(inputFile)} with filter ${targetFilter}`);
+    await execFileAsync(
+      binaryPath,
+      args,
+      {
+        cwd: path.dirname(binaryPath),
+        env: getCleanLibreOfficeEnv(binaryPath),
+        windowsHide: true,
+        timeout: 120000,
+        maxBuffer: 10 * 1024 * 1024
+      }
+    );
+  } catch (err) {
+    const errText = `${err.stderr || ''} ${err.stdout || ''} ${err.message || ''}`.toLowerCase();
+    const displayFileName = path.basename(inputFile);
+
+    // If LibreOffice reports corruption, unreadable source, or failed to open, throw immediately
+    if (
+      errText.includes("source file could not be loaded") ||
+      errText.includes("cannot be read") ||
+      errText.includes("corrupt") ||
+      errText.includes("damaged") ||
+      errText.includes("password") ||
+      errText.includes("format error") ||
+      errText.includes("general error") ||
+      errText.includes("input/output error") ||
+      errText.includes("read error") ||
+      errText.includes("could not be opened")
+    ) {
+      throw new Error(`Your file "${displayFileName}" is corrupted, unreadable, or password-protected. Please check the file in PowerPoint/Word and try again.`);
+    }
+
+    // If explicit filter fails, retry with generic 'pdf' filter
+    if (targetFilter !== "pdf") {
+      console.warn(`[Document Converter] Filter ${targetFilter} failed, retrying with generic 'pdf': ${err.message.split("\n")[0]}`);
+      const fallbackArgs = [
+        `-env:UserInstallation=file:///${profileDir.replace(/\\/g, '/')}`,
+        '--headless',
+        '--nologo',
+        '--nodefault',
+        '--nofirststartwizard',
+        '--norestore',
+        '--convert-to',
+        'pdf',
+        '--outdir',
+        outputDir,
+        inputFile
+      ];
+      try {
+        await execFileAsync(
+          binaryPath,
+          fallbackArgs,
+          {
+            cwd: path.dirname(binaryPath),
+            env: getCleanLibreOfficeEnv(binaryPath),
+            windowsHide: true,
+            timeout: 120000,
+            maxBuffer: 10 * 1024 * 1024
+          }
+        );
+      } catch (fallbackErr) {
+        const fallbackText = `${fallbackErr.stderr || ''} ${fallbackErr.stdout || ''} ${fallbackErr.message || ''}`.toLowerCase();
+        if (
+          fallbackText.includes("source file could not be loaded") ||
+          fallbackText.includes("cannot be read") ||
+          fallbackText.includes("corrupt") ||
+          fallbackText.includes("damaged") ||
+          fallbackText.includes("password") ||
+          fallbackText.includes("format error") ||
+          fallbackText.includes("general error") ||
+          fallbackText.includes("input/output error") ||
+          fallbackText.includes("read error") ||
+          fallbackText.includes("could not be opened") ||
+          fallbackText.includes("command failed")
+        ) {
+          throw new Error(`Your file "${displayFileName}" is corrupted, unreadable, or password-protected. Please check the file in PowerPoint/Word and try again.`);
+        }
+        throw fallbackErr;
+      }
+    } else {
+      throw err;
+    }
+  } finally {
+    await fs.promises.rm(profileDir, {
+      recursive: true,
+      force: true
+    }).catch(() => {});
+  }
+
+  const pdfName =
+    path.basename(inputFile, path.extname(inputFile)) + '.pdf';
+
+  let pdfPath = path.join(outputDir, pdfName);
+
+  if (!fs.existsSync(pdfPath)) {
+    const fallbackPdf = findNewestPdf(outputDir);
+    if (fallbackPdf && fs.existsSync(fallbackPdf) && fs.statSync(fallbackPdf).size > 0) {
+      pdfPath = fallbackPdf;
+    } else {
+      throw new Error(
+        `LibreOffice completed but PDF was not created: ${pdfPath}`
+      );
+    }
+  }
+
+  return pdfPath;
+}
+
+const executeOfficeConversion = async (inputDocPath, outputPdfPath) => {
   if (!fs.existsSync(inputDocPath)) {
     throw new Error(`Input document not found: ${inputDocPath}`);
   }
 
-  const binaryPath = getLibreOfficePath();
   const inputFileName = path.basename(inputDocPath);
-  const inputFileNameBase = path.parse(inputFileName).name;
   const jobId = nanoid(10);
+  console.log(`[Document Converter] [${jobId}] Converting ${inputFileName} → PDF`);
 
-  console.log(`[Document Converter] [${jobId}] Converting ${inputFileName} → PDF (binary: ${binaryPath})`);
-
-  // ─── Local work dir: always use USERPROFILE-based path (no 8.3 short names) ──
   const realTempDir = getRealTempDir();
   const localWorkDir = path.join(realTempDir, "lo_work", jobId);
   fs.mkdirSync(localWorkDir, { recursive: true });
 
-  // ─── Isolated LibreOffice profile (fresh per job, no locking conflicts) ──────
-  const isolatedProfileDir = path.join(localWorkDir, "lo_profile");
-  fs.mkdirSync(isolatedProfileDir, { recursive: true });
-  const isolatedProfileUri = toFileUri(isolatedProfileDir);
+  const ext = path.extname(inputFileName).toLowerCase();
+  const safeInputFileName = `doc_${jobId}${ext}`;
+  const localInputPath = path.join(localWorkDir, safeInputFileName);
+  fs.copyFileSync(inputDocPath, localInputPath);
 
-  // ─── Supabase staging ────────────────────────────────────────────────────────
-  const supabaseTempFolder = `${SUPABASE_TEMP_FOLDER}/${jobId}`;
-  const supabaseInputPath  = `${supabaseTempFolder}/${inputFileName}`;
-
-  const commonArgs = [
-    "--headless", "--invisible", "--nologo", "--norestore", "--nofirststartwizard",
-    `-env:UserInstallation=${isolatedProfileUri}`,
-    "--convert-to", "pdf",
-    "--outdir", localWorkDir
-  ];
-
-  /**
-   * Moves the converted PDF from localWorkDir to the desired outputPdfPath.
-   * LibreOffice names the output file based on the input file's base name.
-   * When the input is a URL, LO uses the last path segment as the base name.
-   */
-  const finalizeOutput = () => {
-    // Check expected name first
-    const expectedPdf = path.join(localWorkDir, `${inputFileNameBase}.pdf`);
-    const sourcePdf = (fs.existsSync(expectedPdf) && fs.statSync(expectedPdf).size > 0)
-      ? expectedPdf
-      : findNewestPdf(localWorkDir);
-
-    if (!sourcePdf) return false;
+  try {
+    const generatedPdfPath = await convertPptxToPdf(localInputPath, localWorkDir);
 
     const finalOutputDir = path.dirname(outputPdfPath);
     if (!fs.existsSync(finalOutputDir)) fs.mkdirSync(finalOutputDir, { recursive: true });
-    fs.copyFileSync(sourcePdf, outputPdfPath);
-    return fs.existsSync(outputPdfPath) && fs.statSync(outputPdfPath).size > 0;
-  };
 
-  let lastError = null;
+    fs.copyFileSync(generatedPdfPath, outputPdfPath);
 
-  try {
-    // ─── Fast Strategy A: Direct Local LibreOffice Conversion ──────────────────
-    // Uses localWorkDir in USERPROFILE Temp (no spaces, no 8.3 short names).
-    // Eliminates all internet latency from Supabase upload/download roundtrips.
-    try {
-      const ext = path.extname(inputFileName);
-      const safeInputFileName = `doc_${jobId}${ext}`;
-      const localInputPath = path.join(localWorkDir, safeInputFileName);
-      fs.copyFileSync(inputDocPath, localInputPath);
-
-      console.log(`[Document Converter] [${jobId}] Fast Path: LibreOffice local conversion (${safeInputFileName})`);
-      await execFileAsync(binaryPath, [...commonArgs, localInputPath], {
-        timeout: 45000,
-        maxBuffer: 50 * 1024 * 1024,
-        windowsHide: true
-      });
-
-      if (finalizeOutput()) {
-        console.log(`[Document Converter] [${jobId}] Local conversion succeeded in high speed`);
-        return outputPdfPath;
-      }
-    } catch (localErr) {
-      lastError = localErr;
-      if (localErr.stderr) console.warn(`[Document Converter] [${jobId}] Local stderr:`, localErr.stderr);
-      console.warn(`[Document Converter] [${jobId}] Local conversion failed, trying fallback: ${localErr.message.split("\n")[0]}`);
+    if (!fs.existsSync(outputPdfPath) || fs.statSync(outputPdfPath).size === 0) {
+      throw new Error(`LibreOffice conversion failed: generated PDF at ${outputPdfPath} is missing or empty`);
     }
 
-    // ─── Strategy B: WASM converter fallback ─────────────────────────────────────
+    console.log(`[Document Converter] [${jobId}] Conversion successful: ${outputPdfPath}`);
+    return outputPdfPath;
+  } catch (convErr) {
+    console.error(`[Document Converter] [${jobId}] Conversion error:`, convErr.message);
+
+    const fullErrStr = `${convErr.message || ''} ${convErr.stderr || ''} ${convErr.stdout || ''}`.toLowerCase();
+    if (
+      fullErrStr.includes("corrupt") ||
+      fullErrStr.includes("cannot be read") ||
+      fullErrStr.includes("source file could not be loaded") ||
+      fullErrStr.includes("damaged") ||
+      fullErrStr.includes("password") ||
+      fullErrStr.includes("format error") ||
+      fullErrStr.includes("could not be opened") ||
+      fullErrStr.includes("input/output error") ||
+      fullErrStr.includes("read error") ||
+      fullErrStr.includes("command failed")
+    ) {
+      throw new Error(`Your file "${inputFileName}" is corrupted, unreadable, or password-protected. Please check the file in PowerPoint/Word and try again.`);
+    }
+
+    // WASM converter fallback if available
     if (WasmLibreConverter && typeof WasmLibreConverter.createWorkerConverter === "function") {
       try {
-        console.log(`[Document Converter] [${jobId}] Strategy B: WASM converter`);
+        console.log(`[Document Converter] [${jobId}] Strategy fallback: WASM converter`);
         const inputBuffer = fs.readFileSync(inputDocPath);
         const converter = await WasmLibreConverter.createWorkerConverter();
         const pdfResult = await converter.convert(inputBuffer, { outputFormat: "pdf" });
@@ -334,25 +530,16 @@ export const convertOfficeToPdf = async (inputDocPath, outputPdfPath) => {
         fs.writeFileSync(outputPdfPath, pdfResult.data);
         await converter.destroy();
         if (fs.existsSync(outputPdfPath) && fs.statSync(outputPdfPath).size > 0) {
-          console.log(`[Document Converter] [${jobId}] Strategy B (WASM) succeeded`);
+          console.log(`[Document Converter] [${jobId}] WASM conversion succeeded`);
           return outputPdfPath;
         }
       } catch (wasmErr) {
-        lastError = wasmErr;
-        console.warn(`[Document Converter] [${jobId}] Strategy B (WASM) failed:`, wasmErr.message);
+        console.warn(`[Document Converter] [${jobId}] WASM fallback failed:`, wasmErr.message);
       }
     }
 
-    // All strategies failed
-    const errMsg = lastError ? lastError.message.split("\n")[0] : "Unknown error";
-    console.error(`[Document Converter] [${jobId}] All strategies failed for ${inputFileName}: ${errMsg}`);
-    throw new Error(
-      `Failed to convert ${inputFileName} to PDF: ${errMsg}. ` +
-      `Check that LibreOffice is fully installed (including the Impress component) and the file is not password-protected.`
-    );
-
+    throw convErr;
   } finally {
-    // Cleanup local work dir
     try { fs.rmSync(localWorkDir, { recursive: true, force: true }); } catch (e) {}
   }
 };
