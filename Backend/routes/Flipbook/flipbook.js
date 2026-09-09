@@ -95,8 +95,59 @@ const processAndSaveBase64Assets = ({
   if (!htmlContent) return "";
   if (skipBase64Extraction) return htmlContent;
 
+  // Protect PDF Background elements from being extracted into separate asset files.
+  // The PDF attributes (data-name="PDF Background", data-type="pdf-vector-layer", data-locked="true")
+  // are set on a common enclosing <g> group rather than directly on <image> tags.
+  // Any embedded image files existing within this group (e.g. photos, logos, graphics) must retain
+  // their inline base64 content intact and NOT be converted to external files (./assets/Image/asset_...).
+  const pdfBgPlaceholders = new Map();
+  let contentToProcess = htmlContent;
+
+  // 1. Protect entire <g data-name="PDF Background" ...> ... </g> groups (including nested <g> tags)
+  const pdfBgGroupRegex = /<g\b[^>]*data-name=["'](?:PDF Background|pdf background)["'][^>]*>/gi;
+  let gMatch;
+  while ((gMatch = pdfBgGroupRegex.exec(contentToProcess)) !== null) {
+    const startIdx = gMatch.index;
+    let depth = 1;
+    let currIdx = startIdx + gMatch[0].length;
+    const tagRegex = /<\/?g\b[^>]*\/?>/gi;
+    tagRegex.lastIndex = currIdx;
+    let tagMatch;
+    let endIdx = -1;
+    while ((tagMatch = tagRegex.exec(contentToProcess)) !== null) {
+      const tagStr = tagMatch[0];
+      if (tagStr.startsWith('</')) {
+        depth--;
+        if (depth === 0) {
+          endIdx = tagMatch.index + tagStr.length;
+          break;
+        }
+      } else if (!tagStr.endsWith('/>')) {
+        depth++;
+      }
+    }
+
+    if (endIdx !== -1) {
+      const fullGroup = contentToProcess.substring(startIdx, endIdx);
+      const phKey = `__PDF_BG_GROUP_PH_${Math.random().toString(36).substr(2, 9)}__`;
+      pdfBgPlaceholders.set(phKey, fullGroup);
+      contentToProcess = contentToProcess.substring(0, startIdx) + phKey + contentToProcess.substring(endIdx);
+      pdfBgGroupRegex.lastIndex = startIdx + phKey.length;
+    } else {
+      break;
+    }
+  }
+
+  // 2. Also protect standalone <image ... data-name="PDF Background"> tags for backward compatibility
+  const pdfBgTagRegex = /<image\b[^>]*data-name=["'](?:PDF Background|pdf background)["'][^>]*\/?>/gi;
+  contentToProcess = contentToProcess.replace(pdfBgTagRegex, (tagMatch) => {
+    const phKey = `__PDF_BG_IMAGE_PH_${Math.random().toString(36).substr(2, 9)}__`;
+    pdfBgPlaceholders.set(phKey, tagMatch);
+    return phKey;
+  });
+
   const base64Regex = /data:([^;]+);base64,([^"&'<>)\s]+)/g;
-  return htmlContent.replace(base64Regex, (match, mimeType, base64Data) => {
+  let processedHtml = contentToProcess.replace(base64Regex, (match, mimeType, base64Data) => {
     if (savedBase64Map.has(base64Data)) {
       return savedBase64Map.get(base64Data);
     }
@@ -161,6 +212,15 @@ const processAndSaveBase64Assets = ({
       return match;
     }
   });
+
+  // Restore protected PDF Background groups/tags with their original base64 content intact
+  if (pdfBgPlaceholders.size > 0) {
+    pdfBgPlaceholders.forEach((origTag, phKey) => {
+      processedHtml = processedHtml.split(phKey).join(origTag);
+    });
+  }
+
+  return processedHtml;
 };
 
 
@@ -439,7 +499,7 @@ router.post("/save/chunk", async (req, res) => {
 // @access  Public (should be protected in production)
 router.post("/save", async (req, res) => {
   try {
-    const { emailId, flipbookName, pages, overwrite, folderName } = req.body;
+    const { emailId, flipbookName, pages, overwrite, folderName, keepBase64: reqKeepBase64 } = req.body;
 
     if (!emailId || !flipbookName || !pages || !Array.isArray(pages)) {
       return res
@@ -539,6 +599,7 @@ router.post("/save", async (req, res) => {
     const pendingUploadPromises = [];
     const pageUploadPromises = [];
     const flipbook_v_id = req.body.v_id || (existingDoc ? existingDoc.v_id : nanoid(20));
+    const keepBase64 = reqKeepBase64 !== undefined ? Boolean(reqKeepBase64) : false;
 
     const extractBase64AndSave = (htmlContent, pageVId) => {
       return processAndSaveBase64Assets({
@@ -551,12 +612,14 @@ router.post("/save", async (req, res) => {
         flipbook_v_id,
         newFlipbookAssets,
         savedBase64Map,
-        pendingUploadPromises
+        pendingUploadPromises,
+        skipBase64Extraction: keepBase64
       });
     };
 
     const pageHtmlMap = new Map();
     const modifiedPageIds = new Set();
+    const usedPageVIds = new Set();
     let allHtmlContents = "";
 
     for (let i = 0; i < pages.length; i++) {
@@ -564,21 +627,33 @@ router.post("/save", async (req, res) => {
       const { pageName, content, hide, v_id: incomingPageVId } = page;
       if (!pageName) continue;
 
-      const fileName = pageName.endsWith(".html")
+      const baseFileName = pageName.endsWith(".html")
         ? pageName
         : `${pageName}.html`;
+
+      let fileName = baseFileName;
+      if (savedFileNames.has(fileName)) {
+        const ext = path.extname(baseFileName) || ".html";
+        const base = path.basename(baseFileName, ext);
+        let counter = 2;
+        while (savedFileNames.has(`${base} (${counter})${ext}`)) {
+          counter++;
+        }
+        fileName = `${base} (${counter})${ext}`;
+      }
 
       // Resolve pageVId early so we can use it for DB assets
       let pageVId = incomingPageVId;
       if (!pageVId && existingDoc && existingDoc.pages) {
         const existingPage = existingDoc.pages.find((p) => p.name === pageName);
-        if (existingPage && existingPage.v_id) {
+        if (existingPage && existingPage.v_id && !usedPageVIds.has(existingPage.v_id)) {
           pageVId = existingPage.v_id;
         }
       }
-      if (!pageVId) {
+      if (!pageVId || usedPageVIds.has(pageVId)) {
         pageVId = nanoid();
       }
+      usedPageVIds.add(pageVId);
 
       const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/${fileName}`;
       let processedContent = "";
@@ -608,6 +683,19 @@ router.post("/save", async (req, res) => {
           
           // Cleanup chunks after save
           try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+        }
+      } else if (incomingPageVId && existingDoc && existingDoc.pages) {
+        // Fallback: If content was not sent for a duplicated page whose destination file is new,
+        // copy the file content from the source page in existingDoc
+        const srcPage = existingDoc.pages.find(p => p.v_id === incomingPageVId);
+        if (srcPage && srcPage.fileName && srcPage.fileName !== fileName) {
+          const srcPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/${srcPage.fileName}`;
+          const copyPromise = downloadFileFromSupabase(srcPath).then(async (buf) => {
+            if (buf && buf.length > 0) {
+              await uploadBufferToSupabase(buf, pageDestPath, "text/html");
+            }
+          }).catch(err => console.warn("[Supabase] Fallback page copy warning:", err));
+          pageUploadPromises.push(copyPromise);
         }
       }
 
@@ -1076,7 +1164,7 @@ router.post("/save", async (req, res) => {
 // @body   { emailId, v_id, pageName, content, pageNumber }
 router.post("/save-page", async (req, res) => {
   try {
-    const { emailId, v_id, pageName, content, pageNumber } = req.body;
+    const { emailId, v_id, pageName, content, pageNumber, keepBase64: reqKeepBase64 } = req.body;
 
     if (!emailId || !v_id || !pageName || content === undefined) {
       return res.status(400).json({ message: "Missing required fields: emailId, v_id, pageName, content" });
@@ -1097,6 +1185,7 @@ router.post("/save-page", async (req, res) => {
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
     const fileName = pageName.endsWith(".html") ? pageName : `${pageName}.html`;
 
+    const keepBase64 = reqKeepBase64 !== undefined ? Boolean(reqKeepBase64) : false;
     const newFlipbookAssets = [];
     const processedContent = processAndSaveBase64Assets({
       htmlContent: content,
@@ -1106,7 +1195,8 @@ router.post("/save-page", async (req, res) => {
       flipbookName: doc.flipbookName,
       flipbookDir: "",
       flipbook_v_id: doc.v_id,
-      newFlipbookAssets
+      newFlipbookAssets,
+      skipBase64Extraction: keepBase64
     });
 
     const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolder}/${doc.flipbookName}/${fileName}`;
@@ -1352,9 +1442,13 @@ router.post("/convert-office-to-pdf", (req, res) => {
       if (fs.existsSync(tempPdfPath)) {
         try { fs.unlinkSync(tempPdfPath); } catch (e) {}
       }
-      return res.status(500).json({
+      const rawMsg = convErr.message || "";
+      return res.status(400).json({
         success: false,
-        message: convErr.message || "Failed to convert document to PDF"
+        isCorrupted: true,
+        message: rawMsg.includes("is corrupted")
+          ? rawMsg
+          : `Your file "${file.originalname}" is corrupted, unreadable, or password-protected. Please check your document in PowerPoint/Word and try again.`
       });
     } finally {
       if (fs.existsSync(tempDocPath)) {
@@ -1427,6 +1521,59 @@ router.post("/inspect-document", (req, res) => {
         }
       }
 
+      // 1b. Fast-path: for DOCX, extract page count and dimensions directly in memory (~5ms)
+      if (ext === ".docx") {
+        try {
+          const AdmZipModule = await import("adm-zip");
+          const AdmZip = AdmZipModule.default || AdmZipModule;
+          const zip = new AdmZip(tempPath);
+          let count = 1;
+          let width = 210, height = 297;
+
+          const appEntry = zip.getEntry("docProps/app.xml");
+          if (appEntry) {
+            const appXml = appEntry.getData().toString("utf8");
+            const m = appXml.match(/<Pages>(\d+)<\/Pages>/i);
+            if (m && parseInt(m[1], 10) > 0) count = parseInt(m[1], 10);
+          }
+
+          const docEntry = zip.getEntry("word/document.xml");
+          if (docEntry) {
+            const docXml = docEntry.getData().toString("utf8");
+            const breaks = docXml.match(/<w:lastRenderedPageBreak\b|<w:br[^>]*w:type=["']page["']/gi);
+            if (breaks && breaks.length + 1 > count) count = breaks.length + 1;
+
+            const pgSzMatch = docXml.match(/<w:pgSz[^>]*w:w=["'](\d+)["'][^>]*w:h=["'](\d+)["']/i) ||
+                              docXml.match(/<w:pgSz[^>]*w:h=["'](\d+)["'][^>]*w:w=["'](\d+)["']/i);
+            if (pgSzMatch) {
+              const isLandscape = /w:orient=["']landscape["']/i.test(pgSzMatch[0]);
+              let wMm = Math.round((parseInt(pgSzMatch[1], 10) / 56.6929) * 10) / 10;
+              let hMm = Math.round((parseInt(pgSzMatch[2], 10) / 56.6929) * 10) / 10;
+              if (isLandscape && wMm < hMm) {
+                const tmp = wMm; wMm = hMm; hMm = tmp;
+              }
+              width = wMm;
+              height = hMm;
+            }
+          }
+
+          return res.json({
+            success: true,
+            count,
+            width,
+            height,
+            isUniform: true,
+            pages: Array.from({ length: count }, (_, i) => ({
+              pageNumber: i + 1,
+              width,
+              height
+            }))
+          });
+        } catch (docxZipErr) {
+          console.warn("[Inspect] Fast DOCX inspection failed, falling back to LibreOffice:", docxZipErr.message);
+        }
+      }
+
       // 2. If it's an Office document (.doc, .docx, .ppt), convert to PDF first via LibreOffice
       if (isOfficeDocument(file.originalname)) {
         tempPdfPath = path.join(path.dirname(tempPath), `inspect_${nanoid()}.pdf`);
@@ -1477,9 +1624,14 @@ router.post("/inspect-document", (req, res) => {
       });
     } catch (inspectErr) {
       console.error("[Flipbook] Document inspection error:", inspectErr);
-      return res.status(500).json({
+      const rawMsg = inspectErr.message || "";
+      const isCorrupt = /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error|unexpected end|end-of-file|could not be opened|command failed/i.test(rawMsg);
+      return res.status(400).json({
         success: false,
-        message: inspectErr.message || "Failed to inspect document"
+        isCorrupted: isCorrupt,
+        message: isCorrupt
+          ? (rawMsg.includes("is corrupted") ? rawMsg : `Your file "${file.originalname}" is corrupted, unreadable, or password-protected. Please check your document and try again.`)
+          : (rawMsg || "Failed to inspect document")
       });
     } finally {
       if (fs.existsSync(tempPath)) {
@@ -1551,9 +1703,15 @@ router.post("/convert-pdf-inkscape", (req, res) => {
       });
     } catch (conversionErr) {
       console.error("[Flipbook] Inkscape / Document conversion error:", conversionErr);
-      return res.status(500).json({
+      const rawMsg = conversionErr.message || "";
+      const isCorrupt = /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error|unexpected end|end-of-file|could not be opened|command failed/i.test(rawMsg);
+      const firstFileName = files[0]?.originalname ? ` "${files[0].originalname}"` : "";
+      return res.status(400).json({
         success: false,
-        message: conversionErr.message || "Failed to convert document with Inkscape"
+        isCorrupted: isCorrupt,
+        message: isCorrupt
+          ? (rawMsg.includes("is corrupted") ? rawMsg : `Your file${firstFileName} is corrupted, unreadable, or password-protected. Please check your document and try again.`)
+          : (rawMsg || "Failed to convert document with Inkscape")
       });
     } finally {
       tempFilePaths.forEach((p) => {

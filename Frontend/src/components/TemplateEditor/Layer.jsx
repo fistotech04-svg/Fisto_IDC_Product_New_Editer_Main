@@ -1256,7 +1256,8 @@ const Layer = ({
                       const viewBoxMatch = page.html.match(/viewBox=["']\d+ \d+ (\d+(\.\d+)?) (\d+(\.\d+)?)["']/);
                       const aspectRatio = viewBoxMatch ? parseFloat(viewBoxMatch[1]) / parseFloat(viewBoxMatch[3]) : 1 / 1.414;
 
-                      const pdfImgMatch = page.html.match(/<image[^>]+(?:href|xlink:href)=["']([^"']+)["'][^>]+data-name="PDF Background"/);
+                      const pdfImgMatch = page.html.match(/<image[^>]+(?:href|xlink:href)=["']([^"']+)["'][^>]*data-name=["']PDF Background["']/i) ||
+                                          (!page.html.includes('<path') && page.html.match(/<g\b[^>]*data-name=["']PDF Background["'][^>]*>[\s\S]*?<image[^>]+(?:href|xlink:href)=["']([^"']+)["']/i));
                       const pdfImgUrl = pdfImgMatch ? pdfImgMatch[1] : null;
 
                       return (

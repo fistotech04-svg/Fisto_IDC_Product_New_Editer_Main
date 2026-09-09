@@ -123,7 +123,7 @@ export const parseDimensionToMm = (val, defaultVal = 210) => {
 };
 
 /**
- * Scopes IDs in SVG content (clip-path, masks, gradients, filters)
+ * Scopes IDs in SVG content (clip-path, masks, gradients, filters, paths)
  * to avoid cross-page ID collisions in multi-page flipbooks.
  */
 export const scopeSvgIds = (svgString, pageNumber) => {
@@ -135,23 +135,35 @@ export const scopeSvgIds = (svgString, pageNumber) => {
   let match;
   while ((match = idDeclRegex.exec(svgString)) !== null) {
     const origId = match[2];
-    if (!idMap.has(origId) && !origId.startsWith("p")) {
+    if (!origId.startsWith(prefix) && !idMap.has(origId)) {
       idMap.set(origId, `${prefix}${origId}`);
     }
   }
 
   if (idMap.size === 0) return svgString;
 
-  let scopedSvg = svgString;
-  for (const [origId, newId] of idMap.entries()) {
-    const escapedOrig = origId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // Replace id="..."
-    scopedSvg = scopedSvg.replace(new RegExp(`\\bid=(["'])${escapedOrig}\\1`, "g"), `id=$1${newId}$1`);
-    // Replace url(#...)
-    scopedSvg = scopedSvg.replace(new RegExp(`url\\((['"]?)#${escapedOrig}\\1\\)`, "g"), `url($1#${newId}$1)`);
-    // Replace xlink:href="#..." and href="#..."
-    scopedSvg = scopedSvg.replace(new RegExp(`href=(["'])#${escapedOrig}\\1`, "g"), `href=$1#${newId}$1`);
-  }
+  // 1. Replace id="..." declarations
+  let scopedSvg = svgString.replace(/\bid=(["'])([^"']+)\1/g, (m, q, id) => {
+    return idMap.has(id) ? `id=${q}${idMap.get(id)}${q}` : m;
+  });
+
+  // 2. Replace url(#...) references across styles, clip-path, mask, fill, stroke, filter
+  // Handles url(#id), url('#id'), url("#id"), url(&quot;#id&quot;), url( #id )
+  scopedSvg = scopedSvg.replace(/url\(\s*(['"]|&quot;|&#39;)?\s*#([^'")&\s]+)\s*\1?\s*\)/gi, (m, quote, refId) => {
+    if (idMap.has(refId)) {
+      const q = quote || "";
+      return `url(${q}#${idMap.get(refId)}${q})`;
+    }
+    return m;
+  });
+
+  // 3. Replace href="#..." and xlink:href="#..." references (used by <use>, <linearGradient>, etc.)
+  scopedSvg = scopedSvg.replace(/\b(?:xlink:)?href=(["']|&quot;)#([^"'\s&]+)(["']|&quot;)/gi, (m, q1, refId, q2) => {
+    if (idMap.has(refId)) {
+      return `href=${q1}#${idMap.get(refId)}${q2}`;
+    }
+    return m;
+  });
 
   return scopedSvg;
 };
@@ -160,6 +172,7 @@ export const scopeSvgIds = (svgString, pageNumber) => {
  * Converts a raw Inkscape SVG output into a standard Flipbook page SVG string.
  * Flattens structure into <g data-name="Page N" data-type="frame"> and
  * <g data-name="PDF Background" data-type="pdf-vector-layer" data-locked="true">.
+ * Extracts <defs> and <style> to the root level to prevent WebKit/Blink double-transform clipping.
  */
 export const formatInkscapeSvgForFlipbook = (rawSvg, pageNumber = 1, pageName = null) => {
   const resolvedPageName = pageName || `Page ${pageNumber}`;
@@ -198,16 +211,34 @@ export const formatInkscapeSvgForFlipbook = (rawSvg, pageNumber = 1, pageName = 
   widthMm = Math.round(widthMm * 100) / 100;
   heightMm = Math.round(heightMm * 100) / 100;
 
-  // Extract inner SVG content (strip outer <svg ...> and </svg>)
+  // Extract inner SVG content (strip outer <svg ...> and </svg> and editor metadata)
   let innerContent = rawSvg
     .replace(/<\?xml[^>]*\?>/gi, "")
     .replace(/<!DOCTYPE[^>]*>/gi, "")
+    .replace(/<sodipodi:namedview[\s\S]*?<\/sodipodi:namedview>/gi, "")
+    .replace(/<metadata[\s\S]*?<\/metadata>/gi, "")
     .replace(/<svg\b[^>]*>/i, "")
     .replace(/<\/svg\s*>/i, "")
     .trim();
 
   // Scope IDs to prevent interference across pages
   innerContent = scopeSvgIds(innerContent, pageNumber);
+
+  // Extract <defs>...</defs> and <style>...</style> so they reside at root <svg> level
+  // This prevents WebKit/Blink double-transform bug on <clipPath> inside scaled <g>
+  let extractedDefs = "";
+  const defsRegex = /<defs\b[^>]*>([\s\S]*?)<\/defs>/gi;
+  innerContent = innerContent.replace(defsRegex, (match, contents) => {
+    extractedDefs += contents + "\n";
+    return "";
+  });
+
+  let extractedStyles = "";
+  const styleRegex = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+  innerContent = innerContent.replace(styleRegex, (match, contents) => {
+    extractedStyles += contents + "\n";
+    return "";
+  });
 
   // Compute transform if viewBox differs from mm dimensions
   let contentWrapper = innerContent;
@@ -223,10 +254,14 @@ export const formatInkscapeSvgForFlipbook = (rawSvg, pageNumber = 1, pageName = 
   const bgLayerId = `g-bg-p${pageNumber}-${Math.random().toString(36).substr(2, 7)}`;
   const rectId = `rect-bg-p${pageNumber}-${Math.random().toString(36).substr(2, 7)}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" style="overflow: visible">
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" style="overflow: visible" shape-rendering="geometricPrecision">
+  <defs>
+    ${extractedDefs}
+    ${extractedStyles ? `<style>${extractedStyles}</style>` : ''}
+  </defs>
   <g id="${rootId}" data-name="${resolvedPageName}" data-type="frame">
     <rect id="${rectId}" x="0" y="0" width="${widthMm}" height="${heightMm}" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" shape-rendering="crispEdges" />
-    <g id="${bgLayerId}" data-name="PDF Background" data-type="pdf-vector-layer" data-locked="true" style="vector-effect: none">
+    <g id="${bgLayerId}" data-name="PDF Background" data-type="pdf-vector-layer" data-locked="true">
       ${contentWrapper}
     </g>
   </g>
@@ -245,15 +280,15 @@ export const convertSinglePdfPageWithInkscape = async (pdfPath, outSvgPath) => {
   }
 
   // Export arguments:
-  // --export-type=svg: SVG output
+  // --export-type=svg: Standard W3C SVG output (preserves all clip-paths, masks, and gradients)
   // --export-text-to-path: flattens text into bezier paths (like Adobe Illustrator Create Outlines)
-  // --export-plain-svg: standard W3C SVG without Inkscape custom namespaces
+  // --pdf-poppler: use Poppler PDF engine for 100% path accuracy, preserving all vector curves & clips
   // --export-area-page: exports the complete page bounding box
   const exportArgs = [
     `--export-filename=${outSvgPath}`,
     "--export-type=svg",
     "--export-text-to-path",
-    "--export-plain-svg",
+    "--pdf-poppler",
     "--export-area-page"
   ];
 
@@ -267,7 +302,6 @@ export const convertSinglePdfPageWithInkscape = async (pdfPath, outSvgPath) => {
       console.log(`[Inkscape Package] Converting single page using 'inkscape' node package...`);
       const streamArgs = [
         "--export-text-to-path",
-        "--export-plain-svg",
         "--export-area-page"
       ];
 
@@ -296,14 +330,29 @@ export const convertSinglePdfPageWithInkscape = async (pdfPath, outSvgPath) => {
   }
 
   // 2. Direct binary invocation (Inkscape CLI)
-  const cmdArgs = [pdfPath, ...exportArgs];
   console.log(`[Inkscape CLI] Converting: ${path.basename(pdfPath)} -> ${path.basename(outSvgPath)}`);
   
-  await execFileAsync(binaryPath, cmdArgs, {
-    windowsHide: true,
-    timeout: 90000,
-    maxBuffer: 50 * 1024 * 1024
-  });
+  try {
+    await execFileAsync(binaryPath, [pdfPath, ...exportArgs], {
+      windowsHide: true,
+      timeout: 90000,
+      maxBuffer: 50 * 1024 * 1024
+    });
+  } catch (popplerErr) {
+    // If --pdf-poppler flag is not supported by this specific Inkscape build, retry without it
+    console.warn(`[Inkscape CLI] Flag --pdf-poppler failed (${popplerErr.message.split('\n')[0]}), retrying standard import...`);
+    const fallbackArgs = [
+      `--export-filename=${outSvgPath}`,
+      "--export-type=svg",
+      "--export-text-to-path",
+      "--export-area-page"
+    ];
+    await execFileAsync(binaryPath, [pdfPath, ...fallbackArgs], {
+      windowsHide: true,
+      timeout: 90000,
+      maxBuffer: 50 * 1024 * 1024
+    });
+  }
 
   if (!fs.existsSync(outSvgPath) || fs.statSync(outSvgPath).size === 0) {
     throw new Error(`Inkscape completed but output file is empty: ${outSvgPath}`);
@@ -398,25 +447,50 @@ export const convertPdfWithInkscape = async (pdfPaths, options = {}) => {
       generatedTempFiles.push(expectedSvg);
     });
 
-    // 2. Fast Strategy A: One-Shot Inkscape Batch Execution
-    // Boots the Inkscape process only ONCE for all pages, reducing 60+ seconds of startup overhead to ~5s.
+    // 2. Fast Strategy A: Chunked Inkscape Batch Execution
+    // Processes pages in manageable chunks of up to 8 pages per batch process
+    // instead of dumping the entire file at once. This avoids OS CLI buffer limits and RAM exhaustion.
+    const BATCH_CHUNK_SIZE = 8;
     let batchSucceeded = false;
+
     if (binaryPath && fs.existsSync(binaryPath) && singlePagePdfPaths.length > 0) {
       try {
-        console.log(`[Inkscape Batch] Converting ${singlePagePdfPaths.length} pages in a single batch process...`);
-        const batchArgs = [
-          "--export-type=svg",
-          "--export-text-to-path",
-          "--export-plain-svg",
-          "--export-area-page",
-          ...singlePagePdfPaths
-        ];
+        const totalChunks = Math.ceil(singlePagePdfPaths.length / BATCH_CHUNK_SIZE);
+        console.log(`[Inkscape Batch] Converting ${singlePagePdfPaths.length} pages in ${totalChunks} chunked batch(es)...`);
 
-        await execFileAsync(binaryPath, batchArgs, {
-          windowsHide: true,
-          timeout: 120000,
-          maxBuffer: 100 * 1024 * 1024
-        });
+        for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+          const chunkPages = singlePagePdfPaths.slice(chunkIdx * BATCH_CHUNK_SIZE, (chunkIdx + 1) * BATCH_CHUNK_SIZE);
+          console.log(`[Inkscape Batch] Processing batch ${chunkIdx + 1}/${totalChunks} (${chunkPages.length} pages)...`);
+
+          const batchArgs = [
+            "--export-type=svg",
+            "--export-text-to-path",
+            "--pdf-poppler",
+            "--export-area-page",
+            ...chunkPages
+          ];
+
+          try {
+            await execFileAsync(binaryPath, batchArgs, {
+              windowsHide: true,
+              timeout: 90000,
+              maxBuffer: 100 * 1024 * 1024
+            });
+          } catch (popplerBatchErr) {
+            console.warn(`[Inkscape Batch] Batch chunk ${chunkIdx + 1} with --pdf-poppler failed, retrying standard batch...`);
+            const fallbackBatchArgs = [
+              "--export-type=svg",
+              "--export-text-to-path",
+              "--export-area-page",
+              ...chunkPages
+            ];
+            await execFileAsync(binaryPath, fallbackBatchArgs, {
+              windowsHide: true,
+              timeout: 90000,
+              maxBuffer: 100 * 1024 * 1024
+            });
+          }
+        }
 
         // Verify if all outputs were generated (Inkscape replaces .pdf extension with .svg)
         const allGenerated = singlePagePdfPaths.every((p, idx) => {
@@ -433,7 +507,7 @@ export const convertPdfWithInkscape = async (pdfPaths, options = {}) => {
         });
 
         if (allGenerated) {
-          console.log(`[Inkscape Batch] All ${singlePagePdfPaths.length} pages converted successfully in one shot!`);
+          console.log(`[Inkscape Batch] All ${singlePagePdfPaths.length} pages converted successfully in chunked batches!`);
           batchSucceeded = true;
         } else {
           console.warn("[Inkscape Batch] Some pages missing in batch output, completing with parallel pool...");

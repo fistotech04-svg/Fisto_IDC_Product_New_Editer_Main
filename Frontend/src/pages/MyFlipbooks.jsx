@@ -7,7 +7,7 @@ import { Icon } from '@iconify/react';
 
 import AlertModal from '../components/AlertModal';
 import CreateFlipbookModal from '../components/CreateFlipbookModal';
-import { convertPdfToImages, convertPdfWithInkscape, getPdfPageCount, getDocumentDetails, generatePdfPageSvg } from '../utils/pdfUtils';
+import { convertPdfToImages, convertPdfWithInkscape, getPdfPageCount, getDocumentDetails, generatePdfPageSvg, getOfficeDocType, svgToDataUrl } from '../utils/pdfUtils';
 import PdfProcessingLoader from '../components/PdfProcessingLoader';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
@@ -355,6 +355,25 @@ export default function MyFlipbooks() {
         isUploadCancelledRef.current = false;
         createdFlipbookVIdRef.current = null;
 
+        const firstFile = files[0];
+        const initialDocType = firstFile._docType || getOfficeDocType(firstFile.name);
+        const initialDocLabel = initialDocType === 'word' ? 'Word document' : initialDocType === 'powerpoint' ? 'PowerPoint presentation' : 'file';
+        const initialPageCount = firstFile._pageCount || 1;
+
+        // INSTANT LOADER APPEARANCE (0ms latency - immediately on button click!)
+        setProcessingProgress({
+            current: 1,
+            total: files.length,
+            fileIndex: 0,
+            totalFiles: files.length,
+            pageCount: initialPageCount,
+            message: files.length > 1
+                ? `Converting queued ${initialDocLabel} 1 of ${files.length} (${firstFile.name})...`
+                : `Converting ${initialDocLabel}: ${firstFile.name}...`,
+            fileName: firstFile.name,
+            stage: 'converting'
+        });
+
         try {
             let totalPdfSize = 0;
             for (const file of files) {
@@ -367,16 +386,19 @@ export default function MyFlipbooks() {
                 if (isUploadCancelledRef.current) return;
                 const file = files[fileIndex];
 
-                let detectedCount = 1;
-                try {
-                    const docInfo = await getDocumentDetails(file, backendUrl);
-                    if (docInfo && docInfo.count > 0) detectedCount = docInfo.count;
-                } catch (e) {}
+                const docType = file._docType || getOfficeDocType(file.name);
+                const docLabel = docType === 'word' ? 'Word document' : docType === 'powerpoint' ? 'PowerPoint presentation' : 'file';
+                const detectedCount = file._pageCount || 1;
 
                 setProcessingProgress({
-                    current: 0,
-                    total: detectedCount,
-                    message: `Extracting pages from ${file.name}...`,
+                    current: fileIndex + 1,
+                    total: files.length,
+                    fileIndex,
+                    totalFiles: files.length,
+                    pageCount: detectedCount,
+                    message: files.length > 1
+                        ? `Converting queued ${docLabel} ${fileIndex + 1} of ${files.length} (${file.name})...`
+                        : `Converting ${docLabel}: ${file.name}...`,
                     fileName: file.name,
                     stage: 'converting'
                 });
@@ -411,10 +433,17 @@ export default function MyFlipbooks() {
             const targetFolder = activeFolder === 'Recent Book' ? 'My_Flipbooks' : activeFolder;
 
             // Step 2 — Encode pages and save flipbook in a single high-speed request
-            setProcessingProgress({ current: 0, total: allImages.length, message: 'Saving flipbook...', fileName: uniqueName, stage: 'saving' });
+            setProcessingProgress({
+                current: 0,
+                total: allImages.length,
+                totalFiles: files.length,
+                message: 'Saving pages & binding flipbook...',
+                fileName: uniqueName,
+                stage: 'saving'
+            });
             const allPages = await Promise.all(allImages.map(async (img, idx) => {
                 const pageIndex = idx + 1;
-                const base64Url = img.dataUrl || (img.blob ? await blobToBase64(img.blob) : "");
+                const base64Url = img.dataUrl || (img.content ? svgToDataUrl(img.content) : "") || (img.blob ? await blobToBase64(img.blob) : "");
                 const html = img.content || generatePdfPageSvg(base64Url, `Page ${pageIndex}`, maxWidth, maxHeight, true);
                 return {
                     pageName: `Page ${pageIndex}`,
@@ -427,13 +456,21 @@ export default function MyFlipbooks() {
 
             // For standard flipbooks (up to 20 pages), save in a single request!
             if (allPages.length <= 20) {
-                setProcessingProgress({ current: allPages.length, total: allPages.length, message: 'Saving flipbook...', fileName: uniqueName, stage: 'saving' });
+                setProcessingProgress({
+                    current: allPages.length,
+                    total: allPages.length,
+                    totalFiles: files.length,
+                    message: 'Saving pages & binding flipbook...',
+                    fileName: uniqueName,
+                    stage: 'saving'
+                });
                 const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {
                     emailId,
                     flipbookName: uniqueName,
                     pages: allPages,
                     overwrite: true,
                     folderName: targetFolder,
+                    keepBase64: true,
                     fileSize: totalPdfSize || allImages.reduce((sum, img) => sum + (img.blob?.size || 0), 0)
                 });
                 const v_id = createRes.data.v_id;
@@ -443,6 +480,15 @@ export default function MyFlipbooks() {
                     axios.delete(`${backendUrl}/api/flipbook/delete/${v_id}`, { params: { emailId } }).catch(() => {});
                     return;
                 }
+
+                setProcessingProgress({
+                    current: allPages.length,
+                    total: allPages.length,
+                    totalFiles: files.length,
+                    message: 'Opening flipbook...',
+                    fileName: uniqueName,
+                    stage: 'done'
+                });
 
                 // Navigate to the customized editor
                 navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${v_id}`);
@@ -457,6 +503,7 @@ export default function MyFlipbooks() {
                 pages: initialBatch,
                 overwrite: true,
                 folderName: targetFolder,
+                keepBase64: true,
                 fileSize: totalPdfSize || allImages.reduce((sum, img) => sum + (img.blob?.size || 0), 0)
             });
             const v_id = createRes.data.v_id;
@@ -472,7 +519,10 @@ export default function MyFlipbooks() {
                 setProcessingProgress({
                     current: Math.min(i + BATCH_SIZE, allPages.length),
                     total: allPages.length,
-                    message: `Saving pages ${i + 1} to ${Math.min(i + BATCH_SIZE, allPages.length)} of ${allPages.length}...`
+                    totalFiles: files.length,
+                    message: `Saving pages ${i + 1} to ${Math.min(i + BATCH_SIZE, allPages.length)} of ${allPages.length}...`,
+                    fileName: uniqueName,
+                    stage: 'saving'
                 });
                 await axios.post(`${backendUrl}/api/flipbook/save-pages-batch`, {
                     emailId,
@@ -488,13 +538,28 @@ export default function MyFlipbooks() {
                 return;
             }
 
+            setProcessingProgress({
+                current: allPages.length,
+                total: allPages.length,
+                totalFiles: files.length,
+                message: 'Opening flipbook...',
+                fileName: uniqueName,
+                stage: 'done'
+            });
+
             // Step 4 — Navigate to the customized editor
             navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${v_id}`);
 
         } catch (error) {
             if (!isUploadCancelledRef.current) {
-                console.error("PDF conversion error:", error);
-                showAlert("Error", "Failed to process PDF. Please try again.");
+                console.error("PDF/Document conversion error:", error);
+                const rawMsg = error.response?.data?.message || error.message || "";
+                const isCorrupt = error.response?.data?.isCorrupted ||
+                                  /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error/i.test(rawMsg);
+                const userMessage = isCorrupt
+                    ? (rawMsg.includes("is corrupted") || rawMsg.includes("corrupted, unreadable") ? rawMsg : "Your file is corrupted, unreadable, or password-protected. Please check your document and try again.")
+                    : (rawMsg || "Failed to process document. Please try again.");
+                showAlert(isCorrupt ? "File Corrupted" : "Error", userMessage);
             }
         } finally {
             setIsLoading(false);
