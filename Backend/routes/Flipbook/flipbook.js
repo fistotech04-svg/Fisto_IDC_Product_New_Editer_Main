@@ -2445,7 +2445,7 @@ router.post("/duplicate", async (req, res) => {
 // @desc    Get specific flipbook content (pages)
 router.get("/get", async (req, res) => {
   try {
-    const { emailId: reqEmailId, folderName, bookName, v_id, metadataOnly } = req.query;
+    const { emailId: reqEmailId, folderName, bookName, v_id, metadataOnly, initialPages } = req.query;
 
     // V_ID Lookup Logic
     let dbDoc = null;
@@ -2575,15 +2575,17 @@ router.get("/get", async (req, res) => {
         }
       }
 
-      const pagePromises = dbBook.pages.map(async (p) => {
+      const limitInitial = initialPages ? parseInt(initialPages, 10) : null;
+      const pagePromises = dbBook.pages.map(async (p, pIdx) => {
         try {
-          if (metadataOnly === 'true') {
+          if (metadataOnly === 'true' || (limitInitial !== null && pIdx >= limitInitial)) {
              return {
                 name: p.name,
                 fileName: p.fileName,
                 html: "",
                 hide: p.hide || 0,
                 v_id: p.v_id,
+                isLazy: metadataOnly !== 'true' && limitInitial !== null && pIdx >= limitInitial
              };
           }
           // Fetch from Supabase Storage with local disk fallback
@@ -2700,6 +2702,81 @@ router.get("/get", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   GET /api/flipbook/get-page
+// @desc    Get content for a single flipbook page on-demand
+router.get("/get-page", async (req, res) => {
+  try {
+    const { emailId: reqEmailId, folderName, bookName, v_id, pageIndex, pageName, fileName } = req.query;
+
+    let dbDoc = null;
+    if (v_id) {
+      dbDoc = await Flipbook.findOne({ v_id: v_id });
+    }
+
+    const emailId = reqEmailId || (dbDoc ? dbDoc.userEmail : null);
+    if (!emailId || (!v_id && (!folderName || !bookName))) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    let effectiveFolderName = folderName;
+    let effectiveBookName = bookName;
+
+    if (dbDoc) {
+      effectiveBookName = dbDoc.flipbookName;
+      if (Array.isArray(dbDoc.folderName)) {
+        const realFolders = dbDoc.folderName.filter((f) => f !== "Recent Book");
+        effectiveFolderName = realFolders.length > 0 ? realFolders[0] : "My_Flipbooks";
+      } else {
+        effectiveFolderName = dbDoc.folderName;
+      }
+    }
+
+    let targetPage = null;
+    if (dbDoc && dbDoc.pages && dbDoc.pages.length > 0) {
+      if (pageName) targetPage = dbDoc.pages.find(p => p.name === pageName);
+      if (!targetPage && fileName) targetPage = dbDoc.pages.find(p => p.fileName === fileName);
+      if (!targetPage && pageIndex !== undefined) {
+        const idx = parseInt(pageIndex, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < dbDoc.pages.length) {
+          targetPage = dbDoc.pages[idx];
+        }
+      }
+    }
+
+    if (!targetPage) {
+      return res.status(404).json({ message: "Page not found" });
+    }
+
+    const targetFileName = targetPage.fileName || (targetPage.name ? `${targetPage.name}.html` : null);
+    const supabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/${targetFileName}`;
+    let buf = await downloadFileFromSupabase(supabasePath);
+
+    const bookPath = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, effectiveFolderName, effectiveBookName);
+    if (!buf || buf.length === 0) {
+      const localFilePath = path.join(bookPath, targetFileName);
+      if (fs.existsSync(localFilePath)) {
+        buf = fs.readFileSync(localFilePath);
+      }
+    }
+
+    const flipbookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}`;
+    const content = buf ? rewriteUploadsToSupabase(buf.toString("utf8"), flipbookPrefix) : "";
+
+    res.json({
+      name: targetPage.name,
+      fileName: targetFileName,
+      html: content,
+      hide: targetPage.hide || 0,
+      v_id: targetPage.v_id
+    });
+  } catch (err) {
+    console.error("Error fetching single page:", err);
+    res.status(500).json({ message: "Server error fetching page", error: err.message });
   }
 });
 
