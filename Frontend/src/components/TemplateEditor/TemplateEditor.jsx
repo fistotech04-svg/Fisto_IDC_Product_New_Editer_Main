@@ -17,6 +17,7 @@ import Model3DPreviewModal from './Interaction3DPreview';
 import { getSupabaseBaseUrl, resolveUploadsPath } from '../../utils/supabaseUtils';
 import PasswordProtectModal from '../PasswordProtectModal';
 import { checkIsAnimatedWebp } from './editorUtils';
+import pageCacheManager from './PageCacheManager';
 
 
 /**
@@ -27,7 +28,7 @@ const parseLayersFromSVG = (element) => {
   return Array.from(element.children)
     .filter(child => {
       if (['defs', 'metadata', 'style', 'title', 'desc', 'parsererror'].includes(child.tagName.toLowerCase())) return false;
-      if (child.getAttribute('data-name') === 'Overlay') return false;
+      if (child.getAttribute('data-name') === 'Overlay' || child.getAttribute('data-name') === 'Document Shield' || child.getAttribute('data-type') === 'shield') return false;
       if (child.getAttribute('style')?.includes('display:none') || child.getAttribute('style')?.includes('display: none')) return false;
       if (child.classList.contains('svg-drop-shadow-caster')) return false;
       if (child.classList.contains('internal-crop-rect')) return false;
@@ -274,6 +275,34 @@ const TemplateEditor = () => {
       return next;
     });
   }, []);
+
+  // Cleanup cache manager on unmount
+  useEffect(() => {
+    return () => {
+      pageCacheManager.destroy();
+    };
+  }, []);
+
+  // Ensure active page layers are loaded immediately if switched before background queue reached it
+  useEffect(() => {
+    if (pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return;
+    const curPage = pages[activePageIndex];
+    if (curPage && curPage.html && (!curPage.layers || curPage.layers.length === 0)) {
+      pageCacheManager.prioritizePage(activePageIndex);
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(curPage.html, 'image/svg+xml');
+      const svgEl = doc.querySelector('svg');
+      const layers = svgEl ? parseLayersFromSVG(svgEl) : [];
+      pageCacheManager.setCachedLayers(curPage.id, curPage.html, layers);
+
+      setPages(prev => {
+        if (!prev[activePageIndex] || (prev[activePageIndex].layers && prev[activePageIndex].layers.length > 0)) return prev;
+        const next = [...prev];
+        next[activePageIndex] = { ...next[activePageIndex], layers };
+        return next;
+      });
+    }
+  }, [activePageIndex, pages]);
 
   // Global Settings Sync
   useEffect(() => {
@@ -1895,6 +1924,10 @@ const TemplateEditor = () => {
       const updated = [...prev];
       const page = updated[pageIndex];
       if (!page) return prev;
+
+      // Update layer cache and debounced thumbnail in PageCacheManager
+      pageCacheManager.setCachedLayers(page.id, html, newLayers);
+      pageCacheManager.updateThumbnailDebounced(page.id, html, 300);
 
       updated[pageIndex] = {
         ...page,
@@ -4381,18 +4414,20 @@ const TemplateEditor = () => {
               orientation: targetOrientation
             }));
 
-            const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
+            const processPageItem = (p, i, parseLayers = true) => {
               const name = p.name || `Page ${i + 1}`;
               let pageHtml = p.html;
-
 
               if (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') {
                 const { html, layers } = createDefaultPageData(name, targetWidth, targetHeight);
                 return {
                   id: p.v_id || i + 1,
+                  v_id: p.v_id,
                   name: name,
+                  isHidden: p.hide == 1 || String(p.hide) === '1',
                   html: html,
-                  layers: layers
+                  layers: layers,
+                  isLazy: false
                 };
               }
 
@@ -4408,6 +4443,22 @@ const TemplateEditor = () => {
                 temp.querySelectorAll('parsererror').forEach(el => el.remove());
                 temp.querySelectorAll('[id^="custom-ctrl-"]').forEach(el => el.remove());
                 updatedHtml = temp.innerHTML;
+              }
+
+
+              // Check if layer cache already has it
+              const cachedLayers = pageCacheManager.getCachedLayers(p.v_id || i + 1, updatedHtml);
+              if (cachedLayers && cachedLayers.length > 0) {
+                pageCacheManager.getThumbnail(p.v_id || i + 1, updatedHtml);
+                return {
+                  id: p.v_id || i + 1,
+                  v_id: p.v_id,
+                  name: name,
+                  isHidden: p.hide == 1 || String(p.hide) === '1',
+                  html: updatedHtml,
+                  layers: cachedLayers,
+                  isLazy: false
+                };
               }
 
               // Re-parse layers from HTML if missing or invalid (source of truth)
@@ -4474,17 +4525,26 @@ const TemplateEditor = () => {
                 }
               }
 
+              // Store in layer cache and generate thumbnail
+              pageCacheManager.setCachedLayers(p.v_id || i + 1, updatedHtml, layers);
+              pageCacheManager.getThumbnail(p.v_id || i + 1, updatedHtml);
+
               return {
                 id: p.v_id || i + 1,
                 v_id: p.v_id,
                 name: name,
                 isHidden: p.hide == 1 || String(p.hide) === '1',
                 html: updatedHtml,
-                layers: layers
+                layers: layers,
+                isLazy: false
               };
-            }));
+            };
+
+            // Process all pages with full layer trees immediately so layer data is always available
+            const mappedPages = res.data.pages.map((p, idx) => processPageItem(p, idx, true));
 
             setPages(mappedPages);
+            setIsLoading(false);
 
             // ── Auto-select root page folder immediately on load ──
             const firstRootId = mappedPages[0]?.layers?.[0]?.id;
@@ -4631,7 +4691,7 @@ const TemplateEditor = () => {
     }
   }, [isPasswordProtected, v_id, currentBook?.share?.shareId]);
 
-  const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+  const isPdfProject = pages.some(p => p.html && (p.html.includes('data-name="PDF Background"') || p.html.includes('data-type="pdf-vector-layer"') || p.html.includes('Document Shield')));
 
   const selectedElementInteraction = (() => {
     if (!selectedLayerId || pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return null;

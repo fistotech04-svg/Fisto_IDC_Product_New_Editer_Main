@@ -139,7 +139,8 @@ export const convertSvgTextToOutlines = async (svgString) => {
     const fontSize = parseFloat(innerDiv.style.fontSize || fo.getAttribute('font-size') || '16');
     const fontWeight = innerDiv.style.fontWeight || fo.getAttribute('font-weight') || 'normal';
     const fontStyle = innerDiv.style.fontStyle || fo.getAttribute('font-style') || 'normal';
-    const fill = innerDiv.style.color || fo.getAttribute('fill') || '#000000';
+    const rawFill = innerDiv.style.color || fo.getAttribute('fill') || '#000000';
+    const fill = (rawFill === 'transparent' || rawFill === 'rgba(0, 0, 0, 0)') ? 'none' : rawFill;
     const rawTextAlign = innerDiv.style.textAlign || fo.getAttribute('text-anchor') || 'left';
     const textAlign = rawTextAlign === 'middle' ? 'center' : (rawTextAlign === 'end' ? 'right' : rawTextAlign);
     const lineHeightRatio = parseFloat(innerDiv.style.lineHeight || fo.getAttribute('data-line-height') || '1.2') || 1.2;

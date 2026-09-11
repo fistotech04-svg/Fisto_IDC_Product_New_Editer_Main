@@ -14,6 +14,93 @@ import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import axios from 'axios';
 import AlertModal from '../AlertModal';
 import { Icon as FileReplaceIcon, Icon } from '@iconify/react';
+import pageCacheManager from './PageCacheManager';
+import { parseLayersFromSVG } from './editorUtils';
+
+// Memoized isolated vector SVG preview container with CSS containment
+const MemoizedPagePreview = React.memo(({ pageId, pageHtml, isHidden }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !pageHtml) return;
+    let cleanSvg = pageHtml.replace(/<svg\b([^>]*)>/i, (match, attrs) => {
+      const cleanAttrs = attrs
+        .replace(/\bwidth=["'][^"']*["']/gi, '')
+        .replace(/\bheight=["'][^"']*["']/gi, '')
+        .replace(/\bpreserveAspectRatio=["'][^"']*["']/gi, '');
+      return `<svg${cleanAttrs} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">`;
+    });
+
+    // Namespace all IDs and internal references in preview to avoid collisions with editor canvas
+    const prefix = `prev-${pageId}-`;
+    cleanSvg = cleanSvg
+      .replace(/\bid=(["'])(.*?)\1/gi, (m, q, id) => `id=${q}${prefix}${id}${q}`)
+      .replace(/\bhref=(["'])#(.*?)\1/gi, (m, q, id) => `href=${q}#${prefix}${id}${q}`)
+      .replace(/\bxlink:href=(["'])#(.*?)\1/gi, (m, q, id) => `xlink:href=${q}#${prefix}${id}${q}`)
+      .replace(/url\((['"]?)#([^)'"]+)\1\)/gi, (m, q, id) => `url(${q}#${prefix}${id}${q})`);
+
+    containerRef.current.innerHTML = `<style>#preview-${pageId} [data-name="Free Frame"] { display: none !important; }</style>` + cleanSvg;
+  }, [pageId, pageHtml]);
+
+  return (
+    <div
+      id={`preview-${pageId}`}
+      ref={containerRef}
+      className="w-full h-full flex items-center justify-center pointer-events-none select-none"
+      style={{
+        contain: 'strict',
+        contentVisibility: 'auto'
+      }}
+    />
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.pageId === nextProps.pageId &&
+         prevProps.pageHtml === nextProps.pageHtml &&
+         prevProps.isHidden === nextProps.isHidden;
+});
+
+const PageThumbnail = ({ page, index, activePageIndex }) => {
+  const [imgError, setImgError] = useState(false);
+
+  if (!page || !page.html) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 text-gray-400 gap-1 select-none">
+        <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[0.65vw] font-medium">Loading...</span>
+      </div>
+    );
+  }
+
+  // If page contains vector shapes, MemoizedPagePreview renders real vector graphics directly
+  const hasVectorData = page.html.includes('<path') || page.html.includes('<polygon') || page.html.includes('<polyline');
+
+  if (!hasVectorData && !imgError) {
+    const pdfImgMatch = page.html.match(/<image[^>]+(?:href|xlink:href)=["']([^"']+)["'][^>]*data-name=["']PDF Background["']/i) ||
+                        page.html.match(/<g\b[^>]*data-name=["']PDF Background["'][^>]*>[\s\S]*?<image[^>]+(?:href|xlink:href)=["']([^"']+)["']/i);
+    const pdfImgUrl = pdfImgMatch ? pdfImgMatch[1] : null;
+
+    if (pdfImgUrl) {
+      return (
+        <img
+          src={pdfImgUrl}
+          alt={page.name || `Page ${index + 1}`}
+          className="w-full h-full object-contain pointer-events-none select-none"
+          loading="lazy"
+          decoding="async"
+          onError={() => setImgError(true)}
+        />
+      );
+    }
+  }
+
+  return (
+    <MemoizedPagePreview
+      pageId={page.id}
+      pageHtml={page.html}
+      isHidden={page.isHidden}
+    />
+  );
+};
 
 const LayerItem = ({
   layer,
@@ -415,7 +502,20 @@ const Layer = ({
   const layerMenuRef = useRef(null);
   const [isVisible, setIsVisible] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState(pages.some(p => p.html && p.html.includes('data-name="PDF Background"')) ? 'pages' : 'layers');
+
+  const isPdfProject = pages.some(p => p.html && (
+    p.html.includes('data-name="PDF Background"') ||
+    p.html.includes('PDF Background') ||
+    p.html.includes('pdf-vector-layer') ||
+    p.html.includes('Document Shield')
+  )) || Boolean(currentBook?.type === 'pdf' || (currentBook?.flipbookName && currentBook.flipbookName.toLowerCase().startsWith('pdf_')));
+  const [activeTab, setActiveTab] = useState(isPdfProject ? 'pages' : 'layers');
+
+  useEffect(() => {
+    if (isPdfProject && activeTab !== 'pages') {
+      setActiveTab('pages');
+    }
+  }, [isPdfProject, activeTab]);
 
   // Menu State
   const [activeMenuPageId, setActiveMenuPageId] = useState(null);
@@ -450,7 +550,6 @@ const Layer = ({
     navigate(path);
   };
 
-  const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const nameInputRef = useRef(null);
 
   // Listen for export modal opening to switch to page tab and back
@@ -461,11 +560,11 @@ const Layer = ({
       setPreviousTab(activeTab);
       setActiveTab('pages');
       setIsVisible(true);
-    } else if (previousTab) {
+    } else if (previousTab && !isPdfProject) {
       setActiveTab(previousTab);
       setPreviousTab(null);
     }
-  }, [isExportModalOpen]);
+  }, [isExportModalOpen, isPdfProject]);
 
   // Auto-scroll to active page
   const activePageId = pages[activePageIndex]?.id;
@@ -1052,7 +1151,7 @@ const Layer = ({
               </button>
             </div>
 
-            {/* Tabs (Hidden if PDF Project) */}
+            {/* Tabs for Pages and Layers */}
             {!isPdfProject && (
               <div className="flex bg-gray-100/50 p-[0.4vw] rounded-[0.8vw] mb-[2vh] gap-[0.4vw]">
                 <button
@@ -1086,7 +1185,7 @@ const Layer = ({
               className="flex-1 overflow-y-auto pr-[0.2vw] space-y-[1.2vh] no-scrollbar pb-[2vh]"
               onClick={() => setActiveMenuPageId(null)}
             >
-              {activeTab === 'layers' ?
+              {(!isPdfProject && activeTab === 'layers') ?
                 pages.map((page, index) => {
                   const isExpanded = checkIsExpanded(index);
 
@@ -1205,39 +1304,53 @@ const Layer = ({
                                   <div className="text-[0.75vw] text-gray-500 font-medium italic px-[0.8vw] py-[1vh] text-center bg-gray-50 rounded-[0.4vw]">
                                     Page is hidden
                                   </div>
-                                ) : page.layers && page.layers.some(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('hotspot-')) ? (
-                                  (() => {
-                                    const realLayers = page.layers.filter(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('hotspot-'));
-                                    const isSingleRoot = realLayers.length === 1;
-                                    return [...realLayers].reverse().map((layer, idx) => {
-                                      const isBaseLayer = isSingleRoot && (layer.name === page.name || layer.name?.startsWith('Page '));
-                                      return (
-                                        <LayerItem
-                                          key={layer.id || idx}
-                                          layer={layer}
-                                          depth={0}
-                                          isBaseLayer={isBaseLayer}
-                                          onToggleVisibility={(layerId) => toggleLayerVisibility(index, layerId)}
-                                          onToggleLock={(layerId) => toggleLayerLock(index, layerId)}
-                                          selectedLayerId={selectedLayerId}
-                                          setSelectedLayerId={setSelectedLayerId}
-                                          multiSelectedIds={multiSelectedIds}
-                                          setMultiSelectedIds={setMultiSelectedIds}
-                                          renameLayer={renameLayer}
-                                          pageIndex={index}
-                                          onLayerContextMenu={handleLayerContextMenu}
-                                          onReorderLayer={reorderLayer}
-                                          currentFrameId={currentFrameId}
-                                          setCurrentFrameId={setCurrentFrameId}
-                                        />
-                                      );
-                                    });
-                                  })()
-                                ) : (
-                                  <div className="text-[0.7vw] text-gray-400 italic px-[0.8vw] py-[0.5vh]">
-                                    No layers found
-                                  </div>
-                                )}
+                                ) : (() => {
+                                  let effectiveLayers = (page.layers && page.layers.length > 0)
+                                    ? page.layers
+                                    : (pageCacheManager.getCachedLayers(page.id, page.html) || []);
+                                  if ((!effectiveLayers || effectiveLayers.length === 0) && page.html) {
+                                    try {
+                                      const doc = new DOMParser().parseFromString(page.html, 'image/svg+xml');
+                                      const svgEl = doc.querySelector('svg');
+                                      if (svgEl) {
+                                        effectiveLayers = parseLayersFromSVG(svgEl);
+                                        pageCacheManager.setCachedLayers(page.id, page.html, effectiveLayers);
+                                      }
+                                    } catch (e) {}
+                                  }
+                                  const realLayers = (effectiveLayers || []).filter(l => l.name !== 'Free Frame' && !l.name?.toLowerCase().startsWith('hotspot-'));
+                                  if (realLayers.length === 0) {
+                                    return (
+                                      <div className="text-[0.7vw] text-gray-400 italic px-[0.8vw] py-[0.5vh]">
+                                        No layers found
+                                      </div>
+                                    );
+                                  }
+                                  const isSingleRoot = realLayers.length === 1;
+                                  return [...realLayers].reverse().map((layer, idx) => {
+                                    const isBaseLayer = isSingleRoot && (layer.name === page.name || layer.name?.startsWith('Page '));
+                                    return (
+                                      <LayerItem
+                                        key={layer.id || idx}
+                                        layer={layer}
+                                        depth={0}
+                                        isBaseLayer={isBaseLayer}
+                                        onToggleVisibility={(layerId) => toggleLayerVisibility(index, layerId)}
+                                        onToggleLock={(layerId) => toggleLayerLock(index, layerId)}
+                                        selectedLayerId={selectedLayerId}
+                                        setSelectedLayerId={setSelectedLayerId}
+                                        multiSelectedIds={multiSelectedIds}
+                                        setMultiSelectedIds={setMultiSelectedIds}
+                                        renameLayer={renameLayer}
+                                        pageIndex={index}
+                                        onLayerContextMenu={handleLayerContextMenu}
+                                        onReorderLayer={reorderLayer}
+                                        currentFrameId={currentFrameId}
+                                        setCurrentFrameId={setCurrentFrameId}
+                                      />
+                                    );
+                                  });
+                                })()}
                               </div>
                             </motion.div>
                           )}
@@ -1253,7 +1366,7 @@ const Layer = ({
                 : (
                   <div className="flex flex-col gap-[2.5vh]">
                     {pages.map((page, index) => {
-                      const viewBoxMatch = page.html.match(/viewBox=["']\d+ \d+ (\d+(\.\d+)?) (\d+(\.\d+)?)["']/);
+                      const viewBoxMatch = page.html ? page.html.match(/viewBox=["']\d+ \d+ (\d+(\.\d+)?) (\d+(\.\d+)?)["']/) : null;
                       const aspectRatio = viewBoxMatch ? parseFloat(viewBoxMatch[1]) / parseFloat(viewBoxMatch[3]) : 1 / 1.414;
 
                       const pdfImgMatch = page.html.match(/<image[^>]+(?:href|xlink:href)=["']([^"']+)["'][^>]*data-name=["']PDF Background["']/i) ||
@@ -1282,6 +1395,12 @@ const Layer = ({
                             id={`page-card-preview-${page.id}`}
                             onClick={() => {
                               setActivePageIndex(index);
+                              const rootId = page.layers?.[0]?.id || pageCacheManager.getCachedLayers(page.id, page.html)?.[0]?.id;
+                              if (rootId && setSelectedLayerId) {
+                                setSelectedLayerId(rootId);
+                                if (setMultiSelectedIds) setMultiSelectedIds(new Set([rootId]));
+                                if (setCurrentFrameId) setCurrentFrameId(rootId);
+                              }
                             }}
                           >
                             {/* Page Header */}
@@ -1334,22 +1453,7 @@ const Layer = ({
                               style={{ aspectRatio: `${aspectRatio}` }}
                             >
                               <div className="w-full h-full bg-white shadow-sm overflow-hidden origin-top flex items-center justify-center relative">
-                                {pdfImgUrl ? (
-                                  <img
-                                    src={pdfImgUrl}
-                                    alt={page.name}
-                                    className="w-full h-full object-contain pointer-events-none"
-                                    loading="lazy"
-                                    decoding="async"
-                                  />
-                                ) : (
-                                  <div
-                                    className="w-full h-full flex items-center justify-center"
-                                    dangerouslySetInnerHTML={{
-                                      __html: `<style>#page-card-preview-${page.id} [data-name="Free Frame"] { display: none !important; }</style>` + page.html.replace(/<svg/, '<svg width="100%" height="100%" preserveAspectRatio="xMidYMid meet"')
-                                    }}
-                                  />
-                                )}
+                                <PageThumbnail page={page} index={index} activePageIndex={activePageIndex} />
                                 {page.isHidden && (
                                   <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 pointer-events-none">
                                     <Icon icon="ant-design:eye-invisible-outlined" width="2vw" height="2vw" style={{ strokeWidth: 2.5 }} className="text-gray-500 svg-icon-override" />

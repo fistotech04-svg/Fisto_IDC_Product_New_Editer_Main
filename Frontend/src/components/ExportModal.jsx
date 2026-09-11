@@ -1176,6 +1176,38 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       svg = svg.replace(/href='assets\//g,      `href='${projectBaseUrl}assets/`);
     }
 
+    // 1. Physically remove editor-only overlay and interaction layers from export:
+    // - Document Shield: rect overlay placed on top of converted PDF pages to prevent raw vector clicks in editor.
+    //   If left with fill="transparent", SVG parsers fall back to opaque black and hide the entire page!
+    svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Document Shield["']|data-type=["']shield["']|id=["']shield-[^"']*["'])[^>]*\/?>/gis, '');
+    svg = svg.replace(/<[^>]+data-name=["']Document Shield["'][^>]*>.*?<\/[^>]+>/gis, '');
+    svg = svg.replace(/<[^>]+data-type=["']shield["'][^>]*>.*?<\/[^>]+>/gis, '');
+    svg = svg.replace(/<[^>]+data-type=["']shield["'][^>]*\/?>/gis, '');
+
+    // - Free Frame & custom interaction control overlays
+    svg = svg.replace(/<[^>]+data-name=["']Free Frame["'][^>]*>.*?<\/[^>]+>/gis, '');
+    svg = svg.replace(/<[^>]+data-name=["']Free Frame["'][^>]*\/?>/gis, '');
+    svg = svg.replace(/<[^>]+data-type=["']free-frame["'][^>]*>.*?<\/[^>]+>/gis, '');
+    svg = svg.replace(/<[^>]+data-type=["']free-frame["'][^>]*\/?>/gis, '');
+    svg = svg.replace(/<[^>]+id=["']custom-ctrl-[^"']*["'][^>]*\/?>/gis, '');
+
+    // 2. Normalize any 'transparent' color attributes/styles to standard SVG 'none'
+    // In SVG 1.1, 'transparent' is not a valid color keyword for presentation attributes,
+    // which causes vector parsers (Inkscape, Cairo, librsvg, jsPDF) to fall back to initial value: #000000 (black).
+    svg = svg.replace(/\bfill=["']transparent["']/gi, 'fill="none"');
+    svg = svg.replace(/\bstroke=["']transparent["']/gi, 'stroke="none"');
+    svg = svg.replace(/fill:\s*transparent\b/gi, 'fill: none');
+    svg = svg.replace(/stroke:\s*transparent\b/gi, 'stroke: none');
+
+    // 3. Ensure every page has a solid base background if none exists (prevents transparent PDF pages looking black in some readers)
+    if (!svg.includes('data-name="Overlay"') && !svg.includes('data-type="background"')) {
+      if (svg.includes('</defs>')) {
+        svg = svg.replace(/(<\/defs>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
+      } else {
+        svg = svg.replace(/(<svg[^>]*>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
+      }
+    }
+
     // Extract viewBox to get native aspect ratio
     const vbMatch = svg.match(/viewBox\s*=\s*["']([^"']+)["']/i);
     let nativeW = 0, nativeH = 0;
@@ -1212,10 +1244,11 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     // Comprehensive CSS reset injected inside the SVG to:
     //  - Remove all default browser borders, outlines, and backgrounds from foreignObject content
     //  - Preserve text alignment and font properties exactly as authored
-    //  - Hide Free Frame interaction borders in exported files
+    //  - Hide Free Frame & Document Shield interaction borders in exported files
     const exportStyle = `
       <style>
-        [data-name="Free Frame"] { display: none !important; }
+        [data-name="Free Frame"], [data-type="free-frame"], .free-frame-rect { display: none !important; }
+        [data-name="Document Shield"], [data-type="shield"], [id^="shield-"] { display: none !important; }
         foreignObject * {
           -webkit-box-sizing: border-box;
           box-sizing: border-box;
@@ -1329,7 +1362,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
           canvas.width  = targetW;
           canvas.height = targetH;
           const ctx = canvas.getContext('2d');
-          if (mimeType === 'image/jpeg') {
+          if (mimeType === 'image/jpeg' || format === 'PDF') {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, targetW, targetH);
           }
@@ -1412,11 +1445,17 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       const options = {
         width: targetW,
         height: targetH,
-        bgcolor: mimeType === 'image/jpeg' ? '#ffffff' : null,
+        bgcolor: (mimeType === 'image/jpeg' || format === 'PDF') ? '#ffffff' : null,
         style: { margin: '0', padding: '0' },
         filter: (node) => {
-          // Skip nodes that are purely decorative outlines (e.g. Free Frame)
-          if (node.dataset && node.dataset.name === 'Free Frame') return false;
+          // Skip nodes that are purely decorative outlines or editor overlays
+          if (node.dataset && (
+            node.dataset.name === 'Free Frame' ||
+            node.dataset.name === 'Document Shield' ||
+            node.dataset.type === 'shield' ||
+            node.dataset.type === 'free-frame'
+          )) return false;
+          if (node.id && typeof node.id === 'string' && (node.id.startsWith('shield-') || node.id.startsWith('custom-ctrl-'))) return false;
           return true;
         }
       };
@@ -1621,6 +1660,10 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
             } else {
               pdf.addPage([pdfW, pdfH], pdfW > pdfH ? 'landscape' : 'portrait');
             }
+
+            // Always paint a clean, solid white background before adding SVG vectors
+            pdf.setFillColor(255, 255, 255);
+            pdf.rect(0, 0, pdfW, pdfH, 'F');
 
             // Since text was already outlined to <path> by convertSvgTextToOutlines,
             // pdf.svg() embeds true vector bezier paths without crashing on foreignObject!

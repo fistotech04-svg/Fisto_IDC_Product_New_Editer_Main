@@ -373,6 +373,7 @@ export const generatePdfPageSvg = (
   const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
   const bgGroupId = `g-bg-${Math.random().toString(36).substr(2, 9)}`;
   const imageId = `img-${Math.random().toString(36).substr(2, 9)}`;
+  const shieldId = `shield-${Math.random().toString(36).substr(2, 9)}`;
 
   const bgGroupName = isPdfBg ? "PDF Background" : `${pageName}-pdf`;
 
@@ -382,6 +383,7 @@ export const generatePdfPageSvg = (
     <g id="${bgGroupId}" data-name="${bgGroupName}" data-type="pdf-vector-layer" data-locked="true">
       <image id="${imageId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" href="${fullImageUrl}" xlink:href="${fullImageUrl}" preserveAspectRatio="none" style="image-rendering: -webkit-optimize-contrast; image-rendering: high-quality;" />
     </g>
+    <rect id="${shieldId}" data-name="Document Shield" data-type="shield" x="0" y="0" width="${baseWidth}" height="${baseHeight}" fill="none" opacity="0" pointer-events="all" style="pointer-events: all;" />
   </g>
 </svg>`;
 };

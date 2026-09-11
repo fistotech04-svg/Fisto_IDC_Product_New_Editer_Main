@@ -253,6 +253,7 @@ export const formatInkscapeSvgForFlipbook = (rawSvg, pageNumber = 1, pageName = 
   const rootId = `g-frame-p${pageNumber}-${Math.random().toString(36).substr(2, 7)}`;
   const bgLayerId = `g-bg-p${pageNumber}-${Math.random().toString(36).substr(2, 7)}`;
   const rectId = `rect-bg-p${pageNumber}-${Math.random().toString(36).substr(2, 7)}`;
+  const shieldId = `shield-p${pageNumber}-${Math.random().toString(36).substr(2, 7)}`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" style="overflow: visible" shape-rendering="geometricPrecision">
   <defs>
@@ -264,6 +265,7 @@ export const formatInkscapeSvgForFlipbook = (rawSvg, pageNumber = 1, pageName = 
     <g id="${bgLayerId}" data-name="PDF Background" data-type="pdf-vector-layer" data-locked="true">
       ${contentWrapper}
     </g>
+    <rect id="${shieldId}" data-name="Document Shield" data-type="shield" x="0" y="0" width="${widthMm}" height="${heightMm}" fill="none" opacity="0" pointer-events="all" style="pointer-events: all;" />
   </g>
 </svg>`;
 };
@@ -644,11 +646,38 @@ export const exportSvgsToVectorPdf = async (pages, options = {}) => {
       }
 
       // 1. Sanitize SVG for Inkscape vector export
-      // Remove any editor overlay artifacts (free frame, selection outlines)
-      svg = svg.replace(/<[^>]+data-name="Free Frame"[^>]*>.*?<\/[^>]+>/gis, "");
-      svg = svg.replace(/<[^>]+data-name="Free Frame"[^>]*\/>/gi, "");
+      // Remove any editor overlay artifacts (Document Shield, Free Frame, custom controls, selection outlines)
+      // Document Shield: overlay rect used for click-shielding in the editor; if fill="transparent" is left, Inkscape renders it as solid black!
+      svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Document Shield["']|data-type=["']shield["']|id=["']shield-[^"']*["'])[^>]*\/?>/gis, "");
+      svg = svg.replace(/<[^>]+data-name=["']Document Shield["'][^>]*>.*?<\/[^>]+>/gis, "");
+      svg = svg.replace(/<[^>]+data-type=["']shield["'][^>]*>.*?<\/[^>]+>/gis, "");
+      svg = svg.replace(/<[^>]+data-type=["']shield["'][^>]*\/?>/gis, "");
+
+      // Free Frame and custom controls
+      svg = svg.replace(/<[^>]+data-name=["']Free Frame["'][^>]*>.*?<\/[^>]+>/gis, "");
+      svg = svg.replace(/<[^>]+data-name=["']Free Frame["'][^>]*\/>/gi, "");
+      svg = svg.replace(/<[^>]+data-type=["']free-frame["'][^>]*>.*?<\/[^>]+>/gis, "");
+      svg = svg.replace(/<[^>]+data-type=["']free-frame["'][^>]*\/>/gi, "");
+      svg = svg.replace(/<[^>]+id=["']custom-ctrl-[^"']*["'][^>]*\/?>/gis, "");
+
       svg = svg.replace(/<sodipodi:namedview[^>]*>.*?<\/sodipodi:namedview>/gis, "");
       svg = svg.replace(/<sodipodi:namedview[^>]*\/>/gi, "");
+
+      // SVG specifications do not allow 'transparent' as a valid color value for fill/stroke.
+      // Inkscape / Cairo falls back to initial SVG fill: #000000 (opaque black)!
+      svg = svg.replace(/\bfill=["']transparent["']/gi, 'fill="none"');
+      svg = svg.replace(/\bstroke=["']transparent["']/gi, 'stroke="none"');
+      svg = svg.replace(/fill:\s*transparent\b/gi, 'fill: none');
+      svg = svg.replace(/stroke:\s*transparent\b/gi, 'stroke: none');
+
+      // Ensure every page has a solid base background if none exists (prevents transparent PDF pages looking black in some readers)
+      if (!svg.includes('data-name="Overlay"') && !svg.includes('data-type="background"')) {
+        if (svg.includes('</defs>')) {
+          svg = svg.replace(/(<\/defs>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
+        } else {
+          svg = svg.replace(/(<svg[^>]*>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
+        }
+      }
 
       // If SVG contains any residual foreignObject, convert to SVG text so Inkscape renders it
       if (svg.includes("<foreignObject") || svg.includes("<foreignobject")) {
