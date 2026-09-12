@@ -637,6 +637,8 @@ export const exportSvgsToVectorPdf = async (pages, options = {}) => {
   const singlePdfPaths = [];
 
   try {
+    const pageTasks = [];
+
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
       let svg = page.svgString || page.content || page.html || "";
@@ -646,19 +648,17 @@ export const exportSvgsToVectorPdf = async (pages, options = {}) => {
       }
 
       // 1. Sanitize SVG for Inkscape vector export
-      // Remove any editor overlay artifacts (Document Shield, Free Frame, custom controls, selection outlines)
-      // Document Shield: overlay rect used for click-shielding in the editor; if fill="transparent" is left, Inkscape renders it as solid black!
+      // Remove editor-only overlay artifacts (Document Shield, Free Frame, custom controls, selection outlines)
       svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Document Shield["']|data-type=["']shield["']|id=["']shield-[^"']*["'])[^>]*\/?>/gis, "");
-      svg = svg.replace(/<[^>]+data-name=["']Document Shield["'][^>]*>.*?<\/[^>]+>/gis, "");
-      svg = svg.replace(/<[^>]+data-type=["']shield["'][^>]*>.*?<\/[^>]+>/gis, "");
-      svg = svg.replace(/<[^>]+data-type=["']shield["'][^>]*\/?>/gis, "");
+      svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Document Shield["']|data-type=["']shield["']|id=["']shield-[^"']*["'])[^>]*>[\s\S]*?<\/rect>/gis, "");
+      svg = svg.replace(/<g\b[^>]*?(?:data-name=["']Document Shield["']|data-type=["']shield["'])[^>]*>[\s\S]*?<\/g>/gis, "");
 
       // Free Frame and custom controls
-      svg = svg.replace(/<[^>]+data-name=["']Free Frame["'][^>]*>.*?<\/[^>]+>/gis, "");
-      svg = svg.replace(/<[^>]+data-name=["']Free Frame["'][^>]*\/>/gi, "");
-      svg = svg.replace(/<[^>]+data-type=["']free-frame["'][^>]*>.*?<\/[^>]+>/gis, "");
-      svg = svg.replace(/<[^>]+data-type=["']free-frame["'][^>]*\/>/gi, "");
-      svg = svg.replace(/<[^>]+id=["']custom-ctrl-[^"']*["'][^>]*\/?>/gis, "");
+      svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Free Frame["']|data-type=["']free-frame["'])[^>]*\/?>/gis, "");
+      svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Free Frame["']|data-type=["']free-frame["'])[^>]*>[\s\S]*?<\/rect>/gis, "");
+      svg = svg.replace(/<g\b[^>]*?(?:data-name=["']Free Frame["']|data-type=["']free-frame["'])[^>]*>[\s\S]*?<\/g>/gis, "");
+      svg = svg.replace(/<(?:rect|circle|path|line)\b[^>]*?id=["']custom-ctrl-[^"']*["'][^>]*\/?>/gis, "");
+      svg = svg.replace(/<g\b[^>]*?id=["']custom-ctrl-[^"']*["'][^>]*>[\s\S]*?<\/g>/gis, "");
 
       svg = svg.replace(/<sodipodi:namedview[^>]*>.*?<\/sodipodi:namedview>/gis, "");
       svg = svg.replace(/<sodipodi:namedview[^>]*\/>/gi, "");
@@ -670,35 +670,67 @@ export const exportSvgsToVectorPdf = async (pages, options = {}) => {
       svg = svg.replace(/fill:\s*transparent\b/gi, 'fill: none');
       svg = svg.replace(/stroke:\s*transparent\b/gi, 'stroke: none');
 
-      // Ensure every page has a solid base background if none exists (prevents transparent PDF pages looking black in some readers)
+      // Ensure every page has a solid base background if none exists.
+      // MUST be inserted right after <svg ...> to stay at the very back (z-index 0),
+      // never after </defs> which could be at the bottom and cover the page content!
       if (!svg.includes('data-name="Overlay"') && !svg.includes('data-type="background"')) {
-        if (svg.includes('</defs>')) {
-          svg = svg.replace(/(<\/defs>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
-        } else {
-          svg = svg.replace(/(<svg[^>]*>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
-        }
+        svg = svg.replace(/(<svg[^>]*>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
       }
 
-      // If SVG contains any residual foreignObject, convert to SVG text so Inkscape renders it
+      // If SVG contains any residual foreignObject, convert to standard SVG text/tspan
       if (svg.includes("<foreignObject") || svg.includes("<foreignobject")) {
         svg = svg.replace(/<foreignObject([^>]*?)>(.*?)<\/foreignObject>/gis, (_match, foAttrs, foInner) => {
           const xMatch = foAttrs.match(/\bx\s*=\s*["']([^"']+)["']/i);
           const yMatch = foAttrs.match(/\by\s*=\s*["']([^"']+)["']/i);
+          const wMatch = foAttrs.match(/\bwidth\s*=\s*["']([^"']+)["']/i);
           const x = xMatch ? parseFloat(xMatch[1]) : 0;
           const y = yMatch ? parseFloat(yMatch[1]) : 0;
-          const textContent = foInner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-          if (!textContent) return "";
-          return `<text x="${x}" y="${y + 16}" font-family="Poppins, sans-serif" font-size="16" fill="#000000">${textContent}</text>`;
+          const w = wMatch ? parseFloat(wMatch[1]) : 100;
+
+          // Try to extract styling from inner div
+          const fsMatch = foInner.match(/font-size:\s*([0-9.]+)(?:px|pt)?/i);
+          const fontSize = fsMatch ? parseFloat(fsMatch[1]) : 14;
+          const ffMatch = foInner.match(/font-family:\s*([^;"]+)/i);
+          const fontFamily = ffMatch ? ffMatch[1].trim() : 'Poppins, sans-serif';
+          const colorMatch = foInner.match(/(?:^|[;\s])color:\s*([^;"]+)/i);
+          const fill = colorMatch ? colorMatch[1].trim() : '#000000';
+          const alignMatch = foInner.match(/text-align:\s*([a-zA-Z]+)/i);
+          const textAlign = alignMatch ? alignMatch[1].toLowerCase() : 'left';
+
+          const textAnchor = textAlign === 'center' ? 'middle' : (textAlign === 'right' ? 'end' : 'start');
+          const anchorX = textAlign === 'center' ? (x + w / 2) : (textAlign === 'right' ? (x + w) : x);
+
+          // Extract text lines
+          const cleanText = foInner.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
+          const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+          if (lines.length === 0) return '';
+
+          const lineHeight = fontSize * 1.25;
+          const baselineOffset = fontSize * 0.85;
+
+          const tspans = lines.map((line, lineIdx) =>
+            `<tspan x="${anchorX.toFixed(2)}" y="${(y + baselineOffset + lineIdx * lineHeight).toFixed(2)}">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</tspan>`
+          ).join('');
+
+          return `<text x="${anchorX.toFixed(2)}" y="${(y + baselineOffset).toFixed(2)}" font-family="${fontFamily}" font-size="${fontSize}" fill="${fill}" text-anchor="${textAnchor}">${tspans}</text>`;
         });
       }
+
+      // Normalize viewBox casing and attributes
+      svg = svg.replace(/\bviewbox\s*=/gi, "viewBox=");
+      svg = svg.replace(/\bpreserveaspectratio\s*=/gi, "preserveAspectRatio=");
 
       // Normalize viewBox and physical dimensions
       const vbMatch = svg.match(/viewBox\s*=\s*["']([^"']+)["']/i);
       let nativeW = 0;
       let nativeH = 0;
+      let vbMinX = 0;
+      let vbMinY = 0;
       if (vbMatch) {
         const parts = vbMatch[1].trim().split(/[\s,]+/);
         if (parts.length >= 4) {
+          vbMinX = parseFloat(parts[0]) || 0;
+          vbMinY = parseFloat(parts[1]) || 0;
           nativeW = parseFloat(parts[2]);
           nativeH = parseFloat(parts[3]);
         }
@@ -706,68 +738,119 @@ export const exportSvgsToVectorPdf = async (pages, options = {}) => {
 
       // If dimensions in root <svg> are missing or in huge raster pixels, normalize
       if (nativeW > 0 && nativeH > 0) {
-        svg = svg.replace(/<svg([^>]*?)>/i, (_m, attrs) => {
+        svg = svg.replace(/<svg\b([^>]*?)>/i, (_m, attrs) => {
           const cleaned = attrs
             .replace(/\s+width\s*=\s*["'][^"']*["']/gi, "")
-            .replace(/\s+height\s*=\s*["'][^"']*["']/gi, "");
-          // If native dimensions look like mm (e.g. 210x297), keep as mm
-          const unit = (nativeW <= 500 && nativeH <= 500) ? "mm" : "pt";
-          return `<svg${cleaned} width="${nativeW}${unit}" height="${nativeH}${unit}">`;
+            .replace(/\s+height\s*=\s*["'][^"']*["']/gi, "")
+            .replace(/\s+viewBox\s*=\s*["'][^"']*["']/gi, "")
+            .replace(/\s+viewbox\s*=\s*["'][^"']*["']/gi, "");
+          // If native dimensions look like mm (e.g. 210x297), keep as mm; otherwise px (96 DPI)
+          const unit = (nativeW <= 500 && nativeH <= 500) ? "mm" : "px";
+          return `<svg${cleaned} viewBox="${vbMinX} ${vbMinY} ${nativeW} ${nativeH}" width="${nativeW}${unit}" height="${nativeH}${unit}">`;
         });
       }
+
+      // Ensure SVG is pure <svg>...</svg> and strip any accidental HTML/parsererror wrappers
+      const svgStartIndex = svg.indexOf('<svg');
+      const svgEndIndex = svg.lastIndexOf('</svg>');
+      if (svgStartIndex !== -1 && svgEndIndex !== -1 && svgEndIndex > svgStartIndex) {
+        svg = svg.substring(svgStartIndex, svgEndIndex + 6);
+      }
+
+      const hotspotMatches = svg.match(/<g\b[^>]*(?:data-is-hotspot|data-type=["']hotspot["']|id=["']hotspot-[^"']*["'])[^>]*>[\s\S]*?<\/g>/gi);
+      console.log(`[Vector PDF Export] Page ${i + 1} Hotspot XML:`, hotspotMatches ? hotspotMatches[0].substring(0, 300) : "NO HOTSPOT FOUND");
 
       const svgPath = path.join(tempDir, `page_${i + 1}.svg`);
       const pdfPath = path.join(tempDir, `page_${i + 1}.pdf`);
       fs.writeFileSync(svgPath, svg, "utf8");
       generatedFiles.push(svgPath, pdfPath);
 
-      // 2. Export page using Inkscape CLI
-      // --export-type=pdf: Pure vector PDF output
-      // --export-text-to-path: Converts all font text to vector bezier paths (<path d="...">)
-      // --export-area-page: Preserves exact physical page margins
-      const args = [
+      pageTasks.push({
+        index: i,
+        pageNum: i + 1,
         svgPath,
-        `--export-filename=${pdfPath}`,
-        "--export-type=pdf",
-        "--export-text-to-path",
-        "--export-area-page"
-      ];
-
-      console.log(`[Vector PDF Export] Converting page ${i + 1}/${pages.length} via Inkscape...`);
-      await execFileAsync(binaryPath, args, {
-        windowsHide: true,
-        timeout: 90000,
-        maxBuffer: 50 * 1024 * 1024
+        pdfPath
       });
-
-      if (!fs.existsSync(pdfPath) || fs.statSync(pdfPath).size === 0) {
-        throw new Error(`Inkscape failed to produce PDF for page ${i + 1}`);
-      }
-
-      singlePdfPaths.push(pdfPath);
     }
 
-    if (singlePdfPaths.length === 0) {
+    if (pageTasks.length === 0) {
       throw new Error("No pages could be converted to vector PDF.");
+    }
+
+    // 2. Export pages using Inkscape CLI in parallel worker pool
+    // --export-type=pdf: Pure vector PDF output
+    // --export-text-to-path: Converts all font text to vector bezier paths (<path d="...">)
+    // --export-area-page: Preserves exact physical page margins
+    const concurrency = Math.min(os.cpus()?.length || 4, 4);
+    console.log(`[Vector PDF Export] Converting ${pageTasks.length} page(s) via Inkscape pool (concurrency: ${concurrency})...`);
+
+    let nextTaskIdx = 0;
+    const workers = Array.from({ length: Math.min(concurrency, pageTasks.length) }, async (_, workerId) => {
+      while (nextTaskIdx < pageTasks.length) {
+        const task = pageTasks[nextTaskIdx++];
+        const args = [
+          task.svgPath,
+          `--export-filename=${task.pdfPath}`,
+          "--export-type=pdf",
+          "--export-text-to-path",
+          "--export-area-page"
+        ];
+
+        console.log(`[Vector PDF Export] [Worker ${workerId + 1}] Processing page ${task.pageNum}/${pageTasks.length}...`);
+        try {
+          const { stdout, stderr } = await execFileAsync(binaryPath, args, {
+            windowsHide: true,
+            timeout: 90000,
+            maxBuffer: 50 * 1024 * 1024
+          });
+          if (stderr && !stderr.includes('Warning:') && !stderr.includes('font-family')) {
+            console.warn(`[Vector PDF Export] Page ${task.pageNum} Inkscape stderr:`, stderr.trim());
+          }
+        } catch (execErr) {
+          console.error(`[Vector PDF Export] Page ${task.pageNum} Inkscape CLI failed:`, execErr.message);
+          if (execErr.stdout) console.error(`[Vector PDF Export] Page ${task.pageNum} stdout:`, execErr.stdout);
+          if (execErr.stderr) console.error(`[Vector PDF Export] Page ${task.pageNum} stderr:`, execErr.stderr);
+          throw new Error(`Inkscape failed to produce PDF for page ${task.pageNum}: ${execErr.stderr || execErr.message}`);
+        }
+
+        if (!fs.existsSync(task.pdfPath) || fs.statSync(task.pdfPath).size === 0) {
+          let sample = "";
+          try {
+            sample = fs.readFileSync(task.svgPath, "utf8").substring(0, 300);
+          } catch (_) {}
+          console.error(`[Vector PDF Export] Page ${task.pageNum} produced 0 bytes. SVG start:`, sample);
+          throw new Error(`Inkscape failed to produce PDF for page ${task.pageNum}`);
+        }
+      }
+    });
+
+    await Promise.all(workers);
+
+    for (const task of pageTasks) {
+      singlePdfPaths.push(task.pdfPath);
     }
 
     // 3. Single page -> return directly
     if (singlePdfPaths.length === 1) {
+      console.log(`[Vector PDF Export] Single page export complete (${fs.statSync(singlePdfPaths[0]).size} bytes).`);
       return fs.readFileSync(singlePdfPaths[0]);
     }
 
     // 4. Multi-page -> merge using pdf-lib
-    const pdfLibInstance = PDFLib || require("pdf-lib");
-    const mergedDoc = await pdfLibInstance.PDFDocument.create();
+    console.log(`[Vector PDF Export] Merging ${singlePdfPaths.length} vector PDF pages via pdf-lib...`);
+    const pdfLibModule = PDFLib || require("pdf-lib");
+    const PDFDoc = pdfLibModule.PDFDocument || pdfLibModule;
+    const mergedDoc = await PDFDoc.create();
 
     for (const singlePdfPath of singlePdfPaths) {
       const pageBytes = fs.readFileSync(singlePdfPath);
-      const srcDoc = await pdfLibInstance.PDFDocument.load(pageBytes);
+      const srcDoc = await PDFDoc.load(pageBytes, { ignoreEncryption: true });
       const copiedPages = await mergedDoc.copyPages(srcDoc, srcDoc.getPageIndices());
       copiedPages.forEach((p) => mergedDoc.addPage(p));
     }
 
-    const mergedBytes = await mergedDoc.save();
+    const mergedBytes = await mergedDoc.save({ useObjectStreams: false });
+    console.log(`[Vector PDF Export] Multi-page merge complete (${mergedBytes.length} bytes).`);
     return Buffer.from(mergedBytes);
   } finally {
     // Cleanup temporary files
