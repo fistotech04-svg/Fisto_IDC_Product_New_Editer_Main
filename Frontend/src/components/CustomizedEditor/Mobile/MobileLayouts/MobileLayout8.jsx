@@ -437,16 +437,21 @@ const MobileLayout8 = ({
 
     if (isLandscape) {
         return (
-            <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#DADBE8] pt-[14px] pb-3" style={{ ...layoutVariables }}>
-                {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[15] bg-transparent" onClick={() => setShowSuggestions(false)} />}
-                <header className="z-50 px-14 h-6 flex items-center justify-between shadow-md border-b border-white/10 shrink-0 relative" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '11, 15, 78', '1') }}>
+            <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#DADBE8]">
+                {/* Background Overlay */}
+                <div className="absolute inset-0 z-0" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1), opacity: 0.15 }} />
+
+                {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[15] bg-transparent pointer-events-auto" onClick={() => setShowSuggestions(false)} />}
+                
+                {/* Floating Header */}
+                <header className="absolute top-2 left-14 right-14 z-50 h-8 flex items-center justify-between shadow-lg rounded-full px-4 pointer-events-auto border border-white/20 backdrop-blur-md" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '11, 15, 78', 0.9) }}>
                     <div className={`flex-1 max-w-[150px] relative ${showSuggestions && recommendations.length > 0 ? 'z-20' : ''}`}>
-                        <div className="bg-white/10 rounded px-1.5 py-0.5 flex items-center gap-1 backdrop-blur-sm border border-white/10">
-                            <Icon icon="lucide:search" className="text-white/60 w-2.5 h-2.5" />
+                        <div className="bg-white/10 rounded-full px-2 py-1 flex items-center gap-1 backdrop-blur-sm border border-white/10">
+                            <Icon icon="lucide:search" className="text-white/60 w-3 h-3" />
                             <input
                                 type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 placeholder="Quick Search..."
-                                className="bg-transparent text-white placeholder-white/40 text-[7px] outline-none w-full font-medium"
+                                className="bg-transparent text-white placeholder-white/40 text-[9px] outline-none w-full font-medium"
                                 value={localSearchQuery}
                                 onChange={(e) => {
                                     const val = e.target.value;
@@ -493,13 +498,13 @@ const MobileLayout8 = ({
                                     initial={{ opacity: 0, y: -5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -5 }}
-                                    className="absolute top-full left-0 mt-1 w-[180px] bg-[#575C9C]/80 backdrop-blur-md rounded-lg shadow-2xl border border-white/10 z-[100] overflow-hidden"
+                                    className="absolute top-full left-0 mt-2 w-[180px] bg-[#575C9C]/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 z-[100] overflow-hidden"
                                 >
-                                    <div className="flex flex-col py-1">
+                                    <div className="flex flex-col py-1.5">
                                         {recommendations.map((rec, idx) => (
                                             <button
                                                 key={idx}
-                                                className="flex items-center justify-between px-3 py-1.5 hover:bg-white/10 transition-colors text-white"
+                                                className="flex items-center justify-between px-3 py-1.5 hover:bg-white/20 transition-colors text-white"
                                                 onClick={() => {
                                                     onPageClick(rec.pageNumber - 1);
                                                     setRecommendations([]);
@@ -507,8 +512,8 @@ const MobileLayout8 = ({
                                                     setLocalSearchQuery(rec.word);
                                                 }}
                                             >
-                                                <span className="text-[9px] font-medium">{rec.word}</span>
-                                                <span className="text-[8px] opacity-60 font-bold">{rec.pageNumber.toString().padStart(2, '0')}</span>
+                                                <span className="text-[10px] font-medium">{rec.word}</span>
+                                                <span className="text-[9px] opacity-60 font-bold">{rec.pageNumber.toString().padStart(2, '0')}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -517,54 +522,53 @@ const MobileLayout8 = ({
                         </AnimatePresence>
                     </div>
                     <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none w-full max-w-[30%]">
-                        <span className="text-white text-[8px] font-bold opacity-90 truncate block">{/* {bookName} */}</span>
+                        <span className="text-white text-[10px] font-bold opacity-90 truncate block">{/* {bookName} */}</span>
                     </div>
                     <div className="flex-1 flex justify-end" />
                 </header>
-                <div className="flex-1 flex items-center justify-center relative px-14 overflow-hidden" onClick={() => setShowThumbnailBar(false)}>
-                    <div className="absolute left-16 top-1/2 -translate-y-1/2 z-40">
-                        <button onClick={(e) => { e.stopPropagation(); if (bookRef?.current?.pageFlip()) bookRef.current.pageFlip().flipPrev(); }} className="bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-md p-1.5 text-white active:scale-90 transition-all border border-white/10 shadow-sm"><Icon icon="lucide:chevron-left" className="w-4 h-4" /></button>
+
+                {/* Main Content Area */}
+                <div className="flex-1 flex items-center justify-center relative px-14 py-10 overflow-hidden pointer-events-auto" onClick={() => setShowThumbnailBar(false)}>
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 z-40">
+                        <button onClick={(e) => { e.stopPropagation(); if (bookRef?.current?.pageFlip()) bookRef.current.pageFlip().flipPrev(); }} className="bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full p-2 text-white active:scale-90 transition-all border border-white/10 shadow-lg"><Icon icon="lucide:chevron-left" className="w-5 h-5" /></button>
                     </div>
-                    <div className="absolute right-16 top-1/2 -translate-y-1/2 z-40">
-                        <button onClick={(e) => { e.stopPropagation(); if (bookRef?.current?.pageFlip()) bookRef.current.pageFlip().flipNext(); }} className="bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-md p-1.5 text-white active:scale-90 transition-all border border-white/10 shadow-sm"><Icon icon="lucide:chevron-right" className="w-4 h-4" /></button>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-40">
+                        <button onClick={(e) => { e.stopPropagation(); if (bookRef?.current?.pageFlip()) bookRef.current.pageFlip().flipNext(); }} className="bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full p-2 text-white active:scale-90 transition-all border border-white/10 shadow-lg"><Icon icon="lucide:chevron-right" className="w-5 h-5" /></button>
                     </div>
-                    <div className="flex items-center justify-center w-full h-full">
+                    <div className="flex items-center justify-center w-full h-full shadow-2xl">
                         <div className="relative flex items-center justify-center w-full h-full" style={{ transformOrigin: 'center center' }}>{children}</div>
                     </div>
                 </div>
-                <footer className="h-7 px-10 flex items-center justify-between shadow-2xl border-t border-white/10 z-[60] shrink-0 font-sans" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}>
+
+                {/* Floating Footer */}
+                <footer className="absolute bottom-2 left-14 right-14 h-9 px-6 flex items-center justify-between shadow-2xl rounded-full z-[60] font-sans border border-white/20 pointer-events-auto backdrop-blur-md" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 0.9) }}>
                     {/* Left Group */}
-                    <div className="flex items-center gap-1 min-w-max">
-                        <button onClick={() => { setShowTOC(true); setShowThumbnailBar(false); }} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:list-bold" className="w-[11px] h-[11px]" /></button>
-                        <button onClick={() => setShowThumbnailBar(prev => !prev)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:squares-four-fill" className="w-[11px] h-[11px]" /></button>
+                    <div className="flex items-center gap-3 min-w-max">
+                        <button onClick={() => { setShowTOC(true); setShowThumbnailBar(false); }} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:list-bold" className="w-4 h-4" /></button>
+                        <button onClick={() => setShowThumbnailBar(prev => !prev)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:squares-four-fill" className="w-4 h-4" /></button>
                     </div>
 
                     {/* Playback Controls */}
-                    <div className="flex items-center gap-1.5 ml-2">
-                        <button onClick={() => onPageClick(0)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:skip-back" className="w-[10px] h-[10px]" /></button>
-                        <button onClick={() => setIsPlaying(!isAutoFlipping)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-[14px] h-[14px]" /></button>
-                        <button onClick={() => onPageClick(pages.length - 1)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:skip-forward" className="w-[10px] h-[10px]" /></button>
+                    <div className="flex items-center gap-4 ml-4">
+                        <button onClick={() => onPageClick(0)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:skip-back" className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setIsPlaying(!isAutoFlipping)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-5 h-5" /></button>
+                        <button onClick={() => onPageClick(pages.length - 1)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:skip-forward" className="w-3.5 h-3.5" /></button>
                     </div>
 
-                    {/* Progress Bar (flex-grow with max-w) */}
-                    <div className="flex-1 mx-4 flex items-center max-w-[12vw]">
-                        <div ref={progressRef} className="h-[1.5px] w-full bg-white/20 rounded-full cursor-pointer relative" onClick={handleProgressClick}>
+                    {/* Progress Bar */}
+                    <div className="flex-1 mx-6 flex items-center max-w-[20vw]">
+                        <div ref={progressRef} className="h-1.5 w-full bg-white/20 rounded-full cursor-pointer relative shadow-inner" onClick={handleProgressClick}>
                             <div className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-300" style={{ width: `${progressPercentage}%` }} />
                         </div>
                     </div>
 
                     {/* Tools Group */}
-                    <div className="flex items-center gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); setShowLocalNotesMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="material-symbols-light:add-notes" className="w-[14px] h-[14px]" /></button>
-                        <button onClick={(e) => { e.stopPropagation(); setShowLocalBookmarkMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="ph:bookmark-simple-fill" className="w-[12px] h-[12px]" /></button>
-                        <button onClick={() => setShowSoundPopup(true)} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="solar:music-notes-bold" className="w-[12px] h-[12px]" /></button>
-                        <button ref={dotBtnRef} onClick={(e) => { e.stopPropagation(); setShowDotMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="ph:dots-three-bold" className="w-[14px] h-[14px]" /></button>
+                    <div className="flex items-center gap-4">
+                        <button onClick={(e) => { e.stopPropagation(); setShowLocalNotesMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="material-symbols-light:add-notes" className="w-5 h-5" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setShowLocalBookmarkMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="ph:bookmark-simple-fill" className="w-4 h-4" /></button>
+                        <button onClick={() => setShowSoundPopup(true)} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="solar:music-notes-bold" className="w-4 h-4" /></button>
+                        <button ref={dotBtnRef} onClick={(e) => { e.stopPropagation(); setShowDotMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="ph:dots-three-bold" className="w-5 h-5" /></button>
                     </div>
-
-                    {/* Divider */}
-                    <div className="w-[1px] h-[10px] bg-white/10 mx-1.5" />
-
-
                 </footer>
 
 
@@ -595,7 +599,7 @@ const MobileLayout8 = ({
     }
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: 'var(--page-bg, #BDC3D9)' }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ backgroundColor: 'var(--page-bg, #BDC3D9)' }}>
             {/* Notch Area */}
             {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
@@ -604,7 +608,7 @@ const MobileLayout8 = ({
                 {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[15] bg-transparent" onClick={() => setShowSuggestions(false)} />}
 
                 <div className="relative" style={{ zIndex: showSuggestions && recommendations.length > 0 ? 20 : 'auto', width: '60%' }}>
-                    {/* Colored Dropdown Background (same as Grid9Layout) */}
+                    {/* Colored Dropdown Background */}
                     <AnimatePresence>
                         {showSuggestions && recommendations.length > 0 && (
                             <motion.div
@@ -650,11 +654,12 @@ const MobileLayout8 = ({
                         className="relative z-10 bg-white rounded-full px-4 py-2 flex items-center gap-2 shadow-sm"
                         style={{ border: showSuggestions && recommendations.length > 0 ? 'none' : '1px solid #C0C5E0' }}
                     >
-                        <Icon icon="ph:magnifying-glass-bold" className="text-[#575C9C] w-4 h-4 opacity-70" />
+                        <Icon icon="ph:magnifying-glass-bold" className="w-4 h-4 opacity-70" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }} />
                         <input
                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             placeholder="Quick Search..."
-                            className="bg-transparent text-[#575C9C] placeholder-[#575C9C]/60 text-[12px] outline-none w-full font-semibold"
+                            className="bg-transparent text-[12px] outline-none w-full font-semibold"
+                            style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                             value={localSearchQuery}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -695,7 +700,6 @@ const MobileLayout8 = ({
                     </div>
                 </div>
 
-
             </header>
 
             {/* Toolbar: 8 Circular Icons */}
@@ -714,7 +718,11 @@ const MobileLayout8 = ({
                         <button
                             key={i}
                             onClick={btn.action}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md ${isActive ? 'bg-white text-[#575C9C]' : 'bg-[#575C9C] text-white'}`}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md`}
+                            style={{
+                                backgroundColor: isActive ? getLayoutColor('toolbar-text-main', '#FFFFFF') : getLayoutColor('toolbar-bg', '#575C9C'),
+                                color: isActive ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF')
+                            }}
                         >
                             <Icon icon={btn.icon} className="w-[1.1rem] h-[1.1rem]" />
                         </button>
@@ -724,20 +732,20 @@ const MobileLayout8 = ({
 
             {/* Subheader: Book Name and Zoom */}
             <div className="px-5 py-2 flex items-center justify-between">
-                <span className="text-[#575C9C] text-[13px] font-bold opacity-80 truncate max-w-[60%]">
+                <span className="text-[13px] font-bold opacity-80 truncate max-w-[60%]" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>
                     {/* bookName hidden */}
                 </span>
-                <div className="flex items-center gap-1.5 bg-white/60 rounded-full px-2 py-0.5 border border-[#C0C5E0] text-[#575C9C]">
+                <div className="flex items-center gap-1.5 bg-white/60 rounded-full px-2 py-0.5 border border-[#C0C5E0]" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>
                     <Icon icon="ph:magnifying-glass-plus-bold" className="w-3.5 h-3.5" />
                     <span className="text-[10px] font-bold">50%</span>
-                    <button className="text-[9px] font-bold border border-[#575C9C] rounded-full px-1.5 leading-tight py-0.5 ml-0.5 hover:bg-[#575C9C] hover:text-white transition-colors">Reset</button>
+                    <button className="text-[9px] font-bold border rounded-full px-1.5 leading-tight py-0.5 ml-0.5 hover:opacity-80 transition-opacity" style={{ borderColor: getLayoutColor('toolbar-bg', '#575C9C'), color: getLayoutColor('toolbar-bg', '#575C9C') }}>Reset</button>
                 </div>
             </div>
 
             {/* Main Area: Flipbook */}
             <div className="flex-1 relative overflow-hidden flex flex-col items-center justify-center px-4">
                 <div className="relative">
-                    <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
+                    <div className="transition-transform duration-300" style={{ transformOrigin: 'center center' }}>
                         {children}
                     </div>
                 </div>
@@ -749,42 +757,47 @@ const MobileLayout8 = ({
 
                 <button
                     onClick={() => onPageClick(0)}
-                    className="w-8 h-8 rounded-full bg-[#575C9C] flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform"
+                    className="w-8 h-8 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                 >
                     <Icon icon="ph:skip-back-bold" className="w-[1.1rem] h-[1.1rem]" />
                 </button>
 
                 <button
                     onClick={() => onPageClick(Math.max(0, currentPage - 1))}
-                    className="w-8 h-8 rounded-full bg-[#575C9C] flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform"
+                    className="w-8 h-8 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                 >
                     <Icon icon="ph:caret-left-bold" className="w-[1.1rem] h-[1.1rem]" />
                 </button>
 
                 {/* Page Number Pill */}
                 <div className="bg-white rounded-full px-4 py-1.5 border border-[#C0C5E0] shadow-md flex items-center justify-center min-w-[100px]">
-                    <span className="text-[#575C9C] text-[11px] font-bold whitespace-nowrap">
+                    <span className="text-[11px] font-bold whitespace-nowrap" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>
                         Page - {currentPage + 1} / {pages.length}
                     </span>
                 </div>
 
                 <button
                     onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))}
-                    className="w-8 h-8 rounded-full bg-[#575C9C] flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform"
+                    className="w-8 h-8 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                 >
                     <Icon icon="ph:caret-right-bold" className="w-[1.1rem] h-[1.1rem]" />
                 </button>
 
                 <button
                     onClick={() => onPageClick(pages.length - 1)}
-                    className="w-8 h-8 rounded-full bg-[#575C9C] flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform"
+                    className="w-8 h-8 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                 >
                     <Icon icon="ph:skip-forward-bold" className="w-[1.1rem] h-[1.1rem]" />
                 </button>
 
                 <button
                     onClick={handleFullScreen}
-                    className="w-8 h-8 rounded-full bg-[#575C9C] flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform"
+                    className="w-8 h-8 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'), color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                 >
                     <Icon icon="lucide:fullscreen" className="w-[1.1rem] h-[1.1rem]" />
                 </button>

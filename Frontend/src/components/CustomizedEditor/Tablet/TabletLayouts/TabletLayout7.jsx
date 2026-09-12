@@ -83,6 +83,13 @@ const TabletLayout7 = ({
 }) => {
     const [isShareOpen, setIsShareOpen] = useState(false);
     const [showTOC, setShowTOC] = useState(false);
+
+    useEffect(() => {
+        if (settings?.navigation?.tableOfContents === false) {
+            setShowTOC(false);
+        }
+    }, [settings?.navigation?.tableOfContents]);
+
     const [showThumbnails, setShowThumbnails] = useState(false);
     const [showGallery, setShowGallery] = useState(false);
     const [isAutoPlaying, setIsAutoPlaying] = useState(false);

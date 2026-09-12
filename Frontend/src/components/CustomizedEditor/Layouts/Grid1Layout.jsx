@@ -1034,66 +1034,86 @@ const Grid1Layout = React.memo((props) => {
                 >
                     {/* Left Controls */}
                     <div className={`flex items-center ${isMobileLandscape ? 'ml-[1.5vw] gap-[0.6vw]' : ((isTablet || isSidebarOpen) ? 'gap-[0.5vw]' : 'gap-[1.2vw]')}`}>
-                        {(settings?.navigation?.tableOfContents ?? true) && renderDockBtn(
-                            <Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
-                            'TOC',
-                            (e) => {
-                                e.stopPropagation();
-                                const wasOpen = showTOC;
-                                closeAllPopups();
-                                if (!wasOpen) setShowTOCMemo(true);
-                            },
-                            { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: showTOC ? 'calc(var(--toolbar-icon-opacity, 1) * 0.7)' : 'var(--toolbar-icon-opacity, 1)' },
-                            '',
-                            showTOC
-                        )}
-                        {(settings?.navigation?.pageThumbnails ?? true) && renderDockBtn(
-                            <Icon icon="ph:squares-four-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
-                            'Thumbnails',
-                            (e) => {
-                                e.stopPropagation();
-                                if (showThumbnailBar) {
-                                    setShowThumbnailBarMemo(false);
-                                    setActivePopup(null);
-                                } else {
-                                    closeAllPopups();
-                                    setShowThumbnailBarMemo(true);
-                                }
-                            },
-                            { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: showThumbnailBar ? 'calc(var(--toolbar-icon-opacity, 1) * 0.7)' : 'var(--toolbar-icon-opacity, 1)' },
-                            '',
-                            showThumbnailBar
-                        )}
+                        <div className={(settings?.navigation?.tableOfContents ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.navigation?.tableOfContents ?? true) ? 'contents' : 'block' }}>
+                            <div style={{ visibility: (settings?.navigation?.tableOfContents ?? true) ? 'visible' : 'hidden' }}>
+                                {renderDockBtn(
+                                    <Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                    'TOC',
+                                    (e) => {
+                                        e.stopPropagation();
+                                        const wasOpen = showTOC;
+                                        closeAllPopups();
+                                        if (!wasOpen) setShowTOCMemo(true);
+                                    },
+                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: showTOC ? 'calc(var(--toolbar-icon-opacity, 1) * 0.7)' : 'var(--toolbar-icon-opacity, 1)' },
+                                    '',
+                                    showTOC
+                                )}
+                            </div>
+                        </div>
+                        <div className={(settings?.navigation?.pageThumbnails ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.navigation?.pageThumbnails ?? true) ? 'contents' : 'block' }}>
+                            <div style={{ visibility: (settings?.navigation?.pageThumbnails ?? true) ? 'visible' : 'hidden' }}>
+                                {renderDockBtn(
+                                    <Icon icon="ph:squares-four-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                    'Thumbnails',
+                                    (e) => {
+                                        e.stopPropagation();
+                                        if (showThumbnailBar) {
+                                            setShowThumbnailBarMemo(false);
+                                            setActivePopup(null);
+                                        } else {
+                                            closeAllPopups();
+                                            setShowThumbnailBarMemo(true);
+                                        }
+                                    },
+                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: showThumbnailBar ? 'calc(var(--toolbar-icon-opacity, 1) * 0.7)' : 'var(--toolbar-icon-opacity, 1)' },
+                                    '',
+                                    showThumbnailBar
+                                )}
+                            </div>
+                        </div>
                         {(!isPreviewMode) && (
                             <>
-                                {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
-                                    <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                    'First',
-                                    () => {
-                                        closeAllPopups();
-                                        onPageClick(0);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                    `${isTablet ? 'ml-[4vw]' : (isSidebarOpen ? 'ml-[1vw]' : 'ml-[4vw]')}`
-                                )}
-                                {(settings?.media?.autoFlip ?? true) && renderDockBtn(
-                                    <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
-                                    isAutoFlipping ? 'Pause' : 'Play',
-                                    () => {
-                                        closeAllPopups();
-                                        setIsPlaying(!isAutoFlipping);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                                )}
-                                {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
-                                    <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                    'Last',
-                                    () => {
-                                        closeAllPopups();
-                                        onPageClick(pages.length - 1);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                                )}
+                                <div className={(settings?.navigation?.startEndNav ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.navigation?.startEndNav ?? true) ? 'contents' : 'block' }}>
+                                    <div style={{ visibility: (settings?.navigation?.startEndNav ?? true) ? 'visible' : 'hidden' }}>
+                                        {renderDockBtn(
+                                            <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                            'First',
+                                            () => {
+                                                closeAllPopups();
+                                                onPageClick(0);
+                                            },
+                                            { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                            `${isTablet ? 'ml-[4vw]' : (isSidebarOpen ? 'ml-[1vw]' : 'ml-[4vw]')}`
+                                        )}
+                                    </div>
+                                </div>
+                                <div className={(settings?.media?.autoFlip ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.media?.autoFlip ?? true) ? 'contents' : 'block' }}>
+                                    <div style={{ visibility: (settings?.media?.autoFlip ?? true) ? 'visible' : 'hidden' }}>
+                                        {renderDockBtn(
+                                            <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
+                                            isAutoFlipping ? 'Pause' : 'Play',
+                                            () => {
+                                                closeAllPopups();
+                                                setIsPlaying(!isAutoFlipping);
+                                            },
+                                            { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                        )}
+                                    </div>
+                                </div>
+                                <div className={(settings?.navigation?.startEndNav ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.navigation?.startEndNav ?? true) ? 'contents' : 'block' }}>
+                                    <div style={{ visibility: (settings?.navigation?.startEndNav ?? true) ? 'visible' : 'hidden' }}>
+                                        {renderDockBtn(
+                                            <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                            'Last',
+                                            () => {
+                                                closeAllPopups();
+                                                onPageClick(pages.length - 1);
+                                            },
+                                            { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                        )}
+                                    </div>
+                                </div>
                             </>
                         )}
                     </div>
@@ -1267,146 +1287,172 @@ const Grid1Layout = React.memo((props) => {
 
 
                             {/* Music/Sound Icon */}
-                            {(settings?.media?.backgroundAudio ?? true) && renderDockBtn(
-                                <Icon icon="solar:music-notes-bold" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                'Music',
-                                (e) => {
-                                    e.stopPropagation();
-                                    const wasOpen = showSoundPopup;
-                                    closeAllPopups();
-                                    if (!wasOpen) setShowSoundPopupMemo(true);
-                                },
-                                { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                '',
-                                showSoundPopup
-                            )}
+                            <div className={(settings?.media?.backgroundAudio ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.media?.backgroundAudio ?? true) ? 'contents' : 'block' }}>
+                                <div style={{ visibility: (settings?.media?.backgroundAudio ?? true) ? 'visible' : 'hidden' }}>
+                                    {renderDockBtn(
+                                        <Icon icon="solar:music-notes-bold" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        'Music',
+                                        (e) => {
+                                            e.stopPropagation();
+                                            const wasOpen = showSoundPopup;
+                                            closeAllPopups();
+                                            if (!wasOpen) setShowSoundPopupMemo(true);
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                        '',
+                                        showSoundPopup
+                                    )}
+                                </div>
+                            </div>
 
 
 
                             {/* Gallery Icon */}
-                            {(settings?.interaction?.gallery ?? true) && renderDockBtn(
-                                <Icon icon="clarity:image-gallery-solid" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                'Gallery',
-                                (e) => {
-                                    e.stopPropagation();
-                                    closeAllPopups();
-                                    setShowGalleryPopupMemo(true);
-                                },
-                                { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                '',
-                                showGalleryPopup
-                            )}
+                            <div className={(settings?.interaction?.gallery ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.interaction?.gallery ?? true) ? 'contents' : 'block' }}>
+                                <div style={{ visibility: (settings?.interaction?.gallery ?? true) ? 'visible' : 'hidden' }}>
+                                    {renderDockBtn(
+                                        <Icon icon="clarity:image-gallery-solid" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        'Gallery',
+                                        (e) => {
+                                            e.stopPropagation();
+                                            closeAllPopups();
+                                            setShowGalleryPopupMemo(true);
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                        '',
+                                        showGalleryPopup
+                                    )}
+                                </div>
+                            </div>
 
                             {/* Profile Icon */}
-                            {(settings?.brandingProfile?.profile ?? true) && renderDockBtn(
-                                <Icon icon="fluent:person-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                'Profile',
-                                (e) => {
-                                    e.stopPropagation();
-                                    const wasOpen = showProfilePopup;
-                                    closeAllPopups();
-                                    if (!wasOpen) setShowProfilePopup(true);
-                                },
-                                { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                '',
-                                showProfilePopup
-                            )}
+                            <div className={(settings?.brandingProfile?.profile ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.brandingProfile?.profile ?? true) ? 'contents' : 'block' }}>
+                                <div style={{ visibility: (settings?.brandingProfile?.profile ?? true) ? 'visible' : 'hidden' }}>
+                                    {renderDockBtn(
+                                        <Icon icon="fluent:person-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        'Profile',
+                                        (e) => {
+                                            e.stopPropagation();
+                                            const wasOpen = showProfilePopup;
+                                            closeAllPopups();
+                                            if (!wasOpen) setShowProfilePopup(true);
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                        '',
+                                        showProfilePopup
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
 
 
                         <div className="w-[1px] h-[1.5vw] bg-white/10" />
 
-                        {(settings?.viewing?.zoom ?? true) && (
-                            <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.1vw]' : 'gap-[0.4vw]'}`}>
-                                {renderDockBtn(
-                                    <Icon icon="ph:magnifying-glass-minus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
-                                    'Zoom Out',
-                                    (e) => { e.stopPropagation(); zoomOut(); },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                    '',
-                                    false,
-                                    true
-                                )}
-                                <div 
-                                    ref={zoomSliderRef}
-                                    className={`${isMobileLandscape ? 'w-[2vw]' : 'w-[6vw]'} flex items-center h-[1vw] relative cursor-pointer`}
-                                    onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        e.currentTarget.setPointerCapture(e.pointerId);
-                                        handleZoomDrag(e);
-                                    }}
-                                    onPointerMove={(e) => {
-                                        e.stopPropagation();
-                                        if (e.buttons === 1) handleZoomDrag(e);
-                                    }}
-                                >
-                                    {/* Track Underlay */}
-                                    <div className={`w-full ${isMobileLandscape ? 'h-[0.15vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.25vw]'} rounded-full absolute transition-colors duration-300`} style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 0.3 }} />
-                                    {/* Progress Fill */}
-                                    <div
-                                        className={`absolute left-0 ${isMobileLandscape ? 'h-[0.15vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.25vw]'} rounded-full transition-all duration-75 z-10`}
-                                        style={{
-                                            backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'),
-                                            width: `${Math.max(0, Math.min(100, ((dimWidth - initialWidth * 0.5) / (initialWidth * 1.5 - initialWidth * 0.5)) * 100))}%`
-                                        }}
-                                    />
-                                    {/* Thumb */}
+                        <div className={(settings?.viewing?.zoom ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.viewing?.zoom ?? true) ? 'contents' : 'block' }}>
+                            <div style={{ visibility: (settings?.viewing?.zoom ?? true) ? 'visible' : 'hidden' }}>
+                                <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.1vw]' : 'gap-[0.4vw]'}`}>
+                                    {renderDockBtn(
+                                        <Icon icon="ph:magnifying-glass-minus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
+                                        'Zoom Out',
+                                        (e) => { e.stopPropagation(); zoomOut(); },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                        '',
+                                        false,
+                                        true
+                                    )}
                                     <div 
-                                        className="absolute top-1/2 -translate-y-1/2 w-[0.8vw] h-[0.8vw] rounded-full shadow-md transition-all duration-75 z-20"
-                                        style={{
-                                            backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'),
-                                            left: `calc(${Math.max(0, Math.min(100, ((dimWidth - initialWidth * 0.5) / (initialWidth * 1.5 - initialWidth * 0.5)) * 100))}% - 0.4vw)`
+                                        ref={zoomSliderRef}
+                                        className={`${isMobileLandscape ? 'w-[2vw]' : 'w-[6vw]'} flex items-center h-[1vw] relative cursor-pointer`}
+                                        onPointerDown={(e) => {
+                                            e.stopPropagation();
+                                            e.currentTarget.setPointerCapture(e.pointerId);
+                                            handleZoomDrag(e);
                                         }}
-                                    />
+                                        onPointerMove={(e) => {
+                                            e.stopPropagation();
+                                            if (e.buttons === 1) handleZoomDrag(e);
+                                        }}
+                                    >
+                                        {/* Track Underlay */}
+                                        <div className={`w-full ${isMobileLandscape ? 'h-[0.15vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.25vw]'} rounded-full absolute transition-colors duration-300`} style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 0.3 }} />
+                                        {/* Progress Fill */}
+                                        <div
+                                            className={`absolute left-0 ${isMobileLandscape ? 'h-[0.15vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.25vw]'} rounded-full transition-all duration-75 z-10`}
+                                            style={{
+                                                backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'),
+                                                width: `${Math.max(0, Math.min(100, ((dimWidth - initialWidth * 0.5) / (initialWidth * 1.5 - initialWidth * 0.5)) * 100))}%`
+                                            }}
+                                        />
+                                        {/* Thumb */}
+                                        <div 
+                                            className="absolute top-1/2 -translate-y-1/2 w-[0.8vw] h-[0.8vw] rounded-full shadow-md transition-all duration-75 z-20"
+                                            style={{
+                                                backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'),
+                                                left: `calc(${Math.max(0, Math.min(100, ((dimWidth - initialWidth * 0.5) / (initialWidth * 1.5 - initialWidth * 0.5)) * 100))}% - 0.4vw)`
+                                            }}
+                                        />
+                                    </div>
+                                    {renderDockBtn(
+                                        <Icon icon="ph:magnifying-glass-plus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
+                                        'Zoom In',
+                                        (e) => { e.stopPropagation(); zoomIn(); },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                        '',
+                                        false,
+                                        true
+                                    )}
                                 </div>
-                                {renderDockBtn(
-                                    <Icon icon="ph:magnifying-glass-plus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
-                                    'Zoom In',
-                                    (e) => { e.stopPropagation(); zoomIn(); },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                    '',
-                                    false,
-                                    true
-                                )}
                             </div>
-                        )}
+                        </div>
 
                         <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.3vw]' : ((isTablet || isSidebarOpen) ? 'gap-[0.5vw]' : 'gap-[1.2vw]')}`}>
-                            {(settings?.shareExport?.share ?? true) && renderDockBtn(
-                                <Icon icon="mage:share-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
-                                'Share',
-                                (e) => {
-                                    e.stopPropagation();
-                                    closeAllPopups();
-                                    handleShare();
-                                },
-                                { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                '',
-                                showSharePopup
-                            )}
-                            {(settings?.shareExport?.download ?? true) && renderDockBtn(
-                                <Icon icon="meteor-icons:download" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                'Download',
-                                (e) => {
-                                    e.stopPropagation();
-                                    closeAllPopups();
-                                    handleDownload();
-                                },
-                                { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                '',
-                                showExportPopup
-                            )}
-                            {(settings?.viewing?.fullScreen ?? true) && renderDockBtn(
-                                <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
-                                'Full Screen',
-                                (e) => {
-                                    e.stopPropagation();
-                                    closeAllPopups();
-                                    handleFullScreen();
-                                },
-                                { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                            )}
+                            <div className={(settings?.shareExport?.share ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.shareExport?.share ?? true) ? 'contents' : 'block' }}>
+                                <div style={{ visibility: (settings?.shareExport?.share ?? true) ? 'visible' : 'hidden' }}>
+                                    {renderDockBtn(
+                                        <Icon icon="mage:share-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
+                                        'Share',
+                                        (e) => {
+                                            e.stopPropagation();
+                                            closeAllPopups();
+                                            handleShare();
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                        '',
+                                        showSharePopup
+                                    )}
+                                </div>
+                            </div>
+                            <div className={(settings?.shareExport?.download ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.shareExport?.download ?? true) ? 'contents' : 'block' }}>
+                                <div style={{ visibility: (settings?.shareExport?.download ?? true) ? 'visible' : 'hidden' }}>
+                                    {renderDockBtn(
+                                        <Icon icon="meteor-icons:download" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        'Download',
+                                        (e) => {
+                                            e.stopPropagation();
+                                            closeAllPopups();
+                                            handleDownload();
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                        '',
+                                        showExportPopup
+                                    )}
+                                </div>
+                            </div>
+                            <div className={(settings?.viewing?.fullScreen ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.viewing?.fullScreen ?? true) ? 'contents' : 'block' }}>
+                                <div style={{ visibility: (settings?.viewing?.fullScreen ?? true) ? 'visible' : 'hidden' }}>
+                                    {renderDockBtn(
+                                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
+                                        'Full Screen',
+                                        (e) => {
+                                            e.stopPropagation();
+                                            closeAllPopups();
+                                            handleFullScreen();
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

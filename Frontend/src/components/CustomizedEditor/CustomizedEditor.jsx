@@ -1766,6 +1766,8 @@ const CustomizedEditor = () => {
     return vars;
   }, [layoutSettings, layoutColors]);
 
+  const visiblePages = useMemo(() => pages.filter(p => !p.isHidden), [pages]);
+
   return (
     <div
       className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans select-none relative"
@@ -1889,7 +1891,7 @@ const CustomizedEditor = () => {
           )}
           <PreviewArea
             bookName={bookName}
-            pages={pages.filter(p => !p.isHidden)}
+            pages={visiblePages}
             targetPage={targetPage}
             logoSettings={logoSettings}
             watermarkSettings={watermarkSettings}
@@ -1909,7 +1911,7 @@ const CustomizedEditor = () => {
             notes={notes}
             setBookmarks={setBookmarks}
             setNotes={setNotes}
-            onFlip={(idx) => setTargetPage(idx)}
+            onFlip={setTargetPage}
             isEditor={true}
             useNativeFullscreen={true}
             baseUrl={projectBaseUrl}

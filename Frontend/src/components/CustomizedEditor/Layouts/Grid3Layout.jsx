@@ -1003,7 +1003,7 @@ const Grid3Layout = ({
                         )}
 
                         {/* Center: Playback Control Group */}
-                        <div className={`flex items-center ${isTablet ? 'gap-[0.8vw]' : 'gap-[1.5vw]'} transition-transform ${addTextBelowIcons ? '-translate-y-[0.7vh]' : ''} ${isBigBars ? 'translate-x-[2.5vw]' : ''}`}>
+                        <div className={`flex items-center ${isTablet ? 'gap-[0.8vw]' : 'gap-[1.5vw]'} transition-transform ${addTextBelowIcons ? '-translate-y-[0.7vh]' : ''} ${isBigBars ? 'translate-x-[4vw]' : 'translate-x-[1.5vw]'}`}>
                             {/* Previous Spread */}
                             {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
                                 <Icon icon="lucide:skip-back" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
@@ -1095,7 +1095,7 @@ const Grid3Layout = ({
 
                         <div
                             ref={progressRef}
-                            className="absolute bottom-[0.2vh] left-[15vw] right-[15vw] pt-[1.1vh] pb-[1.1vh] cursor-pointer group pointer-events-auto"
+                            className="absolute -bottom-[0.4vh] left-[15vw] right-[15vw] pt-[1.1vh] pb-[1.1vh] cursor-pointer group pointer-events-auto"
                             onClick={handleProgressClick}
                             onMouseMove={(e) => {
                                 if (!progressRef.current || pages.length <= 1) return;

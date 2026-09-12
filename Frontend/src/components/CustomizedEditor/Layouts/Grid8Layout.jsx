@@ -158,6 +158,7 @@ const Grid8Layout = ({
     setIsFlipMuted,
     isFullscreen: isFullscreenProp
     ,
+    activeLayout,
     offset = 0,
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
@@ -396,17 +397,20 @@ const Grid8Layout = ({
     const getLayoutColor = (id, defaultColor) => {
         if (!layoutColors) return defaultColor;
 
-        // If layoutColors is an array directly for this layout
-        if (Array.isArray(layoutColors)) {
-            const colorObj = layoutColors.find(c => c.id === id);
-            return colorObj ? colorObj.hex : defaultColor;
-        }
+        const activeIdx = activeLayout || 8;
+        const saved = Array.isArray(layoutColors[activeIdx]) ? layoutColors[activeIdx] : [];
+        const toolbarP = layoutColors?.toolbarColor?.primary;
+        const toolbarS = layoutColors?.toolbarColor?.secondary;
+        const popupP = layoutColors?.popupColor?.primary;
+        const popupS = layoutColors?.popupColor?.secondary;
 
-        // If layoutColors is the global container (indexed by layout ID)
-        if (layoutColors[9] && Array.isArray(layoutColors[9])) {
-            const colorObj = layoutColors[9].find(c => c.id === id);
-            return colorObj ? colorObj.hex : defaultColor;
-        }
+        const savedItem = saved.find(c => c.id === id);
+        if (savedItem && savedItem.hex) return savedItem.hex;
+
+        if (toolbarP && ['toolbar-bg', 'bottom-toolbar-bg', 'page-number-bg'].includes(id)) return toolbarP;
+        if (toolbarS && ['toolbar-text-main', 'toolbar-icon', 'reset-text', 'page-number-text'].includes(id)) return toolbarS;
+        if (popupP && ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'].includes(id)) return popupP;
+        if (popupS && ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'].includes(id)) return popupS;
 
         return defaultColor;
     };
@@ -414,19 +418,11 @@ const Grid8Layout = ({
     const getLayoutOpacity = (id, defaultOpacity) => {
         if (!layoutColors) return defaultOpacity;
 
-        // If layoutColors is an array directly for this layout
-        if (Array.isArray(layoutColors)) {
-            const colorObj = layoutColors.find(c => c.id === id);
-            return colorObj ? colorObj.opacity / 100 : defaultOpacity;
-        }
+        const activeIdx = activeLayout || 8;
+        const saved = Array.isArray(layoutColors[activeIdx]) ? layoutColors[activeIdx] : [];
+        const savedItem = saved.find(c => c.id === id);
 
-        // If layoutColors is the global container (indexed by layout ID)
-        if (layoutColors[9] && Array.isArray(layoutColors[9])) {
-            const colorObj = layoutColors[9].find(c => c.id === id);
-            return colorObj ? colorObj.opacity / 100 : defaultOpacity;
-        }
-
-        return defaultOpacity;
+        return savedItem && savedItem.opacity !== undefined ? savedItem.opacity / 100 : defaultOpacity;
     };
 
     const getLayoutColorRgba = (id, defaultHex, defaultOpacity) => {

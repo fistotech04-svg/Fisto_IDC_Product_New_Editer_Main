@@ -317,9 +317,11 @@ const TocItem = ({ item, index, isEditing, onUpdate, onDelete, activeTOCItem, se
 const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pages = [], folderName, bookName, activeLayout, onNavigateToOtherSetup, onTocSettingsClick }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   const [showStylesPopup, setShowStylesPopup] = useState(false);
+  const [activeTOCItem, setActiveTOCItem] = useState(null); // { type: 'head'|'sub', index, sIdx }
+  
+  const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const activeTocSettings = settings?.tocSettings || settings?.navigation?.tocSettings || {};
   const [editingTOCIndex, setEditingTOCIndex] = useState((activeTocSettings.content?.length || 0) > 0 ? 0 : null);
-  const [activeTOCItem, setActiveTOCItem] = useState(null); // { type: 'head'|'sub', index, sIdx }
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
 
@@ -639,12 +641,22 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                     </div>
 
                     <div className="mt-[0.5vw] pt-[0.5vw] pr-[0.4vw] border-t border-gray-300 flex justify-end">
-                      <button
-                        onClick={() => onUpdate(settings)}
-                        className="bg-[#4D39FF] text-white px-[1vw] py-[0.3vw] rounded-[0.5vw] text-[0.8vw] font-medium hover:bg-[#3F2CFF] transition-all active:scale-95"
-                      >
-                        Save
-                      </button>
+                      {(() => {
+                        const hasContent = (activeTocSettings.content?.length || 0) > 0;
+                        return (
+                          <button
+                            onClick={() => onUpdate(settings)}
+                            disabled={!hasContent}
+                            className={`px-[1vw] py-[0.3vw] rounded-[0.5vw] text-[0.8vw] font-medium transition-all ${
+                              hasContent 
+                                ? 'bg-[#4D39FF] text-white hover:bg-[#3F2CFF] active:scale-95 cursor-pointer' 
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                          >
+                            Save
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </motion.div>
@@ -757,11 +769,13 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
         {/* Interaction Tools Section */}
         <SectionHeader title="Interaction Tools" />
         <div className="space-y-[0.325vw]">
-          <MenuItem
-            label="Search Inside Book"
-            enabled={settings.interaction?.search}
-            onChange={(val) => updateSection('interaction', 'search', val)}
-          />
+          {!isPdfProject && (
+            <MenuItem
+              label="Search Inside Book"
+              enabled={settings.interaction?.search}
+              onChange={(val) => updateSection('interaction', 'search', val)}
+            />
+          )}
 
           <MenuItem
             label="Gallery"

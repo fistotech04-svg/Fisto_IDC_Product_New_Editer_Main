@@ -239,28 +239,34 @@ const MobileLayout7 = (props) => {
     );
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: getLayoutColor('page-bg', '#BDC3D9') }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ backgroundColor: getLayoutColor('page-bg', '#BDC3D9') }}>
             {renderPopups()}
 
-            {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
-            {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
+            {/* Background Overlay */}
+            <div className="absolute inset-0 z-0" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1), opacity: 0.15 }} />
 
-            {/* Header */}
-            <header className="z-50 px-4 pt-0 pb-4 flex flex-col gap-4 shadow-md shrink-0" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}>
-                <div className="flex items-center justify-between px-1">
-                    <span className="text-[15px] font-bold truncate flex-1" style={{ color: getLayoutColor('toolbar-text', '#FFFFFF') }}>{/* bookName hidden */}</span>
-                    {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
-                        <img
-                            src={logoSettings.src}
-                            alt="Logo"
-                            className="h-5 w-auto"
-                        />
-                    )}
+            {/* Notch Spacer */}
+            {!isPhysicalMobile && <div className="absolute top-0 left-0 right-0 h-10 z-[60] bg-[#0B0F4E] pointer-events-none" />}
+
+            {/* Header (Floating) */}
+            <header className={`absolute ${!isPhysicalMobile ? 'top-12' : 'top-4'} left-4 right-4 z-50 flex items-center justify-center pointer-events-none`}>
+                <div className="flex w-full items-center justify-between absolute left-0 right-0 top-0">
+                    <span className="text-[15px] font-bold truncate flex-1 pointer-events-auto shadow-sm" style={{ color: getLayoutColor('toolbar-text', '#333333') }}></span>
+                    <div className="flex items-center pointer-events-auto shadow-sm">
+                        {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
+                            <img
+                                src={logoSettings.src}
+                                alt="Logo"
+                                className="h-5 w-auto mix-blend-screen"
+                                style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
+                            />
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="w-full max-w-[80%] mt-8 pointer-events-auto">
                     {/* Search Bar */}
-                    <div className="flex-1 rounded-full px-4 py-2 flex items-center gap-3 shadow-sm relative border border-gray-100" style={{ backgroundColor: getLayoutColor('toolbar-search-bg', '#FFFFFF') }}>
+                    <div className="rounded-full px-4 py-2 flex items-center gap-3 shadow-lg relative border border-white/20 backdrop-blur-md" style={{ backgroundColor: getLayoutColorRgba('toolbar-search-bg', '255, 255, 255', 0.9) }}>
                         <Icon icon="lucide:search" className="w-5 h-5" style={{ color: getLayoutColor('toolbar-search-icon', '#9ca3af') }} />
                         <input
                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
@@ -301,7 +307,7 @@ const MobileLayout7 = (props) => {
                                     initial={{ opacity: 0, y: -5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -5 }}
-                                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 z-[100] overflow-hidden"
+                                    className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 z-[100] overflow-hidden"
                                 >
                                     <div className="flex flex-col py-1.5">
                                         {recommendations.map((rec, idx) => (
@@ -324,13 +330,11 @@ const MobileLayout7 = (props) => {
                             )}
                         </AnimatePresence>
                     </div>
-
-
                 </div>
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 relative flex flex-col overflow-hidden">
+            <main className="flex-1 relative flex flex-col overflow-hidden pointer-events-auto">
                 {/* Navigation Arrows */}
                 <button
                     className="absolute left-[2%] top-1/2 -translate-y-1/2 z-20 active:scale-90 transition-transform"
@@ -348,9 +352,9 @@ const MobileLayout7 = (props) => {
                 </button>
 
                 {/* Flipbook Area */}
-                <div className="flex-1 flex items-center justify-center relative overflow-hidden px-10 py-8">
+                <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-transparent pt-10 pb-20">
                     <div className="relative shadow-2xl">
-                        <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
+                        <div className="transition-transform duration-300" style={{ transformOrigin: 'center center' }}>
                             {children}
                         </div>
                     </div>
@@ -358,95 +362,94 @@ const MobileLayout7 = (props) => {
 
             </main>
 
-            {/* Footer */}
-            <footer
-                className="z-50 px-4 pt-6 pb-8 flex flex-col gap-6 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] shrink-0"
-                style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}
-            >
-                {/* Icon Row */}
-                <div className="flex items-center justify-between px-2">
-                    <button onClick={() => {
-                        const willShow = !localShowTOC;
-                        setLocalShowTOC(willShow);
-                        if (willShow) { setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
-                    }} className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon="fluent:text-bullet-list-24-filled" className="w-6 h-6" />
-                    </button>
-                    <button onClick={() => {
-                        const willShow = !showThumbnails;
-                        setShowThumbnails(willShow);
-                        if (willShow) { setLocalShowTOC(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
-                    }} className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon="ph:squares-four-fill" className="w-6 h-6" />
-                    </button>
-
-                    <button onClick={() => {
-                        if (props.setShowGalleryPopup) props.setShowGalleryPopup(true);
-                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false);
-                    }} className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon="clarity:image-gallery-solid" className="w-6 h-6" />
-                    </button>
-                    <button onClick={() => {
-                        setShowProfilePopup(true);
-                        setLocalShowTOC(false); setShowThumbnails(false); setShowSharePopup(false); setShowExportPopup(false);
-                    }} className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon="ph:user-fill" className="w-6 h-6" />
-                    </button>
-                    <button onClick={() => {
-                        setShowSharePopup(true);
-                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowExportPopup(false);
-                    }} className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon="mage:share-fill" className="w-6 h-6" />
-                    </button>
-                    <button onClick={() => {
-                        setShowExportPopup(true);
-                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false);
-                    }} className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon="meteor-icons:download" className="w-6 h-6" />
-                    </button>
-                </div>
-
-                {/* Progress Row */}
-                <div className="px-2">
-                    <div className="relative w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: getLayoutColor('progress-bar-bg', 'rgba(255,255,255,0.2)') }}>
-                        <div
-                            className="absolute left-0 top-0 h-full transition-all duration-300"
-                            style={{ width: `${((currentPage + 1) / pages?.length || 1) * 100}%`, backgroundColor: getLayoutColor('progress-bar-fill', '#FFFFFF') }}
-                        />
-                    </div>
-                </div>
-
-                {/* Control Row */}
-                <div className="flex items-center justify-between px-2">
-                    {(settings?.media?.backgroundAudio ?? true) && (
+            {/* Footer (Floating) */}
+            <footer className="absolute bottom-6 left-4 right-4 z-50 flex flex-col gap-3 pointer-events-none">
+                <div className="flex flex-col gap-3 shadow-2xl rounded-2xl p-4 backdrop-blur-xl border border-white/20 pointer-events-auto" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 0.95) }}>
+                    {/* Icon Row */}
+                    <div className="flex items-center justify-between px-1">
                         <button onClick={() => {
-                            const willShow = !showSoundPopup;
-                            setShowSoundPopup(willShow);
-                            if (willShow) { setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
-                        }} className="text-white/80 hover:text-white transition-colors">
-                            <Icon icon="solar:music-notes-bold" className="w-7 h-7" />
+                            const willShow = !localShowTOC;
+                            setLocalShowTOC(willShow);
+                            if (willShow) { setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                        }} className="text-white/80 hover:text-white transition-colors active:scale-90">
+                            <Icon icon="fluent:text-bullet-list-24-filled" className="w-6 h-6" />
                         </button>
-                    )}
+                        <button onClick={() => {
+                            const willShow = !showThumbnails;
+                            setShowThumbnails(willShow);
+                            if (willShow) { setLocalShowTOC(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                        }} className="text-white/80 hover:text-white transition-colors active:scale-90">
+                            <Icon icon="ph:squares-four-fill" className="w-6 h-6" />
+                        </button>
 
-                    <div className="flex items-center gap-8">
-                        <button onClick={() => onPageClick(0)} className="hover:scale-110 active:scale-95 transition-all" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="fluent:previous-24-filled" className="w-7 h-7" />
+                        <button onClick={() => {
+                            if (props.setShowGalleryPopup) props.setShowGalleryPopup(true);
+                            setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false);
+                        }} className="text-white/80 hover:text-white transition-colors active:scale-90">
+                            <Icon icon="clarity:image-gallery-solid" className="w-6 h-6" />
                         </button>
-                        <button 
-                            onClick={() => setIsPlaying(!isAutoFlipping)}
-                            className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all"
-                            style={{ backgroundColor: getLayoutColor('play-button-bg', '#FFFFFF'), color: getLayoutColor('play-button-icon', '#575C9C') }}
-                        >
-                            <Icon icon={isAutoFlipping ? "fluent:pause-24-filled" : "fluent:play-24-filled"} className="w-7 h-7" />
+                        <button onClick={() => {
+                            setShowProfilePopup(true);
+                            setLocalShowTOC(false); setShowThumbnails(false); setShowSharePopup(false); setShowExportPopup(false);
+                        }} className="text-white/80 hover:text-white transition-colors active:scale-90">
+                            <Icon icon="ph:user-fill" className="w-6 h-6" />
                         </button>
-                        <button onClick={() => onPageClick(pages.length - 1)} className="hover:scale-110 active:scale-95 transition-all" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="fluent:next-24-filled" className="w-7 h-7" />
+                        <button onClick={() => {
+                            setShowSharePopup(true);
+                            setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowExportPopup(false);
+                        }} className="text-white/80 hover:text-white transition-colors active:scale-90">
+                            <Icon icon="mage:share-fill" className="w-6 h-6" />
+                        </button>
+                        <button onClick={() => {
+                            setShowExportPopup(true);
+                            setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false);
+                        }} className="text-white/80 hover:text-white transition-colors active:scale-90">
+                            <Icon icon="meteor-icons:download" className="w-6 h-6" />
                         </button>
                     </div>
 
-                    <button className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon="lucide:scan" className="w-6 h-6" />
-                    </button>
+                    {/* Progress Row */}
+                    <div className="px-1 mt-1">
+                        <div className="relative w-full h-1.5 rounded-full overflow-hidden shadow-inner border border-white/10" style={{ backgroundColor: getLayoutColor('progress-bar-bg', 'rgba(255,255,255,0.2)') }}>
+                            <div
+                                className="absolute left-0 top-0 h-full transition-all duration-300 rounded-full"
+                                style={{ width: `${((currentPage + 1) / pages?.length || 1) * 100}%`, backgroundColor: getLayoutColor('progress-bar-fill', '#FFFFFF') }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Control Row */}
+                    <div className="flex items-center justify-between px-1 mt-1">
+                        {(settings?.media?.backgroundAudio ?? true) && (
+                            <button onClick={() => {
+                                const willShow = !showSoundPopup;
+                                setShowSoundPopup(willShow);
+                                if (willShow) { setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                            }} className="text-white/80 hover:text-white transition-colors active:scale-90">
+                                <Icon icon="solar:music-notes-bold" className="w-7 h-7" />
+                            </button>
+                        )}
+
+                        <div className="flex items-center gap-8">
+                            <button onClick={() => onPageClick(0)} className="hover:scale-110 active:scale-95 transition-all" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                <Icon icon="fluent:previous-24-filled" className="w-6 h-6" />
+                            </button>
+                            <button 
+                                onClick={() => setIsPlaying(!isAutoFlipping)}
+                                className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all"
+                                style={{ backgroundColor: getLayoutColor('play-button-bg', '#FFFFFF'), color: getLayoutColor('play-button-icon', '#575C9C') }}
+                            >
+                                <Icon icon={isAutoFlipping ? "fluent:pause-24-filled" : "fluent:play-24-filled"} className="w-6 h-6" />
+                            </button>
+                            <button onClick={() => onPageClick(pages.length - 1)} className="hover:scale-110 active:scale-95 transition-all" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                <Icon icon="fluent:next-24-filled" className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <button className="text-white/80 hover:text-white transition-colors active:scale-90">
+                            <Icon icon="lucide:scan" className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
             </footer>
 

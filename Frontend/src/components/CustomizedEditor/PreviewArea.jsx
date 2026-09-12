@@ -3302,6 +3302,12 @@ const PreviewArea = React.memo(({
     }, []);
     const [showTOC, setShowTOC] = useState(false);
 
+    useEffect(() => {
+        if (settings?.navigation?.tableOfContents === false) {
+            setShowTOC(false);
+        }
+    }, [settings?.navigation?.tableOfContents]);
+
     // Open TOC popup when triggered from MenuBar settings icon click
     useEffect(() => {
         if (externalShowTOC) {
@@ -4693,7 +4699,7 @@ const PreviewArea = React.memo(({
                 />
             )}
 
-            {showSharePopup && !isMobile && createPortal(
+            {showSharePopup && !isMobile && (
                 <ShareModal
                     isOpen={showSharePopup}
                     onClose={() => setShowSharePopup(false)}
@@ -4702,8 +4708,8 @@ const PreviewArea = React.memo(({
                     currentBook={currentBook}
                     activeLayout={activeLayout}
                     isMobileLayout={isMobile}
-                />,
-                document.fullscreenElement || document.getElementById('device-screen-container') || document.body
+                    isAbsolutePosition={true}
+                />
             )}
 
             {showExportPopup && createPortal(
@@ -6106,7 +6112,6 @@ const PreviewArea = React.memo(({
             )}
 
             {/* Centered Screen Lead Form Modal Overlay */}
-            {console.log("LEAD FORM DEBUG: rendering LeadFormPopup? showLeadForm=", showLeadForm)}
             {showLeadForm && (
                 <LeadFormPopup
                     leadFormSettings={leadFormSettings}

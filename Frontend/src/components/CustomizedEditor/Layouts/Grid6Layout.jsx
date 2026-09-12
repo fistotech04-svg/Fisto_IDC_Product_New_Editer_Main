@@ -576,7 +576,7 @@ const Grid6Layout = ({
                 <AnimatePresence>
                     {showTOC && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[1.5vh] w-[16vw]' : 'left-[4.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
+                            className={`absolute ${isTablet ? 'left-[4vw] top-[1.5vh] w-[16vw]' : 'left-[5.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
                             style={{
                                 backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                                 opacity: 1,
@@ -702,7 +702,7 @@ const Grid6Layout = ({
                 <AnimatePresence>
                     {showThumbnails && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[1.5vh] w-[17vw]' : 'left-[4.5vw] top-[2vh] w-[19vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
+                            className={`absolute ${isTablet ? 'left-[4vw] top-[1.5vh] w-[17vw]' : 'left-[5.5vw] top-[2vh] w-[19vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
                             style={{
                                 backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                                 opacity: 1,
