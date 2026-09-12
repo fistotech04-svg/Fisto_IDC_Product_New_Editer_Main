@@ -292,3 +292,102 @@ export const checkIsAnimatedWebp = async (fileOrBlob) => {
   }
   return false;
 };
+
+/**
+ * Internal helper to parse layers from SVG content recursively.
+ * Ensures the layer panel stays in sync with the SVG DOM structure.
+ */
+export const parseLayersFromSVG = (element) => {
+  if (!element || !element.children) return [];
+  return Array.from(element.children)
+    .filter(child => {
+      if (['defs', 'metadata', 'style', 'title', 'desc', 'parsererror'].includes(child.tagName.toLowerCase())) return false;
+      if (child.getAttribute('data-name') === 'Overlay') return false;
+      if (child.getAttribute('style')?.includes('display:none') || child.getAttribute('style')?.includes('display: none')) return false;
+      if (child.classList.contains('svg-drop-shadow-caster')) return false;
+      if (child.classList.contains('internal-crop-rect')) return false;
+      if (child.classList.contains('internal-crop-pattern')) return false;
+
+      const isEffectNode = Array.from(child.classList).some(cls =>
+        cls.includes('-stroke-overlay') ||
+        cls.includes('-inner-shadow') ||
+        cls.includes('-fill-layer') ||
+        cls === 'inner-shadow-overlay'
+      );
+      if (isEffectNode) return false;
+
+      return true;
+    })
+    .flatMap(child => {
+      // If this is an inner crop wrapper, unwrap it by returning its children directly
+      if (child.tagName.toLowerCase() === 'svg' && child.classList.contains('svg-crop-wrapper')) {
+        return parseLayersFromSVG(child);
+      }
+      // Ensure element has a unique ID for selection and state tracking
+      let id = child.getAttribute('id') || child.id;
+      if (!id) {
+        id = `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
+        child.setAttribute('id', id);
+        if ('id' in child) {
+          try { child.id = id; } catch (e) { }
+        }
+      }
+
+      const rawName = child.getAttribute('data-name') || id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
+      const cleanName = rawName.replace(/^tpl-[a-z0-9]{4}-/, '');
+
+      const layer = {
+        id,
+        name: cleanName,
+        type: child.tagName.toLowerCase(),
+        visible: child.getAttribute('data-hidden') !== 'true',
+        locked: child.getAttribute('data-locked') === 'true'
+      };
+
+      // VIRTUAL EFFECT LAYERS FOR IMAGE/VIDEO/GIF GROUP
+      const isGroup = child.getAttribute('data-is-image-group') === 'true' ||
+        child.getAttribute('data-is-video-group') === 'true' ||
+        child.getAttribute('data-is-gif-group') === 'true';
+
+      const isPdfVector = child.getAttribute('data-type') === 'pdf-vector-layer';
+
+      if (child.tagName.toLowerCase() === 'g' && child.children.length > 0 && !isGroup && !isPdfVector) {
+        const subLayers = parseLayersFromSVG(child);
+        if (subLayers.length > 0) layer.children = subLayers;
+      } else if (isGroup) {
+        // Strip IDs from all descendants of an Image Group so they can't be selected individually
+        const stripIds = (node) => {
+          Array.from(node.children).forEach(descendant => {
+            descendant.removeAttribute('id');
+            stripIds(descendant);
+          });
+        };
+        stripIds(child);
+      }
+
+      const isText = child.tagName.toLowerCase() === 'text' ||
+        (child.tagName.toLowerCase() === 'foreignobject' && child.getAttribute('data-type') !== 'video' && child.getAttribute('data-type') !== 'iframe');
+
+      if (isGroup || isText) {
+        let coreName = 'Image';
+        let coreType = 'image';
+        if (child.getAttribute('data-is-video-group') === 'true') {
+          coreName = 'Video';
+          coreType = 'video';
+        } else if (child.getAttribute('data-is-gif-group') === 'true') {
+          coreName = 'GIF';
+          coreType = 'image';
+        } else if (isText) {
+          coreName = 'Text';
+          coreType = 'text';
+        }
+        layer.name = coreName;
+        layer.type = coreType;
+        // Strip children to show as a single flat element in the layers panel
+        delete layer.children;
+      }
+
+      return [layer];
+    });
+};
+

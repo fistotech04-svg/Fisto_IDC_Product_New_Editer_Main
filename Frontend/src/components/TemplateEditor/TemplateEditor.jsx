@@ -9,7 +9,7 @@ import RightSidebar from './RightSidebar';
 import TooltipCustomization from './TooltipCustomization';
 import TemplateModal from './TemplateModal';
 import FlipbookPreview from './FlipbookPreview';
-import { convertPdfToImages, generatePdfPageSvg, svgToDataUrl } from '../../utils/pdfUtils';
+import { convertPdfToImages, convertPdfWithInkscape, generatePdfPageSvg, svgToDataUrl, isOfficeDocument, getOfficeDocType, getDocumentDetails } from '../../utils/pdfUtils';
 import AlertModal from '../AlertModal';
 import PdfProcessingLoader from '../PdfProcessingLoader';
 import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
@@ -17,6 +17,7 @@ import Model3DPreviewModal from './Interaction3DPreview';
 import { getSupabaseBaseUrl, resolveUploadsPath } from '../../utils/supabaseUtils';
 import PasswordProtectModal from '../PasswordProtectModal';
 import { checkIsAnimatedWebp } from './editorUtils';
+import pageCacheManager from './PageCacheManager';
 
 
 /**
@@ -27,7 +28,7 @@ const parseLayersFromSVG = (element) => {
   return Array.from(element.children)
     .filter(child => {
       if (['defs', 'metadata', 'style', 'title', 'desc', 'parsererror'].includes(child.tagName.toLowerCase())) return false;
-      if (child.getAttribute('data-name') === 'Overlay') return false;
+      if (child.getAttribute('data-name') === 'Overlay' || child.getAttribute('data-name') === 'Document Shield' || child.getAttribute('data-type') === 'shield') return false;
       if (child.getAttribute('style')?.includes('display:none') || child.getAttribute('style')?.includes('display: none')) return false;
       if (child.classList.contains('svg-drop-shadow-caster')) return false;
       if (child.classList.contains('internal-crop-rect')) return false;
@@ -274,6 +275,34 @@ const TemplateEditor = () => {
       return next;
     });
   }, []);
+
+  // Cleanup cache manager on unmount
+  useEffect(() => {
+    return () => {
+      pageCacheManager.destroy();
+    };
+  }, []);
+
+  // Ensure active page layers are loaded immediately if switched before background queue reached it
+  useEffect(() => {
+    if (pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return;
+    const curPage = pages[activePageIndex];
+    if (curPage && curPage.html && (!curPage.layers || curPage.layers.length === 0)) {
+      pageCacheManager.prioritizePage(activePageIndex);
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(curPage.html, 'image/svg+xml');
+      const svgEl = doc.querySelector('svg');
+      const layers = svgEl ? parseLayersFromSVG(svgEl) : [];
+      pageCacheManager.setCachedLayers(curPage.id, curPage.html, layers);
+
+      setPages(prev => {
+        if (!prev[activePageIndex] || (prev[activePageIndex].layers && prev[activePageIndex].layers.length > 0)) return prev;
+        const next = [...prev];
+        next[activePageIndex] = { ...next[activePageIndex], layers };
+        return next;
+      });
+    }
+  }, [activePageIndex, pages]);
 
   // Global Settings Sync
   useEffect(() => {
@@ -951,7 +980,8 @@ const TemplateEditor = () => {
       const modifiedPagesIndices = [];
       pagesToSave.forEach((p, index) => {
         const pid = p.v_id || p.id;
-        if (!lastSavedHtmlsRef.current[pid] || lastSavedHtmlsRef.current[pid] !== p.html) {
+        const isKnownSaved = pid && lastSavedHtmlsRef.current[pid] && lastSavedHtmlsRef.current[pid] === p.html;
+        if (!isKnownSaved) {
           modifiedPagesIndices.push(index);
         }
       });
@@ -976,6 +1006,7 @@ const TemplateEditor = () => {
           flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
           folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
           overwrite: true,
+          keepBase64: true,
           pages: payloadPages,
           meta: {
             width: activeDims.width,
@@ -995,7 +1026,9 @@ const TemplateEditor = () => {
 
         const payloadPages = await Promise.all(pagesToSave.map(async (p, index) => {
           const isModified = modifiedSet.has(index);
-          let content = isModified ? p.html : undefined;
+          const pid = p.v_id || p.id;
+          const isKnownSaved = pid && lastSavedHtmlsRef.current[pid] && lastSavedHtmlsRef.current[pid] === p.html;
+          let content = (isModified || !isKnownSaved) ? p.html : undefined;
           let contentChunkId = undefined;
 
           const folderNameArr = Array.isArray(currentBook?.folderName) ? currentBook.folderName : [currentBook?.folderName || location.state?.folderName || 'Recent Book'];
@@ -1046,6 +1079,7 @@ const TemplateEditor = () => {
           flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
           folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
           overwrite: true,
+          keepBase64: true,
           pages: payloadPages,
           meta: {
             width: activeDims.width,
@@ -1891,6 +1925,10 @@ const TemplateEditor = () => {
       const page = updated[pageIndex];
       if (!page) return prev;
 
+      // Update layer cache and debounced thumbnail in PageCacheManager
+      pageCacheManager.setCachedLayers(page.id, html, newLayers);
+      pageCacheManager.updateThumbnailDebounced(page.id, html, 300);
+
       updated[pageIndex] = {
         ...page,
         html,
@@ -1981,10 +2019,38 @@ const TemplateEditor = () => {
     saveToHistory();
     setPages(prev => {
       const pageToDuplicate = prev[index];
+      if (!pageToDuplicate) return prev;
+
+      const newPageId = 'page_' + Math.random().toString(36).substr(2, 9);
+      const baseName = pageToDuplicate.name ? pageToDuplicate.name.replace(/\s*\(Copy(?:\s+\d+)?\)$/i, '') : 'Page';
+      let copyName = `${baseName} (Copy)`;
+      let copyCounter = 1;
+      const existingNames = new Set(prev.map(p => p.name?.toLowerCase()));
+      while (existingNames.has(copyName.toLowerCase())) {
+        copyCounter++;
+        copyName = `${baseName} (Copy ${copyCounter})`;
+      }
+
+      // Synchronize name in the SVG's root frame data-name
+      let newHtml = pageToDuplicate.html;
+      if (newHtml) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(newHtml, 'image/svg+xml');
+        const rootGroup = doc.querySelector('g[data-type="frame"]');
+        if (rootGroup) {
+          rootGroup.setAttribute('data-name', copyName);
+          rootGroup.setAttribute('id', `g-frame-${Math.random().toString(36).substr(2, 7)}`);
+          newHtml = new XMLSerializer().serializeToString(doc);
+        }
+      }
+
       const newPage = {
         ...pageToDuplicate,
-        id: 'page_' + Math.random().toString(36).substr(2, 9),
-        name: `${pageToDuplicate.name} (Copy)`
+        id: newPageId,
+        v_id: newPageId,
+        name: copyName,
+        html: newHtml,
+        layers: pageToDuplicate.layers ? JSON.parse(JSON.stringify(pageToDuplicate.layers)) : []
       };
       const updated = [...prev];
       updated.splice(index + 1, 0, newPage);
@@ -2106,23 +2172,33 @@ const TemplateEditor = () => {
 
   const handleAddFileClick = (index) => {
     pdfInsertIndexRef.current = index;
-    if (pdfInputRef.current) pdfInputRef.current.click();
+    if (pdfInputRef.current) {
+      pdfInputRef.current.value = '';
+      pdfInputRef.current.click();
+    }
   };
 
   const handleReplaceFileClick = (index) => {
     replacePageIndexRef.current = index;
-    if (replacePdfInputRef.current) replacePdfInputRef.current.click();
+    if (replacePdfInputRef.current) {
+      replacePdfInputRef.current.value = '';
+      replacePdfInputRef.current.click();
+    }
   };
 
   const handleReplaceFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    const isDoc = file.type === 'application/pdf' ||
+                  file.name.toLowerCase().endsWith('.pdf') ||
+                  isOfficeDocument(file.name);
+
+    if (!isDoc) {
       setAlertState({
         isOpen: true,
         title: 'Invalid File',
-        message: 'Please select a PDF file.',
+        message: 'Please select a valid PDF, Word, or PowerPoint file (.pdf, .doc, .docx, .ppt, .pptx).',
         type: 'error'
       });
       return;
@@ -2137,37 +2213,115 @@ const TemplateEditor = () => {
 
     if (!emailId || !v_id) return;
 
-    setPdfProcessing({ current: 0, total: 1, message: 'Processing replacement...', fileName: file.name });
+    const docType = getOfficeDocType(file.name);
+    const docLabel = docType === 'powerpoint' ? 'PowerPoint presentation' : (docType === 'word' ? 'Word document' : 'PDF');
+
+    // 1. FAST PRE-CHECK: Check dimensions BEFORE starting conversion
+    setPdfProcessing({ current: 0, total: 1, message: 'Checking document dimensions...', fileName: file.name });
+
+    // Determine target page dimensions
+    const replaceIndex = replacePageIndexRef.current !== null ? replacePageIndexRef.current : activePageIndex;
+    const targetPage = pages[replaceIndex];
+    let baseWidth = null;
+    let baseHeight = null;
+
+    if (targetPage && targetPage.html) {
+      const match = targetPage.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+      if (match && parseFloat(match[3]) > 0 && parseFloat(match[4]) > 0) {
+        baseWidth = parseFloat(match[3]);
+        baseHeight = parseFloat(match[4]);
+      }
+    }
+
+    if (!baseWidth || !baseHeight) {
+      const flipDims = getFlipbookDimensions();
+      baseWidth = flipDims.width;
+      baseHeight = flipDims.height;
+    }
+
+    let details = null;
+    try {
+      details = await getDocumentDetails(file, backendUrl);
+    } catch (inspectErr) {
+      console.error("Document dimension pre-check failed:", inspectErr);
+    }
+
+    if (!details || !details.width || !details.height) {
+      setPdfProcessing(null);
+      setAlertState({
+        isOpen: true,
+        title: 'Unable to Verify Dimensions',
+        message: `Could not verify the dimensions of "${file.name}". Please ensure the file is a valid, readable document.`,
+        type: 'error'
+      });
+      return;
+    }
+
+    // Check internal uniformity of incoming document
+    if (!details.isUniform) {
+      setPdfProcessing(null);
+      setAlertState({
+        isOpen: true,
+        title: `Non-Uniform ${docType === 'powerpoint' ? 'Presentation' : (docType === 'word' ? 'Document' : 'PDF')}`,
+        message: `The selected ${docLabel} contains ${docType === 'powerpoint' ? 'slides' : 'pages'} with different sizes. For a consistent flipbook, all ${docType === 'powerpoint' ? 'slides' : 'pages'} must have identical dimensions.`,
+        type: 'error'
+      });
+      return;
+    }
+
+    // Enforce dimension match before starting conversion (2mm tolerance for rounding)
+    const widthMatch = Math.abs(details.width - baseWidth) <= 2;
+    const heightMatch = Math.abs(details.height - baseHeight) <= 2;
+
+    if (!widthMatch || !heightMatch) {
+      setPdfProcessing(null);
+      setAlertState({
+        isOpen: true,
+        title: 'Dimension Mismatch',
+        message: `This file (${details.width.toFixed(0)} × ${details.height.toFixed(0)} mm) does not match the page size (${baseWidth.toFixed(0)} × ${baseHeight.toFixed(0)} mm). Please upload a file with matching dimensions.`,
+        type: 'error'
+      });
+      return;
+    }
+
+    // 2. START CONVERSION (Dimensions confirmed matching 100%)
+    setPdfProcessing({
+      current: 0,
+      total: 1,
+      totalFiles: 1,
+      pageCount: 1,
+      message: `Processing replacement ${docLabel}...`,
+      fileName: file.name,
+      stage: 'converting'
+    });
 
     try {
-      const images = await convertPdfToImages(file, 2.5, 1);
+      const images = await convertPdfWithInkscape(file, 1);
       if (!images || images.length === 0) return;
 
       const image = images[0];
       const firstW = image.width;
       const firstH = image.height;
 
-      let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
+      const imgWidthMatch = Math.abs(firstW - baseWidth) <= 2;
+      const imgHeightMatch = Math.abs(firstH - baseHeight) <= 2;
 
-      const widthMatch = Math.abs(firstW - baseWidth) < 0.5;
-      const heightMatch = Math.abs(firstH - baseHeight) < 0.5;
-
-      if (!widthMatch || !heightMatch) {
+      if (!imgWidthMatch || !imgHeightMatch) {
         setAlertState({
           isOpen: true,
           title: 'Dimension Mismatch',
-          message: `This file (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) does not match the existing flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm). Please upload a file with matching dimensions.`,
+          message: `This file (${firstW.toFixed(0)} × ${firstH.toFixed(0)} mm) does not match the existing flipbook size (${baseWidth.toFixed(0)} × ${baseHeight.toFixed(0)} mm). Please upload a file with matching dimensions.`,
           type: 'error'
         });
         return;
       }
 
-      const base64Data = image.dataUrl || (image.svgString ? svgToDataUrl(image.svgString) : await new Promise((resolve, reject) => {
+      const base64Data = image.dataUrl || (image.content ? svgToDataUrl(image.content) : "") || (image.svgString ? svgToDataUrl(image.svgString) : "") || await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
         reader.onerror = reject;
         reader.readAsDataURL(image.blob);
-      }));
+      });
 
       saveToHistory();
       let newPages = [];
@@ -2176,11 +2330,11 @@ const TemplateEditor = () => {
         const updated = [...prev];
         const pageIndex = replacePageIndexRef.current;
         const page = updated[pageIndex];
+        if (!page) return prev;
         const updatedPage = { ...page };
 
         const pageName = updatedPage.name || `Page ${pageIndex + 1}`;
-        const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
-        const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, isPdfProject);
+        const absoluteHtml = image.content || generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, true);
         const parser = new DOMParser();
         const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
         updatedPage.html = absoluteHtml;
@@ -2193,17 +2347,18 @@ const TemplateEditor = () => {
 
       setHasUnsavedChanges(true);
 
-      // Removed auto-save after file replacement as requested
-      // setTimeout(() => {
-      //   saveFlipbook(false, newPages);
-      // }, 800);
-
     } catch (error) {
       console.error("Error replacing file:", error);
+      const rawMsg = error.response?.data?.message || error.message || "";
+      const isCorrupt = error.response?.data?.isCorrupted ||
+                        /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error/i.test(rawMsg);
+      const userMessage = isCorrupt
+        ? (rawMsg.includes("is corrupted") || rawMsg.includes("corrupted, unreadable") ? rawMsg : `Your ${docLabel} "${file.name}" is corrupted, unreadable, or password-protected. Please check the file and try again.`)
+        : (rawMsg || `Failed to replace page with ${docLabel}. Please try again.`);
       setAlertState({
         isOpen: true,
-        title: 'Error',
-        message: 'Failed to replace file. Please try again.',
+        title: isCorrupt ? 'File Corrupted' : 'Error',
+        message: userMessage,
         type: 'error'
       });
     } finally {
@@ -2216,9 +2371,18 @@ const TemplateEditor = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Check if it's a PDF
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      alert("Please select a PDF file.");
+    // Check if it's a PDF, Word, or PowerPoint file
+    const isDoc = file.type === 'application/pdf' ||
+                  file.name.toLowerCase().endsWith('.pdf') ||
+                  isOfficeDocument(file.name);
+
+    if (!isDoc) {
+      setAlertState({
+        isOpen: true,
+        title: 'Invalid File',
+        message: 'Please select a valid PDF, Word, or PowerPoint file (.pdf, .doc, .docx, .ppt, .pptx).',
+        type: 'error'
+      });
       return;
     }
 
@@ -2235,73 +2399,119 @@ const TemplateEditor = () => {
       return;
     }
 
-    const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
-    const isDefaultBlank = !isPdfProject && (pages.length === 0 ||
-      (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
+    const docType = getOfficeDocType(file.name);
+    const docLabel = docType === 'powerpoint' ? 'PowerPoint presentation' : (docType === 'word' ? 'Word document' : 'PDF');
+    const unitName = docType === 'powerpoint' ? 'slide' : 'page';
 
-    // PDF 12-page limitation (commented out for now - can re-enable later):
-    /*
-    const maxAllowed = 12;
-    const currentCount = isDefaultBlank ? 0 : pages.length;
-    const remainingSlots = maxAllowed - currentCount;
+    // 1. FAST PRE-CHECK: Inspect document dimensions & uniformity before conversion starts
+    setPdfProcessing({ current: 0, total: 1, message: 'Checking document dimensions...', fileName: file.name });
 
-    if (remainingSlots <= 0) {
+    let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
+
+    let details = null;
+    try {
+      details = await getDocumentDetails(file, backendUrl);
+    } catch (inspectErr) {
+      console.error("Document dimension pre-check failed:", inspectErr);
+    }
+
+    if (!details || !details.width || !details.height) {
+      setPdfProcessing(null);
       setAlertState({
         isOpen: true,
-        title: 'Limit Reached',
-        message: `The flipbook already has ${pages.length} pages. The maximum allowed is ${maxAllowed}.`,
-        type: 'warning'
+        title: 'Unable to Verify Dimensions',
+        message: `Could not verify the dimensions of "${file.name}". Please ensure the file is a valid, readable document.`,
+        type: 'error'
       });
-      setPdfProcessing(null);
       return;
     }
-    */
-    const remainingSlots = Infinity;
 
-    setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...', fileName: file.name });
+    // Check internal uniformity of incoming document
+    if (!details.isUniform) {
+      setPdfProcessing(null);
+      setAlertState({
+        isOpen: true,
+        title: `Non-Uniform ${docType === 'powerpoint' ? 'Presentation' : (docType === 'word' ? 'Document' : 'PDF')}`,
+        message: `The selected ${docLabel} contains ${docType === 'powerpoint' ? 'slides' : 'pages'} with different sizes. For a consistent flipbook, all ${docType === 'powerpoint' ? 'slides' : 'pages'} must have identical dimensions.`,
+        type: 'error'
+      });
+      return;
+    }
+
+    // Enforce Project Dimensions before starting conversion
+    // When adding to an existing flipbook (or explicit page position), enforce dimension match!
+    const isAddingToExisting = pdfInsertIndexRef.current !== null || pages.length > 1 || (pages.length === 1 && pages[0].html && !pages[0].html.includes('data-name="Page 1"'));
+    const isDefaultBlank = !isAddingToExisting && pages.length <= 1;
+
+    if (!isDefaultBlank) {
+      const widthMatch = Math.abs(details.width - baseWidth) <= 2;
+      const heightMatch = Math.abs(details.height - baseHeight) <= 2;
+
+      if (!widthMatch || !heightMatch) {
+        setPdfProcessing(null);
+        setAlertState({
+          isOpen: true,
+          title: 'Dimension Mismatch',
+          message: `This ${docLabel} (${details.width.toFixed(0)} × ${details.height.toFixed(0)} mm) does not match the existing flipbook size (${baseWidth.toFixed(0)} × ${baseHeight.toFixed(0)} mm). Please upload a file with matching dimensions.`,
+          type: 'error'
+        });
+        return;
+      }
+    } else {
+      baseWidth = details.width;
+      baseHeight = details.height;
+    }
+
+    // 2. START CONVERSION (Dimensions confirmed matching 100%)
+    const detectedTotal = details.count > 0 ? details.count : 1;
+    setPdfProcessing({
+      current: 0,
+      total: detectedTotal,
+      totalFiles: 1,
+      pageCount: detectedTotal,
+      message: `Processing ${docLabel}...`,
+      fileName: file.name,
+      stage: 'converting'
+    });
 
     try {
-      const images = await convertPdfToImages(file, 2.5, remainingSlots);
+      const remainingSlots = Infinity;
+      const images = await convertPdfWithInkscape(file, remainingSlots);
       if (!images || images.length === 0) return;
 
-      // 1. Check internal uniformity of the incoming PDF
+      // Double-check internal uniformity of the rendered images
       const firstW = images[0].width;
       const firstH = images[0].height;
       const isInternalUniform = images.every(img =>
-        Math.abs(img.width - firstW) < 0.5 &&
-        Math.abs(img.height - firstH) < 0.5
+        Math.abs(img.width - firstW) <= 2 &&
+        Math.abs(img.height - firstH) <= 2
       );
 
       if (!isInternalUniform) {
         setAlertState({
           isOpen: true,
-          title: 'Non-Uniform PDF',
-          message: 'The selected PDF contains pages with different sizes. For a consistent flipbook, all pages in the PDF must have identical dimensions.',
+          title: `Non-Uniform ${docType === 'powerpoint' ? 'Presentation' : (docType === 'word' ? 'Document' : 'PDF')}`,
+          message: `The selected ${docLabel} contains ${docType === 'powerpoint' ? 'slides' : 'pages'} with different sizes. For a consistent flipbook, all ${docType === 'powerpoint' ? 'slides' : 'pages'} must have identical dimensions.`,
           type: 'error'
         });
         return;
       }
 
-      // 2. Enforce Project Dimensions
-      let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
-
-      // If the flipbook already has PDF content or multiple pages, we lock the size
+      // Enforce Project Dimensions
       if (!isDefaultBlank) {
-        // Check if the new PDF matches the established project size (with 0.5mm tolerance)
-        const widthMatch = Math.abs(firstW - baseWidth) < 0.5;
-        const heightMatch = Math.abs(firstH - baseHeight) < 0.5;
+        const widthMatch = Math.abs(firstW - baseWidth) <= 2;
+        const heightMatch = Math.abs(firstH - baseHeight) <= 2;
 
         if (!widthMatch || !heightMatch) {
           setAlertState({
             isOpen: true,
             title: 'Dimension Mismatch',
-            message: `This PDF (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) does not match the existing flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm). Please upload a PDF with matching dimensions.`,
+            message: `This ${docLabel} (${firstW.toFixed(0)} × ${firstH.toFixed(0)} mm) does not match the existing flipbook size (${baseWidth.toFixed(0)} × ${baseHeight.toFixed(0)} mm). Please upload a file with matching dimensions.`,
             type: 'error'
           });
           return;
         }
       } else {
-        // Adoption phase: If we're starting from a blank project, adopt the PDF's dimensions
         baseWidth = firstW;
         baseHeight = firstH;
       }
@@ -2309,20 +2519,20 @@ const TemplateEditor = () => {
       let completed = 0;
       const uploadPromises = images.map(async (image, i) => {
         const newPageVId = 'page_' + Math.random().toString(36).substr(2, 9);
-        const base64Data = image.dataUrl || (image.svgString ? svgToDataUrl(image.svgString) : await new Promise((resolve, reject) => {
+        const base64Data = image.dataUrl || (image.content ? svgToDataUrl(image.content) : "") || (image.svgString ? svgToDataUrl(image.svgString) : "") || await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result);
           reader.onerror = reject;
           reader.readAsDataURL(image.blob);
-        }));
+        });
 
         completed++;
-        setPdfProcessing({ current: completed, total: images.length, message: `Processing page ${completed} of ${images.length}...` });
+        setPdfProcessing({ current: completed, total: images.length, message: `Processing ${unitName} ${completed} of ${images.length}...`, fileName: file.name });
 
         const existingNames = pages.map(p => p.name || "");
         const pdfNums = existingNames
-          .filter(n => n.startsWith("PDF Page ") || n.startsWith("Page "))
-          .map(n => parseInt(n.replace(/^(PDF )?Page /, "")))
+          .filter(n => n.startsWith("PDF Page ") || n.startsWith("Page ") || n.startsWith("Slide "))
+          .map(n => parseInt(n.replace(/^(PDF |Slide )?Page /, "").replace(/^Slide /, "")))
           .filter(n => !isNaN(n));
         const startNum = pdfNums.length > 0 ? Math.max(...pdfNums) + 1 : 1;
 
@@ -2332,7 +2542,7 @@ const TemplateEditor = () => {
         const shouldBePdfBg = isDefaultBlankCurrent || isPdfProjectCurrent;
 
         const pageName = shouldBePdfBg ? `PDF Page ${startNum + i}` : `Page ${startNum + i}`;
-        const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, shouldBePdfBg);
+        const absoluteHtml = image.content || generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, true);
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
@@ -2355,7 +2565,7 @@ const TemplateEditor = () => {
         const updated = [...prev];
         const insertIdx = pdfInsertIndexRef.current !== null ? pdfInsertIndexRef.current + 1 : updated.length;
 
-        // If starting from a blank page, replace it with the PDF content
+        // If starting from a blank page, replace it with the document content
         if (isDefaultBlank && updated.length === 1) {
           finalPages = newPages;
           return newPages;
@@ -2367,16 +2577,23 @@ const TemplateEditor = () => {
       });
       setHasUnsavedChanges(true);
 
-      // Removed auto-save after PDF insertion as requested
-      // setTimeout(() => {
-      //   saveFlipbook(false, finalPages);
-      // }, 800);
-
     } catch (error) {
-      console.error("PDF upload error:", error);
-      alert("Failed to process PDF. Please try again.");
+      console.error("Document upload error:", error);
+      const rawMsg = error.response?.data?.message || error.message || "";
+      const isCorrupt = error.response?.data?.isCorrupted ||
+                        /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error/i.test(rawMsg);
+      const userMessage = isCorrupt
+        ? (rawMsg.includes("is corrupted") || rawMsg.includes("corrupted, unreadable") ? rawMsg : `Your ${docLabel} "${file.name}" is corrupted, unreadable, or password-protected. Please check the file and try again.`)
+        : (rawMsg || `Failed to process ${docLabel}. Please ensure the file is valid and try again.`);
+      setAlertState({
+        isOpen: true,
+        title: isCorrupt ? 'File Corrupted' : 'Upload Error',
+        message: userMessage,
+        type: 'error'
+      });
     } finally {
       setPdfProcessing(null);
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
     }
   };
 
@@ -4197,18 +4414,20 @@ const TemplateEditor = () => {
               orientation: targetOrientation
             }));
 
-            const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
+            const processPageItem = (p, i, parseLayers = true) => {
               const name = p.name || `Page ${i + 1}`;
               let pageHtml = p.html;
-
 
               if (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') {
                 const { html, layers } = createDefaultPageData(name, targetWidth, targetHeight);
                 return {
                   id: p.v_id || i + 1,
+                  v_id: p.v_id,
                   name: name,
+                  isHidden: p.hide == 1 || String(p.hide) === '1',
                   html: html,
-                  layers: layers
+                  layers: layers,
+                  isLazy: false
                 };
               }
 
@@ -4224,6 +4443,22 @@ const TemplateEditor = () => {
                 temp.querySelectorAll('parsererror').forEach(el => el.remove());
                 temp.querySelectorAll('[id^="custom-ctrl-"]').forEach(el => el.remove());
                 updatedHtml = temp.innerHTML;
+              }
+
+
+              // Check if layer cache already has it
+              const cachedLayers = pageCacheManager.getCachedLayers(p.v_id || i + 1, updatedHtml);
+              if (cachedLayers && cachedLayers.length > 0) {
+                pageCacheManager.getThumbnail(p.v_id || i + 1, updatedHtml);
+                return {
+                  id: p.v_id || i + 1,
+                  v_id: p.v_id,
+                  name: name,
+                  isHidden: p.hide == 1 || String(p.hide) === '1',
+                  html: updatedHtml,
+                  layers: cachedLayers,
+                  isLazy: false
+                };
               }
 
               // Re-parse layers from HTML if missing or invalid (source of truth)
@@ -4290,17 +4525,26 @@ const TemplateEditor = () => {
                 }
               }
 
+              // Store in layer cache and generate thumbnail
+              pageCacheManager.setCachedLayers(p.v_id || i + 1, updatedHtml, layers);
+              pageCacheManager.getThumbnail(p.v_id || i + 1, updatedHtml);
+
               return {
                 id: p.v_id || i + 1,
                 v_id: p.v_id,
                 name: name,
                 isHidden: p.hide == 1 || String(p.hide) === '1',
                 html: updatedHtml,
-                layers: layers
+                layers: layers,
+                isLazy: false
               };
-            }));
+            };
+
+            // Process all pages with full layer trees immediately so layer data is always available
+            const mappedPages = res.data.pages.map((p, idx) => processPageItem(p, idx, true));
 
             setPages(mappedPages);
+            setIsLoading(false);
 
             // ── Auto-select root page folder immediately on load ──
             const firstRootId = mappedPages[0]?.layers?.[0]?.id;
@@ -4447,7 +4691,7 @@ const TemplateEditor = () => {
     }
   }, [isPasswordProtected, v_id, currentBook?.share?.shareId]);
 
-  const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+  const isPdfProject = pages.some(p => p.html && (p.html.includes('data-name="PDF Background"') || p.html.includes('data-type="pdf-vector-layer"') || p.html.includes('Document Shield')));
 
   const selectedElementInteraction = (() => {
     if (!selectedLayerId || pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return null;
@@ -4698,21 +4942,21 @@ const TemplateEditor = () => {
         />
       )}
 
-      {/* Hidden File Input for PDF Upload */}
+      {/* Hidden File Input for PDF / Office Document Upload */}
       <input
         type="file"
         ref={pdfInputRef}
         style={{ display: 'none' }}
-        accept=".pdf,application/pdf"
+        accept=".pdf,.ppt,.pptx,.doc,.docx"
         onChange={handlePdfFileSelect}
       />
 
-      {/* Hidden File Input for PDF Replace */}
+      {/* Hidden File Input for PDF / Office Document Replace */}
       <input
         type="file"
         ref={replacePdfInputRef}
         style={{ display: 'none' }}
-        accept=".pdf,application/pdf"
+        accept=".pdf,.ppt,.pptx,.doc,.docx"
         onChange={handleReplaceFileSelect}
       />
 

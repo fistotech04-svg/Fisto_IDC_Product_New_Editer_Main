@@ -22,44 +22,28 @@ export const SUPPORTED_3D_EXTENSIONS = [
   ".igs"
 ];
 
+let cachedAssimpPath = null;
+
 /**
- * Get the path to the Assimp executable from environment or default locations
+ * Get the path to the Assimp executable using only ASSIMP_PATH configured in .env
  */
 export const getAssimpPath = () => {
   const envPath = process.env.ASSIMP_PATH;
 
-  // If ASSIMP_PATH is explicitly provided and exists
-  if (envPath && fs.existsSync(envPath)) {
+  if (!envPath) {
+    throw new Error("ASSIMP_PATH is not configured in .env");
+  }
+
+  if (cachedAssimpPath && fs.existsSync(cachedAssimpPath)) {
+    return cachedAssimpPath;
+  }
+
+  if (fs.existsSync(envPath)) {
+    cachedAssimpPath = envPath;
     return envPath;
   }
 
-  // Linux / Docker
-  if (process.platform === "linux") {
-    const linuxLocations = [
-      "/usr/bin/assimp",
-      "/usr/local/bin/assimp",
-      "assimp"
-    ];
-
-    for (const loc of linuxLocations) {
-      if (loc === "assimp" || fs.existsSync(loc)) {
-        return loc;
-      }
-    }
-  }
-
-  // Windows local development
-  const windowsLocations = [
-    "C:\\Program Files\\Assimp\\bin\\x64\\assimp.exe",
-  ];
-
-  for (const loc of windowsLocations) {
-    if (fs.existsSync(loc)) {
-      return loc;
-    }
-  }
-
-  throw new Error("Assimp executable not found.");
+  throw new Error(`Assimp executable not found at ASSIMP_PATH: "${envPath}". Please check .env`);
 };
 
 /**

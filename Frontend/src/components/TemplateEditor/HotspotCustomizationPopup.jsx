@@ -111,7 +111,7 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
   let backgroundHTML = bgInfo.defsString + fgInfo.defsString;
 
   // Add invisible rect to stabilize SVG bounds and prevent jittering during resize
-  backgroundHTML += `<rect x="0" y="0" width="48" height="48" fill="transparent" pointer-events="none" />`;
+  backgroundHTML += `<rect x="0" y="0" width="48" height="48" fill="none" pointer-events="none" />`;
   
   if (preset === 'preset1') {
     // No extra rings, just the rich icon itself
