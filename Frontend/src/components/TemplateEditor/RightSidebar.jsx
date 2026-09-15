@@ -49,11 +49,18 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
           let rawVal = 0;
           let m = [1, 0, 0, 1, 0, 0];
           const transform = el.getAttribute('transform');
-          if (transform && transform.includes('matrix')) {
-            const match = transform.match(/matrix\(([^)]+)\)/);
-            if (match) {
-              const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-              if (parsedM.length === 6) m = parsedM;
+          if (transform) {
+            try {
+              const domM = new DOMMatrix(transform);
+              m = [domM.a, domM.b, domM.c, domM.d, domM.e, domM.f];
+            } catch (_) {
+              if (transform.includes('matrix')) {
+                const match = transform.match(/matrix\(([^)]+)\)/);
+                if (match) {
+                  const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+                  if (parsedM.length === 6) m = parsedM;
+                }
+              }
             }
           }
 
@@ -203,7 +210,12 @@ const RightSidebar = ({
   const effectiveFolder = folderNameProp || folderProp || paramFolder || location.state?.folderName || 'My_Flipbooks';
   const effectiveBook = flipbookNameProp || location.state?.flipbookName || 'Untitled Flipbook';
 
-  const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+  const isPdfProject = pages.some(p => p.html && (
+    p.html.includes('data-name="PDF Background"') ||
+    p.html.includes('PDF Background') ||
+    p.html.includes('pdf-vector-layer') ||
+    p.html.includes('Document Shield')
+  ));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
 
   const [isNodeEditActive, setIsNodeEditActive] = useState(false);

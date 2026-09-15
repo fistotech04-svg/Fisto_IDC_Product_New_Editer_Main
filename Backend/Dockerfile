@@ -7,6 +7,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     assimp-utils \
     inkscape \
+    libreoffice-writer \
+    libreoffice-impress \
     fonts-dejavu-core \
     fonts-liberation && \
     rm -rf /var/lib/apt/lists/*
@@ -15,10 +17,12 @@ RUN apt-get update && \
 ENV PORT=5000
 ENV ASSIMP_PATH=/usr/bin/assimp
 ENV INKSCAPE_PATH=/usr/bin/inkscape
+ENV LIBREOFFICE_PATH=/usr/bin/soffice
 
 # Verify installations during Docker build
 RUN which assimp && assimp version && \
-    which inkscape && inkscape --version
+    which inkscape && inkscape --version && \
+    which soffice && soffice --version
 
 COPY package*.json ./
 

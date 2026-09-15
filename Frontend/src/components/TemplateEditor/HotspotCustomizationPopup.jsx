@@ -111,7 +111,7 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
   let backgroundHTML = bgInfo.defsString + fgInfo.defsString;
 
   // Add invisible rect to stabilize SVG bounds and prevent jittering during resize
-  backgroundHTML += `<rect x="0" y="0" width="48" height="48" fill="transparent" pointer-events="none" />`;
+  backgroundHTML += `<rect x="0" y="0" width="48" height="48" fill="none" pointer-events="none" />`;
   
   if (preset === 'preset1') {
     // No extra rings, just the rich icon itself
@@ -210,12 +210,21 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
       }
     }
 
+    const [minX, minY, vbW, vbH] = (inlinedSvgInfo.viewBox || '0 0 52 52').trim().split(/[\s,]+/).map(parseFloat);
+    const targetW = inlinedSvgInfo.isRawIcon ? 20 : 40;
+    const targetH = inlinedSvgInfo.isRawIcon ? 20 : 40;
+    const targetX = inlinedSvgInfo.isRawIcon ? 14 : 4;
+    const targetY = inlinedSvgInfo.isRawIcon ? 14 : 4;
+    const s = Math.min(targetW / (vbW || 1), targetH / (vbH || 1));
+    const tx = targetX - (minX || 0) * s;
+    const ty = targetY - (minY || 0) * s;
+
     return `
       ${backgroundHTML}
       ${extraBg}
-      <svg ${innerSvgAttrs} viewBox="${inlinedSvgInfo.viewBox}" overflow="visible" ${fillAttr} ${strokeAttr}>
+      <g transform="translate(${tx.toFixed(4)}, ${ty.toFixed(4)}) scale(${s.toFixed(6)})" ${fillAttr} ${strokeAttr}>
         ${innerHTML}
-      </svg>
+      </g>
     `;
   } else {
     return `

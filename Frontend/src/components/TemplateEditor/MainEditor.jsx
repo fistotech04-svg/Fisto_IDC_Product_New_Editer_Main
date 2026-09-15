@@ -257,6 +257,17 @@ export const getVisualBBox = (el) => {
     }
   }
 
+  const tag = el.tagName?.toLowerCase();
+  if (tag === 'image' || tag === 'rect') {
+    const w = parseFloat(el.getAttribute('width') || '0');
+    const h = parseFloat(el.getAttribute('height') || '0');
+    if (w > 0 && h > 0) {
+      const x = parseFloat(el.getAttribute('x') || '0');
+      const y = parseFloat(el.getAttribute('y') || '0');
+      return { x, y, width: w, height: h };
+    }
+  }
+
   return el.getBBox();
 };
 
@@ -315,8 +326,6 @@ const svgGlobalStyles = `
     display: block !important;
     margin: 0 !important;
     padding: 0 !important;
-    image-rendering: -webkit-optimize-contrast !important;
-    image-rendering: crisp-edges !important;
     shape-rendering: geometricPrecision !important;
     text-rendering: geometricPrecision !important;
   }
@@ -324,6 +333,51 @@ const svgGlobalStyles = `
   .page-svg-container.trim-view-on,
   .page-svg-container.trim-view-on svg {
     overflow: hidden !important;
+  }
+
+  /* ============================================
+     CONVERTED FLIPBOOK (PDF, DOC, PPT) PROTECTION
+     ============================================ */
+  .page-svg-container.is-pdf-project svg [data-name="PDF Background"],
+  .page-svg-container.is-pdf-project svg [data-name="PDF Background"] *,
+  .page-svg-container.is-pdf-project svg [data-type="pdf-vector-layer"],
+  .page-svg-container.is-pdf-project svg [data-type="pdf-vector-layer"] *,
+  .page-svg-container.is-pdf-project svg [data-name="Overlay"],
+  .page-svg-container.is-pdf-project svg > g[data-type="frame"],
+  .is-pdf-project svg [data-name="PDF Background"],
+  .is-pdf-project svg [data-name="PDF Background"] *,
+  .is-pdf-project svg [data-type="pdf-vector-layer"],
+  .is-pdf-project svg [data-type="pdf-vector-layer"] *,
+  .is-pdf-project svg [data-name="Overlay"],
+  .is-pdf-project svg > g[data-type="frame"] {
+    pointer-events: none !important;
+  }
+
+  .page-svg-container.is-pdf-project svg [data-name="Free Frame"],
+  .page-svg-container.is-pdf-project svg [data-name="Free Frame"] *,
+  .page-svg-container.is-pdf-project svg [data-is-hotspot="true"],
+  .page-svg-container.is-pdf-project svg [data-is-hotspot="true"] *,
+  .page-svg-container.is-pdf-project svg [data-type="hotspot"],
+  .page-svg-container.is-pdf-project svg [data-type="hotspot"] *,
+  .page-svg-container.is-pdf-project svg [data-type="shape"],
+  .page-svg-container.is-pdf-project svg [data-type="shape"] *,
+  .page-svg-container.is-pdf-project svg [data-type="icon"],
+  .page-svg-container.is-pdf-project svg [data-type="icon"] *,
+  .page-svg-container.is-pdf-project svg [data-name="Document Shield"],
+  .page-svg-container.is-pdf-project svg [data-type="shield"],
+  .is-pdf-project svg [data-name="Free Frame"],
+  .is-pdf-project svg [data-name="Free Frame"] *,
+  .is-pdf-project svg [data-is-hotspot="true"],
+  .is-pdf-project svg [data-is-hotspot="true"] *,
+  .is-pdf-project svg [data-type="hotspot"],
+  .is-pdf-project svg [data-type="hotspot"] *,
+  .is-pdf-project svg [data-type="shape"],
+  .is-pdf-project svg [data-type="shape"] *,
+  .is-pdf-project svg [data-type="icon"],
+  .is-pdf-project svg [data-type="icon"] *,
+  .is-pdf-project svg [data-name="Document Shield"],
+  .is-pdf-project svg [data-type="shield"] {
+    pointer-events: auto !important;
   }
 
   .page-svg-container.trim-view-off,
@@ -365,7 +419,6 @@ const svgGlobalStyles = `
 
   .page-svg-container svg * {
     cursor: default;
-    vector-effect: non-scaling-stroke !important;
   }
 
   .page-svg-container svg text,
@@ -680,13 +733,25 @@ const MainEditor = ({
   const [pageInputVal, setPageInputVal] = useState('');
   const [isEditingPage, setIsEditingPage] = useState(false);
 
+  const isConvertedFlipbook = Boolean(isPdfProject || (pages && pages.some(p => p.html && (p.html.includes('PDF Background') || p.html.includes('pdf-vector-layer') || p.html.includes('Document Shield')))));
+
   const pdfDefaultsSetRef = useRef(false);
   useEffect(() => {
-    if (isPdfProject && !pdfDefaultsSetRef.current) {
-      if (setActiveTopTool) setActiveTopTool('interaction');
-      pdfDefaultsSetRef.current = true;
+    if (isConvertedFlipbook) {
+      if (!pdfDefaultsSetRef.current) {
+        if (setActiveTopTool) setActiveTopTool('interaction');
+        pdfDefaultsSetRef.current = true;
+      }
+      if (marqueeOverlayRef1.current) marqueeOverlayRef1.current.style.display = 'none';
+      if (marqueeOverlayRef2.current) marqueeOverlayRef2.current.style.display = 'none';
+      if (multiSelectedIds && multiSelectedIds.size > 0 && setMultiSelectedIds) {
+        setMultiSelectedIds(new Set());
+      }
+      document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
+      const boundsPoly = document.getElementById('overlay-poly-selected-multi-selection-bounds');
+      if (boundsPoly) boundsPoly.remove();
     }
-  }, [isPdfProject, setActiveTopTool]);
+  }, [isConvertedFlipbook, setActiveTopTool]);
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const isCtrlPressedRef = useRef(false);
@@ -713,6 +778,8 @@ const MainEditor = ({
   const isPanningRef = useRef(false);
   const lastPanPointRef = useRef({ x: 0, y: 0 });
   const currentPanRef = useRef({ x: 0, y: 0 });
+  const currentZoomRef = useRef(90);
+  const wheelRafRef = useRef(null);
   const zoomContainerRef = useRef(null);
   const selectedPenToolRef = useRef(selectedPenTool);
   const vectraPenSessionRef = useRef(new VectraPenSession());
@@ -940,6 +1007,40 @@ const MainEditor = ({
         clean = temp.innerHTML;
       } catch (e) {
         console.error('Error cleaning template HTML:', e);
+      }
+    }
+
+    // Ensure invisible Document Shield exists above PDF Background in converted document pages
+    if ((isConvertedFlipbook || clean.includes('PDF Background') || clean.includes('pdf-vector-layer')) && !clean.includes('data-name="Document Shield"')) {
+      const bgStartMatch = clean.match(/<g\b[^>]*data-(?:name="PDF Background"|type="pdf-vector-layer")[^>]*>/i);
+      if (bgStartMatch) {
+        const startIndex = bgStartMatch.index;
+        let depth = 0;
+        let i = startIndex;
+        let closeIndex = -1;
+        while (i < clean.length) {
+          if (clean.startsWith('<g', i) && (clean[i + 2] === ' ' || clean[i + 2] === '>')) {
+            depth++;
+            i += 2;
+          } else if (clean.startsWith('</g>', i) || clean.startsWith('</svg:g>', i)) {
+            depth--;
+            const tagLen = clean.startsWith('</svg:g>', i) ? 8 : 4;
+            if (depth === 0) {
+              closeIndex = i + tagLen;
+              break;
+            }
+            i += tagLen;
+          } else {
+            i++;
+          }
+        }
+        if (closeIndex !== -1) {
+          const vbMatch = clean.match(/viewBox=["']\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*["']/i);
+          const wVal = vbMatch ? vbMatch[3] : '100%';
+          const hVal = vbMatch ? vbMatch[4] : '100%';
+          const shieldStr = `\n    <rect id="shield-page-${index}" data-name="Document Shield" data-type="shield" x="0" y="0" width="${wVal}" height="${hVal}" fill="none" opacity="0" pointer-events="all" style="pointer-events: all;" />`;
+          clean = clean.slice(0, closeIndex) + shieldStr + clean.slice(closeIndex);
+        }
       }
     }
 
@@ -4454,8 +4555,19 @@ const MainEditor = ({
         const isHotspot = el.getAttribute('data-is-hotspot') === 'true';
         const isInteractiveButton = isHotspot && el.querySelector('rect') !== null && el.querySelector('text') !== null;
         if (isHotspot && !isInteractiveButton) {
-          // Force a static bounding box for animated hotspots so the selection wrapper doesn't glitch or grow
-          localBBox = { x: 0, y: 0, width: 48, height: 48 };
+          const imgChild = el.querySelector('image, svg, rect');
+          if (imgChild) {
+            const w = parseFloat(imgChild.getAttribute('width') || imgChild.viewBox?.baseVal?.width) || 0;
+            const h = parseFloat(imgChild.getAttribute('height') || imgChild.viewBox?.baseVal?.height) || 0;
+            const x = parseFloat(imgChild.getAttribute('x') || '0');
+            const y = parseFloat(imgChild.getAttribute('y') || '0');
+            if (w > 0 && h > 0) {
+              localBBox = { x, y, width: w, height: h };
+            }
+          }
+          if (!localBBox || localBBox.width <= 0 || localBBox.height <= 0) {
+            localBBox = { x: 0, y: 0, width: 48, height: 48 };
+          }
         }
         const elScreenCtm = el.getScreenCTM();
 
@@ -4861,7 +4973,9 @@ const MainEditor = ({
       if (selectionCount === 1 && (type === 'selected' || type === 'child-selected') && !isBeingEdited) {
         const htmlOverlay = getHtmlOverlayForElement(el);
         const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
-        const hideHandles = (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isFreeFrame;
+        const isHotspotEl = el.getAttribute('data-is-hotspot') === 'true';
+        const isInteractiveResizableEl = isFreeFrame || isHotspotEl;
+        const hideHandles = (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isInteractiveResizableEl;
 
         if (hideHandles) {
           if (htmlOverlay) {
@@ -4871,7 +4985,7 @@ const MainEditor = ({
         }
 
         if (!hideHandles) {
-          const useLBrackets = !isLine && (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation' || isFreeFrame);
+          const useLBrackets = !isLine && (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation' || isInteractiveResizableEl);
           const handleSize = useLBrackets ? 14 : 7.5;
 
           let handleNames, allPts;
@@ -4880,7 +4994,7 @@ const MainEditor = ({
             handleNames = ['linestart', 'lineend'];
             allPts = [...mapped];
           } else {
-            handleNames = (useLBrackets && !isFreeFrame) ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+            handleNames = (useLBrackets && !isInteractiveResizableEl) ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
 
             // Define all points in world space
             const worldPts = [...mapped]; // Corners
@@ -4889,7 +5003,7 @@ const MainEditor = ({
             const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
             const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
 
-            allPts = (useLBrackets && !isFreeFrame) ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
+            allPts = (useLBrackets && !isInteractiveResizableEl) ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
           }
 
           // Detect current rotation for cursor mapping
@@ -4909,13 +5023,13 @@ const MainEditor = ({
             }
 
             handle.className = `resize-handle overlay-type-${type} absolute`;
-            const barThickness = isFreeFrame ? 3.5 : 3;
+            const barThickness = isInteractiveResizableEl ? 3.5 : 3;
 
             if (useLBrackets && !isSide) {
               handle.style.backgroundColor = 'transparent';
               handle.style.border = 'none';
               handle.style.boxShadow = 'none';
-              if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && el.getAttribute('data-name') !== 'Free Frame') {
+              if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isInteractiveResizableEl) {
                 handle.style.pointerEvents = 'none';
               } else {
                 handle.style.pointerEvents = 'auto';
@@ -5128,7 +5242,7 @@ const MainEditor = ({
     e.preventDefault();
     e.stopPropagation();
 
-    if (activeTopTool === 'interaction' || activeTopTool === 'animation') {
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation' || isConvertedFlipbook) {
       return;
     }
 
@@ -6151,34 +6265,34 @@ const MainEditor = ({
     }
   }, [multiSelectedIds]);
 
-  const bounds1000 = getCanvasBounds(null, baseWidth, baseHeight);
-  const workspaceWidthMM = bounds1000.canvasWidthMM || 1600;
+  const getMinZoomFor1000mm = useCallback(() => 10, []);
 
-  const getMinZoomFor1000mm = useCallback(() => {
-    if (!editorContainerRef.current) return 15;
-    const container = editorContainerRef.current;
-    const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
-    if (containerWidth <= 0 || containerHeight <= 0) return 15;
+  const handleZoomIn = () => {
+    const currentP = currentPanRef.current || pan || { x: 0, y: 0 };
+    setZoom(prev => {
+      const current = currentZoomRef.current || prev || 100;
+      const nextZoom = Math.min(Math.round(current * 1.15), 500);
+      currentZoomRef.current = nextZoom;
+      if (zoomContainerRef.current) {
+        zoomContainerRef.current.style.transition = 'transform 0.15s ease-out';
+        zoomContainerRef.current.style.transform = `translate(${currentP.x}px, ${currentP.y}px) scale(${nextZoom / 100})`;
+      }
+      return nextZoom;
+    });
+  };
 
-    const baseVhHeight = window.innerHeight * 0.78;
-    const pH = baseHeight || 297;
-    const bounds = getCanvasBounds(null, baseWidth, baseHeight);
-    const canvasWidthMM = bounds.canvasWidthMM || 1600;
-
-    const canvas1000PxHeight = baseVhHeight * (1000 / pH);
-    const canvasPxWidth = baseVhHeight * (canvasWidthMM / pH);
-
-    const scaleX = containerWidth / canvasPxWidth;
-    const scaleY = containerHeight / canvas1000PxHeight;
-
-    const fit1000Zoom = Math.min(scaleX, scaleY) * 100;
-    return Math.max(5, Math.round(fit1000Zoom));
-  }, [baseWidth, baseHeight]);
-
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 500));
   const handleZoomOut = () => {
-    const minZ = getMinZoomFor1000mm();
-    setZoom(prev => Math.max(prev - 10, minZ));
+    const currentP = currentPanRef.current || pan || { x: 0, y: 0 };
+    setZoom(prev => {
+      const current = currentZoomRef.current || prev || 100;
+      const nextZoom = Math.max(Math.round(current / 1.15), 10);
+      currentZoomRef.current = nextZoom;
+      if (zoomContainerRef.current) {
+        zoomContainerRef.current.style.transition = 'transform 0.15s ease-out';
+        zoomContainerRef.current.style.transform = `translate(${currentP.x}px, ${currentP.y}px) scale(${nextZoom / 100})`;
+      }
+      return nextZoom;
+    });
   };
 
   const handleAutoFitZoom = useCallback(() => {
@@ -6249,40 +6363,14 @@ const MainEditor = ({
     };
   }, [activePageIndex, pages.length, baseWidth, baseHeight, handleAutoFitZoom]);
 
-  // ── Bound Panning ──────────────────────────────────────────────────────────
+  // ── Sync Pan & Zoom Tracking Refs ──────────────────────────────────────────
   useEffect(() => {
     currentPanRef.current = pan;
   }, [pan]);
 
   useEffect(() => {
-    if (!editorContainerRef.current) return;
-    const containerWidth = editorContainerRef.current.clientWidth;
-    const containerHeight = editorContainerRef.current.clientHeight;
-
-    const baseVhHeight = window.innerHeight * 0.78;
-    const totalWidth = baseWidth || 210;
-    const baseCanvasHeight = baseVhHeight;
-    const baseCanvasWidth = baseCanvasHeight * (totalWidth / baseHeight);
-    const currentScale = zoom / 100;
-    const scaledWidth = baseCanvasWidth * currentScale;
-    const scaledHeight = baseCanvasHeight * currentScale;
-
-    const bounds = getCanvasBounds(null, baseWidth, baseHeight);
-    const canvasWidthMM = bounds.canvasWidthMM || 1600;
-
-    const scaledCanvasW = (baseVhHeight * (canvasWidthMM / baseHeight)) * currentScale;
-    const scaledCanvasH = (baseVhHeight * (1000 / baseHeight)) * currentScale;
-
-    const maxPanX = Math.max(0, (scaledCanvasW - containerWidth) / 2);
-    const maxPanY = Math.max(0, (scaledCanvasH - containerHeight) / 2);
-
-    setPan(prev => {
-      const boundedX = Math.min(Math.max(prev.x, -maxPanX), maxPanX);
-      const boundedY = Math.min(Math.max(prev.y, -maxPanY), maxPanY);
-      if (boundedX === prev.x && boundedY === prev.y) return prev;
-      return { x: boundedX, y: boundedY };
-    });
-  }, [zoom, activePageIndex, pages.length, baseWidth, baseHeight]);
+    currentZoomRef.current = zoom;
+  }, [zoom]);
 
   // ── Maintain Fit on Window/Sidebar Resize ────────────────────────────────
   useEffect(() => {
@@ -7071,7 +7159,16 @@ const MainEditor = ({
         current.id &&
         current.getAttribute('data-hidden') !== 'true' &&
         current.getAttribute('data-locked') !== 'true' &&
-        current.getAttribute('data-name') !== 'Overlay'
+        current.getAttribute('data-name') !== 'Overlay' &&
+        current.getAttribute('data-name') !== 'Document Shield' &&
+        current.getAttribute('data-type') !== 'shield' &&
+        (!isConvertedFlipbook || (
+          current.getAttribute('data-is-hotspot') === 'true' ||
+          current.getAttribute('data-type') === 'hotspot' ||
+          current.getAttribute('data-name') === 'Free Frame' ||
+          current.getAttribute('data-type') === 'shape' ||
+          current.getAttribute('data-type') === 'icon'
+        ))
       ) {
         // Prevent targeting inner image of an image group directly
         if (tagName === 'image' && current.parentNode?.getAttribute('data-is-image-group') === 'true') {
@@ -7226,16 +7323,43 @@ const MainEditor = ({
               }
             }
 
-            // If background (SVG or Overlay), stop drag completely
-            if (target === svgElement || target.getAttribute('data-name') === 'Overlay') {
+            // If background (SVG, Overlay, or Document Shield), stop drag completely
+            if (
+              target === svgElement ||
+              target.getAttribute('data-name') === 'Overlay' ||
+              target.getAttribute('data-name') === 'Document Shield' ||
+              target.getAttribute('data-type') === 'shield'
+            ) {
               safeStopInteraction(event.interaction);
               return;
             }
 
             let elementToDrag = null;
 
-            // In Direct mode, the elementToDrag is the deep target
-            if (selectedSelectToolRef.current === 'direct') {
+            if (isConvertedFlipbook) {
+              // Converted flipbooks: ONLY allow dragging Free Frames, Hotspots, shapes, or icons
+              let candidate = target;
+              let validTarget = null;
+              while (candidate && candidate !== svgElement) {
+                if (candidate.getAttribute) {
+                  const isHotspot = candidate.getAttribute('data-is-hotspot') === 'true' || candidate.getAttribute('data-type') === 'hotspot';
+                  const isFreeFrame = candidate.getAttribute('data-name') === 'Free Frame';
+                  const isShape = candidate.getAttribute('data-type') === 'shape';
+                  const isIcon = candidate.getAttribute('data-type') === 'icon';
+                  if (isHotspot || isFreeFrame || isShape || isIcon) {
+                    validTarget = candidate;
+                    break;
+                  }
+                }
+                candidate = candidate.parentElement || candidate.parentNode;
+              }
+
+              if (!validTarget || !validTarget.id) {
+                safeStopInteraction(event.interaction);
+                return;
+              }
+              elementToDrag = validTarget;
+            } else if (selectedSelectToolRef.current === 'direct') {
               const directTarget = getDraggableElement(event.target, svgElement);
               if (directTarget) elementToDrag = directTarget;
             } else {
@@ -7404,18 +7528,18 @@ const MainEditor = ({
 
             // ── RE-SYNC: If React re-rendered and the original nodes were detached, ──
             // find the new live nodes in the DOM by their IDs to keep the drag alive.
+            const liveSvg = document.querySelector(`.page-svg-container[data-page-index="${dragState.pageIndex}"] [id^="canvas-content-"] > svg`);
             if (dragState.svgElement && !dragState.svgElement.isConnected) {
-              const liveSvg = document.querySelector(`.page-svg-container[data-page-index="${dragState.pageIndex}"] [id^="canvas-content-"] > svg`);
               if (liveSvg) dragState.svgElement = liveSvg;
             }
             if (dragState.element && !dragState.element.isConnected) {
-              const liveEl = document.getElementById(dragState.element.id);
+              const liveEl = liveSvg?.querySelector(`[id="${CSS.escape(dragState.element.id)}"]`) || document.getElementById(dragState.element.id);
               if (liveEl) dragState.element = liveEl;
             }
             if (dragState.multiDragItems) {
               for (const item of dragState.multiDragItems) {
                 if (!item.element.isConnected) {
-                  const liveEl = document.getElementById(item.element.id);
+                  const liveEl = liveSvg?.querySelector(`[id="${CSS.escape(item.element.id)}"]`) || document.getElementById(item.element.id);
                   if (liveEl) item.element = liveEl;
                 }
               }
@@ -7721,7 +7845,30 @@ const MainEditor = ({
 
             const elId = match[1];
             const dir = match[2];
-            let el = document.getElementById(elId);
+
+            // Resolve target element scoped to active page container and canvas SVG
+            const pageContainer = handle.closest('.page-svg-container');
+            const canvasContent = pageContainer?.querySelector('[id^="canvas-content-"]');
+            const canvasSvg = canvasContent?.querySelector('svg') || pageContainer?.querySelector('svg:not([id^="highlight-overlay-"])');
+
+            let el = null;
+            if (canvasSvg) {
+              try {
+                el = canvasSvg.querySelector(`[id="${CSS.escape(elId)}"]`);
+              } catch (_) {
+                el = canvasSvg.querySelector(`[id="${elId}"]`);
+              }
+            }
+            if (!el && pageContainer) {
+              try {
+                el = pageContainer.querySelector(`[id="${CSS.escape(elId)}"]`);
+              } catch (_) {
+                el = pageContainer.querySelector(`[id="${elId}"]`);
+              }
+            }
+            if (!el) {
+              el = document.getElementById(elId);
+            }
 
             // If grabbing the multi-selection bounding box handles, force into multi path.
             // (The dummy <rect id="multi-selection-bounds"> lives in the overlay SVG, so
@@ -7735,17 +7882,33 @@ const MainEditor = ({
             let bbox = null;
             let matrix = new DOMMatrix();
 
+            const resolveChild = (id) => {
+              if (canvasSvg) {
+                try {
+                  const c = canvasSvg.querySelector(`[id="${CSS.escape(id)}"]`);
+                  if (c) return c;
+                } catch (_) {}
+              }
+              if (pageContainer) {
+                try {
+                  const c = pageContainer.querySelector(`[id="${CSS.escape(id)}"]`);
+                  if (c) return c;
+                } catch (_) {}
+              }
+              return document.getElementById(id);
+            };
+
             if (!el) {
               if ((elId === 'multi' || elId === 'multi-selection-bounds') && multiSelectedIdsRef.current.size > 1) {
                 isMulti = true;
                 multiIds = Array.from(multiSelectedIdsRef.current);
 
-                const childrenList = multiIds.map(id => document.getElementById(id)).filter(Boolean);
+                const childrenList = multiIds.map(resolveChild).filter(Boolean);
                 if (childrenList.length === 0) return;
 
-                const canvasSvg = childrenList[0].ownerSVGElement;
-                if (!canvasSvg) return;
-                const svgRootCTM = canvasSvg.getScreenCTM();
+                const activeCanvasSvg = childrenList[0].ownerSVGElement || canvasSvg;
+                if (!activeCanvasSvg) return;
+                const svgRootCTM = activeCanvasSvg.getScreenCTM();
                 if (!svgRootCTM) return;
                 const svgRootInv = svgRootCTM.inverse();
 
@@ -7777,9 +7940,9 @@ const MainEditor = ({
                   id: 'multi-selection-bounds',
                   tagName: 'multi',
                   getAttribute: () => null,
-                  getScreenCTM: () => canvasSvg.getScreenCTM(),
-                  parentNode: canvasSvg,
-                  ownerSVGElement: canvasSvg,
+                  getScreenCTM: () => activeCanvasSvg.getScreenCTM(),
+                  parentNode: activeCanvasSvg,
+                  ownerSVGElement: activeCanvasSvg,
                   _svgRootInv: svgRootInv,
                   _childLocalToSvgRoot: childLocalToSvgRoot
                 };
@@ -7787,12 +7950,27 @@ const MainEditor = ({
                 return;
               }
             } else {
-              matrix = getElementMatrix(el);
+              const parentCtm = el.parentNode ? el.parentNode.getScreenCTM() : null;
+              const ctm = el.getScreenCTM();
+              if (parentCtm && ctm) {
+                matrix = parentCtm.inverse().multiply(ctm);
+              } else {
+                matrix = getElementMatrix(el);
+              }
               bbox = getVisualBBox(el);
             }
 
-            const svg = el.ownerSVGElement;
-            const startPoint = getSvgPoint(svg, event.clientX, event.clientY);
+            const svg = el.ownerSVGElement || canvasSvg;
+            const parentCtmForStart = el.parentNode ? el.parentNode.getScreenCTM() : svg?.getScreenCTM();
+            let startPoint = null;
+            if (parentCtmForStart && svg) {
+              const pt = svg.createSVGPoint();
+              pt.x = event.clientX;
+              pt.y = event.clientY;
+              startPoint = pt.matrixTransform(parentCtmForStart.inverse());
+            } else {
+              startPoint = getSvgPoint(svg, event.clientX, event.clientY);
+            }
 
             // ── CONVERT <text> TO <foreignObject> ON RESIZE START ──
             if (!isMulti && el.tagName.toLowerCase() === 'text') {
@@ -7847,16 +8025,16 @@ const MainEditor = ({
               el.getAttribute('data-type') === 'gif'
             ));
             if (isGroupOrImageEl) {
-              const childrenList = isMulti ? multiIds.map(id => document.getElementById(id)).filter(Boolean) : (el.tagName.toLowerCase() === 'g' && el.children.length > 0 ? Array.from(el.children) : [el]);
+              const childrenList = isMulti ? multiIds.map(resolveChild).filter(Boolean) : (el.tagName.toLowerCase() === 'g' && el.children.length > 0 ? Array.from(el.children) : [el]);
               const childLocalToSvgRoot = el._childLocalToSvgRoot;
               childrenData = childrenList.map(child => {
                 let cb = getVisualBBox(child);
-                if (child.tagName?.toLowerCase() === 'svg' && el.getAttribute('data-is-hotspot') === 'true') {
+                if ((child.tagName?.toLowerCase() === 'svg' || child.tagName?.toLowerCase() === 'image' || child.tagName?.toLowerCase() === 'rect') && el.getAttribute('data-is-hotspot') === 'true') {
                   cb = {
                     x: parseFloat(child.getAttribute('x') || '0'),
                     y: parseFloat(child.getAttribute('y') || '0'),
-                    width: parseFloat(child.getAttribute('width') || child.viewBox?.baseVal?.width || '0'),
-                    height: parseFloat(child.getAttribute('height') || child.viewBox?.baseVal?.height || '0')
+                    width: parseFloat(child.getAttribute('width') || child.viewBox?.baseVal?.width || '48'),
+                    height: parseFloat(child.getAttribute('height') || child.viewBox?.baseVal?.height || '48')
                   };
                 }
                 const cMatrix = getElementMatrix(child);
@@ -8070,6 +8248,7 @@ const MainEditor = ({
             const isScaledImage = isImage && !isElementInCropMode;
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
             const isForeignObject = el.tagName?.toLowerCase() === 'foreignobject';
+            const isHotspotIconGroup = el.getAttribute('data-is-hotspot') === 'true' && (el.tagName?.toLowerCase() === 'g' || el.tagName?.toLowerCase() === 'svg');
             const isGroup = (el.tagName?.toLowerCase() === 'g' || el.tagName === 'multi') && el.getAttribute('data-is-hotspot') !== 'true';
             const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || isForeignObject;
             const isShape = (['path', 'polygon', 'circle', 'ellipse', 'rect', 'polyline', 'line'].includes(el.tagName?.toLowerCase()) || isGroup) && !isFreeFrame && !isForeignObject;
@@ -8166,7 +8345,7 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isScaledImage || isShape || isHotspotPreset || isFreeFrame || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || isHotspotPreset || isInteractiveUniform))) {
+            } else if ((isCorner && (isScaledImage || isShape || isHotspotPreset || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || isHotspotPreset || isInteractiveUniform))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
               if (!isCorner && ((isText && !isForeignObject) || isHotspotPreset || isInteractiveUniform)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
@@ -8179,7 +8358,7 @@ const MainEditor = ({
             }
 
 
-            if (isFreeFrame || isGroup) {
+            if (isFreeFrame || isGroup || isHotspotIconGroup) {
               const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;
               const newLocalY = state.localAnchor.y + (bbox.y - state.localAnchor.y) * scaleY;
               const newLocalRight = state.localAnchor.x + ((bbox.x + bbox.width) - state.localAnchor.x) * scaleX;
@@ -8190,7 +8369,7 @@ const MainEditor = ({
               const finalWidth = Math.max(0, Math.abs(newLocalRight - newLocalX));
               const finalHeight = Math.max(0, Math.abs(newLocalBottom - newLocalY));
 
-              if (isFreeFrame) {
+              if (isFreeFrame && !isHotspotIconGroup) {
                 let adjustedHeight = finalHeight;
                 let adjustedWidth = finalWidth;
                 let adjustedX = finalX;
@@ -8312,7 +8491,7 @@ const MainEditor = ({
                     }
                   }
                 }
-              } else if (isGroup && state.childrenData) {
+              } else if ((isGroup || isHotspotIconGroup) && state.childrenData) {
                 const isMultiSel = el.tagName === 'multi';
 
                 if (isMultiSel) {
@@ -8451,6 +8630,36 @@ const MainEditor = ({
                   const la = state.localAnchor; // anchor in <g> local space
                   const isHotspot = el.getAttribute('data-is-hotspot') === 'true';
                   const isInteractiveButton = isHotspot && state.childrenData.some(c => c.child.tagName.toLowerCase() === 'rect') && state.childrenData.some(c => c.child.tagName.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
+
+                  // ── HOTSPOT ICON GROUP: update outer transform, NOT children ───────
+                  // Hotspot preset icon groups have transform="translate(tx,ty) scale(s)"
+                  // with 48×48 inner content. Resizing must update this outer transform so
+                  // the group's position and size in the page change correctly.
+                  // Modifying children would only scale inside the 48×48 local space while
+                  // the group's outer translate+scale stays the same → no visible resize effect.
+                  if (isHotspot && !isInteractiveButton) {
+                    try {
+                      // finalX/Y/W/H are in the group's LOCAL coordinate space (0–48 range).
+                      // Convert them to parent-local space using matrix (local→parent mapping).
+                      const ptOrigin = new DOMPoint(finalX, finalY).matrixTransform(matrix);
+                      const ptCorner = new DOMPoint(finalX + finalWidth, finalY + finalHeight).matrixTransform(matrix);
+                      const newTx = Math.min(ptOrigin.x, ptCorner.x);
+                      const newTy = Math.min(ptOrigin.y, ptCorner.y);
+                      const newW  = Math.abs(ptCorner.x - ptOrigin.x);
+                      const newH  = Math.abs(ptCorner.y - ptOrigin.y);
+                      // Derive scale from inner content size (48×48 canonical size)
+                      const innerSize = (state.bbox && state.bbox.width > 0) ? state.bbox.width : 48;
+                      const newSx = newW / innerSize;
+                      const newSy = newH / innerSize;
+                      el.setAttribute('transform', `translate(${newTx}, ${newTy}) scale(${newSx}, ${newSy})`);
+                    } catch (e) { /* fallback: do nothing if matrix ops fail */ }
+                    // Update overlay handles to follow the new position during drag
+                    if (typeof drawOverlayHighlight === 'function') {
+                      const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
+                      drawOverlayHighlight(el, highlightType);
+                    }
+                    return; // skip children modification
+                  }
 
                   state.childrenData.forEach(cData => {
                     const { child, initialMatrix, bound } = cData;
@@ -9028,7 +9237,10 @@ const MainEditor = ({
                 const container = state.svg?.closest?.('.page-svg-container') ||
                   (state.el?.closest ? state.el.closest('.page-svg-container') : null);
                 const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
-                saveModifiedPageHtml(pageIdx, state.svg);
+                const targetSvg = state.svg || container?.querySelector('svg:not([id^="highlight-overlay-"])');
+                if (targetSvg) {
+                  saveModifiedPageHtml(pageIdx, targetSvg);
+                }
               }
             }
             delete event.interaction.resizeState;
@@ -9803,7 +10015,8 @@ const MainEditor = ({
 
     // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
     // (Also start if Shift is held so Shift+Drag can draw marquee over elements without Ctrl)
-    const shouldStartMarquee = ((e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
+    // Converted flipbooks: NEVER start marquee drag-selection over static vector document pages
+    const shouldStartMarquee = !isConvertedFlipbook && (((e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current));
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -9817,7 +10030,16 @@ const MainEditor = ({
       let marqueeCandidates = candidates.filter(el => {
         const isOverlay = el.getAttribute('data-name') === 'Overlay';
         const isBasePage = topFrames.some(f => f.id === el.id);
-        return !isOverlay && !isBasePage;
+        const isPdfBg = el.getAttribute('data-name')?.includes('PDF Background') || el.getAttribute('data-type') === 'pdf-vector-layer';
+        const isShield = el.getAttribute('data-name') === 'Document Shield' || el.getAttribute('data-type') === 'shield';
+        if (isConvertedFlipbook) {
+          const isHotspot = el.getAttribute('data-is-hotspot') === 'true' || el.getAttribute('data-type') === 'hotspot';
+          const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
+          const isShape = el.getAttribute('data-type') === 'shape';
+          const isIcon = el.getAttribute('data-type') === 'icon';
+          return isHotspot || isFreeFrame || isShape || isIcon;
+        }
+        return !isOverlay && !isBasePage && !isPdfBg && !isShield;
       });
 
       marqueeCandidatesRef.current = marqueeCandidates.map(el => ({
@@ -9830,7 +10052,7 @@ const MainEditor = ({
       const activeRef = marqueeOverlayRef1; // Single page is always container 1
       if (activeRef.current) {
         Object.assign(activeRef.current.style, {
-          display: 'block',
+          display: 'none',  // Keep hidden until hasDragged is confirmed in mousemove
           left: `${startX}px`,
           top: `${startY}px`,
           width: '0px',
@@ -10148,7 +10370,7 @@ const MainEditor = ({
     const container = e.currentTarget;
 
     // ── MARQUEE UPDATE ──
-    if (marqueeRef.current) {
+    if (marqueeRef.current && !isConvertedFlipbook) {
       const { startX, startY, containerRect, scale } = marqueeDataRef.current;
       const curX = (e.clientX - containerRect.left) / scale;
       const curY = (e.clientY - containerRect.top) / scale;
@@ -10160,6 +10382,11 @@ const MainEditor = ({
           return;
         }
         marqueeDataRef.current.hasDragged = true;
+        // Only make the overlay visible once we've confirmed a real drag gesture
+        const revealRef = marqueeOverlayRef1;
+        if (revealRef.current) {
+          revealRef.current.style.display = 'block';
+        }
       }
 
       const x = Math.min(curX, startX);
@@ -10174,7 +10401,6 @@ const MainEditor = ({
         activeRef.current.style.top = `${y}px`;
         activeRef.current.style.width = `${width}px`;
         activeRef.current.style.height = `${height}px`;
-        activeRef.current.style.display = 'block';
       }
 
       updateMarqueeSelection(x, y, width, height, containerRect, scale);
@@ -10189,6 +10415,36 @@ const MainEditor = ({
     svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
     clearOverlayType('hover');
     clearOverlayType('child-hover');
+
+    // ── Converted Flipbook Mode (PDF, DOC, PPT): Only hover user-added Frames or Hotspots ──
+    if (isConvertedFlipbook) {
+      let hoverTarget = null;
+      let curr = e.target;
+      while (curr && curr !== svg) {
+        if (curr.getAttribute) {
+          const isHotspot = curr.getAttribute('data-is-hotspot') === 'true' || curr.getAttribute('data-type') === 'hotspot';
+          const isFreeFrame = curr.getAttribute('data-name') === 'Free Frame';
+          const isShape = curr.getAttribute('data-type') === 'shape';
+          const isIcon = curr.getAttribute('data-type') === 'icon';
+          const isShield = curr.getAttribute('data-name') === 'Document Shield' || curr.getAttribute('data-type') === 'shield';
+          if (isShield) {
+            hoverTarget = null;
+            break;
+          }
+          if (isHotspot || isFreeFrame || isShape || isIcon) {
+            hoverTarget = curr;
+            break;
+          }
+        }
+        curr = curr.parentElement || curr.parentNode;
+      }
+
+      if (hoverTarget && hoverTarget.id && selectedLayerIdRef.current !== hoverTarget.id) {
+        hoverTarget.setAttribute('data-hovered', 'true');
+        drawOverlayHighlight(hoverTarget, 'hover');
+      }
+      return;
+    }
 
     // ── Direct selection mode: hover the deepest element with an ID ──────────
     if (selectedSelectTool === 'direct') {
@@ -11308,6 +11564,58 @@ const MainEditor = ({
     clearOverlayType('hover');
     clearOverlayType('child-hover');
 
+    // ── Converted Flipbook Mode (PDF, DOC, PPT): Avoid clicking any path or full page! Only select Frames or Hotspots ──
+    if (isConvertedFlipbook) {
+      let interactiveTarget = null;
+
+      // Check if clicking an overlay polygon for a selected element
+      if (e.target.tagName?.toLowerCase() === 'polygon' && e.target.id?.includes('overlay-poly-')) {
+        const polyId = e.target.id.replace(/^overlay-poly-(selected|child-selected|hover|child-hover|entered|multi-child-selected)-/, '');
+        const underEl = svg.querySelector(`[id="${polyId}"]`);
+        if (underEl) {
+          const isHotspot = underEl.getAttribute('data-is-hotspot') === 'true' || underEl.getAttribute('data-type') === 'hotspot';
+          const isFreeFrame = underEl.getAttribute('data-name') === 'Free Frame';
+          const isShape = underEl.getAttribute('data-type') === 'shape';
+          const isIcon = underEl.getAttribute('data-type') === 'icon';
+          if (isHotspot || isFreeFrame || isShape || isIcon) {
+            interactiveTarget = underEl;
+          }
+        }
+      }
+
+      if (!interactiveTarget) {
+        let curr = e.target;
+        while (curr && curr !== svg) {
+          if (curr.getAttribute) {
+            const isHotspot = curr.getAttribute('data-is-hotspot') === 'true' || curr.getAttribute('data-type') === 'hotspot';
+            const isFreeFrame = curr.getAttribute('data-name') === 'Free Frame';
+            const isShape = curr.getAttribute('data-type') === 'shape';
+            const isIcon = curr.getAttribute('data-type') === 'icon';
+            const isShield = curr.getAttribute('data-name') === 'Document Shield' || curr.getAttribute('data-type') === 'shield';
+            if (isShield) {
+              interactiveTarget = null;
+              break;
+            }
+            if (isHotspot || isFreeFrame || isShape || isIcon) {
+              interactiveTarget = curr;
+              break;
+            }
+          }
+          curr = curr.parentElement || curr.parentNode;
+        }
+      }
+
+      if (interactiveTarget && interactiveTarget.id) {
+        setSingleSelection(interactiveTarget.id);
+      } else {
+        // Clear selection: avoid clicking any path or full page!
+        setSingleSelection(null);
+        setCurrentFrameId(null);
+        currentFrameIdRef.current = null;
+      }
+      return;
+    }
+
     // ── Pre-empt polygon clicks (hit area padding) ─────────────────────────────
     let hitMultiSelectionGap = false;
     const currentMultiIds = multiSelectedIdsRef.current;
@@ -11792,6 +12100,10 @@ const MainEditor = ({
     const svg = container.querySelector('svg');
     if (!svg) return;
 
+    if (isConvertedFlipbook) {
+      return;
+    }
+
     // ── NODE EDIT MODE: Double-click on already-active node edit path ──────────────
     if (nodeEditModeRef.current) {
       // Already in node edit mode – do nothing on double click (single click to drag handles)
@@ -11944,49 +12256,86 @@ const MainEditor = ({
     if (!el) return;
     const handleWheel = (e) => {
       if (e.target.closest('.editor-ss-overlay') || e.target.closest('input')) return;
-      if (e.ctrlKey || e.metaKey) {
+      if (e.ctrlKey || e.metaKey || e.altKey) {
         e.preventDefault();
         e.stopPropagation();
-        // Mark the exact time of this zoom wheel event so clicks fired shortly
-        // after (browser sometimes synthesises a click on wheel) get suppressed.
+
         lastWheelTimeRef.current = Date.now();
         suppressClickRef.current = true;
         setTimeout(() => { suppressClickRef.current = false; }, 200);
 
-        const delta = e.deltaY < 0 ? 5 : -5;
-        const minZ = getMinZoomFor1000mm();
-        setZoom(prevZoom => {
-          const newZoom = Math.min(Math.max(prevZoom + delta, minZ), 500);
-          if (newZoom !== prevZoom) {
-            setPan(prevPan => {
-              const rect = el.getBoundingClientRect();
-              const cx = rect.left + rect.width / 2;
-              const cy = rect.top + rect.height / 2;
+        const containerEl = zoomContainerRef.current;
+        if (!containerEl) return;
 
-              const mx = e.clientX - cx;
-              const my = e.clientY - cy;
+        const currentZoom = currentZoomRef.current || zoom || 100;
+        const currentPan = currentPanRef.current || pan || { x: 0, y: 0 };
+        const minZ = 10;
+        const maxZ = 500;
 
-              const oldScale = prevZoom / 100;
-              const newScale = newZoom / 100;
+        // Snappy, responsive zoom speed:
+        // Discrete mouse wheel steps (|deltaY| >= 40) vs continuous trackpad gestures (|deltaY| < 40)
+        let factor;
+        if (Math.abs(e.deltaY) >= 40) {
+          // Fast ~15% zoom step per wheel notch
+          factor = e.deltaY < 0 ? 1.15 : (1 / 1.15);
+        } else {
+          // Smooth continuous trackpad scaling
+          factor = Math.exp(-e.deltaY * 0.005);
+        }
 
-              const newPan = {
-                x: mx - (mx - prevPan.x) * (newScale / oldScale),
-                y: my - (my - prevPan.y) * (newScale / oldScale)
-              };
-              currentPanRef.current = newPan;
-              return newPan;
-            });
-          }
-          return newZoom;
+        let newZoom = Math.round(currentZoom * factor * 10) / 10;
+        newZoom = Math.min(Math.max(newZoom, minZ), maxZ);
+
+        if (Math.abs(newZoom - currentZoom) < 0.01) return;
+
+        const currentScale = currentZoom / 100;
+        const newScale = newZoom / 100;
+
+        // Invariant center calculation: use the static editorContainer viewport bounds.
+        // This avoids layout reflows and DOM jitter from calling getBoundingClientRect() on an element in mid-transform.
+        const editorRect = el.getBoundingClientRect();
+        const centerScreenX = editorRect.left + editorRect.width / 2 + currentPan.x;
+        const centerScreenY = editorRect.top + editorRect.height / 2 + currentPan.y;
+
+        // Vector from visual center of canvas to mouse cursor
+        const mouseOffsetX = e.clientX - centerScreenX;
+        const mouseOffsetY = e.clientY - centerScreenY;
+
+        // Mathematical cursor anchor: point under cursor has 0 displacement on screen
+        const scaleRatio = newScale / currentScale;
+        const newPanX = currentPan.x + mouseOffsetX * (1 - scaleRatio);
+        const newPanY = currentPan.y + mouseOffsetY * (1 - scaleRatio);
+
+        const newPan = { x: newPanX, y: newPanY };
+
+        // Synchronous ref update for 0-latency tracking
+        currentZoomRef.current = newZoom;
+        currentPanRef.current = newPan;
+
+        // Instant transform update (0ms latency, buttery smooth 60 FPS)
+        containerEl.style.transition = 'none';
+        containerEl.style.transform = `translate(${newPanX}px, ${newPanY}px) scale(${newScale})`;
+
+        // Batch React state update with requestAnimationFrame to prevent layout thrashing and mid-render glitches
+        if (wheelRafRef.current) {
+          cancelAnimationFrame(wheelRafRef.current);
+        }
+        wheelRafRef.current = requestAnimationFrame(() => {
+          setZoom(newZoom);
+          setPan(newPan);
         });
-      }
 
+        window.dispatchEvent(new CustomEvent('editor-pan-update', { detail: newPan }));
+      }
     };
     el.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     return () => {
       el.removeEventListener('wheel', handleWheel, { capture: true });
+      if (wheelRafRef.current) {
+        cancelAnimationFrame(wheelRafRef.current);
+      }
     };
-  }, [setZoom, setPan]);
+  }, []);
 
   const handleAlign = (type) => {
     const ids = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : (selectedLayerId ? [selectedLayerId] : []);
@@ -12263,8 +12612,8 @@ const MainEditor = ({
             const scaledCanvasW = (baseVhHeight * (canvasWidthMM / baseHeight)) * currentScale;
             const scaledCanvasH = (baseVhHeight * (1000 / baseHeight)) * currentScale;
 
-            const maxPanX = Math.max(0, (scaledCanvasW - containerWidth) / 2);
-            const maxPanY = Math.max(0, (scaledCanvasH - containerHeight) / 2);
+            const maxPanX = Math.max(containerWidth * 1.5, scaledCanvasW);
+            const maxPanY = Math.max(containerHeight * 1.5, scaledCanvasH);
 
             const boundedX = Math.min(Math.max(newX, -maxPanX), maxPanX);
             const boundedY = Math.min(Math.max(newY, -maxPanY), maxPanY);
@@ -12273,7 +12622,7 @@ const MainEditor = ({
 
             if (zoomContainerRef.current) {
               zoomContainerRef.current.style.transition = 'none';
-              zoomContainerRef.current.style.transform = `translate3d(${boundedX}px, ${boundedY}px, 0px) scale(${currentScale})`;
+              zoomContainerRef.current.style.transform = `translate(${boundedX}px, ${boundedY}px) scale(${currentScale})`;
             }
             window.dispatchEvent(new CustomEvent('editor-pan-update', { detail: { x: boundedX, y: boundedY } }));
           }
@@ -12311,6 +12660,15 @@ const MainEditor = ({
 
           if (setActivePageIndex && activePageIndex !== pageIdx) {
             setActivePageIndex(pageIdx);
+          }
+
+          // ── Background Click: In converted flipbooks, clear selection instead of selecting full page root ─────
+          if (isConvertedFlipbook) {
+            if (setSelectedLayerId) setSelectedLayerId(null);
+            if (setMultiSelectedIds) setMultiSelectedIds(new Set());
+            if (setCurrentFrameId) setCurrentFrameId(null);
+            currentFrameIdRef.current = null;
+            return;
           }
 
           const pageSvg = container?.querySelector('svg') || document.querySelector(`.page-svg-container[data-page-index="${pageIdx}"] svg`);
@@ -12956,10 +13314,6 @@ const MainEditor = ({
             className="flex items-center justify-center origin-center relative"
             style={{
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom / 100})`,
-              transformStyle: 'preserve-3d',
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-              imageRendering: 'high-quality',
             }}
           >
             {/* Pages Container Centered */}
@@ -12969,7 +13323,7 @@ const MainEditor = ({
                 <div className="relative group/page">
                   {/* A4 Canvas Page Inner */}
                   <div
-                    className={`relative z-0 flex flex-col bg-white group/inner transition-all duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'}`}
+                    className={`relative z-0 flex flex-col bg-white group/inner transition-shadow duration-300 ${localTrimView ? 'overflow-hidden' : 'overflow-visible'}`}
                     style={isPopupEditor ? {
                       width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
                       height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
@@ -12983,7 +13337,7 @@ const MainEditor = ({
                   >
                     {/* Page Content */}
                     <div
-                      className={`flex-1 w-full relative page-svg-container ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil') ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen') ? 'pen-mode' : ''} ${(activeMainTool === 'shapes') ? 'shape-mode' : ''} ${(activeMainTool === 'type') ? 'type-mode' : ''}`}
+                      className={`flex-1 w-full relative page-svg-container ${isConvertedFlipbook ? 'is-pdf-project' : ''} ${localTrimView ? 'trim-view-on overflow-hidden' : 'trim-view-off overflow-visible'} tool-${selectedSelectTool} ${(activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil') ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pen') ? 'pen-mode' : ''} ${(activeMainTool === 'shapes') ? 'shape-mode' : ''} ${(activeMainTool === 'type') ? 'type-mode' : ''}`}
                       data-page-index={activePageIndex}
                     >
                       <style>{svgGlobalStyles}</style>
@@ -13013,25 +13367,34 @@ const MainEditor = ({
                                     if (window.__skipCanvasUpdateForPage === displayIndex) {
                                       window.__skipCanvasUpdateForPage = -1;
                                       el.__lastHtml = newHtml;
+                                      el.__lastPageIndex = displayIndex;
                                     } else if (el.__lastHtml !== newHtml) {
-                                      const parser = new DOMParser();
-                                      const doc = parser.parseFromString(newHtml, 'text/html');
-                                      const newChildren = Array.from(doc.body.childNodes);
+                                      // Fast path: When switching between different pages, direct innerHTML swap is 100x faster than recursive syncDOM!
+                                      if (el.__lastPageIndex !== displayIndex) {
+                                        el.innerHTML = newHtml;
+                                        el.__lastPageIndex = displayIndex;
+                                        el.__lastHtml = newHtml;
+                                      } else {
+                                        const parser = new DOMParser();
+                                        const doc = parser.parseFromString(newHtml, 'text/html');
+                                        const newChildren = Array.from(doc.body.childNodes);
 
-                                      const oldChildren = Array.from(el.childNodes);
-                                      const maxLength = Math.max(oldChildren.length, newChildren.length);
+                                        const oldChildren = Array.from(el.childNodes);
+                                        const maxLength = Math.max(oldChildren.length, newChildren.length);
 
-                                      for (let i = 0; i < maxLength; i++) {
-                                        if (!oldChildren[i]) {
-                                          el.appendChild(newChildren[i].cloneNode(true));
-                                        } else if (!newChildren[i]) {
-                                          el.removeChild(oldChildren[i]);
-                                        } else {
-                                          syncDOM(oldChildren[i], newChildren[i]);
+                                        for (let i = 0; i < maxLength; i++) {
+                                          if (!oldChildren[i]) {
+                                            el.appendChild(newChildren[i].cloneNode(true));
+                                          } else if (!newChildren[i]) {
+                                            el.removeChild(oldChildren[i]);
+                                          } else {
+                                            syncDOM(oldChildren[i], newChildren[i]);
+                                          }
                                         }
-                                      }
 
-                                      el.__lastHtml = newHtml;
+                                        el.__lastHtml = newHtml;
+                                        el.__lastPageIndex = displayIndex;
+                                      }
                                     }
                                   }
                                 }}
@@ -13253,17 +13616,19 @@ const MainEditor = ({
                             )}
 
                             {/* Marquee Selection Box */}
-                            <div
-                              ref={marqueeOverlayRef1}
-                              style={{
-                                position: 'absolute',
-                                border: '1px solid #6366F1',
-                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                                pointerEvents: 'none',
-                                zIndex: 1000,
-                                display: 'none'
-                              }}
-                            />
+                            {!isConvertedFlipbook && (
+                              <div
+                                ref={marqueeOverlayRef1}
+                                style={{
+                                  position: 'absolute',
+                                  border: '1px solid #6366F1',
+                                  backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                  pointerEvents: 'none',
+                                  zIndex: 1000,
+                                  display: 'none'
+                                }}
+                              />
+                            )}
 
                             {isPageEmpty && (
                               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
@@ -13370,12 +13735,7 @@ const MainEditor = ({
         </div>
       </div>
 
-      {/* Hidden container to pre-render all pages for instant switching */}
-      <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-        {pages.map((p, i) => (
-          <div key={i} dangerouslySetInnerHTML={{ __html: p.html }} />
-        ))}
-      </div>
+      {/* Pages rendered on demand via PageCacheManager */}
     </div>
   );
 };
