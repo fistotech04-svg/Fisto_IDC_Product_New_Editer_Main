@@ -39,7 +39,6 @@ import { getBookmarkClipPath, getBookmarkBorderRadius, getBookmarkSVGPath } from
 import FlipBookEngine from './FlipBookEngine';
 import LeadFormPopup from './popups/LeadFormPopup';
 import { getFromDB, saveToDB } from '../../utils/dbUtils';
-import FistoLogo from '../../assets/logo/Fisto_logo.png';
 
 
 const getSlideshowScript = () => `
@@ -1734,7 +1733,7 @@ const getVideoControlsScript = () => `
   </script>
 `;
 
-const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount = 0, singlePage = false, brandWatermarkRemoved = false, isPublishedPreview = false, brandWatermarkUrl = '') => {
+const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount = 0, singlePage = false) => {
     // Extract and dynamically load Google Fonts found in the SVG
     const fontsToLoad = new Set();
     if (html) {
@@ -2036,29 +2035,6 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                         </div>
                     `;
                 })()}
-                ${brandWatermarkRemoved !== true ? `
-                    <div style="position: absolute; bottom: 5vw; right: 5vw; z-index: 99999; pointer-events: auto;">
-                        <div style="position: relative; display: inline-block;">
-                            <img
-                                src="${brandWatermarkUrl}"
-                                alt="Brand_Watermark"
-                                style="background: white; border-radius: 0.5vw; padding: 0.3vw; width: 20vw; max-width: 22vw; min-width: 10vw; height: 8.5vw; object-fit: contain; opacity: 0.9; filter: drop-shadow(0 0.2vw 0.4vw rgba(0,0,0,0.2)); pointer-events: none; display: block;"
-                            />
-                            ${!isPublishedPreview ? `
-                                <button
-                                    onclick="window.parent.postMessage({ type: 'REMOVE_BRAND_WATERMARK' }, '*');"
-                                    style="position: absolute; top: -2.5vw; right: -3vw; background: transparent; border: none; padding: 0.5vw; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2;"
-                                    title="Remove Brand_Watermark"
-                                >
-                                    <svg width="3vw" height="3vw" viewBox="0 0 24 24" fill="none" stroke="#1f2937" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                </button>
-                            ` : ''}
-                        </div>
-                    </div>
-                ` : ''}
             </body>
         </html>
     `;
@@ -2479,9 +2455,6 @@ const TurnJsBookRenderer = React.memo(({
     isTurnJs,
     physicalZoom,
     watermarkSettings,
-    otherSetupSettings,
-    onUpdateOtherSetup,
-    isPublishedPreview,
 }) => {
     const turnOnFlip = useCallback((evt) => {
         const logicalIndex = typeof evt === 'object' && evt !== null ? evt.data : evt;
@@ -2601,7 +2574,6 @@ const TurnJsBookRenderer = React.memo(({
                     }}
                 />
             )}
-
             {createPortal(
                 <AnimatePresence>
                     {activeTooltip && (
@@ -3957,22 +3929,8 @@ const PreviewArea = React.memo(({
     }, [currentPage, pages.length]);
 
     const memoizedBuildPageDoc = useCallback((html, pageNum) => {
-        const pageData = pages.find(p => p.pageNumber === pageNum);
-        const isRemoved = otherSetupSettings?.brandWatermarkRemoved || (pageData && pageData.brandwatermark === 1);
-        return getIframeContent(html, pageNum, watermarkSettings, pages.length, isSinglePage, isRemoved, isPublishedPreview, FistoLogo);
-    }, [watermarkSettings, pages, isSinglePage, otherSetupSettings?.brandWatermarkRemoved, isPublishedPreview]);
-
-    useEffect(() => {
-        const handleFistoMessage = (e) => {
-            if (e.data && e.data.type === 'REMOVE_BRAND_WATERMARK') {
-                if (onUpdateOtherSetup) {
-                    onUpdateOtherSetup({ ...otherSetupSettings, brandWatermarkRemoved: true });
-                }
-            }
-        };
-        window.addEventListener('message', handleFistoMessage);
-        return () => window.removeEventListener('message', handleFistoMessage);
-    }, [otherSetupSettings, onUpdateOtherSetup]);
+        return getIframeContent(html, pageNum, watermarkSettings, pages.length, isSinglePage);
+    }, [watermarkSettings, pages.length, isSinglePage]);
 
     const bookRendererProps = {
         augmentedPages,
@@ -4008,9 +3966,6 @@ const PreviewArea = React.memo(({
         isTurnJs,
         physicalZoom: actualPhysicalZoom,
         watermarkSettings,
-        otherSetupSettings,
-        onUpdateOtherSetup,
-        isPublishedPreview,
         style: (() => {
             if (!interactionZoom) return { transition: 'transform 0.5s ease', transform: 'scale(1)', transformOrigin: 'center center' };
             const { scale, rect, pageNumber } = interactionZoom;
@@ -4738,7 +4693,7 @@ const PreviewArea = React.memo(({
                 />
             )}
 
-            {showSharePopup && !isMobile && createPortal(
+            {showSharePopup && !isMobile && (
                 <ShareModal
                     isOpen={showSharePopup}
                     onClose={() => setShowSharePopup(false)}
@@ -4747,8 +4702,8 @@ const PreviewArea = React.memo(({
                     currentBook={currentBook}
                     activeLayout={activeLayout}
                     isMobileLayout={isMobile}
-                />,
-                document.fullscreenElement || document.getElementById('device-screen-container') || document.body
+                    isAbsolutePosition={true}
+                />
             )}
 
             {showExportPopup && createPortal(
@@ -6151,7 +6106,6 @@ const PreviewArea = React.memo(({
             )}
 
             {/* Centered Screen Lead Form Modal Overlay */}
-            {console.log("LEAD FORM DEBUG: rendering LeadFormPopup? showLeadForm=", showLeadForm)}
             {showLeadForm && (
                 <LeadFormPopup
                     leadFormSettings={leadFormSettings}

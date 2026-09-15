@@ -317,9 +317,11 @@ const TocItem = ({ item, index, isEditing, onUpdate, onDelete, activeTOCItem, se
 const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pages = [], folderName, bookName, activeLayout, onNavigateToOtherSetup, onTocSettingsClick }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   const [showStylesPopup, setShowStylesPopup] = useState(false);
+  const [activeTOCItem, setActiveTOCItem] = useState(null); // { type: 'head'|'sub', index, sIdx }
+  
+  const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const activeTocSettings = settings?.tocSettings || settings?.navigation?.tocSettings || {};
   const [editingTOCIndex, setEditingTOCIndex] = useState((activeTocSettings.content?.length || 0) > 0 ? 0 : null);
-  const [activeTOCItem, setActiveTOCItem] = useState(null); // { type: 'head'|'sub', index, sIdx }
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
 
@@ -757,11 +759,13 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
         {/* Interaction Tools Section */}
         <SectionHeader title="Interaction Tools" />
         <div className="space-y-[0.325vw]">
-          <MenuItem
-            label="Search Inside Book"
-            enabled={settings.interaction?.search}
-            onChange={(val) => updateSection('interaction', 'search', val)}
-          />
+          {!isPdfProject && (
+            <MenuItem
+              label="Search Inside Book"
+              enabled={settings.interaction?.search}
+              onChange={(val) => updateSection('interaction', 'search', val)}
+            />
+          )}
 
           <MenuItem
             label="Gallery"

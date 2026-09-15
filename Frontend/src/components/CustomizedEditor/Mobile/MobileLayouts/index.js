@@ -18,7 +18,7 @@ export const MOBILE_LAYOUT_REGISTRY = {
     3: MobileLayout3,
     4: MobileLayout4,
     5: MobileLayout5,
-    7: MobileLayout6,
-    8: MobileLayout7,
-    9: MobileLayout8,
+    6: MobileLayout6,
+    7: MobileLayout7,
+    8: MobileLayout8,
 };

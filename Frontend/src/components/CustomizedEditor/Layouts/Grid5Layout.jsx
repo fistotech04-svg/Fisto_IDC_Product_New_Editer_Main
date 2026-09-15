@@ -379,7 +379,7 @@ const Grid5Layout = ({
                     <span
                         className={`${isTablet ? 'text-[0.4vw]' : 'text-[0.65vw]'} font-medium mt-[0.1vw] leading-none whitespace-nowrap`}
                         style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                            color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),
                             fontFamily: textFont,
                             opacity: getLayoutOpacity('toolbar-text-main', 1)
                         }}
@@ -502,7 +502,7 @@ const Grid5Layout = ({
                         <div className="relative" onClick={(e) => e.stopPropagation()}>
                             <div
                                 className={`flex items-center rounded-[0.5vw] ${isTablet ? 'px-[0.8vw] py-[0.35vw]' : 'px-[1vw] py-[0.45vw]'} shadow-sm border border-black/10 group transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[9.5vw]' : 'w-[11.5vw]') : (isTablet ? 'w-[11.5vw]' : 'w-[15vw]')}`}
-                                style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                                style={{ backgroundColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
                             >
                                 <Icon
                                     icon="ph:magnifying-glass-bold"
@@ -566,14 +566,14 @@ const Grid5Layout = ({
                                 <div className={`absolute ${isTablet ? 'top-[2.5vw]' : 'top-[3.2vw]'} left-0 rounded-[0.8vw] shadow-2xl z-[100] overflow-hidden border transition-all ${isSidebarOpen ? (isTablet ? 'w-[9.5vw]' : 'w-[11.5vw]') : (isTablet ? 'w-[11.5vw]' : 'w-[15vw]')}`}
                                     style={{
                                         backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1'),
-                                        borderColor: getLayoutColor('dropdown-text', '#575C9C')
+                                        borderColor: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1)
                                     }}
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     <div className="px-[1.2vw] py-[0.6vw]">
                                         <span
                                             className="text-[0.8vw] font-bold"
-                                            style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                            style={{ color: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1) }}
                                         >Suggestion</span>
                                     </div>
                                     <div className="flex flex-col py-[0.4vw]">
@@ -591,13 +591,13 @@ const Grid5Layout = ({
                                             >
                                                 <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
                                                     <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
-                                                        <span className="font-bold mr-[0.3vw]" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), fontWeight: 800 }}>{rec.word}</span>
-                                                        {rec.context && <span className="font-normal opacity-70" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{rec.context}</span>}
+                                                        <span className="font-bold mr-[0.3vw]" style={{ color: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1), fontWeight: 800 }}>{rec.word}</span>
+                                                        {rec.context && <span className="font-normal opacity-70" style={{ color: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1) }}>{rec.context}</span>}
                                                     </span>
                                                 </div>
                                                 <span
                                                     className="text-[0.8vw] font-bold tabular-nums shrink-0"
-                                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 'var(--dropdown-text-opacity, 0.5)' }}
+                                                    style={{ color: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1), opacity: 'var(--dropdown-text-opacity, 0.5)' }}
                                                 >Pg {rec.pageNumber}</span>
                                             </button>
                                         ))}
@@ -695,7 +695,7 @@ const Grid5Layout = ({
                     >
                         <span
                             className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.78vw]'} font-bold select-none whitespace-nowrap`}
-                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
                         >Page: </span>
                         <input
                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
@@ -728,13 +728,13 @@ const Grid5Layout = ({
                             className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.78vw]'} font-bold bg-transparent border-none outline-none text-center`}
                             style={{
                                 width: `${String(pages.length).length + 1}ch`,
-                                color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),
                                 opacity: 'var(--toolbar-bg-opacity, 1)'
                             }}
                         />
                         <span
                             className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.78vw]'} font-bold select-none whitespace-nowrap`}
-                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
                         > / {totalPages}</span>
                     </div>
                 )}
@@ -750,19 +750,19 @@ const Grid5Layout = ({
                             <Icon icon="ph:skip-back" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
                             'First',
                             () => onPageClick(0),
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF') }
+                            { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }
                         )}
                         {(settings?.media?.autoFlip ?? true) && renderToolbarBtn(
                             <Icon icon={isAutoFlipping ? 'ph:pause-fill' : 'ph:play-fill'} className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                             isAutoFlipping ? 'Pause' : 'Play',
                             () => setIsPlaying(!isAutoFlipping),
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF') }
+                            { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }
                         )}
                         {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
                             <Icon icon="ph:skip-forward" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
                             'Last',
                             () => onPageClick(pagesCount - 1),
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF') }
+                            { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }
                         )}
                     </div>
 
@@ -779,13 +779,13 @@ const Grid5Layout = ({
                     >
                         <div className={`w-full ${isTablet ? 'h-[0.25vh]' : 'h-[0.35vh]'} rounded-full relative overflow-hidden`}>
                             {/* Track Underlay */}
-                            <div className="absolute inset-0 transition-colors duration-300" style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: isTablet ? 0.4 : 0.3 }} />
+                            <div className="absolute inset-0 transition-colors duration-300" style={{ backgroundColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1), opacity: isTablet ? 0.4 : 0.3 }} />
                             {/* Progress Fill */}
                             <div
                                 className="absolute top-0 left-0 h-full transition-all duration-300 ease-out z-10"
                                 style={{
                                     width: `${progressPercentage}%`,
-                                    backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                    backgroundColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),
                                     opacity: 1
                                 }}
                             />
@@ -805,7 +805,7 @@ const Grid5Layout = ({
                                     <div
                                         className={`absolute bottom-0 flex flex-col items-center ${isTablet ? `p-[0.6vw] ${progressHover.spread.pages.length === 1 ? 'rounded-[0.3vw]' : 'rounded-[0.6vw]'}` : `p-[0.5vw] ${progressHover.spread.pages.length === 1 ? 'rounded-[0.3vw]' : 'rounded-[0.8vw]'}`} shadow-[0_10px_40px_rgba(0,0,0,0.3)]`}
                                         style={{
-                                            backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'),
+                                            backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', 1),
                                             transform: progressHover.pageIndex === 0 ? 'translateX(-25%)' : 'translateX(-50%)',
                                             minWidth: isTablet ? '7vw' : '9vw'
                                         }}
@@ -815,7 +815,7 @@ const Grid5Layout = ({
                                                 className="font-bold whitespace-nowrap"
                                                 style={{
                                                     fontSize: isTablet ? '0.7vw' : '0.85vw',
-                                                    color: getLayoutColor('dropdown-text', '#575C9C')
+                                                    color: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1)
                                                 }}
                                             >
                                                 {progressHover.spread.label}
@@ -825,7 +825,7 @@ const Grid5Layout = ({
                                                 className="w-full rounded-full"
                                                 style={{
                                                     height: isTablet ? '2px' : '2.5px',
-                                                    backgroundColor: getLayoutColor('dropdown-text', '#575C9C'),
+                                                    backgroundColor: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1),
                                                     margin: isTablet ? '0.4vw 0' : '0.5vw 0'
                                                 }}
                                             />
@@ -872,7 +872,7 @@ const Grid5Layout = ({
                                             <svg width="100%" height="100%" viewBox="0 0 20 15" preserveAspectRatio="none">
                                                 <path
                                                     d="M0 0 L10 15 L20 0"
-                                                    fill={getLayoutColor('dropdown-bg', '#FFFFFF')}
+                                                    fill={getLayoutColorRgba('dropdown-bg', '255, 255, 255', 1)}
                                                 />
                                             </svg>
                                         </div>
@@ -898,7 +898,7 @@ const Grid5Layout = ({
 
                                     setShowSoundPopupMemo(false);
                                 },
-                                { color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: showTOC ? 0.7 : 1 }
+                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1), opacity: showTOC ? 0.7 : 1 }
                             )}
 
                             {showTOC && (
@@ -908,32 +908,30 @@ const Grid5Layout = ({
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         <div className="relative">
-                                            {/* Triangle Pointer */}
                                             {/* Needle Pointer */}
                                             <div
                                                 className={`absolute -bottom-[1.3vw] ${isTablet ? 'left-[20%]' : 'left-[15%]'} -translate-x-1/2 z-10 pointer-events-none`}
                                                 style={{ width: '0.9vw', height: '1.4vw' }}
                                             >
                                                 <svg width="100%" height="100%" viewBox="0 0 10 20" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                    <path d="M0 0L5 20L10 0" fill="#FFFFFF" />
-                                                    <path d="M0 0L5 20L10 0" fill={getLayoutColor('toc-bg', '#FFFFFF')} />
+                                                    <path d="M0 0L5 20L10 0" fill={getLayoutColorRgba('toc-bg', '255, 255, 255', 1)} />
                                                 </svg>
                                             </div>
                                             {/* Popup Content */}
                                             <div
                                                 className={`rounded-[1.2vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.1)] ${isTablet ? 'w-[10vw]' : 'w-[15.5vw]'} flex flex-col relative z-20 overflow-hidden`}
                                                 style={{
-                                                    backgroundColor: '#FFFFFF',
+                                                    backgroundColor: 'transparent',
                                                 }}
                                             >
                                                 <div
                                                     className="absolute inset-0 z-0"
-                                                    style={{ backgroundColor: getLayoutColorRgba('toc-bg', '255, 255, 255', '1') }}
+                                                    style={{ backgroundColor: getLayoutColorRgba('toc-bg', '255, 255, 255', 1) }}
                                                 />
                                                 <div className="relative z-10 p-[1.1vw] flex flex-col">
                                                     <h2
                                                         className={`${isTablet ? 'text-[0.8vw]' : 'text-[0.9vw]'} font-bold mb-[0.8vw] tracking-tight`}
-                                                        style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                                        style={{ color: getLayoutColorRgba('toc-text', '87, 92, 156', 1) }}
                                                     >Table of Contents</h2>
 
                                                     {/* Search Bar */}
@@ -942,38 +940,33 @@ const Grid5Layout = ({
                                                             <div
                                                                 className="flex items-center rounded-[0.4vw] px-[0.6vw] py-[0.4vw] border transition-all relative overflow-hidden"
                                                                 style={{
-                                                                    borderColor: getLayoutColor('toc-bg', '#FFFFFF').toLowerCase() === getLayoutColor('toc-text', '#575C9C').toLowerCase()
-                                                                        ? 'rgba(255,255,255,0.2)'
-                                                                        : 'rgba(0,0,0,0.08)'
+                                                                    borderColor: 'transparent',
+                                                                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                                                                 }}
                                                             >
                                                                 <div
                                                                     className="absolute inset-0 z-0"
                                                                     style={{
-                                                                        backgroundColor: getLayoutColor('toc-bg', '#FFFFFF').toLowerCase() === getLayoutColor('toc-text', '#575C9C').toLowerCase()
-                                                                            ? getLayoutColor('toc-bg', '#FFFFFF')
-                                                                            : getLayoutColor('toc-text', '#575C9C'),
-                                                                        opacity: getLayoutColor('toc-bg', '#FFFFFF').toLowerCase() === getLayoutColor('toc-text', '#575C9C').toLowerCase()
-                                                                            ? 0.15
-                                                                            : 0.05
+                                                                        backgroundColor: '#FFFFFF',
+                                                                        opacity: 0.15
                                                                     }}
                                                                 />
                                                                 <div className="relative z-10 flex items-center w-full">
-                                                                    <Icon icon="lucide:search" className="w-[0.9vw] h-[0.9vw]" style={{ color: getLayoutColor('toc-text', '#575C9C'), opacity: 0.4 }} />
+                                                                    <Icon icon="lucide:search" className="w-[0.9vw] h-[0.9vw]" style={{ color: getLayoutColorRgba('toc-text', '255, 255, 255', 1), opacity: 0.7 }} />
                                                                     <input
                                                                         type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                                                         value={tocSearchQuery}
                                                                         onChange={(e) => setTocSearchQuery(e.target.value)}
                                                                         placeholder="Search..."
-                                                                        className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} ml-[0.4vw] w-full placeholder:text-gray-400`}
-                                                                        style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                                                        className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} ml-[0.4vw] w-full placeholder:opacity-60`}
+                                                                        style={{ color: getLayoutColorRgba('toc-text', '255, 255, 255', 1) }}
                                                                         onClick={(e) => e.stopPropagation()}
                                                                     />
                                                                     {tocSearchQuery && (
                                                                         <button
                                                                             onClick={(e) => { e.stopPropagation(); setTocSearchQuery(''); }}
                                                                             className="transition-colors"
-                                                                            style={{ color: getLayoutColor('toc-text', '#575C9C'), opacity: 0.3 }}
+                                                                            style={{ color: getLayoutColorRgba('toc-text', '255, 255, 255', 1), opacity: 0.5 }}
                                                                         >
                                                                             <Icon icon="lucide:x" className="w-[0.8vw] h-[0.8vw]" />
                                                                         </button>
@@ -1018,11 +1011,11 @@ const Grid5Layout = ({
                                                                                 >
                                                                                     <div className="flex items-center gap-[0.3vw] truncate pr-[0.4vw]">
                                                                                         {settings.tocSettings?.addSerialNumberToHeading !== false && (
-                                                                                            <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-bold opacity-50 tabular-nums shrink-0`} style={{ color: getLayoutColor('toc-text', '#374151') }}>{idx + 1}.</span>
+                                                                                            <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-bold opacity-50 tabular-nums shrink-0`} style={{ color: getLayoutColorRgba('toc-text', '55, 65, 81', 1) }}>{idx + 1}.</span>
                                                                                         )}
                                                                                         <span
                                                                                             className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-semibold transition-colors truncate`}
-                                                                                            style={{ color: getLayoutColor('toc-text', '#374151') }}
+                                                                                            style={{ color: getLayoutColorRgba('toc-text', '55, 65, 81', 1) }}
                                                                                         >
                                                                                             {item.title}
                                                                                         </span>
@@ -1030,7 +1023,7 @@ const Grid5Layout = ({
                                                                                     {settings.tocSettings?.addPageNumber !== false && (
                                                                                         <span
                                                                                             className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-semibold transition-colors tabular-nums shrink-0`}
-                                                                                            style={{ color: getLayoutColor('toc-text', '#374151') }}
+                                                                                            style={{ color: getLayoutColorRgba('toc-text', '55, 65, 81', 1) }}
                                                                                         >
                                                                                             {String(item.page).padStart(2, '0')}
                                                                                         </span>
@@ -1069,7 +1062,7 @@ const Grid5Layout = ({
                                                                         );
                                                                     })
                                                             ) : (
-                                                                <div className="text-center py-[1.5vw] text-gray-400 text-[0.7vw]">No content</div>
+                                                                <div className="text-center py-[1.5vw] text-[0.7vw] opacity-70 font-medium" style={{ color: getLayoutColorRgba('toc-text', '87, 92, 156', 1) }}>No Table of Content found</div>
                                                             );
                                                         })()}
                                                     </div>
@@ -1095,7 +1088,7 @@ const Grid5Layout = ({
                                 setShowBookmarkOptions(false);
                                 setShowSoundPopupMemo(false);
                             },
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: showThumbnails ? 0.7 : 1 }
+                            { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1), opacity: showThumbnails ? 0.7 : 1 }
                         )}
                         
                         {/* Gallery */}
@@ -1111,7 +1104,7 @@ const Grid5Layout = ({
                                 setShowBottomNotesOptions(false);
                                 setShowBookmarkOptions(false);
                             },
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF') }
+                            { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }
                             ,
                             '',
                             showGalleryPopup
@@ -1130,7 +1123,7 @@ const Grid5Layout = ({
                                     setShowProfilePopup(false);
 
                                 },
-                                { color: (showSoundPopup || !isMuted) ? getLayoutColor('toolbar-text-main', '#FFFFFF') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '0.3') }
+                                { color: (showSoundPopup || !isMuted) ? getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '0.3') }
                             )}
 
 
@@ -1149,7 +1142,7 @@ const Grid5Layout = ({
 
                                     setShowSoundPopupMemo(false);
                                 },
-                                { color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: showProfilePopup ? 0.7 : 1 }
+                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1), opacity: showProfilePopup ? 0.7 : 1 }
                             )}
 
                             {/* Profile Popup */}
@@ -1186,7 +1179,7 @@ const Grid5Layout = ({
                                                     {/* Title */}
                                                     <h2
                                                         className={`${isTablet ? 'text-[0.8vw]' : 'text-[1vw]'} font-bold tracking-tight`}
-                                                        style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                                        style={{ color: getLayoutColorRgba('toc-text', '0, 0, 0', 1) }}
                                                     >Profile</h2>
 
                                                     {!hasProfileData ? (
@@ -1199,7 +1192,7 @@ const Grid5Layout = ({
                                                             <div className="flex gap-[0.3vw]">
                                                                 <span
                                                                     className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-bold whitespace-nowrap`}
-                                                                    style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                                                    style={{ color: getLayoutColorRgba('toc-text', '0, 0, 0', 1) }}
                                                                 >Name :</span>
                                                                 <span
                                                                     className="text-[0.8vw]"
@@ -1211,7 +1204,7 @@ const Grid5Layout = ({
                                                             <div className="flex gap-[0.3vw]">
                                                                 <span
                                                                     className="text-[0.8vw] font-bold whitespace-nowrap"
-                                                                    style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                                                    style={{ color: getLayoutColorRgba('toc-text', '0, 0, 0', 1) }}
                                                                 >About :</span>
                                                                 <span
                                                                     className="text-[0.78vw] leading-[1.5] text-justify"
@@ -1222,14 +1215,14 @@ const Grid5Layout = ({
                                                             {/* Divider */}
                                                             <div
                                                                 className="h-[1px] opacity-10"
-                                                                style={{ backgroundColor: getLayoutColor('toc-text', '#000000') }}
+                                                                style={{ backgroundColor: getLayoutColorRgba('toc-text', '0, 0, 0', 1) }}
                                                             />
 
                                                             {/* Contact */}
                                                             <div className="flex flex-col gap-[0.5vw]">
                                                                 <span
                                                                     className="text-[0.85vw] font-bold"
-                                                                    style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                                                    style={{ color: getLayoutColorRgba('toc-text', '0, 0, 0', 1) }}
                                                                 >Contact</span>
                                                                 <div className="flex items-center gap-[0.5vw]">
                                                                     {profileSettings?.twitter && (
@@ -1284,7 +1277,7 @@ const Grid5Layout = ({
                             <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                             'Share',
                             handleShare,
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF') },
+                            { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) },
                             '',
                             showSharePopup
                         )}
@@ -1292,7 +1285,7 @@ const Grid5Layout = ({
                             <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                             'Download',
                             handleDownload,
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF') },
+                            { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) },
                             '',
                             showExportPopup
                         )}
@@ -1301,7 +1294,7 @@ const Grid5Layout = ({
                             <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                             'Fullscreen',
                             handleFullScreen,
-                            { color: getLayoutColor('toolbar-text-main', '#FFFFFF') }
+                            { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }
                         )}
                     </div>
                 </div>
@@ -1322,13 +1315,13 @@ const Grid5Layout = ({
                             <Icon
                                 icon="ph:magnifying-glass-minus-bold"
                                 className={`${isTablet ? 'w-[0.75vw] h-[0.75vw]' : 'w-[1.25vw] h-[1.25vw]'}`}
-                                style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                                style={{ color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
                             />
                         </button>
 
                         <span
                             className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-semibold select-none shrink-0 min-w-[2.2vw] text-center`}
-                            style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                            style={{ color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
                         >
                             {Math.round((dimWidth / initialWidth) * 100)}%
                         </span>
@@ -1342,7 +1335,7 @@ const Grid5Layout = ({
                             <Icon
                                 icon="ph:magnifying-glass-plus-bold"
                                 className={`${isTablet ? 'w-[0.75vw] h-[0.75vw]' : 'w-[1.25vw] h-[1.25vw]'}`}
-                                style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                                style={{ color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
                             />
                         </button>
 
@@ -1353,7 +1346,7 @@ const Grid5Layout = ({
                             }}
                             className={`${isTablet ? 'text-[0.55vw] px-[0.5vw] py-[0.25vw]' : 'text-[0.8vw] px-[1vw] py-[0.4vw]'} font-bold rounded-[0.8vw] hover:brightness-90 transition-all shadow-sm`}
                             style={{
-                                backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                backgroundColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),
                                 color: getLayoutColor('bottom-toolbar-bg', '#575C9C')
                             }}
                         >
@@ -1372,7 +1365,7 @@ const Grid5Layout = ({
                         className={`absolute z-[150] ${isTablet ? 'bottom-[6.5vh] h-[5vw]' : 'bottom-[8.5vh] h-[5.8vw]'} left-1/2 -translate-x-1/2 w-fit max-w-[47.3vw] ${spreads.length === 1 ? 'rounded-[0.8vw]' : 'rounded-full'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.08)] flex items-center border overflow-hidden`}
                         style={{
                             backgroundColor: '#FFFFFF',
-                            borderColor: getLayoutColor('dropdown-text', '#575C9C')
+                            borderColor: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1)
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -1385,7 +1378,7 @@ const Grid5Layout = ({
                                 <button
                                     className="w-[3vw] h-full flex items-center justify-center hover:scale-110 transition-all shrink-0"
                                     onClick={(e) => { e.stopPropagation(); scroll('left'); }}
-                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                    style={{ color: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1) }}
                                 >
                                     <Icon icon="ph:caret-left" className="w-[1.2vw] h-[1.2vw]" />
                                 </button>
@@ -1411,7 +1404,7 @@ const Grid5Layout = ({
                                             <div
                                                 className="w-full h-[4vw] bg-white border-[1.2px] transition-all rounded-[0.1vw] overflow-hidden relative"
                                                 style={{
-                                                    borderColor: getLayoutColor('dropdown-text', '#575C9C')
+                                                    borderColor: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1)
                                                 }}
                                             >
                                                 <div className="flex w-full h-full gap-0 bg-white justify-center relative">
@@ -1461,7 +1454,7 @@ const Grid5Layout = ({
                                 <button
                                     className="w-[3vw] h-full flex items-center justify-center hover:scale-110 transition-all shrink-0"
                                     onClick={(e) => { e.stopPropagation(); scroll('right'); }}
-                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                    style={{ color: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1) }}
                                 >
                                     <Icon icon="ph:caret-right" className="w-[1.2vw] h-[1.2vw]" />
                                 </button>
