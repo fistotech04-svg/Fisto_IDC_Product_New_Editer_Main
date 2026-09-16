@@ -548,7 +548,7 @@ const MobileLayout5 = (props) => {
     }
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative">
             {/* Portrait Mobile Layout 5 - Matching Screenshot */}
             <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]">
                 {/* Top dark blue bar */}

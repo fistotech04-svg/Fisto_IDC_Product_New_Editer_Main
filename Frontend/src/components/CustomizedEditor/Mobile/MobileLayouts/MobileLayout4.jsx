@@ -267,7 +267,7 @@ const MobileLayout4 = (props) => {
     );
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]">
             {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
             {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 

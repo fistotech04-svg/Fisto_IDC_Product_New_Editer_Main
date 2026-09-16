@@ -237,17 +237,20 @@ const MobileLayout6 = (props) => {
     );
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: getLayoutColor('page-bg', '#BDC3D9') }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ backgroundColor: getLayoutColor('page-bg', '#BDC3D9') }}>
             {renderPopups()}
 
-            {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
-            {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
+            {/* Background Overlay */}
+            <div className="absolute inset-0 z-0" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1), opacity: 0.15 }} />
+
+            {/* Notch Spacer */}
+            {!isPhysicalMobile && <div className="absolute top-0 left-0 right-0 h-10 z-[60] bg-[#0B0F4E] pointer-events-none" />}
 
             {/* Header */}
-            <header className="z-50 px-4 pt-2 pb-4 flex flex-col gap-4 shadow-sm relative shrink-0" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}>
+            <header className={`absolute ${!isPhysicalMobile ? 'top-10' : 'top-2'} left-2 right-2 z-50 px-2 py-2 flex flex-col gap-3 pointer-events-none`}>
                 <div className="flex items-center justify-between px-1 mt-1">
-                    <span className="text-[13px] font-medium opacity-90 truncate flex-1" style={{ color: getLayoutColor('toolbar-text', '#FFFFFF') }}>{/* {bookName} */}</span>
-                    <div className="flex items-center">
+                    <span className="text-[13px] font-medium opacity-90 truncate flex-1 pointer-events-auto" style={{ color: getLayoutColor('toolbar-text', '#333333') }}>{/* {bookName} */}</span>
+                    <div className="flex items-center pointer-events-auto">
                         {settings?.brandingProfile?.logo && logoSettings?.src && (
                             <img
                                 src={logoSettings.src}
@@ -259,18 +262,18 @@ const MobileLayout6 = (props) => {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 pointer-events-auto">
                     {/* Menu Toggle Button */}
                     <button
-                        className="flex items-center justify-center shrink-0 w-10 h-10 rounded-lg border border-white/20 transition-all active:scale-95"
-                        style={{ backgroundColor: getLayoutColor('toolbar-search-bg', '#D7D8E8'), color: getLayoutColor('toolbar-search-icon', '#575C9C') }}
+                        className="flex items-center justify-center shrink-0 w-10 h-10 rounded-lg border border-white/20 transition-all active:scale-95 shadow-md backdrop-blur-md"
+                        style={{ backgroundColor: getLayoutColorRgba('toolbar-search-bg', '215, 216, 232', 0.9), color: getLayoutColor('toolbar-search-icon', '#575C9C') }}
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
                     >
                         <Icon icon={isMenuOpen ? "lucide:x" : "lucide:menu"} className="w-6 h-6" />
                     </button>
 
-                    <div className="flex-1 rounded-lg px-3 py-2 flex items-center gap-3 shadow-inner relative border border-white/10"
-                         style={{ backgroundColor: getLayoutColor('toolbar-search-bg', '#D7D8E8') }}
+                    <div className="flex-1 rounded-lg px-3 py-2 flex items-center gap-3 shadow-md backdrop-blur-md relative border border-white/10"
+                         style={{ backgroundColor: getLayoutColorRgba('toolbar-search-bg', '215, 216, 232', 0.9) }}
                     >
                         <Icon icon="lucide:search" className="w-5 h-5" style={{ color: getLayoutColor('toolbar-search-icon', '#575C9C') }} />
                         <input
@@ -347,12 +350,12 @@ const MobileLayout6 = (props) => {
                 </div>
             </header>
 
-            <div className="flex-1 relative flex overflow-hidden">
+            <div className="flex-1 relative flex overflow-hidden w-full h-full pointer-events-none">
                 {/* Vertical Toolbar on Left */}
                 {isMenuOpen && (
                     <div
-                        className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-[80%] flex flex-col items-center justify-evenly py-6 shadow-2xl z-40 rounded-xl"
-                        style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}
+                        className={`absolute left-4 top-1/2 -translate-y-1/2 w-10 h-[70%] flex flex-col items-center justify-evenly py-6 shadow-2xl z-40 rounded-xl backdrop-blur-md border border-white/10 pointer-events-auto`}
+                        style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 0.95) }}
                     >
                         <button onClick={() => {
                             const willShow = !showThumbnails;
@@ -403,7 +406,7 @@ const MobileLayout6 = (props) => {
                 )}
 
                 {/* Main Content Area */}
-                <div className="flex-1 relative overflow-hidden flex flex-col" style={{ backgroundColor: "transparent" }}>
+                <div className="flex-1 relative overflow-hidden flex flex-col pointer-events-auto" style={{ backgroundColor: "transparent" }}>
                     {/* Navigation Arrows */}
                     <button
                         className="absolute left-[2%] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1 active:scale-90 transition-transform"
@@ -421,9 +424,9 @@ const MobileLayout6 = (props) => {
                     </button>
 
                     {/* Flipbook Canvas */}
-                    <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-white/20">
+                    <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-transparent pt-10 pb-20">
                         <div className="relative shadow-2xl">
-                            <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
+                            <div className="transition-transform duration-300" style={{ transformOrigin: 'center center' }}>
                                 {children}
                             </div>
                         </div>
@@ -497,46 +500,41 @@ const MobileLayout6 = (props) => {
                 </div>
             </div>
 
-            {/* Footer */}
-            <footer className="z-50 shrink-0 flex flex-col pt-3 pb-8 relative" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 1) }}>
-                {/* Row 1: Page info and Zoom */}
-                <div className="flex items-center justify-between px-6 mb-5">
-                    <div className="px-3 py-1 rounded-md border border-white/10 shadow-sm backdrop-blur-sm" style={{ backgroundColor: getLayoutColor('toolbar-search-bg', 'rgba(255,255,255,0.2)') }}>
-                        <span className="text-[11px] font-medium" style={{ color: getLayoutColor('toolbar-search-text', '#FFFFFF') }}>Page {currentPage !== undefined ? currentPage + 1 : 1} / {pages?.length || 1}</span>
-                    </div>
-                    <div className="flex items-center gap-2 px-2.5 py-1 rounded-md border border-white/10 shadow-sm backdrop-blur-sm" style={{ backgroundColor: getLayoutColor('toolbar-search-bg', 'rgba(255,255,255,0.2)') }}>
-                        <Icon icon="lucide:zoom-out" className="w-3.5 h-3.5 cursor-pointer active:scale-90 transition-transform" style={{ color: getLayoutColor('toolbar-search-icon', '#FFFFFF') }} />
-                        <span className="text-[11px] font-medium min-w-[28px] text-center" style={{ color: getLayoutColor('toolbar-search-text', '#FFFFFF') }}>100%</span>
-                        <Icon icon="lucide:zoom-in" className="w-3.5 h-3.5 cursor-pointer active:scale-90 transition-transform" style={{ color: getLayoutColor('toolbar-search-icon', '#FFFFFF') }} />
-                        <button className="text-[10px] font-bold px-1.5 py-0.5 ml-1 rounded active:scale-95 transition-transform" style={{ backgroundColor: getLayoutColor('play-button-bg', '#FFFFFF'), color: getLayoutColor('play-button-icon', '#575C9C') }}>Reset</button>
+            {/* Floating Footer Toolbar */}
+            <div className="absolute bottom-6 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+                <div className="flex items-center justify-between px-2 w-full pointer-events-auto">
+                    <div className="px-3 py-1 rounded-full shadow-md backdrop-blur-md border border-white/10" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 0.95) }}>
+                        <span className="text-[11px] font-bold" style={{ color: getLayoutColor('toolbar-text', '#FFFFFF') }}>Page {currentPage !== undefined ? currentPage + 1 : 1} / {pages?.length || 1}</span>
                     </div>
                 </div>
-                {/* Row 2: Playback & Slider */}
-                <div className="flex items-center px-6 gap-6 w-full">
-                    <div className="flex items-center gap-6 shrink-0">
-                        <button onClick={() => onPageClick(0)} className="active:scale-90 transition-transform" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="lucide:skip-back" strokeWidth="3" className="w-5 h-5" />
-                        </button>
-                        <button onClick={() => setIsPlaying(!isAutoFlipping)} className="active:scale-90 transition-transform" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-8 h-8" />
-                        </button>
-                        <button onClick={() => onPageClick(pages.length - 1)} className="active:scale-90 transition-transform" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="lucide:skip-forward" strokeWidth="3" className="w-5 h-5" />
-                        </button>
-                    </div>
 
-                    <div className="flex-1 flex items-center">
-                        <div ref={progressRef} className="h-3 w-full rounded-full cursor-pointer relative overflow-hidden border border-white/5"
-                            style={{ backgroundColor: getLayoutColor('progress-bar-bg', 'rgba(255, 255, 255, 0.2)') }}
-                            onClick={handleProgressClick}>
-                            <div
-                                className="absolute left-0 top-0 h-full transition-all duration-300 rounded-full shadow-[0_0_12px_rgba(255,255,255,0.6)]"
-                                style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: getLayoutColor('progress-bar-fill', '#FFFFFF') }}
-                            />
+                <div className="w-full rounded-2xl p-3 flex flex-col gap-2 shadow-xl backdrop-blur-md border border-white/10 pointer-events-auto" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', 0.95) }}>
+                    <div className="flex items-center gap-4 px-2 w-full">
+                        <div className="flex items-center gap-4 shrink-0">
+                            <button onClick={() => onPageClick(0)} className="active:scale-90 transition-transform" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                <Icon icon="lucide:skip-back" strokeWidth="3" className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setIsPlaying(!isAutoFlipping)} className="active:scale-90 transition-transform" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-6 h-6" />
+                            </button>
+                            <button onClick={() => onPageClick(pages.length - 1)} className="active:scale-90 transition-transform" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                <Icon icon="lucide:skip-forward" strokeWidth="3" className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 flex items-center pr-2">
+                            <div ref={progressRef} className="h-2 w-full rounded-full cursor-pointer relative overflow-hidden shadow-inner border border-white/5"
+                                style={{ backgroundColor: getLayoutColor('progress-bar-bg', 'rgba(255, 255, 255, 0.2)') }}
+                                onClick={handleProgressClick}>
+                                <div
+                                    className="absolute left-0 top-0 h-full transition-all duration-300 rounded-full"
+                                    style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: getLayoutColor('progress-bar-fill', '#FFFFFF') }}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
-            </footer>
+            </div>
 
         </div>
     );
