@@ -2874,11 +2874,6 @@ const ImageEditor = ({
           // Add clipPath to clip the image to prevent sharp corners from bleeding
           const defsOwner = isImageElement ? (liveElement.ownerSVGElement || liveElement.parentElement || liveElement) : liveElement;
 
-          if (isImageElement) {
-            const buggyDefs = liveElement.querySelector('defs');
-            if (buggyDefs) buggyDefs.remove();
-          }
-
           let defs = defsOwner.querySelector('defs');
           if (!defs) {
             defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
@@ -2902,7 +2897,14 @@ const ImageEditor = ({
             const inner_tr = Math.max(0, Math.min(tr, innerMaxR));
             const inner_br = Math.max(0, Math.min(br, innerMaxR));
             const inner_bl = Math.max(0, Math.min(bl, innerMaxR));
-            clipPathEl.setAttribute('d', getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), inner_tl, inner_tr, inner_br, inner_bl));
+
+            let clipBx = bx;
+            let clipBy = by;
+            if (targetElForStroke && targetElForStroke.tagName?.toLowerCase() === 'svg') {
+              clipBx = 0;
+              clipBy = 0;
+            }
+            clipPathEl.setAttribute('d', getPathD(clipBx, clipBy, Math.max(0, bw), Math.max(0, bh), inner_tl, inner_tr, inner_br, inner_bl));
           }
 
           const isStrokeCropped = imageType === 'Crop' && (liveElement.getAttribute('data-crop-data') || (selectedElement && selectedElement.getAttribute('data-crop-data')));
