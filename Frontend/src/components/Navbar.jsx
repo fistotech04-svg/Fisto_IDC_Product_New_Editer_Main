@@ -1,7 +1,7 @@
 // src/components/Navbar.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import logo from '../assets/logo/Fisto_logo.png';
+import logo from '../assets/logo/Flipibook_logo.svg';
 import { User, Share2, Save, Download, Loader2, Eye, ChevronDown, Monitor, Tablet, Smartphone, Settings } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ProfileModal from './ProfileModal';
@@ -58,7 +58,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
 
   // Common styles
    const baseLinkStyle = "text-gray-500 hover:text-gray-900 font-medium text-[0.85vw] transition-colors relative pb-[0.25vw] after:absolute after:left-0 after:bottom-0 after:h-[0.15vw] after:w-0 hover:after:w-full after:bg-black after:transition-all after:duration-300 after:rounded-full";
-   const activeLinkStyle = "text-[#373d8a] font-semibold text-[0.85vw] transition-colors relative pb-[0.25vw] after:absolute after:left-0 after:bottom-0 after:h-[0.15vw] after:w-full after:bg-[#373d8a] after:transition-all after:duration-300 after:rounded-full";
+   const activeLinkStyle = "text-[#ec5137] font-semibold text-[0.85vw] transition-colors relative pb-[0.25vw] after:absolute after:left-0 after:bottom-0 after:h-[0.15vw] after:w-full after:bg-[#ec5137] after:transition-all after:duration-300 after:rounded-full";
 
   // Timer: Run only when unsaved changes exist
   useEffect(() => {
@@ -95,7 +95,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             <img 
               className="h-[2.5vw] w-auto object-contain" 
               src={logo} 
-              alt="FIST-O" 
+              alt="Flipibook" 
             />
           </Link>
 
