@@ -1048,19 +1048,23 @@ const VideoEditor = ({
             if (!clipNode) {
               clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
               clipNode.id = clipId;
-              const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
               clipNode.appendChild(clipPathEl);
               defs.appendChild(clipNode);
             }
-            const rect = clipNode.firstChild;
-            rect.setAttribute('x', cx);
-            rect.setAttribute('y', cy);
-            rect.setAttribute('width', Math.max(0, cw));
-            rect.setAttribute('height', Math.max(0, ch));
-            rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
-            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-            if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-            else rect.removeAttribute('rx');
+            let clipPathEl = clipNode.firstChild;
+            if (clipPathEl.tagName.toLowerCase() !== 'path') {
+              clipPathEl.remove();
+              clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              clipNode.appendChild(clipPathEl);
+            }
+            const maxR = Math.min(cw, ch) / 2;
+            const c_tl = Math.max(0, Math.min(radius.tl || 0, maxR));
+            const c_tr = Math.max(0, Math.min(radius.tr || 0, maxR));
+            const c_br = Math.max(0, Math.min(radius.br || 0, maxR));
+            const c_bl = Math.max(0, Math.min(radius.bl || 0, maxR));
+            clipPathEl.setAttribute('d', getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), c_tl, c_tr, c_br, c_bl));
+            clipPathEl.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
 
             if (container && container !== liveElement) {
               // Apply directly to the video element to prevent breaking native controls in Chrome
