@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import FistoLogo from '../assets/logo/Fisto_logo.png';
+import FlipibookLogo from '../assets/logo/Flipibook_logo.svg';
 import { Bell } from 'lucide-react';
 import ProfileModal from './ProfileModal';
 import { resolveUploadsPath } from '../utils/supabaseUtils';
@@ -73,7 +73,7 @@ export default function DashboardNavbar() {
         {/* Logo */}
         <div className="flex-shrink-0">
           <Link to="/home">
-            <img src={FistoLogo} alt="FIST-O" className="h-[2.5vw] w-auto object-contain transition-transform duration-300" />
+            <img src={FlipibookLogo} alt="Flipibook" className="h-[2.5vw] w-auto object-contain transition-transform duration-300" />
           </Link>
         </div>
 
@@ -86,7 +86,7 @@ export default function DashboardNavbar() {
                              (link.path === '/contact' && currentPath === '/contact-us');
             
             const baseLinkStyle = "text-gray-500 hover:text-gray-900 font-medium text-[0.85vw] transition-colors relative pb-[0.25vw] after:absolute after:left-0 after:bottom-0 after:h-[0.15vw] after:w-0 hover:after:w-full after:bg-black after:transition-all after:duration-300 after:rounded-full";
-            const activeLinkStyle = "text-[#373d8a] font-semibold text-[0.85vw] transition-colors relative pb-[0.25vw] after:absolute after:left-0 after:bottom-0 after:h-[0.15vw] after:w-full after:bg-[#373d8a] after:transition-all after:duration-300 after:rounded-full";
+            const activeLinkStyle = "text-[#ec5137] font-semibold text-[0.85vw] transition-colors relative pb-[0.25vw] after:absolute after:left-0 after:bottom-0 after:h-[0.15vw] after:w-full after:bg-[#ec5137] after:transition-all after:duration-300 after:rounded-full";
 
             return (
               <Link 

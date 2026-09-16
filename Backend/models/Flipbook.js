@@ -46,6 +46,18 @@ const flipbookSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    trash: {
+      type: Boolean,
+      default: false,
+    },
+    isFavorite: {
+      type: Boolean,
+      default: false,
+    },
+    trashedAt: {
+      type: Date,
+      default: null,
+    },
     Customized_Settings: {
       FlipbookInfo: {
         category: { type: String, default: "" },
