@@ -2397,21 +2397,25 @@ const ImageEditor = ({
 
           if (parsedFill && parsedFill.stops) {
             const fillAngleVal = (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 0;
+            const fillRadiusVal = (parsedFill.radius !== undefined && parsedFill.radius !== null) ? parsedFill.radius : 100;
             fillLayer.setAttribute('data-fill-type', 'gradient');
             fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             fillLayer.setAttribute('data-fill-angle', fillAngleVal);
+            fillLayer.setAttribute('data-fill-radius', fillRadiusVal);
             // syncGradient reads non-data-prefixed attributes
             fillLayer.setAttribute('fill-type', 'gradient');
             fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             fillLayer.setAttribute('fill-angle', fillAngleVal);
+            fillLayer.setAttribute('fill-radius', fillRadiusVal);
             syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
 
             liveElement.setAttribute('data-fill-type', 'gradient');
             liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             liveElement.setAttribute('data-fill-angle', fillAngleVal);
+            liveElement.setAttribute('data-fill-radius', fillRadiusVal);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
             if (fillLayer.style) fillLayer.style.removeProperty('fill');
@@ -2421,8 +2425,12 @@ const ImageEditor = ({
             fillLayer.removeAttribute('fill-stops');
             fillLayer.removeAttribute('fill-gradient-type');
             fillLayer.removeAttribute('fill-angle');
+            fillLayer.removeAttribute('fill-radius');
             liveElement.removeAttribute('data-fill-type');
             liveElement.removeAttribute('data-fill-stops');
+            liveElement.removeAttribute('data-fill-gradient-type');
+            liveElement.removeAttribute('data-fill-angle');
+            liveElement.removeAttribute('data-fill-radius');
           }
 
           fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
