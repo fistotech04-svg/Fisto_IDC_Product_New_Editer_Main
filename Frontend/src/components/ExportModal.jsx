@@ -594,7 +594,7 @@ const SQUARE_BLACK_INK_ICONS = {
   ),
 };
 
-const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageIndex = 0, isFromMyFlipbooks = false }) => {
+const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageIndex = 0, isFromMyFlipbooks = false, isAbsolutePosition = false }) => {
   const [activeTab, setActiveTab] = useState('flipbook');
   const [exportType, setExportType] = useState('entire'); // 'entire' or 'selected'
   const [quality, setQuality] = useState('Medium');
@@ -1760,7 +1760,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
 
   return (
     <>
-      <div className="fixed inset-0 z-[5000] flex items-center justify-center p-[2vw]">
+      <div className={`${isAbsolutePosition ? 'absolute' : 'fixed'} inset-0 z-[5000] flex items-center justify-center p-[2vw]`}>
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" 

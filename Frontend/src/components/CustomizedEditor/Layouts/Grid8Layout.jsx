@@ -222,7 +222,8 @@ const Grid8Layout = ({
                 if (e.deltaY < 0) zoomIn();
                 else zoomOut();
             } else if (settings?.navigation?.mouseWheel) {
-                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                // Allow wheel events in the whole canvas container to make scrolling on single pages work
+if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
                     return;
                 }
                 const now = Date.now();
@@ -493,7 +494,7 @@ const Grid8Layout = ({
             style={{ backgroundColor: backgroundSettings?.color || baseBgColor, ...backgroundStyle }}
             onClick={() => setRecommendations([])}
         >
-            {/* ═══════════ Global Click Overlay Dropdowns ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Global Click Overlay Dropdowns â•â•â•â•â•â•â•â•â•â•â• */}
             {/* Captures clicks reliably before they hit the flipbook which swallows propagation */}
             {!isTablet && (showTopBookmarkOptions || showTopNotesOptions) && (
                 <div
@@ -505,7 +506,7 @@ const Grid8Layout = ({
                 />
             )}
 
-            {/* ═══════════ Top Overlay Area ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Top Overlay Area â•â•â•â•â•â•â•â•â•â•â• */}
             {!isTablet && (
             <div
                 className="absolute top-[2vh] left-[2vw] right-[2vw] flex items-center justify-between z-[100] pointer-events-none transition-all duration-500 ease-in-out"
@@ -626,7 +627,7 @@ const Grid8Layout = ({
                     )}
                 </div>
 
-                {/* ═══════════ Center: Top Toolbar ═══════════ */}
+                {/* â•â•â•â•â•â•â•â•â•â•â• Center: Top Toolbar â•â•â•â•â•â•â•â•â•â•â• */}
                 <div className="flex-shrink-0 pointer-events-auto relative z-[4000]">
                     <div
                         className={`flex items-center ${isSidebarOpen ? 'gap-[0.8vw]' : (isTablet ? 'gap-[0.4vw]' : 'gap-[0.8vw]')} rounded-full px-[0.8vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'}`}
@@ -845,7 +846,7 @@ const Grid8Layout = ({
             )}
 
 
-            {/* ═══════════ Main Book Canvas ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Main Book Canvas â•â•â•â•â•â•â•â•â•â•â• */}
             <div className="flex-1 flex justify-center items-center w-full z-10 pt-[8vh] pb-[12vh]"
                 onMouseMove={(e) => {
                     if (!isFullscreen) return;
@@ -870,14 +871,14 @@ const Grid8Layout = ({
                 </div>
             </div>
 
-            {/* ═══════════ Page Numbers Below Pages Removed ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Page Numbers Below Pages Removed â•â•â•â•â•â•â•â•â•â•â• */}
 
-            {/* ═══════════ Floating Action Buttons Removed ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Floating Action Buttons Removed â•â•â•â•â•â•â•â•â•â•â• */}
 
 
-            {/* ═══════════ Top Thumbnail Bar ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Top Thumbnail Bar â•â•â•â•â•â•â•â•â•â•â• */}
             <>
-                {!isTablet && showThumbnails && (
+                {!isTablet && (settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                     <>
                         {/* Invisible click-to-close overlay */}
                         <div
@@ -999,7 +1000,7 @@ const Grid8Layout = ({
                 )}
             </>
 
-            {/* ═══════════ Bottom Navigation Bar ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Bottom Navigation Bar â•â•â•â•â•â•â•â•â•â•â• */}
             {!isTablet && (
             <div
                 className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex items-center z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
@@ -1091,7 +1092,7 @@ const Grid8Layout = ({
                             style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                         >
                             <span className={`text-[0.75vw] lg:text-[0.85vw] font-medium tracking-wide`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                                Page –
+                                Page â€“
                             </span>
                             <input
                                 type="text" autoComplete="off" spellCheck="false" autoCorrect="off"

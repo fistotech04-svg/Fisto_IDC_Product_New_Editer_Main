@@ -145,7 +145,7 @@ const MobileLayout = ({
 
     return (
         <div
-            className={`shadow-2xl flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 outline-none ${isLayout2
+            className={`fisto-menu-content shadow-2xl flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 outline-none ${isLayout2
                 ? 'p-1 rounded-[1.2rem] bg-white w-[180px]'
                 : (isLayout3
                     ? 'w-[140px] rounded-[1rem] bg-white border border-gray-100 p-3 shadow-2xl relative'
@@ -255,7 +255,7 @@ const Layout1 = ({
     bgSoundMasterEnabled, isBgActive, handleBgClick, bgWidth, handleVolumeDrag, isTablet, activeLayout
 }) => (
     <div
-        className="animate-in fade-in slide-in-from-bottom-4 duration-300"
+        className="fisto-menu-content animate-in fade-in slide-in-from-bottom-4 duration-300"
         onClick={(e) => e.stopPropagation()}
         style={{
             backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(var(--dropdown-bg-opacity, 1) * 0.8))`,
@@ -1315,6 +1315,9 @@ const Sound = ({
 
     const handleVolumeDrag = useCallback((e, type) => {
         e.stopPropagation();
+        if (e.pointerId !== undefined) {
+            e.currentTarget.setPointerCapture(e.pointerId);
+        }
 
         const rect = e.currentTarget.getBoundingClientRect();
 
@@ -1693,10 +1696,10 @@ const Sound = ({
         }
 
         return (
-            <div ref={soundContainerRef} className={`absolute inset-0 z-[100] overflow-hidden flex items-center justify-center pointer-events-none`}>
-                <div className="absolute inset-0 z-[110] pointer-events-auto cursor-default" onClick={onClose} />
+            <div ref={soundContainerRef} className={`absolute inset-0 z-[3000] overflow-hidden flex items-center justify-center pointer-events-none`}>
+                <div className="absolute inset-0 z-[3001] pointer-events-auto cursor-default" onClick={onClose} />
                 <div
-                    className={`absolute ${(!dynamicPos.ready && (!isTablet || layout !== 1)) ? getPosition() : ''} z-[120] pointer-events-auto`}
+                    className={`fisto-menu-content absolute ${(!dynamicPos.ready && (!isTablet || layout !== 1)) ? getPosition() : ''} z-[3002] pointer-events-auto`}
                     style={(dynamicPos.ready && isTablet && layout === 1) ? {
                         bottom: `${dynamicPos.bottom}px`,
                         left: `${dynamicPos.left}px`,

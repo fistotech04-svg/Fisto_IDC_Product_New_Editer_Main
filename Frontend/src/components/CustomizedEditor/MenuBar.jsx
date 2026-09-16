@@ -362,17 +362,28 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
 
   // Helper for direct property updates in settings root (like tocSettings which is separate)
   const updateRootSetting = (rootKey, field, value) => {
+    if (rootKey === 'tocSettings' && onTocSettingsClick) {
+      onTocSettingsClick();
+    }
+    
     onUpdate(prev => {
       const currentRoot = prev[rootKey] || (prev.navigation && prev.navigation[rootKey]) || {};
       const newRoot = { ...currentRoot, [field]: value };
       const currentNav = prev.navigation || {};
+      
+      let updatedNav = {
+        ...currentNav,
+        [rootKey]: newRoot
+      };
+
+      if (rootKey === 'tocSettings') {
+        updatedNav.tableOfContents = true;
+      }
+      
       return {
         ...prev,
         [rootKey]: newRoot,
-        navigation: {
-          ...currentNav,
-          [rootKey]: newRoot
-        }
+        navigation: updatedNav
       };
     });
   };
@@ -641,12 +652,22 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                     </div>
 
                     <div className="mt-[0.5vw] pt-[0.5vw] pr-[0.4vw] border-t border-gray-300 flex justify-end">
-                      <button
-                        onClick={() => onUpdate(settings)}
-                        className="bg-[#4D39FF] text-white px-[1vw] py-[0.3vw] rounded-[0.5vw] text-[0.8vw] font-medium hover:bg-[#3F2CFF] transition-all active:scale-95"
-                      >
-                        Save
-                      </button>
+                      {(() => {
+                        const hasContent = (activeTocSettings.content?.length || 0) > 0;
+                        return (
+                          <button
+                            onClick={() => onUpdate(settings)}
+                            disabled={!hasContent}
+                            className={`px-[1vw] py-[0.3vw] rounded-[0.5vw] text-[0.8vw] font-medium transition-all ${
+                              hasContent 
+                                ? 'bg-[#4D39FF] text-white hover:bg-[#3F2CFF] active:scale-95 cursor-pointer' 
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                          >
+                            Save
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </motion.div>

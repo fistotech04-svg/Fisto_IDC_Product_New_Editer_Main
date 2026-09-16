@@ -150,7 +150,7 @@ const MagneticSidebarBtn = ({ iconEl, label, displayLabel, onClick, extraStyle =
                 )}
             </motion.div>
 
-            {/* Custom tooltip for side bar (appears right of button) — hidden when label text is shown */}
+            {/* Custom tooltip for side bar (appears right of button) â€” hidden when label text is shown */}
             {showTooltip && !hideTooltip && !addTextBelowIcons && (
                 <div
                     className="absolute left-full ml-[1.2vw] top-1/2 -translate-y-1/2 whitespace-nowrap"
@@ -231,7 +231,8 @@ const Grid4Layout = ({
     isMobileLandscape = false,
     showTOC,
     isEditor = false,
-    isFullscreen: isFullscreenProp,
+    isFullscreen: isFullscreenProp
+,
     offset = 0,
 }) => {
     // If mobile view is active, delegate entirely to MobileLayout1 (as fallback)
@@ -336,6 +337,10 @@ const Grid4Layout = ({
                 else zoomOut();
             } else if (settings?.navigation?.mouseWheel) {
                 if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                    return;
+                }
+
+                if (!e.target.closest('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book, .fbe-wrapper, [data-fbe]')) {
                     return;
                 }
                 const now = Date.now();
@@ -573,7 +578,7 @@ const Grid4Layout = ({
     return (
         <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative font-sans" style={backgroundStyle} onClick={() => setRecommendations([])}>
             {/* Top Bar: Brand - Title - Search */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[1000] border-b border-white/5 shadow-lg transition-all duration-500 ${isFullscreen ? `absolute top-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : isFullscreen ? 'h-[6vh]' : (!isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]')} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[1010] border-b border-white/5 shadow-lg transition-all duration-500 ${isFullscreen ? `absolute top-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
                 <div className="flex items-center">
                     {settings.brandingProfile.logo && logoSettings?.src && (
                         <img
@@ -701,10 +706,10 @@ const Grid4Layout = ({
                     ref={buttonsRef}
                     onMouseMove={(e) => setSidebarMousePos({ x: e.clientX, y: e.clientY })}
                     onMouseLeave={() => setSidebarMousePos(null)}
-                    className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : !isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center'} flex flex-col ${isFullscreen ? 'justify-center' : 'pt-[8vh] pb-[2vh]'} gap-[${isMobileLandscape ? '3.5vh' : '3vh'}] border-r border-white/5 shadow-xl z-[1000] shrink-0 transition-all duration-500 ${isFullscreen ? `absolute left-0 top-0 bottom-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+                    className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : isFullscreen ? 'w-[3.6vw] items-center' : (!isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center')} flex flex-col ${isFullscreen ? 'justify-center pb-[18vh]' : 'pt-[8vh] pb-[2vh]'} gap-[${isMobileLandscape ? '3.5vh' : '3vh'}] border-r border-white/5 shadow-xl z-[1000] shrink-0 transition-all duration-500 ${isFullscreen ? `absolute left-0 top-0 bottom-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
 
                     {(settings?.navigation?.tableOfContents ?? true) && renderSidebarBtn(
-                        <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Table of Contents",
                         () => {
                             setShowTOCMemo(!showTOC);
@@ -717,7 +722,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.navigation?.pageThumbnails ?? true) && renderSidebarBtn(
-                        <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Thumbnails",
                         () => {
                             setShowThumbnails(!showThumbnails);
@@ -729,7 +734,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.interaction?.gallery ?? true) && renderSidebarBtn(
-                        <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Gallery",
                         () => {
                             setShowGalleryPopupMemo(true);
@@ -742,7 +747,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.media?.backgroundAudio ?? true) && renderSidebarBtn(
-                        <Icon icon="solar:music-notes-bold" className={`${isMobileLandscape ? 'w-[2.2vw] h-[2.2vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="solar:music-notes-bold" className={`${isMobileLandscape ? 'w-[2.2vw] h-[2.2vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Sound",
                         (e) => {
                             e.stopPropagation();
@@ -755,7 +760,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.brandingProfile?.profile ?? true) && renderSidebarBtn(
-                        <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Profile",
                         () => {
                             setShowProfilePopup(!showProfilePopup);
@@ -767,7 +772,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.shareExport?.share ?? true) && renderSidebarBtn(
-                        <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Share",
                         () => {
                             handleShare();
@@ -782,7 +787,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.shareExport?.download ?? true) && renderSidebarBtn(
-                        <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Download",
                         () => {
                             handleDownload();
@@ -795,7 +800,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.viewing?.fullScreen ?? true) && renderSidebarBtn(
-                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         isFullscreen ? "Exit Fullscreen" : "Fullscreen",
                         () => {
                             handleFullScreen();
@@ -809,7 +814,7 @@ const Grid4Layout = ({
                 </div>
 
                 {/* Vertical Thumbnail Sidebar Integration */}
-                {showThumbnails && (
+                {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                     <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[13vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 255, 255, 255), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
@@ -1183,22 +1188,25 @@ const Grid4Layout = ({
             </div>
 
             {/* Bottom Bar: Multi-Region Integration */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[2.5vw] shrink-0 w-full z-[1000] border-t border-white/5 transition-all duration-500 ${isFullscreen ? `absolute bottom-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : isFullscreen ? 'h-[6vh]' : (!isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]')} flex items-center justify-between px-[2.5vw] shrink-0 w-full z-[1010] border-t border-white/5 transition-all duration-500 ${isFullscreen ? `absolute bottom-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
                 {/* Left: Playback Icons */}
-                <div className="flex items-center gap-[1.5vw]">
+                <div className="flex items-center gap-[1.5vw] ml-[1.5vw]">
                     {(settings?.navigation?.startEndNav ?? true) && (
-                        <button onClick={() => onPageClick && onPageClick(0)} className="hover:scale-110 transition-all p-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                        <button onClick={() => onPageClick && onPageClick(0)} className="hover:scale-110 transition-all p-[0.2vw] flex flex-col items-center justify-center gap-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="lucide:skip-back" className={`${isMobileLandscape ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
+                            {addTextBelowIcons && <span className="text-[0.55vw] font-medium mt-[0.15vw]" style={{ fontFamily: textFont }}>First</span>}
                         </button>
                     )}
                     {(settings?.media?.autoFlip ?? true) && (
-                        <button onClick={() => setIsPlaying(!isAutoFlipping)} className="hover:scale-110 transition-all p-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                        <button onClick={() => setIsPlaying(!isAutoFlipping)} className="hover:scale-110 transition-all p-[0.2vw] flex flex-col items-center justify-center gap-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isMobileLandscape ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />
+                            {addTextBelowIcons && <span className="text-[0.55vw] font-medium mt-[0.15vw]" style={{ fontFamily: textFont }}>{isAutoFlipping ? 'Pause' : 'Play'}</span>}
                         </button>
                     )}
                     {(settings?.navigation?.startEndNav ?? true) && (
-                        <button onClick={() => onPageClick && onPageClick(totalPages - 1)} className="hover:scale-110 transition-all p-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                        <button onClick={() => onPageClick && onPageClick(totalPages - 1)} className="hover:scale-110 transition-all p-[0.2vw] flex flex-col items-center justify-center gap-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="lucide:skip-forward" className={`${isMobileLandscape ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
+                            {addTextBelowIcons && <span className="text-[0.55vw] font-medium mt-[0.15vw]" style={{ fontFamily: textFont }}>Last</span>}
                         </button>
                     )}
                 </div>

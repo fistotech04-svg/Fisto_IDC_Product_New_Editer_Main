@@ -1028,6 +1028,9 @@ const CustomizedEditor = () => {
   const stableExportHandler = useCallback((...args) => handleExportRef.current?.(...args), []);
 
   const handlePreview = useCallback(() => {
+    // Close profile popup if it's open
+    window.dispatchEvent(new Event('close-profile-preview'));
+
     const shareId = shareSettings?.shareId || currentBook?.shareId || v_id;
     const previewUrl = shareId ? `/preview?shareId=${shareId}` : (v_id ? `/preview?v_id=${v_id}` : '/preview');
     
