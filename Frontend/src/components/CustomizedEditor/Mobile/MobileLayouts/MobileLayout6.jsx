@@ -452,7 +452,7 @@ const MobileLayout6 = (props) => {
 
                     {/* Thumbnail Popup (Floating) */}
                     <AnimatePresence>
-                        {showThumbnails && (
+                        {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                             <motion.div
                                 initial={{ opacity: 0, y: '100%' }}
                                 animate={{ opacity: 1, y: 0 }}

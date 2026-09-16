@@ -311,7 +311,8 @@ const Grid2Layout = ({
                 if (e.deltaY < 0) zoomIn();
                 else zoomOut();
             } else if (settings?.navigation?.mouseWheel) {
-                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                // Allow wheel events in the whole canvas container to make scrolling on single pages work
+if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
                     return;
                 }
                 const now = Date.now();
@@ -589,15 +590,15 @@ const Grid2Layout = ({
     );
 
     // Radial Dial Configuration (Shared between dial and preview)
-    // Always use the exact set of spreads — no repetition.
-    // Use a fixed compact angle step (26°) so segments stay near each other
+    // Always use the exact set of spreads â€” no repetition.
+    // Use a fixed compact angle step (26Â°) so segments stay near each other
     // regardless of how few pages the book has. For large books (many spreads),
     // scale the step down so segments don't overlap.
     const radialConfig = useMemo(() => {
         if (!spreads || spreads.length === 0) return { displaySpreads: [], angleStep: 26 };
 
         const displaySpreads = [...spreads];
-        // Fixed compact step: ~26° keeps segments visually touching.
+        // Fixed compact step: ~26Â° keeps segments visually touching.
         // If the book has enough pages to naturally fill the circle, use the even distribution instead.
         const compactStep = 26;
         const angleStep = Math.min(compactStep, 360 / displaySpreads.length);

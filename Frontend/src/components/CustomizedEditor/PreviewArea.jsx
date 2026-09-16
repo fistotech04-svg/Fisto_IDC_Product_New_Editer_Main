@@ -1991,50 +1991,61 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                         };
                         document.addEventListener('mouseup', handleEnd);
                         document.addEventListener('touchend', handleEnd, { passive: true });
+                        
+                        document.addEventListener('wheel', (e) => {
+                            try {
+                                window.parent.postMessage({
+                                    type: 'IFRAME_WHEEL',
+                                    deltaY: e.deltaY,
+                                    ctrlKey: e.ctrlKey,
+                                    deltaMode: e.deltaMode
+                                }, '*');
+                            } catch (err) {}
+                        }, { passive: true });
                     })();
                 </script>
             </head>
             <body>
                 ${html || ''}
-                ${(function() {
-                    if (!watermarkSettings?.src) return '';
-                    const f = watermarkSettings.adjustments || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
-                    const exposure = f.exposure || 0;
-                    const contrast = f.contrast || 0;
-                    const saturation = f.saturation || 0;
-                    const temperature = f.temperature || 0;
-                    const tint = f.tint || 0;
-                    const hl = f.highlights || 0;
-                    const sd = f.shadows || 0;
-                    let filterStr = "";
-                    filterStr += `brightness(${100 + exposure + (hl / 5)}%) `;
-                    filterStr += `contrast(${100 + contrast + (sd / 5)}%) `;
-                    filterStr += `saturate(${100 + saturation}%) `;
-                    if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
-                    if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
-                    else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
+                ${(function () {
+            if (!watermarkSettings?.src) return '';
+            const f = watermarkSettings.adjustments || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
+            const exposure = f.exposure || 0;
+            const contrast = f.contrast || 0;
+            const saturation = f.saturation || 0;
+            const temperature = f.temperature || 0;
+            const tint = f.tint || 0;
+            const hl = f.highlights || 0;
+            const sd = f.shadows || 0;
+            let filterStr = "";
+            filterStr += `brightness(${100 + exposure + (hl / 5)}%) `;
+            filterStr += `contrast(${100 + contrast + (sd / 5)}%) `;
+            filterStr += `saturate(${100 + saturation}%) `;
+            if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
+            if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
+            else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
 
-                    const opacity = (watermarkSettings.opacity ?? 64) / 100;
-                    let positionStyle = "";
-                    const offset = '4%';
+            const opacity = (watermarkSettings.opacity ?? 64) / 100;
+            let positionStyle = "";
+            const offset = '4%';
 
-                    switch (watermarkSettings.position) {
-                        case 'Top Left': positionStyle = `top: ${offset}; left: ${offset};`; break;
-                        case 'Top Right': positionStyle = `top: ${offset}; right: ${offset};`; break;
-                        case 'Bottom Left': positionStyle = `bottom: ${offset}; left: ${offset};`; break;
-                        case 'Center': positionStyle = `top: 50%; left: 50%; transform: translate(-50%, -50%);`; break;
-                        case 'Bottom Right':
-                        default: positionStyle = `bottom: ${offset}; right: ${offset};`; break;
-                    }
+            switch (watermarkSettings.position) {
+                case 'Top Left': positionStyle = `top: ${offset}; left: ${offset};`; break;
+                case 'Top Right': positionStyle = `top: ${offset}; right: ${offset};`; break;
+                case 'Bottom Left': positionStyle = `bottom: ${offset}; left: ${offset};`; break;
+                case 'Center': positionStyle = `top: 50%; left: 50%; transform: translate(-50%, -50%);`; break;
+                case 'Bottom Right':
+                default: positionStyle = `bottom: ${offset}; right: ${offset};`; break;
+            }
 
-                    const objectFit = watermarkSettings.type === 'Fill' ? 'cover' : watermarkSettings.type === 'Stretch' ? 'fill' : 'contain';
+            const objectFit = watermarkSettings.type === 'Fill' ? 'cover' : watermarkSettings.type === 'Stretch' ? 'fill' : 'contain';
 
-                    return `
+            return `
                         <div style="position: absolute; z-index: 9999; pointer-events: none; opacity: ${opacity}; width: 15%; height: auto; ${positionStyle}">
                             <img src="${watermarkSettings.src}" style="width: 100%; height: auto; object-fit: ${objectFit}; filter: ${filterStr};" />
                         </div>
                     `;
-                })()}
+        })()}
             </body>
         </html>
     `;
@@ -2934,12 +2945,12 @@ const PreviewArea = React.memo(({
             if (target.closest('button') || target.closest('input') || target.closest('a') || target.closest('.toolbar')) {
                 return;
             }
-            
+
             const iframes = document.querySelectorAll('iframe');
             iframes.forEach(iframe => {
                 try {
                     iframe.contentWindow.postMessage({ type: 'BLINK_INTERACTIONS' }, '*');
-                } catch(err) {}
+                } catch (err) { }
             });
         };
 
@@ -2966,11 +2977,11 @@ const PreviewArea = React.memo(({
     const [active3DModelConfig, setActive3DModelConfig] = useState(null);
     // Declare isFullscreen here (before the computeFitScale effect that depends on it)
     const [isFullscreen, setIsFullscreen] = useState(false);
-    
 
 
 
-    
+
+
     const baseDimensions = useMemo(() => {
         if (pages && pages.length > 0) {
             for (const p of pages) {
@@ -3103,11 +3114,11 @@ const PreviewArea = React.memo(({
         // ── Scroll wheel: navigation (if enabled) ──────────
         const handleWheel = (e) => {
             if (!settings?.navigation?.mouseWheel) return;
-            
+
             const target = e.target;
-            const isInsideFlipbook = target.closest?.('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book, .fbe-wrapper, .preview-area-container, [data-fbe]');
+            const isInsideFlipbook = target.closest?.('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book, .fbe-wrapper, [data-fbe]');
             if (!isInsideFlipbook) return;
-            
+
             // Only flip on significant scroll to avoid accidental flips
             if (Math.abs(e.deltaY) < 10) return;
 
@@ -3115,15 +3126,15 @@ const PreviewArea = React.memo(({
                 e.preventDefault();
                 return;
             }
-            
+
             e.preventDefault();
-            
+
             if (e.deltaY > 0) {
                 bookRef.current?.pageFlip()?.flipNext();
             } else if (e.deltaY < 0) {
                 bookRef.current?.pageFlip()?.flipPrev();
             }
-            
+
             isFlippingRef.current = true;
             setTimeout(() => {
                 isFlippingRef.current = false;
@@ -3131,7 +3142,7 @@ const PreviewArea = React.memo(({
         };
 
         window.addEventListener('wheel', handleWheel, { passive: false });
-        
+
         return () => {
             window.removeEventListener('wheel', handleWheel);
         };
@@ -3263,6 +3274,12 @@ const PreviewArea = React.memo(({
         setShowThumbnailBar(false);
     }, [activeLayout]);
 
+    useEffect(() => {
+        if (settings?.navigation?.pageThumbnails === false) {
+            setShowThumbnailBar(false);
+        }
+    }, [settings?.navigation?.pageThumbnails]);
+
 
 
 
@@ -3302,6 +3319,20 @@ const PreviewArea = React.memo(({
     }, []);
     const [showTOC, setShowTOC] = useState(false);
 
+    useEffect(() => {
+        if (settings?.navigation?.tableOfContents === false) {
+            setShowTOC(false);
+        }
+    }, [settings?.navigation?.tableOfContents]);
+
+    useEffect(() => {
+        if (settings?.navigation?.bookmark === false) {
+            setShowBookmarkMenu(false);
+            setShowViewBookmarkPopup(false);
+            setShowAddBookmarkPopup(false);
+        }
+    }, [settings?.navigation?.bookmark]);
+
     // Open TOC popup when triggered from MenuBar settings icon click
     useEffect(() => {
         if (externalShowTOC) {
@@ -3311,6 +3342,58 @@ const PreviewArea = React.memo(({
     const [showExportPopup, setShowExportPopup] = useState(false);
     const [showSharePopup, setShowSharePopup] = useState(false);
     const [showProfilePopup, setShowProfilePopup] = useState(false);
+
+    useEffect(() => {
+        if (showSharePopup) {
+            setShowProfilePopup(false);
+            setShowExportPopup(false);
+        }
+    }, [showSharePopup]);
+
+    useEffect(() => {
+        if (showProfilePopup) {
+            setShowSharePopup(false);
+            setShowExportPopup(false);
+        }
+    }, [showProfilePopup]);
+
+    useEffect(() => {
+        if (showExportPopup) {
+            setShowSharePopup(false);
+            setShowProfilePopup(false);
+        }
+    }, [showExportPopup]);
+
+    useEffect(() => {
+        if (showThumbnailBar || showTOC || showBookmarkMenu || showMoreMenu || showNotesMenu || showSoundPopup || showGalleryPopup || showAddBookmarkPopup || showAddNotesPopup || showNotesViewer || showViewBookmarkPopup) {
+            setShowSharePopup(false);
+            setShowExportPopup(false);
+            setShowProfilePopup(false);
+        }
+    }, [showThumbnailBar, showTOC, showBookmarkMenu, showMoreMenu, showNotesMenu, showSoundPopup, showGalleryPopup, showAddBookmarkPopup, showAddNotesPopup, showNotesViewer, showViewBookmarkPopup]);
+
+    useEffect(() => {
+        setShowProfilePopup(false);
+    }, [activeDevice]);
+
+    useEffect(() => {
+        if (settings?.brandingProfile?.profile === false) {
+            setShowProfilePopup(false);
+        }
+    }, [settings?.brandingProfile?.profile]);
+
+    useEffect(() => {
+        if (settings?.shareExport?.share === false) {
+            setShowSharePopup(false);
+        }
+    }, [settings?.shareExport?.share]);
+
+    useEffect(() => {
+        if (settings?.shareExport?.download === false) {
+            setShowExportPopup(false);
+        }
+    }, [settings?.shareExport?.download]);
+
     const [searchQuery, setSearchQuery] = useState('');
 
 
@@ -3504,6 +3587,21 @@ const PreviewArea = React.memo(({
                 const targetIdx = e.data.page - 1; // Convert 1-indexed to 0-indexed
                 if (targetIdx >= 0 && targetIdx < pages.length) {
                     onPageClick(targetIdx);
+                }
+            } else if (e.data && e.data.type === 'IFRAME_WHEEL') {
+                if (settings?.navigation?.mouseWheel) {
+                    if (isFlippingRef.current) return;
+
+                    if (e.data.deltaY > 0) {
+                        bookRef.current?.pageFlip()?.flipNext();
+                    } else if (e.data.deltaY < 0) {
+                        bookRef.current?.pageFlip()?.flipPrev();
+                    }
+
+                    isFlippingRef.current = true;
+                    setTimeout(() => {
+                        isFlippingRef.current = false;
+                    }, 300);
                 }
             } else if (e.data && e.data.type === 'zoom-to-element') {
                 const { rect, speed, pageNumber } = e.data;
@@ -4528,7 +4626,7 @@ const PreviewArea = React.memo(({
                     isMobile={isMobile}
                 />
             )}
-            
+
             {/* Shared Overlays (Common for all layouts) */}
             {showBookmarkMenu && (
                 <>
@@ -4649,6 +4747,7 @@ const PreviewArea = React.memo(({
                     isPreview={true}
                     isMobile={isMobile}
                     isTablet={isTablet}
+                    isSidebarOpen={isSidebarOpen}
                 />
             )}
 
@@ -4706,15 +4805,15 @@ const PreviewArea = React.memo(({
                 />
             )}
 
-            {showExportPopup && createPortal(
+            {showExportPopup && (
                 <ExportModal
                     isOpen={showExportPopup}
                     onClose={() => setShowExportPopup(false)}
                     currentBook={currentBook}
                     pages={pages}
                     currentPageIndex={currentPage - 1}
-                />,
-                document.fullscreenElement || document.getElementById('device-screen-container') || document.body
+                    isAbsolutePosition={true}
+                />
             )}
 
 

@@ -103,7 +103,8 @@ const Grid5Layout = ({
     isTablet,
     showTOC,
     isMobileLandscape,
-    isFullscreen: isFullscreenProp,
+    isFullscreen: isFullscreenProp
+,
     offset = 0,
 }) => {
     // ... rest of the setup logic
@@ -388,7 +389,7 @@ const Grid5Layout = ({
                     </span>
                 )}
             </button>
-            {/* Tooltip — only shown when labels are not already displayed below icons */}
+            {/* Tooltip â€” only shown when labels are not already displayed below icons */}
             {!addTextBelowIcons && (
                 <div
                     className="absolute bottom-full mb-[1.2vw] left-1/2 -translate-x-1/2 whitespace-nowrap hidden group-hover:block pointer-events-none z-[9999]"
@@ -490,7 +491,7 @@ const Grid5Layout = ({
             setShowProfilePopup(false);
             setShowSoundPopupMemo(false);
         }}>
-            {/* ── TOP BAR ── White with search | title | logo */}
+            {/* â”€â”€ TOP BAR â”€â”€ White with search | title | logo */}
             {!isTablet && (
             <div
                 className={`magazine-toolbar ${isMobileLandscape ? 'h-[14%]' : isTablet ? 'h-[5.2vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-50 transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}
@@ -630,7 +631,7 @@ const Grid5Layout = ({
             </div>
             )}
 
-            {/* ── MAIN CONTENT AREA ── */}
+            {/* â”€â”€ MAIN CONTENT AREA â”€â”€ */}
             {/* Book Viewer Container */}
             <div ref={previewAreaRef} className={`flex-1 flex items-center justify-center ${isFullscreen ? 'p-0' : 'px-[4vw]'} magazine-canvas relative min-h-0`}
                 onMouseMove={(e) => {
@@ -658,7 +659,7 @@ const Grid5Layout = ({
                 >
                     {modifiedChildren}
 
-                    {/* Left Navigate Button — hugs the visible page's left edge */}
+                    {/* Left Navigate Button â€” hugs the visible page's left edge */}
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
                             className="absolute top-1/2 -translate-y-1/2 -translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
@@ -669,7 +670,7 @@ const Grid5Layout = ({
                         </button>
                     )}
 
-                    {/* Right Navigate Button — hugs the visible page's right edge */}
+                    {/* Right Navigate Button â€” hugs the visible page's right edge */}
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
                             className="absolute top-1/2 -translate-y-1/2 translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
@@ -682,7 +683,7 @@ const Grid5Layout = ({
                 </div>
             </div>
 
-            {/* ── BOTTOM BAR ── UI Match to Screenshot */}
+            {/* â”€â”€ BOTTOM BAR â”€â”€ UI Match to Screenshot */}
             {!isTablet && (
             <div className={`magazine-toolbar ${isMobileLandscape ? 'h-[11%]' : isTablet ? 'h-[5.5vh]' : 'h-[8vh]'} flex items-center px-[1.5vw] justify-between shrink-0 w-full z-40 bg-transparent overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}>
                 {(settings?.navigation?.pageQuickAccess ?? true) && (
@@ -1357,8 +1358,8 @@ const Grid5Layout = ({
             </div>
             )}
 
-            {/* ── THUMBNAIL BAR ── Exact Match to Screenshot */}
-            {showThumbnails && !isTablet && (
+            {/* â”€â”€ THUMBNAIL BAR â”€â”€ Exact Match to Screenshot */}
+            {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && !isTablet && (
                 <>
                     {/* Main Container - Rounded Capsule */}
                     <div

@@ -83,6 +83,13 @@ const TabletLayout7 = ({
 }) => {
     const [isShareOpen, setIsShareOpen] = useState(false);
     const [showTOC, setShowTOC] = useState(false);
+
+    useEffect(() => {
+        if (settings?.navigation?.tableOfContents === false) {
+            setShowTOC(false);
+        }
+    }, [settings?.navigation?.tableOfContents]);
+
     const [showThumbnails, setShowThumbnails] = useState(false);
     const [showGallery, setShowGallery] = useState(false);
     const [isAutoPlaying, setIsAutoPlaying] = useState(false);
@@ -260,7 +267,7 @@ const TabletLayout7 = ({
             </AnimatePresence>
 
             <AnimatePresence>
-                {showThumbnails && (
+                {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                     <React.Fragment key="thumb-panel-wrapper">
                         {/* Invisible backdrop to close thumbnails on click outside */}
                         <div 
