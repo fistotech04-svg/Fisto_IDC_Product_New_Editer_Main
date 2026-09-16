@@ -215,18 +215,16 @@ const ShapeProperties = ({
   const handleSetRadius = (updater) => {
     const next = typeof updater === 'function' ? updater(radius) : updater;
     const updates = {};
-    if (radius.tl !== next.tl) updates['data-tl'] = next.tl.toString();
-    if (radius.tr !== next.tr) updates['data-tr'] = next.tr.toString();
-    if (radius.bl !== next.bl) updates['data-bl'] = next.bl.toString();
-    if (radius.br !== next.br) updates['data-br'] = next.br.toString();
+    updates['data-tl'] = (next.tl || 0).toString();
+    updates['data-tr'] = (next.tr || 0).toString();
+    updates['data-bl'] = (next.bl || 0).toString();
+    updates['data-br'] = (next.br || 0).toString();
 
     const maxR = Math.max(next.tl || 0, next.tr || 0, next.bl || 0, next.br || 0);
     updates['rx'] = maxR.toString();
     updates['ry'] = maxR.toString();
 
-    if (Object.keys(updates).length > 0) {
-      updateElementAttribute(activePageIndex, selectedLayerId, updates);
-    }
+    updateElementAttribute(activePageIndex, selectedLayerId, updates);
   };
 
   const handleSetIsRadiusLinked = (val) => {
