@@ -71,7 +71,7 @@ const ImageEditor = ({
   const stateRef = useRef({
     imageType: 'Fit',
     opacity: 100,
-    radius: { tl: 12, tr: 12, br: 12, bl: 12 },
+    radius: { tl: 0, tr: 0, br: 0, bl: 0 },
     previewSrc: selectedElement?.src || (selectedElement instanceof SVGElement ? (selectedElement.getAttribute('href') || selectedElement.getAttribute('xlink:href')) : ''),
     filters: { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 },
     activeEffects: ['effect']
@@ -184,7 +184,7 @@ const ImageEditor = ({
   const [opacity, setOpacity] = useState(100);
   const [activePopup, setActivePopup] = useState(null);
   const [filters, setFilters] = useState({ exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 });
-  const [radius, setRadius] = useState({ tl: 12, tr: 12, br: 12, bl: 12 });
+  const [radius, setRadius] = useState({ tl: 0, tr: 0, br: 0, bl: 0 });
   const [activeEffects, setActiveEffects] = useState(['effect']);
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
@@ -664,8 +664,8 @@ const ImageEditor = ({
     }
 
     if (force) {
-      // Clear isHydrating after a short delay - but NOT before the current call completes
-      setTimeout(() => { isHydrating.current = false; }, 50);
+      // Clear isHydrating synchronously once state sync from DOM completes
+      isHydrating.current = false;
     }
   }, [selectedElement, activePageIndex, selectedLayerId]);
 
@@ -713,6 +713,10 @@ const ImageEditor = ({
     return () => {
       observer.disconnect();
       isUpdatingDOM.current = false;
+      if (isUpdatingDOMTimeoutRef.current) {
+        clearTimeout(isUpdatingDOMTimeoutRef.current);
+        isUpdatingDOMTimeoutRef.current = null;
+      }
     };
   }, [selectedElement, syncStateFromDOM]);
 
@@ -2392,21 +2396,22 @@ const ImageEditor = ({
           }
 
           if (parsedFill && parsedFill.stops) {
+            const fillAngleVal = (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 0;
             fillLayer.setAttribute('data-fill-type', 'gradient');
             fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            fillLayer.setAttribute('data-fill-angle', parsedFill.angle || 90);
+            fillLayer.setAttribute('data-fill-angle', fillAngleVal);
             // syncGradient reads non-data-prefixed attributes
             fillLayer.setAttribute('fill-type', 'gradient');
             fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            fillLayer.setAttribute('fill-angle', parsedFill.angle || 90);
+            fillLayer.setAttribute('fill-angle', fillAngleVal);
             syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
 
             liveElement.setAttribute('data-fill-type', 'gradient');
             liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
+            liveElement.setAttribute('data-fill-angle', fillAngleVal);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
             if (fillLayer.style) fillLayer.style.removeProperty('fill');

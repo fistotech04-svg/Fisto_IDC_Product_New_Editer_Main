@@ -1086,21 +1086,22 @@ const GifEditor = ({
           }
 
           if (parsedFill && parsedFill.stops) {
+            const fillAngleVal = (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 0;
             fillLayer.setAttribute('data-fill-type', 'gradient');
             fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            fillLayer.setAttribute('data-fill-angle', parsedFill.angle || 90);
+            fillLayer.setAttribute('data-fill-angle', fillAngleVal);
 
             fillLayer.setAttribute('fill-type', 'gradient');
             fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            fillLayer.setAttribute('fill-angle', parsedFill.angle || 90);
+            fillLayer.setAttribute('fill-angle', fillAngleVal);
 
             syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
             liveElement.setAttribute('data-fill-type', 'gradient');
             liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
+            liveElement.setAttribute('data-fill-angle', fillAngleVal);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
             if (fillLayer.style) fillLayer.style.removeProperty('fill');
@@ -2373,10 +2374,12 @@ function syncGradient(doc, element, baseAttr) {
     if (svgGradType === 'linear') {
       const angle = parseFloat(element.getAttribute(`${baseAttr}-angle`) || '0');
       const angleRad = (angle * Math.PI) / 180;
-      gradEl.setAttribute('x1', Math.round(50 - Math.cos(angleRad) * 50) + '%');
-      gradEl.setAttribute('y1', Math.round(50 - Math.sin(angleRad) * 50) + '%');
-      gradEl.setAttribute('x2', Math.round(50 + Math.cos(angleRad) * 50) + '%');
-      gradEl.setAttribute('y2', Math.round(50 + Math.sin(angleRad) * 50) + '%');
+      const dx = Math.sin(angleRad) * 50;
+      const dy = -Math.cos(angleRad) * 50;
+      gradEl.setAttribute('x1', Math.round(50 - dx) + '%');
+      gradEl.setAttribute('y1', Math.round(50 - dy) + '%');
+      gradEl.setAttribute('x2', Math.round(50 + dx) + '%');
+      gradEl.setAttribute('y2', Math.round(50 + dy) + '%');
     } else {
       const radius = parseFloat(element.getAttribute(`${baseAttr}-radius`) || '50');
       gradEl.setAttribute('cx', '50%');
