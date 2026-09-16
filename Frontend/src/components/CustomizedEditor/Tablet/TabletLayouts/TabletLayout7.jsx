@@ -267,7 +267,7 @@ const TabletLayout7 = ({
             </AnimatePresence>
 
             <AnimatePresence>
-                {showThumbnails && (
+                {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                     <React.Fragment key="thumb-panel-wrapper">
                         {/* Invisible backdrop to close thumbnails on click outside */}
                         <div 

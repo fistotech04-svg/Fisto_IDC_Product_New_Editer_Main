@@ -132,7 +132,7 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
         const maxDist = 52;
         const t = Math.max(0, 1 - dist / maxDist);
         const eased = t * t * (3 - 2 * t);       // smoothstep
-        const focused = eased * eased;             // squared → sharp local peak
+        const focused = eased * eased;             // squared â†’ sharp local peak
         rawScale.set(1 + 0.22 * focused);
         rawGlow.set(focused);
     }, [mousePos]);
@@ -154,7 +154,7 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
                 whileTap={{ scale: 0.91 }}
             >
                 <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.2vw', padding: '0.1vw', background: glowBg }}>
-                    {React.cloneElement(iconEl, { className: `${iconEl.props.className || ''} ${isMobileLandscape ? '!w-[0.7vw] !h-[0.7vw]' : ''}` })}
+                    {React.cloneElement(iconEl, { className: `${iconEl.props.className || ''} ${isMobileLandscape ? '!w-[0.7vw] !h-[0.7vw]' : ''} pointer-events-none` })}
                 </motion.span>
                 {addTextBelowIcons && (
                     <span
@@ -296,7 +296,9 @@ const Grid1Layout = React.memo((props) => {
         setShowMoreMenuMemo?.(false);
         setShowNotesMenuMemo?.(false);
         setShowViewBookmarkPopup?.(false);
-    }, [setShowTOCMemo, setShowThumbnailBarMemo, setShowSoundPopupMemo, setShowProfilePopup, setShowGalleryPopupMemo, setShowBookmarkMenuMemo, setShowMoreMenuMemo, setShowNotesMenuMemo, setShowViewBookmarkPopup]);
+        setShowAddNotesPopupMemo?.(false);
+        setShowNotesViewerMemo?.(false);
+    }, [setShowTOCMemo, setShowThumbnailBarMemo, setShowSoundPopupMemo, setShowProfilePopup, setShowGalleryPopupMemo, setShowBookmarkMenuMemo, setShowMoreMenuMemo, setShowNotesMenuMemo, setShowViewBookmarkPopup, setShowAddNotesPopupMemo, setShowNotesViewerMemo]);
 
     const togglePopup = (popup, e) => {
         if (e) e.stopPropagation();
@@ -467,7 +469,8 @@ const Grid1Layout = React.memo((props) => {
                 if (e.deltaY < 0) zoomIn();
                 else zoomOut();
             } else if (settings?.navigation?.mouseWheel) {
-                // Prevent flipping if scrolling inside a naturally scrollable element
+                // Allow wheel events in the whole canvas container to make scrolling on single pages work
+                // But prevent flipping if scrolling inside a naturally scrollable element
                 if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
                     return;
                 }
@@ -484,7 +487,7 @@ const Grid1Layout = React.memo((props) => {
                 }
             }
         };
-
+        
         window.addEventListener('keydown', handleKeyDown);
         
         const container = containerRef.current;
@@ -518,7 +521,7 @@ const Grid1Layout = React.memo((props) => {
             onClick={onClick}
         >
             {React.cloneElement(iconEl, {
-                className: `${iconEl.props.className} ${isMobileLandscape ? '!w-[0.7vw] !h-[0.7vw]' : ''}`
+                className: `${iconEl.props.className} ${isMobileLandscape ? '!w-[0.7vw] !h-[0.7vw]' : ''} pointer-events-none`
             })}
             {addTextBelowIcons && (
                 <span
@@ -691,7 +694,7 @@ const Grid1Layout = React.memo((props) => {
 
     return (
         <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative" style={{ backgroundColor: backgroundSettings?.color || 'transparent' }}>
-            {activePopup && <div className="fixed inset-0 z-[190] bg-transparent" onClick={() => setActivePopup(null)} />}
+            {activePopup && <div className="fixed inset-0 z-[190] bg-transparent" onClick={() => closeAllPopups()} />}
             <div
                 className="absolute inset-0 z-0"
                 style={backgroundStyle}
@@ -1043,7 +1046,10 @@ const Grid1Layout = React.memo((props) => {
                                         e.stopPropagation();
                                         const wasOpen = showTOC;
                                         closeAllPopups();
-                                        if (!wasOpen) setShowTOCMemo(true);
+                                        if (!wasOpen) {
+                                            setShowTOCMemo(true);
+                                            setActivePopup('toc');
+                                        }
                                     },
                                     { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: showTOC ? 'calc(var(--toolbar-icon-opacity, 1) * 0.7)' : 'var(--toolbar-icon-opacity, 1)' },
                                     '',
@@ -1058,12 +1064,11 @@ const Grid1Layout = React.memo((props) => {
                                     'Thumbnails',
                                     (e) => {
                                         e.stopPropagation();
-                                        if (showThumbnailBar) {
-                                            setShowThumbnailBarMemo(false);
-                                            setActivePopup(null);
-                                        } else {
-                                            closeAllPopups();
+                                        const wasOpen = showThumbnailBar;
+                                        closeAllPopups();
+                                        if (!wasOpen) {
                                             setShowThumbnailBarMemo(true);
+                                            setActivePopup('thumbnails');
                                         }
                                     },
                                     { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: showThumbnailBar ? 'calc(var(--toolbar-icon-opacity, 1) * 0.7)' : 'var(--toolbar-icon-opacity, 1)' },
@@ -1296,7 +1301,10 @@ const Grid1Layout = React.memo((props) => {
                                             e.stopPropagation();
                                             const wasOpen = showSoundPopup;
                                             closeAllPopups();
-                                            if (!wasOpen) setShowSoundPopupMemo(true);
+                                            if (!wasOpen) {
+                                                setShowSoundPopupMemo(true);
+                                                setActivePopup('sound');
+                                            }
                                         },
                                         { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
                                         '',
@@ -1315,8 +1323,12 @@ const Grid1Layout = React.memo((props) => {
                                         'Gallery',
                                         (e) => {
                                             e.stopPropagation();
+                                            const wasOpen = showGalleryPopup;
                                             closeAllPopups();
-                                            setShowGalleryPopupMemo(true);
+                                            if (!wasOpen) {
+                                                setShowGalleryPopupMemo(true);
+                                                setActivePopup('gallery');
+                                            }
                                         },
                                         { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
                                         '',
@@ -1335,7 +1347,10 @@ const Grid1Layout = React.memo((props) => {
                                             e.stopPropagation();
                                             const wasOpen = showProfilePopup;
                                             closeAllPopups();
-                                            if (!wasOpen) setShowProfilePopup(true);
+                                            if (!wasOpen) {
+                                                setShowProfilePopup(true);
+                                                setActivePopup('profile');
+                                            }
                                         },
                                         { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
                                         '',

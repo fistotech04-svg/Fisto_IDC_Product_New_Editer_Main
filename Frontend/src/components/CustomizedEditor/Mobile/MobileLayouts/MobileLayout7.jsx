@@ -455,7 +455,7 @@ const MobileLayout7 = (props) => {
 
             {/* Thumbnail Sidebar */}
             <AnimatePresence>
-                {showThumbnails && (
+                {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}

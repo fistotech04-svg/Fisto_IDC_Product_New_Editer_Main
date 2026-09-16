@@ -362,17 +362,28 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
 
   // Helper for direct property updates in settings root (like tocSettings which is separate)
   const updateRootSetting = (rootKey, field, value) => {
+    if (rootKey === 'tocSettings' && onTocSettingsClick) {
+      onTocSettingsClick();
+    }
+    
     onUpdate(prev => {
       const currentRoot = prev[rootKey] || (prev.navigation && prev.navigation[rootKey]) || {};
       const newRoot = { ...currentRoot, [field]: value };
       const currentNav = prev.navigation || {};
+      
+      let updatedNav = {
+        ...currentNav,
+        [rootKey]: newRoot
+      };
+
+      if (rootKey === 'tocSettings') {
+        updatedNav.tableOfContents = true;
+      }
+      
       return {
         ...prev,
         [rootKey]: newRoot,
-        navigation: {
-          ...currentNav,
-          [rootKey]: newRoot
-        }
+        navigation: updatedNav
       };
     });
   };

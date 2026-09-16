@@ -490,7 +490,8 @@ const Grid3Layout = ({
                 if (e.deltaY < 0) zoomIn();
                 else zoomOut();
             } else if (settings?.navigation?.mouseWheel) {
-                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                // Allow wheel events in the whole canvas container to make scrolling on single pages work
+if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
                     return;
                 }
                 
@@ -1040,15 +1041,14 @@ const Grid3Layout = ({
                         </div>
 
                         {/* Right: Zoom Pill with Reset Button */}
-                        {(settings?.viewing?.zoom ?? true) && (
-                            <div className="flex items-center">
-                                <div className={`flex items-center ${!isBigBars ? 'px-[0.35vw] py-[0.15vw] pl-[0.45vw] rounded-[0.45vw]' : 'px-[0.3vw] py-[0.2vw] pl-[0.5vw] rounded-[0.4vw]'} border shadow-sm transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.4vw]' : 'gap-[0.6vw]')}`}
+                        <div className="flex items-center" style={{ visibility: (settings?.viewing?.zoom ?? true) ? 'visible' : 'hidden' }}>
+                                <div className={`flex items-center ${!isBigBars ? 'px-[0.35vw] py-[0.15vw] pl-[0.45vw] rounded-[0.45vw]' : 'px-[0.3vw] py-[0.2vw] pl-[0.5vw] rounded-[0.4vw]'} border shadow-sm ${(settings?.viewing?.zoom ?? true) ? 'transition-all duration-300' : ''} ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.4vw]' : 'gap-[0.6vw]')}`}
                                     style={{
                                         backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'),
                                         borderColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1')
                                     }}
                                 >
-                                    <div className={`flex items-center transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.5vw]' : 'gap-[0.8vw]')}`}>
+                                    <div className={`flex items-center ${(settings?.viewing?.zoom ?? true) ? 'transition-all duration-300' : ''} ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.5vw]' : 'gap-[0.8vw]')}`}>
                                         {renderToolbarBtn(
                                             <Icon icon="lucide:zoom-out" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
                                             'Zoom Out',
@@ -1091,7 +1091,6 @@ const Grid3Layout = ({
                                     </button>
                                 </div>
                             </div>
-                        )}
 
                         <div
                             ref={progressRef}
@@ -1208,7 +1207,7 @@ const Grid3Layout = ({
                 </div>
 
                 {/* In-Layout Thumbnails Bar overlay matching the exact Layout 3 spec */}
-                {showThumbnails && (() => {
+                {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (() => {
                     let maxItems = 4;
                     let actualMaxItems = Math.min(maxItems, spreads.length);
                     let availableHeightVw = isTablet ? 2.5 : 4;
