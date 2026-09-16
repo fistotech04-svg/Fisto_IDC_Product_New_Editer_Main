@@ -1177,19 +1177,18 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     }
 
     // 1. Physically remove editor-only overlay and interaction layers from export:
+    // 1. Physically remove editor-only overlay and interaction layers from export:
     // - Document Shield: rect overlay placed on top of converted PDF pages to prevent raw vector clicks in editor.
-    //   If left with fill="transparent", SVG parsers fall back to opaque black and hide the entire page!
     svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Document Shield["']|data-type=["']shield["']|id=["']shield-[^"']*["'])[^>]*\/?>/gis, '');
-    svg = svg.replace(/<[^>]+data-name=["']Document Shield["'][^>]*>.*?<\/[^>]+>/gis, '');
-    svg = svg.replace(/<[^>]+data-type=["']shield["'][^>]*>.*?<\/[^>]+>/gis, '');
-    svg = svg.replace(/<[^>]+data-type=["']shield["'][^>]*\/?>/gis, '');
+    svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Document Shield["']|data-type=["']shield["']|id=["']shield-[^"']*["'])[^>]*>[\s\S]*?<\/rect>/gis, '');
+    svg = svg.replace(/<g\b[^>]*?(?:data-name=["']Document Shield["']|data-type=["']shield["'])[^>]*>[\s\S]*?<\/g>/gis, '');
 
     // - Free Frame & custom interaction control overlays
-    svg = svg.replace(/<[^>]+data-name=["']Free Frame["'][^>]*>.*?<\/[^>]+>/gis, '');
-    svg = svg.replace(/<[^>]+data-name=["']Free Frame["'][^>]*\/?>/gis, '');
-    svg = svg.replace(/<[^>]+data-type=["']free-frame["'][^>]*>.*?<\/[^>]+>/gis, '');
-    svg = svg.replace(/<[^>]+data-type=["']free-frame["'][^>]*\/?>/gis, '');
-    svg = svg.replace(/<[^>]+id=["']custom-ctrl-[^"']*["'][^>]*\/?>/gis, '');
+    svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Free Frame["']|data-type=["']free-frame["'])[^>]*\/?>/gis, '');
+    svg = svg.replace(/<rect\b[^>]*?(?:data-name=["']Free Frame["']|data-type=["']free-frame["'])[^>]*>[\s\S]*?<\/rect>/gis, '');
+    svg = svg.replace(/<g\b[^>]*?(?:data-name=["']Free Frame["']|data-type=["']free-frame["'])[^>]*>[\s\S]*?<\/g>/gis, '');
+    svg = svg.replace(/<(?:rect|circle|path|line)\b[^>]*?id=["']custom-ctrl-[^"']*["'][^>]*\/?>/gis, '');
+    svg = svg.replace(/<g\b[^>]*?id=["']custom-ctrl-[^"']*["'][^>]*>[\s\S]*?<\/g>/gis, '');
 
     // 2. Normalize any 'transparent' color attributes/styles to standard SVG 'none'
     // In SVG 1.1, 'transparent' is not a valid color keyword for presentation attributes,
@@ -1200,13 +1199,14 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     svg = svg.replace(/stroke:\s*transparent\b/gi, 'stroke: none');
 
     // 3. Ensure every page has a solid base background if none exists (prevents transparent PDF pages looking black in some readers)
+    // Always insert directly after <svg ...> so it is rendered at the bottom-most layer (z-index 0), never obscuring contents.
     if (!svg.includes('data-name="Overlay"') && !svg.includes('data-type="background"')) {
-      if (svg.includes('</defs>')) {
-        svg = svg.replace(/(<\/defs>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
-      } else {
-        svg = svg.replace(/(<svg[^>]*>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
-      }
+      svg = svg.replace(/(<svg[^>]*>)/i, `$1\n  <rect width="100%" height="100%" fill="#ffffff" data-name="Overlay" data-type="background" />`);
     }
+
+    // Normalize viewBox casing
+    svg = svg.replace(/\bviewbox\s*=/gi, 'viewBox=');
+    svg = svg.replace(/\bpreserveaspectratio\s*=/gi, 'preserveAspectRatio=');
 
     // Extract viewBox to get native aspect ratio
     const vbMatch = svg.match(/viewBox\s*=\s*["']([^"']+)["']/i);
@@ -1228,17 +1228,19 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     }
 
     // Rewrite the root <svg> tag:
-    // For vector PDF: preserve physical dimension units (mm or pt) matching the viewBox!
+    // For vector PDF: preserve physical dimension units (mm or px) matching the viewBox!
     // For raster images: set explicit pixel targetW/targetH for high-resolution rendering
-    svg = svg.replace(/<svg([^>]*?)>/i, (_match, attrs) => {
-      const cleaned = attrs
+    svg = svg.replace(/<svg\b([^>]*)>/i, (_match, attrs) => {
+      let cleaned = attrs
         .replace(/\s+width\s*=\s*["'][^"']*["']/gi, '')
-        .replace(/\s+height\s*=\s*["'][^"']*["']/gi, '');
+        .replace(/\s+height\s*=\s*["'][^"']*["']/gi, '')
+        .replace(/\s+viewBox\s*=\s*["'][^"']*["']/gi, '')
+        .replace(/\s+viewbox\s*=\s*["'][^"']*["']/gi, '');
       if (isVectorPdf && nativeW > 0 && nativeH > 0) {
-        const unit = (nativeW <= 500 && nativeH <= 500) ? 'mm' : 'pt';
-        return `<svg${cleaned} width="${nativeW}${unit}" height="${nativeH}${unit}">`;
+        const unit = (nativeW <= 500 && nativeH <= 500) ? 'mm' : 'px';
+        return `<svg${cleaned} viewBox="0 0 ${nativeW} ${nativeH}" width="${nativeW}${unit}" height="${nativeH}${unit}">`;
       }
-      return `<svg${cleaned} width="${targetW}" height="${targetH}">`;
+      return `<svg${cleaned} viewBox="0 0 ${nativeW || targetW} ${nativeH || targetH}" width="${targetW}" height="${targetH}">`;
     });
 
     // Comprehensive CSS reset injected inside the SVG to:
@@ -1310,28 +1312,31 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     }
 
     // Match all href or xlink:href attributes inside <image> tags
-    const imageRegex = /<image\s+[^>]*?(href|xlink:href)\s*=\s*["']([^"']+)["']/gi;
+    const imageRegex = /<image\s+[^>]*?(?:href|xlink:href)\s*=\s*["']([^"']+)["']/gi;
     const matches = [...processed.matchAll(imageRegex)];
+    const uniqueUrls = [...new Set(matches.map(m => m[1]).filter(url => url && !url.startsWith('data:')))];
 
-    for (const match of matches) {
-      const imgUrl = match[2];
+    if (uniqueUrls.length > 0) {
+      const results = await Promise.allSettled(
+        uniqueUrls.map(async (imgUrl) => {
+          const response = await axios.get(imgUrl, { responseType: 'blob' });
+          const blob = response.data;
+          const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          return { imgUrl, base64Data };
+        })
+      );
 
-      // Skip already inlined data URLs
-      if (imgUrl.startsWith('data:')) continue;
-
-      try {
-        const response = await axios.get(imgUrl, { responseType: 'blob' });
-        const blob = response.data;
-        const base64Data = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(blob);
-        });
-
-        // Replace all occurrences of this URL in the SVG string with Base64 data
-        processed = processed.replaceAll(imgUrl, base64Data);
-      } catch (err) {
-        console.error("Failed to inline image in SVG:", imgUrl, err);
+      for (const res of results) {
+        if (res.status === 'fulfilled' && res.value?.base64Data) {
+          processed = processed.replaceAll(res.value.imgUrl, res.value.base64Data);
+        } else if (res.status === 'rejected') {
+          console.error("Failed to inline image in SVG:", res.reason);
+        }
       }
     }
 
@@ -1412,7 +1417,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     document.body.appendChild(container);
 
     try {
-      const svgElement = container.firstElementChild;
+      const svgElement = container.querySelector('svg') || container.firstElementChild;
 
       // Apply comprehensive style reset directly to the live DOM element
       const styleEl = document.createElement('style');
@@ -1440,7 +1445,9 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
         }
         foreignObject div { width: 100% !important; height: 100% !important; }
       `;
-      svgElement.appendChild(styleEl);
+      if (svgElement) {
+        svgElement.appendChild(styleEl);
+      }
 
       const options = {
         width: targetW,
@@ -1621,16 +1628,31 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
             },
             {
               responseType: 'blob',
-              timeout: 120000,
+              timeout: 300000, // 5 minutes timeout for multi-page vector conversions
             }
           );
 
           if (response.data && response.data.size > 0) {
+            // Check if response is actually a JSON error payload sent as blob
+            if (response.data.type === 'application/json') {
+              const text = await response.data.text();
+              const errJson = JSON.parse(text);
+              throw new Error(errJson.error || 'Server returned an error');
+            }
             saveAs(response.data, pdfName);
             backendExportSucceeded = true;
           }
         } catch (backendErr) {
-          console.warn('Backend vector PDF export unavailable, using client-side vector engine:', backendErr);
+          console.error('Backend vector PDF export error:', backendErr);
+          let errMsg = backendErr.message;
+          if (backendErr.response?.data instanceof Blob) {
+            try {
+              const text = await backendErr.response.data.text();
+              const json = JSON.parse(text);
+              errMsg = json.error || text;
+            } catch (e) {}
+          }
+          console.warn('Backend vector PDF export failed:', errMsg);
         }
 
         // 4. Client-side Fallback (if backend is offline)
@@ -2133,19 +2155,21 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                       <button onClick={onClose} disabled={isDownloading} className="flex-1 flex items-center justify-center gap-[0.4vw] px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-gray-200 text-gray-700 font-bold text-[0.75vw] hover:bg-gray-50 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"><X size="0.8vw" />Cancel</button>
                       <button
                         onClick={activeTab === 'flipbook' ? handleDownload : handleDownloadPoster}
-                        disabled={isDownloading || (activeTab === 'flipbook' && selectedPages.size === 0 && exportType !== 'selected')}
+                        disabled={isDownloading || isLoadingPages || (activeTab === 'flipbook' && selectedPages.size === 0 && exportType !== 'selected')}
                         className="flex-[2] flex items-center justify-center gap-[0.5vw] px-[1.2vw] py-[0.6vw] rounded-[0.5vw] bg-black text-white font-bold text-[0.75vw] hover:bg-gray-900 shadow-[0_4px_15px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] transition-all cursor-pointer active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
                       >
                         {isDownloading
                           ? <><span className="animate-spin inline-block w-[0.9vw] h-[0.9vw] border-[0.15vw] border-white/30 border-t-white rounded-full" />Exporting…</>
-                          : <><Download size="0.8vw" />{activeTab === 'flipbook'
-                              ? (exportType === 'selected'
-                                  ? `Download Page ${currentPage}`
-                                  : selectedPages.size === 1
-                                      ? `Download 1 Page`
-                                      : `Download ${selectedPages.size} Pages`)
-                              : `Export poster`
-                            }</>
+                          : isLoadingPages
+                            ? <><span className="animate-spin inline-block w-[0.9vw] h-[0.9vw] border-[0.15vw] border-white/30 border-t-white rounded-full" />Loading Pages…</>
+                            : <><Download size="0.8vw" />{activeTab === 'flipbook'
+                                ? (exportType === 'selected'
+                                    ? `Download Page ${currentPage}`
+                                    : selectedPages.size === 1
+                                        ? `Download 1 Page`
+                                        : `Download ${selectedPages.size} Pages`)
+                                : `Export poster`
+                              }</>
                         }
                       </button>
                     </div>

@@ -724,8 +724,8 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
           </div>
         </div>
       ) : (
-        <div className="relative">
-          <div className="flex flex-col gap-[1vw]">
+        <div className="relative min-h-[28vw] flex flex-col justify-between">
+          <div className="flex flex-col gap-[0.8vw] flex-1 justify-between">
             {/* Header Controls */}
             <div className="flex items-center justify-between w-full mb-[0.5vw]">
               {!disableGradient && !disableSolid ? (
@@ -898,7 +898,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
             ) : (
               <div className="space-y-[0.2vw]">
                 <div>
-                  <div className="flex items-center gap-[0.75vw] mb-[1.5vw]">
+                  <div className="flex items-center gap-[0.75vw] mb-[1vw] mt-[-0.5vw]">
                     <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Customize your Color</span>
                     <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
                     <div className="flex gap-[0.4vw]">
@@ -967,7 +967,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                   </div>
 
                   {/* Gradient Bar with Stops */}
-                  <div className="relative pt-[1.5vw] pb-[1vw] mb-[1.1vw]">
+                  <div className="relative pt-[1.2vw] pb-[0.2vw] mb-[0.4vw]">
                     <div className="absolute top-0 left-0 w-full h-[2vw] pointer-events-none">
                       {gradientStops.map((stop, idx) => (
                         <div
@@ -1032,30 +1032,75 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                   </div>
 
                   {/* Stop List */}
-                  <div className="space-y-[0.8vw] h-[8.2vw] pt-[0.2vw] overflow-y-auto custom-scrollbar pr-[0.4vw]">
+                  <div className="space-y-[0.4vw] h-[6.5vw] pt-[0.2vw] overflow-y-auto custom-scrollbar pt-[0.8vw] pr-[0.4vw]">
                     {gradientStops.map((stop, idx) => (
-                      <div key={idx} id={`stop-list-item-${idx}`} className="flex items-center gap-[0.6vw]">
+                      <div key={idx} id={`stop-list-item-${idx}`} className="flex items-center gap-[0.4vw]">
                         <div
-                          className={`w-[2vw] h-[2vw] rounded-[0.5vw] border cursor-pointer ${editingStopIndex === idx ? 'border-[#5d5efc] ring-1 ring-[#5d5efc]' : 'border-gray-200'}`}
-                          style={{ backgroundColor: stop.color }}
-                          onClick={() => {
-                            setEditingStopIndex(idx);
-                            setHsv(hexToHsv(stop.color));
-                            setView("custom");
-                          }}
-                        />
-                        <div
-                          className={`flex-1 h-[2vw] border rounded-[0.5vw] flex items-center px-[0.6vw] bg-white cursor-pointer ${editingStopIndex === idx ? 'border-[#5d5efc] ring-1 ring-[#5d5efc]' : 'border-gray-300'}`}
+                          className={`w-[2vw] h-[2vw] rounded-[0.5vw] border cursor-pointer flex-shrink-0 relative overflow-hidden ${editingStopIndex === idx ? 'border-[#5d5efc] ring-1 ring-[#5d5efc]' : 'border-gray-200'}`}
                           onClick={() => {
                             setEditingStopIndex(idx);
                             setHsv(hexToHsv(stop.color));
                             setView("custom");
                           }}
                         >
-                          <span className="text-[0.75vw] font-medium text-gray-700 font-mono">{stop.color.toUpperCase()}</span>
+                          <div className="absolute inset-0" style={{ background: stop.color, opacity: (stop.opacity ?? 100) / 100 }} />
                         </div>
-                        <button onClick={() => removeGradientStop(idx)} className="w-[2vw] h-[2vw] flex items-center justify-center border border-red-200 rounded-[0.5vw] text-red-500 hover:bg-red-50 transition-colors">
-                          <Minus size="1vw" />
+                        <div
+                          className={`flex-1 h-[2vw] border rounded-[0.5vw] flex items-center pl-[0.5vw] pr-[0.4vw] justify-between bg-white hover:border-black transition-colors min-w-0 ${editingStopIndex === idx ? 'border-[#5d5efc] ring-1 ring-[#5d5efc]' : 'border-gray-300'}`}
+                        >
+                          <input
+                            type="text"
+                            value={stop.color.toUpperCase()}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (val && !val.startsWith('#')) val = '#' + val;
+                              updateGradientStop(idx, { color: val });
+                            }}
+                            onClick={() => {
+                              setEditingStopIndex(idx);
+                              setHsv(hexToHsv(stop.color));
+                              setView("custom");
+                            }}
+                            className="flex-1 min-w-0 text-[0.7vw] font-medium text-gray-700 font-mono bg-transparent outline-none cursor-pointer"
+                          />
+                          <div className="flex items-center gap-[0.1vw] flex-shrink-0">
+                            <div
+                              className="flex items-center gap-[0.1vw] cursor-ew-resize select-none px-[0.15vw] hover:bg-gray-50 rounded"
+                              onPointerDown={(e) => {
+                                handleLocalScrub(e, stop.opacity ?? 100, (val) => {
+                                  const num = parseInt(val);
+                                  const clamped = Math.min(Math.max(num, 0), 100);
+                                  updateGradientStop(idx, { opacity: clamped });
+                                });
+                              }}
+                            >
+                              <span className="text-[0.7vw] font-medium text-gray-400">{stop.opacity ?? 100}%</span>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if ('EyeDropper' in window) {
+                              const eyeDropper = new window.EyeDropper();
+                              try {
+                                const result = await eyeDropper.open();
+                                updateGradientStop(idx, { color: result.sRGBHex });
+                              } catch (e) { }
+                            }
+                          }}
+                          className="w-[1.7vw] h-[1.7vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm hover:border-black transition-colors flex-shrink-0 group/btn"
+                          title="Pick Color"
+                        >
+                          <Icon icon="lucide:pipette" className="w-[0.9vw] h-[0.9vw] text-gray-500 group-hover/btn:text-black" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeGradientStop(idx)}
+                          className="w-[1.7vw] h-[1.7vw] flex items-center justify-center border border-red-200 rounded-[0.4vw] text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                          title="Remove Stop"
+                        >
+                          <Minus size="0.9vw" />
                         </button>
                       </div>
                     ))}
@@ -1064,7 +1109,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                 </div>
 
                 <div>
-                  <div className="flex items-center gap-[1vw] mb-[1.2vw]">
+                  <div className="flex items-center gap-[1vw] mb-[0.8vw] mt-[0.8vw]">
                     <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Gradient Colors</span>
                     <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
                   </div>

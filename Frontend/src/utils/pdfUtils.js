@@ -27,30 +27,37 @@ export const fastScanPdfDetails = (uint8Array) => {
   try {
     const ptToMm = 25.4 / 72;
     const decoder = new TextDecoder('latin1');
-    const text = decoder.decode(uint8Array);
+    
+    // Sample only the first 512KB and last 256KB to avoid decoding multi-megabyte binary streams
+    let text = '';
+    const headLen = Math.min(uint8Array.length, 524288);
+    text += decoder.decode(uint8Array.subarray(0, headLen));
+    if (uint8Array.length > 524288) {
+      const tailStart = Math.max(0, uint8Array.length - 262144);
+      text += ' ' + decoder.decode(uint8Array.subarray(tailStart));
+    }
 
-    const pageMatches = text.match(/\/Type\s*\/Page\b/g);
-    const count = pageMatches && pageMatches.length > 0 ? pageMatches.length : 1;
+    // Fast page count extraction: look for /Count in /Pages dictionary or /Type /Page occurrences
+    let count = 1;
+    const countMatch = text.match(/\/Count\s+(\d+)/);
+    if (countMatch && parseInt(countMatch[1], 10) > 0) {
+      count = parseInt(countMatch[1], 10);
+    } else {
+      const pageMatches = text.match(/\/Type\s*\/Page\b/g);
+      if (pageMatches && pageMatches.length > 0) {
+        count = pageMatches.length;
+      }
+    }
 
-    const mediaBoxRegex = /\/MediaBox\s*\[\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\]/g;
+    // Flexible MediaBox/CropBox matching
+    const boxRegex = /\/(?:MediaBox|CropBox)\s*\[\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\]/gi;
     const boxes = [];
     let m;
-    while ((m = mediaBoxRegex.exec(text)) !== null) {
+    while ((m = boxRegex.exec(text)) !== null) {
       const wPt = Math.abs(parseFloat(m[3]) - parseFloat(m[1]));
       const hPt = Math.abs(parseFloat(m[4]) - parseFloat(m[2]));
       if (wPt > 10 && hPt > 10) {
         boxes.push({ widthPt: wPt, heightPt: hPt });
-      }
-    }
-
-    if (boxes.length === 0) {
-      const cropBoxRegex = /\/CropBox\s*\[\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\]/g;
-      while ((m = cropBoxRegex.exec(text)) !== null) {
-        const wPt = Math.abs(parseFloat(m[3]) - parseFloat(m[1]));
-        const hPt = Math.abs(parseFloat(m[4]) - parseFloat(m[2]));
-        if (wPt > 10 && hPt > 10) {
-          boxes.push({ widthPt: wPt, heightPt: hPt });
-        }
       }
     }
 
@@ -93,9 +100,9 @@ export const fastScanPdfDetails = (uint8Array) => {
 /**
  * Reads page count, dimensions (mm), and checks dimension uniformity for a PDF file.
  * Multi-layer:
- * 1. Instant binary header scan (<5ms)
- * 2. Client MuPDF WASM
- * 3. Authoritative backend pdf-lib inspection
+ * 1. Instant binary header scan (<2ms)
+ * 2. Client MuPDF WASM (optimized, instant page-0 inspection + fast sampling)
+ * 3. Authoritative backend inspection fallback
  *
  * @param {File} file 
  * @param {string} [backendUrl]
@@ -104,71 +111,105 @@ export const fastScanPdfDetails = (uint8Array) => {
 export const getPdfDetails = async (file, backendUrl = null) => {
   const ptToMm = 25.4 / 72;
 
-  // 1. FAST-PATH: Instant Client-Side Binary /MediaBox Inspection (~2ms)
+  // Read arrayBuffer ONCE to eliminate redundant allocations
+  let uint8Array = null;
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const fastDetails = fastScanPdfDetails(uint8Array);
-    if (fastDetails && fastDetails.width > 0 && fastDetails.height > 0) {
-      return fastDetails;
-    }
-  } catch (fastErr) {
-    console.warn("[PDF Inspector] Fast binary scan skipped:", fastErr);
+    uint8Array = new Uint8Array(arrayBuffer);
+  } catch (err) {
+    console.warn("[PDF Inspector] Failed to read arrayBuffer:", err);
   }
 
-  // 2. Client-side MuPDF WASM
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const doc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
-    const count = doc.countPages();
-    
-    if (count > 0) {
-      const pages = [];
-      for (let i = 0; i < count; i++) {
-        const page = doc.loadPage(i);
-        const bounds = page.getBounds(); // [x0, y0, x1, y1]
-        let widthPt = bounds[2] - bounds[0];
-        let heightPt = bounds[3] - bounds[1];
+  // 1. FAST-PATH: Instant Client-Side Binary Scan (<2ms)
+  if (uint8Array) {
+    try {
+      const fastDetails = fastScanPdfDetails(uint8Array);
+      if (fastDetails && fastDetails.width > 0 && fastDetails.height > 0) {
+        return fastDetails;
+      }
+    } catch (fastErr) {
+      console.warn("[PDF Inspector] Fast binary scan skipped:", fastErr);
+    }
+  }
 
-        // Check page rotation if available
+  // 2. Client-side MuPDF WASM: fast page-0 inspect + sampling
+  if (uint8Array) {
+    try {
+      const doc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
+      const count = doc.countPages();
+      
+      if (count > 0) {
+        // Load page 0 immediately for exact dimensions
+        const page0 = doc.loadPage(0);
+        const bounds0 = page0.getBounds(); // [x0, y0, x1, y1]
+        let widthPt0 = bounds0[2] - bounds0[0];
+        let heightPt0 = bounds0[3] - bounds0[1];
+
         try {
-          if (typeof page.getRotation === 'function') {
-            const rot = page.getRotation();
+          if (typeof page0.getRotation === 'function') {
+            const rot = page0.getRotation();
             if (rot === 90 || rot === 270) {
-              const tmp = widthPt;
-              widthPt = heightPt;
-              heightPt = tmp;
+              const tmp = widthPt0;
+              widthPt0 = heightPt0;
+              heightPt0 = tmp;
             }
           }
         } catch (e) {}
+        page0.destroy();
 
-        pages.push({
-          pageNumber: i + 1,
-          width: Math.round(widthPt * ptToMm * 10) / 10,
-          height: Math.round(heightPt * ptToMm * 10) / 10,
-          widthPt,
-          heightPt
-        });
-        page.destroy();
+        const baseWidthMm = Math.round(widthPt0 * ptToMm * 10) / 10;
+        const baseHeightMm = Math.round(heightPt0 * ptToMm * 10) / 10;
+
+        // Check uniformity on up to 12 pages (max supported plan limit) instead of loading 100+ pages
+        let isUniform = true;
+        const checkLimit = Math.min(count, 12);
+        const pages = [];
+
+        for (let i = 0; i < count; i++) {
+          if (i === 0) {
+            pages.push({ pageNumber: 1, width: baseWidthMm, height: baseHeightMm });
+          } else if (i < checkLimit || i === count - 1) {
+            try {
+              const p = doc.loadPage(i);
+              const b = p.getBounds();
+              let w = b[2] - b[0];
+              let h = b[3] - b[1];
+              try {
+                if (typeof p.getRotation === 'function') {
+                  const r = p.getRotation();
+                  if (r === 90 || r === 270) {
+                    const t = w; w = h; h = t;
+                  }
+                }
+              } catch (e) {}
+              p.destroy();
+              const wMm = Math.round(w * ptToMm * 10) / 10;
+              const hMm = Math.round(h * ptToMm * 10) / 10;
+              if (Math.abs(wMm - baseWidthMm) > 2 || Math.abs(hMm - baseHeightMm) > 2) {
+                isUniform = false;
+              }
+              pages.push({ pageNumber: i + 1, width: wMm, height: hMm });
+            } catch (e) {
+              pages.push({ pageNumber: i + 1, width: baseWidthMm, height: baseHeightMm });
+            }
+          } else {
+            pages.push({ pageNumber: i + 1, width: baseWidthMm, height: baseHeightMm });
+          }
+        }
+
+        doc.destroy();
+
+        return {
+          count,
+          width: baseWidthMm,
+          height: baseHeightMm,
+          isUniform,
+          pages
+        };
       }
-      doc.destroy();
-
-      const firstPage = pages[0];
-      const isUniform = pages.every(
-        (p) => Math.abs(p.width - firstPage.width) < 1 && Math.abs(p.height - firstPage.height) < 1
-      );
-
-      return {
-        count,
-        width: firstPage.width,
-        height: firstPage.height,
-        isUniform,
-        pages
-      };
+    } catch (mupdfErr) {
+      console.warn("[PDF Inspector] MuPDF client parsing failed, trying backend fallback:", mupdfErr);
     }
-  } catch (mupdfErr) {
-    console.warn("[PDF Inspector] MuPDF client parsing failed, trying backend fallback:", mupdfErr);
   }
 
   // 3. Try Backend Inspection with pdf-lib as authoritative fallback
@@ -185,27 +226,28 @@ export const getPdfDetails = async (file, backendUrl = null) => {
     console.warn("[PDF Inspector] Backend inspection fallback failed:", backendErr.message);
   }
 
-  // 4. Binary regex fallback for page count
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const decoder = new TextDecoder('latin1');
-    const text = decoder.decode(arrayBuffer);
-    const pageMatches = text.match(/\/Type\s*\/Page\b/g);
-    if (pageMatches && pageMatches.length > 0) {
-      const count = pageMatches.length;
-      return {
-        count,
-        width: 210,
-        height: 297,
-        isUniform: true,
-        pages: Array.from({ length: count }, (_, i) => ({
-          pageNumber: i + 1,
+  // 4. Binary regex fallback
+  if (uint8Array) {
+    try {
+      const decoder = new TextDecoder('latin1');
+      const text = decoder.decode(uint8Array.subarray(0, Math.min(uint8Array.length, 524288)));
+      const pageMatches = text.match(/\/Type\s*\/Page\b/g);
+      if (pageMatches && pageMatches.length > 0) {
+        const count = pageMatches.length;
+        return {
+          count,
           width: 210,
-          height: 297
-        }))
-      };
-    }
-  } catch (e) {}
+          height: 297,
+          isUniform: true,
+          pages: Array.from({ length: count }, (_, i) => ({
+            pageNumber: i + 1,
+            width: 210,
+            height: 297
+          }))
+        };
+      }
+    } catch (e) {}
+  }
 
   return {
     count: 1,
@@ -473,38 +515,48 @@ export const inspectDocumentViaBackend = async (file, backendUrl = null) => {
   const formData = new FormData();
   formData.append('document', file);
 
-  const response = await fetch(`${resolvedBackendUrl}/api/flipbook/inspect-document`, {
-    method: 'POST',
-    body: formData
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-  if (!response.ok) {
-    let errData = null;
-    try { errData = await response.json(); } catch (e) {}
-    const errMsg = errData?.message || `Backend inspection failed with status ${response.status}`;
-    const isCorrupt = errData?.isCorrupted ||
-                      /corrupt|cannot be read|not be loaded|damaged|password|format error|command failed/i.test(errMsg);
-    if (isCorrupt) {
-      throw new Error(errMsg.includes("corrupted") ? errMsg : `Your file "${file.name}" is corrupted, unreadable, or password-protected. Please check the file and try again.`);
+  try {
+    const response = await fetch(`${resolvedBackendUrl}/api/flipbook/inspect-document`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errData = null;
+      try { errData = await response.json(); } catch (e) {}
+      const errMsg = errData?.message || `Backend inspection failed with status ${response.status}`;
+      const isCorrupt = errData?.isCorrupted ||
+                        /corrupt|cannot be read|not be loaded|damaged|password|format error|command failed/i.test(errMsg);
+      if (isCorrupt) {
+        throw new Error(errMsg.includes("corrupted") ? errMsg : `Your file "${file.name}" is corrupted, unreadable, or password-protected. Please check the file and try again.`);
+      }
+      throw new Error(errMsg);
     }
-    throw new Error(errMsg);
-  }
 
-  const data = await response.json();
-  if (data.success && data.count > 0) {
-    return {
-      count: data.count,
-      width: data.width,
-      height: data.height,
-      isUniform: data.isUniform,
-      pages: data.pages || Array.from({ length: data.count }, (_, i) => ({
-        pageNumber: i + 1,
+    const data = await response.json();
+    if (data.success && data.count > 0) {
+      return {
+        count: data.count,
         width: data.width,
-        height: data.height
-      }))
-    };
+        height: data.height,
+        isUniform: data.isUniform,
+        pages: data.pages || Array.from({ length: data.count }, (_, i) => ({
+          pageNumber: i + 1,
+          width: data.width,
+          height: data.height
+        }))
+      };
+    }
+    throw new Error("Backend returned invalid inspection result");
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
-  throw new Error("Backend returned invalid inspection result");
 };
 
 /**

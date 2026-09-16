@@ -721,21 +721,22 @@ const VideoEditor = ({
         }
 
         if (parsedFill && parsedFill.stops) {
+          const fillAngleVal = (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 0;
           fillLayer.setAttribute('data-fill-type', 'gradient');
           fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
           fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-          fillLayer.setAttribute('data-fill-angle', parsedFill.angle || 90);
+          fillLayer.setAttribute('data-fill-angle', fillAngleVal);
 
           fillLayer.setAttribute('fill-type', 'gradient');
           fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
           fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-          fillLayer.setAttribute('fill-angle', parsedFill.angle || 90);
+          fillLayer.setAttribute('fill-angle', fillAngleVal);
 
           syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
           liveElement.setAttribute('data-fill-type', 'gradient');
           liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
           liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-          liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
+          liveElement.setAttribute('data-fill-angle', fillAngleVal);
         } else {
           fillLayer.setAttribute('fill', backgroundColor.fill);
           if (fillLayer.style) fillLayer.style.removeProperty('fill');

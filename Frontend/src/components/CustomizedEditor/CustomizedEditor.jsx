@@ -159,7 +159,7 @@ const CustomizedEditor = () => {
   const [watermarkSettings, setWatermarkSettings] = useState(() => {
     const cb = currentBook?.Customized_Settings?.Branding || currentBook?.settings?.Branding || currentBook?.settings || {};
     const w = cb.watermarkSettings || cb.watermark || location.state?.watermarkSettings || location.state?.watermark;
-    if (w && typeof w === 'object') return w;
+    if (w && typeof w === 'object') return { ...w, src: w.src || '' };
     return {
       src: '',
       opacity: 64,

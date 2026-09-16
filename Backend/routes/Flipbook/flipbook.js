@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -23,6 +24,7 @@ const compareKeys = async (input, stored) => {
 import multer from "multer";
 import FlipbookAsset from "../../models/FlipbookAsset.js";
 import UserSettings from "../../models/UserSettings.js";
+import UserFolder from "../../models/UserFolder.js";
 import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 
@@ -1875,14 +1877,18 @@ router.get("/list", async (req, res) => {
         ? doc.viewers.length
         : (typeof doc.viewsCount === 'number' ? doc.viewsCount : 0);
 
+      const isTrashed = Boolean(doc.trash);
+
       books.push({
-        id: `${folder}_${doc.flipbookName}`,
+        id: isTrashed ? `Trash_${doc.v_id || doc.flipbookName}` : `${folder}_${doc.flipbookName}`,
         v_id: doc.v_id,
         realName: doc.flipbookName,
         title: doc.flipbookName,
-        folder: folder,
+        folder: isTrashed ? "Trash" : folder,
+        originalFolder: folder,
         pages: doc.pages ? doc.pages.length : 0,
         created: createdDate,
+        trashedAt: doc.trashedAt || null,
         views: actualViews,
         viewsCount: actualViews,
         viewersCount: Array.isArray(doc.viewers) ? doc.viewers.length : 0,
@@ -1893,6 +1899,8 @@ router.get("/list", async (req, res) => {
         share: doc.Customized_Settings?.Visibility || doc.share || null,
         Visibility: doc.Customized_Settings?.Visibility || doc.share || null,
         isPublished: Boolean(doc.isPublished),
+        isFavorite: Boolean(doc.isFavorite),
+        trash: isTrashed,
         quotes: quotes,
         about: about,
         category: category,
@@ -1903,8 +1911,10 @@ router.get("/list", async (req, res) => {
       });
     }
 
-    // 2. Generate 'Recent Book' view for all user flipbooks sorted by lastUpdated
-    const sortedUserBooks = [...userDbBooks].sort((a, b) => new Date(b.lastUpdated || b.createdAt) - new Date(a.lastUpdated || a.createdAt));
+    // 2. Generate 'Recent Book' view for all non-trashed user flipbooks sorted by lastUpdated
+    const sortedUserBooks = [...userDbBooks]
+      .filter((b) => !b.trash)
+      .sort((a, b) => new Date(b.lastUpdated || b.createdAt) - new Date(a.lastUpdated || a.createdAt));
 
     const recentBooks = sortedUserBooks.map((doc) => {
       const realFolders = Array.isArray(doc.folderName)
@@ -1950,6 +1960,7 @@ router.get("/list", async (req, res) => {
         share: doc.Customized_Settings?.Visibility || doc.share || null,
         Visibility: doc.Customized_Settings?.Visibility || doc.share || null,
         isPublished: Boolean(doc.isPublished),
+        isFavorite: Boolean(doc.isFavorite),
         quotes: quotes,
         about: about,
         category: category,
@@ -2026,7 +2037,8 @@ router.get("/preview/:v_id", async (req, res) => {
 
 
 // @route   GET /api/flipbook/folders
-// @desc    Get list of folders in My_Flipbooks
+// @route   GET /api/flipbook/folders
+// @desc    Get list of folders in My_Flipbooks with database-maintained id and order
 // @access  Public
 router.get("/folders", async (req, res) => {
   try {
@@ -2035,127 +2047,342 @@ router.get("/folders", async (req, res) => {
       return res.status(400).json({ message: "Missing emailId" });
     }
 
-    const folderSet = new Set();
+    const folderMap = new Map(); // name -> id (string)
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
 
-    // Fetch all folders from MongoDB DB documents
+    // 1. Fetch from UserFolder DB model
+    const userFolderDoc = await UserFolder.findOne({ emailId: emailId.toLowerCase() });
+    const rawStoredFolders = userFolderDoc?.folders || [];
+
+    const isSystemFolder = (fName) => {
+      if (!fName) return true;
+      const lower = String(fName).toLowerCase().trim();
+      return (
+        lower === 'recent book' ||
+        lower === 'recent' ||
+        lower === 'public book' ||
+        lower === 'trash' ||
+        lower === 'all flipbook' ||
+        lower === 'all flipbooks' ||
+        lower === 'favorites'
+      );
+    };
+
+    // Map existing stored folders (using default MongoDB _id / id)
+    const dbOrder = [];
+    rawStoredFolders.forEach((item) => {
+      const name = typeof item === 'string' ? item : item?.name;
+      const id = (item && (item._id || item.id)) ? String(item._id || item.id) : new mongoose.Types.ObjectId().toString();
+      if (name && !isSystemFolder(name)) {
+        if (!folderMap.has(name)) {
+          folderMap.set(name, id);
+          dbOrder.push({ id, name });
+        }
+      }
+    });
+
+    // 2. Fetch all folders from MongoDB Flipbook documents (legacy/existing documents)
     const dbBooks = await Flipbook.find({ userEmail: emailId });
     dbBooks.forEach((doc) => {
       if (Array.isArray(doc.folderName)) {
         doc.folderName.forEach((f) => {
-          if (f && f !== "Recent Book" && f !== "Recent book") folderSet.add(f);
+          if (f && !isSystemFolder(f) && !folderMap.has(f)) {
+            folderMap.set(f, new mongoose.Types.ObjectId().toString());
+          }
         });
-      } else if (doc.folderName && doc.folderName !== "Recent Book" && doc.folderName !== "Recent book") {
-        folderSet.add(doc.folderName);
+      } else if (doc.folderName && !isSystemFolder(doc.folderName) && !folderMap.has(doc.folderName)) {
+        folderMap.set(doc.folderName, new mongoose.Types.ObjectId().toString());
       }
     });
 
-    // Fetch all folders from Supabase Storage
+    // 3. Fetch all folders from Supabase Storage
     const supabaseFolders = await listFoldersFromSupabase(sanitizedEmail);
-    supabaseFolders.forEach((f) => folderSet.add(f));
+    supabaseFolders.forEach((f) => {
+      if (f && !isSystemFolder(f) && !folderMap.has(f)) {
+        folderMap.set(f, new mongoose.Types.ObjectId().toString());
+      }
+    });
 
-    // Also check disk directory if present
+    // 4. Also check disk directory if present
     const uploadsDir = path.join(__dirname, "../../uploads");
     const myFlipbooksDir = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT);
-
     if (fs.existsSync(myFlipbooksDir)) {
       try {
         const items = fs.readdirSync(myFlipbooksDir, { withFileTypes: true });
         items
           .filter((item) => item.isDirectory())
-          .forEach((item) => folderSet.add(item.name));
+          .forEach((item) => {
+            if (!isSystemFolder(item.name) && !folderMap.has(item.name)) {
+              folderMap.set(item.name, new mongoose.Types.ObjectId().toString());
+            }
+          });
       } catch (e) {}
     }
 
-    const folders = Array.from(folderSet).sort((a, b) => a.localeCompare(b));
-    res.status(200).json({ folders });
+    // 5. Construct final list maintaining saved order, appending newly discovered folders
+    const orderedFolders = [];
+    const addedNames = new Set();
+
+    dbOrder.forEach((item) => {
+      if (folderMap.has(item.name)) {
+        orderedFolders.push(item);
+        addedNames.add(item.name);
+      }
+    });
+
+    Array.from(folderMap.entries()).forEach(([name, id]) => {
+      if (!addedNames.has(name)) {
+        orderedFolders.push({ id, name });
+        addedNames.add(name);
+      }
+    });
+
+    // Auto-sync UserFolder document in background if new folders or ids were added
+    if (userFolderDoc) {
+      userFolderDoc.folders = orderedFolders.map(f => ({
+        _id: mongoose.Types.ObjectId.isValid(f.id) ? new mongoose.Types.ObjectId(f.id) : new mongoose.Types.ObjectId(),
+        name: f.name
+      }));
+      userFolderDoc.save().catch(() => {});
+    } else if (orderedFolders.length > 0) {
+      UserFolder.create({
+        emailId: emailId.toLowerCase(),
+        folders: orderedFolders.map(f => ({
+          _id: mongoose.Types.ObjectId.isValid(f.id) ? new mongoose.Types.ObjectId(f.id) : new mongoose.Types.ObjectId(),
+          name: f.name
+        }))
+      }).catch(() => {});
+    }
+
+    res.status(200).json({ folders: orderedFolders });
   } catch (error) {
     console.error("Error fetching folders:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
 
+// @route POST /api/flipbook/folder/reorder
+// @desc  Persist rearranged folder order in MongoDB UserFolder schema
+// @access Public
+router.post("/folder/reorder", async (req, res) => {
+  try {
+    const { emailId, folders } = req.body;
+    if (!emailId || !Array.isArray(folders)) {
+      return res.status(400).json({ message: "Missing emailId or folders array" });
+    }
+
+    const safeFolders = folders
+      .filter(f => {
+        const name = typeof f === 'string' ? f : f?.name;
+        return name && name !== "Recent Book" && name !== "Recent book" && name !== "Public Book";
+      })
+      .map(f => {
+        const name = typeof f === 'string' ? f.trim() : String(f.name).trim();
+        const rawId = typeof f === 'object' ? (f._id || f.id) : null;
+        const mongoId = rawId && mongoose.Types.ObjectId.isValid(rawId)
+          ? new mongoose.Types.ObjectId(rawId)
+          : new mongoose.Types.ObjectId();
+        return {
+          _id: mongoId,
+          name
+        };
+      });
+
+    const updatedDoc = await UserFolder.findOneAndUpdate(
+      { emailId: emailId.toLowerCase() },
+      { $set: { folders: safeFolders } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const formattedFolders = (updatedDoc.folders || []).map(f => ({
+      id: f._id ? f._id.toString() : String(f.id),
+      name: f.name
+    }));
+
+    res.json({ message: "Folder order updated", folders: formattedFolders });
+  } catch (err) {
+    console.error("Error updating folder order:", err);
+    res.status(500).json({ message: "Server error updating folder order" });
+  }
+});
+
 // @route POST /api/flipbook/folder/create
-router.post("/folder/create", (req, res) => {
+router.post("/folder/create", async (req, res) => {
   try {
     const { emailId, folderName } = req.body;
     if (!emailId || !folderName)
       return res.status(400).json({ message: "Missing fields" });
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const safeFolderName = folderName.replace(/[^a-zA-Z0-9 _-]/g, "");
+    const safeFolderName = folderName.replace(/[^a-zA-Z0-9 _-]/g, "").trim();
+    const newMongoId = new mongoose.Types.ObjectId();
 
-    // Sync folder creation to Supabase Storage by uploading placeholder .keep file
+    // 1. Maintain in MongoDB UserFolder document
+    const userFolderDoc = await UserFolder.findOne({ emailId: emailId.toLowerCase() });
+    if (userFolderDoc) {
+      const exists = userFolderDoc.folders.some(f => f.name.toLowerCase() === safeFolderName.toLowerCase());
+      if (!exists) {
+        userFolderDoc.folders.push({ _id: newMongoId, name: safeFolderName });
+        await userFolderDoc.save();
+      }
+    } else {
+      await UserFolder.create({
+        emailId: emailId.toLowerCase(),
+        folders: [{ _id: newMongoId, name: safeFolderName }]
+      });
+    }
+
+    // 2. Sync folder creation to Supabase Storage in background
     const supabaseFolderKeep = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeFolderName}/.keep`;
     uploadBufferToSupabase(Buffer.from(""), supabaseFolderKeep, "text/plain").catch((err) =>
       console.warn("[Supabase] Folder create warning:", err)
     );
 
-    res.json({ message: "Folder created", folder: safeFolderName });
+    res.json({ message: "Folder created", folder: safeFolderName, id: newMongoId.toString() });
   } catch (err) {
     console.error("Error creating folder:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
+// @route DELETE /api/flipbook/folder
+router.delete("/folder", async (req, res) => {
+  try {
+    const { emailId, folderName, folderId } = req.body;
+    if (!emailId || (!folderName && !folderId))
+      return res.status(400).json({ message: "Missing fields" });
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+
+    // 1. Remove from MongoDB UserFolder document immediately
+    const filterConds = [];
+    if (folderName) filterConds.push({ name: folderName });
+    if (folderId && mongoose.Types.ObjectId.isValid(folderId)) {
+      filterConds.push({ _id: new mongoose.Types.ObjectId(folderId) });
+    }
+
+    if (filterConds.length > 0) {
+      await UserFolder.findOneAndUpdate(
+        { emailId: emailId.toLowerCase() },
+        { $pull: { folders: { $or: filterConds } } }
+      ).catch(() => {});
+    }
+
+    // Respond immediately for super fast client response
+    res.json({ message: "Folder deleted successfully" });
+
+    // 2. Clean up flipbooks, assets, and storage in the background
+    (async () => {
+      try {
+        if (folderName) {
+          await Flipbook.deleteMany({
+            userEmail: emailId,
+            $or: [{ folderName: folderName }, { folderName: { $in: [folderName] } }]
+          });
+
+          await FlipbookAsset.deleteMany({
+            userEmail: emailId,
+            folderName: folderName
+          });
+
+          const supabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}`;
+          deleteFolderFromSupabase(supabasePrefix).catch(() => {});
+
+          const uploadsDir = path.join(__dirname, "../../uploads");
+          const localDir = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, folderName);
+          if (fs.existsSync(localDir)) {
+            try { fs.rmSync(localDir, { recursive: true, force: true }); } catch (e) {}
+          }
+        }
+      } catch (bgErr) {
+        console.error("Background folder cleanup error:", bgErr);
+      }
+    })();
+  } catch (err) {
+    console.error("Error deleting folder:", err);
+    res.status(500).json({ message: "Server error deleting folder" });
+  }
+});
+
 // @route POST /api/flipbook/folder/rename
 router.post("/folder/rename", async (req, res) => {
   try {
-    const { emailId, oldName, newName } = req.body;
+    const { emailId, oldName, newName, folderId } = req.body;
     if (!emailId || !oldName || !newName)
       return res.status(400).json({ message: "Missing fields" });
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const safeNewName = newName.replace(/[^a-zA-Z0-9 _-]/g, "");
+    const safeNewName = newName.replace(/[^a-zA-Z0-9 _-]/g, "").trim();
 
-    // 1. Fetch all books belonging to this folder in MongoDB
-    const booksToUpdate = await Flipbook.find({
-      userEmail: emailId,
-      $or: [{ folderName: oldName }, { folderName: { $in: [oldName] } }]
-    });
+    // 1. Update folder in MongoDB UserFolder schema instantly
+    let resolvedId = folderId || null;
+    const userFolderDoc = await UserFolder.findOne({ emailId: emailId.toLowerCase() });
+    if (userFolderDoc && Array.isArray(userFolderDoc.folders)) {
+      userFolderDoc.folders = userFolderDoc.folders.map(f => {
+        const fIdStr = f._id ? f._id.toString() : (f.id ? String(f.id) : null);
+        const isMatch = (folderId && fIdStr === String(folderId)) || f.name === oldName;
+        if (isMatch) {
+          resolvedId = fIdStr || resolvedId || new mongoose.Types.ObjectId().toString();
+          return {
+            _id: mongoose.Types.ObjectId.isValid(resolvedId) ? new mongoose.Types.ObjectId(resolvedId) : new mongoose.Types.ObjectId(),
+            name: safeNewName
+          };
+        }
+        return f;
+      });
+      await userFolderDoc.save();
+    }
 
-    // 2. Rename folder in Supabase Storage
-    const oldSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${oldName}`;
-    const newSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeNewName}`;
-    await renamePathInSupabase(oldSupabasePrefix, newSupabasePrefix).catch((err) =>
-      console.warn("[Supabase] Folder rename warning:", err)
+    // 2. Update Flipbook documents in MongoDB using fast bulk updateMany
+    await Flipbook.updateMany(
+      { userEmail: emailId, folderName: oldName },
+      { $set: { "folderName.$[elem]": safeNewName, lastUpdated: new Date() } },
+      { arrayFilters: [{ "elem": oldName }] }
     );
 
-    // 3. Update MongoDB for all books in this folder
-    for (const book of booksToUpdate) {
-      if (Array.isArray(book.folderName)) {
-        book.folderName = book.folderName.map((f) =>
-          f === oldName ? safeNewName : f,
+    // Handle flipbooks where folderName was a single string instead of array
+    await Flipbook.updateMany(
+      { userEmail: emailId, folderName: oldName },
+      { $set: { folderName: [safeNewName], lastUpdated: new Date() } }
+    );
+
+    // Respond immediately so user rename is fast (<150ms)
+    res.json({
+      message: "Renamed successfully",
+      newName: safeNewName,
+      folderId: resolvedId
+    });
+
+    // 3. Heavy storage renames executed asynchronously in background without blocking the UI
+    (async () => {
+      try {
+        const oldSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${oldName}`;
+        const newSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeNewName}`;
+        await renamePathInSupabase(oldSupabasePrefix, newSupabasePrefix).catch((err) =>
+          console.warn("[Supabase] Background folder rename warning:", err)
         );
-      } else {
-        book.folderName = [safeNewName];
-      }
-      book.lastUpdated = new Date();
-      await book.save();
-    }
 
-    // 4. Update assets
-    try {
-      const assets = await FlipbookAsset.find({
-        userEmail: emailId,
-        $or: [{ folderName: oldName }, { url: { $regex: new RegExp(`/${FLIPBOOK_ROOT}/${oldName}/`) } }]
-      });
+        // Update assets
+        const assets = await FlipbookAsset.find({
+          userEmail: emailId,
+          $or: [{ folderName: oldName }, { url: { $regex: new RegExp(`/${FLIPBOOK_ROOT}/${oldName}/`) } }]
+        });
 
-      for (const asset of assets) {
-        asset.folderName = safeNewName;
-        if (asset.url) {
-          asset.url = asset.url.replace(
-            `/${FLIPBOOK_ROOT}/${oldName}/`,
-            `/${FLIPBOOK_ROOT}/${safeNewName}/`
-          );
+        for (const asset of assets) {
+          asset.folderName = safeNewName;
+          if (asset.url) {
+            asset.url = asset.url.replace(
+              `/${FLIPBOOK_ROOT}/${oldName}/`,
+              `/${FLIPBOOK_ROOT}/${safeNewName}/`
+            );
+          }
+          await asset.save();
         }
-        await asset.save();
+      } catch (bgErr) {
+        console.warn("Background storage rename error:", bgErr);
       }
-    } catch (assetErr) {
-      console.error("Error updating assets after folder rename:", assetErr);
-    }
+    })();
 
-    res.json({ message: "Renamed successfully", newName: safeNewName });
   } catch (err) {
     console.error("Error renaming folder:", err);
     res.status(500).json({ message: "Server error" });
@@ -2292,7 +2519,28 @@ router.post("/folder/duplicate", async (req, res) => {
       ensureFlipbookFoldersInSupabase(sanitizedEmail, copyName, newBookName).catch(() => {});
     }
 
-    res.json({ message: "Duplicated successfully", newFolderName: copyName });
+    // Add duplicated folder to UserFolder document right after the original folder
+    let newFolderMongoId = new mongoose.Types.ObjectId();
+    try {
+      const userFolderDoc = await UserFolder.findOne({ emailId: emailId.toLowerCase() });
+      if (userFolderDoc && Array.isArray(userFolderDoc.folders)) {
+        const srcIdx = userFolderDoc.folders.findIndex(f => {
+          const fName = typeof f === 'string' ? f : f?.name;
+          return fName === folderName;
+        });
+        const newFolderObj = { _id: newFolderMongoId, name: copyName };
+        if (srcIdx >= 0) {
+          userFolderDoc.folders.splice(srcIdx + 1, 0, newFolderObj);
+        } else {
+          userFolderDoc.folders.push(newFolderObj);
+        }
+        await userFolderDoc.save();
+      }
+    } catch (e) {
+      console.warn("Could not add duplicated folder to UserFolder:", e);
+    }
+
+    res.json({ message: "Duplicated successfully", newFolderName: copyName, id: newFolderMongoId.toString() });
   } catch (err) {
     console.error("Error duplicating folder:", err);
     res.status(500).json({ message: "Server error" });
@@ -2331,6 +2579,7 @@ router.post("/duplicate", async (req, res) => {
     }
 
     // Duplicate MongoDB Document
+    let createdDoc = null;
     if (sourceDoc) {
       const newFlipbookVId = nanoid(20);
       const pageIdMap = new Map();
@@ -2348,7 +2597,7 @@ router.post("/duplicate", async (req, res) => {
         };
       });
 
-      await Flipbook.create({
+      createdDoc = await Flipbook.create({
         userEmail: emailId,
         folderName: Array.isArray(sourceDoc.folderName) ? sourceDoc.folderName : [folderName],
         flipbookName: copyName,
@@ -2426,14 +2675,14 @@ router.post("/duplicate", async (req, res) => {
       ensureFlipbookFoldersInSupabase(sanitizedEmail, folderName, copyName).catch(() => {});
     }
 
-    // Duplicate book in Supabase Storage
+    // Duplicate book in Supabase Storage in background
     const oldSupabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${bookName}`;
     const newSupabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${copyName}`;
-    await copyPathInSupabase(oldSupabaseBookPrefix, newSupabaseBookPrefix).catch((err) =>
+    copyPathInSupabase(oldSupabaseBookPrefix, newSupabaseBookPrefix).catch((err) =>
       console.warn("[Supabase] Duplicate book warning:", err)
     );
 
-    res.json({ message: "Duplicated successfully", newBookName: copyName });
+    res.json({ message: "Duplicated successfully", newBookName: copyName, newDoc: createdDoc });
   } catch (err) {
     console.error("Error duplicating book:", err);
     res.status(500).json({ message: "Server error" });
@@ -3860,9 +4109,9 @@ router.delete("/folder", async (req, res) => {
       }
     }
 
-    // Delete folder from Supabase Storage
+    // Delete folder from Supabase Storage in background
     const supabaseFolderPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}`;
-    await deleteFolderFromSupabase(supabaseFolderPrefix).catch((e) =>
+    deleteFolderFromSupabase(supabaseFolderPrefix).catch((e) =>
       console.warn("[Supabase] Delete folder warning:", e)
     );
 
@@ -4042,10 +4291,10 @@ router.post("/move", async (req, res) => {
       }
     }
 
-    // Move flipbook directory in Supabase Storage
+    // Move flipbook directory in Supabase Storage in background
     const oldSupabaseMovePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveCurrentFolder}/${bookName}`;
     const newSupabaseMovePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${bookName}`;
-    await renamePathInSupabase(oldSupabaseMovePrefix, newSupabaseMovePrefix).catch((err) =>
+    renamePathInSupabase(oldSupabaseMovePrefix, newSupabaseMovePrefix).catch((err) =>
       console.warn("[Supabase] Book move warning:", err)
     );
 
@@ -4118,56 +4367,254 @@ router.post("/remove-recent", async (req, res) => {
   }
 });
 
+// @route POST /api/flipbook/trash
+// @desc Move flipbook to trash
+router.post("/trash", async (req, res) => {
+  try {
+    const { emailId, folderName, bookName, v_id } = req.body;
+    if (!emailId || (!bookName && !v_id)) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const query = { userEmail: emailId };
+    if (v_id) {
+      query.v_id = v_id;
+    } else {
+      query.flipbookName = bookName;
+      if (folderName && folderName !== "Recent Book" && folderName !== "Trash") {
+        query.$or = [{ folderName: folderName }, { folderName: { $in: [folderName] } }];
+      }
+    }
+
+    let updated = await Flipbook.findOneAndUpdate(
+      query,
+      {
+        $set: { 
+          trash: true, 
+          trashedAt: new Date(), 
+          isPublished: false,
+          'Customized_Settings.FlipbookInfo.tags': []
+        },
+        $pull: { folderName: "Recent Book" }
+      },
+      { new: true }
+    );
+
+    if (!updated && !v_id) {
+      updated = await Flipbook.findOneAndUpdate(
+        { userEmail: emailId, flipbookName: bookName },
+        {
+          $set: { 
+            trash: true, 
+            trashedAt: new Date(), 
+            isPublished: false,
+            'Customized_Settings.FlipbookInfo.tags': []
+          },
+          $pull: { folderName: "Recent Book" }
+        },
+        { new: true }
+      );
+    }
+
+    // Remove from everyone's shelf if it was on shelves
+    if (updated?.v_id) {
+      Profile.updateMany(
+        {},
+        { $pull: { "myShelf.folders.$[].books": { v_id: updated.v_id } } }
+      ).catch(() => {});
+    }
+
+    logActivity({
+      userEmail: emailId,
+      type: 'trash_flip',
+      title: 'You moved a flipbook to trash',
+      desc: `Flipbook: ${bookName || updated?.flipbookName}`,
+      entityId: updated?.v_id || v_id || '',
+      entityName: bookName || updated?.flipbookName
+    });
+
+    res.json({ message: "Moved to trash successfully", book: updated });
+  } catch (err) {
+    console.error("Error moving flipbook to trash:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route POST /api/flipbook/restore
+// @desc Restore flipbook from trash
+router.post("/restore", async (req, res) => {
+  try {
+    const { emailId, bookName, v_id } = req.body;
+    if (!emailId || (!bookName && !v_id)) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const query = { userEmail: emailId };
+    if (v_id) {
+      query.v_id = v_id;
+    } else {
+      query.flipbookName = bookName;
+    }
+
+    const updated = await Flipbook.findOneAndUpdate(
+      query,
+      { $set: { trash: false, trashedAt: null } },
+      { new: true }
+    );
+
+    logActivity({
+      userEmail: emailId,
+      type: 'restore_flip',
+      title: 'You restored a flipbook',
+      desc: `Flipbook: ${bookName || updated?.flipbookName}`,
+      entityId: updated?.v_id || v_id || '',
+      entityName: bookName || updated?.flipbookName
+    });
+
+    res.json({ message: "Flipbook restored successfully", book: updated });
+  } catch (err) {
+    console.error("Error restoring flipbook:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route POST /api/flipbook/empty-trash
+// @desc Permanently delete all books in trash
+router.post("/empty-trash", async (req, res) => {
+  try {
+    const { emailId } = req.body;
+    if (!emailId) return res.status(400).json({ message: "Missing emailId" });
+
+    const trashedBooks = await Flipbook.find({ userEmail: emailId, trash: true });
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+
+    for (const book of trashedBooks) {
+      const realFolders = Array.isArray(book.folderName)
+        ? book.folderName.filter(f => f !== "Recent Book" && f !== "Recent book" && f !== "Trash")
+        : [book.folderName];
+      const folder = realFolders[0] || "My_Flipbooks";
+
+      const supabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folder}/${book.flipbookName}`;
+      deleteFolderFromSupabase(supabaseBookPrefix).catch(() => {});
+
+      if (book.v_id) {
+        try {
+          const assets = await FlipbookAsset.find({ flipbook_v_id: book.v_id });
+          for (const asset of assets) {
+            if (asset.url) deleteFileFromSupabase(asset.url).catch(() => {});
+          }
+          await FlipbookAsset.deleteMany({ flipbook_v_id: book.v_id });
+        } catch (e) {}
+
+        try {
+          await InteractionThreedModel.deleteMany({ userEmail: emailId, flipbookName: book.flipbookName });
+        } catch (e) {}
+      }
+    }
+
+    await Flipbook.deleteMany({ userEmail: emailId, trash: true });
+    res.json({ message: "Trash emptied successfully", deletedCount: trashedBooks.length });
+  } catch (err) {
+    console.error("Error emptying trash:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route POST /api/flipbook/favorite
+// @desc Toggle or set favorite status for a flipbook
+router.post("/favorite", async (req, res) => {
+  try {
+    const { emailId, bookName, v_id, isFavorite } = req.body;
+    if (!emailId) return res.status(400).json({ message: "Missing emailId" });
+
+    const query = {
+      $or: [
+        { userEmail: emailId },
+        { userEmail: emailId.toLowerCase() }
+      ]
+    };
+    if (v_id) {
+      query.v_id = v_id;
+    } else if (bookName) {
+      query.flipbookName = bookName;
+    }
+
+    const result = await Flipbook.updateMany(
+      query,
+      { $set: { isFavorite: Boolean(isFavorite) } }
+    );
+    res.json({ message: "Favorite updated", isFavorite: Boolean(isFavorite), matchedCount: result.matchedCount });
+  } catch (err) {
+    console.error("Error updating favorite:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // @route DELETE /api/flipbook/delete
 router.delete("/delete", async (req, res) => {
   try {
-    const { emailId, folderName, bookName } = req.body;
+    const { emailId, folderName, bookName, v_id } = req.body;
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
 
+    // First find the book to know its real folder and v_id
+    let targetBook = null;
+    if (v_id) {
+      targetBook = await Flipbook.findOne({ userEmail: emailId, v_id });
+    }
+    if (!targetBook && bookName) {
+      if (folderName && folderName !== "Trash" && folderName !== "Recent Book") {
+        targetBook = await Flipbook.findOne({
+          userEmail: emailId,
+          flipbookName: bookName,
+          $or: [{ folderName: folderName }, { folderName: { $in: [folderName] } }]
+        });
+      }
+      if (!targetBook) {
+        targetBook = await Flipbook.findOne({ userEmail: emailId, flipbookName: bookName });
+      }
+    }
+
+    const realFolders = targetBook && Array.isArray(targetBook.folderName)
+      ? targetBook.folderName.filter(f => f !== "Recent Book" && f !== "Recent book" && f !== "Trash")
+      : (targetBook && targetBook.folderName ? [targetBook.folderName] : [folderName || "My_Flipbooks"]);
+    const storageFolder = (folderName && folderName !== "Trash" && folderName !== "Recent Book") ? folderName : (realFolders[0] || "My_Flipbooks");
+    const targetBookName = targetBook ? targetBook.flipbookName : bookName;
+
     // Delete flipbook folder and all files from Supabase Storage
-    const supabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${bookName}`;
+    const supabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${storageFolder}/${targetBookName}`;
     deleteFolderFromSupabase(supabaseBookPrefix).catch(e => console.warn("[Supabase] Delete book folder warning:", e));
 
     // Delete from MongoDB
-    let deletedBook = await Flipbook.findOneAndDelete({
-      userEmail: emailId,
-      flipbookName: bookName,
-      $or: [{ folderName: folderName }, { folderName: { $in: [folderName] } }]
-    });
-
-    if (!deletedBook) {
+    let deletedBook = null;
+    if (targetBook) {
+      deletedBook = await Flipbook.findByIdAndDelete(targetBook._id);
+    } else {
       deletedBook = await Flipbook.findOneAndDelete({
         userEmail: emailId,
         flipbookName: bookName,
       });
     }
 
-    if (deletedBook && deletedBook.v_id) {
-      console.log(
-        `Deleting assets for flipbook: ${bookName} (${deletedBook.v_id})`,
-      );
+    const bookVId = deletedBook?.v_id || targetBook?.v_id || v_id;
+    if (bookVId) {
+      console.log(`Deleting assets for flipbook: ${targetBookName} (${bookVId})`);
       try {
-        const assets = await FlipbookAsset.find({
-          flipbook_v_id: deletedBook.v_id,
-        });
+        const assets = await FlipbookAsset.find({ flipbook_v_id: bookVId });
         for (const asset of assets) {
           if (asset.url) {
             deleteFileFromSupabase(asset.url).catch(e => console.warn("[Supabase] Delete asset warning:", e));
           }
         }
-        await FlipbookAsset.deleteMany({ flipbook_v_id: deletedBook.v_id });
-        console.log(`Deleted ${assets.length} asset records.`);
+        await FlipbookAsset.deleteMany({ flipbook_v_id: bookVId });
       } catch (assetErr) {
         console.error("Error cleaning up assets:", assetErr);
       }
 
       try {
-        const deleted3DModels = await InteractionThreedModel.deleteMany({
+        await InteractionThreedModel.deleteMany({
           userEmail: emailId,
-          flipbookName: bookName,
-          folderName: folderName,
+          flipbookName: targetBookName,
         });
-        console.log(`Deleted ${deleted3DModels.deletedCount} 3D model records.`);
       } catch (modelErr) {
         console.error("Error cleaning up 3D model records:", modelErr);
       }
@@ -4177,10 +4624,10 @@ router.delete("/delete", async (req, res) => {
     logActivity({
       userEmail: emailId,
       type: 'delete_flip',
-      title: 'You deleted a flipbook',
-      desc: `Flipbook: ${bookName}`,
-      entityId: deletedBook?.v_id || '',
-      entityName: bookName
+      title: 'You deleted a flipbook permanently',
+      desc: `Flipbook: ${targetBookName}`,
+      entityId: bookVId || '',
+      entityName: targetBookName
     });
 
     res.json({ message: "Deleted" });

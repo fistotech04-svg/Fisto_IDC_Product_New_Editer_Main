@@ -222,9 +222,12 @@ const Color = ({
   const activeColorPicker = standaloneMode ? internalActiveColorPicker : externalActiveColorPicker;
   const setActiveColorPicker = standaloneMode ? setInternalActiveColorPicker : setExternalActiveColorPicker;
 
-  // Initialize state from DOM when in standalone mode
-  useEffect(() => {
-    if (!standaloneMode || !selectedElement) return;
+  // Sync state synchronously during render when selectedElement changes in standalone mode
+  const prevElementRef = useRef(null);
+  const isSelectedElementChanged = standaloneMode && selectedElement && selectedElement !== prevElementRef.current;
+
+  if (isSelectedElementChanged) {
+    prevElementRef.current = selectedElement;
     const el = selectedElement;
 
     // Parse Fill
@@ -248,8 +251,7 @@ const Color = ({
       dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
     }
 
-    setInternalBackgroundColor(prev => ({
-      ...prev,
+    const syncedBg = {
       fill,
       fillOpacity,
       stroke,
@@ -260,12 +262,65 @@ const Color = ({
       strokeDashGap: dashGap,
       strokePosition: el.getAttribute('data-stroke-position') || 'Center',
       strokeLinecap: el.getAttribute('stroke-linecap') || 'butt'
-    }));
+    };
+
+    setInternalBackgroundColor(syncedBg);
+  }
+
+  // Backup sync for DOM mutation updates on the same element
+  useEffect(() => {
+    if (!standaloneMode || !selectedElement) return;
+    const el = selectedElement;
+
+    let fill = el.getAttribute('data-fill-color') || el.getAttribute('fill') || 'transparent';
+    const fillOpacity = parseFloat(el.getAttribute('data-fill-opacity') || el.getAttribute('fill-opacity') || '1') * 100;
+    const stroke = el.getAttribute('data-stroke-color') || el.getAttribute('stroke') || 'transparent';
+    const strokeOpacity = parseFloat(el.getAttribute('data-stroke-opacity') || el.getAttribute('stroke-opacity') || '1') * 100;
+    const strokeWeight = parseFloat(el.getAttribute('data-stroke-width') || el.getAttribute('stroke-width') || '0');
+
+    const strokeArray = el.getAttribute('data-stroke-dasharray') || el.getAttribute('stroke-dasharray') || 'none';
+    const dashStyle = strokeArray === 'none' ? 'Solid' : 'Dashed';
+
+    let dashLen = 10, dashGap = 10;
+    if (strokeArray !== 'none' && strokeArray !== '') {
+      const parts = strokeArray.split(',');
+      const parsedLen = parseInt(parts[0]);
+      dashLen = isNaN(parsedLen) ? 10 : parsedLen;
+      const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+      dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
+    }
+
+    setInternalBackgroundColor(prev => {
+      if (
+        prev.fill === fill &&
+        prev.fillOpacity === fillOpacity &&
+        prev.stroke === stroke &&
+        prev.strokeOpacity === strokeOpacity &&
+        prev.strokeWeight === strokeWeight &&
+        prev.strokeDashStyle === dashStyle
+      ) {
+        return prev;
+      }
+      return {
+        fill,
+        fillOpacity,
+        stroke,
+        strokeOpacity,
+        strokeWeight,
+        strokeDashStyle: dashStyle,
+        strokeDashLength: dashLen,
+        strokeDashGap: dashGap,
+        strokePosition: el.getAttribute('data-stroke-position') || 'Center',
+        strokeLinecap: el.getAttribute('stroke-linecap') || 'butt'
+      };
+    });
   }, [selectedElement, standaloneMode]);
 
   // Apply visual updates directly to DOM in standalone mode
   useEffect(() => {
     if (!standaloneMode || !selectedElement) return;
+    // Skip writing to DOM if selectedElement just changed in this render pass
+    if (isSelectedElementChanged) return;
 
     const applyColorsToDOM = () => {
       const el = selectedElement;

@@ -850,7 +850,11 @@ export default function Home() {
 
       const now = new Date();
       const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-      const uniqueName = customName || `PDF_Flipbook_${timeString}`;
+      const defaultPrefix = initialDocType === 'word' ? 'Word_Flipbook_' : initialDocType === 'powerpoint' ? 'PPT_Flipbook_' : 'PDF_Flipbook_';
+      let uniqueName = customName;
+      if (!uniqueName || (uniqueName.startsWith('PDF_Flipbook_') && initialDocType !== 'pdf')) {
+        uniqueName = customName ? customName.replace(/^PDF_Flipbook_/, defaultPrefix) : `${defaultPrefix}${timeString}`;
+      }
       const targetFolder = 'My_Flipbooks';
 
       // Step 2 — Encode pages and save flipbook in a single high-speed request
