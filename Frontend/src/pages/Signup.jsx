@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useGoogleLogin } from '@react-oauth/google';
 
 import { useToast } from '../components/CustomToast';
-import FistoLogo from '../assets/logo/Fisto_logo.png'; 
+import FlipibookLogo from '../assets/logo/Flipibook_logo.svg'; 
 import SignupBg from '../assets/logo/signup.png';
 
 export default function Signup() {
@@ -135,6 +135,8 @@ export default function Signup() {
         if (res.data.user) {
           const userData = { ...res.data.user, isLoggedIn: true };
           localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.removeItem('hide_upgrade_card');
+          sessionStorage.removeItem('hide_upgrade_card');
           
           const profileData = {
             emailId: res.data.user.emailId,
@@ -239,6 +241,8 @@ export default function Signup() {
           isLoggedIn: true
         };
         localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.removeItem('hide_upgrade_card');
+        sessionStorage.removeItem('hide_upgrade_card');
 
         const profileData = {
           emailId: res.data.user.emailId,
@@ -279,7 +283,7 @@ export default function Signup() {
         {/* Left Section: Logo */}
         <div className="hidden lg:flex w-[50%] flex-col p-[3vw] relative">
           <div className="mb-auto">
-             <img src={FistoLogo} alt="FIST_O" className="w-[9vw] object-contain brightness-0 invert" />
+             <img src={FlipibookLogo} alt="Flipibook" className="w-[9vw] object-contain" />
           </div>
         </div>
 
@@ -291,7 +295,7 @@ export default function Signup() {
               <>
                 <div className="text-center">
                    <div className="lg:hidden flex justify-center mb-[1vw]">
-                     <img src={FistoLogo} alt="FIST-O" className="h-[2.5vw] w-auto" />
+                     <img src={FlipibookLogo} alt="Flipibook" className="h-[2.5vw] w-auto" />
                    </div>
                    <h2 className="text-[2vw] font-semibold tracking-tight mb-[1vw] text-black drop-shadow-md">Sign-Up</h2>
                 </div>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Folder, Plus, ArrowLeft, Search, MoreVertical, Trash2, Edit2, Copy, Eye, Wrench, PenTool, BarChart2, Share2, Download, FolderInput, SlidersHorizontal, CheckSquare, Check, X, Home, Library, ArrowRight, UploadCloud, Upload, ChevronLeft, ChevronRight, ChevronDown, ArrowDownUp, Globe, Lock, Settings, CloudUpload } from 'lucide-react';
+import { BookOpen, Folder, Plus, ArrowLeft, Search, MoreVertical, Trash2, Edit2, Copy, Eye, Wrench, PenTool, BarChart2, Share2, Download, FolderInput, SlidersHorizontal, CheckSquare, Check, X, Home, Library, ArrowRight, UploadCloud, Upload, ChevronLeft, ChevronRight, ChevronDown, ArrowDownUp, Globe, Lock, Settings, CloudUpload, GripVertical, RotateCcw, Heart } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
 import AlertModal from '../components/AlertModal';
@@ -167,6 +167,18 @@ const templates = [
 ];
 
 
+const FOLDER_COLORS = [
+    '#f59e0b', // Yellow / Amber
+    '#f43f5e', // Coral / Red / Rose
+    '#10b981', // Emerald / Green
+    '#38bdf8', // Sky Blue
+    '#8b5cf6', // Violet / Purple
+    '#f97316', // Orange
+    '#06b6d4', // Cyan
+    '#ec4899', // Pink
+    '#6366f1', // Indigo
+];
+
 export default function MyFlipbooks() {
     const navigate = useNavigate();
 
@@ -176,13 +188,18 @@ export default function MyFlipbooks() {
     const emailId = user?.emailId;
     const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
 
-    const [activeFolder, setActiveFolder] = useState(() => localStorage.getItem('last_active_folder') || 'Recent Book');
+    const [activeFolder, setActiveFolder] = useState(() => {
+        const saved = localStorage.getItem('last_active_folder');
+        if (saved === 'Recent Book') return 'Recent';
+        return saved || 'All Flipbook';
+    });
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All Status');
     const [sortOption, setSortOption] = useState('Recently Created');
     const [activeSortCategory, setActiveSortCategory] = useState(null);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+    const [showUpgradeCard, setShowUpgradeCard] = useState(() => localStorage.getItem('hide_upgrade_card') !== 'true');
     const statusDropdownRef = useRef(null);
     const sortDropdownRef = useRef(null);
 
@@ -226,18 +243,27 @@ export default function MyFlipbooks() {
         if (!emailId) return;
         setIsLoading(true);
         try {
-            // Fetch Folders
+            // Fetch Folders (already ordered with id and name according to UserFolder MongoDB schema)
             const folderRes = await axios.get(`${backendUrl}/api/flipbook/folders`, { params: { emailId } });
-            // Filter out System Folders
-            let folderNames = (folderRes.data.folders || []).filter(f => f !== 'Public Book' && f !== 'Recent Book' && f !== 'Recent book');
+            // Filter out Quick Access / System Folders and map properly with persistent id
+            let fetchedFolders = (folderRes.data.folders || []).filter(f => {
+                const name = typeof f === 'string' ? f : f?.name;
+                const lower = String(name || '').toLowerCase().trim();
+                return (
+                    lower !== 'public book' &&
+                    lower !== 'recent book' &&
+                    lower !== 'recent' &&
+                    lower !== 'all flipbook' &&
+                    lower !== 'all flipbooks' &&
+                    lower !== 'favorites' &&
+                    lower !== 'trash'
+                );
+            }).map(f => {
+                if (typeof f === 'string') return { id: f, name: f };
+                return { id: f.id || f.name, name: f.name };
+            });
 
-            // Ensure Recent Book is at the top (if we add it back manually or keep it)
-            folderNames = folderNames.sort((a, b) => a.localeCompare(b));
-
-            // Add Recent Book manually at top
-            folderNames = ['Recent Book', ...folderNames];
-
-            setFolders(folderNames.map(name => ({ id: name, name })));
+            setFolders(fetchedFolders);
 
             // Fetch Books
             const booksRes = await axios.get(`${backendUrl}/api/flipbook/list`, { params: { emailId } });
@@ -278,17 +304,19 @@ export default function MyFlipbooks() {
     // Inline Folder Creation State
     const [isCreatingFolder, setIsCreatingFolder] = useState(false);
     const [newFolderInputName, setNewFolderInputName] = useState('');
+    const [creatingFolderName, setCreatingFolderName] = useState(null);
+    const isSavingFolderRef = useRef(false);
     const folderListRef = useRef(null);
 
-    // Auto-scroll to bottom when creating folder
+    // Auto-scroll to bottom when creating folder or loading item appears
     useEffect(() => {
-        if (isCreatingFolder && folderListRef.current) {
+        if ((isCreatingFolder || creatingFolderName) && folderListRef.current) {
             folderListRef.current.scrollTo({
                 top: folderListRef.current.scrollHeight,
                 behavior: 'smooth'
             });
         }
-    }, [isCreatingFolder]);
+    }, [isCreatingFolder, creatingFolderName]);
 
     const [isLoading, setIsLoading] = useState(false);
     const [processingProgress, setProcessingProgress] = useState(null);
@@ -429,8 +457,12 @@ export default function MyFlipbooks() {
 
             const now = new Date();
             const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-            const uniqueName = customName || `PDF_Flipbook_${timeString}`;
-            const targetFolder = activeFolder === 'Recent Book' ? 'My_Flipbooks' : activeFolder;
+            const defaultPrefix = initialDocType === 'word' ? 'Word_Flipbook_' : initialDocType === 'powerpoint' ? 'PPT_Flipbook_' : 'PDF_Flipbook_';
+            let uniqueName = customName;
+            if (!uniqueName || (uniqueName.startsWith('PDF_Flipbook_') && initialDocType !== 'pdf')) {
+                uniqueName = customName ? customName.replace(/^PDF_Flipbook_/, defaultPrefix) : `${defaultPrefix}${timeString}`;
+            }
+            const targetFolder = (activeFolder === 'Recent Book' || activeFolder === 'Trash') ? 'My_Flipbooks' : activeFolder;
 
             // Step 2 — Encode pages and save flipbook in a single high-speed request
             setProcessingProgress({
@@ -611,7 +643,7 @@ export default function MyFlipbooks() {
             const now = new Date();
             const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
             const uniqueName = templateData.flipbookName || `Flipbook_${timeString}`;
-            const targetFolder = activeFolder === 'Recent Book' ? 'My_Flipbooks' : activeFolder;
+            const targetFolder = (activeFolder === 'Recent Book' || activeFolder === 'Trash') ? 'My_Flipbooks' : activeFolder;
 
             console.log(`Saving new flipbook "${uniqueName}" to "${targetFolder}"...`);
             const res = await axios.post(`${backendUrl}/api/flipbook/save`, {
@@ -651,6 +683,76 @@ export default function MyFlipbooks() {
     const [editingId, setEditingId] = useState(null);
     const [tempName, setTempName] = useState('');
 
+    // Folder Drag & Drop to Rearrange State
+    const [dragFolderIndex, setDragFolderIndex] = useState(null);
+    const [dragOverFolderIndex, setDragOverFolderIndex] = useState(null);
+
+    // Save custom folder order to MongoDB UserFolder schema in backend
+    const saveFolderOrder = async (updatedFolders) => {
+        if (!emailId) return;
+        const customOrder = updatedFolders
+            .filter(f => f.name !== 'Recent Book')
+            .map(f => ({ id: f.id, name: f.name }));
+        try {
+            await axios.post(`${backendUrl}/api/flipbook/folder/reorder`, {
+                emailId,
+                folders: customOrder
+            });
+        } catch (err) {
+            console.error("Error persisting folder order in db:", err);
+        }
+    };
+
+    const handleFolderDragStart = (e, index, folder) => {
+        if (folder.name === 'Recent Book') {
+            e.preventDefault();
+            return;
+        }
+        setDragFolderIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(index));
+    };
+
+    const handleFolderDragOver = (e, index, folder) => {
+        if (folder.name === 'Recent Book' || dragFolderIndex === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (dragOverFolderIndex !== index) {
+            setDragOverFolderIndex(index);
+        }
+    };
+
+    const handleFolderDragLeave = (e, index) => {
+        if (dragOverFolderIndex === index) {
+            setDragOverFolderIndex(null);
+        }
+    };
+
+    const handleFolderDrop = (e, dropIndex, targetFolder) => {
+        e.preventDefault();
+        if (targetFolder.name === 'Recent Book' || dragFolderIndex === null || dragFolderIndex === dropIndex) {
+            setDragFolderIndex(null);
+            setDragOverFolderIndex(null);
+            return;
+        }
+
+        setFolders(prev => {
+            const next = [...prev];
+            const [movedItem] = next.splice(dragFolderIndex, 1);
+            next.splice(dropIndex, 0, movedItem);
+            saveFolderOrder(next);
+            return next;
+        });
+
+        setDragFolderIndex(null);
+        setDragOverFolderIndex(null);
+    };
+
+    const handleFolderDragEnd = () => {
+        setDragFolderIndex(null);
+        setDragOverFolderIndex(null);
+    };
+
     // Menu Action State
     const [activeMenuId, setActiveMenuId] = useState(null);
     const [folderMenuPos, setFolderMenuPos] = useState({ top: 0, left: 0, isDropup: false });
@@ -662,27 +764,43 @@ export default function MyFlipbooks() {
     };
 
     const saveNewFolder = async () => {
-        if (!newFolderInputName.trim()) {
+        if (isSavingFolderRef.current) return;
+        const nameToCreate = newFolderInputName.trim();
+        if (!nameToCreate) {
             setIsCreatingFolder(false);
+            setNewFolderInputName('');
             return;
         }
-        await handleCreateFolder(newFolderInputName.trim());
+        isSavingFolderRef.current = true;
         setIsCreatingFolder(false);
         setNewFolderInputName('');
+        try {
+            await handleCreateFolder(nameToCreate);
+        } finally {
+            isSavingFolderRef.current = false;
+        }
     };
 
-    // Create Folder
+    // Create Folder - Fast, responsive, and shows inline loader
     const handleCreateFolder = async (name) => {
-        setIsLoading(true);
+        setCreatingFolderName(name);
         try {
-            await axios.post(`${backendUrl}/api/flipbook/folder/create`, { emailId, folderName: name });
-            await fetchData();
+            const res = await axios.post(`${backendUrl}/api/flipbook/folder/create`, { emailId, folderName: name });
+            const createdId = res.data?.id || name;
+            
+            // Instantly update folder list locally without heavy fetchData() flipbook reloads
+            setFolders(prev => {
+                const existing = prev.filter(f => f.name.toLowerCase() !== name.toLowerCase());
+                const updated = [...existing, { id: createdId, name }];
+                saveFolderOrder(updated);
+                return updated;
+            });
             setActiveFolder(name);
         } catch (err) {
             console.error(err);
             showAlert('Create Failed', err.response?.data?.message || err.message);
         } finally {
-            setIsLoading(false);
+            setCreatingFolderName(null);
         }
     };
 
@@ -698,27 +816,38 @@ export default function MyFlipbooks() {
         }
 
         const folder = folders.find(f => f.id === editingId);
-        if (!folder || folder.name === tempName.trim()) {
+        const oldName = folder?.name;
+        const newName = tempName.trim();
+        const currentFolderId = folder?.id;
+
+        if (!folder || oldName === newName) {
             setEditingId(null);
             return;
         }
 
-        setIsLoading(true);
+        // Close editing immediately for instant UX
+        setEditingId(null);
+
+        // Optimistic UI updates: update folder name and matching books immediately
+        setFolders(prev => prev.map(f => f.id === currentFolderId ? { ...f, name: newName } : f));
+        if (activeFolder === oldName) setActiveFolder(newName);
+        setBooks(prev => prev.map(b => b.folder === oldName ? { ...b, folder: newName } : b));
+
         try {
             await axios.post(`${backendUrl}/api/flipbook/folder/rename`, {
                 emailId,
-                oldName: folder.name,
-                newName: tempName.trim()
+                oldName,
+                newName,
+                folderId: currentFolderId
             });
-            if (activeFolder === folder.name) setActiveFolder(tempName.trim());
-            await fetchData();
         } catch (err) {
             console.error(err);
+            // Revert state on failure
+            setFolders(prev => prev.map(f => f.id === currentFolderId ? { ...f, name: oldName } : f));
+            if (activeFolder === newName) setActiveFolder(oldName);
+            setBooks(prev => prev.map(b => b.folder === newName ? { ...b, folder: oldName } : b));
             const msg = err.response?.status === 409 ? 'Folder name already exists.' : (err.response?.data?.message || err.message);
             showAlert('Rename Failed', msg);
-        } finally {
-            setIsLoading(false);
-            setEditingId(null);
         }
     };
 
@@ -746,23 +875,34 @@ export default function MyFlipbooks() {
     };
 
     const confirmDelete = async () => {
-        if (deleteConfirmation.folderId) {
-            setIsLoading(true);
+        const folderId = deleteConfirmation.folderId;
+        const folderName = deleteConfirmation.folderName;
+
+        // Close modal immediately for instant response
+        setDeleteConfirmation({ isOpen: false, folderId: null, folderName: '' });
+
+        if (folderId && folderName) {
+            // Optimistic update: remove folder and its books instantly
+            setFolders(prev => {
+                const next = prev.filter(f => f.name !== folderName && f.id !== folderId);
+                saveFolderOrder(next);
+                return next;
+            });
+            if (activeFolder === folderName) {
+                setActiveFolder('Recent Book');
+            }
+            setBooks(prev => prev.filter(b => b.folder !== folderName));
+
             try {
                 await axios.delete(`${backendUrl}/api/flipbook/folder`, {
-                    data: { emailId, folderName: deleteConfirmation.folderName }
+                    data: { emailId, folderName, folderId }
                 });
-
-                if (activeFolder === deleteConfirmation.folderName) setActiveFolder('Recent Book');
-                await fetchData();
             } catch (err) {
-                console.error(err);
+                console.error("Delete folder error:", err);
                 showAlert('Delete Failed', err.response?.data?.message || err.message);
-            } finally {
-                setIsLoading(false);
+                fetchData(); // Rollback / sync with server if failed
             }
         }
-        setDeleteConfirmation({ isOpen: false, folderId: null, folderName: '' });
     };
 
     const handleDuplicateFolder = async (folder) => {
@@ -834,13 +974,74 @@ export default function MyFlipbooks() {
         );
     };
 
+    const handleBulkTrash = () => {
+        if (selectedBooks.length === 0) return;
+        const targetBooks = books.filter(b => selectedBooks.includes(b.id));
+        const publishedCount = targetBooks.filter(b => b.isPublished || b.published || b.is_published || b.status === 'publish' || b.meta?.isPublished).length;
+        setDeleteBookConfirmation({
+            isOpen: true,
+            bookId: 'BULK',
+            bookTitle: `${selectedBooks.length} Selected Books`,
+            isTrash: true,
+            isPublished: publishedCount > 0,
+            publishedCount: publishedCount
+        });
+    };
+
     const handleBulkDelete = () => {
+        if (selectedBooks.length === 0) return;
+        if (activeFolder === 'Trash') {
+            setDeleteBookConfirmation({
+                isOpen: true,
+                bookId: 'BULK',
+                bookTitle: `${selectedBooks.length} Selected Books`,
+                isTrash: false,
+                isPermanent: true
+            });
+        } else if (activeFolder === 'Recent Book' || activeFolder === 'Recent') {
+            setDeleteBookConfirmation({
+                isOpen: true,
+                bookId: 'BULK',
+                bookTitle: `${selectedBooks.length} Selected Books`,
+                isTrash: false,
+                isRecent: true
+            });
+        } else {
+            handleBulkTrash();
+        }
+    };
+
+    const handleBulkPermanentDelete = () => {
         if (selectedBooks.length === 0) return;
         setDeleteBookConfirmation({
             isOpen: true,
             bookId: 'BULK',
-            bookTitle: `${selectedBooks.length} Selected Books`
+            bookTitle: `${selectedBooks.length} Selected Books`,
+            isTrash: false,
+            isPermanent: true
         });
+    };
+
+    const handleBulkRestore = async () => {
+        if (selectedBooks.length === 0) return;
+        const selectedIds = [...selectedBooks];
+        const targetBooks = books.filter(b => selectedIds.includes(b.id));
+        const prevBooks = [...books];
+        setBooks(prev => prev.map(b => selectedIds.includes(b.id) ? { ...b, trash: false, folder: b.originalFolder || 'My_Flipbooks' } : b));
+        setSelectedBooks([]);
+        try {
+            await Promise.all(targetBooks.map(book =>
+                axios.post(`${backendUrl}/api/flipbook/restore`, {
+                    emailId,
+                    bookName: book.realName,
+                    v_id: book.v_id
+                })
+            ));
+        } catch (err) {
+            console.error(err);
+            setBooks(prevBooks);
+            showAlert('Restore Failed', err.response?.data?.message || err.message);
+        }
     };
 
     const handleBulkMove = () => {
@@ -863,17 +1064,48 @@ export default function MyFlipbooks() {
                 folderName: book.folder,
                 bookName: book.realName
             });
+
+            // Optimistic / Instant update: Insert the duplicated book into local state
             const newName = res.data.newBookName;
-            await fetchData();
-
             const newId = `${book.folder}_${newName}`;
-            startEditingBook({ id: newId, title: newName, folder: book.folder, realName: newName });
+            const duplicatedBook = {
+                ...book,
+                id: newId,
+                title: newName,
+                realName: newName,
+                created: new Date().toLocaleDateString("en-GB").replace(/\//g, "-") + " " + new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' }),
+                views: 0,
+                viewsCount: 0,
+                viewersCount: 0,
+                mtime: new Date().toISOString()
+            };
 
+            setBooks(prev => [duplicatedBook, ...prev]);
+
+            startEditingBook({ id: newId, title: newName, folder: book.folder, realName: newName });
         } catch (err) {
             console.error(err);
             showAlert('Duplicate Failed', err.response?.data?.message || err.message);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleToggleFavorite = async (book) => {
+        const nextFav = !book.isFavorite;
+        // Optimistically update all occurrences of this book in state (both real folder and recent view)
+        setBooks(prev => prev.map(b => (b.v_id && b.v_id === book.v_id) || (book.realName && b.realName === book.realName) ? { ...b, isFavorite: nextFav } : b));
+        try {
+            await axios.post(`${backendUrl}/api/flipbook/favorite`, {
+                emailId,
+                bookName: book.realName || book.title,
+                v_id: book.v_id,
+                isFavorite: nextFav
+            });
+        } catch (err) {
+            console.error("Failed to toggle favorite:", err);
+            // Revert if failed
+            setBooks(prev => prev.map(b => (b.v_id && b.v_id === book.v_id) || (book.realName && b.realName === book.realName) ? { ...b, isFavorite: !nextFav } : b));
         }
     };
 
@@ -894,57 +1126,154 @@ export default function MyFlipbooks() {
         }
     };
 
-    const handleDeleteBookClick = (book) => {
+    const handleTrashBookClick = (book) => {
+        setActiveBookMenu(null);
+        const isPub = Boolean(book.isPublished || book.published || book.is_published || book.status === 'publish' || book.meta?.isPublished);
+        setDeleteBookConfirmation({
+            isOpen: true,
+            bookId: book.id,
+            bookTitle: book.title,
+            isTrash: true,
+            isPublished: isPub
+        });
+    };
+
+    const handlePermanentDeleteBookClick = (book) => {
         setActiveBookMenu(null);
         setDeleteBookConfirmation({
             isOpen: true,
             bookId: book.id,
-            bookTitle: book.title
+            bookTitle: book.title,
+            isTrash: false,
+            isPermanent: true
+        });
+    };
+
+    const handleRestoreBook = async (book) => {
+        setActiveBookMenu(null);
+        const prevBooks = [...books];
+        const restoreFolder = book.originalFolder || 'My_Flipbooks';
+        setBooks(prev => prev.map(b => b.id === book.id ? { ...b, trash: false, folder: restoreFolder } : b));
+        try {
+            await axios.post(`${backendUrl}/api/flipbook/restore`, {
+                emailId,
+                bookName: book.realName,
+                v_id: book.v_id
+            });
+        } catch (err) {
+            console.error(err);
+            setBooks(prevBooks);
+            showAlert('Restore Failed', err.response?.data?.message || err.message);
+        }
+    };
+
+    const handleEmptyTrashClick = () => {
+        setDeleteBookConfirmation({
+            isOpen: true,
+            bookId: 'EMPTY_TRASH',
+            bookTitle: 'All items in Trash',
+            isEmptyTrash: true
         });
     };
 
     const confirmDeleteBook = async () => {
-        const isRecent = activeFolder === 'Recent Book';
-        const endpoint = isRecent ? `${backendUrl}/api/flipbook/remove-recent` : `${backendUrl}/api/flipbook/delete`;
+        const isTrashAction = Boolean(deleteBookConfirmation.isTrash);
+        const isEmptyTrashAction = Boolean(deleteBookConfirmation.isEmptyTrash);
+        const isRecent = activeFolder === 'Recent Book' || activeFolder === 'Recent' || Boolean(deleteBookConfirmation.isRecent);
 
-        // --- Optimistic UI: remove from state immediately ---
-        const idsToDelete =
+        if (isEmptyTrashAction) {
+            const previousBooks = [...books];
+            setBooks(prev => prev.filter(b => !b.trash && b.folder !== 'Trash'));
+            setSelectedBooks([]);
+            setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '' });
+            try {
+                await axios.post(`${backendUrl}/api/flipbook/empty-trash`, { emailId });
+            } catch (err) {
+                console.error(err);
+                setBooks(previousBooks);
+                showAlert('Empty Trash Failed', err.response?.data?.message || err.message);
+            }
+            return;
+        }
+
+        const idsToProcess =
             deleteBookConfirmation.bookId === 'BULK'
                 ? [...selectedBooks]
                 : deleteBookConfirmation.bookId
                 ? [deleteBookConfirmation.bookId]
                 : [];
 
-        const removedBooks = books.filter(b => idsToDelete.includes(b.id));
-        setBooks(prev => prev.filter(b => !idsToDelete.includes(b.id)));
+        const targetBooks = books.filter(b => idsToProcess.includes(b.id));
+
+        if (isTrashAction) {
+            // Optimistic update: mark books as trashed and unpublished
+            const previousBooks = [...books];
+            setBooks(prev => prev.map(b => {
+                if (idsToProcess.includes(b.id)) {
+                    return {
+                        ...b,
+                        trash: true,
+                        isPublished: false,
+                        published: false,
+                        folder: 'Trash',
+                        originalFolder: b.folder !== 'Trash' ? b.folder : (b.originalFolder || 'My_Flipbooks')
+                    };
+                }
+                return b;
+            }));
+            if (deleteBookConfirmation.bookId === 'BULK') setSelectedBooks([]);
+            else setSelectedBooks(prev => prev.filter(id => !idsToProcess.includes(id)));
+            setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '', isPublished: false });
+
+            try {
+                await Promise.all(targetBooks.map(async (book) => {
+                    const isPub = Boolean(book.isPublished || book.published || book.is_published || book.status === 'publish');
+                    if (isPub) {
+                        await axios.post(`${backendUrl}/api/flipbook/unpublish`, {
+                            emailId,
+                            v_id: book.v_id
+                        }).catch(e => console.warn("Unpublish during trash warning:", e));
+                    }
+                    return axios.post(`${backendUrl}/api/flipbook/trash`, {
+                        emailId,
+                        folderName: book.folder,
+                        bookName: book.realName,
+                        v_id: book.v_id
+                    });
+                }));
+            } catch (err) {
+                console.error(err);
+                setBooks(previousBooks);
+                showAlert('Move to Trash Failed', err.response?.data?.message || err.message);
+            }
+            return;
+        }
+
+        // Permanent Delete or Remove from Recent
+        const endpoint = isRecent ? `${backendUrl}/api/flipbook/remove-recent` : `${backendUrl}/api/flipbook/delete`;
+        const removedBooks = books.filter(b => idsToProcess.includes(b.id));
+        setBooks(prev => prev.filter(b => !idsToProcess.includes(b.id)));
         if (deleteBookConfirmation.bookId === 'BULK') setSelectedBooks([]);
-        else setSelectedBooks(prev => prev.filter(id => !idsToDelete.includes(id)));
-        setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '' }); // close modal instantly
+        else setSelectedBooks(prev => prev.filter(id => !idsToProcess.includes(id)));
+        setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '' });
 
         try {
-            if (deleteBookConfirmation.bookId === 'BULK') {
-                await Promise.all(removedBooks.map(book => {
-                    if (isRecent) {
-                        return axios.post(endpoint, { emailId, bookName: book.realName });
-                    } else {
-                        return axios.delete(endpoint, {
-                            data: { emailId, folderName: book.folder, bookName: book.realName }
-                        });
-                    }
-                }));
-            } else if (removedBooks.length > 0) {
-                const book = removedBooks[0];
+            await Promise.all(removedBooks.map(book => {
                 if (isRecent) {
-                    await axios.post(endpoint, { emailId, bookName: book.realName });
+                    return axios.post(endpoint, { emailId, bookName: book.realName });
                 } else {
-                    await axios.delete(endpoint, {
-                        data: { emailId, folderName: book.folder, bookName: book.realName }
+                    return axios.delete(endpoint, {
+                        data: {
+                            emailId,
+                            folderName: book.originalFolder || book.folder,
+                            bookName: book.realName,
+                            v_id: book.v_id
+                        }
                     });
                 }
-            }
+            }));
         } catch (err) {
             console.error(err);
-            // Restore books on failure
             setBooks(prev => [...prev, ...removedBooks]);
             showAlert('Delete Failed', err.response?.data?.message || err.message);
         }
@@ -1019,97 +1348,82 @@ export default function MyFlipbooks() {
             });
         };
 
-        try {
-            if (moveBookModal.bookId === 'BULK') {
-                for (const bookId of selectedBooks) {
-                    const book = books.find(b => b.id === bookId);
-                    if (book) {
-                        try {
-                            await performMove(book, targetFolder);
-                        } catch (err) {
-                            if (err.response?.status === 409) {
-                                setConflictModal({
-                                    isOpen: true,
-                                    book,
-                                    targetFolder,
-                                    newName: book.realName
-                                });
-                                setMoveBookModal({ isOpen: false, bookId: null, isBulk: false });
-                                return;
-                            }
-                            console.error(err);
-                        }
-                    }
-                }
-                setSelectedBooks([]);
-                setActiveFolder(targetFolder);
-            } else if (moveBookModal.bookId) {
-                const book = books.find(b => b.id === moveBookModal.bookId);
-                if (book) {
-                    try {
-                        await performMove(book, targetFolder);
-                    } catch (err) {
-                        if (err.response?.status === 409) {
-                            setConflictModal({
-                                isOpen: true,
-                                book,
-                                targetFolder,
-                                newName: book.realName
-                            });
-                            setMoveBookModal({ isOpen: false, bookId: null, isBulk: false });
-                            return;
-                        }
-                        throw err;
-                    }
-                }
-            }
-            await fetchData();
-        } catch (err) {
-            console.log(err);
-            showAlert('Move Failed', err.response?.data?.message || err.message);
-        }
+        const isBulk = moveBookModal.bookId === 'BULK';
+        const booksToMove = isBulk 
+            ? books.filter(b => selectedBooks.includes(b.id)) 
+            : books.filter(b => b.id === moveBookModal.bookId);
+
+        // Close modal immediately so UI is instant
         setMoveBookModal({ isOpen: false, bookId: null, isBulk: false });
-        setIsCreatingInMove(false); // Reset create mode
+        setIsCreatingInMove(false);
         setNewMoveFolderName('');
+
+        if (booksToMove.length === 0) return;
+
+        // Optimistic UI update: instantly update folder for moved books
+        const movedBookIds = booksToMove.map(b => b.id);
+        setBooks(prev => prev.map(b => movedBookIds.includes(b.id) ? { ...b, folder: targetFolder } : b));
+        if (isBulk) {
+            setSelectedBooks([]);
+        }
+
+        try {
+            for (const book of booksToMove) {
+                await performMove(book, targetFolder);
+            }
+        } catch (err) {
+            console.error("Move error:", err);
+            if (err.response?.status === 409) {
+                setConflictModal({
+                    isOpen: true,
+                    book: booksToMove[0],
+                    targetFolder,
+                    newName: booksToMove[0]?.realName
+                });
+            } else {
+                showAlert('Move Failed', err.response?.data?.message || err.message);
+            }
+            fetchData();
+        }
     };
 
     const handleRenameAndMove = async () => {
         const { book, newName, targetFolder } = conflictModal;
         if (!book || !newName.trim() || !targetFolder) return;
 
-        setIsLoading(true);
+        // Close conflict modal immediately
+        setConflictModal({ isOpen: false, book: null, targetFolder: '', newName: '' });
+
+        const trimmedNewName = newName.trim();
+        if (trimmedNewName === book.realName) {
+            showAlert("Name Exists", "Please choose a different name to resolve the conflict.");
+            return;
+        }
+
+        // Optimistic UI update
+        setBooks(prev => prev.map(b => b.id === book.id ? { ...b, title: trimmedNewName, realName: trimmedNewName, folder: targetFolder } : b));
+
         try {
             // 1. Rename in Source
-            if (newName.trim() !== book.realName) {
-                await axios.post(`${backendUrl}/api/flipbook/rename`, {
-                    emailId,
-                    folderName: book.folder,
-                    oldName: book.realName,
-                    newName: newName.trim()
-                });
-            } else {
-                showAlert("Name Exists", "Please choose a different name to resolve the conflict.");
-                setIsLoading(false);
-                return;
-            }
+            await axios.post(`${backendUrl}/api/flipbook/rename`, {
+                emailId,
+                folderName: book.folder,
+                oldName: book.realName,
+                newName: trimmedNewName
+            });
 
             // 2. Move to Target
             await axios.post(`${backendUrl}/api/flipbook/move`, {
                 emailId,
-                bookName: newName.trim(), // Use new name
+                bookName: trimmedNewName,
                 currentFolder: book.folder,
                 targetFolder
             });
-
-            await fetchData();
-            setConflictModal({ isOpen: false, book: null, targetFolder: '', newName: '' });
-
         } catch (err) {
             console.error(err);
             const msg = err.response?.status === 409 ? 'Name still conflicts (in source or target).' : err.message;
             showAlert('Action Failed', msg);
-        } finally {
-            setIsLoading(false);
+            fetchData();
         }
     };
 
@@ -1130,8 +1444,13 @@ export default function MyFlipbooks() {
     const handleCreateFolderAndMove = async () => {
         if (!newMoveFolderName.trim()) return;
         const name = newMoveFolderName.trim();
+        setFolders(prev => {
+            const existing = prev.filter(f => f.name.toLowerCase() !== name.toLowerCase());
+            const updated = [...existing, { id: name, name }];
+            return updated.sort((a, b) => a.name.localeCompare(b.name));
+        });
         try {
-            await axios.post(`${backendUrl}/api/flipbook/folder/create`, { emailId, folderName: name });
+            axios.post(`${backendUrl}/api/flipbook/folder/create`, { emailId, folderName: name }).catch(console.error);
             await confirmMoveBook(name);
         } catch (err) { console.error(err); }
     };
@@ -1139,8 +1458,27 @@ export default function MyFlipbooks() {
 
 
     // Filter books by active folder, search query, and status
+    const seenVIds = new Set();
     const filteredBooks = books.filter(book => {
-        const matchesFolder = book.folder === activeFolder;
+        let matchesFolder = false;
+        if (activeFolder === 'Trash') {
+            matchesFolder = Boolean(book.trash || book.folder === 'Trash') && book.folder !== 'Recent Book' && book.folder !== 'Recent';
+        } else if (activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks') {
+            matchesFolder = !book.trash && book.folder !== 'Trash' && book.folder !== 'Recent Book' && book.folder !== 'Recent';
+        } else if (activeFolder === 'Recent' || activeFolder === 'Recent Book') {
+            matchesFolder = !book.trash && (book.folder === 'Recent Book' || book.folder === 'Recent');
+        } else if (activeFolder === 'Favorites') {
+            matchesFolder = !book.trash && book.folder !== 'Trash' && book.folder !== 'Recent Book' && book.folder !== 'Recent' && Boolean(book.isFavorite || book.favorite || book.isFav);
+        } else {
+            matchesFolder = !book.trash && book.folder === activeFolder;
+        }
+
+        if (activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks' || activeFolder === 'Favorites') {
+            const key = book.v_id || `${book.realName}_${book.title}`;
+            if (seenVIds.has(key)) return false;
+            if (matchesFolder) seenVIds.add(key);
+        }
+
         const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             book.realName.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -1317,40 +1655,132 @@ export default function MyFlipbooks() {
 
                 {/* Folders Section */}
                 <div className="flex-1 flex flex-col min-h-0">
-                    {/* Static Header Area */}
-                    <div className="flex-none mb-[1vw]">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center flex-1">
-                                <span className="text-[0.875vw] font-bold text-gray-600">Your Folders</span>
-                                <div className="h-[1px] bg-gray-200 flex-1 ml-[0.5vw] mr-[0.5vw]"></div>
-                            </div>
-                            <button
-                                onClick={handleAddFolderClick}
-                                className="flex items-center cursor-pointer gap-[0.25vw] px-[0.75vw] py-[0.375vw] rounded-[0.5vw] border border-[#3b4190] shadow-sm text-[#3b4190] font-medium text-[0.75vw] bg-white hover:bg-blue-50 transition-colors"
-                            >
-                                <Plus size="0.8vw" /> Create
-                            </button>
-                        </div>
+                    {/* Quick Access List */}
+                    <div className="space-y-[0.2vw] flex-none">
+                        {/* All Flipbook */}
+                        {(() => {
+                            const isActive = activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks';
+                            const count = books.filter(b => !b.trash && b.folder !== 'Trash' && b.folder !== 'Recent Book' && b.folder !== 'Recent').length;
+                            return (
+                                <div
+                                    onClick={() => { setActiveFolder('All Flipbook'); setSelectedBooks([]); }}
+                                    className={`w-full flex items-center justify-between px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] cursor-pointer select-none ${
+                                        isActive
+                                            ? 'bg-[#fef2f0] text-[#ec5137] font-semibold'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-[0.75vw]">
+                                        <Folder size="1.15vw" className={`shrink-0 fill-current ${isActive ? 'text-[#ec5137]' : 'text-[#ec5137]'}`} />
+                                        <span>All Flipbook</span>
+                                    </div>
+                                    <span className={`text-[0.8vw] ${isActive ? 'text-[#ec5137] font-semibold' : 'text-gray-500'}`}>
+                                        {count}
+                                    </span>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Recent */}
+                        {(() => {
+                            const isActive = activeFolder === 'Recent' || activeFolder === 'Recent Book';
+                            const count = books.filter(b => !b.trash && (b.folder === 'Recent Book' || b.folder === 'Recent')).length;
+                            return (
+                                <div
+                                    onClick={() => { setActiveFolder('Recent'); setSelectedBooks([]); }}
+                                    className={`w-full flex items-center justify-between px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] cursor-pointer select-none ${
+                                        isActive
+                                            ? 'bg-[#fef2f0] text-[#ec5137] font-semibold'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-[0.75vw]">
+                                        <Icon icon="codicon:history" className={`w-[1.15vw] h-[1.15vw] shrink-0 ${isActive ? 'text-[#ec5137]' : 'text-gray-700'}`} />
+                                        <span>Recent</span>
+                                    </div>
+                                    <span className={`text-[0.8vw] ${isActive ? 'text-[#ec5137] font-semibold' : 'text-gray-500'}`}>
+                                        {count}
+                                    </span>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Favorites */}
+                        {(() => {
+                            const isActive = activeFolder === 'Favorites';
+                            const count = books.filter(b => !b.trash && b.folder !== 'Trash' && b.folder !== 'Recent Book' && b.folder !== 'Recent' && Boolean(b.isFavorite || b.favorite || b.isFav)).length;
+                            return (
+                                <div
+                                    onClick={() => { setActiveFolder('Favorites'); setSelectedBooks([]); }}
+                                    className={`w-full flex items-center justify-between px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] cursor-pointer select-none ${
+                                        isActive
+                                            ? 'bg-[#fef2f0] text-[#ec5137] font-semibold'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-[0.75vw]">
+                                        <Heart size="1.15vw" className={`shrink-0 ${isActive ? 'text-[#ec5137]' : 'text-gray-700'}`} />
+                                        <span>Favorites</span>
+                                    </div>
+                                    <span className={`text-[0.8vw] ${isActive ? 'text-[#ec5137] font-semibold' : 'text-gray-500'}`}>
+                                        {count}
+                                    </span>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Trash */}
+                        {(() => {
+                            const isActive = activeFolder === 'Trash';
+                            const count = books.filter(b => Boolean(b.trash || b.folder === 'Trash') && b.folder !== 'Recent Book' && b.folder !== 'Recent').length;
+                            return (
+                                <div
+                                    onClick={() => { setActiveFolder('Trash'); setSelectedBooks([]); }}
+                                    className={`w-full flex items-center justify-between px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] cursor-pointer select-none ${
+                                        isActive
+                                            ? 'bg-[#fef2f0] text-[#ec5137] font-semibold'
+                                            : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-[0.75vw]">
+                                        <Trash2 size="1.15vw" className={`shrink-0 ${isActive ? 'text-[#ec5137]' : 'text-gray-700'}`} />
+                                        <span>Trash</span>
+                                    </div>
+                                    <span className={`text-[0.8vw] ${isActive ? 'text-[#ec5137] font-semibold' : 'text-gray-500'}`}>
+                                        {count}
+                                    </span>
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    {/* Divider */}
+                    <div className="my-[1.1vw] border-b border-gray-100 flex-none"></div>
+
+                    {/* Your Folders Header */}
+                    <div className="flex items-center justify-between mb-[0.85vw] flex-none">
+                        <span className="text-[0.95vw] font-bold text-gray-800">Your Folders</span>
+                        <button
+                            onClick={handleAddFolderClick}
+                            className="flex items-center gap-[0.25vw] px-[0.6vw] py-[0.25vw] rounded-[0.4vw] bg-gray-100 hover:bg-gray-200 text-gray-700 text-[0.75vw] font-medium transition-colors cursor-pointer"
+                        >
+                            <Plus size="0.85vw" /> Add
+                        </button>
                     </div>
 
                     {/* Scrollable Folder List */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar pr-[0.25vw] pb-[1vw]" ref={folderListRef}>
-                        <div className="space-y-[0.25vw]">
-                            {folders.map(folder => {
+                        <div className="space-y-[0.2vw]">
+                            {folders.map((folder, index) => {
                                 const isEditing = editingId === folder.id;
                                 const isActive = activeFolder === folder.name;
-                                const displayName = folder.name === 'Recent Book' ? 'Recent Book' : folder.name;
-
-                                const getFolderCount = (fName) => {
-                                    if (fName === 'Recent Book') {
-                                        return books.length;
-                                    }
-                                    return books.filter(b => b.folder === fName).length;
-                                };
-                                const folderCount = getFolderCount(folder.name);
+                                const isDragging = dragFolderIndex === index;
+                                const isDragOver = dragOverFolderIndex === index && dragFolderIndex !== null && dragFolderIndex !== index;
+                                const folderCount = books.filter(b => b.folder === folder.name && !b.trash).length;
+                                const folderColor = FOLDER_COLORS[index % FOLDER_COLORS.length];
 
                                 return isEditing ? (
-                                    <div key={folder.id} className="w-full px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-[#3b4190] bg-white shadow-sm">
+                                    <div key={folder.id} className="w-full px-[0.85vw] py-[0.55vw] rounded-[0.5vw] border border-[#ec5137] bg-white shadow-sm">
                                         <input
                                             autoFocus
                                             type="text"
@@ -1364,57 +1794,68 @@ export default function MyFlipbooks() {
                                 ) : (
                                     <div
                                         key={folder.id}
-                                        onClick={() => setActiveFolder(folder.name)}
-                                        className={`relative group w-full flex items-center gap-[0.75vw] px-[1vw] py-[0.6vw] rounded-[0.5vw] transition-all text-[0.875vw] font-medium text-left cursor-pointer
-                              ${isActive
-                                                ? 'bg-[#eef0f8] text-[#3b4190]'
-                                                : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                        draggable={!isEditing}
+                                        onDragStart={(e) => handleFolderDragStart(e, index, folder)}
+                                        onDragOver={(e) => handleFolderDragOver(e, index, folder)}
+                                        onDragLeave={(e) => handleFolderDragLeave(e, index)}
+                                        onDrop={(e) => handleFolderDrop(e, index, folder)}
+                                        onDragEnd={handleFolderDragEnd}
+                                        onClick={() => { setActiveFolder(folder.name); setSelectedBooks([]); }}
+                                        className={`relative group w-full flex items-center gap-[0.75vw] px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] text-left cursor-pointer select-none
+                                            ${isDragging ? 'opacity-40 scale-[0.98] border border-dashed border-[#ec5137]' : ''}
+                                            ${isDragOver ? 'border-t-2 border-t-[#ec5137] bg-red-50/40' : ''}
+                                            ${isActive
+                                                ? 'bg-[#fef2f0] text-[#ec5137] font-semibold'
+                                                : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
                                             }
-                          `}
+                                        `}
                                     >
-                                        <Folder size="1.1vw" className={isActive ? "text-[#3b4190]" : "text-gray-500"} />
-                                        <span className="truncate flex-1">{displayName}</span>
+                                        {/* Colorful filled folder icon */}
+                                        <Folder
+                                            size="1.15vw"
+                                            className="shrink-0 fill-current"
+                                            style={{ color: folderColor }}
+                                        />
 
-                                        {folder.name !== 'Recent Book' && (
-                                            <div className="relative flex items-center justify-end h-[1.5vw] min-w-[1.5vw]">
-                                                <span className={`text-[0.75vw] font-semibold transition-all duration-300 ease-in-out ${isActive ? 'text-[#3b4190]' : 'text-gray-400'} ${activeMenuId === folder.id ? 'pr-[2vw]' : 'pr-[0.5vw] group-hover:pr-[2vw]'}`}>
-                                                    {folderCount}
-                                                </span>
+                                        <span className="truncate flex-1 font-medium">{folder.name}</span>
 
-                                                {/* Options Menu Trigger */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (activeMenuId === folder.id) {
-                                                            setActiveMenuId(null);
-                                                        } else {
-                                                            const rect = e.currentTarget.getBoundingClientRect();
-                                                            const spaceBelow = window.innerHeight - rect.bottom;
-                                                            const isDropup = spaceBelow < 120;
-                                                            setFolderMenuPos({
-                                                                top: isDropup ? rect.top - 5 : rect.bottom + 5,
-                                                                left: rect.right,
-                                                                isDropup
-                                                            });
-                                                            setActiveMenuId(folder.id);
-                                                        }
-                                                    }}
-                                                    className={`absolute right-0 p-[0.375vw] flex items-center justify-center rounded-[0.5vw] bg-transparent transition-all ${isActive
-                                                        ? 'hover:bg-gray-50 text-[#3b4190]'
-                                                        : 'hover:bg-gray-100 text-gray-500'
-                                                        } ${activeMenuId === folder.id ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'}`}
-                                                >
-                                                    <MoreVertical size="0.9vw" />
-                                                </button>
-                                            </div>
-                                        )}
+                                        <div className="relative flex items-center justify-end h-[1.5vw] min-w-[1.5vw]">
+                                            <span className={`text-[0.8vw] transition-all duration-200 ease-in-out ${isActive ? 'text-[#ec5137] font-semibold' : 'text-gray-400 font-normal'} ${activeMenuId === folder.id ? 'pr-[2vw]' : 'pr-[0.25vw] group-hover:pr-[2vw]'}`}>
+                                                {folderCount}
+                                            </span>
+
+                                            {/* Options Menu Trigger */}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (activeMenuId === folder.id) {
+                                                        setActiveMenuId(null);
+                                                    } else {
+                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                        const spaceBelow = window.innerHeight - rect.bottom;
+                                                        const isDropup = spaceBelow < 120;
+                                                        setFolderMenuPos({
+                                                            top: isDropup ? rect.top - 5 : rect.bottom + 5,
+                                                            left: rect.right,
+                                                            isDropup
+                                                        });
+                                                        setActiveMenuId(folder.id);
+                                                    }
+                                                }}
+                                                className={`absolute right-0 p-[0.3vw] flex items-center justify-center rounded-[0.4vw] bg-transparent transition-all ${
+                                                    isActive ? 'hover:bg-red-100/70 text-[#ec5137]' : 'hover:bg-gray-200 text-gray-500'
+                                                } ${activeMenuId === folder.id ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'}`}
+                                            >
+                                                <MoreVertical size="0.9vw" />
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
 
                             {/* New Folder Input */}
                             {isCreatingFolder && (
-                                <div className="w-full px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-[#3b4190] bg-white shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="w-full px-[0.85vw] py-[0.55vw] rounded-[0.5vw] border border-[#ec5137] bg-white shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
                                     <input
                                         autoFocus
                                         type="text"
@@ -1429,50 +1870,61 @@ export default function MyFlipbooks() {
                                             }
                                             if (e.key === 'Escape') {
                                                 setIsCreatingFolder(false);
+                                                setNewFolderInputName('');
                                             }
                                         }}
                                         className="w-full text-[0.875vw] font-medium text-gray-900 focus:outline-none placeholder-gray-400"
                                     />
                                 </div>
                             )}
-                        </div>
-                    </div>
 
-                    <div className="flex-none pt-[0.5vw]">
-                        <div className="mb-[1vw] border-t border-gray-100"></div>
-
-                        <div className="w-full flex items-center justify-between px-[1vw] py-[0.6vw] rounded-[0.5vw] transition-all text-[0.875vw] font-medium cursor-pointer hover:bg-red-50 text-red-500">
-                            <div className="flex items-center gap-[0.75vw]">
-                                <Trash2 size="1.1vw" />
-                                <span>Trash</span>
-                            </div>
-                            <span className="text-[0.75vw] font-semibold">0</span>
+                            {/* Creating Folder Loading Row */}
+                            {creatingFolderName && (
+                                <div className="w-full flex items-center justify-between gap-[0.75vw] px-[0.85vw] py-[0.55vw] rounded-[0.5vw] border border-[#ec5137] bg-white text-[#ec5137] text-[0.875vw] font-medium shadow-sm animate-in fade-in duration-200">
+                                    <div className="flex items-center gap-[0.75vw] min-w-0 flex-1">
+                                        <Folder size="1.15vw" className="text-[#ec5137] fill-current shrink-0" />
+                                        <span className="truncate">{creatingFolderName}</span>
+                                    </div>
+                                    <div className="w-[1.1vw] h-[1.1vw] border-[2px] border-[#ec5137] border-t-transparent rounded-full animate-spin shrink-0"></div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
 
                 {/* Upgrade to Pro Card */}
-                <div className="mt-auto relative z-30 pt-[1.5vw]">
-                    <div className="absolute -top-[1vw] right-[0.5vw] text-[2.5vw] drop-shadow-lg z-40 transform rotate-[15deg]">
-                        👑
-                    </div>
-                    <div className="w-full bg-[#0a0a0a] rounded-[0.75vw] p-[1.25vw] relative overflow-hidden text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-                        <div className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-500 via-gray-900 to-black"></div>
-
-                        {/* CSS Noise texture overlay */}
-                        <div className="absolute inset-0 opacity-20 mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
-
-                        <div className="relative z-10 flex flex-col gap-[0.25vw]">
-                            <h3 className="text-[1.1vw] font-bold tracking-wide">Upgrade to Pro</h3>
-                            <p className="text-[0.65vw] text-gray-300 mb-[0.75vw] leading-relaxed pr-[1vw]">
-                                Unlock more Storage, templates and Premium features.
-                            </p>
-                            <button className="w-full bg-white text-black py-[0.5vw] px-[0.75vw] rounded-[0.5vw] text-[0.75vw] font-bold flex items-center justify-center gap-[0.375vw] hover:bg-gray-100 transition-colors shadow-md mt-[0.25vw]">
-                                Update Profile <ArrowRight size="0.9vw" />
+                {showUpgradeCard && (
+                    <div className="mt-auto relative z-30 pt-[1.5vw]">
+                        <div className="group w-full bg-[#0a0a0a] rounded-[0.75vw] p-[1.25vw] relative overflow-hidden text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+                            {/* Close button on hover */}
+                            <button
+                                onClick={() => {
+                                    setShowUpgradeCard(false);
+                                    localStorage.setItem('hide_upgrade_card', 'true');
+                                }}
+                                className="absolute top-[0.6vw] right-[0.6vw] z-20 text-gray-400 hover:text-white p-[0.25vw] rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center cursor-pointer"
+                                title="Dismiss"
+                            >
+                                <X size="0.85vw" />
                             </button>
+
+                            <div className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-500 via-gray-900 to-black"></div>
+
+                            {/* CSS Noise texture overlay */}
+                            <div className="absolute inset-0 opacity-20 mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
+
+                            <div className="relative z-10 flex flex-col gap-[0.25vw]">
+                                <h3 className="text-[1.1vw] font-bold tracking-wide">Upgrade to Pro</h3>
+                                <p className="text-[0.65vw] text-gray-300 mb-[0.75vw] leading-relaxed pr-[1vw]">
+                                    Unlock more Storage, templates and Premium features.
+                                </p>
+                                <button className="w-full bg-white text-black py-[0.5vw] px-[0.75vw] rounded-[0.5vw] text-[0.75vw] font-semibold flex items-center justify-center gap-[0.375vw] hover:bg-gray-100 transition-colors shadow-md mt-[0.25vw]">
+                                    Update Profile <ArrowRight size="0.9vw" />
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 {/* Global Folder Dropdown Portal */}
                 {activeMenuId && (
@@ -1742,21 +2194,50 @@ export default function MyFlipbooks() {
                             {/* Selected Actions */}
                             {selectedBooks.length > 0 && (
                                 <div className="flex items-center gap-[0.5vw] mr-[1vw]">
-                                    <button
-                                        onClick={handleBulkDelete}
-                                        className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-white text-red-500 border border-red-200 rounded-[0.5vw] hover:bg-red-50 transition-colors shadow-sm text-[0.75vw] font-semibold"
-                                    >
-                                        <Trash2 size="0.9vw" /> {activeFolder === 'Recent Book' ? 'Remove' : 'Delete'}
-                                    </button>
-                                    {activeFolder !== 'Recent Book' && (
-                                        <button
-                                            onClick={handleBulkMove}
-                                            className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-[#4c5add] text-white rounded-[0.5vw] hover:bg-[#3f4bc0] transition-colors shadow-sm text-[0.75vw] font-semibold"
-                                        >
-                                            <FolderInput size="0.9vw" /> Move
-                                        </button>
+                                    {activeFolder === 'Trash' ? (
+                                        <>
+                                            <button
+                                                onClick={handleBulkRestore}
+                                                className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] bg-[#4c5add] text-white rounded-[0.5vw] hover:bg-[#3f4bc0] transition-colors shadow-sm text-[0.75vw] font-semibold cursor-pointer"
+                                            >
+                                                <RotateCcw size="0.9vw" /> Restore ({selectedBooks.length})
+                                            </button>
+                                            <button
+                                                onClick={handleBulkPermanentDelete}
+                                                className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] bg-white text-red-500 border border-red-200 rounded-[0.5vw] hover:bg-red-50 transition-colors shadow-sm text-[0.75vw] font-semibold cursor-pointer"
+                                            >
+                                                <Trash2 size="0.9vw" /> Delete Permanently ({selectedBooks.length})
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={handleBulkDelete}
+                                                className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-white text-red-500 border border-red-200 rounded-[0.5vw] hover:bg-red-50 transition-colors shadow-sm text-[0.75vw] font-semibold cursor-pointer"
+                                            >
+                                                <Trash2 size="0.9vw" /> {(activeFolder === 'Recent Book' || activeFolder === 'Recent') ? 'Remove' : 'Move to trash'}
+                                            </button>
+                                            {activeFolder !== 'Recent Book' && activeFolder !== 'Recent' && (
+                                                <button
+                                                    onClick={handleBulkMove}
+                                                    className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-[#4c5add] text-white rounded-[0.5vw] hover:bg-[#3f4bc0] transition-colors shadow-sm text-[0.75vw] font-semibold cursor-pointer"
+                                                >
+                                                    <FolderInput size="0.9vw" /> Move
+                                                </button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
+                            )}
+
+                            {/* Empty Trash Button - hidden when multi select / books are selected */}
+                            {activeFolder === 'Trash' && selectedBooks.length === 0 && books.some(b => b.trash || b.folder === 'Trash') && (
+                                <button
+                                    onClick={handleEmptyTrashClick}
+                                    className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] bg-red-500 hover:bg-red-600 text-white rounded-[0.5vw] text-[0.75vw] font-semibold transition-colors cursor-pointer shadow-sm mr-[0.5vw]"
+                                >
+                                    <Trash2 size="0.85vw" /> Empty Trash
+                                </button>
                             )}
 
                             {/* Checkbox for multiple selection */}
@@ -1856,7 +2337,24 @@ export default function MyFlipbooks() {
                                                                     className="text-[1.125vw] font-bold text-gray-800 border-b border-[#4c5add] focus:outline-none w-[16vw]"
                                                                 />
                                                             ) : (
-                                                                <h3 className="text-[1.125vw] font-bold text-gray-800">{book.title}</h3>
+                                                                <div className="flex items-center gap-[0.35vw]">
+                                                                    <h3 className="text-[1.125vw] font-bold text-gray-800">{book.title}</h3>
+                                                                    {activeFolder !== 'Trash' && (
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleToggleFavorite(book);
+                                                                            }}
+                                                                            className="p-[0.2vw] text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
+                                                                            title={book.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                                                                        >
+                                                                            <Heart
+                                                                                size="0.95vw"
+                                                                                className={book.isFavorite ? "text-red-500 fill-red-500" : "hover:text-red-500"}
+                                                                            />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             )}
 
                                                             {/* Dynamic Visibility Pill Badge */}
@@ -1914,7 +2412,7 @@ export default function MyFlipbooks() {
 
                                                     <div className="flex gap-[1.5vw] text-[0.65vw] text-gray-400 font-medium">
                                                         <span>
-                                                            {activeFolder === 'Recent Book' ? 'Last Updated on' : 'Created on'} : {activeFolder === 'Recent Book' ? formatDisplayDate(book.mtime || book.updatedAt || book.updated || book.createdAt || book.created) : book.created}
+                                                            {(activeFolder === 'Recent Book' || activeFolder === 'Recent') ? 'Last Updated on' : 'Created on'} : {(activeFolder === 'Recent Book' || activeFolder === 'Recent') ? formatDisplayDate(book.mtime || book.updatedAt || book.updated || book.createdAt || book.created) : book.created}
                                                         </span>
                                                         <span>Views : {book.viewsCount !== undefined ? book.viewsCount : (book.views !== undefined ? book.views : 0)}</span>
                                                         <span>Size : {formatDisplaySize(book)}</span>
@@ -1923,96 +2421,114 @@ export default function MyFlipbooks() {
 
                                                 {/* Action Row */}
                                                 <div className="flex items-center justify-between w-full mt-auto pt-[0.5vw]">
-                                                    <button 
-                                                        onClick={() => {
-                                                            const shareId = book.Visibility?.shareId || book.Customized_Settings?.Visibility?.shareId || book.shareId || book.share?.shareId || book.v_id || encodeURIComponent(book.realName);
-                                                            const rawAcc = String(book.Visibility?.access || book.Customized_Settings?.Visibility?.access || book.share?.access || 'public').toLowerCase();
-                                                            const accessPrefix = rawAcc.includes('private')
-                                                                ? 'share=private'
-                                                                : rawAcc.includes('password')
-                                                                ? 'share=password'
-                                                                : rawAcc.includes('invite')
-                                                                ? 'share=invite'
-                                                                : 'share=public';
-                                                            window.open(`/${accessPrefix}/${shareId}`, '_blank');
-                                                        }}
-                                                        className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
-                                                    >
-                                                        <Eye size="0.9vw" /> View Book
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            let targetFolder = book.folder;
-                                                            if (targetFolder === 'Recent Book') {
-                                                                const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
-                                                                if (physicalBook) targetFolder = physicalBook.folder;
-                                                            }
-                                                            const identifier = book.v_id || encodeURIComponent(book.realName);
-                                                            navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName, pageCount: book.pages } });
-                                                        }}
-                                                        className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
-                                                    >
-                                                        <Wrench size="0.9vw" /> Customize
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            let targetFolder = book.folder;
-                                                            if (targetFolder === 'Recent Book') {
-                                                                const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
-                                                                if (physicalBook) targetFolder = physicalBook.folder;
-                                                            }
-                                                            const identifier = book.v_id || encodeURIComponent(book.realName);
-                                                            navigate(`/editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName } });
-                                                        }}
-                                                        className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
-                                                    >
-                                                        <PenTool size="0.9vw" /> Open in Editor
-                                                    </button>
-                                                    <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors">
-                                                        <BarChart2 size="0.9vw" /> Statistic
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleShareClick(book)}
-                                                        className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
-                                                    >
-                                                        <Share2 size="0.9vw" /> Share
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDownloadClick(book)}
-                                                        className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
-                                                    >
-                                                        <Download size="0.9vw" /> Download
-                                                    </button>
+                                                    {activeFolder === 'Trash' ? (
+                                                        <div className="flex items-center gap-[1.25vw] ml-auto">
+                                                            <button
+                                                                onClick={() => handleRestoreBook(book)}
+                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
+                                                            >
+                                                                <RotateCcw size="0.9vw" /> Restore
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handlePermanentDeleteBookClick(book)}
+                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-red-500 hover:text-red-700 transition-colors"
+                                                            >
+                                                                <Trash2 size="0.9vw" /> Delete Permanently
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const shareId = book.Visibility?.shareId || book.Customized_Settings?.Visibility?.shareId || book.shareId || book.share?.shareId || book.v_id || encodeURIComponent(book.realName);
+                                                                    const rawAcc = String(book.Visibility?.access || book.Customized_Settings?.Visibility?.access || book.share?.access || 'public').toLowerCase();
+                                                                    const accessPrefix = rawAcc.includes('private')
+                                                                        ? 'share=private'
+                                                                        : rawAcc.includes('password')
+                                                                        ? 'share=password'
+                                                                        : rawAcc.includes('invite')
+                                                                        ? 'share=invite'
+                                                                        : 'share=public';
+                                                                    window.open(`/${accessPrefix}/${shareId}`, '_blank');
+                                                                }}
+                                                                className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+                                                            >
+                                                                <Eye size="0.9vw" /> View Book
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    let targetFolder = book.folder;
+                                                                    if (targetFolder === 'Recent Book') {
+                                                                        const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
+                                                                        if (physicalBook) targetFolder = physicalBook.folder;
+                                                                    }
+                                                                    const identifier = book.v_id || encodeURIComponent(book.realName);
+                                                                    navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName, pageCount: book.pages } });
+                                                                }}
+                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
+                                                            >
+                                                                <Wrench size="0.9vw" /> Customize
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    let targetFolder = book.folder;
+                                                                    if (targetFolder === 'Recent Book') {
+                                                                        const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
+                                                                        if (physicalBook) targetFolder = physicalBook.folder;
+                                                                    }
+                                                                    const identifier = book.v_id || encodeURIComponent(book.realName);
+                                                                    navigate(`/editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName } });
+                                                                }}
+                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+                                                            >
+                                                                <PenTool size="0.9vw" /> Open in Editor
+                                                            </button>
+                                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors">
+                                                                <BarChart2 size="0.9vw" /> Statistic
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleShareClick(book)}
+                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+                                                            >
+                                                                <Share2 size="0.9vw" /> Share
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDownloadClick(book)}
+                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+                                                            >
+                                                                <Download size="0.9vw" /> Download
+                                                            </button>
 
-                                                    {/* More Options */}
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // Calculate position
-                                                                const rect = e.currentTarget.getBoundingClientRect();
-                                                                const screenHeight = window.innerHeight;
-                                                                const spaceBelow = screenHeight - rect.bottom;
-                                                                const menuHeight = 160; // Approx height
+                                                            {/* More Options */}
+                                                            <div className="relative">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        // Calculate position
+                                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                                        const screenHeight = window.innerHeight;
+                                                                        const spaceBelow = screenHeight - rect.bottom;
+                                                                        const menuHeight = 160; // Approx height
 
-                                                                // Determine if we should show above or below
-                                                                const showAbove = spaceBelow < menuHeight;
+                                                                        // Determine if we should show above or below
+                                                                        const showAbove = spaceBelow < menuHeight;
 
-                                                                setMenuPosition({
-                                                                    top: showAbove ? (rect.top - 5) : (rect.bottom + 5),
-                                                                    left: rect.right,
-                                                                    isDropup: showAbove,
-                                                                    activeId: book.id
-                                                                });
+                                                                        setMenuPosition({
+                                                                            top: showAbove ? (rect.top - 5) : (rect.bottom + 5),
+                                                                            left: rect.right,
+                                                                            isDropup: showAbove,
+                                                                            activeId: book.id
+                                                                        });
 
-                                                                setActiveBookMenu(activeBookMenu === book.id ? null : book.id);
-                                                                setActiveBookMenu(activeBookMenu === book.id ? null : book.id);
-                                                            }}
-                                                            className="flex items-center gap-[0.25vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
-                                                        >
-                                                            <MoreVertical size="0.9vw" /> More
-                                                        </button>
-                                                    </div>
+                                                                        setActiveBookMenu(activeBookMenu === book.id ? null : book.id);
+                                                                    }}
+                                                                    className="flex items-center gap-[0.25vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                                                                >
+                                                                    <MoreVertical size="0.9vw" /> More
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -2023,7 +2539,7 @@ export default function MyFlipbooks() {
                     ) : (
                         /* Empty State - Perfectly Centered */
                         <div className="flex-1 flex flex-col items-center justify-center text-center z-10 pb-[3vw]">
-                            {activeFolder === 'Recent Book' ? (
+                            {activeFolder === 'Recent Book' || activeFolder === 'Recent' ? (
                                 <>
                                     <div
                                         onClick={() => setIsCreateModalOpen(true)}
@@ -2032,7 +2548,34 @@ export default function MyFlipbooks() {
                                         <Plus size="2vw" className="text-[#4c5add]" />
                                     </div>
                                     <h3 className="text-[1.25vw] font-medium text-[#4c5add] mb-[0.25vw]">Create Flipbook</h3>
-                                    <p className="text-[#4c5add]/60 text-[0.875vw]">There are no flipbooks in {activeFolder}</p>
+                                    <p className="text-[#4c5add]/60 text-[0.875vw]">There are no recent flipbooks</p>
+                                </>
+                            ) : activeFolder === 'Trash' ? (
+                                <>
+                                    <div className="w-[4vw] h-[4vw] rounded-full bg-red-50 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-red-100">
+                                        <Trash2 size="2vw" className="text-red-300" />
+                                    </div>
+                                    <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">Trash is Empty</h3>
+                                    <p className="text-gray-500 text-[0.875vw]">There are no flipbooks in Trash</p>
+                                </>
+                            ) : activeFolder === 'Favorites' ? (
+                                <>
+                                    <div className="w-[4vw] h-[4vw] rounded-full bg-rose-50 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-rose-100">
+                                        <Heart size="2vw" className="text-rose-300" />
+                                    </div>
+                                    <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">No Favorites Yet</h3>
+                                    <p className="text-gray-500 text-[0.875vw]">Click the heart icon on any flipbook to add it to Favorites</p>
+                                </>
+                            ) : activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks' ? (
+                                <>
+                                    <div
+                                        onClick={() => setIsCreateModalOpen(true)}
+                                        className="w-[4vw] h-[4vw] rounded-full bg-[#4c5add]/10 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-[#4c5add]/20 cursor-pointer hover:bg-[#4c5add]/20 transition-all"
+                                    >
+                                        <Plus size="2vw" className="text-[#4c5add]" />
+                                    </div>
+                                    <h3 className="text-[1.25vw] font-medium text-[#4c5add] mb-[0.25vw]">No Flipbooks Yet</h3>
+                                    <p className="text-[#4c5add]/60 text-[0.875vw]">Upload a PDF or choose a template to create your first flipbook</p>
                                 </>
                             ) : (
                                 <>
@@ -2069,42 +2612,73 @@ export default function MyFlipbooks() {
                             if (!book) return null;
                             return (
                                 <>
-                                    <button
-                                        onClick={() => startEditingBook(book)}
-                                        className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-semibold text-gray-700 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group"
-                                    >
-                                        <Edit2 size="0.9vw" className="group-hover:text-white" />
-                                        Rename
-                                    </button>
-                                    <button
-                                        onClick={() => handleMoveBookClick(book)}
-                                        className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-600 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group"
-                                    >
-                                        <FolderInput size="0.9vw" className="group-hover:text-white" />
-                                        Move to folder
-                                    </button>
-                                    {activeFolder !== 'Recent Book' && (
-                                        <button
-                                            onClick={() => handleDuplicateBook(book)}
-                                            className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-600 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group"
-                                        >
-                                            <Plus size="0.9vw" className="border border-current rounded-[0.125vw] p-[0.0625vw] group-hover:border-white" />
-                                            Duplicate
-                                        </button>
+                                    {activeFolder === 'Trash' ? (
+                                        <>
+                                            <button
+                                                onClick={() => handleRestoreBook(book)}
+                                                className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-700 hover:bg-[#4c5add] hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
+                                            >
+                                                <RotateCcw size="0.9vw" className="text-[#4c5add] group-hover:text-white" />
+                                                Restore
+                                            </button>
+                                            <button
+                                                onClick={() => handlePermanentDeleteBookClick(book)}
+                                                className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-500 hover:text-white transition-colors group cursor-pointer"
+                                            >
+                                                <Trash2 size="0.9vw" className="group-hover:text-white" />
+                                                Delete Permanently
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => startEditingBook(book)}
+                                                className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-semibold text-gray-700 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
+                                            >
+                                                <Edit2 size="0.9vw" className="group-hover:text-white" />
+                                                Rename
+                                            </button>
+                                            <button
+                                                onClick={() => handleMoveBookClick(book)}
+                                                className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-600 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
+                                            >
+                                                <FolderInput size="0.9vw" className="group-hover:text-white" />
+                                                Move to folder
+                                            </button>
+                                            {activeFolder !== 'Recent Book' && activeFolder !== 'Recent' && (
+                                                <button
+                                                    onClick={() => handleDuplicateBook(book)}
+                                                    className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-600 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
+                                                >
+                                                    <Plus size="0.9vw" className="border border-current rounded-[0.125vw] p-[0.0625vw] group-hover:border-white" />
+                                                    Duplicate
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    handleToggleFavorite(book);
+                                                    setActiveBookMenu(null);
+                                                }}
+                                                className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-600 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
+                                            >
+                                                <Heart size="0.9vw" className={book.isFavorite ? "text-red-500 fill-red-500" : "group-hover:text-white"} />
+                                                {book.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (activeFolder === 'Recent Book' || activeFolder === 'Recent') {
+                                                        handleRemoveFromRecent(book);
+                                                    } else {
+                                                        handleTrashBookClick(book);
+                                                    }
+                                                }}
+                                                className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-500 hover:text-white transition-colors group cursor-pointer"
+                                            >
+                                                <Trash2 size="0.9vw" className="group-hover:text-white" />
+                                                {(activeFolder === 'Recent Book' || activeFolder === 'Recent') ? 'Remove' : 'Move to trash'}
+                                            </button>
+                                        </>
                                     )}
-                                    <button
-                                        onClick={() => {
-                                            if (activeFolder === 'Recent Book') {
-                                                handleRemoveFromRecent(book);
-                                            } else {
-                                                handleDeleteBookClick(book);
-                                            }
-                                        }}
-                                        className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-500 hover:text-white transition-colors group"
-                                    >
-                                        <Trash2 size="0.9vw" className="group-hover:text-white" />
-                                        {activeFolder === 'Recent Book' ? 'Remove' : 'Delete'}
-                                    </button>
                                 </>
                             );
                         })()}
@@ -2229,13 +2803,45 @@ export default function MyFlipbooks() {
             {/* Book Delete Alert */}
             <AlertModal
                 isOpen={deleteBookConfirmation.isOpen}
-                onClose={() => setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '' })}
+                onClose={() => setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '', isPublished: false })}
                 onConfirm={confirmDeleteBook}
-                type="error"
-                title={deleteBookConfirmation.bookId === 'BULK' ? "Delete Multiple Flipbooks" : "Delete Flipbook"}
-                message={`Are you sure you want to delete "${deleteBookConfirmation.bookTitle}"? This action cannot be undone.`}
+                type={deleteBookConfirmation.isTrash ? "warning" : "error"}
+                title={
+                    deleteBookConfirmation.isEmptyTrash
+                        ? "Empty Trash"
+                        : deleteBookConfirmation.isTrash
+                        ? (deleteBookConfirmation.isPublished
+                            ? (deleteBookConfirmation.bookId === 'BULK' ? "Unpublish & Move to Trash" : "Unpublish & Move to Trash")
+                            : (deleteBookConfirmation.bookId === 'BULK' ? "Move Selected Flipbooks to Trash" : "Move Flipbook to Trash"))
+                        : (deleteBookConfirmation.isRecent || activeFolder === 'Recent Book')
+                        ? (deleteBookConfirmation.bookId === 'BULK' ? "Remove Selected Flipbooks" : "Remove Flipbook from Recent")
+                        : (deleteBookConfirmation.bookId === 'BULK' ? "Permanently Delete Flipbooks" : "Permanently Delete Flipbook")
+                }
+                message={
+                    deleteBookConfirmation.isEmptyTrash
+                        ? "Are you sure you want to permanently delete all flipbooks in Trash? This action cannot be undone."
+                        : deleteBookConfirmation.isTrash
+                        ? (deleteBookConfirmation.isPublished
+                            ? (deleteBookConfirmation.bookId === 'BULK'
+                                ? `${deleteBookConfirmation.publishedCount} of the selected flipbooks are currently published. If you move them to Trash, they will be automatically unpublished and readers won't be able to access them. Do you want to unpublish and move to Trash?`
+                                : `"${deleteBookConfirmation.bookTitle}" is currently published. If you move it to Trash, the flipbook will be unpublished and readers won't be able to access it. Do you want to unpublish and move to Trash?`)
+                            : (deleteBookConfirmation.bookId === 'BULK'
+                                ? `Are you sure you want to move ${deleteBookConfirmation.bookTitle} to Trash? You can restore them anytime.`
+                                : `Are you sure you want to move "${deleteBookConfirmation.bookTitle}" to Trash? You can restore it anytime from the Trash folder.`))
+                        : (deleteBookConfirmation.isRecent || activeFolder === 'Recent Book')
+                        ? `Are you sure you want to remove "${deleteBookConfirmation.bookTitle}" from Recent Books?`
+                        : `Are you sure you want to permanently delete "${deleteBookConfirmation.bookTitle}"? This action cannot be undone.`
+                }
                 showCancel={true}
-                confirmText="Delete"
+                confirmText={
+                    deleteBookConfirmation.isEmptyTrash
+                        ? "Empty Trash"
+                        : deleteBookConfirmation.isTrash
+                        ? (deleteBookConfirmation.isPublished ? "Unpublish & Move" : "Move to trash")
+                        : (deleteBookConfirmation.isRecent || activeFolder === 'Recent Book')
+                        ? "Remove"
+                        : "Delete Permanently"
+                }
                 cancelText="Cancel"
                 isLoading={isLoading}
             />

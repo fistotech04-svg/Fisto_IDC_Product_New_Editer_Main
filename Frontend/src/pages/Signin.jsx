@@ -6,7 +6,7 @@ import { useGoogleLogin, useGoogleOneTapLogin } from '@react-oauth/google';
 
 import { useToast } from '../components/CustomToast';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
-import FistoLogo from '../assets/logo/Fisto_logo.png'; 
+import FlipibookLogo from '../assets/logo/Flipibook_logo.svg'; 
 import SigninBg from '../assets/logo/signin.png';
 
 export default function Signin() {
@@ -82,6 +82,8 @@ export default function Signin() {
         if (res.data.user) {
           const userData = { ...res.data.user, isLoggedIn: true };
           localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.removeItem('hide_upgrade_card');
+          sessionStorage.removeItem('hide_upgrade_card');
           
           const profileData = {
             emailId: res.data.user.emailId,
@@ -123,6 +125,8 @@ export default function Signin() {
         if (res.data.user) {
           const userData = { ...res.data.user, isLoggedIn: true };
           localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.removeItem('hide_upgrade_card');
+          sessionStorage.removeItem('hide_upgrade_card');
 
           const profileData = {
             emailId: res.data.user.emailId,
@@ -165,6 +169,8 @@ export default function Signin() {
           isLoggedIn: true
         };
         localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.removeItem('hide_upgrade_card');
+        sessionStorage.removeItem('hide_upgrade_card');
 
         const profileData = {
           emailId: res.data.user.emailId,
@@ -211,7 +217,7 @@ export default function Signin() {
         {/* Left Section: Logo */}
         <div className="hidden lg:flex w-[50%] flex-col p-[3vw] relative">
           <div className="mb-auto">
-             <img src={FistoLogo} alt="FIST_O" className="w-[9vw] object-contain" />
+             <img src={FlipibookLogo} alt="Flipibook" className="w-[9vw] object-contain" />
           </div>
           <div className="flex-1 flex items-center justify-center">
              <div className="w-[25vw] h-[32.5vw] relative flex items-center justify-center"></div>
@@ -223,7 +229,7 @@ export default function Signin() {
           <div className="w-full max-w-[28vw] space-y-[2vw] text-white">
             <div className="text-center">
                <div className="lg:hidden flex justify-center mb-[1.5vw]">
-                 <img src={FistoLogo} alt="FIST-O" className="h-[2.5vw] w-auto brightness-0 invert" />
+                 <img src={FlipibookLogo} alt="Flipibook" className="h-[2.5vw] w-auto" />
                </div>
                <h2 className="text-[2.25vw] font-normal tracking-wide mb-[2.5vw]">Sign-in</h2>
             </div>

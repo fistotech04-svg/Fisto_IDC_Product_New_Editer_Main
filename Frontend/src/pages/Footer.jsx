@@ -12,7 +12,7 @@ import {
   Linkedin, 
   Youtube 
 } from 'lucide-react';
-import FistoLogo from '../assets/logo/Fisto_logo.png';
+import FlipibookLogo from '../assets/logo/Flipibook_logo.svg';
 
 export default function Footer() {
   return (
@@ -68,7 +68,7 @@ export default function Footer() {
         {/* Col 1: Brand Info */}
         <div className="space-y-[1.8vh]">
           <div className="flex items-center gap-[0.5vw]">
-            <img src={FistoLogo} alt="FIST-O" className="h-[2.8vw] w-auto object-contain brightness-0 invert" />
+            <img src={FlipibookLogo} alt="Flipibook" className="h-[2.8vw] w-auto object-contain" />
           </div>
 
           <h3 className="font-bold text-white text-[1.1vw] leading-snug whitespace-nowrap">
