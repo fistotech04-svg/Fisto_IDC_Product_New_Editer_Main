@@ -180,31 +180,62 @@ export const CropController = ({
       const imgSrc = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || imgEl.getAttribute('src') || '';
       const imgPreserve = imgEl.getAttribute('preserveAspectRatio') || 'xMidYMid slice';
 
-      maskGroup.innerHTML = `
-        <defs>
-          <mask id="${maskId}">
-            <!-- Full White Mask over Outer Image area -->
-            <rect x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" fill="white" />
-            <!-- Cutout Hole over Crop Box area -->
-            <rect x="${minX}" y="${minY}" width="${cWidth}" height="${cHeight}" fill="black" />
-          </mask>
-        </defs>
+      if (!maskGroup.hasChildNodes()) {
+        maskGroup.innerHTML = `
+          <defs>
+            <mask id="${maskId}">
+              <!-- Full White Mask over Outer Image area -->
+              <rect class="crop-mask-white" x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" fill="white" />
+              <!-- Cutout Hole over Crop Box area -->
+              <rect class="crop-mask-black" x="${minX}" y="${minY}" width="${cWidth}" height="${cHeight}" fill="black" />
+            </mask>
+          </defs>
 
-        <!-- Full Uncropped Ghost Image rendered under black transparent shade -->
-        ${imgSrc ? `<image href="${imgSrc}" x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" preserveAspectRatio="${imgPreserve}" style="pointer-events: none;" />` : ''}
+          <!-- Full Uncropped Ghost Image rendered under black transparent shade -->
+          ${imgSrc ? `<image class="crop-ghost-img" href="${imgSrc}" x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" preserveAspectRatio="${imgPreserve}" style="pointer-events: none;" />` : ''}
 
-        <!-- Black Transparent Shade ON OUTER UNCROPPED IMAGE ONLY -->
-        <rect x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" fill="rgba(0, 0, 0, 0.65)" mask="url(#${maskId})" pointer-events="none" />
+          <!-- Black Transparent Shade ON OUTER UNCROPPED IMAGE ONLY -->
+          <rect class="crop-shade" x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" fill="rgba(0, 0, 0, 0.65)" mask="url(#${maskId})" pointer-events="none" />
 
-        <!-- 3x3 Rule-of-Thirds Grid Lines Inside Crop Frame -->
-        <line x1="${minX + cWidth / 3}" y1="${minY}" x2="${minX + cWidth / 3}" y2="${minY + cHeight}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
-        <line x1="${minX + (cWidth * 2) / 3}" y1="${minY}" x2="${minX + (cWidth * 2) / 3}" y2="${minY + cHeight}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
-        <line x1="${minX}" y1="${minY + cHeight / 3}" x2="${minX + cWidth}" y2="${minY + cHeight / 3}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
-        <line x1="${minX}" y1="${minY + (cHeight * 2) / 3}" x2="${minX + cWidth}" y2="${minY + (cHeight * 2) / 3}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
-      `;
+          <!-- 3x3 Rule-of-Thirds Grid Lines Inside Crop Frame -->
+          <line class="crop-l1" x1="${minX + cWidth / 3}" y1="${minY}" x2="${minX + cWidth / 3}" y2="${minY + cHeight}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
+          <line class="crop-l2" x1="${minX + (cWidth * 2) / 3}" y1="${minY}" x2="${minX + (cWidth * 2) / 3}" y2="${minY + cHeight}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
+          <line class="crop-l3" x1="${minX}" y1="${minY + cHeight / 3}" x2="${minX + cWidth}" y2="${minY + cHeight / 3}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
+          <line class="crop-l4" x1="${minX}" y1="${minY + (cHeight * 2) / 3}" x2="${minX + cWidth}" y2="${minY + (cHeight * 2) / 3}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
+        `;
+      } else {
+        const whiteMask = maskGroup.querySelector('.crop-mask-white');
+        if (whiteMask) { whiteMask.setAttribute('x', gMinX); whiteMask.setAttribute('y', gMinY); whiteMask.setAttribute('width', gWidth); whiteMask.setAttribute('height', gHeight); }
+        
+        const blackMask = maskGroup.querySelector('.crop-mask-black');
+        if (blackMask) { blackMask.setAttribute('x', minX); blackMask.setAttribute('y', minY); blackMask.setAttribute('width', cWidth); blackMask.setAttribute('height', cHeight); }
+        
+        const ghostImg = maskGroup.querySelector('.crop-ghost-img');
+        if (ghostImg) { ghostImg.setAttribute('x', gMinX); ghostImg.setAttribute('y', gMinY); ghostImg.setAttribute('width', gWidth); ghostImg.setAttribute('height', gHeight); }
+        
+        const shade = maskGroup.querySelector('.crop-shade');
+        if (shade) { shade.setAttribute('x', gMinX); shade.setAttribute('y', gMinY); shade.setAttribute('width', gWidth); shade.setAttribute('height', gHeight); }
+        
+        const l1 = maskGroup.querySelector('.crop-l1');
+        if (l1) { l1.setAttribute('x1', minX + cWidth / 3); l1.setAttribute('y1', minY); l1.setAttribute('x2', minX + cWidth / 3); l1.setAttribute('y2', minY + cHeight); }
+        
+        const l2 = maskGroup.querySelector('.crop-l2');
+        if (l2) { l2.setAttribute('x1', minX + (cWidth * 2) / 3); l2.setAttribute('y1', minY); l2.setAttribute('x2', minX + (cWidth * 2) / 3); l2.setAttribute('y2', minY + cHeight); }
+        
+        const l3 = maskGroup.querySelector('.crop-l3');
+        if (l3) { l3.setAttribute('x1', minX); l3.setAttribute('y1', minY + cHeight / 3); l3.setAttribute('x2', minX + cWidth); l3.setAttribute('y2', minY + cHeight / 3); }
+        
+        const l4 = maskGroup.querySelector('.crop-l4');
+        if (l4) { l4.setAttribute('x1', minX); l4.setAttribute('y1', minY + (cHeight * 2) / 3); l4.setAttribute('x2', minX + cWidth); l4.setAttribute('y2', minY + (cHeight * 2) / 3); }
+      }
     };
 
-    renderMaskCutout();
+    let animationFrameId;
+    const loop = () => {
+      renderMaskCutout();
+      animationFrameId = requestAnimationFrame(loop);
+    };
+    loop();
 
     let isDragging = false;
     let startX = 0, startY = 0;
@@ -337,6 +368,7 @@ export const CropController = ({
     cropEl.setAttribute('data-cropping', 'true');
 
     return () => {
+      cancelAnimationFrame(animationFrameId);
       window.removeEventListener('pointerdown', onPointerDown, { capture: true });
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);

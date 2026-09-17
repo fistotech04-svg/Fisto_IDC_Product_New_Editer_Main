@@ -937,7 +937,8 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                             onPointerUp={(e) => {
                               updateGradient(gradientType, gradientStops, parseInt(e.target.value), gradientRadius, false);
                             }}
-                            className="flex-1 custom-angle-slider"
+                            className="flex-1 cursor-pointer custom-range-slider-color"
+                            style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${(gradientAngle / 360) * 100}%, #E2E8F0 ${(gradientAngle / 360) * 100}%, #E2E8F0 100%)` }}
                           />
                           <span className="text-[0.65vw] font-semibold text-gray-500 w-[1.5vw] text-right">{gradientAngle}°</span>
                         </div>
@@ -958,7 +959,8 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                             onPointerUp={(e) => {
                               updateGradient(gradientType, gradientStops, gradientAngle, parseInt(e.target.value), false);
                             }}
-                            className="flex-1 custom-angle-slider"
+                            className="flex-1 cursor-pointer custom-range-slider-color"
+                            style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${((gradientRadius - 10) / 190) * 100}%, #E2E8F0 ${((gradientRadius - 10) / 190) * 100}%, #E2E8F0 100%)` }}
                           />
                           <span className="text-[0.65vw] font-semibold text-gray-500 w-[1.5vw] text-right">{gradientRadius}%</span>
                         </div>

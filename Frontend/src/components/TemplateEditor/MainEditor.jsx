@@ -7133,6 +7133,15 @@ const MainEditor = ({
       current = current.parentElement || current.parentNode;
     }
 
+    // Hotspots are single compound elements; if clicking anywhere inside a hotspot group, drag the whole hotspot!
+    const hotspotGroup = current && typeof current.closest === 'function' ? current.closest('[data-is-hotspot="true"], [data-type="hotspot"]') : null;
+    if (hotspotGroup) {
+      if (!hotspotGroup.id) {
+        hotspotGroup.id = `hotspot-${Date.now()}`;
+      }
+      return hotspotGroup;
+    }
+
     let deepestElementWithId = null;
 
     while (current && current !== canvasRoot && current.tagName) {
@@ -7430,11 +7439,13 @@ const MainEditor = ({
                     candidate = candidate.parentNode;
                   }
 
-                  // If candidate is an arbitrary group container (not a user-created group), prefer leafTarget so user can select & edit individual elements!
+                  // If candidate is an arbitrary group container (not a user-created group or hotspot), prefer leafTarget so user can select & edit individual elements!
                   const isUserGroupCandidate = candidate.tagName?.toLowerCase() === 'g' && (
                     candidate.getAttribute('data-type') === 'group' ||
                     (candidate.getAttribute('data-name') || '').toLowerCase() === 'group' ||
-                    candidate.id.startsWith('group-')
+                    candidate.id.startsWith('group-') ||
+                    candidate.getAttribute('data-is-hotspot') === 'true' ||
+                    candidate.getAttribute('data-type') === 'hotspot'
                   ) && candidate.getAttribute('data-is-image-group') !== 'true';
 
                   if (!isUserGroupCandidate && leafTarget && leafTarget.id && leafTarget.getAttribute('data-name') !== 'Overlay') {
@@ -8371,7 +8382,7 @@ const MainEditor = ({
             }
 
 
-            if (isFreeFrame || isGroup || isHotspotIconGroup) {
+            if (isFreeFrame || isGroup || isHotspotIconGroup || isShape) {
               const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;
               const newLocalY = state.localAnchor.y + (bbox.y - state.localAnchor.y) * scaleY;
               const newLocalRight = state.localAnchor.x + ((bbox.x + bbox.width) - state.localAnchor.x) * scaleX;
@@ -8504,6 +8515,41 @@ const MainEditor = ({
                     }
                   }
                 }
+              } else if (isShape && !isGroup && !isHotspotIconGroup) {
+                const isRectPath = el.tagName?.toLowerCase() === 'path' && el.getAttribute('data-shape-type') === 'rectangle';
+                if (el.tagName?.toLowerCase() === 'rect' || isRectPath || el.tagName?.toLowerCase() === 'image') {
+                  el.setAttribute('x', finalX);
+                  el.setAttribute('y', finalY);
+                  el.setAttribute('width', finalWidth);
+                  el.setAttribute('height', finalHeight);
+                  if (isRectPath) {
+                    const defR = parseFloat(el.getAttribute('rx') || 0);
+                    const maxR = Math.max(0, Math.min(finalWidth / 2, finalHeight / 2));
+                    const parseR = (v, d) => (v !== null && v !== '') ? (isNaN(parseFloat(v)) ? 0 : parseFloat(v)) : d;
+                    const tl = Math.min(parseR(el.getAttribute('data-tl'), defR), maxR);
+                    const tr = Math.min(parseR(el.getAttribute('data-tr'), defR), maxR);
+                    const bl = Math.min(parseR(el.getAttribute('data-bl'), defR), maxR);
+                    const br = Math.min(parseR(el.getAttribute('data-br'), defR), maxR);
+                    const d = `M ${finalX + tl},${finalY} L ${finalX + finalWidth - tr},${finalY} A ${tr},${tr} 0 0 1 ${finalX + finalWidth},${finalY + tr} L ${finalX + finalWidth},${finalY + finalHeight - br} A ${br},${br} 0 0 1 ${finalX + finalWidth - br},${finalY + finalHeight} L ${finalX + bl},${finalY + finalHeight} A ${bl},${bl} 0 0 1 ${finalX},${finalY + finalHeight - bl} L ${finalX},${finalY + tl} A ${tl},${tl} 0 0 1 ${finalX + tl},${finalY} Z`.replace(/\s+/g, ' ').trim();
+                    el.setAttribute('d', d);
+                  }
+                } else if (el.tagName?.toLowerCase() === 'ellipse' || el.tagName?.toLowerCase() === 'circle') {
+                  el.setAttribute('cx', finalX + finalWidth / 2);
+                  el.setAttribute('cy', finalY + finalHeight / 2);
+                  if (el.tagName?.toLowerCase() === 'circle') {
+                    el.setAttribute('r', Math.min(finalWidth, finalHeight) / 2);
+                  } else {
+                    el.setAttribute('rx', finalWidth / 2);
+                    el.setAttribute('ry', finalHeight / 2);
+                  }
+                } else {
+                  const scaleMatrix = new DOMMatrix()
+                    .translate(worldAnchor.x, worldAnchor.y)
+                    .scale(scaleX, scaleY)
+                    .translate(-worldAnchor.x, -worldAnchor.y);
+                  const nextMatrix = scaleMatrix.multiply(matrix);
+                  el.setAttribute('transform', matrixToTransform(nextMatrix));
+                }
               } else if ((isGroup || isHotspotIconGroup) && state.childrenData) {
                 const isMultiSel = el.tagName === 'multi';
 
@@ -8579,9 +8625,10 @@ const MainEditor = ({
                       const dx = localNew.x - localOld.x;
                       const dy = localNew.y - localOld.y;
                       child.setAttribute('transform', matrixToTransform(new DOMMatrix().translate(dx, dy).multiply(initialMatrix)));
-                    } else if (tag === 'rect' || tag === 'foreignobject' || tag === 'image' || tag === 'video' || tag === 'svg') {
+                    } else if (tag === 'rect' || (tag === 'path' && child.getAttribute('data-shape-type') === 'rectangle') || tag === 'foreignobject' || tag === 'image' || tag === 'video' || tag === 'svg') {
+                      const isRectPath = tag === 'path' && child.getAttribute('data-shape-type') === 'rectangle';
                       const hasTransform = child.getAttribute('transform');
-                      const forceNative = (tag === 'image' || tag === 'video' || tag === 'svg');
+                      const forceNative = (tag === 'rect' || isRectPath || tag === 'image' || tag === 'video' || tag === 'svg');
                       if (forceNative || !hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
                         if (forceNative && hasTransform && hasTransform !== 'matrix(1 0 0 1 0 0)') {
                           child.removeAttribute('transform');
@@ -8591,6 +8638,18 @@ const MainEditor = ({
                         child.setAttribute('y', local.y);
                         child.setAttribute('width', local.width);
                         child.setAttribute('height', local.height);
+
+                        if (isRectPath) {
+                          const defR = parseFloat(child.getAttribute('rx') || 0);
+                          const maxR = Math.max(0, Math.min(local.width / 2, local.height / 2));
+                          const parseR = (v, d) => (v !== null && v !== '') ? (isNaN(parseFloat(v)) ? 0 : parseFloat(v)) : d;
+                          const tl = Math.min(parseR(child.getAttribute('data-tl'), defR), maxR);
+                          const tr = Math.min(parseR(child.getAttribute('data-tr'), defR), maxR);
+                          const bl = Math.min(parseR(child.getAttribute('data-bl'), defR), maxR);
+                          const br = Math.min(parseR(child.getAttribute('data-br'), defR), maxR);
+                          const d = `M ${local.x + tl},${local.y} L ${local.x + local.width - tr},${local.y} A ${tr},${tr} 0 0 1 ${local.x + local.width},${local.y + tr} L ${local.x + local.width},${local.y + local.height - br} A ${br},${br} 0 0 1 ${local.x + local.width - br},${local.y + local.height} L ${local.x + bl},${local.y + local.height} A ${bl},${bl} 0 0 1 ${local.x},${local.y + local.height - bl} L ${local.x},${local.y + tl} A ${tl},${tl} 0 0 1 ${local.x + tl},${local.y} Z`.replace(/\s+/g, ' ').trim();
+                          child.setAttribute('d', d);
+                        }
 
                         if ((tag === 'image' || tag === 'video') && el.tagName === 'g') {
                           const svg = child.ownerSVGElement;
@@ -8719,9 +8778,10 @@ const MainEditor = ({
                       const dx = newLocX - bound.x;
                       const dy = newLocY - bound.y;
                       child.setAttribute('transform', matrixToTransform(new DOMMatrix().translate(dx, dy).multiply(initialMatrix)));
-                    } else if (tag === 'rect' || tag === 'foreignobject' || tag === 'image' || tag === 'video' || tag === 'svg' || child.classList?.contains('gif-inner-content')) {
+                    } else if (tag === 'rect' || (tag === 'path' && child.getAttribute('data-shape-type') === 'rectangle') || tag === 'foreignobject' || tag === 'image' || tag === 'video' || tag === 'svg' || child.classList?.contains('gif-inner-content')) {
+                      const isRectPath = tag === 'path' && child.getAttribute('data-shape-type') === 'rectangle';
                       const hasTransform = child.getAttribute('transform');
-                      const forceNative = (tag === 'image' || tag === 'video' || tag === 'svg' || child.classList?.contains('gif-inner-content'));
+                      const forceNative = (tag === 'rect' || isRectPath || tag === 'image' || tag === 'video' || tag === 'svg' || child.classList?.contains('gif-inner-content'));
 
                       if (forceNative || !hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
                         if (forceNative && hasTransform && hasTransform !== 'matrix(1 0 0 1 0 0)') {
@@ -8805,6 +8865,18 @@ const MainEditor = ({
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
+
+                        if (isRectPath) {
+                          const defR = parseFloat(child.getAttribute('rx') || 0);
+                          const maxR = Math.max(0, Math.min(imgW / 2, imgH / 2));
+                          const parseR = (v, d) => (v !== null && v !== '') ? (isNaN(parseFloat(v)) ? 0 : parseFloat(v)) : d;
+                          const tl = Math.min(parseR(child.getAttribute('data-tl'), defR), maxR);
+                          const tr = Math.min(parseR(child.getAttribute('data-tr'), defR), maxR);
+                          const bl = Math.min(parseR(child.getAttribute('data-bl'), defR), maxR);
+                          const br = Math.min(parseR(child.getAttribute('data-br'), defR), maxR);
+                          const d = `M ${imgX + tl},${imgY} L ${imgX + imgW - tr},${imgY} A ${tr},${tr} 0 0 1 ${imgX + imgW},${imgY + tr} L ${imgX + imgW},${imgY + imgH - br} A ${br},${br} 0 0 1 ${imgX + imgW - br},${imgY + imgH} L ${imgX + bl},${imgY + imgH} A ${bl},${bl} 0 0 1 ${imgX},${imgY + imgH - bl} L ${imgX},${imgY + tl} A ${tl},${tl} 0 0 1 ${imgX + tl},${imgY} Z`.replace(/\s+/g, ' ').trim();
+                          child.setAttribute('d', d);
+                        }
 
                         if (child.classList?.contains('gif-inner-content')) {
                           const innerImg = child.querySelector('image, foreignObject');

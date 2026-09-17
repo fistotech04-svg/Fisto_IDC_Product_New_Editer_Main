@@ -651,6 +651,11 @@ const GifEditor = ({
                 if (targetToWrap) {
                   targetToWrap.style.setProperty('clip-path', `url(#${clipId})`, 'important');
                   targetToWrap.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+                  let fl = liveElement.querySelector('.gif-fill-layer') || liveElement.querySelector('.image-fill-layer');
+                  if (fl) {
+                    fl.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                    fl.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+                  }
                   liveElement.style.removeProperty('clip-path');
                   liveElement.style.removeProperty('-webkit-clip-path');
                   if (targetToWrap.parentNode && targetToWrap.parentNode.classList.contains('svg-image-clipper')) {
@@ -721,20 +726,19 @@ const GifEditor = ({
               let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
               let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
 
-              let rect = clipNode.firstChild;
-              if (rect.tagName.toLowerCase() !== 'rect') {
-                rect.remove();
-                rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                clipNode.appendChild(rect);
+              let clipPathEl = clipNode.firstChild;
+              if (clipPathEl.tagName.toLowerCase() !== 'path') {
+                clipPathEl.remove();
+                clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                clipNode.appendChild(clipPathEl);
               }
-              rect.setAttribute('x', cx);
-              rect.setAttribute('y', cy);
-              rect.setAttribute('width', Math.max(0, cw));
-              rect.setAttribute('height', Math.max(0, ch));
-              rect.setAttribute('transform', measureEl.getAttribute('transform') || '');
-              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-              else rect.removeAttribute('rx');
+              const maxR = Math.min(cw, ch) / 2;
+              const c_tl = Math.max(0, Math.min(radius.tl || 0, maxR));
+              const c_tr = Math.max(0, Math.min(radius.tr || 0, maxR));
+              const c_br = Math.max(0, Math.min(radius.br || 0, maxR));
+              const c_bl = Math.max(0, Math.min(radius.bl || 0, maxR));
+              clipPathEl.setAttribute('d', getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), c_tl, c_tr, c_br, c_bl));
+              clipPathEl.setAttribute('transform', measureEl.getAttribute('transform') || '');
 
               if (!liveElement.hasAttribute('data-clip-obs')) {
                 liveElement.setAttribute('data-clip-obs', 'true');
@@ -756,20 +760,20 @@ const GifEditor = ({
                   let ncy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
                   let ncw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
                   let nch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
-                  rect.setAttribute('x', ncx);
-                  rect.setAttribute('y', ncy);
-                  rect.setAttribute('width', Math.max(0, ncw));
-                  rect.setAttribute('height', Math.max(0, nch));
-                  rect.setAttribute('transform', measureEl.getAttribute('transform') || '');
-
+                  let clipPathEl = clipNode.firstChild;
                   let currentRadius = radius;
                   try {
                     const saved = (svgImageEl || liveElement).getAttribute('data-radius') || liveElement.getAttribute('data-radius');
                     if (saved) currentRadius = JSON.parse(saved);
                   } catch (e) { }
-                  const mxR = Math.max(currentRadius.tl || 0, currentRadius.tr || 0, currentRadius.br || 0, currentRadius.bl || 0);
-                  if (mxR > 0) rect.setAttribute('rx', mxR.toString());
-                  else rect.removeAttribute('rx');
+                  const mxR = Math.min(ncw, nch) / 2;
+                  const c_tl = Math.max(0, Math.min(currentRadius.tl || 0, mxR));
+                  const c_tr = Math.max(0, Math.min(currentRadius.tr || 0, mxR));
+                  const c_br = Math.max(0, Math.min(currentRadius.br || 0, mxR));
+                  const c_bl = Math.max(0, Math.min(currentRadius.bl || 0, mxR));
+                  
+                  clipPathEl.setAttribute('d', getPathD(ncx, ncy, Math.max(0, ncw), Math.max(0, nch), c_tl, c_tr, c_br, c_bl));
+                  clipPathEl.setAttribute('transform', measureEl.getAttribute('transform') || '');
                 };
                 const clipObs = new MutationObserver(syncClipRect);
                 clipObs.observe(measureEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform'] });
@@ -781,6 +785,11 @@ const GifEditor = ({
               if (targetToWrap) {
                 targetToWrap.style.setProperty('clip-path', `url(#${clipId})`, 'important');
                 targetToWrap.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+                let fl = liveElement.querySelector('.gif-fill-layer') || liveElement.querySelector('.image-fill-layer');
+                if (fl) {
+                  fl.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                  fl.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+                }
 
                 liveElement.style.removeProperty('clip-path');
                 liveElement.style.removeProperty('-webkit-clip-path');
@@ -799,6 +808,11 @@ const GifEditor = ({
         } else {
           liveElement.style.removeProperty('clip-path');
           liveElement.style.removeProperty('-webkit-clip-path');
+          let fl = liveElement.querySelector('.gif-fill-layer') || liveElement.querySelector('.image-fill-layer');
+          if (fl) {
+            fl.style.removeProperty('clip-path');
+            fl.style.removeProperty('-webkit-clip-path');
+          }
           if (svgImageEl && svgImageEl !== liveElement) {
             svgImageEl.style.removeProperty('clip-path');
             svgImageEl.style.removeProperty('-webkit-clip-path');
@@ -1042,14 +1056,7 @@ const GifEditor = ({
               fillLayer.style.rotate = visualTarget.style.rotate;
               fillLayer.style.transformOrigin = visualTarget.style.transformOrigin;
 
-              let currentRadius = { tl: 0, tr: 0, br: 0, bl: 0 };
-              try {
-                const saved = visualTarget.getAttribute('data-radius') || liveElement.getAttribute('data-radius');
-                if (saved) currentRadius = JSON.parse(saved);
-              } catch (e) { }
-              const mxR = Math.max(currentRadius.tl || 0, currentRadius.tr || 0, currentRadius.br || 0, currentRadius.bl || 0);
-              if (mxR > 0) fillLayer.setAttribute('rx', mxR.toString());
-              else fillLayer.removeAttribute('rx');
+
             };
             const fObs = new MutationObserver(syncFillLayer);
             fObs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-radius'] });
@@ -1069,14 +1076,7 @@ const GifEditor = ({
           fillLayer.style.rotate = visualTarget.style.rotate;
           fillLayer.style.transformOrigin = visualTarget.style.transformOrigin;
 
-          let initialRadius = { tl: 0, tr: 0, br: 0, bl: 0 };
-          try {
-            const saved = visualTarget.getAttribute('data-radius') || liveElement.getAttribute('data-radius');
-            if (saved) initialRadius = JSON.parse(saved);
-          } catch (e) { }
-          const mxRInit = Math.max(initialRadius.tl || 0, initialRadius.tr || 0, initialRadius.br || 0, initialRadius.bl || 0);
-          if (mxRInit > 0) fillLayer.setAttribute('rx', mxRInit.toString());
-          else fillLayer.removeAttribute('rx');
+
 
           fillLayer.removeAttribute('d');
 
@@ -1087,21 +1087,25 @@ const GifEditor = ({
 
           if (parsedFill && parsedFill.stops) {
             const fillAngleVal = (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 0;
+            const fillRadiusVal = (parsedFill.radius !== undefined && parsedFill.radius !== null) ? parsedFill.radius : 100;
             fillLayer.setAttribute('data-fill-type', 'gradient');
             fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             fillLayer.setAttribute('data-fill-angle', fillAngleVal);
+            fillLayer.setAttribute('data-fill-radius', fillRadiusVal);
 
             fillLayer.setAttribute('fill-type', 'gradient');
             fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             fillLayer.setAttribute('fill-angle', fillAngleVal);
+            fillLayer.setAttribute('fill-radius', fillRadiusVal);
 
             syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
             liveElement.setAttribute('data-fill-type', 'gradient');
             liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             liveElement.setAttribute('data-fill-angle', fillAngleVal);
+            liveElement.setAttribute('data-fill-radius', fillRadiusVal);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
             if (fillLayer.style) fillLayer.style.removeProperty('fill');
@@ -1109,16 +1113,19 @@ const GifEditor = ({
             fillLayer.removeAttribute('data-fill-stops');
             fillLayer.removeAttribute('data-fill-gradient-type');
             fillLayer.removeAttribute('data-fill-angle');
+            fillLayer.removeAttribute('data-fill-radius');
 
             fillLayer.removeAttribute('fill-type');
             fillLayer.removeAttribute('fill-stops');
             fillLayer.removeAttribute('fill-gradient-type');
             fillLayer.removeAttribute('fill-angle');
+            fillLayer.removeAttribute('fill-radius');
 
             liveElement.removeAttribute('data-fill-type');
             liveElement.removeAttribute('data-fill-stops');
             liveElement.removeAttribute('data-fill-gradient-type');
             liveElement.removeAttribute('data-fill-angle');
+            liveElement.removeAttribute('data-fill-radius');
           }
           fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
 
