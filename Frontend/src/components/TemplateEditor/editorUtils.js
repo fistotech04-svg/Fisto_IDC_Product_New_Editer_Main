@@ -378,7 +378,8 @@ export const parseLayersFromSVG = (element) => {
           coreName = 'GIF';
           coreType = 'image';
         } else if (isText) {
-          coreName = 'Text';
+          const customName = child.getAttribute('data-name');
+          coreName = customName ? customName.replace(/^tpl-[a-z0-9]{4}-/, '') : 'Text';
           coreType = 'text';
         }
         layer.name = coreName;

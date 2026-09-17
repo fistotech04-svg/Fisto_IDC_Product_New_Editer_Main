@@ -7142,16 +7142,18 @@ const MainEditor = ({
         return deepestElementWithId;
       }
 
-      // Auto-assign an id to id-less text elements from SVG templates so they
+      // Auto-assign an id to id-less elements from SVG templates so they
       // become selectable. This matches how the type tool creates new text.
       if (
-        (tagName === 'text') &&
         !current.id &&
         current.getAttribute('data-hidden') !== 'true' &&
         current.getAttribute('data-locked') !== 'true' &&
-        current.getAttribute('data-name') !== 'Overlay'
+        current.getAttribute('data-name') !== 'Overlay' &&
+        current.getAttribute('data-name') !== 'Document Shield' &&
+        current.getAttribute('data-type') !== 'shield' &&
+        !['svg', 'defs', 'clippath', 'lineargradient', 'radialgradient', 'pattern', 'filter', 'style', 'metadata'].includes(tagName)
       ) {
-        current.id = `text-${Math.random().toString(36).substr(2, 9)}`;
+        current.id = `${tagName}-${Math.random().toString(36).substr(2, 9)}`;
         if (!deepestElementWithId) deepestElementWithId = current;
       }
 
@@ -7426,6 +7428,17 @@ const MainEditor = ({
                   let candidate = leafTarget;
                   while (candidate.parentNode && candidate.parentNode !== context && candidate.parentNode !== svgElement) {
                     candidate = candidate.parentNode;
+                  }
+
+                  // If candidate is an arbitrary group container (not a user-created group), prefer leafTarget so user can select & edit individual elements!
+                  const isUserGroupCandidate = candidate.tagName?.toLowerCase() === 'g' && (
+                    candidate.getAttribute('data-type') === 'group' ||
+                    (candidate.getAttribute('data-name') || '').toLowerCase() === 'group' ||
+                    candidate.id.startsWith('group-')
+                  ) && candidate.getAttribute('data-is-image-group') !== 'true';
+
+                  if (!isUserGroupCandidate && leafTarget && leafTarget.id && leafTarget.getAttribute('data-name') !== 'Overlay') {
+                    candidate = leafTarget;
                   }
 
                   // Validate if candidate is draggable (not the base frame background)
