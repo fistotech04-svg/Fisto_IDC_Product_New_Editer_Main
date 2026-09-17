@@ -21,6 +21,7 @@ import Advanced from './pages/Settings/Advanced';
 import AccountManagement from './pages/Settings/AccountManagement';
 import About from './pages/About';
 import Explore from './pages/Explore';
+import Template from './pages/Template';
 import ContactUs from './pages/ContactUs';
 import Unauthorized from './pages/Unauthorized';
 import NotFound from './pages/NotFound';
@@ -97,6 +98,7 @@ function App() {
             }>
               <Route path="/home" element={<Home />} />
               <Route path="/my-flipbooks" element={<MyFlipbooks />} />
+              <Route path="/templates" element={<Template />} />
               <Route path="/explore" element={<Explore />} />
               <Route path="/profile/:useremail" element={<Viewprofile />} />
               <Route path="/profile" element={<Viewprofile />} />

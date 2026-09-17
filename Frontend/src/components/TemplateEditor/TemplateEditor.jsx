@@ -4419,6 +4419,10 @@ const TemplateEditor = () => {
               const name = p.name || `Page ${i + 1}`;
               let pageHtml = p.html;
 
+              if (i === 0 && (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') && location.state?.initialTemplateSvg) {
+                pageHtml = location.state.initialTemplateSvg;
+              }
+
               if (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') {
                 const { html, layers } = createDefaultPageData(name, targetWidth, targetHeight);
                 return {
@@ -4592,7 +4596,18 @@ const TemplateEditor = () => {
         const count = location.state.pageCount;
         const newPages = Array.from({ length: count }, (_, i) => {
           const name = `Page ${i + 1}`;
-          const { html, layers } = createDefaultPageData(name);
+          let html, layers;
+          if (i === 0 && location.state?.initialTemplateSvg) {
+            html = location.state.initialTemplateSvg;
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            layers = svgEl ? parseLayersFromSVG(svgEl) : [];
+          } else {
+            const def = createDefaultPageData(name, location.state.width, location.state.height);
+            html = def.html;
+            layers = def.layers;
+          }
           return {
             id: i + 1,
             name,

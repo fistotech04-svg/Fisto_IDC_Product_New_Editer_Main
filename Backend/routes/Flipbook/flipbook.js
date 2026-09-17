@@ -515,10 +515,10 @@ router.post("/save", async (req, res) => {
     // Sanitize email to match the formatting used in login.js
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
 
-    // Determine target folder (default to 'Recent Book' if not specified)
-    const targetFolder = folderName
-      ? folderName.replace(/[^a-zA-Z0-9 _-]/g, "")
-      : "Recent Book";
+    // Determine target folder (default to 'My_Flipbooks' if not specified or special non-folder view)
+    const rawFolderName = folderName ? folderName.replace(/[^a-zA-Z0-9 _-]/g, "").trim() : "";
+    const isSpecialView = !rawFolderName || rawFolderName === 'All Flipbook' || rawFolderName === 'All Flipbooks' || rawFolderName === 'Recent Book' || rawFolderName === 'Recent' || rawFolderName === 'Trash' || rawFolderName === 'Favorites';
+    const targetFolder = isSpecialView ? "My_Flipbooks" : rawFolderName;
 
     // Paths
     const uploadsDir = path.join(__dirname, "../../uploads");
@@ -2080,6 +2080,13 @@ router.get("/folders", async (req, res) => {
         }
       }
     });
+
+    // Ensure default 'My_Flipbooks' folder is always present
+    if (!folderMap.has("My_Flipbooks")) {
+      const defaultId = new mongoose.Types.ObjectId().toString();
+      folderMap.set("My_Flipbooks", defaultId);
+      dbOrder.unshift({ id: defaultId, name: "My_Flipbooks" });
+    }
 
     // 2. Fetch all folders from MongoDB Flipbook documents (legacy/existing documents)
     const dbBooks = await Flipbook.find({ userEmail: emailId });
