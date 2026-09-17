@@ -301,6 +301,39 @@ const Grid5Layout = ({
     const [editValue, setEditValue] = useState('');
     const [tocSearchQuery, setTocSearchQuery] = useState('');
 
+    // Automatically close popups if their corresponding setting is disabled
+    useEffect(() => {
+        if (showThumbnails && !(settings?.navigation?.pageThumbnails ?? true)) {
+            setShowThumbnails(false);
+        }
+        if (showTOC && !(settings?.navigation?.tableOfContents ?? true)) {
+            setShowTOCMemo?.(false);
+        }
+        if (showProfilePopup && !(settings?.brandingProfile?.profile ?? true)) {
+            setShowProfilePopup?.(false);
+        }
+        if (showGalleryPopup && !(settings?.interaction?.gallery ?? true)) {
+            setShowGalleryPopupMemo?.(false);
+        }
+        if (showSoundPopup && !(settings?.media?.backgroundAudio ?? true)) {
+            setShowSoundPopupMemo?.(false);
+        }
+    }, [
+        settings?.navigation, 
+        settings?.brandingProfile, 
+        settings?.interaction, 
+        settings?.media, 
+        showThumbnails, 
+        showTOC, 
+        showProfilePopup, 
+        showGalleryPopup, 
+        showSoundPopup,
+        setShowTOCMemo,
+        setShowProfilePopup,
+        setShowGalleryPopupMemo,
+        setShowSoundPopupMemo
+    ]);
+
     const hasProfileData = profileSettings && (
         (profileSettings.name && profileSettings.name !== 'Name' && profileSettings.name.trim() !== '') ||
         (profileSettings.about && profileSettings.about.trim() !== '') ||
@@ -371,11 +404,13 @@ const Grid5Layout = ({
     const renderToolbarBtn = (iconEl, label, onClick, extraStyle = {}, extraClassName = '', isActive = false) => (
         <div className="relative group flex flex-col items-center justify-center">
             <button
-                className={`transition-all transform hover:scale-110 flex flex-col items-center justify-center ${extraClassName}`}
+                className={`flex flex-col items-center justify-center ${extraClassName}`}
                 style={{ ...extraStyle, fontFamily: textFont, opacity: isActive ? 0.7 : (extraStyle.opacity ?? 1) }}
                 onClick={onClick}
             >
-                {iconEl}
+                <div className="transition-all transform group-hover:scale-110 flex items-center justify-center">
+                    {iconEl}
+                </div>
                 {addTextBelowIcons && (
                     <span
                         className={`${isTablet ? 'text-[0.4vw]' : 'text-[0.65vw]'} font-medium mt-[0.1vw] leading-none whitespace-nowrap`}
@@ -748,19 +783,19 @@ const Grid5Layout = ({
                     {/* Functional Icons Group */}
                     <div className={`flex items-center ${isTablet ? 'gap-[0.5vw] mr-[0.2vw]' : 'gap-[0.8vw] mr-[1.5vw]'} shrink-0`}>
                         {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
-                            <Icon icon="ph:skip-back" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                            <Icon icon="ph:skip-back" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                             'First',
                             () => onPageClick(0),
                             { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }
                         )}
                         {(settings?.media?.autoFlip ?? true) && renderToolbarBtn(
-                            <Icon icon={isAutoFlipping ? 'ph:pause-fill' : 'ph:play-fill'} className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                            <Icon icon={isAutoFlipping ? 'ph:pause-fill' : 'ph:play-fill'} className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                             isAutoFlipping ? 'Pause' : 'Play',
                             () => setIsPlaying(!isAutoFlipping),
                             { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }
                         )}
                         {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
-                            <Icon icon="ph:skip-forward" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                            <Icon icon="ph:skip-forward" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                             'Last',
                             () => onPageClick(pagesCount - 1),
                             { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }
@@ -888,7 +923,7 @@ const Grid5Layout = ({
                         {/* TOC */}
                         <div className="relative">
                             {(settings?.navigation?.tableOfContents ?? true) && renderToolbarBtn(
-                                <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                 'TOC',
                                 (e) => {
                                     e.stopPropagation();
@@ -1077,7 +1112,7 @@ const Grid5Layout = ({
 
                         {/* Thumbnails */}
                         {(settings?.navigation?.pageThumbnails ?? true) && renderToolbarBtn(
-                            <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                            <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                             'Thumbnails',
                             (e) => {
                                 e.stopPropagation();
@@ -1094,7 +1129,7 @@ const Grid5Layout = ({
                         
                         {/* Gallery */}
                         {(settings?.interaction?.gallery ?? true) && renderToolbarBtn(
-                            <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                            <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                             'Gallery',
                             () => {
                                 setShowGalleryPopupMemo(true);
@@ -1113,7 +1148,7 @@ const Grid5Layout = ({
                         {/* Music */}
                         <div className="relative">
                             {(settings?.media?.backgroundAudio ?? true) && renderToolbarBtn(
-                                <Icon icon="solar:music-notes-bold" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                <Icon icon="solar:music-notes-bold" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                 'Music',
                                 (e) => {
                                     e.stopPropagation();
@@ -1132,7 +1167,7 @@ const Grid5Layout = ({
                         {/* Profile */}
                         <div className="relative">
                             {(settings?.brandingProfile?.profile ?? true) && renderToolbarBtn(
-                                <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                 'Profile',
                                 (e) => {
                                     e.stopPropagation();
@@ -1275,7 +1310,7 @@ const Grid5Layout = ({
                         </div>
                         {/* Share */}
                         {(settings?.shareExport?.share ?? true) && renderToolbarBtn(
-                            <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                            <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                             'Share',
                             handleShare,
                             { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) },
@@ -1283,7 +1318,7 @@ const Grid5Layout = ({
                             showSharePopup
                         )}
                         {(settings?.shareExport?.download ?? true) && renderToolbarBtn(
-                            <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                            <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                             'Download',
                             handleDownload,
                             { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) },
@@ -1292,7 +1327,7 @@ const Grid5Layout = ({
                         )}
                         {/* Fullscreen */}
                         {(settings?.viewing?.fullScreen ?? true) && renderToolbarBtn(
-                            <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                            <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                             'Fullscreen',
                             handleFullScreen,
                             { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }

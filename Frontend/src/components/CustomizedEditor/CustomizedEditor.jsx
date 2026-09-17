@@ -380,7 +380,7 @@ const CustomizedEditor = () => {
       tableOfContents: true,
       tocSettings: defaultToc,
       pageThumbnails: true,
-      bookmark: true,
+      bookmark: false,
       bookmarkSettings: defaultBookmark,
       startEndNav: true,
     },
@@ -524,15 +524,13 @@ const CustomizedEditor = () => {
         const curMedia = prev?.media || {};
         const curAudioSet = curMedia.audioSettings || {};
         const newAudioSet = otherSetupSettings.sound;
-        const newAudioVal = newAudioSet.bgSoundEnabled !== false;
-
         if (
-          curMedia.backgroundAudio === newAudioVal &&
-          curMedia.audio === newAudioVal &&
           curAudioSet.bgSound === newAudioSet.bgSound &&
           curAudioSet.bgSoundFile === newAudioSet.bgSoundFile &&
           curAudioSet.flipSound === newAudioSet.flipSound &&
-          curAudioSet.pageSpecificSound === newAudioSet.pageSpecificSound
+          curAudioSet.pageSpecificSound === newAudioSet.pageSpecificSound &&
+          curAudioSet.bgSoundEnabled === newAudioSet.bgSoundEnabled &&
+          curAudioSet.flipSoundEnabled === newAudioSet.flipSoundEnabled
         ) {
           return prev;
         }
@@ -541,8 +539,6 @@ const CustomizedEditor = () => {
           ...(prev || {}),
           media: {
             ...curMedia,
-            backgroundAudio: newAudioVal,
-            audio: newAudioVal,
             audioSettings: {
               ...curAudioSet,
               ...newAudioSet

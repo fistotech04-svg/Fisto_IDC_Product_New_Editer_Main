@@ -1420,7 +1420,7 @@ const Sound = ({
         }
         if (layout === 6) return 'top-[42%] left-[5.5vw] -translate-y-1/2';
         const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons;
-        if (layout === 7) return addTextBelowIcons ? 'top-[2.5vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2' : 'top-[2vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2';
+        if (layout === 7) return addTextBelowIcons ? 'bottom-[10vh] left-[calc(50%_+_7.5vw)] -translate-x-1/2' : 'bottom-[7.5vh] left-[calc(50%_+_7.5vw)] -translate-x-1/2';
 
         // Default (Layout 1)
         return isTablet ? 'bottom-[3vw] right-[17vw]' : (isSidebarOpen ? 'bottom-[3.8vw] right-[18vw]' : 'bottom-[3.8vw] right-[25vw]');

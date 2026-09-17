@@ -110,13 +110,13 @@ const TopMagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClas
                 <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifycontent: 'center', borderRadius: '0.3vw', padding: '0.18vw', background: glowBg }}>
                     {React.cloneElement(iconEl, { className: `${iconEl.props.className || ''} ${isMobileLandscape ? '!w-[0.7vw] !h-[0.7vw]' : ''}` })}
                 </motion.span>
-                {addTextBelowIcons && (
-                    <span
-                        className={`${isMobileLandscape ? 'text-[0.35vw]' : isTablet ? 'text-[0.35vw]' : 'text-[0.55vw]'} font-medium mt-[0.15vw] leading-none whitespace-nowrap`}
-                        style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
-                    >{label}</span>
-                )}
             </motion.div>
+            {addTextBelowIcons && (
+                <span
+                    className={`${isMobileLandscape ? 'text-[0.35vw]' : isTablet ? 'text-[0.35vw]' : 'text-[0.55vw]'} font-medium mt-[0.15vw] leading-none whitespace-nowrap`}
+                    style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
+                >{label}</span>
+            )}
 
             {/* Custom tooltip for top bar (appears below button, unaffected by scale transform) */}
             {showTooltip && !hideTooltip && !addTextBelowIcons && (
@@ -378,6 +378,20 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
     }, [children, dimWidth, dimHeight, localBuildPageDoc]);
 
     const [activePopup, setActivePopup] = useState(null);
+    
+    // Automatically close popups if their corresponding setting is disabled
+    useEffect(() => {
+        if (activePopup === 'thumbnails' && !(settings?.navigation?.pageThumbnails ?? true)) {
+            setActivePopup(null);
+        }
+        if (activePopup === 'toc' && !(settings?.navigation?.tableOfContents ?? true)) {
+            setActivePopup(null);
+        }
+        if (activePopup === 'profile' && !(settings?.brandingProfile?.profile ?? true)) {
+            setActivePopup(null);
+        }
+    }, [settings?.navigation, settings?.brandingProfile, activePopup]);
+
     const [hoveredIdx, setHoveredIdx] = useState(null);
     const [radialScroll, setRadialScroll] = useState(0);
     const [recommendations, setRecommendations] = useState([]);
@@ -754,7 +768,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         {/* Tools Group - 5 Icons */}
                         <div className="contents">
                             {(settings?.navigation?.tableOfContents ?? true) && renderToolbarBtn(
-                                <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'TOC',
                                 (e) => {
                                     e.stopPropagation();
@@ -767,7 +781,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 !!showTOC
                             )}
                             {(settings?.navigation?.pageThumbnails ?? true) && renderToolbarBtn(
-                                <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'Thumbnails',
                                 (e) => {
                                     e.stopPropagation();
@@ -782,7 +796,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
 
 
                             {(settings?.interaction?.gallery ?? true) && renderToolbarBtn(
-                                <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'Gallery',
                                 (e) => {
                                     e.stopPropagation();
@@ -799,7 +813,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         {/* Navigation Group - 4 Icons (Music, Prev, Play, Next) */}
                         <div className="contents">
                             {(settings?.media?.backgroundAudio ?? true) && renderToolbarBtn(
-                                <Icon icon="solar:music-notes-bold" className={`translate-y-[0.05vw] ${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="solar:music-notes-bold" className={`translate-y-[0.05vw] ${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'Music',
                                 (e) => {
                                     e.stopPropagation();
@@ -812,19 +826,19 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 !!showSoundPopup
                             )}
                             {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
-                                <Icon icon="ph:skip-back" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="ph:skip-back" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'First Page',
                                 (e) => { e?.stopPropagation(); closeAllPopups(); onPageClick(0); },
                                 { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
                             )}
                             {(settings?.media?.autoFlip ?? true) && renderToolbarBtn(
-                                <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'}`} />,
+                                <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1.2vw] h-[1.2vw]' : (isSidebarOpen ? 'w-[1.3vw] h-[1.3vw]' : 'w-[1.5vw] h-[1.5vw]')}`} />,
                                 isAutoFlipping ? 'Pause' : 'Play',
                                 (e) => { e?.stopPropagation(); closeAllPopups(); setIsPlaying(!isAutoFlipping); },
                                 { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
                             )}
                             {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
-                                <Icon icon="ph:skip-forward" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="ph:skip-forward" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'Last Page',
                                 (e) => { e?.stopPropagation(); closeAllPopups(); onPageClick(pagesCount - 1); },
                                 { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
@@ -833,7 +847,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
 
                         <div className="contents">
                             {(settings?.brandingProfile?.profile ?? true) && renderToolbarBtn(
-                                <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'Profile',
                                 (e) => {
                                     e.stopPropagation();
@@ -846,7 +860,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 !!showProfilePopup
                             )}
                             {(settings?.shareExport?.share ?? true) && renderToolbarBtn(
-                                <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'Share',
                                 (e) => { e.stopPropagation(); closeAllPopups(); handleShare(); },
                                 { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
@@ -854,7 +868,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 !!showSharePopup
                             )}
                             {(settings?.shareExport?.download ?? true) && renderToolbarBtn(
-                                <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'Download',
                                 (e) => { e.stopPropagation(); closeAllPopups(); handleDownload(); },
                                 { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
@@ -862,7 +876,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 !!showExportPopup
                             )}
                             {(settings?.viewing?.fullScreen ?? true) && renderToolbarBtn(
-                                <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                 'Full Screen',
                                 (e) => { e.stopPropagation(); closeAllPopups(); handleFullScreen(); },
                                 { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
