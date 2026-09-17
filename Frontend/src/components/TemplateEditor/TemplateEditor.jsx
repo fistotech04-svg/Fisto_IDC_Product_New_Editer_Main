@@ -3318,10 +3318,11 @@ const TemplateEditor = () => {
               // Without clamping, radii > w/2 or h/2 cause bezier arcs to cross,
               // producing the unwanted eye/lens shape (matching CSS border-radius behaviour).
               const maxR = Math.min(w / 2, h / 2);
-              const tl = Math.min(parseFloat(element.getAttribute('data-tl') || defR), maxR);
-              const tr = Math.min(parseFloat(element.getAttribute('data-tr') || defR), maxR);
-              const bl = Math.min(parseFloat(element.getAttribute('data-bl') || defR), maxR);
-              const br = Math.min(parseFloat(element.getAttribute('data-br') || defR), maxR);
+              const parseR = (v, d) => (v !== null && v !== '') ? (isNaN(parseFloat(v)) ? 0 : parseFloat(v)) : d;
+              const tl = Math.min(parseR(element.getAttribute('data-tl'), defR), maxR);
+              const tr = Math.min(parseR(element.getAttribute('data-tr'), defR), maxR);
+              const bl = Math.min(parseR(element.getAttribute('data-bl'), defR), maxR);
+              const br = Math.min(parseR(element.getAttribute('data-br'), defR), maxR);
 
               const d = `
                     M ${x + tl},${y}
@@ -4418,6 +4419,10 @@ const TemplateEditor = () => {
               const name = p.name || `Page ${i + 1}`;
               let pageHtml = p.html;
 
+              if (i === 0 && (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') && location.state?.initialTemplateSvg) {
+                pageHtml = location.state.initialTemplateSvg;
+              }
+
               if (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') {
                 const { html, layers } = createDefaultPageData(name, targetWidth, targetHeight);
                 return {
@@ -4483,10 +4488,11 @@ const TemplateEditor = () => {
                   const h = parseFloat(el.getAttribute('height') || 0);
                   const defR = parseFloat(el.getAttribute('rx') || 0);
                   const maxR = Math.min(w / 2, h / 2);
-                  const tl = Math.min(parseFloat(el.getAttribute('data-tl') || defR), maxR);
-                  const tr = Math.min(parseFloat(el.getAttribute('data-tr') || defR), maxR);
-                  const bl = Math.min(parseFloat(el.getAttribute('data-bl') || defR), maxR);
-                  const br = Math.min(parseFloat(el.getAttribute('data-br') || defR), maxR);
+                  const parseR = (v, d) => (v !== null && v !== '') ? (isNaN(parseFloat(v)) ? 0 : parseFloat(v)) : d;
+                  const tl = Math.min(parseR(el.getAttribute('data-tl'), defR), maxR);
+                  const tr = Math.min(parseR(el.getAttribute('data-tr'), defR), maxR);
+                  const bl = Math.min(parseR(el.getAttribute('data-bl'), defR), maxR);
+                  const br = Math.min(parseR(el.getAttribute('data-br'), defR), maxR);
 
                   const d = `M ${x + tl},${y} L ${x + w - tr},${y} A ${tr},${tr} 0 0 1 ${x + w},${y + tr} L ${x + w},${y + h - br} A ${br},${br} 0 0 1 ${x + w - br},${y + h} L ${x + bl},${y + h} A ${bl},${bl} 0 0 1 ${x},${y + h - bl} L ${x},${y + tl} A ${tl},${tl} 0 0 1 ${x + tl},${y} Z`.replace(/\s+/g, ' ').trim();
 
@@ -4590,7 +4596,18 @@ const TemplateEditor = () => {
         const count = location.state.pageCount;
         const newPages = Array.from({ length: count }, (_, i) => {
           const name = `Page ${i + 1}`;
-          const { html, layers } = createDefaultPageData(name);
+          let html, layers;
+          if (i === 0 && location.state?.initialTemplateSvg) {
+            html = location.state.initialTemplateSvg;
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            layers = svgEl ? parseLayersFromSVG(svgEl) : [];
+          } else {
+            const def = createDefaultPageData(name, location.state.width, location.state.height);
+            html = def.html;
+            layers = def.layers;
+          }
           return {
             id: i + 1,
             name,

@@ -722,21 +722,25 @@ const VideoEditor = ({
 
         if (parsedFill && parsedFill.stops) {
           const fillAngleVal = (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 0;
+          const fillRadiusVal = (parsedFill.radius !== undefined && parsedFill.radius !== null) ? parsedFill.radius : 100;
           fillLayer.setAttribute('data-fill-type', 'gradient');
           fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
           fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
           fillLayer.setAttribute('data-fill-angle', fillAngleVal);
+          fillLayer.setAttribute('data-fill-radius', fillRadiusVal);
 
           fillLayer.setAttribute('fill-type', 'gradient');
           fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
           fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
           fillLayer.setAttribute('fill-angle', fillAngleVal);
+          fillLayer.setAttribute('fill-radius', fillRadiusVal);
 
           syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
           liveElement.setAttribute('data-fill-type', 'gradient');
           liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
           liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
           liveElement.setAttribute('data-fill-angle', fillAngleVal);
+          liveElement.setAttribute('data-fill-radius', fillRadiusVal);
         } else {
           fillLayer.setAttribute('fill', backgroundColor.fill);
           if (fillLayer.style) fillLayer.style.removeProperty('fill');
@@ -744,16 +748,19 @@ const VideoEditor = ({
           fillLayer.removeAttribute('data-fill-stops');
           fillLayer.removeAttribute('data-fill-gradient-type');
           fillLayer.removeAttribute('data-fill-angle');
+          fillLayer.removeAttribute('data-fill-radius');
 
           fillLayer.removeAttribute('fill-type');
           fillLayer.removeAttribute('fill-stops');
           fillLayer.removeAttribute('fill-gradient-type');
           fillLayer.removeAttribute('fill-angle');
+          fillLayer.removeAttribute('fill-radius');
 
           liveElement.removeAttribute('data-fill-type');
           liveElement.removeAttribute('data-fill-stops');
           liveElement.removeAttribute('data-fill-gradient-type');
           liveElement.removeAttribute('data-fill-angle');
+          liveElement.removeAttribute('data-fill-radius');
         }
         fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
 
@@ -1048,19 +1055,23 @@ const VideoEditor = ({
             if (!clipNode) {
               clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
               clipNode.id = clipId;
-              const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
               clipNode.appendChild(clipPathEl);
               defs.appendChild(clipNode);
             }
-            const rect = clipNode.firstChild;
-            rect.setAttribute('x', cx);
-            rect.setAttribute('y', cy);
-            rect.setAttribute('width', Math.max(0, cw));
-            rect.setAttribute('height', Math.max(0, ch));
-            rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
-            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-            if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-            else rect.removeAttribute('rx');
+            let clipPathEl = clipNode.firstChild;
+            if (clipPathEl.tagName.toLowerCase() !== 'path') {
+              clipPathEl.remove();
+              clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              clipNode.appendChild(clipPathEl);
+            }
+            const maxR = Math.min(cw, ch) / 2;
+            const c_tl = Math.max(0, Math.min(radius.tl || 0, maxR));
+            const c_tr = Math.max(0, Math.min(radius.tr || 0, maxR));
+            const c_br = Math.max(0, Math.min(radius.br || 0, maxR));
+            const c_bl = Math.max(0, Math.min(radius.bl || 0, maxR));
+            clipPathEl.setAttribute('d', getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), c_tl, c_tr, c_br, c_bl));
+            clipPathEl.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
 
             if (container && container !== liveElement) {
               // Apply directly to the video element to prevent breaking native controls in Chrome

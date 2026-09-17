@@ -2397,21 +2397,25 @@ const ImageEditor = ({
 
           if (parsedFill && parsedFill.stops) {
             const fillAngleVal = (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 0;
+            const fillRadiusVal = (parsedFill.radius !== undefined && parsedFill.radius !== null) ? parsedFill.radius : 100;
             fillLayer.setAttribute('data-fill-type', 'gradient');
             fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             fillLayer.setAttribute('data-fill-angle', fillAngleVal);
+            fillLayer.setAttribute('data-fill-radius', fillRadiusVal);
             // syncGradient reads non-data-prefixed attributes
             fillLayer.setAttribute('fill-type', 'gradient');
             fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             fillLayer.setAttribute('fill-angle', fillAngleVal);
+            fillLayer.setAttribute('fill-radius', fillRadiusVal);
             syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
 
             liveElement.setAttribute('data-fill-type', 'gradient');
             liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
             liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
             liveElement.setAttribute('data-fill-angle', fillAngleVal);
+            liveElement.setAttribute('data-fill-radius', fillRadiusVal);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
             if (fillLayer.style) fillLayer.style.removeProperty('fill');
@@ -2421,8 +2425,12 @@ const ImageEditor = ({
             fillLayer.removeAttribute('fill-stops');
             fillLayer.removeAttribute('fill-gradient-type');
             fillLayer.removeAttribute('fill-angle');
+            fillLayer.removeAttribute('fill-radius');
             liveElement.removeAttribute('data-fill-type');
             liveElement.removeAttribute('data-fill-stops');
+            liveElement.removeAttribute('data-fill-gradient-type');
+            liveElement.removeAttribute('data-fill-angle');
+            liveElement.removeAttribute('data-fill-radius');
           }
 
           fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
@@ -2874,11 +2882,6 @@ const ImageEditor = ({
           // Add clipPath to clip the image to prevent sharp corners from bleeding
           const defsOwner = isImageElement ? (liveElement.ownerSVGElement || liveElement.parentElement || liveElement) : liveElement;
 
-          if (isImageElement) {
-            const buggyDefs = liveElement.querySelector('defs');
-            if (buggyDefs) buggyDefs.remove();
-          }
-
           let defs = defsOwner.querySelector('defs');
           if (!defs) {
             defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
@@ -2902,7 +2905,14 @@ const ImageEditor = ({
             const inner_tr = Math.max(0, Math.min(tr, innerMaxR));
             const inner_br = Math.max(0, Math.min(br, innerMaxR));
             const inner_bl = Math.max(0, Math.min(bl, innerMaxR));
-            clipPathEl.setAttribute('d', getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), inner_tl, inner_tr, inner_br, inner_bl));
+
+            let clipBx = bx;
+            let clipBy = by;
+            if (targetElForStroke && targetElForStroke.tagName?.toLowerCase() === 'svg') {
+              clipBx = 0;
+              clipBy = 0;
+            }
+            clipPathEl.setAttribute('d', getPathD(clipBx, clipBy, Math.max(0, bw), Math.max(0, bh), inner_tl, inner_tr, inner_br, inner_bl));
           }
 
           const isStrokeCropped = imageType === 'Crop' && (liveElement.getAttribute('data-crop-data') || (selectedElement && selectedElement.getAttribute('data-crop-data')));

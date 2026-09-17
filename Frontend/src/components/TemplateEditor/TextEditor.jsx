@@ -582,6 +582,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     fillStops: selectedElementProps?.['fill-stops'],
     fillAngle: parseFloat(selectedElementProps?.['fill-angle'] || 0),
     fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
+    fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
     scrollBarColor: selectedElementProps?.['data-scrollbar-color'] || '#4B5563',
     bgFill: selectedElementProps?.['data-bg-fill'] || 'transparent',
     bgFillOpacity: parseFloat(selectedElementProps?.['data-bg-fill-opacity'] !== undefined ? selectedElementProps['data-bg-fill-opacity'] : 1) * 100,
@@ -652,6 +653,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       fillStops: selectedElementProps?.['fill-stops'],
       fillAngle: parseFloat(selectedElementProps?.['fill-angle'] || 0),
       fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
+      fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
       scrollBarColor: selectedElementProps?.['data-scrollbar-color'] || '#4B5563',
       bgFill: selectedElementProps?.['data-bg-fill'] || 'transparent',
       bgFillOpacity: parseFloat(selectedElementProps?.['data-bg-fill-opacity'] !== undefined ? selectedElementProps['data-bg-fill-opacity'] : 1) * 100,
@@ -702,6 +704,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       if (backgroundColor.fillGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-gradient-type', backgroundColor.fillGradientType);
       if (backgroundColor.fillStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-stops', backgroundColor.fillStops);
       if (backgroundColor.fillAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-angle', backgroundColor.fillAngle.toString());
+      if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
       if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
 
       if (backgroundColor.scrollBarColor !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollbar-color', backgroundColor.scrollBarColor);

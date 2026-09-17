@@ -453,9 +453,9 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
         <h2 className="text-[1.25vw] font-bold text-gray-900">Upload Document</h2>
         <button
           onClick={onClose}
-          className="absolute top-[1vw] right-[1vw] text-red-500 hover:text-red-700 transition-colors z-50 p-[0.15vw] hover:bg-red-50 rounded-[0.3vw] border border-red-500"
+          className="absolute top-[1vw] right-[1vw] text-[#ea543a] hover:text-[#d9482f] transition-colors z-50 p-[0.25vw] hover:bg-[#ea543a]/10 rounded-[0.35vw] border border-[#ea543a]"
         >
-          <X size="1vw" strokeWidth={2} />
+          <X size="1.05vw" strokeWidth={2} />
         </button>
       </div>
 
@@ -468,10 +468,10 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
       <div
         className={`w-full border-[0.15vw] border-dashed rounded-[0.75vw] flex flex-col items-center justify-center py-[1.25vw] mb-[1vw] transition-colors ${
           isProcessingFiles
-            ? 'border-indigo-300 bg-indigo-50/40 cursor-wait'
+            ? 'border-orange-300 bg-orange-50/40 cursor-wait'
             : isDragActive
             ? 'border-green-500 bg-green-50/50 scale-[1.02] cursor-pointer'
-            : 'border-[#4c5add] hover:bg-blue-50/50 cursor-pointer'
+            : 'border-[#ea543a] hover:bg-orange-50/30 cursor-pointer'
         }`}
         onClick={isProcessingFiles ? undefined : handleUploadClick}
         onDragEnter={isProcessingFiles ? undefined : handleDragEnterBox}
@@ -490,13 +490,13 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
         />
         {isProcessingFiles ? (
           <div className="flex flex-col items-center justify-center py-[0.2vw]">
-            <div className="w-[1.4vw] h-[1.4vw] border-[0.18vw] border-indigo-200 border-t-[#4c5add] rounded-full animate-spin mb-[0.4vw]" />
-            <p className="text-[0.72vw] text-indigo-600 font-medium">Checking document dimensions...</p>
+            <div className="w-[1.4vw] h-[1.4vw] border-[0.18vw] border-orange-200 border-t-[#ea543a] rounded-full animate-spin mb-[0.4vw]" />
+            <p className="text-[0.72vw] text-[#ea543a] font-medium">Checking document dimensions...</p>
           </div>
         ) : (
           <>
             <Upload size="1.5vw" className="text-gray-400 mb-[0.25vw]" strokeWidth={1.5} />
-            <p className="text-[0.75vw] text-gray-500 mb-[0.5vw]">Drag & Drop or <span className="text-[#4c5add] font-medium">Upload</span></p>
+            <p className="text-[0.75vw] text-gray-500 mb-[0.5vw]">Drag & Drop or <span className="text-[#ea543a] font-semibold">Upload</span></p>
             <div className="flex items-center gap-[0.5vw] text-[0.6vw] text-gray-600">
               Supported File format-
               <div className="flex items-center gap-[0.4vw] ml-[0.25vw]">
@@ -516,7 +516,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           type="text"
           value={flipbookName}
           onChange={handleNameChange}
-          className={`w-full border rounded-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] focus:outline-none ${nameError ? 'border-red-500 text-red-500 focus:border-red-500 bg-red-50' : 'border-gray-300 text-gray-600 focus:border-[#4c5add]'}`}
+          className={`w-full border rounded-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] focus:outline-none ${nameError ? 'border-red-500 text-red-500 focus:border-red-500 bg-red-50' : 'border-gray-300 text-gray-700 focus:border-[#ea543a]'}`}
         />
         {nameError && <p className="text-red-500 text-[0.55vw] mt-[0.3vw] font-medium">This flipbook name already exists.</p>}
       </div>
@@ -530,7 +530,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           return (
           <div key={fileObj.id} className="relative">
             {isDragOver && dropPosition === 'top' && (
-                <div className="absolute -top-[0.25vw] left-0 right-0 h-[0.2vw] bg-[#4c5add] rounded-full z-10"></div>
+                <div className="absolute -top-[0.25vw] left-0 right-0 h-[0.2vw] bg-[#ea543a] rounded-full z-10"></div>
             )}
             <div 
               draggable
@@ -538,7 +538,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
               onDragEnter={(e) => handleDragEnter(e, index)}
               onDragEnd={handleDragEnd}
               onDragOver={(e) => e.preventDefault()}
-              className={`group flex flex-col p-[0.75vw] border rounded-[0.5vw] bg-white cursor-grab active:cursor-grabbing transition-colors ${isDragOver ? 'border-[#4c5add] bg-blue-50/40' : 'border-gray-100 hover:border-[#4c5add] shadow-sm'}`}
+              className={`group flex flex-col p-[0.75vw] border rounded-[0.5vw] bg-white cursor-grab active:cursor-grabbing transition-colors ${isDragOver ? 'border-[#ea543a] bg-orange-50/30' : 'border-gray-100 hover:border-[#ea543a] shadow-sm'}`}
             >
               <div className="flex items-center justify-between">
                 <div className="relative flex items-center flex-1 min-w-0">
@@ -584,12 +584,12 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
               </div>
               {fileObj.progress < 100 && (
                 <div className="w-full h-[0.15vw] bg-gray-100 rounded-full mt-[0.5vw] overflow-hidden">
-                  <div className="h-full bg-[#4F46E5] transition-all duration-300" style={{ width: `${fileObj.progress}%` }}></div>
+                  <div className="h-full bg-[#ea543a] transition-all duration-300" style={{ width: `${fileObj.progress}%` }}></div>
                 </div>
               )}
             </div>
             {isDragOver && dropPosition === 'bottom' && (
-                <div className="absolute -bottom-[0.25vw] left-0 right-0 h-[0.2vw] bg-[#4c5add] rounded-full z-10"></div>
+                <div className="absolute -bottom-[0.25vw] left-0 right-0 h-[0.2vw] bg-[#ea543a] rounded-full z-10"></div>
             )}
           </div>
         )})}
@@ -608,8 +608,8 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           disabled={isProcessingFiles || uploadedFiles.length === 0 || !uploadedFiles.every(f => f.progress === 100) || nameError || !flipbookName.trim()}
           className={`flex-1 py-[0.6vw] font-semibold cursor-pointer rounded-[0.5vw] text-[0.85vw] transition-all ${
             !isProcessingFiles && uploadedFiles.length > 0 && uploadedFiles.every(f => f.progress === 100) && !nameError && flipbookName.trim()
-              ? 'bg-[#4F46E5] text-white hover:bg-[#4338ca] shadow-lg shadow-indigo-500/30 active:scale-95'
-              : 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
+              ? 'bg-[#ea543a] text-white hover:bg-[#d9482f] shadow-lg shadow-orange-500/20 active:scale-95'
+              : 'bg-[#ffedea] text-[#ea543a]/40 cursor-not-allowed'
           }`}
         >
           Create Flipbook
@@ -624,6 +624,18 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     const template = templates.find(t => t.id === selectedTemplateId) || templates[0];
     const isSquare = template.id === 'square';
     const isLandscape = !isSquare && orientation === 'landscape';
+
+    const currentTemplateIndex = Math.max(0, templates.findIndex(t => t.id === selectedTemplateId));
+
+    const handlePrevTemplate = () => {
+      const prevIndex = (currentTemplateIndex - 1 + templates.length) % templates.length;
+      setSelectedTemplateId(templates[prevIndex].id);
+    };
+
+    const handleNextTemplate = () => {
+      const nextIndex = (currentTemplateIndex + 1) % templates.length;
+      setSelectedTemplateId(templates[nextIndex].id);
+    };
 
     const getDisplayDim = (dimStr) => {
       if (!dimStr) return '';
@@ -651,26 +663,48 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
               <h2 className="text-[1.3vw] font-bold text-gray-900 tracking-tight pr-[0.75vw] whitespace-nowrap">Built From Scratch</h2>
               <div className="flex-1 h-[1px] bg-gray-200 mt-[0.1vw]"></div>
             </div>
-            {/* Red Close Button */}
+            {/* Red / Coral Close Button */}
             <button
+              type="button"
               onClick={onClose}
-              className="text-red-500 border border-red-300 hover:bg-red-50 transition-colors p-[0.3vw] rounded-[0.4vw] cursor-pointer flex items-center justify-center"
+              className="text-[#ea543a] border border-[#ea543a] hover:bg-[#ea543a]/10 transition-colors p-[0.3vw] rounded-[0.4vw] cursor-pointer flex items-center justify-center"
+              aria-label="Close"
             >
               <X size="1.1vw" strokeWidth={2} />
             </button>
           </div>
-          <p className="text-[0.68vw] text-gray-500">Create your flipbook from scratch and design every page your way</p>
+          <p className="text-[0.68vw] text-gray-500 font-normal">Create your flipbook from scratch and design every page your way</p>
         </div>
 
         {/* Form Container Card */}
         <div className="border border-gray-200 rounded-[0.8vw] p-[1.2vw] mb-[1vw] bg-white">
           {/* Selected Template Preview */}
           <div className="flex flex-col items-center justify-center mb-[1vw] min-h-[8.5vw]">
-            <div
-              style={{ width: previewWidth, height: previewHeight }}
-              className="bg-[#383e93] text-white flex items-center justify-center font-medium text-[0.85vw] shadow-sm rounded-none mb-[0.4vw] transition-all duration-300"
-            >
-              {template.label}
+            <div className="flex items-center justify-center gap-[2.5vw] w-full">
+              <button
+                type="button"
+                onClick={handlePrevTemplate}
+                className="text-gray-500 hover:text-gray-900 transition-colors cursor-pointer p-[0.2vw] select-none"
+                aria-label="Previous size"
+              >
+                <ChevronLeft size="1.4vw" strokeWidth={2} />
+              </button>
+
+              <div
+                style={{ width: previewWidth, height: previewHeight }}
+                className="border-2 border-[#ea543a] bg-white text-[#ea543a] flex items-center justify-center font-medium text-[0.85vw] rounded-none mb-[0.4vw] transition-all duration-300 select-none"
+              >
+                {template.label}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextTemplate}
+                className="text-gray-500 hover:text-gray-900 transition-colors cursor-pointer p-[0.2vw] select-none"
+                aria-label="Next size"
+              >
+                <ChevronRight size="1.4vw" strokeWidth={2} />
+              </button>
             </div>
             <p className="text-[0.75vw] text-gray-700 font-normal mt-[0.2vw]">{getDisplayDim(template.dim)}</p>
           </div>
@@ -685,82 +719,92 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
                 value={flipbookName}
                 onChange={handleNameChange}
                 placeholder="Flipbook Name"
-                className={`w-full border rounded-[0.5vw] px-[0.75vw] py-[0.45vw] text-[0.75vw] focus:outline-none bg-white ${
+                className={`w-full border rounded-[0.5vw] px-[0.75vw] py-[0.45vw] text-[0.75vw] focus:outline-none bg-white transition-colors ${
                   nameError
                     ? 'border-red-500 text-red-500 bg-red-50 focus:border-red-500'
-                    : 'border-gray-200 text-gray-800 focus:border-[#4c5add]'
+                    : 'border-gray-200 text-gray-800 focus:border-[#ea543a]'
                 }`}
               />
               {nameError && <p className="text-red-500 text-[0.55vw] mt-[0.3vw] font-medium">This flipbook name already exists.</p>}
             </div>
 
-            {/* Pages Orientation - Hidden for Square */}
-            {!isSquare && (
-              <div>
-                <label className="block text-[0.75vw] font-bold text-gray-900 mb-[0.4vw]">Pages Orientation</label>
-                <div className="flex gap-[0.75vw]">
-                  {/* Portrait Option */}
+            {/* Pages Orientation - Disabled for Square */}
+            <div className={isSquare ? 'opacity-50 cursor-not-allowed select-none' : ''}>
+              <div className="flex items-center justify-between mb-[0.4vw]">
+                <label className={`block text-[0.75vw] font-bold ${isSquare ? 'text-gray-400' : 'text-gray-900'}`}>Pages Orientation</label>
+                {isSquare && (
+                  <span className="text-[0.58vw] text-gray-400 font-medium italic">Not applicable for Square</span>
+                )}
+              </div>
+              <div className={`flex gap-[0.75vw] ${isSquare ? 'pointer-events-none' : ''}`}>
+                {/* Portrait Option */}
+                <div
+                  onClick={() => !isSquare && setOrientation('portrait')}
+                  className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] transition-all ${
+                    isSquare
+                      ? 'border border-gray-200 bg-gray-50 cursor-not-allowed'
+                      : orientation === 'portrait'
+                      ? 'border-[1.5px] border-[#ea543a] bg-[#fff8f6] cursor-pointer'
+                      : 'border border-gray-200 bg-white hover:border-gray-300 cursor-pointer'
+                  }`}
+                >
                   <div
-                    onClick={() => setOrientation('portrait')}
-                    className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] cursor-pointer transition-all ${
-                      orientation === 'portrait'
-                        ? 'border-[1.5px] border-[#4c5add] bg-[#f0f2fe]'
-                        : 'border border-gray-200 bg-white hover:border-gray-300'
-                    }`}
+                    className={`w-[1vw] h-[1vw] rounded-full border-2 ${
+                      isSquare
+                        ? 'border-gray-300'
+                        : orientation === 'portrait' ? 'border-[#ea543a]' : 'border-gray-300'
+                    } flex items-center justify-center flex-shrink-0`}
                   >
-                    <div
-                      className={`w-[1vw] h-[1vw] rounded-full border-2 ${
-                        orientation === 'portrait' ? 'border-[#4c5add]' : 'border-gray-300'
-                      } flex items-center justify-center flex-shrink-0`}
-                    >
-                      {orientation === 'portrait' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#4c5add]" />}
-                    </div>
-                    <div className="w-[1.3vw] h-[1.7vw] border-[1.5px] border-gray-800 rounded-[0.15vw] flex items-center justify-center flex-shrink-0">
-                      <svg width="0.7vw" height="0.9vw" viewBox="0 0 12 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M6 2v12M3 5l3-3 3 3M3 11l3 3 3-3" />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-[0.72vw] font-bold text-gray-900">Portrait</span>
-                      <span className="text-[0.55vw] text-gray-400 font-normal">Vertical</span>
-                    </div>
+                    {!isSquare && orientation === 'portrait' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#ea543a]" />}
+                    {isSquare && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-gray-400" />}
                   </div>
+                  <div className={`w-[1.3vw] h-[1.7vw] border-[1.5px] ${isSquare ? 'border-gray-400 text-gray-400' : 'border-gray-800 text-gray-800'} rounded-[0.15vw] flex items-center justify-center flex-shrink-0`}>
+                    <svg width="0.7vw" height="0.9vw" viewBox="0 0 12 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 2v12M3 5l3-3 3 3M3 11l3 3 3-3" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <span className={`text-[0.72vw] font-bold ${isSquare ? 'text-gray-500' : 'text-gray-900'}`}>Portrait</span>
+                    <span className="text-[0.55vw] text-gray-400 font-normal">Vertical</span>
+                  </div>
+                </div>
 
-                  {/* Landscape Option */}
+                {/* Landscape Option */}
+                <div
+                  onClick={() => !isSquare && setOrientation('landscape')}
+                  className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] transition-all ${
+                    isSquare
+                      ? 'border border-gray-200 bg-gray-50 cursor-not-allowed'
+                      : orientation === 'landscape'
+                      ? 'border-[1.5px] border-[#ea543a] bg-[#fff8f6] cursor-pointer'
+                      : 'border border-gray-200 bg-white hover:border-gray-300 cursor-pointer'
+                  }`}
+                >
                   <div
-                    onClick={() => setOrientation('landscape')}
-                    className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] cursor-pointer transition-all ${
-                      orientation === 'landscape'
-                        ? 'border-[1.5px] border-[#4c5add] bg-[#f0f2fe]'
-                        : 'border border-gray-200 bg-white hover:border-gray-300'
-                    }`}
+                    className={`w-[1vw] h-[1vw] rounded-full border-2 ${
+                      !isSquare && orientation === 'landscape' ? 'border-[#ea543a]' : 'border-gray-300'
+                    } flex items-center justify-center flex-shrink-0`}
                   >
-                    <div
-                      className={`w-[1vw] h-[1vw] rounded-full border-2 ${
-                        orientation === 'landscape' ? 'border-[#4c5add]' : 'border-gray-300'
-                      } flex items-center justify-center flex-shrink-0`}
-                    >
-                      {orientation === 'landscape' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#4c5add]" />}
-                    </div>
-                    <div className="w-[1.7vw] h-[1.3vw] border-[1.5px] border-gray-800 rounded-[0.15vw] flex items-center justify-center flex-shrink-0">
-                      <svg width="0.9vw" height="0.7vw" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 6h12M5 3L2 6l3 3M11 3l3 3-3 3" />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-[0.72vw] font-bold text-gray-900">Landscape</span>
-                      <span className="text-[0.55vw] text-gray-400 font-normal">Horizontal</span>
-                    </div>
+                    {!isSquare && orientation === 'landscape' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#ea543a]" />}
+                  </div>
+                  <div className={`w-[1.7vw] h-[1.3vw] border-[1.5px] ${isSquare ? 'border-gray-400 text-gray-400' : 'border-gray-800 text-gray-800'} rounded-[0.15vw] flex items-center justify-center flex-shrink-0`}>
+                    <svg width="0.9vw" height="0.7vw" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 6h12M5 3L2 6l3 3M11 3l3 3-3 3" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <span className={`text-[0.72vw] font-bold ${isSquare ? 'text-gray-500' : 'text-gray-900'}`}>Landscape</span>
+                    <span className="text-[0.55vw] text-gray-400 font-normal">Horizontal</span>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Number of Pages */}
             <div>
               <div className="flex items-center gap-[0.4vw] mb-[0.35vw]">
                 <span className="text-[0.75vw] font-bold text-gray-900">Number of Pages</span>
-                <span className="text-[0.6vw] text-gray-500 font-normal">Min 4 - Max 12 Pages<span className="text-red-500">*</span></span>
+                <span className="text-[0.6vw] text-gray-500 font-normal">Minimum 4 Pages<span className="text-[#ea543a]">*</span></span>
               </div>
               <div className="flex items-center gap-[0.3vw]">
                 <button
@@ -774,14 +818,13 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
                 <input
                   type="number"
                   value={pageCount}
-                  onChange={(e) => setPageCount(Math.min(12, Math.max(4, parseInt(e.target.value) || 4)))}
-                  className="w-[6vw] h-[2vw] rounded-[0.3vw] border border-gray-200 text-center text-[0.75vw] font-semibold text-gray-800 outline-none focus:border-[#4c5add] bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  onChange={(e) => setPageCount(Math.max(4, parseInt(e.target.value) || 4))}
+                  className="w-[6vw] h-[2vw] rounded-[0.3vw] border border-gray-200 text-center text-[0.75vw] font-semibold text-gray-800 outline-none focus:border-[#ea543a] bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <button
                   type="button"
-                  onClick={() => setPageCount(Math.min(12, pageCount + 1))}
-                  disabled={pageCount >= 12}
-                  className="w-[2vw] h-[2vw] rounded-[0.3vw] border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-colors"
+                  onClick={() => setPageCount(pageCount + 1)}
+                  className="w-[2vw] h-[2vw] rounded-[0.3vw] border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 cursor-pointer bg-white transition-colors"
                 >
                   <Plus size="0.8vw" />
                 </button>
@@ -801,7 +844,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
           <button
             onClick={handleCreateFromTemplate}
             disabled={nameError || !flipbookName.trim()}
-            className={`flex-1 bg-[#4c5add] hover:bg-[#3d4bbd] text-white rounded-[0.6vw] py-[0.6vw] text-[0.8vw] font-semibold shadow-md transition-colors cursor-pointer ${
+            className={`flex-1 bg-[#ea543a] hover:bg-[#d9482f] text-white rounded-[0.6vw] py-[0.6vw] text-[0.8vw] font-semibold shadow-md transition-colors cursor-pointer ${
               nameError || !flipbookName.trim() ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
