@@ -7133,6 +7133,15 @@ const MainEditor = ({
       current = current.parentElement || current.parentNode;
     }
 
+    // Hotspots are single compound elements; if clicking anywhere inside a hotspot group, drag the whole hotspot!
+    const hotspotGroup = current && typeof current.closest === 'function' ? current.closest('[data-is-hotspot="true"], [data-type="hotspot"]') : null;
+    if (hotspotGroup) {
+      if (!hotspotGroup.id) {
+        hotspotGroup.id = `hotspot-${Date.now()}`;
+      }
+      return hotspotGroup;
+    }
+
     let deepestElementWithId = null;
 
     while (current && current !== canvasRoot && current.tagName) {
@@ -7430,11 +7439,13 @@ const MainEditor = ({
                     candidate = candidate.parentNode;
                   }
 
-                  // If candidate is an arbitrary group container (not a user-created group), prefer leafTarget so user can select & edit individual elements!
+                  // If candidate is an arbitrary group container (not a user-created group or hotspot), prefer leafTarget so user can select & edit individual elements!
                   const isUserGroupCandidate = candidate.tagName?.toLowerCase() === 'g' && (
                     candidate.getAttribute('data-type') === 'group' ||
                     (candidate.getAttribute('data-name') || '').toLowerCase() === 'group' ||
-                    candidate.id.startsWith('group-')
+                    candidate.id.startsWith('group-') ||
+                    candidate.getAttribute('data-is-hotspot') === 'true' ||
+                    candidate.getAttribute('data-type') === 'hotspot'
                   ) && candidate.getAttribute('data-is-image-group') !== 'true';
 
                   if (!isUserGroupCandidate && leafTarget && leafTarget.id && leafTarget.getAttribute('data-name') !== 'Overlay') {
