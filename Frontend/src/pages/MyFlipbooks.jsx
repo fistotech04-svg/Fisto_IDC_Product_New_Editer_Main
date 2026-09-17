@@ -12,6 +12,7 @@ import PdfProcessingLoader from '../components/PdfProcessingLoader';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
 import { getSupabaseBaseUrl, resolveUploadsPath } from '../utils/supabaseUtils';
+import dashboardBannerImg from '../assets/Dashboard/Main.png';
 
 
 // Lazy-load preview iframe: only fetches HTML when card is visible in viewport
@@ -188,6 +189,53 @@ export default function MyFlipbooks() {
     const emailId = user?.emailId;
     const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
 
+    // Storage Analysis State (Synced with /api/usersetting/get-settings like ProfileModal)
+    const [storage, setStorage] = useState(() => {
+        try {
+            const cached = localStorage.getItem('user_storage_settings');
+            if (cached) return JSON.parse(cached);
+        } catch (e) {}
+        return { used: 0, total: 300 * 1024 * 1024 };
+    });
+    const [isLoadingStorage, setIsLoadingStorage] = useState(false);
+
+    useEffect(() => {
+        let targetEmail = emailId;
+        if (!targetEmail) {
+            try {
+                const u = JSON.parse(localStorage.getItem('user') || localStorage.getItem('user_profile'));
+                targetEmail = u?.emailId || u?.email;
+            } catch (e) {}
+        }
+        if (!targetEmail || targetEmail === 'No Email' || targetEmail === 'guest@example.com') return;
+
+        const fetchLiveStorageSettings = async () => {
+            setIsLoadingStorage(true);
+            try {
+                const response = await fetch(`${backendUrl}/api/usersetting/get-settings?emailId=${encodeURIComponent(targetEmail)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data) {
+                        const newStorage = {
+                            used: typeof data.usedStorage === 'number' ? data.usedStorage : 0,
+                            total: typeof data.maxStorage === 'number' ? data.maxStorage : 300 * 1024 * 1024
+                        };
+                        setStorage(newStorage);
+                        try {
+                            localStorage.setItem('user_storage_settings', JSON.stringify(newStorage));
+                        } catch (e) {}
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching live storage settings in MyFlipbooks:", error);
+            } finally {
+                setIsLoadingStorage(false);
+            }
+        };
+
+        fetchLiveStorageSettings();
+    }, [emailId, backendUrl]);
+
     const [activeFolder, setActiveFolder] = useState(() => {
         const saved = localStorage.getItem('last_active_folder');
         if (saved === 'Recent Book') return 'Recent';
@@ -199,9 +247,11 @@ export default function MyFlipbooks() {
     const [activeSortCategory, setActiveSortCategory] = useState(null);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+    const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
     const [showUpgradeCard, setShowUpgradeCard] = useState(() => localStorage.getItem('hide_upgrade_card') !== 'true');
     const statusDropdownRef = useRef(null);
     const sortDropdownRef = useRef(null);
+    const folderDropdownRef = useRef(null);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -210,6 +260,9 @@ export default function MyFlipbooks() {
             }
             if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target)) {
                 setIsSortDropdownOpen(false);
+            }
+            if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target)) {
+                setIsFolderDropdownOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -263,11 +316,25 @@ export default function MyFlipbooks() {
                 return { id: f.id || f.name, name: f.name };
             });
 
+            // Ensure the default folder 'My_Flipbooks' is always present
+            const hasDefaultFolder = fetchedFolders.some(f => f.name.toLowerCase() === 'my_flipbooks');
+            if (!hasDefaultFolder) {
+                fetchedFolders.unshift({ id: 'default_my_flipbooks', name: 'My_Flipbooks' });
+            }
+
             setFolders(fetchedFolders);
 
             // Fetch Books
             const booksRes = await axios.get(`${backendUrl}/api/flipbook/list`, { params: { emailId } });
-            setBooks(booksRes.data.books || []);
+            const rawBooks = booksRes.data.books || [];
+            const sanitizedBooks = rawBooks.map(b => {
+                const f = b.folder || b.folderName;
+                if (!f || f === 'All Flipbook' || f === 'All Flipbooks') {
+                    return { ...b, folder: 'My_Flipbooks' };
+                }
+                return b;
+            });
+            setBooks(sanitizedBooks);
         } catch (error) {
             console.error("Error fetching data:", error);
         } finally {
@@ -462,7 +529,7 @@ export default function MyFlipbooks() {
             if (!uniqueName || (uniqueName.startsWith('PDF_Flipbook_') && initialDocType !== 'pdf')) {
                 uniqueName = customName ? customName.replace(/^PDF_Flipbook_/, defaultPrefix) : `${defaultPrefix}${timeString}`;
             }
-            const targetFolder = (activeFolder === 'Recent Book' || activeFolder === 'Trash') ? 'My_Flipbooks' : activeFolder;
+            const targetFolder = (!activeFolder || activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks' || activeFolder === 'Recent Book' || activeFolder === 'Recent' || activeFolder === 'Trash' || activeFolder === 'Favorites') ? 'My_Flipbooks' : activeFolder;
 
             // Step 2 — Encode pages and save flipbook in a single high-speed request
             setProcessingProgress({
@@ -643,7 +710,7 @@ export default function MyFlipbooks() {
             const now = new Date();
             const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
             const uniqueName = templateData.flipbookName || `Flipbook_${timeString}`;
-            const targetFolder = (activeFolder === 'Recent Book' || activeFolder === 'Trash') ? 'My_Flipbooks' : activeFolder;
+            const targetFolder = (!activeFolder || activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks' || activeFolder === 'Recent Book' || activeFolder === 'Recent' || activeFolder === 'Trash' || activeFolder === 'Favorites') ? 'My_Flipbooks' : activeFolder;
 
             console.log(`Saving new flipbook "${uniqueName}" to "${targetFolder}"...`);
             const res = await axios.post(`${backendUrl}/api/flipbook/save`, {
@@ -867,6 +934,10 @@ export default function MyFlipbooks() {
 
     const handleDeleteFolderClick = (folder) => {
         setActiveMenuId(null);
+        if (folder.name?.toLowerCase() === 'my_flipbooks') {
+            showAlert('Cannot Delete', 'My_Flipbooks is the default folder and cannot be deleted.');
+            return;
+        }
         setDeleteConfirmation({
             isOpen: true,
             folderId: folder.id,
@@ -1671,7 +1742,7 @@ export default function MyFlipbooks() {
                                     }`}
                                 >
                                     <div className="flex items-center gap-[0.75vw]">
-                                        <Folder size="1.15vw" className={`shrink-0 fill-current ${isActive ? 'text-[#ec5137]' : 'text-[#ec5137]'}`} />
+                                        <BookOpen size="1.15vw" className={`shrink-0 ${isActive ? 'text-[#ec5137]' : 'text-gray-700'}`} />
                                         <span>All Flipbook</span>
                                     </div>
                                     <span className={`text-[0.8vw] ${isActive ? 'text-[#ec5137] font-semibold' : 'text-gray-500'}`}>
@@ -1892,46 +1963,170 @@ export default function MyFlipbooks() {
                     </div>
                 </div>
 
-                {/* Upgrade to Pro Card */}
-                {showUpgradeCard && (
-                    <div className="mt-auto relative z-30 pt-[1.5vw]">
-                        <div className="group w-full bg-[#0a0a0a] rounded-[0.75vw] p-[1.25vw] relative overflow-hidden text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-                            {/* Close button on hover */}
-                            <button
-                                onClick={() => {
-                                    setShowUpgradeCard(false);
-                                    localStorage.setItem('hide_upgrade_card', 'true');
-                                }}
-                                className="absolute top-[0.6vw] right-[0.6vw] z-20 text-gray-400 hover:text-white p-[0.25vw] rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center cursor-pointer"
-                                title="Dismiss"
-                            >
-                                <X size="0.85vw" />
-                            </button>
+                {/* Storage & Upgrade Profile Card */}
+                {(() => {
+                    // Fallback to local books sum if backend hasn't returned used storage yet
+                    const fallbackBooksSize = Array.isArray(books) ? books.reduce((acc, b) => acc + (b.sizeBytes || b.fileSize || 0), 0) : 0;
+                    const effectiveUsed = storage.used > 0 ? storage.used : fallbackBooksSize;
+                    const effectiveTotal = storage.total > 0 ? storage.total : (300 * 1024 * 1024);
 
-                            <div className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-500 via-gray-900 to-black"></div>
+                    const formatMB = (bytes) => {
+                        if (!bytes || bytes <= 0) return '0 MB';
+                        const mb = bytes / (1024 * 1024);
+                        if (mb < 0.1) return '0.1 MB';
+                        if (mb < 100) return `${parseFloat(mb.toFixed(1))} MB`;
+                        return `${Math.round(mb)} MB`;
+                    };
 
-                            {/* CSS Noise texture overlay */}
-                            <div className="absolute inset-0 opacity-20 mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
+                    const usedFormatted = formatMB(effectiveUsed);
+                    const totalFormatted = effectiveTotal >= 1024 * 1024 * 1024
+                        ? `${Math.round(effectiveTotal / (1024 * 1024 * 1024))} GB`
+                        : `${Math.round(effectiveTotal / (1024 * 1024))} MB`;
+                    const storagePercent = effectiveTotal > 0 ? Math.min(100, Math.round((effectiveUsed / effectiveTotal) * 100)) : 0;
 
-                            <div className="relative z-10 flex flex-col gap-[0.25vw]">
-                                <h3 className="text-[1.1vw] font-bold tracking-wide">Upgrade to Pro</h3>
-                                <p className="text-[0.65vw] text-gray-300 mb-[0.75vw] leading-relaxed pr-[1vw]">
-                                    Unlock more Storage, templates and Premium features.
-                                </p>
-                                <button className="w-full bg-white text-black py-[0.5vw] px-[0.75vw] rounded-[0.5vw] text-[0.75vw] font-semibold flex items-center justify-center gap-[0.375vw] hover:bg-gray-100 transition-colors shadow-md mt-[0.25vw]">
-                                    Update Profile <ArrowRight size="0.9vw" />
-                                </button>
+                    return (
+                        <div className="mt-auto relative z-30 pt-[0.6vw]">
+                            <div className="w-full bg-white rounded-[1vw] p-[0.8vw] border border-gray-200/80 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col select-none">
+                                {/* Top Header: Database/Storage Icon + Title */}
+                                <div className="flex items-center gap-[0.5vw] mb-[0.55vw]">
+                                    <div className="relative flex items-center justify-center">
+                                        <svg width="0.95vw" height="0.95vw" viewBox="0 0 24 24" fill="none" stroke="#ea543a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                            <ellipse cx="12" cy="5" rx="8.5" ry="2.8" />
+                                            <path d="M3.5 5v7c0 1.55 3.8 2.8 8.5 2.8s8.5-1.25 8.5-2.8V5" />
+                                            <path d="M3.5 12v7c0 1.55 3.8 2.8 8.5 2.8s8.5-1.25 8.5-2.8v-7" />
+                                        </svg>
+                                        {/* Red notification dot on top right */}
+                                        <div className="absolute -top-[0.08vw] -right-[0.1vw] w-[0.32vw] h-[0.32vw] bg-[#ea543a] rounded-full ring-2 ring-white"></div>
+                                    </div>
+                                    <span className="text-[0.82vw] font-semibold text-[#374151]">Storage</span>
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div className="w-full h-[0.32vw] bg-[#e5e7eb] rounded-full overflow-hidden mb-[0.45vw]">
+                                    <div
+                                        className="h-full bg-[#ea543a] rounded-full transition-all duration-500 ease-out"
+                                        style={{ width: `${storagePercent}%` }}
+                                    ></div>
+                                </div>
+
+                                {/* Storage Usage Stats */}
+                                <div className="flex items-center justify-between text-[0.7vw] text-[#4b5563] font-semibold mb-[0.6vw]">
+                                    <span>
+                                        {isLoadingStorage ? 'Calculating...' : `${usedFormatted} of ${totalFormatted} used`}
+                                    </span>
+                                    <span className="text-[#374151] font-semibold">{storagePercent}%</span>
+                                </div>
+
+                                {/* Divider line */}
+                                <div className="border-t border-[#f3f4f6] mb-[0.65vw]"></div>
+
+                                {/* Upgrade Profile Button with Royal Gold Crown */}
+                                <div className="relative">
+                                    {/* 3D Realistic Gold Crown */}
+                                    <div className="absolute -top-[1.05vw] -left-[0.5vw] w-[2.35vw] h-[1.88vw] -rotate-[16deg] z-20 select-none pointer-events-none drop-shadow-[0_3px_8px_rgba(0,0,0,0.35)]">
+                                        <svg viewBox="0 0 68 54" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                                            <defs>
+                                                {/* Gold Primary Gradient */}
+                                                <linearGradient id="goldGradMain" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                    <stop offset="0%" stopColor="#FFF7C2" />
+                                                    <stop offset="20%" stopColor="#FAD04C" />
+                                                    <stop offset="50%" stopColor="#E5A620" />
+                                                    <stop offset="80%" stopColor="#FCE082" />
+                                                    <stop offset="100%" stopColor="#A86B06" />
+                                                </linearGradient>
+                                                {/* Gold Shimmer Gradient */}
+                                                <linearGradient id="goldShine" x1="0%" y1="100%" x2="100%" y2="0%">
+                                                    <stop offset="0%" stopColor="#7A4B00" />
+                                                    <stop offset="35%" stopColor="#FFDE6A" />
+                                                    <stop offset="65%" stopColor="#CF8B13" />
+                                                    <stop offset="100%" stopColor="#FFFDF2" />
+                                                </linearGradient>
+                                                {/* Red Velvet / Cushion Inner */}
+                                                <radialGradient id="crownVelvet" cx="50%" cy="40%" r="60%">
+                                                    <stop offset="0%" stopColor="#8A151B" />
+                                                    <stop offset="70%" stopColor="#5E0B10" />
+                                                    <stop offset="100%" stopColor="#3B0508" />
+                                                </radialGradient>
+                                                {/* Gem Gradients */}
+                                                <radialGradient id="rubyGem" cx="35%" cy="35%" r="65%">
+                                                    <stop offset="0%" stopColor="#FF6B6B" />
+                                                    <stop offset="40%" stopColor="#DC2626" />
+                                                    <stop offset="100%" stopColor="#7F1D1D" />
+                                                </radialGradient>
+                                                <radialGradient id="blueGem" cx="35%" cy="35%" r="65%">
+                                                    <stop offset="0%" stopColor="#60A5FA" />
+                                                    <stop offset="50%" stopColor="#2563EB" />
+                                                    <stop offset="100%" stopColor="#1E3A8A" />
+                                                </radialGradient>
+                                                <radialGradient id="emeraldGem" cx="35%" cy="35%" r="65%">
+                                                    <stop offset="0%" stopColor="#34D399" />
+                                                    <stop offset="50%" stopColor="#059669" />
+                                                    <stop offset="100%" stopColor="#064E3B" />
+                                                </radialGradient>
+                                                {/* Pearl Gradient */}
+                                                <radialGradient id="pearlSphere" cx="35%" cy="35%" r="65%">
+                                                    <stop offset="0%" stopColor="#FFFFFF" />
+                                                    <stop offset="60%" stopColor="#FFF3D6" />
+                                                    <stop offset="100%" stopColor="#D4A747" />
+                                                </radialGradient>
+                                            </defs>
+
+                                            {/* Velvet Interior Dome */}
+                                            <path d="M 12 40 C 14 26, 54 26, 56 40 Z" fill="url(#crownVelvet)" opacity="0.9" />
+
+                                            {/* Filigree Arches */}
+                                            <path d="M 10 40 Q 34 20 34 11 Q 34 20 58 40" stroke="url(#goldGradMain)" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+
+                                            {/* Crown Base Rim */}
+                                            <path d="M 7 42 Q 34 47 61 42 L 59 50 Q 34 54 9 50 Z" fill="url(#goldShine)" stroke="#7A4B00" strokeWidth="0.8" />
+                                            {/* Rim Jewels */}
+                                            <circle cx="16" cy="46.5" r="2" fill="url(#rubyGem)" stroke="#FFEAA7" strokeWidth="0.5" />
+                                            <circle cx="28" cy="48" r="2" fill="url(#blueGem)" stroke="#FFEAA7" strokeWidth="0.5" />
+                                            <circle cx="40" cy="48" r="2" fill="url(#rubyGem)" stroke="#FFEAA7" strokeWidth="0.5" />
+                                            <circle cx="52" cy="46.5" r="2" fill="url(#emeraldGem)" stroke="#FFEAA7" strokeWidth="0.5" />
+
+                                            {/* 5-Point Crown Body */}
+                                            <path d="M 7 42 L 3 19 L 20 30 L 34 11 L 48 30 L 65 19 L 61 42 Q 34 47 7 42 Z" fill="url(#goldGradMain)" stroke="#8A5A00" strokeWidth="0.9" />
+                                            <path d="M 10 40 L 7 24 L 20 32 L 34 15 L 48 32 L 61 24 L 58 40 Q 34 44 10 40 Z" fill="url(#goldShine)" opacity="0.6" />
+
+                                            {/* Pearls atop the 5 points */}
+                                            <circle cx="3" cy="18" r="3.2" fill="url(#pearlSphere)" stroke="#B3770E" strokeWidth="0.7" />
+                                            <circle cx="20" cy="29" r="2.8" fill="url(#pearlSphere)" stroke="#B3770E" strokeWidth="0.7" />
+                                            <circle cx="34" cy="10" r="4.1" fill="url(#pearlSphere)" stroke="#B3770E" strokeWidth="0.7" />
+                                            <circle cx="48" cy="29" r="2.8" fill="url(#pearlSphere)" stroke="#B3770E" strokeWidth="0.7" />
+                                            <circle cx="65" cy="18" r="3.2" fill="url(#pearlSphere)" stroke="#B3770E" strokeWidth="0.7" />
+
+                                            {/* Center Imperial Ruby Diamond */}
+                                            <polygon points="34,22 38.5,28 34,34 29.5,28" fill="url(#rubyGem)" stroke="#FFF3B0" strokeWidth="0.8" />
+                                            {/* Side Gems */}
+                                            <circle cx="20" cy="36" r="1.6" fill="url(#blueGem)" />
+                                            <circle cx="48" cy="36" r="1.6" fill="url(#emeraldGem)" />
+                                        </svg>
+                                    </div>
+
+                                    {/* Textured Dark button */}
+                                    <button
+                                        onClick={() => navigate('/settings/profile')}
+                                        className="w-full relative overflow-hidden py-[0.52vw] px-[0.8vw] rounded-[0.65vw] text-[0.78vw] font-medium text-white flex items-center justify-center gap-[0.45vw] shadow-[0_4px_14px_rgba(0,0,0,0.25)] hover:shadow-[0_6px_18px_rgba(0,0,0,0.35)] active:scale-[0.99] transition-all cursor-pointer group"
+                                        style={{
+                                            background: 'radial-gradient(ellipse at 50% 30%, #25282d 0%, #15171a 70%, #0d0e10 100%)'
+                                        }}
+                                    >
+                                        <span className="tracking-wide">Upgrade Profile</span>
+                                        <ArrowRight size="0.85vw" strokeWidth={2.4} className="transition-transform group-hover:translate-x-[0.15vw]" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
                 {/* Global Folder Dropdown Portal */}
                 {activeMenuId && (
                     <>
                         <div className="fixed inset-0 z-[100]" onClick={(e) => { e.stopPropagation(); setActiveMenuId(null); }}></div>
                         <div
-                            className="fixed z-[101] w-[8vw] bg-white rounded-[0.5vw] shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                            className="fixed z-[101] w-[12vw] min-w-[165px] bg-white rounded-[0.75vw] shadow-xl border border-gray-500 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
                             style={{
                                 top: folderMenuPos.top,
                                 left: folderMenuPos.left,
@@ -1949,9 +2144,9 @@ export default function MyFlipbooks() {
                                                 startEditing(folder);
                                                 setActiveMenuId(null);
                                             }}
-                                            className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] font-semibold text-gray-600 hover:bg-gray-50 transition-colors border-b border-gray-50"
+                                            className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-semibold text-gray-700 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
                                         >
-                                            <Edit2 size="0.8vw" />
+                                            <Edit2 size="0.9vw" className="group-hover:text-white" />
                                             Rename
                                         </button>
                                         <button
@@ -1960,9 +2155,9 @@ export default function MyFlipbooks() {
                                                 handleDuplicateFolder(folder);
                                                 setActiveMenuId(null);
                                             }}
-                                            className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] font-semibold text-gray-600 hover:bg-gray-50 transition-colors border-b border-gray-50"
+                                            className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-600 hover:bg-black hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
                                         >
-                                            <Copy size="0.8vw" />
+                                            <Copy size="0.9vw" className="group-hover:text-white" />
                                             Duplicate
                                         </button>
                                         <button
@@ -1971,9 +2166,9 @@ export default function MyFlipbooks() {
                                                 handleDeleteFolderClick(folder);
                                                 setActiveMenuId(null);
                                             }}
-                                            className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] font-semibold text-red-500 hover:bg-red-50 transition-colors"
+                                            className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-500 hover:text-white transition-colors group cursor-pointer"
                                         >
-                                            <Trash2 size="0.8vw" />
+                                            <Trash2 size="0.9vw" className="group-hover:text-white" />
                                             Delete
                                         </button>
                                     </>
@@ -1986,219 +2181,229 @@ export default function MyFlipbooks() {
 
             {/* Main Content */}
             <main
-                className="flex-1 ml-[18vw] px-[2vw] pb-[2vw] pt-[1vw] relative overflow-hidden bg-[#d9dbe9] flex flex-col select-none"
+                className="flex-1 ml-[18vw] px-[1vw] pt-[1vw] pb-[1vw] relative bg-[#f8f9fb] flex flex-col select-none h-[92vh] max-h-[92vh] overflow-hidden"
             >
+                {/* Welcome Banner */}
+                {(() => {
+                    const rawName = user?.name || user?.fullName || user?.firstName || (user?.emailId ? user.emailId.split('@')[0] : 'Naveen');
+                    const displayName = rawName ? (rawName.charAt(0).toUpperCase() + rawName.slice(1)) : 'Naveen';
 
-                <h1 className="text-[1.45vw] font-semibold text-gray-900 mb-[1.25vw] relative z-10">Quick Create your Flipbook</h1>
+                    return (
+                        <div className="w-full bg-white rounded-[1vw] py-[0.95vw] px-[1.4vw] border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex justify-between items-center relative overflow-hidden mb-[0.9vw] flex-shrink-0">
+                            {/* Left Side: Greeting & Quick Action Cards */}
+                            <div className="flex flex-col z-10">
+                                <h1 className="text-[1.45vw] font-bold text-[#1f2937] leading-tight">
+                                    Welcome back, <span className="text-[#ea543a]">{displayName}</span>
+                                </h1>
+                                <p className="text-[0.78vw] text-gray-400 font-normal mt-[0.15vw] mb-[0.8vw]">
+                                    Ready to create something amazing today?
+                                </p>
 
-                {/* Quick Create Section */}
-                <div className="w-full flex gap-[1vw] mb-[1.5vw] z-10 relative">
-                    {/* Upload Box */}
-                    <div
-                        className="w-[30%] bg-white rounded-[0.75vw] border-[0.15vw] border-dashed border-[#4c5add] flex flex-col items-center justify-center py-[0.75vw] cursor-pointer hover:bg-blue-50/50 transition-colors shadow-sm min-h-[5.5vw]"
-                        onClick={() => { setCreateModalInitialView('upload'); setIsCreateModalOpen(true); }}
-                        onDragOver={handleUploadBoxDragOver}
-                        onDrop={handleUploadBoxDrop}
-                    >
-
-                        <CloudUpload size="2vw" className="text-gray-500 mb-[0.25vw]" strokeWidth={1.5} />
-                        <p className="text-[0.85vw] text-gray-500 mb-[0.5vw]">Drag & Drop or <span className="text-[#4c5add]">Upload</span></p>
-                        <div className="flex items-center gap-[0.5vw] text-[0.65vw] text-gray-600">
-                            Supported File format-
-                            <div className="flex items-center gap-[0.5vw] ml-[0.25vw]">
-                                <Icon icon="vscode-icons:file-type-pdf2" className="w-[1.25vw] h-[1.25vw]" />
-                                <Icon icon="vscode-icons:file-type-word" className="w-[1.25vw] h-[1.25vw]" />
-                                <Icon icon="vscode-icons:file-type-powerpoint" className="w-[1.25vw] h-[1.25vw]" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Create From Scratch Box */}
-                    <div className="flex-1 bg-white rounded-[0.9vw] py-[0.9vw] px-[1.4vw] shadow-[0_2px_15px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between min-h-[5.8vw]">
-                        {/* Left Info Area */}
-                        <div className="w-[30%] pr-[0.75vw]">
-                            <h3 className="text-[1.25vw] font-bold text-[#333333] leading-tight mb-[0.25vw]">Create From Scratch</h3>
-                            <p className="text-[0.7vw] text-[#666666] leading-snug">Begin with a blank canvas and design your flipbook your way.</p>
-                        </div>
-
-                        {/* Right Carousel Controls & Items */}
-                        <div className="flex-1 flex items-center justify-end gap-[0.4vw]">
-                            <button
-                                onClick={prevTemplate}
-                                className={`p-[0.2vw] rounded-full transition-colors ${templateIndex > 0 ? 'text-gray-500 hover:text-[#383e93] hover:bg-gray-50 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`}
-                                disabled={templateIndex === 0}
-                            >
-                                <ChevronLeft size="1.1vw" />
-                            </button>
-
-                            <div className="w-[27.5vw] overflow-hidden">
-                                <div
-                                    className="flex items-end gap-[0.85vw] transition-transform duration-500 ease-in-out w-max"
-                                    style={{ transform: `translateX(calc(-${templateIndex} * 5.4vw))` }}
-                                >
-                                    {templates.map((template) => {
-                                        const isSelected = selectedTemplateIdForModal === template.id;
-                                        return (
-                                            <div
-                                                key={template.id}
-                                                className="flex flex-col items-center justify-end cursor-pointer group shrink-0 w-[4.6vw] h-[4.8vw]"
-                                                onClick={() => {
-                                                    setSelectedTemplateIdForModal(template.id);
-                                                    setCreateModalInitialView('template');
-                                                    setIsCreateModalOpen(true);
-                                                }}
-                                            >
-                                                {/* Paper Size Visual Box */}
-                                                <div
-                                                    className={`${template.width} ${template.height} ${
-                                                        isSelected
-                                                            ? 'bg-[#383e93] text-white border border-[#383e93] shadow-sm'
-                                                            : 'bg-white border-[1.5px] border-[#383e93] text-[#383e93] hover:border-[#2a2f75] hover:text-[#2a2f75]'
-                                                    } rounded-none flex items-center justify-center text-[0.65vw] font-medium transition-all duration-200 group-hover:-translate-y-[0.1vw]`}
-                                                >
-                                                    {template.label}
-                                                </div>
-
-                                                {/* Dimension Text Below */}
-                                                <p className="text-[0.58vw] text-gray-500 font-normal mt-[0.4vw] text-center whitespace-nowrap tracking-tight">
-                                                    {template.dim}
-                                                </p>
+                                {/* 3 Action Cards */}
+                                <div className="flex items-center gap-[0.9vw]">
+                                    {/* 1. Drag & Drop or Upload */}
+                                    <div
+                                        onClick={() => { setCreateModalInitialView('upload'); setIsCreateModalOpen(true); }}
+                                        onDragOver={handleUploadBoxDragOver}
+                                        onDrop={handleUploadBoxDrop}
+                                        className="w-[16.2vw] h-[5.4vw] bg-[#fafafa]/70 hover:bg-white rounded-[0.7vw] border-[1.5px] border-dashed border-gray-300 hover:border-[#ea543a] flex flex-col items-center justify-center p-[0.45vw] cursor-pointer transition-all shadow-sm group"
+                                    >
+                                        <p className="text-[0.8vw] font-semibold text-gray-500 mb-[0.2vw]">
+                                            Drag & Drop or <span className="text-[#ea543a]">Upload</span>
+                                        </p>
+                                        <div className="mb-[0.25vw] transition-transform group-hover:-translate-y-[0.1vw]">
+                                            <UploadCloud size="1.2vw" className="text-[#ea543a]" strokeWidth={2} />
+                                        </div>
+                                        <div className="flex items-center gap-[0.3vw] text-[0.58vw] text-gray-400 font-medium">
+                                            <span>Supported File format -</span>
+                                            <div className="flex items-center gap-[0.25vw]">
+                                                <Icon icon="vscode-icons:file-type-pdf2" className="w-[0.85vw] h-[0.85vw]" />
+                                                <Icon icon="vscode-icons:file-type-word" className="w-[0.85vw] h-[0.85vw]" />
+                                                <Icon icon="vscode-icons:file-type-powerpoint" className="w-[0.85vw] h-[0.85vw]" />
                                             </div>
-                                        );
-                                    })}
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Create From Scratch */}
+                                    <div
+                                        onClick={() => {
+                                            setSelectedTemplateIdForModal('corporate'); // default A4
+                                            setCreateModalInitialView('template');
+                                            setIsCreateModalOpen(true);
+                                        }}
+                                        className="w-[16.2vw] h-[5.4vw] bg-white rounded-[0.7vw] border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-md px-[0.9vw] py-[0.5vw] flex items-center justify-between cursor-pointer transition-all group"
+                                    >
+                                        <div className="flex items-center gap-[0.75vw] min-w-0">
+                                            <div className="w-[2.2vw] h-[2.2vw] rounded-[0.55vw] bg-[#fff2ef] flex items-center justify-center text-[#ea543a] flex-shrink-0">
+                                                <Icon icon="lucide:file-text" className="w-[1.1vw] h-[1.1vw]" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h3 className="text-[0.88vw] font-bold text-gray-800 leading-tight">Create From Scratch</h3>
+                                                <p className="text-[0.66vw] text-gray-400 font-normal mt-[0.12vw]">Start with a blank canvas</p>
+                                            </div>
+                                        </div>
+                                        <div className="w-[1.45vw] h-[1.45vw] rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-[#ea543a] group-hover:text-white transition-all flex-shrink-0 shadow-sm ml-[0.6vw]">
+                                            <ArrowRight size="0.72vw" />
+                                        </div>
+                                    </div>
+
+                                    {/* 3. Use a Template */}
+                                    <div
+                                        onClick={() => {
+                                            navigate('/templates');
+                                        }}
+                                        className="w-[16.2vw] h-[5.4vw] bg-white rounded-[0.7vw] border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-md px-[0.9vw] py-[0.5vw] flex items-center justify-between cursor-pointer transition-all group"
+                                    >
+                                        <div className="flex items-center gap-[0.75vw] min-w-0">
+                                            <div className="w-[2.2vw] h-[2.2vw] rounded-[0.55vw] bg-[#fff2ef] flex items-center justify-center text-[#ea543a] flex-shrink-0">
+                                                <Icon icon="lucide:layout-template" className="w-[1.1vw] h-[1.1vw]" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h3 className="text-[0.88vw] font-bold text-gray-800 leading-tight">Use a Template</h3>
+                                                <p className="text-[0.66vw] text-gray-400 font-normal mt-[0.12vw]">Choose from professional templates</p>
+                                            </div>
+                                        </div>
+                                        <div className="w-[1.45vw] h-[1.45vw] rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-[#ea543a] group-hover:text-white transition-all flex-shrink-0 shadow-sm ml-[0.6vw]">
+                                            <ArrowRight size="0.72vw" />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <button
-                                onClick={nextTemplate}
-                                className={`p-[0.2vw] rounded-full transition-colors ${templateIndex < templates.length - 5 ? 'text-gray-500 hover:text-[#383e93] hover:bg-gray-50 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`}
-                                disabled={templateIndex >= templates.length - 5}
-                            >
-                                <ChevronRight size="1.1vw" />
-                            </button>
+                            {/* Right Side: 3D Flipbook Illustration Graphic */}
+                            <div className="flex-shrink-0 relative pointer-events-none select-none flex items-center justify-end -my-[1.2vw] -mr-[0.6vw]">
+                                <img
+                                    src={dashboardBannerImg}
+                                    alt="Bring your ideas to life"
+                                    className="h-[12vw] w-auto object-contain max-w-[27vw]"
+                                />
+                            </div>
                         </div>
-                    </div>
-                </div>
+                    );
+                })()}
 
-                {/* List Container */}
-                <div className="w-full flex-1 min-h-0 bg-transparent border border-gray-300 rounded-[1vw] p-[1.5vw] relative flex flex-col shadow-sm">
+                {/* Title & Filters Row */}
+                <div className="w-full mb-[0.8vw] relative z-20 flex-shrink-0">
+                    <h2 className="text-[1.15vw] font-bold text-[#1f2937] mb-[0.6vw]">
+                        {activeFolder === 'All Flipbook' || activeFolder === 'All' || !activeFolder ? 'All Flipbooks' : (activeFolder === 'Recent Book' ? 'Recent' : activeFolder)}
+                    </h2>
 
-                    {/* Filter Bar */}
-                    <div className="flex items-center justify-between mb-[1.5vw] z-30 relative w-full">
-                        <div className="flex items-center gap-[1vw]">
+                    <div className="flex items-center justify-between w-full">
+                        {/* Left: Search & Filter Dropdowns */}
+                        <div className="flex items-center gap-[0.75vw]">
                             {/* Search Input */}
-                            <div className="relative w-[18vw]">
-                                <Search className="absolute left-[1vw] top-1/2 -translate-y-1/2 text-gray-500" size="1vw" />
+                            <div className="relative w-[15vw]">
+                                <Search className="absolute left-[0.9vw] top-1/2 -translate-y-1/2 text-[#ea543a]" size="0.95vw" />
                                 <input
                                     type="text"
                                     placeholder="Search..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-[2.5vw] pr-[1vw] py-[0.5vw] rounded-[0.5vw] border border-gray-300 text-[0.875vw] focus:outline-none focus:ring-1 focus:ring-[#4c5add] focus:border-[#4c5add] bg-white text-gray-700 placeholder-gray-400 shadow-sm"
+                                    className="w-full pl-[2.4vw] pr-[1vw] py-[0.5vw] rounded-[0.6vw] border border-gray-200 text-[0.84vw] focus:outline-none focus:ring-1 focus:ring-[#ea543a] bg-white text-gray-700 placeholder-gray-400 shadow-sm"
                                 />
                             </div>
 
-                            {/* Dropdowns */}
-                            <div className="relative" ref={statusDropdownRef}>
+                            {/* All Folders Dropdown */}
+                            <div className="relative" ref={folderDropdownRef}>
                                 <button
-                                    onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsSortDropdownOpen(false); }}
-                                    className="flex items-center justify-between min-w-[8vw] px-[1vw] py-[0.5vw] bg-white border border-gray-300 rounded-[0.5vw] text-[0.875vw] text-gray-600 hover:bg-gray-50 shadow-sm"
+                                    onClick={() => { setIsFolderDropdownOpen(!isFolderDropdownOpen); setIsStatusDropdownOpen(false); setIsSortDropdownOpen(false); }}
+                                    className="flex items-center gap-[0.45vw] px-[0.9vw] py-[0.5vw] bg-white border border-gray-200 rounded-[0.6vw] text-[0.84vw] text-gray-700 hover:bg-gray-50 shadow-sm font-medium cursor-pointer"
                                 >
-                                    <div className="flex items-center gap-[0.5vw]">
-                                        {statusFilter === 'All Status' && <Icon icon="lucide:layers" className="w-[0.9vw] h-[0.9vw]" />}
-                                        {statusFilter === 'Public' && <Globe size="0.9vw" />}
-                                        {statusFilter === 'Private' && <Lock size="0.9vw" />}
-                                        {statusFilter === 'Protected' && <Icon icon="lucide:shield" className="w-[0.9vw] h-[0.9vw]" />}
-                                        {statusFilter === 'Email' && <Icon icon="lucide:mail" className="w-[0.9vw] h-[0.9vw]" />}
-                                        <span>{statusFilter}</span>
-                                    </div>
-                                    <ChevronDown size="0.9vw" className="text-gray-400 ml-[0.5vw]" />
+                                    <Folder size="0.9vw" className="text-[#ea543a]" />
+                                    <span>{activeFolder === 'All Flipbook' || activeFolder === 'All' ? 'All Folders' : activeFolder}</span>
+                                    <ChevronDown size="0.85vw" className="text-gray-400 ml-[0.3vw]" />
                                 </button>
-                                {isStatusDropdownOpen && (
-                                    <div className="absolute top-full left-0 mt-[0.25vw] w-full bg-white border border-gray-200 rounded-[0.5vw] shadow-lg z-50 py-[0.25vw]">
-                                        {['All Status', 'Public', 'Private', 'Protected', 'Email'].map((status) => {
-                                            let StatusIcon = null;
-                                            if (status === 'All Status') StatusIcon = <Icon icon="lucide:layers" className="w-[0.9vw] h-[0.9vw]" />;
-                                            else if (status === 'Public') StatusIcon = <Globe size="0.9vw" />;
-                                            else if (status === 'Private') StatusIcon = <Lock size="0.9vw" />;
-                                            else if (status === 'Protected') StatusIcon = <Icon icon="lucide:shield" className="w-[0.9vw] h-[0.9vw]" />;
-                                            else if (status === 'Email') StatusIcon = <Icon icon="lucide:mail" className="w-[0.9vw] h-[0.9vw]" />;
-
-                                            return (
-                                                <button
-                                                    key={status}
-                                                    onClick={() => { setStatusFilter(status); setIsStatusDropdownOpen(false); }}
-                                                    className="w-full flex items-center gap-[0.5vw] px-[1vw] py-[0.5vw] text-[0.875vw] text-gray-700 hover:bg-blue-50 hover:text-[#4c5add] transition-colors"
-                                                >
-                                                    {StatusIcon}
-                                                    <span>{status}</span>
-                                                </button>
-                                            )
-                                        })}
+                                {isFolderDropdownOpen && (
+                                    <div className="absolute top-full left-0 mt-[0.25vw] min-w-[10vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl z-50 py-[0.3vw] max-h-[14vw] overflow-y-auto custom-scrollbar">
+                                        <button
+                                            onClick={() => { setActiveFolder('All Flipbook'); setIsFolderDropdownOpen(false); }}
+                                            className="w-full text-left px-[1vw] py-[0.45vw] text-[0.8vw] text-gray-700 hover:bg-orange-50 hover:text-[#ea543a] transition-colors cursor-pointer"
+                                        >
+                                            All Folders
+                                        </button>
+                                        {folders.map(f => (
+                                            <button
+                                                key={f.id}
+                                                onClick={() => { setActiveFolder(f.name); setIsFolderDropdownOpen(false); }}
+                                                className="w-full text-left px-[1vw] py-[0.45vw] text-[0.8vw] text-gray-700 hover:bg-orange-50 hover:text-[#ea543a] transition-colors truncate cursor-pointer"
+                                            >
+                                                {f.name}
+                                            </button>
+                                        ))}
                                     </div>
                                 )}
                             </div>
 
+                            {/* All Status Dropdown */}
+                            <div className="relative" ref={statusDropdownRef}>
+                                <button
+                                    onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsSortDropdownOpen(false); setIsFolderDropdownOpen(false); }}
+                                    className="flex items-center gap-[0.45vw] px-[0.9vw] py-[0.5vw] bg-white border border-gray-200 rounded-[0.6vw] text-[0.84vw] text-gray-700 hover:bg-gray-50 shadow-sm font-medium cursor-pointer"
+                                >
+                                    <Icon icon="lucide:disc" className="w-[0.9vw] h-[0.9vw] text-[#ea543a]" />
+                                    <span>{statusFilter}</span>
+                                    <ChevronDown size="0.85vw" className="text-gray-400 ml-[0.3vw]" />
+                                </button>
+                                {isStatusDropdownOpen && (
+                                    <div className="absolute top-full left-0 mt-[0.25vw] min-w-[9vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl z-50 py-[0.3vw]">
+                                        {['All Status', 'Public', 'Private', 'Protected', 'Email'].map((status) => (
+                                            <button
+                                                key={status}
+                                                onClick={() => { setStatusFilter(status); setIsStatusDropdownOpen(false); }}
+                                                className="w-full text-left px-[1vw] py-[0.45vw] text-[0.8vw] text-gray-700 hover:bg-orange-50 hover:text-[#ea543a] transition-colors cursor-pointer"
+                                            >
+                                                {status}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Sort by Dropdown */}
                             <div className="relative" ref={sortDropdownRef}>
                                 <button
-                                    onClick={() => { setIsSortDropdownOpen(!isSortDropdownOpen); setIsStatusDropdownOpen(false); }}
-                                    className="flex items-center gap-[0.5vw] px-[1vw] py-[0.5vw] bg-white border border-gray-300 rounded-[0.5vw] text-[0.875vw] text-gray-600 hover:bg-gray-50 shadow-sm min-w-[12vw] justify-between"
+                                    onClick={() => { setIsSortDropdownOpen(!isSortDropdownOpen); setIsStatusDropdownOpen(false); setIsFolderDropdownOpen(false); }}
+                                    className="flex items-center gap-[0.45vw] px-[0.9vw] py-[0.5vw] bg-white border border-gray-200 rounded-[0.6vw] text-[0.84vw] text-gray-700 hover:bg-gray-50 shadow-sm font-medium cursor-pointer"
                                 >
-                                    <div className="flex items-center gap-[0.5vw]">
-                                        <Icon icon="lucide:filter" className="w-[0.9vw] h-[0.9vw] text-gray-400" />
-                                        <span>{sortOption}</span>
-                                    </div>
-                                    <ChevronDown size="0.9vw" className="text-gray-400 ml-[0.25vw]" />
+                                    <ArrowDownUp size="0.9vw" className="text-[#ea543a]" />
+                                    <span>Sort by - <span className="text-gray-500 font-normal">{sortOption}</span></span>
+                                    <ChevronDown size="0.85vw" className="text-gray-400 ml-[0.3vw]" />
                                 </button>
                                 {isSortDropdownOpen && (
-                                    <div className="absolute top-full left-0 mt-[0.25vw] flex z-50">
-                                        {/* Main Categories Box */}
-                                        <div className="w-[14vw] bg-white border border-gray-200 rounded-[0.5vw] shadow-lg py-[0.5vw] flex flex-col relative">
-                                            {sortCategories.map(category => (
-                                                <div
-                                                    key={category.id}
-                                                    className={`px-[1vw] py-[0.5vw] cursor-pointer flex justify-between items-center transition-colors ${activeSortCategory === category.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
-                                                    onMouseEnter={() => setActiveSortCategory(category.id)}
-                                                >
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[0.875vw] text-gray-700 font-medium leading-tight">{category.title}</span>
-                                                        <span className="text-[0.55vw] text-gray-400 mt-[0.1vw]">
-                                                            ● {category.options.includes(sortOption) ? sortOption : category.options[0]}
-                                                        </span>
-                                                    </div>
-                                                    <ChevronRight size="0.9vw" className="text-gray-400" />
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {/* Sub Categories Box */}
-                                        {activeSortCategory && (
-                                            <div className="ml-[0.5vw] min-w-[12vw] bg-white border border-gray-200 rounded-[0.5vw] shadow-lg py-[0.5vw] flex flex-col h-fit">
-                                                {sortCategories.find(c => c.id === activeSortCategory)?.options.map(option => (
-                                                    <button
-                                                        key={option}
-                                                        onClick={() => { setSortOption(option); setIsSortDropdownOpen(false); setActiveSortCategory(null); }}
-                                                        className="w-full text-left px-[1vw] py-[0.5vw] text-[0.875vw] text-gray-700 hover:bg-blue-50 hover:text-[#4c5add] transition-colors whitespace-nowrap"
-                                                    >
-                                                        {option}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
+                                    <div className="absolute top-full left-0 mt-[0.25vw] min-w-[13vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl z-50 py-[0.3vw]">
+                                        {['Recently Created', 'Recently Modified', 'Alphabetical (A-Z)', 'Alphabetical (Z-A)', 'Most Viewed'].map((opt) => (
+                                            <button
+                                                key={opt}
+                                                onClick={() => { setSortOption(opt); setIsSortDropdownOpen(false); }}
+                                                className="w-full text-left px-[1vw] py-[0.45vw] text-[0.8vw] text-gray-700 hover:bg-orange-50 hover:text-[#ea543a] transition-colors cursor-pointer"
+                                            >
+                                                {opt}
+                                            </button>
+                                        ))}
                                     </div>
                                 )}
                             </div>
                         </div>
 
+                        {/* Right: Selected Actions & Multiple Selection */}
                         <div className="flex items-center gap-[1vw]">
-                            {/* Selected Actions */}
+                            {/* Empty Trash button when in Trash and no books selected */}
+                            {activeFolder === 'Trash' && selectedBooks.length === 0 && filteredBooks.length > 0 && (
+                                <button
+                                    onClick={handleEmptyTrashClick}
+                                    className="flex items-center gap-[0.35vw] px-[0.75vw] py-[0.4vw] bg-white text-red-500 border border-red-200 hover:bg-red-50 hover:border-red-300 rounded-[0.5vw] transition-all shadow-sm text-[0.75vw] font-semibold cursor-pointer"
+                                >
+                                    <Trash2 size="0.85vw" /> Empty Trash
+                                </button>
+                            )}
+
                             {selectedBooks.length > 0 && (
-                                <div className="flex items-center gap-[0.5vw] mr-[1vw]">
+                                <div className="flex items-center gap-[0.5vw]">
                                     {activeFolder === 'Trash' ? (
                                         <>
                                             <button
                                                 onClick={handleBulkRestore}
-                                                className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] bg-[#4c5add] text-white rounded-[0.5vw] hover:bg-[#3f4bc0] transition-colors shadow-sm text-[0.75vw] font-semibold cursor-pointer"
+                                                className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] bg-blue-600 text-white rounded-[0.5vw] hover:bg-blue-700 transition-colors shadow-sm text-[0.75vw] font-semibold cursor-pointer"
                                             >
                                                 <RotateCcw size="0.9vw" /> Restore ({selectedBooks.length})
                                             </button>
@@ -2220,7 +2425,7 @@ export default function MyFlipbooks() {
                                             {activeFolder !== 'Recent Book' && activeFolder !== 'Recent' && (
                                                 <button
                                                     onClick={handleBulkMove}
-                                                    className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-[#4c5add] text-white rounded-[0.5vw] hover:bg-[#3f4bc0] transition-colors shadow-sm text-[0.75vw] font-semibold cursor-pointer"
+                                                    className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-[#ea543a] text-white rounded-[0.5vw] hover:bg-[#d4452d] transition-colors shadow-sm text-[0.75vw] font-semibold cursor-pointer"
                                                 >
                                                     <FolderInput size="0.9vw" /> Move
                                                 </button>
@@ -2230,368 +2435,356 @@ export default function MyFlipbooks() {
                                 </div>
                             )}
 
-                            {/* Empty Trash Button - hidden when multi select / books are selected */}
-                            {activeFolder === 'Trash' && selectedBooks.length === 0 && books.some(b => b.trash || b.folder === 'Trash') && (
-                                <button
-                                    onClick={handleEmptyTrashClick}
-                                    className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] bg-red-500 hover:bg-red-600 text-white rounded-[0.5vw] text-[0.75vw] font-semibold transition-colors cursor-pointer shadow-sm mr-[0.5vw]"
-                                >
-                                    <Trash2 size="0.85vw" /> Empty Trash
-                                </button>
-                            )}
-
                             {/* Checkbox for multiple selection */}
-                            <label className="flex items-center gap-[0.5vw] cursor-pointer" onClick={(e) => { e.preventDefault(); handleSelectAll(); }}>
-                                <div className={`w-[1.1vw] h-[1.1vw] rounded-[0.15vw] border flex items-center justify-center transition-all ${isAllSelected ? 'bg-gray-400 border-gray-400' : 'border-gray-400 bg-transparent'}`}>
-                                    {isAllSelected && <Check size="0.8vw" className="text-white" strokeWidth={3} />}
+                            <label className="flex items-center gap-[0.5vw] cursor-pointer select-none" onClick={(e) => { e.preventDefault(); handleSelectAll(); }}>
+                                <div className={`w-[1.1vw] h-[1.1vw] rounded-[0.2vw] border flex items-center justify-center transition-all ${isAllSelected ? 'bg-gray-700 border-gray-700' : 'border-gray-400 bg-white'}`}>
+                                    {isAllSelected && <Check size="0.75vw" className="text-white" strokeWidth={3} />}
                                 </div>
-                                <span className="text-[0.875vw] font-medium text-gray-600">Multiple Selection</span>
+                                <span className="text-[0.85vw] font-medium text-gray-600">Multiple Selection</span>
                             </label>
                         </div>
                     </div>
+                </div>
 
-                    {/* Content Area */}
-                    {isLoading ? (
-                        <div className="flex-1 flex flex-col items-center justify-center z-10">
-                            <div className="animate-spin rounded-full h-[3vw] w-[3vw] border-[0.25vw] border-white/20 border-t-white"></div>
-                            <p className="text-white/80 mt-[1vw] font-medium text-[0.875vw]">Loading Flipbooks...</p>
-                        </div>
-                    ) : filteredBooks.length > 0 ? (
-                        <div
-                            className="flex-1 overflow-y-auto custom-scrollbar pr-[0.5vw] z-10 space-y-[1vw] min-h-0"
-                            onScroll={() => setActiveBookMenu(null)} // Close menu on scroll
-                        >
-                            {filteredBooks.map((book, index) => {
-                                const isBookEditing = editingBookId === book.id;
-                                const isSelected = selectedBooks.includes(book.id);
+                {/* Content Area */}
+                {isLoading ? (
+                    <div className="flex-1 flex flex-col items-center justify-center py-[5vw]">
+                        <div className="animate-spin rounded-full h-[3vw] w-[3vw] border-[0.25vw] border-orange-200 border-t-[#ea543a]"></div>
+                        <p className="text-gray-500 mt-[1vw] font-medium text-[0.875vw]">Loading Flipbooks...</p>
+                    </div>
+                ) : filteredBooks.length > 0 ? (
+                    <div
+                        className="flex-1 overflow-y-auto custom-scrollbar pr-[0.3vw] pb-[2vw] z-10 space-y-[0.85vw] min-h-0"
+                        onScroll={() => setActiveBookMenu(null)}
+                    >
+                        {filteredBooks.map((book) => {
+                            const isBookEditing = editingBookId === book.id;
+                            const isSelected = selectedBooks.includes(book.id);
 
-                                // Resolve the actual folder location if in virtual 'Recent Book' folder
-                                let actualFolder = book.folder;
-                                if (actualFolder === 'Recent Book' || actualFolder === 'Recent book') {
-                                    const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book' && b.folder !== 'Recent book');
-                                    if (physicalBook) actualFolder = physicalBook.folder;
-                                }
+                            let actualFolder = book.folder;
+                            if (actualFolder === 'Recent Book' || actualFolder === 'Recent book') {
+                                const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book' && b.folder !== 'Recent book');
+                                if (physicalBook) actualFolder = physicalBook.folder;
+                            }
 
-                                // Use actualFolder and book.realName (folder name on server) to generate the base path
-                                const iframeBaseUrl = getSupabaseBaseUrl(
-                                    user?.emailId?.replace(/[@.]/g, "_"),
-                                    actualFolder,
-                                    book.realName
-                                );
+                            const iframeBaseUrl = getSupabaseBaseUrl(
+                                user?.emailId?.replace(/[@.]/g, "_"),
+                                actualFolder,
+                                book.realName
+                            );
 
-
-
-                                return (
+                            return (
+                                <div
+                                    key={book.id}
+                                    className="flex items-center gap-[0.75vw] group w-full"
+                                >
+                                    {/* Checkbox Outside Card - Visible on Select */}
                                     <div
-                                        key={book.id}
-                                        className="flex items-center gap-[0.5vw] group" // Flex container for Checkbox + Card
-                                    >
-                                        {/* Checkbox Outside Card - Visible only on Select */}
-                                        <div
-                                            className={`transition-all duration-300 ease-in-out cursor-pointer flex items-center justify-center overflow-hidden
-                                            ${selectedBooks.length > 0 ? 'w-[2vw] opacity-100 mr-[0.5vw]' : 'w-0 opacity-0'}
+                                        className={`transition-all duration-200 ease-in-out cursor-pointer flex items-center justify-center overflow-hidden
+                                            ${selectedBooks.length > 0 ? 'w-[1.8vw] opacity-100 mr-[0.2vw]' : 'w-0 opacity-0'}
                                         `}
-                                            onClick={(e) => { e.stopPropagation(); toggleBookSelection(book.id); }}
-                                        >
-                                            <div className={`w-[1.25vw] h-[1.25vw] rounded-[0.25vw] border-[0.125vw] flex items-center justify-center transition-colors flex-shrink-0
+                                        onClick={(e) => { e.stopPropagation(); toggleBookSelection(book.id); }}
+                                    >
+                                        <div className={`w-[1.15vw] h-[1.15vw] rounded-[0.2vw] border flex items-center justify-center transition-colors flex-shrink-0
                                             ${isSelected
-                                                    ? 'bg-white border-white'
-                                                    : 'border-white hover:bg-white/10'
-                                                }`}
-                                            >
-                                                {isSelected && <Check size="0.9vw" className="text-[#343868]" strokeWidth={3} />}
-                                            </div>
+                                                ? 'bg-gray-800 border-gray-800 text-white'
+                                                : 'border-gray-400 bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            {isSelected && <Check size="0.75vw" className="text-white" strokeWidth={3} />}
+                                        </div>
+                                    </div>
+
+                                    {/* The Card */}
+                                    <div
+                                        onDoubleClick={() => toggleBookSelection(book.id)}
+                                        className="flex-1 bg-white rounded-[0.9vw] p-[0.9vw] flex gap-[1.2vw] items-center border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-md transition-all relative"
+                                    >
+                                        {/* Thumbnail (Square with rounded corners) */}
+                                        <div className="w-[6vw] h-[6vw] bg-gray-100 rounded-[0.6vw] overflow-hidden flex-shrink-0 border border-gray-100 flex items-center justify-center relative">
+                                            <LazyPreview
+                                                v_id={book.v_id}
+                                                emailId={emailId}
+                                                backendUrl={backendUrl}
+                                                iframeBaseUrl={iframeBaseUrl}
+                                                title={book.title}
+                                                imageUrl={book.image || null}
+                                            />
                                         </div>
 
-                                        {/* The Card */}
-                                        <div
-                                            onDoubleClick={() => toggleBookSelection(book.id)}
-                                            className="w-full bg-white rounded-[0.75vw] p-[0.75vw] flex gap-[1vw] items-center shadow-lg relative transition-all duration-200 hover:scale-[1.01]"
-                                        >
-                                            {/* Thumbnail */}
-                                            <div className="w-[8vw] h-[6vw] bg-gray-100 rounded-[0.5vw] overflow-hidden flex-shrink-0 border border-gray-100 flex items-center justify-center relative">
-                                                <LazyPreview
-                                                    v_id={book.v_id}
-                                                    emailId={emailId}
-                                                    backendUrl={backendUrl}
-                                                    iframeBaseUrl={iframeBaseUrl}
-                                                    title={book.title}
-                                                    imageUrl={book.image || null}
-                                                />
-                                            </div>
-
-                                            {/* Content */}
-                                            <div className="flex-1 flex flex-col justify-between h-[6vw] py-[0.25vw]">
-                                                {/* Header Row */}
-                                                <div className="flex justify-between items-start w-full mb-[0.25vw]">
-                                                    <div>
-                                                        <div className="flex items-center gap-[0.5vw]">
-                                                            {isBookEditing ? (
-                                                                <input
-                                                                    autoFocus
-                                                                    type="text"
-                                                                    value={tempBookTitle}
-                                                                    onChange={(e) => setTempBookTitle(e.target.value)}
-                                                                    onBlur={saveBookEdit}
-                                                                    onKeyDown={handleBookKeyDown}
-                                                                    className="text-[1.125vw] font-bold text-gray-800 border-b border-[#4c5add] focus:outline-none w-[16vw]"
-                                                                />
-                                                            ) : (
-                                                                <div className="flex items-center gap-[0.35vw]">
-                                                                    <h3 className="text-[1.125vw] font-bold text-gray-800">{book.title}</h3>
-                                                                    {activeFolder !== 'Trash' && (
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                handleToggleFavorite(book);
-                                                                            }}
-                                                                            className="p-[0.2vw] text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
-                                                                            title={book.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-                                                                        >
-                                                                            <Heart
-                                                                                size="0.95vw"
-                                                                                className={book.isFavorite ? "text-red-500 fill-red-500" : "hover:text-red-500"}
-                                                                            />
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-
-                                                            {/* Dynamic Visibility Pill Badge */}
-                                                            {(() => {
-                                                                const rawAcc = String(
-                                                                    book.Visibility?.access || 
-                                                                    book.Visibility?.type || 
-                                                                    book.Customized_Settings?.Visibility?.access || 
-                                                                    book.Customized_Settings?.Visibility?.type || 
-                                                                    book.settings?.Visibility?.access || 
-                                                                    book.settings?.Visibility?.type || 
-                                                                    book.share?.access || 
-                                                                    book.share?.type || 
-                                                                    book.access || 
-                                                                    (book.isPublic === false ? 'private' : 'public')
-                                                                ).toLowerCase().trim();
-
-                                                                if (rawAcc.includes('password') || rawAcc.includes('protect')) {
-                                                                    return (
-                                                                        <div className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold bg-amber-100 text-amber-700 border border-amber-200/60">
-                                                                            <Icon icon="lucide:key-round" className="w-[0.6vw] h-[0.6vw]" />
-                                                                            <span>Password</span>
-                                                                        </div>
-                                                                    );
-                                                                }
-
-                                                                if (rawAcc.includes('invite') || rawAcc.includes('email')) {
-                                                                    return (
-                                                                        <div className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200/60">
-                                                                            <Icon icon="lucide:user-check" className="w-[0.6vw] h-[0.6vw]" />
-                                                                            <span>Invite Only</span>
-                                                                        </div>
-                                                                    );
-                                                                }
-
-                                                                if (rawAcc.includes('private') || book.isPublic === false) {
-                                                                    return (
-                                                                        <div className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold bg-gray-100 text-gray-700 border border-gray-200/60">
-                                                                            <Lock size="0.6vw" />
-                                                                            <span>Private</span>
-                                                                        </div>
-                                                                    );
-                                                                }
-
-                                                                return (
-                                                                    <div className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold bg-green-100 text-green-700 border border-green-200/60">
-                                                                        <Icon icon="subway:world-1" className="w-[0.6vw] h-[0.6vw]" />
-                                                                        <span>Public</span>
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                        <p className="text-[0.65vw] text-gray-400 font-medium mt-[0.25vw]">{book.pages} Pages</p>
-                                                    </div>
-
-                                                    <div className="flex gap-[1.5vw] text-[0.65vw] text-gray-400 font-medium">
-                                                        <span>
-                                                            {(activeFolder === 'Recent Book' || activeFolder === 'Recent') ? 'Last Updated on' : 'Created on'} : {(activeFolder === 'Recent Book' || activeFolder === 'Recent') ? formatDisplayDate(book.mtime || book.updatedAt || book.updated || book.createdAt || book.created) : book.created}
-                                                        </span>
-                                                        <span>Views : {book.viewsCount !== undefined ? book.viewsCount : (book.views !== undefined ? book.views : 0)}</span>
-                                                        <span>Size : {formatDisplaySize(book)}</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Action Row */}
-                                                <div className="flex items-center justify-between w-full mt-auto pt-[0.5vw]">
-                                                    {activeFolder === 'Trash' ? (
-                                                        <div className="flex items-center gap-[1.25vw] ml-auto">
-                                                            <button
-                                                                onClick={() => handleRestoreBook(book)}
-                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
-                                                            >
-                                                                <RotateCcw size="0.9vw" /> Restore
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handlePermanentDeleteBookClick(book)}
-                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-red-500 hover:text-red-700 transition-colors"
-                                                            >
-                                                                <Trash2 size="0.9vw" /> Delete Permanently
-                                                            </button>
-                                                        </div>
+                                        {/* Content Details */}
+                                        <div className="flex-1 flex flex-col justify-between min-h-[5.8vw] py-[0.1vw]">
+                                            {/* Top Line: Title + Status + Heart & Meta (Created on / Views / Size) */}
+                                            <div className="flex items-start justify-between w-full">
+                                                <div className="flex items-center gap-[0.5vw]">
+                                                    {isBookEditing ? (
+                                                        <input
+                                                            autoFocus
+                                                            type="text"
+                                                            value={tempBookTitle}
+                                                            onChange={(e) => setTempBookTitle(e.target.value)}
+                                                            onBlur={saveBookEdit}
+                                                            onKeyDown={handleBookKeyDown}
+                                                            className="text-[1.1vw] font-bold text-gray-800 border-b border-[#ea543a] focus:outline-none w-[16vw]"
+                                                        />
                                                     ) : (
-                                                        <>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    const shareId = book.Visibility?.shareId || book.Customized_Settings?.Visibility?.shareId || book.shareId || book.share?.shareId || book.v_id || encodeURIComponent(book.realName);
-                                                                    const rawAcc = String(book.Visibility?.access || book.Customized_Settings?.Visibility?.access || book.share?.access || 'public').toLowerCase();
-                                                                    const accessPrefix = rawAcc.includes('private')
-                                                                        ? 'share=private'
-                                                                        : rawAcc.includes('password')
-                                                                        ? 'share=password'
-                                                                        : rawAcc.includes('invite')
-                                                                        ? 'share=invite'
-                                                                        : 'share=public';
-                                                                    window.open(`/${accessPrefix}/${shareId}`, '_blank');
-                                                                }}
-                                                                className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
-                                                            >
-                                                                <Eye size="0.9vw" /> View Book
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    let targetFolder = book.folder;
-                                                                    if (targetFolder === 'Recent Book') {
-                                                                        const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
-                                                                        if (physicalBook) targetFolder = physicalBook.folder;
-                                                                    }
-                                                                    const identifier = book.v_id || encodeURIComponent(book.realName);
-                                                                    navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName, pageCount: book.pages } });
-                                                                }}
-                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
-                                                            >
-                                                                <Wrench size="0.9vw" /> Customize
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    let targetFolder = book.folder;
-                                                                    if (targetFolder === 'Recent Book') {
-                                                                        const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
-                                                                        if (physicalBook) targetFolder = physicalBook.folder;
-                                                                    }
-                                                                    const identifier = book.v_id || encodeURIComponent(book.realName);
-                                                                    navigate(`/editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName } });
-                                                                }}
-                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
-                                                            >
-                                                                <PenTool size="0.9vw" /> Open in Editor
-                                                            </button>
-                                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors">
-                                                                <BarChart2 size="0.9vw" /> Statistic
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleShareClick(book)}
-                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
-                                                            >
-                                                                <Share2 size="0.9vw" /> Share
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDownloadClick(book)}
-                                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
-                                                            >
-                                                                <Download size="0.9vw" /> Download
-                                                            </button>
-
-                                                            {/* More Options */}
-                                                            <div className="relative">
+                                                        <div className="flex items-center gap-[0.4vw]">
+                                                            <h3 className="text-[1.1vw] font-bold text-[#1f2937] leading-tight">{book.title}</h3>
+                                                            {activeFolder !== 'Trash' && (
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        // Calculate position
-                                                                        const rect = e.currentTarget.getBoundingClientRect();
-                                                                        const screenHeight = window.innerHeight;
-                                                                        const spaceBelow = screenHeight - rect.bottom;
-                                                                        const menuHeight = 160; // Approx height
-
-                                                                        // Determine if we should show above or below
-                                                                        const showAbove = spaceBelow < menuHeight;
-
-                                                                        setMenuPosition({
-                                                                            top: showAbove ? (rect.top - 5) : (rect.bottom + 5),
-                                                                            left: rect.right,
-                                                                            isDropup: showAbove,
-                                                                            activeId: book.id
-                                                                        });
-
-                                                                        setActiveBookMenu(activeBookMenu === book.id ? null : book.id);
+                                                                        handleToggleFavorite(book);
                                                                     }}
-                                                                    className="flex items-center gap-[0.25vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                                                                    className="p-[0.15vw] text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
+                                                                    title={book.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
                                                                 >
-                                                                    <MoreVertical size="0.9vw" /> More
+                                                                    <Heart
+                                                                        size="0.85vw"
+                                                                        className={book.isFavorite ? "text-red-500 fill-red-500" : "hover:text-red-500"}
+                                                                    />
                                                                 </button>
-                                                            </div>
-                                                        </>
+                                                            )}
+                                                        </div>
                                                     )}
+
+                                                    {/* Visibility Pill Badge */}
+                                                    {(() => {
+                                                        const rawAcc = String(
+                                                            book.Visibility?.access || 
+                                                            book.Visibility?.type || 
+                                                            book.Customized_Settings?.Visibility?.access || 
+                                                            book.Customized_Settings?.Visibility?.type || 
+                                                            book.settings?.Visibility?.access || 
+                                                            book.settings?.Visibility?.type || 
+                                                            book.share?.access || 
+                                                            book.share?.type || 
+                                                            book.access || 
+                                                            (book.isPublic === false ? 'private' : 'public')
+                                                        ).toLowerCase().trim();
+
+                                                        if (rawAcc.includes('password') || rawAcc.includes('protect')) {
+                                                            return (
+                                                                <span className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.12vw] rounded-full text-[0.62vw] font-semibold bg-amber-50 text-amber-600 border border-amber-200/60">
+                                                                    <Icon icon="lucide:key-round" className="w-[0.6vw] h-[0.6vw]" />
+                                                                    <span>Password</span>
+                                                                </span>
+                                                            );
+                                                        }
+
+                                                        if (rawAcc.includes('invite') || rawAcc.includes('email')) {
+                                                            return (
+                                                                <span className="flex items-center gap-[0.25vw] px-[0.5vw] py-[0.12vw] rounded-full text-[0.62vw] font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200/60">
+                                                                    <Icon icon="lucide:user-check" className="w-[0.6vw] h-[0.6vw]" />
+                                                                    <span>Invite</span>
+                                                                </span>
+                                                            );
+                                                        }
+
+                                                        if (rawAcc.includes('private') || book.isPublic === false) {
+                                                            return (
+                                                                <span className="flex items-center gap-[0.25vw] px-[0.55vw] py-[0.12vw] rounded-full text-[0.62vw] font-semibold bg-gray-100 text-gray-600">
+                                                                    <Lock size="0.6vw" />
+                                                                    <span>Private</span>
+                                                                </span>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <span className="flex items-center gap-[0.25vw] px-[0.55vw] py-[0.12vw] rounded-full text-[0.62vw] font-semibold bg-[#e8f7ee] text-[#16a34a]">
+                                                                <Globe size="0.6vw" />
+                                                                <span>Public</span>
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </div>
+
+                                                {/* Right: Meta Details */}
+                                                <div className="flex items-center gap-[1.5vw] text-[0.72vw] text-gray-400 font-medium">
+                                                    <span>
+                                                        {(activeFolder === 'Recent Book' || activeFolder === 'Recent') ? 'Last Updated on' : 'Created on'} : {(activeFolder === 'Recent Book' || activeFolder === 'Recent') ? formatDisplayDate(book.mtime || book.updatedAt || book.updated || book.createdAt || book.created) : (book.created || '20-11-2025')}
+                                                    </span>
+                                                    <span>Views : {book.viewsCount !== undefined ? book.viewsCount : (book.views !== undefined ? book.views : 245)}</span>
+                                                    <span>Size : {formatDisplaySize(book)}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Subtitle: Pages */}
+                                            <p className="text-[0.72vw] text-gray-400 font-normal mt-[0.1vw] mb-[0.6vw]">
+                                                {book.pages || 12} Pages
+                                            </p>
+
+                                            {/* Action Buttons Row */}
+                                             <div className={`w-full flex items-center ${activeFolder === 'Trash' ? 'justify-end gap-[1.25vw]' : 'justify-between'} pt-[0.2vw]`}>
+                                                 {activeFolder === 'Trash' ? (
+                                                     <div className="flex items-center gap-[1.25vw] ml-auto">
+                                                         <button
+                                                             onClick={() => handleRestoreBook(book)}
+                                                             className="flex items-center gap-[0.35vw] cursor-pointer text-[0.75vw] font-medium text-blue-600 hover:text-blue-700 transition-colors whitespace-nowrap shrink-0"
+                                                         >
+                                                             <RotateCcw size="0.85vw" /> Restore
+                                                         </button>
+                                                         <button
+                                                             onClick={() => handlePermanentDeleteBookClick(book)}
+                                                             className="flex items-center gap-[0.35vw] cursor-pointer text-[0.75vw] font-medium text-red-500 hover:text-red-700 transition-colors whitespace-nowrap shrink-0"
+                                                         >
+                                                             <Trash2 size="0.85vw" /> Delete Permanently
+                                                         </button>
+                                                     </div>
+                                                 ) : (
+                                                     <>
+                                                         <button 
+                                                             onClick={() => {
+                                                                 const shareId = book.Visibility?.shareId || book.Customized_Settings?.Visibility?.shareId || book.shareId || book.share?.shareId || book.v_id || encodeURIComponent(book.realName);
+                                                                 const rawAcc = String(book.Visibility?.access || book.Customized_Settings?.Visibility?.access || book.share?.access || 'public').toLowerCase();
+                                                                 const accessPrefix = rawAcc.includes('private')
+                                                                     ? 'share=private'
+                                                                     : rawAcc.includes('password')
+                                                                     ? 'share=password'
+                                                                     : rawAcc.includes('invite')
+                                                                     ? 'share=invite'
+                                                                     : 'share=public';
+                                                                 window.open(`/${accessPrefix}/${shareId}`, '_blank');
+                                                             }}
+                                                             className="flex items-center cursor-pointer gap-[0.35vw] text-[0.75vw] font-medium text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap shrink-0"
+                                                         >
+                                                             <Eye size="0.85vw" /> View Book
+                                                         </button>
+
+                                                         <button
+                                                             onClick={() => {
+                                                                 let targetFolder = book.folder;
+                                                                 if (targetFolder === 'Recent Book') {
+                                                                     const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
+                                                                     if (physicalBook) targetFolder = physicalBook.folder;
+                                                                 }
+                                                                 const identifier = book.v_id || encodeURIComponent(book.realName);
+                                                                 navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName, pageCount: book.pages } });
+                                                             }}
+                                                             className="flex items-center gap-[0.35vw] cursor-pointer text-[0.75vw] font-medium text-[#ea543a] hover:text-[#d4452d] transition-colors whitespace-nowrap shrink-0"
+                                                         >
+                                                             <Wrench size="0.85vw" className="text-[#ea543a]" /> Customize
+                                                         </button>
+
+                                                         <button
+                                                             onClick={() => {
+                                                                 let targetFolder = book.folder;
+                                                                 if (targetFolder === 'Recent Book') {
+                                                                     const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
+                                                                     if (physicalBook) targetFolder = physicalBook.folder;
+                                                                 }
+                                                                 const identifier = book.v_id || encodeURIComponent(book.realName);
+                                                                 navigate(`/editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName } });
+                                                             }}
+                                                             className="flex items-center gap-[0.35vw] cursor-pointer text-[0.75vw] font-medium text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap shrink-0"
+                                                         >
+                                                             <PenTool size="0.85vw" /> Open in Editor
+                                                         </button>
+
+                                                         <button className="flex items-center gap-[0.35vw] cursor-pointer text-[0.75vw] font-medium text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap shrink-0">
+                                                             <BarChart2 size="0.85vw" /> Statistic
+                                                         </button>
+
+                                                         <button
+                                                             onClick={() => handleShareClick(book)}
+                                                             className="flex items-center gap-[0.35vw] cursor-pointer text-[0.75vw] font-medium text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap shrink-0"
+                                                         >
+                                                             <Share2 size="0.85vw" /> Share
+                                                         </button>
+
+                                                         <button
+                                                             onClick={() => handleDownloadClick(book)}
+                                                             className="flex items-center gap-[0.35vw] cursor-pointer text-[0.75vw] font-medium text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap shrink-0"
+                                                         >
+                                                             <Download size="0.85vw" /> Download
+                                                         </button>
+
+                                                         {/* More Options */}
+                                                         <div className="relative shrink-0">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                                    const screenHeight = window.innerHeight;
+                                                                    const spaceBelow = screenHeight - rect.bottom;
+                                                                    const menuHeight = 160;
+                                                                    const showAbove = spaceBelow < menuHeight;
+
+                                                                    setMenuPosition({
+                                                                        top: showAbove ? (rect.top - 5) : (rect.bottom + 5),
+                                                                        left: rect.right,
+                                                                        isDropup: showAbove,
+                                                                        activeId: book.id
+                                                                    });
+
+                                                                    setActiveBookMenu(activeBookMenu === book.id ? null : book.id);
+                                                                }}
+                                                                className="flex items-center gap-[0.25vw] cursor-pointer text-[0.75vw] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                                                            >
+                                                                <MoreVertical size="0.85vw" /> More
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        /* Empty State - Perfectly Centered */
-                        <div className="flex-1 flex flex-col items-center justify-center text-center z-10 pb-[3vw]">
-                            {activeFolder === 'Recent Book' || activeFolder === 'Recent' ? (
-                                <>
-                                    <div
-                                        onClick={() => setIsCreateModalOpen(true)}
-                                        className="w-[4vw] h-[4vw] rounded-full bg-[#4c5add]/10 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-[#4c5add]/20 cursor-pointer hover:bg-[#4c5add]/20 transition-all"
-                                    >
-                                        <Plus size="2vw" className="text-[#4c5add]" />
-                                    </div>
-                                    <h3 className="text-[1.25vw] font-medium text-[#4c5add] mb-[0.25vw]">Create Flipbook</h3>
-                                    <p className="text-[#4c5add]/60 text-[0.875vw]">There are no recent flipbooks</p>
-                                </>
-                            ) : activeFolder === 'Trash' ? (
-                                <>
-                                    <div className="w-[4vw] h-[4vw] rounded-full bg-red-50 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-red-100">
-                                        <Trash2 size="2vw" className="text-red-300" />
-                                    </div>
-                                    <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">Trash is Empty</h3>
-                                    <p className="text-gray-500 text-[0.875vw]">There are no flipbooks in Trash</p>
-                                </>
-                            ) : activeFolder === 'Favorites' ? (
-                                <>
-                                    <div className="w-[4vw] h-[4vw] rounded-full bg-rose-50 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-rose-100">
-                                        <Heart size="2vw" className="text-rose-300" />
-                                    </div>
-                                    <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">No Favorites Yet</h3>
-                                    <p className="text-gray-500 text-[0.875vw]">Click the heart icon on any flipbook to add it to Favorites</p>
-                                </>
-                            ) : activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks' ? (
-                                <>
-                                    <div
-                                        onClick={() => setIsCreateModalOpen(true)}
-                                        className="w-[4vw] h-[4vw] rounded-full bg-[#4c5add]/10 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-[#4c5add]/20 cursor-pointer hover:bg-[#4c5add]/20 transition-all"
-                                    >
-                                        <Plus size="2vw" className="text-[#4c5add]" />
-                                    </div>
-                                    <h3 className="text-[1.25vw] font-medium text-[#4c5add] mb-[0.25vw]">No Flipbooks Yet</h3>
-                                    <p className="text-[#4c5add]/60 text-[0.875vw]">Upload a PDF or choose a template to create your first flipbook</p>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="w-[4vw] h-[4vw] rounded-full bg-[#4c5add]/5 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-[#4c5add]/10">
-                                        <Folder size="2vw" className="text-[#4c5add]/50" />
-                                    </div>
-                                    <h3 className="text-[1.25vw] font-medium text-[#4c5add] mb-[0.25vw]">No Flipbooks Found</h3>
-                                    <p className="text-[#4c5add]/60 text-[0.875vw]">This folder is empty</p>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Decorative blob inside card */}
-                    <div className="absolute -bottom-[5vw] -right-[5vw] w-[24vw] h-[24vw] bg-[#4c5add] rounded-full blur-[5vw] opacity-50 pointer-events-none"></div>
-                </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    /* Empty State */
+                    <div className="flex-1 flex flex-col items-center justify-center text-center z-10 py-[5vw]">
+                        {activeFolder === 'Recent Book' || activeFolder === 'Recent' ? (
+                            <>
+                                <div
+                                    onClick={() => setIsCreateModalOpen(true)}
+                                    className="w-[4vw] h-[4vw] rounded-full bg-[#ea543a]/10 flex items-center justify-center mb-[1vw] border border-[#ea543a]/20 cursor-pointer hover:bg-[#ea543a]/20 transition-all"
+                                >
+                                    <Plus size="2vw" className="text-[#ea543a]" />
+                                </div>
+                                <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">Create Flipbook</h3>
+                                <p className="text-gray-400 text-[0.875vw]">There are no recent flipbooks</p>
+                            </>
+                        ) : activeFolder === 'Trash' ? (
+                            <>
+                                <div className="w-[4vw] h-[4vw] rounded-full bg-red-50 flex items-center justify-center mb-[1vw] border border-red-100">
+                                    <Trash2 size="2vw" className="text-red-400" />
+                                </div>
+                                <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">Trash is Empty</h3>
+                                <p className="text-gray-400 text-[0.875vw]">There are no flipbooks in Trash</p>
+                            </>
+                        ) : activeFolder === 'Favorites' ? (
+                            <>
+                                <div className="w-[4vw] h-[4vw] rounded-full bg-rose-50 flex items-center justify-center mb-[1vw] border border-rose-100">
+                                    <Heart size="2vw" className="text-rose-400" />
+                                </div>
+                                <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">No Favorites Yet</h3>
+                                <p className="text-gray-400 text-[0.875vw]">Click the heart icon on any flipbook to add it to Favorites</p>
+                            </>
+                        ) : activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks' ? (
+                            <>
+                                <div
+                                    onClick={() => setIsCreateModalOpen(true)}
+                                    className="w-[4vw] h-[4vw] rounded-full bg-[#ea543a]/10 flex items-center justify-center mb-[1vw] border border-[#ea543a]/20 cursor-pointer hover:bg-[#ea543a]/20 transition-all"
+                                >
+                                    <Plus size="2vw" className="text-[#ea543a]" />
+                                </div>
+                                <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">No Flipbooks Yet</h3>
+                                <p className="text-gray-400 text-[0.875vw]">Upload a PDF or choose a template to create your first flipbook</p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="w-[4vw] h-[4vw] rounded-full bg-[#ea543a]/5 flex items-center justify-center mb-[1vw] border border-[#ea543a]/10">
+                                    <Folder size="2vw" className="text-[#ea543a]/60" />
+                                </div>
+                                <h3 className="text-[1.25vw] font-medium text-gray-800 mb-[0.25vw]">No Flipbooks Found</h3>
+                                <p className="text-gray-400 text-[0.875vw]">This folder is empty</p>
+                            </>
+                        )}
+                    </div>
+                )}
             </main>
 
             {/* Fixed Book Menu Portal */}
@@ -2599,7 +2792,7 @@ export default function MyFlipbooks() {
                 <>
                     <div className="fixed inset-0 z-[100]" onClick={(e) => { e.stopPropagation(); setActiveBookMenu(null); }}></div>
                     <div
-                        className="fixed z-[101] w-[12vw] bg-white rounded-[0.75vw] shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                        className="fixed z-[101] w-[12vw] min-w-[165px] bg-white rounded-[0.75vw] shadow-xl border border-gray-500 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
                         style={{
                             top: menuPosition.top,
                             left: menuPosition.left,
@@ -2616,9 +2809,9 @@ export default function MyFlipbooks() {
                                         <>
                                             <button
                                                 onClick={() => handleRestoreBook(book)}
-                                                className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-700 hover:bg-[#4c5add] hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
+                                                className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-medium text-gray-700 hover:bg-blue-600 hover:text-white transition-colors border-b border-gray-50 group cursor-pointer"
                                             >
-                                                <RotateCcw size="0.9vw" className="text-[#4c5add] group-hover:text-white" />
+                                                <RotateCcw size="0.9vw" className="text-blue-600 group-hover:text-white" />
                                                 Restore
                                             </button>
                                             <button

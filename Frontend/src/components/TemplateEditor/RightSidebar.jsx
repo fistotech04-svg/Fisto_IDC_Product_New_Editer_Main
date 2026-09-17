@@ -804,8 +804,8 @@ const RightSidebar = ({
           lowerDataName === 'group' ||
           lowerId.startsWith('group-') ||
           el.getAttribute('data-type') === 'group' ||
-          (!el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group'))
-        ) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true' && el.getAttribute('data-is-gif-group') !== 'true';
+          (!el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group') && dataType !== 'icon' && lowerDataName !== 'icon' && !lowerId.includes('icon'))
+        ) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true' && el.getAttribute('data-is-gif-group') !== 'true' && dataType !== 'icon' && lowerDataName !== 'icon' && !lowerId.includes('icon');
 
         const isImage = !isUserGroup && (lowerTagName.includes('image') ||
           lowerTagName === 'img' ||
