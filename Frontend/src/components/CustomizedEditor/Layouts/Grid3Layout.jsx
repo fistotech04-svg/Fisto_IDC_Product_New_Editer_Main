@@ -132,13 +132,13 @@ const MagneticDockBtnTop = ({ iconEl, label, onClick, extraStyle = {}, extraClas
                         {React.cloneElement(iconEl, { className: `${iconEl.props.className || ''} ${isMobileLandscape ? '!w-[0.7vw] !h-[0.7vw]' : ''}` })}
                     </div>
                 </motion.span>
-                {addTextBelowIcons && (
-                    <span
-                        className={`${isMobileLandscape ? 'text-[0.35vw]' : isTablet ? 'text-[0.35vw]' : 'text-[0.55vw]'} font-medium mt-[0.15vw] leading-none whitespace-nowrap`}
-                        style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
-                    >{label}</span>
-                )}
             </motion.div>
+            {addTextBelowIcons && (
+                <span
+                    className={`${isMobileLandscape ? 'text-[0.35vw]' : isTablet ? 'text-[0.35vw]' : 'text-[0.55vw]'} font-medium mt-[0.15vw] leading-none whitespace-nowrap`}
+                    style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
+                >{label}</span>
+            )}
 
             {showTooltip && !hideTooltip && !addTextBelowIcons && (
                 <div
