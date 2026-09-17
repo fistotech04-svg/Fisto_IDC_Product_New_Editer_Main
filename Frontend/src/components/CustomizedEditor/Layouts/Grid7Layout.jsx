@@ -56,7 +56,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
-// ── Magnetic dock button (same as Layout1) ──────────────────────────────────
+// â”€â”€ Magnetic dock button (same as Layout1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassName = '', mousePos, isTablet, addTextBelowIcons, textFont }) => {
     const btnRef = React.useRef(null);
     const [showTooltip, setShowTooltip] = React.useState(false);
@@ -143,7 +143,7 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
         </button>
     );
 };
-// ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const Grid7Layout = ({
     children,
@@ -192,7 +192,8 @@ const Grid7Layout = ({
     setShowSoundPopupMemo,
     layoutColors,
     isTablet,
-    isFullscreen: isFullscreenProp,
+    isFullscreen: isFullscreenProp
+,
     offset = 0,
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
@@ -258,6 +259,10 @@ const Grid7Layout = ({
                 else zoomOut();
             } else if (settings?.navigation?.mouseWheel) {
                 if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                    return;
+                }
+
+                if (!e.target.closest('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book, .fbe-wrapper, [data-fbe]')) {
                     return;
                 }
                 const now = Date.now();
@@ -331,7 +336,7 @@ const Grid7Layout = ({
     const isFullscreen = isFullscreenProp || false;
     const isCanvasHovered = false; const setIsCanvasHovered = () => {};
 
-    // Track actual browser fullscreen (fires only when browser enters real fullscreen — 2nd click)
+    // Track actual browser fullscreen (fires only when browser enters real fullscreen â€” 2nd click)
     const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
     useEffect(() => {
         const onFsChange = () => setIsBrowserFullscreen(!!document.fullscreenElement);
@@ -741,7 +746,7 @@ const Grid7Layout = ({
                 >
                     {modifiedChildren}
 
-                    {/* Left Navigate Button — hugs the visible page's left edge */}
+                    {/* Left Navigate Button â€” hugs the visible page's left edge */}
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
                             className="absolute top-1/2 -translate-y-1/2 -translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
@@ -752,7 +757,7 @@ const Grid7Layout = ({
                         </button>
                     )}
 
-                    {/* Right Navigate Button — hugs the visible page's right edge */}
+                    {/* Right Navigate Button â€” hugs the visible page's right edge */}
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
                             className="absolute top-1/2 -translate-y-1/2 translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
@@ -813,7 +818,7 @@ const Grid7Layout = ({
 
 
 
-            {/* Bottom Menu Bar — z-[105] so it sits on top of the thumbnail panel and tooltips work */}
+            {/* Bottom Menu Bar â€” z-[105] so it sits on top of the thumbnail panel and tooltips work */}
             <div
                 className={`absolute bottom-0 left-0 right-0 ${bbHeight} flex flex-col justify-center items-center ${bbPt} z-[105] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'} shadow-[0_-5px_20px_rgba(0,0,0,0.05)]`}
                 style={{
@@ -999,12 +1004,12 @@ const Grid7Layout = ({
                     onClick={handleProgressClick}
                 >
                     <div className="w-full h-[0.5vh] rounded-full relative overflow-visible">
-                        {/* Track Underlay (before fill) — matches Layout 1 shade */}
+                        {/* Track Underlay (before fill) â€” matches Layout 1 shade */}
                         <div
                             className="absolute inset-0 rounded-full transition-colors duration-300"
                             style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 0.3 }}
                         />
-                        {/* Progress Fill (after fill) — matches Layout 1 */}
+                        {/* Progress Fill (after fill) â€” matches Layout 1 */}
                         <div
                             className="absolute top-0 left-0 h-full rounded-full transition-all duration-300 pointer-events-none z-10"
                             style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), width: `${progressPercentage}%` }}
@@ -1099,9 +1104,9 @@ const Grid7Layout = ({
                 </div>
             </div>
 
-            {/* ── Thumbnail Panel — moved to end of DOM to prevent flex flow interference ── */}
+            {/* â”€â”€ Thumbnail Panel â€” moved to end of DOM to prevent flex flow interference â”€â”€ */}
             <AnimatePresence>
-                {showThumbnails && (
+                {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                     <motion.div
                         key="thumb-panel"
                         initial={{ y: '100%' }}
@@ -1189,5 +1194,4 @@ const Grid7Layout = ({
 };
 
 export default Grid7Layout;
-
 

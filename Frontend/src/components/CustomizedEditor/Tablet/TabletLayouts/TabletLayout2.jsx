@@ -54,6 +54,13 @@ import ShareModal from '../../../ShareModal';
 const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPageClick, settings, bookName = "Name of the Book", showSoundPopup, setShowSoundPopupMemo, showProfilePopup, setShowProfilePopupMemo, handleDownload, currentBook, activeLayout, searchQuery, setSearchQuery, handleQuickSearch }) => {
   const [inputPage, setInputPage] = useState(currentPage === 0 ? 1 : (currentPage || 1));
   const [showTOC, setShowTOC] = useState(false);
+
+  useEffect(() => {
+      if (settings?.navigation?.tableOfContents === false) {
+          setShowTOC(false);
+      }
+  }, [settings?.navigation?.tableOfContents]);
+
   const [isShareOpen, setIsShareOpen] = useState(false);
   
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');

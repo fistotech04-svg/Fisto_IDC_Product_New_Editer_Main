@@ -423,6 +423,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
   return (
     <div 
       ref={containerRef}
+      onContextMenu={(e) => e.preventDefault()}
       className="fixed inset-0 z-[1000] flex flex-col overflow-hidden select-none"
       style={{ 
         backgroundColor: '#ffffff',
@@ -553,7 +554,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         isDoublePage={isDoublePage}
         useNativeFullscreen={true}
         disableAutoGallery={true}
-        isPublishedPreview={isPublishedPreview}
+        isPublishedPreview={true}
         currentBook={currentBook || settings}
         v_id={v_id}
         shareId={propVId || v_id || params?.shareId || settings?.shareId}

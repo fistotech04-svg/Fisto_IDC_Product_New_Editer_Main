@@ -301,7 +301,7 @@ const CreatorFlipbookCard = ({ book, creator, onOpenBook }) => {
     );
 };
 
-export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false, isMobile = false, isTablet = false }) {
+export default function CreatorProfileModal({ isOpen, onClose, creator, isPreview = false, isMobile = false, isTablet = false, isSidebarOpen = false, isFullscreen = false }) {
     const [viewMode, setViewMode] = useState('shelf');
     const [profileData, setProfileData] = useState(null);
     const [booksData, setBooksData] = useState([]);
@@ -539,12 +539,16 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
         return (
             <AnimatePresence>
                 {isOpen && (
-                    <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] p-4">
+                    <div 
+                        className="absolute inset-0 z-[2000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] p-4"
+                        onClick={onClose}
+                    >
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="bg-[#f8f9fa] w-[90%] max-w-[400px] h-auto max-h-[85vh] rounded-2xl flex flex-col relative shadow-2xl overflow-hidden p-2"
+                            onClick={(e) => e.stopPropagation()}
                         >
                             <div className="flex flex-col flex-1 h-full min-h-0 bg-white relative overflow-y-auto no-scrollbar rounded-xl shadow-sm border border-gray-100">
                                 {/* Banner */}
@@ -719,21 +723,25 @@ export default function CreatorProfileModal({ isOpen, onClose, creator, isPrevie
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className={
-                    isPreview
-                        ? "absolute inset-0 z-[2000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pt-[3%] pb-[3%] px-[3%]"
-                        : "fixed top-[8vh] inset-x-0 bottom-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pb-[2vw]"
-                }>
+                <div 
+                    className={
+                        isPreview
+                            ? "absolute inset-0 z-[2000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px]"
+                            : "fixed top-[8vh] inset-x-0 bottom-0 z-[5000] flex items-center justify-center bg-gray-900/30 backdrop-blur-[2px] pb-[2vw]"
+                    }
+                    onClick={onClose}
+                >
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className={
                             isPreview
-                                ? `bg-[#f8f9fa] w-full ${isMobile ? 'h-[75%]' : 'h-full'} p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden`
+                                ? `bg-[#f8f9fa] ${isFullscreen ? 'w-[75%] h-[75%] m-auto' : isSidebarOpen ? 'w-[95%] h-[85%]' : `w-[85%] ${isMobile ? 'h-[75%]' : 'h-[85%]'}`} p-[1vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden`
                                 : `bg-[#f8f9fa] ${isMobile ? 'w-[95vw] h-[75vh]' : 'w-[85vw] h-[85vh]'} p-[1vw] mt-[2vw] rounded-[1.5vw] flex flex-col relative shadow-2xl overflow-hidden`
                         }
-                        style={isPreview ? { zoom: 0.95 } : {}}
+                        style={isPreview ? { zoom: isFullscreen ? 0.95 : isSidebarOpen ? 0.8 : 0.95 } : {}}
+                        onClick={(e) => e.stopPropagation()}
                     >
                         {/* Close Button */}
                         <button

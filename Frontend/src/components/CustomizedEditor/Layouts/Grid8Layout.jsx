@@ -158,6 +158,7 @@ const Grid8Layout = ({
     setIsFlipMuted,
     isFullscreen: isFullscreenProp
     ,
+    activeLayout,
     offset = 0,
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
@@ -221,7 +222,8 @@ const Grid8Layout = ({
                 if (e.deltaY < 0) zoomIn();
                 else zoomOut();
             } else if (settings?.navigation?.mouseWheel) {
-                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                // Allow wheel events in the whole canvas container to make scrolling on single pages work
+if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
                     return;
                 }
                 const now = Date.now();
@@ -396,17 +398,20 @@ const Grid8Layout = ({
     const getLayoutColor = (id, defaultColor) => {
         if (!layoutColors) return defaultColor;
 
-        // If layoutColors is an array directly for this layout
-        if (Array.isArray(layoutColors)) {
-            const colorObj = layoutColors.find(c => c.id === id);
-            return colorObj ? colorObj.hex : defaultColor;
-        }
+        const activeIdx = activeLayout || 8;
+        const saved = Array.isArray(layoutColors[activeIdx]) ? layoutColors[activeIdx] : [];
+        const toolbarP = layoutColors?.toolbarColor?.primary;
+        const toolbarS = layoutColors?.toolbarColor?.secondary;
+        const popupP = layoutColors?.popupColor?.primary;
+        const popupS = layoutColors?.popupColor?.secondary;
 
-        // If layoutColors is the global container (indexed by layout ID)
-        if (layoutColors[9] && Array.isArray(layoutColors[9])) {
-            const colorObj = layoutColors[9].find(c => c.id === id);
-            return colorObj ? colorObj.hex : defaultColor;
-        }
+        const savedItem = saved.find(c => c.id === id);
+        if (savedItem && savedItem.hex) return savedItem.hex;
+
+        if (toolbarP && ['toolbar-bg', 'bottom-toolbar-bg', 'page-number-bg'].includes(id)) return toolbarP;
+        if (toolbarS && ['toolbar-text-main', 'toolbar-icon', 'reset-text', 'page-number-text'].includes(id)) return toolbarS;
+        if (popupP && ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'].includes(id)) return popupP;
+        if (popupS && ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'].includes(id)) return popupS;
 
         return defaultColor;
     };
@@ -414,19 +419,11 @@ const Grid8Layout = ({
     const getLayoutOpacity = (id, defaultOpacity) => {
         if (!layoutColors) return defaultOpacity;
 
-        // If layoutColors is an array directly for this layout
-        if (Array.isArray(layoutColors)) {
-            const colorObj = layoutColors.find(c => c.id === id);
-            return colorObj ? colorObj.opacity / 100 : defaultOpacity;
-        }
+        const activeIdx = activeLayout || 8;
+        const saved = Array.isArray(layoutColors[activeIdx]) ? layoutColors[activeIdx] : [];
+        const savedItem = saved.find(c => c.id === id);
 
-        // If layoutColors is the global container (indexed by layout ID)
-        if (layoutColors[9] && Array.isArray(layoutColors[9])) {
-            const colorObj = layoutColors[9].find(c => c.id === id);
-            return colorObj ? colorObj.opacity / 100 : defaultOpacity;
-        }
-
-        return defaultOpacity;
+        return savedItem && savedItem.opacity !== undefined ? savedItem.opacity / 100 : defaultOpacity;
     };
 
     const getLayoutColorRgba = (id, defaultHex, defaultOpacity) => {
@@ -497,7 +494,7 @@ const Grid8Layout = ({
             style={{ backgroundColor: backgroundSettings?.color || baseBgColor, ...backgroundStyle }}
             onClick={() => setRecommendations([])}
         >
-            {/* ═══════════ Global Click Overlay Dropdowns ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Global Click Overlay Dropdowns â•â•â•â•â•â•â•â•â•â•â• */}
             {/* Captures clicks reliably before they hit the flipbook which swallows propagation */}
             {!isTablet && (showTopBookmarkOptions || showTopNotesOptions) && (
                 <div
@@ -509,7 +506,7 @@ const Grid8Layout = ({
                 />
             )}
 
-            {/* ═══════════ Top Overlay Area ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Top Overlay Area â•â•â•â•â•â•â•â•â•â•â• */}
             {!isTablet && (
             <div
                 className="absolute top-[2vh] left-[2vw] right-[2vw] flex items-center justify-between z-[100] pointer-events-none transition-all duration-500 ease-in-out"
@@ -630,7 +627,7 @@ const Grid8Layout = ({
                     )}
                 </div>
 
-                {/* ═══════════ Center: Top Toolbar ═══════════ */}
+                {/* â•â•â•â•â•â•â•â•â•â•â• Center: Top Toolbar â•â•â•â•â•â•â•â•â•â•â• */}
                 <div className="flex-shrink-0 pointer-events-auto relative z-[4000]">
                     <div
                         className={`flex items-center ${isSidebarOpen ? 'gap-[0.8vw]' : (isTablet ? 'gap-[0.4vw]' : 'gap-[0.8vw]')} rounded-full px-[0.8vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'}`}
@@ -849,7 +846,7 @@ const Grid8Layout = ({
             )}
 
 
-            {/* ═══════════ Main Book Canvas ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Main Book Canvas â•â•â•â•â•â•â•â•â•â•â• */}
             <div className="flex-1 flex justify-center items-center w-full z-10 pt-[8vh] pb-[12vh]"
                 onMouseMove={(e) => {
                     if (!isFullscreen) return;
@@ -874,14 +871,14 @@ const Grid8Layout = ({
                 </div>
             </div>
 
-            {/* ═══════════ Page Numbers Below Pages Removed ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Page Numbers Below Pages Removed â•â•â•â•â•â•â•â•â•â•â• */}
 
-            {/* ═══════════ Floating Action Buttons Removed ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Floating Action Buttons Removed â•â•â•â•â•â•â•â•â•â•â• */}
 
 
-            {/* ═══════════ Top Thumbnail Bar ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Top Thumbnail Bar â•â•â•â•â•â•â•â•â•â•â• */}
             <>
-                {!isTablet && showThumbnails && (
+                {!isTablet && (settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                     <>
                         {/* Invisible click-to-close overlay */}
                         <div
@@ -1003,7 +1000,7 @@ const Grid8Layout = ({
                 )}
             </>
 
-            {/* ═══════════ Bottom Navigation Bar ═══════════ */}
+            {/* â•â•â•â•â•â•â•â•â•â•â• Bottom Navigation Bar â•â•â•â•â•â•â•â•â•â•â• */}
             {!isTablet && (
             <div
                 className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex items-center z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
@@ -1095,7 +1092,7 @@ const Grid8Layout = ({
                             style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                         >
                             <span className={`text-[0.75vw] lg:text-[0.85vw] font-medium tracking-wide`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                                Page –
+                                Page â€“
                             </span>
                             <input
                                 type="text" autoComplete="off" spellCheck="false" autoCorrect="off"

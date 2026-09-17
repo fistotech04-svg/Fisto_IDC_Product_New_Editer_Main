@@ -169,7 +169,8 @@ const Grid6Layout = ({
                 if (e.deltaY < 0) zoomIn();
                 else zoomOut();
             } else if (settings?.navigation?.mouseWheel) {
-                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
+                // Allow wheel events in the whole canvas container to make scrolling on single pages work
+if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar-container') || e.target.closest('input')) {
                     return;
                 }
                 const now = Date.now();
@@ -576,7 +577,7 @@ const Grid6Layout = ({
                 <AnimatePresence>
                     {showTOC && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[1.5vh] w-[16vw]' : 'left-[4.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
+                            className={`absolute ${isTablet ? 'left-[4vw] top-[1.5vh] w-[16vw]' : 'left-[5.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
                             style={{
                                 backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                                 opacity: 1,
@@ -700,9 +701,9 @@ const Grid6Layout = ({
 
                 {/* Thumbnails Panel */}
                 <AnimatePresence>
-                    {showThumbnails && (
+                    {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[1.5vh] w-[17vw]' : 'left-[4.5vw] top-[2vh] w-[19vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
+                            className={`absolute ${isTablet ? 'left-[4vw] top-[1.5vh] w-[17vw]' : 'left-[5.5vw] top-[2vh] w-[19vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
                             style={{
                                 backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                                 opacity: 1,
@@ -916,7 +917,7 @@ const Grid6Layout = ({
                     // We'll calculate relative to the visual center of the book viewer container
                     return (
                         <div className="absolute inset-0 pointer-events-none z-30" style={{ right: isFullscreen ? '0vw' : '3vw' }}>
-                            {/* Left Navigation Arrow — hugs left edge of book */}
+                            {/* Left Navigation Arrow â€” hugs left edge of book */}
                             {(settings?.navigation?.nextPrevButtons ?? true) && (
                                 <div
                                     className="absolute top-1/2 -translate-y-1/2 -translate-x-full flex items-center transition-all duration-500 ease-out pointer-events-auto"
@@ -935,7 +936,7 @@ const Grid6Layout = ({
                                 </div>
                             )}
 
-                            {/* Right Navigation Arrow — hugs right edge of book */}
+                            {/* Right Navigation Arrow â€” hugs right edge of book */}
                             {(settings?.navigation?.nextPrevButtons ?? true) && (
                                 <div
                                     className="absolute top-1/2 -translate-y-1/2 flex items-center transition-all duration-500 ease-out pointer-events-auto"

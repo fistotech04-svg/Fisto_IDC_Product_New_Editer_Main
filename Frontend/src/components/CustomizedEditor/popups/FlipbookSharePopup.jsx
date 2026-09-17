@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import QRCode from 'react-qr-code';
 
@@ -6,7 +7,7 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
     const [shareCurrentPage, setShareCurrentPage] = useState(false);
     const [localUrl, setLocalUrl] = useState(url);
     const [copied, setCopied] = useState(false);
-    
+
     // Download states
     const [downloadFormat, setDownloadFormat] = useState('JPG');
     const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
@@ -50,18 +51,18 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
             canvas.width = 1024;
             canvas.height = 1024;
             const ctx = canvas.getContext('2d');
-            
+
             // Draw background for JPG
             if (downloadFormat === 'JPG') {
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
-            
+
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
+
             const format = downloadFormat === 'JPG' ? 'image/jpeg' : 'image/png';
             const dataUrl = canvas.toDataURL(format, 1.0);
-            
+
             const downloadLink = document.createElement('a');
             downloadLink.href = dataUrl;
             downloadLink.download = `${bookName || 'flipbook'}_QR.${downloadFormat.toLowerCase()}`;
@@ -85,7 +86,7 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
         fontFamily: popupSettings?.textProperties?.font || 'Poppins'
     };
 
-    return (
+    return createPortal(
         <div
             className={`absolute inset-0 z-[5000] flex items-center justify-center pointer-events-auto bg-transparent ${isMobile ? 'p-4' : ''}`}
             onClick={onClose}
@@ -133,13 +134,12 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                         </div>
                         <button
                             disabled={!isPublished}
-                            className={`flex items-center gap-1 transition-colors shadow-sm ${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-2.5') : 'h-[2.5vw] px-[1.2vw]'} rounded-lg ${
-                                !isPublished 
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60' 
-                                    : copied 
-                                    ? 'bg-green-500 text-white cursor-pointer' 
-                                    : 'bg-black text-white hover:bg-gray-800 cursor-pointer'
-                            }`}
+                            className={`flex items-center gap-1 transition-colors shadow-sm ${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-2.5') : 'h-[2.5vw] px-[1.2vw]'} rounded-lg ${!isPublished
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+                                    : copied
+                                        ? 'bg-green-500 text-white cursor-pointer'
+                                        : 'bg-black text-white hover:bg-gray-800 cursor-pointer'
+                                }`}
                             onClick={() => {
                                 if (!isPublished) {
                                     alert("Please publish your flipbook first to copy or share the link.");
@@ -254,7 +254,8 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.fullscreenElement || document.getElementById('device-screen-container') || document.body
     );
 };
 

@@ -159,7 +159,7 @@ const CustomizedEditor = () => {
   const [watermarkSettings, setWatermarkSettings] = useState(() => {
     const cb = currentBook?.Customized_Settings?.Branding || currentBook?.settings?.Branding || currentBook?.settings || {};
     const w = cb.watermarkSettings || cb.watermark || location.state?.watermarkSettings || location.state?.watermark;
-    if (w && typeof w === 'object') return w;
+    if (w && typeof w === 'object') return { ...w, src: w.src || '' };
     return {
       src: '',
       opacity: 64,
@@ -1028,6 +1028,9 @@ const CustomizedEditor = () => {
   const stableExportHandler = useCallback((...args) => handleExportRef.current?.(...args), []);
 
   const handlePreview = useCallback(() => {
+    // Close profile popup if it's open
+    window.dispatchEvent(new Event('close-profile-preview'));
+
     const shareId = shareSettings?.shareId || currentBook?.shareId || v_id;
     const previewUrl = shareId ? `/preview?shareId=${shareId}` : (v_id ? `/preview?v_id=${v_id}` : '/preview');
     
@@ -1766,6 +1769,8 @@ const CustomizedEditor = () => {
     return vars;
   }, [layoutSettings, layoutColors]);
 
+  const visiblePages = useMemo(() => pages.filter(p => !p.isHidden), [pages]);
+
   return (
     <div
       className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans select-none relative"
@@ -1889,7 +1894,7 @@ const CustomizedEditor = () => {
           )}
           <PreviewArea
             bookName={bookName}
-            pages={pages.filter(p => !p.isHidden)}
+            pages={visiblePages}
             targetPage={targetPage}
             logoSettings={logoSettings}
             watermarkSettings={watermarkSettings}
@@ -1909,7 +1914,7 @@ const CustomizedEditor = () => {
             notes={notes}
             setBookmarks={setBookmarks}
             setNotes={setNotes}
-            onFlip={(idx) => setTargetPage(idx)}
+            onFlip={setTargetPage}
             isEditor={true}
             useNativeFullscreen={true}
             baseUrl={projectBaseUrl}

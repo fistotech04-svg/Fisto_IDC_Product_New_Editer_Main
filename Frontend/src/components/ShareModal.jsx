@@ -256,7 +256,7 @@ const CustomQRCode = React.forwardRef(({
 });
 
 
-const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook, activeLayout, isTabletLayout = false, isMobileLayout = false }) => {
+const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook, activeLayout, isTabletLayout = false, isMobileLayout = false, isAbsolutePosition = false }) => {
     const [addCover, setAddCover] = useState(false);
 
     const getResolvedFirstPageHtml = () => {
@@ -1361,7 +1361,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     }
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center">
+        <div className={`${isAbsolutePosition ? 'absolute' : 'fixed'} inset-0 z-[150] flex items-center justify-center`}>
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
