@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import ColorPicker, { parseGradient } from './ColorPicker';
-import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import Color from './Color';
+import { generateGradientString } from "../CustomizedEditor/AppearanceShared";import Color from './Color';
 import Effect from './Effect';
 
 import { Icon } from '@iconify/react';
@@ -108,7 +107,8 @@ const STYLE_MAP = {
   strokeWidth: 'strokeWidth',
   strokeDasharray: 'strokeDasharray',
   strokeLinecap: 'strokeLinecap',
-  strokeLinejoin: 'strokeLinejoin'
+  strokeLinejoin: 'strokeLinejoin',
+  opacity: 'opacity'
 };
 
 // Maps React/camelCase property names to SVG presentation attribute names
@@ -721,7 +721,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       }
 
       if (backgroundColor.bgStroke !== undefined) {
-        if (backgroundColor.bgStroke && backgroundColor.bgStroke !== 'none' && backgroundColor.bgStroke !== 'transparent' && Number(backgroundColor.bgStrokeWidth) > 0) {
+        if (backgroundColor.bgStroke && backgroundColor.bgStroke !== 'none' && backgroundColor.bgStroke !== 'transparent' && backgroundColor.bgStroke !== '#') {
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', backgroundColor.bgStroke);
           if (backgroundColor.bgStrokeOpacity !== undefined) {
             updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-opacity', (backgroundColor.bgStrokeOpacity / 100).toString());
@@ -1015,6 +1015,45 @@ const TextEditor = ({
       const liveTag = liveEl.tagName.toLowerCase();
       console.log(`[TextEditor] Live update: tag=${liveTag}, id=${elId}, attr=${attribute}, val=${value}`);
 
+      if (attribute && (attribute.startsWith('data-bg-') || attribute === 'data-scrollbar-color')) {
+        liveEl.setAttribute(attribute, value);
+        if (attribute.startsWith('data-bg-')) {
+          const cssVar = '--' + attribute.substring(5);
+          liveEl.style.setProperty(cssVar, value);
+          const outerDiv = liveEl.querySelector('.flipbook-text-outer') || liveEl.firstElementChild;
+          if (outerDiv && outerDiv.style) {
+            outerDiv.style.setProperty(cssVar, value, 'important');
+            const bgFill = liveEl.getAttribute('data-bg-fill');
+            const bgFillOpacity = liveEl.getAttribute('data-bg-fill-opacity') !== null ? liveEl.getAttribute('data-bg-fill-opacity') : '1';
+            if (bgFill && bgFill !== 'none' && bgFill !== 'transparent') {
+              let c = bgFill.replace('#', '');
+              if (c.length === 3) c = c.split('').map(x => x + x).join('');
+              const num = parseInt(c, 16);
+              if (!isNaN(num)) {
+                const r = (num >> 16) & 255;
+                const g = (num >> 8) & 255;
+                const b = num & 255;
+                const op = parseFloat(bgFillOpacity);
+                const clampedOp = isNaN(op) ? 1 : (op > 1 ? op / 100 : op);
+                outerDiv.style.setProperty('background-color', `rgba(${r}, ${g}, ${b}, ${clampedOp})`, 'important');
+              }
+            }
+            const bgStroke = liveEl.getAttribute('data-bg-stroke');
+            const bgStrokeWidth = liveEl.getAttribute('data-bg-stroke-width') || '0';
+            const bgStrokeDash = liveEl.getAttribute('data-bg-stroke-dasharray');
+            const borderStyle = (bgStrokeDash && bgStrokeDash !== 'none') ? 'dashed' : 'solid';
+            if (bgStroke && bgStroke !== 'none' && bgStroke !== 'transparent' && Number(bgStrokeWidth) > 0) {
+              outerDiv.style.setProperty('border', `${bgStrokeWidth}px ${borderStyle} ${bgStroke}`, 'important');
+            } else if (attribute === 'data-bg-stroke' && (value === 'none' || value === 'transparent')) {
+              outerDiv.style.setProperty('border', 'none', 'important');
+            }
+          }
+        }
+        if (attribute === 'rx') {
+          liveEl.style.setProperty('--bg-rx', value + 'px');
+        }
+      }
+
       if (styleProp || attribute === 'data-stroke-position') {
         if (liveTag === 'foreignobject') {
           if (liveEl.firstElementChild && styleProp) {
@@ -1079,18 +1118,10 @@ const TextEditor = ({
               liveEl.style.setProperty(cssPropName, applyVal, 'important');
             }
           }
-          if (attribute && attribute.startsWith('data-bg-')) {
-            liveEl.setAttribute(attribute, value);
-            liveEl.style.setProperty('--' + attribute.substring(5), value);
-          }
-          if (attribute === 'data-scrollbar-color') {
-            liveEl.setAttribute(attribute, value);
-            // The actual color and WebKit repaint is strictly handled by the MainEditor MutationObserver
-          }
           if (attribute === 'rx') {
-          liveEl.style.setProperty('--bg-rx', value + 'px');
+            liveEl.style.setProperty('--bg-rx', value + 'px');
           }
-          if (attribute === 'fill' || attribute === 'stroke') {
+          if (attribute === 'fill' || attribute === 'stroke' || attribute === 'opacity') {
             liveEl.setAttribute(attribute, value);
           }
           if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
@@ -2484,15 +2515,15 @@ const TextEditor = ({
   return (
     <div className="w-full flex flex-col gap-[0.4vw] font-sans text-gray-800">
       {/* Header */}
-      <div className="flex items-center gap-[0.75vw]">
+      <div className="flex items-center gap-[0.75vw] mb-[0.5vw]">
         <h2 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Text Property</h2>
-        <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+        <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
       </div>
 
 
 
       {/* Font Selectors Row 1 */}
-      <div className="flex gap-[0.65vw]">
+      <div className="flex gap-[0.65vw] mb-[0.5vw]">
         <div className="relative flex-[1.5]" ref={dropdownRef}>
           <button
             onClick={() => setShowFontDropdown(!showFontDropdown)}
@@ -2553,11 +2584,11 @@ const TextEditor = ({
       </div>
 
       {/* Font Selectors Row 2 */}
-      <div className="flex gap-[0.65vw]">
+      <div className="flex gap-[0.65vw] mb-[0.5vw]">
         <div className="relative flex-1" ref={weightRef}>
           <button
             onClick={() => setShowWeightDropdown(!showWeightDropdown)}
-            className="w-[8vw] h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
+            className="w-full h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
           >
             <span className="text-[0.85vw] truncate">{fontWeights.find(w => w.value === fontWeight.toString())?.name || 'Regular'}</span>
             <ChevronDown size="1vw" className="text-gray-500" />
@@ -2713,9 +2744,9 @@ const TextEditor = ({
       </div>
 
       {/* Text Sizing Mode (Auto Width / Auto Height) */}
-      <div className="flex flex-col gap-[1vw] pt-[0.8vw] border-t border-gray-100">
+      <div className="flex flex-col gap-[1vw] pt-[1vw] mb-[1vw] border-t border-gray-100">
         <div className="flex items-center gap-[0.5vw] transition-opacity duration-200 opacity-100">
-          <span className="text-[0.75vw] font-semibold text-gray-600 whitespace-nowrap">Resize</span>
+          <span className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap">Resize</span>
           <div className="flex gap-[0.35vw] p-[0.2vw] bg-gray-100 rounded-[0.6vw] flex-1">
             {/* Auto Width */}
             <button
@@ -2759,8 +2790,8 @@ const TextEditor = ({
         </div>
 
         {/* Scrollable Toggle */}
-        <div className={`flex items-center justify-between ${sizingMode !== 'fixed' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-          <span className="text-[0.8vw] font-semibold">Scrollable Text Box Feature</span>
+        <div className={`flex items-center justify-between  ${sizingMode !== 'fixed' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+          <span className="text-[0.8vw] font-semibold text-gray-900">Scrollable Text Box Feature</span>
           <div className="flex-1 mx-[1vw] border-b border-dashed border-gray-300"></div>
           <button
             onClick={() => {
@@ -2770,9 +2801,9 @@ const TextEditor = ({
                 updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollable', nextValue.toString());
               }
             }}
-            className={`w-[2.2vw] h-[1.1vw] rounded-full p-[0.15vw] transition-colors duration-200 ${isScrollable ? 'bg-indigo-600' : 'bg-gray-300'}`}
+            className={`w-[2.3vw] h-[1.2vw] rounded-full p-[0.15vw] transition-colors duration-200 ${isScrollable ? 'bg-indigo-600' : 'bg-gray-300'}`}
           >
-            <div className={`w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
+            <div className={`w-[0.9vw] h-[0.9vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
           </button>
         </div>
       </div>

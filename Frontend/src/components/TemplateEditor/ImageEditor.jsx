@@ -3179,6 +3179,11 @@ const ImageEditor = ({
                     }
                   });
 
+                  if (actualSlideshowEl?.id) {
+                    const localKey = `slideshow_${flipbookVId || 'local'}_${actualSlideshowEl.id}`;
+                    try { localStorage.removeItem(localKey); } catch (e) { }
+                  }
+
                   // Cleanup DOM artifacts and clones
                   const container = liveEl.parentElement || liveEl;
                   if (container) {
@@ -3299,6 +3304,11 @@ const ImageEditor = ({
                             delete el.dataset.isSlideshow;
                           }
                         });
+
+                        if (actualSlideshowEl?.id) {
+                          const localKey = `slideshow_${flipbookVId || 'local'}_${actualSlideshowEl.id}`;
+                          try { localStorage.removeItem(localKey); } catch (e) { }
+                        }
 
                         // Cleanup DOM artifacts and clones
                         const container = liveEl.parentElement || liveEl;

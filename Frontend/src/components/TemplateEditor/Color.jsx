@@ -337,6 +337,11 @@ const Color = ({
         if (!isImage) {
           if (!isGradient) el.setAttribute('fill', backgroundColor.fill);
           el.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+          el.setAttribute('opacity', (backgroundColor.fillOpacity / 100).toString());
+          el.style.setProperty('opacity', (backgroundColor.fillOpacity / 100).toString(), 'important');
+          if (el.tagName?.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+            el.firstElementChild.style.setProperty('opacity', (backgroundColor.fillOpacity / 100).toString(), 'important');
+          }
         } else {
           // --- Fast path: directly patch existing SVG gradient stops ---
           // If a gradient fill layer already exists with a url(#...) fill, we update
@@ -430,6 +435,8 @@ const Color = ({
       } else {
         el.setAttribute('data-stroke-color', backgroundColor.stroke);
         el.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
+        el.setAttribute('data-stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
+        el.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
 
         const isStrokeGradient = backgroundColor.stroke.includes('gradient');
 
@@ -675,6 +682,20 @@ const Color = ({
     }
     if (attr === 'data-stroke-position' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokePosition: value }));
     if (attr === 'stroke-linecap' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeLinecap: value }));
+    if (attr === 'data-scrollbar-color' && setBackgroundColor) setBackgroundColor(p => ({ ...p, scrollBarColor: value }));
+    if (attr === 'data-bg-fill' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgFill: value }));
+    if (attr === 'data-bg-fill-opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgFillOpacity: parseFloat(value) * 100 }));
+    if (attr === 'data-bg-stroke' && setBackgroundColor) {
+      setBackgroundColor(p => ({
+        ...p,
+        bgStroke: value,
+        bgStrokeWidth: (p.bgStrokeWidth === 0 && value !== 'transparent' && value !== 'none' && value !== '#') ? 1 : p.bgStrokeWidth
+      }));
+    }
+    if (attr === 'data-bg-stroke-opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeOpacity: parseFloat(value) * 100 }));
+    if (attr === 'data-bg-stroke-width' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeWidth: parseFloat(value) }));
+    if (attr === 'data-bg-stroke-position' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokePosition: value }));
+    if (attr === 'data-bg-stroke-dasharray' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeDasharray: value }));
   };
 
   const updateAttr = (attribute, value) => {
@@ -693,13 +714,13 @@ const Color = ({
   return (
     <div ref={containerRef} className="flex flex-col gap-[0.4vw] font-sans">
       {isText && (isScrollable === true || selectedElementProps?.['data-scrollable'] === 'true') && (sizingMode === 'fixed' || selectedElementProps?.['data-sizing-mode'] === 'fixed') && (
-        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden mb-[1vw]">
+        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
           <div
             onClick={() => setOpenSubSection(openSubSection === 'color' || openSubSection === 'bgColor' ? null : 'bgColor')}
             className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
           >
             <div className="flex items-center gap-[0.5vw]">
-              <span className="font-semibold text-[0.85vw] text-gray-900">BG Color</span>
+              <span className={`font-semibold text-[0.85vw] ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'text-gray-900' : 'text-gray-500'}`}>BG Color</span>
             </div>
             <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
           </div>
@@ -1543,13 +1564,16 @@ const Color = ({
                   if (setBackgroundColor) setBackgroundColor(p => ({ ...p, scrollBarOpacity: parseFloat(newOpacity) }));
                 } else if (activeColorPicker === 'bg-fill') {
                   if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgFillOpacity: parseFloat(newOpacity) }));
+                  updateAttr('data-bg-fill-opacity', (newOpacity / 100).toString());
                 } else if (activeColorPicker === 'bg-stroke') {
                   if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeOpacity: parseFloat(newOpacity) }));
+                  updateAttr('data-bg-stroke-opacity', (newOpacity / 100).toString());
                 } else if (activeColorPicker === 'fill') {
                   updateAttr('opacity', (newOpacity / 100).toString());
                 } else if (activeColorPicker === 'stroke') {
                   updateAttr('stroke-opacity', (newOpacity / 100).toString());
                 }
+                if (onUpdate) onUpdate({ shouldRefresh: true });
               }}
               onClose={() => setActiveColorPicker(null)}
               colorsOnPage={colorsOnPage}

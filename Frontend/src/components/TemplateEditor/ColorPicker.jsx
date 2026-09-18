@@ -71,7 +71,7 @@ export const generateGradientString = (type, stops, angle = 0, radius = 100) => 
 };
 
 export const solidPalette = [
-  '#FFFFFF', '#000000', '#FF0000', '#FF4500', '#FFA500', 
+  '#FFFFFF', '#000000', '#FF0000', '#FF4500', '#FFA500',
   '#FFFF00', '#008000', '#0000FF', '#8A2BE2', '#800080', '#C71585'
 ];
 
@@ -293,7 +293,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
 
     isDraggingPopup.current = true;
     setIsPopupDragging(true);
-    
+
     dragStartRef.current = {
       x: e.clientX - (dragPosition.x * scale),
       y: e.clientY - (dragPosition.y * scale),
@@ -339,7 +339,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
 
     isCustomDraggingPopup.current = true;
     setIsCustomPopupDragging(true);
-    
+
     customDragStartRef.current = {
       x: e.clientX - (customDragPosition.x * scale),
       y: e.clientY - (customDragPosition.y * scale),
@@ -672,20 +672,39 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
           </div>
 
           {/* Color Code Input Row */}
-          <div className="flex items-center justify-between mt-[0.2vw]">
-            <span className="text-[0.7vw] font-bold text-gray-800">Color Code :</span>
-            <div className="flex items-center justify-between border border-gray-400 rounded-[0.4vw] px-[0.5vw] py-[0.2vh] w-[6.2vw] bg-white hover:border-[#6366f1] transition-all">
-              <input
-                type="text"
-                value={(color || "#ffffff").toLowerCase()}
-                onChange={(e) => {
-                  let val = e.target.value;
-                  if (!val.startsWith('#')) val = '#' + val;
-                  onChange(val);
-                }}
-                className="w-[4.6vw] text-[0.65vw] font-semibold text-gray-700 outline-none lowercase font-mono bg-transparent"
-              />
+          <div className="flex items-center gap-[0.5vw] w-full mt-[0.2vw]">
+            <span className="w-[4.8vw] text-[0.75vw] font-semibold text-gray-800 flex-shrink-0">Color Code :</span>
+            <div className="flex-1 flex items-center gap-[0.4vw]">
+              <div className="h-[1.9vw] border border-gray-300 rounded-[0.4vw] flex items-center px-[0.4vw] justify-between bg-white hover:border-[#5d5efc] focus-within:border-[#5d5efc] transition-colors flex-1 min-w-0">
+                <div className="flex items-center gap-[0.1vw] min-w-0 flex-1">
+                  <span className="text-gray-700 text-[0.75vw] font-medium">#</span>
+                  <input
+                    type="text"
+                    value={(color || "#FFFFFF").replace("#", "").toUpperCase()}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (!val.startsWith('#')) val = '#' + val;
+                      onChange(val);
+                    }}
+                    className="w-full text-[0.75vw] font-semibold text-gray-700 outline-none uppercase bg-transparent"
+                    maxLength={7}
+                  />
+                </div>
+                <div
+                  className="flex items-center gap-[0.1vw] cursor-ew-resize select-none px-[0.15vw] hover:bg-gray-50 rounded flex-shrink-0"
+                  onPointerDown={(e) => {
+                    handleLocalScrub(e, displayOpacity, (val) => {
+                      const num = parseInt(val);
+                      const clamped = Math.min(Math.max(num, 0), 100);
+                      if (onOpacityChange) onOpacityChange(clamped);
+                    });
+                  }}
+                >
+                  <span className="text-[0.7vw] font-semibold text-gray-500">{displayOpacity}%</span>
+                </div>
+              </div>
               <button
+                type="button"
                 onClick={async () => {
                   if ('EyeDropper' in window) {
                     const eyeDropper = new window.EyeDropper();
@@ -695,33 +714,15 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                     } catch (e) { }
                   }
                 }}
-                className="flex items-center justify-center p-[0.05vw] hover:bg-gray-50 rounded-[0.1vw] transition-colors"
+                className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center justify-center bg-white shadow-sm hover:border-black transition-colors flex-shrink-0 group/btn"
+                title="Pick Color"
               >
-                {/* slanted pencil icon */}
-                <svg width="0.7vw" height="0.7vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
+                <Icon icon="lucide:pipette" className="w-[0.8vw] h-[0.8vw] text-gray-500 group-hover/btn:text-black" />
               </button>
             </div>
           </div>
 
-          {/* Opacity Slider Row */}
-          <div className="flex items-center justify-between mt-[0.1vw]">
-            <span className="text-[0.7vw] font-bold text-gray-800">Opacity :</span>
-            <div className="w-[6.2vw] flex items-center h-[1.5vw]">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={displayOpacity}
-                onChange={(e) => {
-                  if (onOpacityChange) onOpacityChange(parseInt(e.target.value));
-                }}
-                className="w-full cursor-pointer custom-range-slider-color"
-                style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${displayOpacity}%, #E2E8F0 ${displayOpacity}%, #E2E8F0 100%)` }}
-              />
-            </div>
-          </div>
+
         </div>
       ) : (
         <div className="relative min-h-[28vw] flex flex-col justify-between">
@@ -805,29 +806,29 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                     <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-[1vw]">
-                    <span className="text-[0.75vw] font-semibold text-gray-700 whitespace-nowrap flex-shrink-0">Fill :</span>
-                    <div className="flex-1 flex gap-[0.5vw] items-center min-w-0">
-                      <div
-                        className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] shadow-sm cursor-pointer hover:border-[#5d5efc] transition-colors overflow-hidden relative flex-shrink-0"
-                        onClick={() => setView("custom")}
-                      >
-                        {(!color || color === 'none' || color === 'transparent' || color === '#') ? (
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45"></div>
-                        ) : (
-                          <div className="absolute inset-0" style={{ background: color, opacity: displayOpacity / 100 }} />
-                        )}
-                      </div>
-                      <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center pl-[0.5vw] pr-[0.4vw] justify-between bg-white hover:border-black transition-colors min-w-0">
-                        <input
-                          type="text"
-                          value={(!color || color === 'none' || color === 'transparent' || color === '#') ? 'NONE' : color.toUpperCase()}
-                          onChange={(e) => onChange(e.target.value)}
-                          className="flex-1 min-w-0 text-[0.7vw] font-medium text-gray-700 font-mono bg-transparent outline-none"
-                        />
-                        <div className="flex items-center gap-[0.1vw] flex-shrink-0">
+                  <div className="flex flex-col gap-[0.6vw]">
+                    <div className="flex items-center justify-between gap-[1vw]">
+                      <span className="text-[0.75vw] font-semibold text-gray-700 whitespace-nowrap flex-shrink-0">Fill :</span>
+                      <div className="flex-1 flex gap-[0.5vw] items-center min-w-0">
+                        <div
+                          className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] shadow-sm cursor-pointer hover:border-[#5d5efc] transition-colors overflow-hidden relative flex-shrink-0"
+                          onClick={() => setView("custom")}
+                        >
+                          {(!color || color === 'none' || color === 'transparent' || color === '#') ? (
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45"></div>
+                          ) : (
+                            <div className="absolute inset-0" style={{ background: color, opacity: displayOpacity / 100 }} />
+                          )}
+                        </div>
+                        <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center px-[0.5vw] justify-between bg-white hover:border-black transition-colors min-w-0">
+                          <input
+                            type="text"
+                            value={(!color || color === 'none' || color === 'transparent' || color === '#') ? 'NONE' : color.toUpperCase()}
+                            onChange={(e) => onChange(e.target.value)}
+                            className="flex-1 min-w-0 text-[0.75vw] font-medium text-gray-700 font-mono text-uppercase bg-transparent outline-none tracking-wide"
+                          />
                           <div
-                            className="flex items-center gap-[0.1vw] cursor-ew-resize select-none px-[0.15vw] hover:bg-gray-50 rounded"
+                            className="flex items-center gap-[0.1vw] cursor-ew-resize select-none px-[0.15vw] hover:bg-gray-50 rounded flex-shrink-0"
                             onPointerDown={(e) => {
                               handleLocalScrub(e, displayOpacity, (val) => {
                                 const num = parseInt(val);
@@ -836,36 +837,38 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                               });
                             }}
                           >
-                            <span className="text-[0.7vw] font-medium text-gray-400">{displayOpacity}%</span>
+                            <span className="text-[0.7vw] font-semibold text-gray-500">{displayOpacity}%</span>
                           </div>
                         </div>
+                        <button
+                          onClick={async () => {
+                            if ('EyeDropper' in window) {
+                              const eyeDropper = new window.EyeDropper();
+                              try {
+                                const result = await eyeDropper.open();
+                                onChange(result.sRGBHex);
+                              } catch (e) { }
+                            } else {
+                              const fallbackInput = document.getElementById('solid-mode-color-fallback');
+                              if (fallbackInput) fallbackInput.click();
+                            }
+                          }}
+                          className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center justify-center bg-white shadow-sm hover:border-black transition-colors flex-shrink-0 group/btn"
+                        >
+                          <Icon icon="lucide:pipette" className="w-[0.9vw] h-[0.9vw] text-gray-500 group-hover/btn:text-black" />
+                        </button>
+                        <input
+                          type="color"
+                          id="solid-mode-color-fallback"
+                          className="hidden"
+                          onChange={(e) => {
+                            onChange(e.target.value);
+                          }}
+                        />
                       </div>
-                      <button
-                        onClick={async () => {
-                          if ('EyeDropper' in window) {
-                            const eyeDropper = new window.EyeDropper();
-                            try {
-                              const result = await eyeDropper.open();
-                              onChange(result.sRGBHex);
-                            } catch (e) { }
-                          } else {
-                            const fallbackInput = document.getElementById('solid-mode-color-fallback');
-                            if (fallbackInput) fallbackInput.click();
-                          }
-                        }}
-                        className="w-[1.7vw] h-[1.7vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm hover:border-black transition-colors flex-shrink-0 group/btn"
-                      >
-                        <Icon icon="lucide:pipette" className="w-[0.9vw] h-[0.9vw] text-gray-500 group-hover/btn:text-black" />
-                      </button>
-                      <input
-                        type="color"
-                        id="solid-mode-color-fallback"
-                        className="hidden"
-                        onChange={(e) => {
-                          onChange(e.target.value);
-                        }}
-                      />
                     </div>
+
+
                   </div>
                 </div>
 
@@ -920,7 +923,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                       }}
                     />
                     <div className="flex-1 flex flex-col gap-[0.5vw] justify-between">
-                      <span className="text-[0.65vw] font-bold text-gray-400 uppercase tracking-wider">{gradientType} GRADIENT</span>
+                      <span className="text-[0.75vw] font-medium text-gray-700 uppercase tracking-wider">{gradientType} GRADIENT</span>
                       {(gradientType === 'Linear') && (
                         <div className="flex items-center gap-[0.5vw]">
                           <span className="text-[0.75vw] font-semibold text-gray-700 w-[2.5vw]">Angle</span>
@@ -987,7 +990,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                             const startOffset = stop.offset;
                             const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
                             if (e.pointerId !== undefined) {
-                              try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+                              try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { }
                             }
 
                             let finalOffset = startOffset;
@@ -1000,7 +1003,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
 
                             const handlePointerUp = (upEvent) => {
                               if (upEvent.pointerId !== undefined) {
-                                try { upEvent.target.releasePointerCapture(upEvent.pointerId); } catch (err) {}
+                                try { upEvent.target.releasePointerCapture(upEvent.pointerId); } catch (err) { }
                               }
                               updateGradientStop(idx, { offset: finalOffset }, false);
                               window.removeEventListener('pointermove', handlePointerMove);
@@ -1144,7 +1147,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
           </div>
 
           {view === "custom" && (
-            <div 
+            <div
               className="absolute top-[3vw] left-[calc(100%-5vw)] w-[16vw] p-[0.8vw] bg-white border border-gray-400 rounded-[0.8vw] shadow-[0_1vw_3vw_-0.5vw_rgba(0,0,0,0.2)] animate-in fade-in slide-in-from-left-2 z-[9999]"
               style={{
                 transform: `translate(${customDragPosition.x - dragPosition.x}px, ${customDragPosition.y - dragPosition.y}px)`,
@@ -1213,27 +1216,33 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                 </div>
 
                 {/* Controls */}
-                <div className="space-y-[1vw]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[0.85vw] font-semibold text-gray-800">Color Code :</span>
-                    <div className="flex items-center gap-[0.5vw] border-2 border-gray-300 rounded-[0.6vw] px-[0.5vw] py-[0.35vw] w-[8.5vw] focus-within:border-[#5d5efc] transition-all relative">
-                      <span className="text-gray-400 text-[0.65vw] font-medium">#</span>
-                      <input
-                        type="text"
-                        ref={hexInputRef}
-                        value={(editingStopIndex !== null ? gradientStops[editingStopIndex].color : color)?.replace("#", "").toLowerCase() || ""}
-                        onChange={(e) => {
-                          const newColor = `#${e.target.value}`;
-                          if (editingStopIndex !== null) {
-                            updateGradientStop(editingStopIndex, { color: newColor });
-                          } else {
-                            onChange(newColor);
-                          }
-                        }}
-                        className="w-full text-[0.7vw] font-semibold text-gray-700 outline-none lowercase font-mono"
-                        maxLength={6}
-                      />
+                <div className="space-y-[0.5vw]">
+                  <div className="flex items-center gap-[0.5vw] w-full">
+                    <span className="w-[4.5vw] text-[0.75vw] font-semibold text-gray-800 flex-shrink-0">Color Code :</span>
+                    <div className="flex-1 flex items-center gap-[0.4vw]">
+                      <div className="h-[1.9vw] border border-gray-300 rounded-[0.4vw] flex items-center px-[0.4vw] justify-between bg-white hover:border-[#5d5efc] focus-within:border-[#5d5efc] transition-colors flex-1 min-w-0">
+                        <div className="flex items-center gap-[0.1vw] min-w-0 flex-1">
+                          <span className="text-gray-700 text-[0.75vw] font-mono font-medium">#</span>
+                          <input
+                            type="text"
+                            ref={hexInputRef}
+                            value={(editingStopIndex !== null ? gradientStops[editingStopIndex].color : color)?.replace("#", "").toUpperCase() || ""}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (!val.startsWith('#')) val = '#' + val;
+                              if (editingStopIndex !== null) {
+                                updateGradientStop(editingStopIndex, { color: val });
+                              } else {
+                                onChange(val);
+                              }
+                            }}
+                            className="w-full text-[0.75vw] font-medium text-gray-700 outline-none uppercase font-mono bg-transparent tracking-wide"
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
                       <button
+                        type="button"
                         onClick={async () => {
                           if ('EyeDropper' in window) {
                             const eyeDropper = new window.EyeDropper();
@@ -1249,9 +1258,10 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                             nativeColorRef.current?.click();
                           }
                         }}
-                        className="flex items-center justify-center p-[0.2vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors group/btn"
+                        className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center justify-center bg-white shadow-sm hover:border-black transition-colors flex-shrink-0 group/btn"
+                        title="Pick Color"
                       >
-                        <Icon icon="lucide:pipette" className="w-[0.9vw] h-[0.9vw] text-gray-400 group-hover/btn:text-gray-700" />
+                        <Icon icon="lucide:pipette" className="w-[1vw] h-[1vw] text-gray-500 group-hover/btn:text-black" />
                       </button>
                       <input
                         type="color"
@@ -1269,15 +1279,15 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-[0.85vw] font-semibold text-gray-800">Opacity :</span>
-                    <div className="flex items-center gap-[0.75vw] w-[8.5vw]">
+                  <div className="flex items-center gap-[0.5vw] w-full">
+                    <span className="w-[4.5vw] text-[0.75vw] font-semibold text-gray-800 flex-shrink-0">Opacity :</span>
+                    <div className="flex-1 flex items-center gap-[0.4vw]">
                       <div className="flex-1 flex items-center h-[1.5vw]">
                         <input
                           type="range"
                           min="0"
                           max="100"
-                          value={displayOpacity}
+                          value={editingStopIndex !== null ? (gradientStops[editingStopIndex].opacity ?? 100) : displayOpacity}
                           onChange={(e) => {
                             const op = parseInt(e.target.value);
                             if (editingStopIndex !== null) {
@@ -1287,8 +1297,28 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                             }
                           }}
                           className="w-full cursor-pointer custom-range-slider-color"
-                          style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${displayOpacity}%, #E2E8F0 ${displayOpacity}%, #E2E8F0 100%)` }}
+                          style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${editingStopIndex !== null ? (gradientStops[editingStopIndex].opacity ?? 100) : displayOpacity}%, #E2E8F0 ${editingStopIndex !== null ? (gradientStops[editingStopIndex].opacity ?? 100) : displayOpacity}%, #E2E8F0 100%)` }}
                         />
+                      </div>
+                      <div className="h-[1.5vw] w-[2.5vw] border border-gray-200 bg-white rounded-[0.3vw] shadow-sm flex items-center justify-center gap-[0.05vw] flex-shrink-0">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={editingStopIndex !== null ? (gradientStops[editingStopIndex].opacity ?? 100) : displayOpacity}
+                          onChange={(e) => {
+                            let op = parseInt(e.target.value);
+                            if (isNaN(op)) op = 0;
+                            op = Math.min(Math.max(op, 0), 100);
+                            if (editingStopIndex !== null) {
+                              updateGradientStop(editingStopIndex, { opacity: op });
+                            } else if (onOpacityChange) {
+                              onOpacityChange(op);
+                            }
+                          }}
+                          className="w-[1vw] text-center text-[0.65vw] font-semibold text-gray-800 outline-none no-spin bg-transparent"
+                        />
+                        <span className="text-[0.5vw] font-medium text-gray-600">%</span>
                       </div>
                     </div>
                   </div>

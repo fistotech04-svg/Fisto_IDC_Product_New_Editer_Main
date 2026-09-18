@@ -3444,6 +3444,12 @@ const TemplateEditor = () => {
             }
             layersList.splice(i, 1);
             if (element) element.remove();
+
+            // Clean up any associated slideshow key from localStorage
+            try {
+              const effectiveVId = flipbookVId || 'local';
+              localStorage.removeItem(`slideshow_${effectiveVId}_${layerId}`);
+            } catch (e) { }
           } else if (layersList[i].children) {
             deleteFromLayers(layersList[i].children);
           }
