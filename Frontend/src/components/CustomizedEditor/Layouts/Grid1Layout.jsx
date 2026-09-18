@@ -156,13 +156,13 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
                 <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.2vw', padding: '0.1vw', background: glowBg }}>
                     {React.cloneElement(iconEl, { className: `${iconEl.props.className || ''} ${isMobileLandscape ? '!w-[0.7vw] !h-[0.7vw]' : ''} pointer-events-none` })}
                 </motion.span>
-                {addTextBelowIcons && (
-                    <span
-                        className={`${isMobileLandscape ? 'text-[0.35vw]' : isTablet ? 'text-[0.35vw]' : 'text-[0.55vw]'} font-medium mt-[0.15vw] leading-none whitespace-nowrap`}
-                        style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
-                    >{label}</span>
-                )}
             </motion.div>
+            {addTextBelowIcons && (
+                <span
+                    className={`${isMobileLandscape ? 'text-[0.35vw]' : isTablet ? 'text-[0.35vw]' : 'text-[0.55vw]'} font-medium mt-[0.15vw] leading-none whitespace-nowrap`}
+                    style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
+                >{label}</span>
+            )}
 
             {/* Custom tooltip for bottom bar (appears above button) */}
             {showTooltip && !hideTooltip && !addTextBelowIcons && (
@@ -1040,7 +1040,7 @@ const Grid1Layout = React.memo((props) => {
                         <div className={(settings?.navigation?.tableOfContents ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.navigation?.tableOfContents ?? true) ? 'contents' : 'block' }}>
                             <div style={{ visibility: (settings?.navigation?.tableOfContents ?? true) ? 'visible' : 'hidden' }}>
                                 {renderDockBtn(
-                                    <Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                    <Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                     'TOC',
                                     (e) => {
                                         e.stopPropagation();
@@ -1060,7 +1060,7 @@ const Grid1Layout = React.memo((props) => {
                         <div className={(settings?.navigation?.pageThumbnails ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.navigation?.pageThumbnails ?? true) ? 'contents' : 'block' }}>
                             <div style={{ visibility: (settings?.navigation?.pageThumbnails ?? true) ? 'visible' : 'hidden' }}>
                                 {renderDockBtn(
-                                    <Icon icon="ph:squares-four-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
+                                    <Icon icon="ph:squares-four-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.25vw] h-[1.25vw]')}`} />,
                                     'Thumbnails',
                                     (e) => {
                                         e.stopPropagation();
@@ -1082,7 +1082,7 @@ const Grid1Layout = React.memo((props) => {
                                 <div className={(settings?.navigation?.startEndNav ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.navigation?.startEndNav ?? true) ? 'contents' : 'block' }}>
                                     <div style={{ visibility: (settings?.navigation?.startEndNav ?? true) ? 'visible' : 'hidden' }}>
                                         {renderDockBtn(
-                                            <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                            <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                             'First',
                                             () => {
                                                 closeAllPopups();
@@ -1096,7 +1096,7 @@ const Grid1Layout = React.memo((props) => {
                                 <div className={(settings?.media?.autoFlip ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.media?.autoFlip ?? true) ? 'contents' : 'block' }}>
                                     <div style={{ visibility: (settings?.media?.autoFlip ?? true) ? 'visible' : 'hidden' }}>
                                         {renderDockBtn(
-                                            <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
+                                            <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]')}`} />,
                                             isAutoFlipping ? 'Pause' : 'Play',
                                             () => {
                                                 closeAllPopups();
@@ -1109,7 +1109,7 @@ const Grid1Layout = React.memo((props) => {
                                 <div className={(settings?.navigation?.startEndNav ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.navigation?.startEndNav ?? true) ? 'contents' : 'block' }}>
                                     <div style={{ visibility: (settings?.navigation?.startEndNav ?? true) ? 'visible' : 'hidden' }}>
                                         {renderDockBtn(
-                                            <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                            <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                             'Last',
                                             () => {
                                                 closeAllPopups();
@@ -1127,7 +1127,7 @@ const Grid1Layout = React.memo((props) => {
                         {isPreviewMode && (
                             <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.4vw] mr-[1vw]' : 'gap-[0.8vw] mr-[2vw]'}`}>
                                 {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
-                                    <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                    <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                     'First',
                                     () => {
                                         closeAllPopups();
@@ -1136,7 +1136,7 @@ const Grid1Layout = React.memo((props) => {
                                     { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
                                 )}
                                 {(settings?.media?.autoFlip ?? true) && renderDockBtn(
-                                    <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
+                                    <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]')}`} />,
                                     isAutoFlipping ? 'Pause' : 'Play',
                                     () => {
                                         closeAllPopups();
@@ -1145,7 +1145,7 @@ const Grid1Layout = React.memo((props) => {
                                     { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
                                 )}
                                 {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
-                                    <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                    <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                     'Last',
                                     () => {
                                         closeAllPopups();
@@ -1295,7 +1295,7 @@ const Grid1Layout = React.memo((props) => {
                             <div className={(settings?.media?.backgroundAudio ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.media?.backgroundAudio ?? true) ? 'contents' : 'block' }}>
                                 <div style={{ visibility: (settings?.media?.backgroundAudio ?? true) ? 'visible' : 'hidden' }}>
                                     {renderDockBtn(
-                                        <Icon icon="solar:music-notes-bold" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        <Icon icon="solar:music-notes-bold" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                         'Music',
                                         (e) => {
                                             e.stopPropagation();
@@ -1319,7 +1319,7 @@ const Grid1Layout = React.memo((props) => {
                             <div className={(settings?.interaction?.gallery ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.interaction?.gallery ?? true) ? 'contents' : 'block' }}>
                                 <div style={{ visibility: (settings?.interaction?.gallery ?? true) ? 'visible' : 'hidden' }}>
                                     {renderDockBtn(
-                                        <Icon icon="clarity:image-gallery-solid" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        <Icon icon="clarity:image-gallery-solid" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                         'Gallery',
                                         (e) => {
                                             e.stopPropagation();
@@ -1341,7 +1341,7 @@ const Grid1Layout = React.memo((props) => {
                             <div className={(settings?.brandingProfile?.profile ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.brandingProfile?.profile ?? true) ? 'contents' : 'block' }}>
                                 <div style={{ visibility: (settings?.brandingProfile?.profile ?? true) ? 'visible' : 'hidden' }}>
                                     {renderDockBtn(
-                                        <Icon icon="fluent:person-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        <Icon icon="fluent:person-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                         'Profile',
                                         (e) => {
                                             e.stopPropagation();
@@ -1368,7 +1368,7 @@ const Grid1Layout = React.memo((props) => {
                             <div style={{ visibility: (settings?.viewing?.zoom ?? true) ? 'visible' : 'hidden' }}>
                                 <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.1vw]' : 'gap-[0.4vw]'}`}>
                                     {renderDockBtn(
-                                        <Icon icon="ph:magnifying-glass-minus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
+                                        <Icon icon="ph:magnifying-glass-minus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.05vw] h-[1.05vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
                                         'Zoom Out',
                                         (e) => { e.stopPropagation(); zoomOut(); },
                                         { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
@@ -1409,7 +1409,7 @@ const Grid1Layout = React.memo((props) => {
                                         />
                                     </div>
                                     {renderDockBtn(
-                                        <Icon icon="ph:magnifying-glass-plus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
+                                        <Icon icon="ph:magnifying-glass-plus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.05vw] h-[1.05vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
                                         'Zoom In',
                                         (e) => { e.stopPropagation(); zoomIn(); },
                                         { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
@@ -1425,7 +1425,7 @@ const Grid1Layout = React.memo((props) => {
                             <div className={(settings?.shareExport?.share ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.shareExport?.share ?? true) ? 'contents' : 'block' }}>
                                 <div style={{ visibility: (settings?.shareExport?.share ?? true) ? 'visible' : 'hidden' }}>
                                     {renderDockBtn(
-                                        <Icon icon="mage:share-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
+                                        <Icon icon="mage:share-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.05vw] h-[1.05vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
                                         'Share',
                                         (e) => {
                                             e.stopPropagation();
@@ -1441,7 +1441,7 @@ const Grid1Layout = React.memo((props) => {
                             <div className={(settings?.shareExport?.download ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.shareExport?.download ?? true) ? 'contents' : 'block' }}>
                                 <div style={{ visibility: (settings?.shareExport?.download ?? true) ? 'visible' : 'hidden' }}>
                                     {renderDockBtn(
-                                        <Icon icon="meteor-icons:download" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        <Icon icon="meteor-icons:download" className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                         'Download',
                                         (e) => {
                                             e.stopPropagation();
@@ -1457,7 +1457,7 @@ const Grid1Layout = React.memo((props) => {
                             <div className={(settings?.viewing?.fullScreen ?? true) ? '' : 'invisible pointer-events-none hidden-but-taking-space'} style={{ display: (settings?.viewing?.fullScreen ?? true) ? 'contents' : 'block' }}>
                                 <div style={{ visibility: (settings?.viewing?.fullScreen ?? true) ? 'visible' : 'hidden' }}>
                                     {renderDockBtn(
-                                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
+                                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : (isSidebarOpen ? 'w-[1.05vw] h-[1.05vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
                                         'Full Screen',
                                         (e) => {
                                             e.stopPropagation();

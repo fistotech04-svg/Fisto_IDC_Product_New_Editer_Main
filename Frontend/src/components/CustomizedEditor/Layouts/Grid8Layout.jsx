@@ -77,7 +77,7 @@ const ToolbarBtn = ({ icon, label, onClick, isActive, className = '', id, toolba
             </button>
             {addTextBelowIcons && label && (
                 <span
-                    className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.5vw]'} font-semibold leading-tight text-center whitespace-nowrap transition-opacity ${isActive ? 'opacity-0' : 'opacity-100'}`}
+                    className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.5vw]'} font-semibold leading-tight text-center whitespace-nowrap transition-opacity opacity-100`}
                     style={{ color: getLayoutColor('toolbar-bg', primaryColor), fontFamily: textFont }}
                 >{label}</span>
             )}
@@ -780,13 +780,15 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         <div className="w-[1px] h-[2vh] bg-white mx-[0.2vw] opacity-40" />
 
                         {/* Profile */}
-                        <ToolbarBtn toolbarProps={toolbarProps}
-                            id="layout8-profile-btn"
-                            icon="fluent:person-24-filled"
-                            label="Profile"
-                            onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowProfilePopup, showProfilePopup, e, 'profile'); }}
-                            isActive={showProfilePopup}
-                        />
+                        {(settings?.brandingProfile?.profile ?? true) && (
+                            <ToolbarBtn toolbarProps={toolbarProps}
+                                id="layout8-profile-btn"
+                                icon="fluent:person-24-filled"
+                                label="Profile"
+                                onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowProfilePopup, showProfilePopup, e, 'profile'); }}
+                                isActive={showProfilePopup}
+                            />
+                        )}
                         {/* Share */}
                         {(settings?.shareExport?.share ?? true) && (
                             <ToolbarBtn toolbarProps={toolbarProps}
@@ -806,7 +808,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         {/* Fullscreen */}
                         {(settings?.viewing?.fullScreen ?? true) && <ToolbarBtn toolbarProps={toolbarProps}
                             icon={isFullscreen ? "lucide:minimize" : "lucide:fullscreen"}
-                            label={isFullscreen ? 'Exit' : 'Fullscreen'}
+                            label="Fullscreen"
                             onClick={handleFullScreen}
                             isActive={isFullscreen}
                         />}
@@ -1092,7 +1094,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                         >
                             <span className={`text-[0.75vw] lg:text-[0.85vw] font-medium tracking-wide`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                                Page â€“
+                                Page
                             </span>
                             <input
                                 type="text" autoComplete="off" spellCheck="false" autoCorrect="off"

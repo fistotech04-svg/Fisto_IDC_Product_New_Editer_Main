@@ -139,16 +139,16 @@ const MagneticSidebarBtn = ({ iconEl, label, displayLabel, onClick, extraStyle =
                 className="flex flex-col items-center justify-center"
                 whileTap={{ scale: 0.91 }}
             >
-                <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.3vw', padding: '0.3vw', background: glowBg }}>
+                <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.15vw', padding: '0.15vw', background: glowBg }}>
                     {iconEl}
                 </motion.span>
-                {addTextBelowIcons && (
-                    <span
-                        className={`${'text-[0.55vw]'} font-medium mt-[0.15vw] leading-snug text-center`}
-                        style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
-                    >{displayLabel ?? label}</span>
-                )}
             </motion.div>
+            {addTextBelowIcons && (
+                <span
+                    className={`${'text-[0.55vw]'} font-medium mt-[0.15vw] leading-snug text-center`}
+                    style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
+                >{displayLabel ?? label}</span>
+            )}
 
             {/* Custom tooltip for side bar (appears right of button) â€” hidden when label text is shown */}
             {showTooltip && !hideTooltip && !addTextBelowIcons && (
@@ -1129,7 +1129,7 @@ const Grid4Layout = ({
 
                     {/* Page Indicator Badge */}
                     {(settings?.navigation?.pageQuickAccess ?? true) && (
-                        <div className={`absolute left-[1.5vw] rounded-[0.4vw] ${!isBigBars ? 'px-[0.4vw] py-[0.1vw]' : 'px-[0.8vw] py-[0.4vw]'} shadow-md z-20`}
+                        <div className={`absolute ${isFullscreen ? 'left-[4.5vw]' : 'left-[1.5vw]'} rounded-[0.4vw] ${!isBigBars ? 'p-[0.4vw]' : 'p-[0.6vw]'} shadow-md z-20 flex items-center justify-center`}
                             style={{
                                 backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF'),
                                 bottom: isFullscreen ? '9vh' : '3vh'
