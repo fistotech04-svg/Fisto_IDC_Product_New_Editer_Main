@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
+import { DotRenderer } from '../CustomizedEditor/popups/DotStylesPopup';
 import { checkIsAnimatedWebp } from './editorUtils';
 import FlipBookEngine from '../CustomizedEditor/FlipBookEngine';
 import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
@@ -1371,42 +1372,52 @@ const MainEditor = ({
           }
 
           if (showDots) {
-            const dotsWrap = document.createElement('div');
-            Object.assign(dotsWrap.style, {
-              position: 'absolute',
-              bottom: (8 * scaleFactor) + 'px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              gap: (5 * scaleFactor) + 'px',
-              alignItems: 'center',
-              pointerEvents: 'auto',
-            });
-            images.forEach((_, i) => {
-              const dot = document.createElement('div');
-              dot.className = 'editor-ss-dot';
-              const size = 7 * scaleFactor;
-              Object.assign(dot.style, {
-                width: size + 'px', height: size + 'px', borderRadius: '50%', background: dotColor,
-                cursor: 'pointer', transition: 'opacity 0.25s, transform 0.25s',
-                opacity: '0.4',
-                transform: 'scale(1)',
+            let dotsWrap = overlay.querySelector('.editor-ss-dots-wrap');
+            if (!dotsWrap) {
+              dotsWrap = document.createElement('div');
+              dotsWrap.className = 'editor-ss-dots-wrap';
+              Object.assign(dotsWrap.style, {
+                position: 'absolute',
+                bottom: (8 * scaleFactor) + 'px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: (5 * scaleFactor) + 'px',
+                alignItems: 'center',
                 pointerEvents: 'auto',
               });
-              dot.addEventListener('mousedown', e => e.stopPropagation());
-              dot.addEventListener('click', e => {
-                e.stopPropagation(); e.preventDefault();
-                const current = parseInt(el.getAttribute('data-active-index') || '0');
-                if (i === current) return;
-                el.setAttribute('data-active-index', i.toString());
-                el._lastSlideTime = Date.now();
+              overlay.appendChild(dotsWrap);
+            }
 
-                const evt = new CustomEvent('force-slideshow-advance', { detail: { el, nextIndex: i } });
-                window.dispatchEvent(evt);
-              });
-              dotsWrap.appendChild(dot);
-            });
-            overlay.appendChild(dotsWrap);
+            if (!dotsWrap._reactRoot) {
+              dotsWrap._reactRoot = createRoot(dotsWrap);
+            }
+
+            const dotStyleId = settings.dotStyle || 1;
+            const dotsSig = `${dotStyleId}-${activeIndex}-${images.length}-${dotColor}-${scaleFactor.toFixed(2)}`;
+
+            if (dotsWrap._lastSig !== dotsSig) {
+              dotsWrap._lastSig = dotsSig;
+              dotsWrap._reactRoot.render(
+                <DotRenderer
+                  styleId={dotStyleId}
+                  size={`${Math.max(6, 8 * scaleFactor)}px`}
+                  color={dotColor || '#000000'}
+                  activeIndex={activeIndex}
+                  count={images.length}
+                  onDotClick={(e, i) => {
+                    e.stopPropagation(); e.preventDefault();
+                    const current = parseInt(el.getAttribute('data-active-index') || '0');
+                    if (i === current) return;
+                    el.setAttribute('data-active-index', i.toString());
+                    el._lastSlideTime = Date.now();
+
+                    const evt = new CustomEvent('force-slideshow-advance', { detail: { el, nextIndex: i } });
+                    window.dispatchEvent(evt);
+                  }}
+                />
+              );
+            }
           }
         }
 
@@ -1415,11 +1426,6 @@ const MainEditor = ({
         overlay.querySelectorAll('.editor-ss-nav').forEach(btn => {
           btn.style.opacity = isHovering ? '1' : '0';
           btn.style.pointerEvents = isHovering ? 'auto' : 'none';
-        });
-
-        overlay.querySelectorAll('.editor-ss-dot').forEach((dot, i) => {
-          dot.style.opacity = i === activeIndex ? '1' : '0.4';
-          dot.style.transform = i === activeIndex ? 'scale(1.4)' : 'scale(1)';
         });
       });
 
@@ -2504,7 +2510,11 @@ const MainEditor = ({
   useEffect(() => {
     let animationFrameId;
     const updateScrollbarStyles = () => {
-      const els = document.querySelectorAll('[data-scrollbar-color], [data-bg-fill], [data-bg-stroke]');
+      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument;
+      const elsDoc = Array.from(document.querySelectorAll('[data-scrollbar-color], [data-bg-fill], [data-bg-stroke]'));
+      const elsIframe = editorDoc ? Array.from(editorDoc.querySelectorAll('[data-scrollbar-color], [data-bg-fill], [data-bg-stroke]')) : [];
+      const els = [...elsDoc, ...elsIframe];
+
       let cssRules = '';
       els.forEach(el => {
         if (el.id) {
@@ -2538,19 +2548,28 @@ const MainEditor = ({
       }
       if (styleTag.textContent !== cssRules) {
         styleTag.textContent = cssRules;
-        // Force live sync redraw for WebKit after rules are applied
-        // We use a tiny timeout so the browser has time to parse the new CSS rule before we kick it!
         setTimeout(() => {
           els.forEach(el => {
             const innerDiv = el.querySelector('.flipbook-text-scrollbar');
             if (innerDiv) {
               const currentOverflow = innerDiv.style.overflowY;
               innerDiv.style.overflowY = 'hidden';
-              void innerDiv.offsetHeight; // This triggers the redraw
+              void innerDiv.offsetHeight;
               innerDiv.style.overflowY = currentOverflow || 'auto';
             }
           });
         }, 10);
+      }
+      if (editorDoc) {
+        let iframeStyleTag = editorDoc.getElementById('global-scrollbar-styles');
+        if (!iframeStyleTag) {
+          iframeStyleTag = editorDoc.createElement('style');
+          iframeStyleTag.id = 'global-scrollbar-styles';
+          (editorDoc.head || editorDoc.documentElement).appendChild(iframeStyleTag);
+        }
+        if (iframeStyleTag.textContent !== cssRules) {
+          iframeStyleTag.textContent = cssRules;
+        }
       }
     };
 
@@ -2561,6 +2580,13 @@ const MainEditor = ({
 
     updateScrollbarStyles();
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
+
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument;
+    if (editorDoc && editorDoc.body) {
+      try {
+        observer.observe(editorDoc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
+      } catch (e) {}
+    }
 
     return () => {
       observer.disconnect();

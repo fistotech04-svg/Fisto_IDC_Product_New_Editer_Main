@@ -78,7 +78,7 @@ export default function GroupProperties({
     return colorStr.toLowerCase();
   };
 
-  // Helper to extract unique fill & stroke colors from child elements
+  // Helper to extract unique fill, stroke, text & background colors from child elements
   const extractGroupColors = () => {
     const nodes = getSelectedNodes();
     if (nodes.length === 0) return;
@@ -90,8 +90,10 @@ export default function GroupProperties({
       const tag = node.tagName?.toLowerCase();
       if (tag === 'style' || tag === 'defs' || tag === 'clippath') return;
 
-      const fill = node.getAttribute('fill') || node.style?.fill;
-      const stroke = node.getAttribute('stroke') || node.style?.stroke;
+      const fill = node.getAttribute('fill') || node.style?.fill || node.getAttribute('data-fill-color') || node.getAttribute('data-bg-fill') || node.style?.backgroundColor;
+      const stroke = node.getAttribute('stroke') || node.style?.stroke || node.style?.webkitTextStrokeColor || node.getAttribute('data-stroke-color') || node.getAttribute('data-bg-stroke');
+      const textColor = node.style?.color || node.getAttribute('color');
+
       const fillOpacity = node.getAttribute('fill-opacity') || node.style?.fillOpacity || '1';
       const strokeOpacity = node.getAttribute('stroke-opacity') || node.style?.strokeOpacity || '1';
 
@@ -108,6 +110,13 @@ export default function GroupProperties({
         if (hex && !colorMap.has(hex)) {
           const alpha = Math.round(parseFloat(strokeOpacity) * 100);
           colorMap.set(hex, { hex, opacity: isNaN(alpha) ? 100 : alpha, targetAttr: 'stroke' });
+        }
+      }
+
+      if (textColor) {
+        const hex = normalizeHex(textColor);
+        if (hex && !colorMap.has(hex)) {
+          colorMap.set(hex, { hex, opacity: 100, targetAttr: 'color' });
         }
       }
 
@@ -138,28 +147,61 @@ export default function GroupProperties({
     const nodes = getSelectedNodes();
     if (nodes.length === 0 || !newHex) return;
     const normNewHex = normalizeHex(newHex) || newHex.toLowerCase();
+    const normOldHex = normalizeHex(oldHex) || oldHex.toLowerCase();
 
     const replaceColorsInNode = (node) => {
       if (node.nodeType !== 1) return;
 
-      const fill = node.getAttribute('fill') || node.style?.fill;
-      const stroke = node.getAttribute('stroke') || node.style?.stroke;
+      const fill = node.getAttribute('fill') || node.style?.fill || node.getAttribute('data-fill-color');
+      const bgFill = node.getAttribute('data-bg-fill') || node.style?.backgroundColor;
+      const stroke = node.getAttribute('stroke') || node.style?.stroke || node.style?.webkitTextStrokeColor || node.getAttribute('data-stroke-color') || node.getAttribute('data-bg-stroke');
+      const textColor = node.style?.color || node.getAttribute('color');
 
-      if (fill && normalizeHex(fill) === oldHex) {
+      if (fill && normalizeHex(fill) === normOldHex) {
         node.setAttribute('fill', normNewHex);
         if (node.style?.fill) node.style.fill = normNewHex;
+        if (node.getAttribute('data-fill-color')) node.setAttribute('data-fill-color', normNewHex);
+        if (node.getAttribute('data-original-fill')) node.setAttribute('data-original-fill', normNewHex);
       }
 
-      if (stroke && normalizeHex(stroke) === oldHex) {
+      if (bgFill && normalizeHex(bgFill) === normOldHex) {
+        node.setAttribute('data-bg-fill', normNewHex);
+        if (node.style?.backgroundColor) {
+          node.style.setProperty('background-color', normNewHex, 'important');
+        }
+        const textOuters = node.querySelectorAll ? node.querySelectorAll('.flipbook-text-outer, .flipbook-text-scrollbar, div') : [];
+        textOuters.forEach(div => {
+          if (div.style) {
+            div.style.setProperty('background-color', normNewHex, 'important');
+            div.style.setProperty('--bg-fill', normNewHex, 'important');
+          }
+        });
+      }
+
+      if (stroke && normalizeHex(stroke) === normOldHex) {
         node.setAttribute('stroke', normNewHex);
         if (node.style?.stroke) node.style.stroke = normNewHex;
+        if (node.style?.webkitTextStrokeColor) {
+          node.style.webkitTextStrokeColor = normNewHex;
+          node.style.setProperty('-webkit-text-stroke-color', normNewHex, 'important');
+        }
+        if (node.getAttribute('data-stroke-color')) node.setAttribute('data-stroke-color', normNewHex);
+        if (node.getAttribute('data-bg-stroke')) node.setAttribute('data-bg-stroke', normNewHex);
+      }
+
+      if (textColor && normalizeHex(textColor) === normOldHex) {
+        node.style.color = normNewHex;
+        node.style.setProperty('color', normNewHex, 'important');
+        if (node.getAttribute('color')) node.setAttribute('color', normNewHex);
       }
 
       Array.from(node.children).forEach(replaceColorsInNode);
     };
 
     nodes.forEach(replaceColorsInNode);
-    extractGroupColors();
+
+    // Keep colors state array updated to maintain matching hex during active color picker dragging/clicking
+    setColors(prev => prev.map(c => normalizeHex(c.hex) === normOldHex ? { ...c, hex: normNewHex } : c));
 
     if (onUpdate) onUpdate();
   };
@@ -169,19 +211,21 @@ export default function GroupProperties({
     const nodes = getSelectedNodes();
     if (nodes.length === 0) return;
     const decimalOp = (parseFloat(newOpacityVal) / 100).toFixed(2);
+    const normTargetHex = normalizeHex(targetHex) || targetHex.toLowerCase();
 
     const updateOpacityInNode = (node) => {
       if (node.nodeType !== 1) return;
 
-      const fill = node.getAttribute('fill') || node.style?.fill;
-      const stroke = node.getAttribute('stroke') || node.style?.stroke;
+      const fill = node.getAttribute('fill') || node.style?.fill || node.getAttribute('data-fill-color');
+      const stroke = node.getAttribute('stroke') || node.style?.stroke || node.getAttribute('data-stroke-color');
+      const textColor = node.style?.color || node.getAttribute('color');
 
-      if (fill && normalizeHex(fill) === targetHex) {
+      if ((fill && normalizeHex(fill) === normTargetHex) || (textColor && normalizeHex(textColor) === normTargetHex)) {
         node.setAttribute('fill-opacity', decimalOp);
         if (node.style?.fillOpacity) node.style.fillOpacity = decimalOp;
       }
 
-      if (stroke && normalizeHex(stroke) === targetHex) {
+      if (stroke && normalizeHex(stroke) === normTargetHex) {
         node.setAttribute('stroke-opacity', decimalOp);
         if (node.style?.strokeOpacity) node.style.strokeOpacity = decimalOp;
       }
@@ -190,7 +234,8 @@ export default function GroupProperties({
     };
 
     nodes.forEach(updateOpacityInNode);
-    extractGroupColors();
+
+    setColors(prev => prev.map(c => normalizeHex(c.hex) === normTargetHex ? { ...c, opacity: parseFloat(newOpacityVal) } : c));
 
     if (onUpdate) onUpdate();
   };
@@ -390,10 +435,31 @@ export default function GroupProperties({
   if (firstNode?.getAttribute('data-effect-inner-shadow') === 'true') activeEffects.push('Inner Shadow');
   if (firstNode?.getAttribute('data-effect-blur') === 'true') activeEffects.push('Blur');
 
+  const getIntAttr = (node, attr, defVal) => {
+    const val = node?.getAttribute(attr);
+    if (val === null || val === undefined || val === '') return defVal;
+    const parsed = parseInt(val, 10);
+    return isNaN(parsed) ? defVal : parsed;
+  };
+
+  const getFloatAttr = (node, attr, defVal) => {
+    const val = node?.getAttribute(attr);
+    if (val === null || val === undefined || val === '') return defVal;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? defVal : parsed;
+  };
+
   const handleSetActiveEffects = (updater) => {
     const targetNodes = getSelectedNodes();
     if (targetNodes.length === 0) return;
-    const next = typeof updater === 'function' ? updater(activeEffects) : updater;
+
+    const currentActive = [];
+    const first = targetNodes[0];
+    if (first?.getAttribute('data-effect-drop-shadow') === 'true') currentActive.push('Drop Shadow');
+    if (first?.getAttribute('data-effect-inner-shadow') === 'true') currentActive.push('Inner Shadow');
+    if (first?.getAttribute('data-effect-blur') === 'true') currentActive.push('Blur');
+
+    const next = typeof updater === 'function' ? updater(currentActive) : updater;
     const hasDropShadow = next.includes('Drop Shadow');
     const hasInnerShadow = next.includes('Inner Shadow');
     const hasBlur = next.includes('Blur');
@@ -410,24 +476,24 @@ export default function GroupProperties({
 
   const effectSettings = {
     'Drop Shadow': {
-      x: parseInt(firstNode?.getAttribute('data-effect-drop-shadow-x') || 2),
-      y: parseInt(firstNode?.getAttribute('data-effect-drop-shadow-y') || 2),
-      blur: parseInt(firstNode?.getAttribute('data-effect-drop-shadow-blur') || 4),
-      spread: parseInt(firstNode?.getAttribute('data-effect-drop-shadow-spread') || 0),
+      x: getIntAttr(firstNode, 'data-effect-drop-shadow-x', 2),
+      y: getIntAttr(firstNode, 'data-effect-drop-shadow-y', 2),
+      blur: getIntAttr(firstNode, 'data-effect-drop-shadow-blur', 4),
+      spread: getIntAttr(firstNode, 'data-effect-drop-shadow-spread', 0),
       color: firstNode?.getAttribute('data-effect-drop-shadow-color') || '#000000',
-      opacity: parseInt(firstNode?.getAttribute('data-effect-drop-shadow-opacity') || 35),
+      opacity: getIntAttr(firstNode, 'data-effect-drop-shadow-opacity', 35),
     },
     'Inner Shadow': {
-      x: parseInt(firstNode?.getAttribute('data-effect-inner-shadow-x') || 2),
-      y: parseInt(firstNode?.getAttribute('data-effect-inner-shadow-y') || 2),
-      blur: parseInt(firstNode?.getAttribute('data-effect-inner-shadow-blur') || 4),
-      spread: parseInt(firstNode?.getAttribute('data-effect-inner-shadow-spread') || 0),
+      x: getIntAttr(firstNode, 'data-effect-inner-shadow-x', 2),
+      y: getIntAttr(firstNode, 'data-effect-inner-shadow-y', 2),
+      blur: getIntAttr(firstNode, 'data-effect-inner-shadow-blur', 4),
+      spread: getIntAttr(firstNode, 'data-effect-inner-shadow-spread', 0),
       color: firstNode?.getAttribute('data-effect-inner-shadow-color') || '#000000',
-      opacity: parseInt(firstNode?.getAttribute('data-effect-inner-shadow-opacity') || 35),
+      opacity: getIntAttr(firstNode, 'data-effect-inner-shadow-opacity', 35),
     },
     'Blur': {
-      blur: parseFloat(firstNode?.getAttribute('data-effect-blur-value') || firstNode?.getAttribute('data-effect-blur-blur') || 4),
-      spread: parseInt(firstNode?.getAttribute('data-effect-blur-spread') || 0),
+      blur: getFloatAttr(firstNode, 'data-effect-blur-value', getFloatAttr(firstNode, 'data-effect-blur-blur', 4)),
+      spread: getIntAttr(firstNode, 'data-effect-blur-spread', 0),
       clipContent: firstNode?.getAttribute('data-effect-blur-clip') === 'true'
     }
   };
@@ -464,38 +530,230 @@ export default function GroupProperties({
 
   const applyFilterEffects = (el) => {
     if (!el) return;
+
+    if (!el.id) {
+      el.id = `group-el-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    }
+
+    const doc = el.ownerDocument || document;
+    const svgRoot = el.ownerSVGElement || el.closest('svg') || (doc.querySelector ? doc.querySelector('svg') : null);
+
     const hasDropShadow = el.getAttribute('data-effect-drop-shadow') === 'true';
+    const hasInnerShadow = el.getAttribute('data-effect-inner-shadow') === 'true';
     const hasBlur = el.getAttribute('data-effect-blur') === 'true';
+    const hasClipContent = hasBlur && el.getAttribute('data-effect-blur-clip') === 'true';
 
-    const filters = [];
-    if (hasDropShadow) {
-      const x = el.getAttribute('data-effect-drop-shadow-x') || 2;
-      const y = el.getAttribute('data-effect-drop-shadow-y') || 2;
-      const blur = el.getAttribute('data-effect-drop-shadow-blur') || 4;
-      const color = el.getAttribute('data-effect-drop-shadow-color') || '#000000';
-      const opacity = (parseFloat(el.getAttribute('data-effect-drop-shadow-opacity') || 35) / 100).toFixed(2);
+    const filterId = `filter-${el.id}`;
 
-      let rgba = color;
-      if (color.startsWith('#')) {
-        const hex = color.replace('#', '');
-        const r = parseInt(hex.substring(0, 2), 16) || 0;
-        const g = parseInt(hex.substring(2, 4), 16) || 0;
-        const b = parseInt(hex.substring(4, 6), 16) || 0;
-        rgba = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    if (!svgRoot) {
+      const filters = [];
+      if (hasDropShadow) {
+        const x = el.getAttribute('data-effect-drop-shadow-x') || 2;
+        const y = el.getAttribute('data-effect-drop-shadow-y') || 2;
+        const blur = el.getAttribute('data-effect-drop-shadow-blur') || 4;
+        const color = el.getAttribute('data-effect-drop-shadow-color') || '#000000';
+        const opacity = (parseFloat(el.getAttribute('data-effect-drop-shadow-opacity') || 35) / 100).toFixed(2);
+        filters.push(`drop-shadow(${x}px ${y}px ${blur}px ${color})`);
       }
-      filters.push(`drop-shadow(${x}px ${y}px ${blur}px ${rgba})`);
+      if (hasBlur) {
+        const blurVal = el.getAttribute('data-effect-blur-value') || el.getAttribute('data-effect-blur-blur') || 4;
+        filters.push(`blur(${blurVal}px)`);
+      }
+      el.style.filter = filters.length > 0 ? filters.join(' ') : '';
+      return;
     }
 
-    if (hasBlur) {
-      const blurVal = el.getAttribute('data-effect-blur-value') || el.getAttribute('data-effect-blur-blur') || 4;
-      filters.push(`blur(${blurVal}px)`);
+    let defs = svgRoot.querySelector('defs');
+    if (!defs) {
+      defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+      svgRoot.insertBefore(defs, svgRoot.firstChild);
     }
 
-    if (filters.length > 0) {
-      el.style.filter = filters.join(' ');
-    } else {
+    let filterEl = defs.querySelector(`[id="${filterId}"]`);
+
+    if (!hasDropShadow && !hasInnerShadow && !hasBlur) {
+      if (filterEl) filterEl.remove();
+      el.removeAttribute('filter');
       el.style.filter = '';
+      return;
     }
+
+    if (!filterEl) {
+      filterEl = doc.createElementNS("http://www.w3.org/2000/svg", "filter");
+      filterEl.id = filterId;
+      filterEl.setAttribute('x', '-50%');
+      filterEl.setAttribute('y', '-50%');
+      filterEl.setAttribute('width', '200%');
+      filterEl.setAttribute('height', '200%');
+      defs.appendChild(filterEl);
+    }
+
+    while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+
+    const getVal = (attr, def) => el.getAttribute(attr) || def;
+    let graphicIn = "SourceGraphic";
+
+    // 1. Inner Shadow
+    if (hasInnerShadow) {
+      const color = getVal('data-effect-inner-shadow-color', '#000000');
+      const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '35')) / 100;
+      const dx = getVal('data-effect-inner-shadow-x', '2');
+      const dy = getVal('data-effect-inner-shadow-y', '2');
+      const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
+      const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
+
+      const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+      morph.setAttribute('radius', Math.abs(spread));
+      morph.setAttribute('in', 'SourceAlpha');
+      morph.setAttribute('result', 'is_morph');
+      filterEl.appendChild(morph);
+
+      const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      gauss.setAttribute('stdDeviation', blur);
+      gauss.setAttribute('in', 'is_morph');
+      gauss.setAttribute('result', 'is_blur');
+      filterEl.appendChild(gauss);
+
+      const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
+      offset.setAttribute('dx', dx);
+      offset.setAttribute('dy', dy);
+      offset.setAttribute('in', 'is_blur');
+      offset.setAttribute('result', 'is_offset');
+      filterEl.appendChild(offset);
+
+      const compOut = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compOut.setAttribute('operator', 'out');
+      compOut.setAttribute('in', 'SourceAlpha');
+      compOut.setAttribute('in2', 'is_offset');
+      compOut.setAttribute('result', 'is_inverse');
+      filterEl.appendChild(compOut);
+
+      const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+      flood.setAttribute('flood-color', color);
+      flood.setAttribute('flood-opacity', opacity);
+      flood.setAttribute('result', 'is_flood');
+      filterEl.appendChild(flood);
+
+      const compIn = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compIn.setAttribute('operator', 'in');
+      compIn.setAttribute('in', 'is_flood');
+      compIn.setAttribute('in2', 'is_inverse');
+      compIn.setAttribute('result', 'is_final');
+      filterEl.appendChild(compIn);
+
+      const compOver = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compOver.setAttribute('operator', 'over');
+      compOver.setAttribute('in', 'is_final');
+      compOver.setAttribute('in2', graphicIn);
+      compOver.setAttribute('result', 'inner_shadow_merged');
+      filterEl.appendChild(compOver);
+
+      graphicIn = "inner_shadow_merged";
+    }
+
+    // 2. Blur
+    if (hasBlur) {
+      const blurVal = parseFloat(getVal('data-effect-blur-value', getVal('data-effect-blur-blur', '4')));
+      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
+
+      let blurSource = graphicIn;
+      if (spreadVal !== 0) {
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spreadVal));
+        morph.setAttribute('in', graphicIn);
+        morph.setAttribute('result', 'blur_morph');
+        filterEl.appendChild(morph);
+        blurSource = "blur_morph";
+      }
+
+      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      blurNode.setAttribute('stdDeviation', blurVal);
+      blurNode.setAttribute('in', blurSource);
+      blurNode.setAttribute('result', 'blur_out');
+      filterEl.appendChild(blurNode);
+      graphicIn = "blur_out";
+    }
+
+    // 3. Clip Content
+    if (hasClipContent) {
+      const compClip = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compClip.setAttribute('operator', 'in');
+      compClip.setAttribute('in', graphicIn);
+      compClip.setAttribute('in2', 'SourceAlpha');
+      compClip.setAttribute('result', 'clipped_final');
+      filterEl.appendChild(compClip);
+      graphicIn = 'clipped_final';
+    }
+
+    // 4. Drop Shadow
+    if (hasDropShadow) {
+      const color = getVal('data-effect-drop-shadow-color', '#000000');
+      const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '35')) / 100;
+      const dx = getVal('data-effect-drop-shadow-x', '2');
+      const dy = getVal('data-effect-drop-shadow-y', '2');
+      const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
+      const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
+
+      const extractAlpha = doc.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
+      extractAlpha.setAttribute('type', 'matrix');
+      extractAlpha.setAttribute('values', '0 0 0 0 0   0 0 0 0 0   0 0 0 0 0   0 0 0 1 0');
+      extractAlpha.setAttribute('in', graphicIn);
+      extractAlpha.setAttribute('result', 'ds_alpha');
+      filterEl.appendChild(extractAlpha);
+
+      let dsSource = 'ds_alpha';
+      if (spread !== 0) {
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spread));
+        morph.setAttribute('in', 'ds_alpha');
+        morph.setAttribute('result', 'ds_morph');
+        filterEl.appendChild(morph);
+        dsSource = 'ds_morph';
+      }
+
+      const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      gauss.setAttribute('stdDeviation', blur);
+      gauss.setAttribute('in', dsSource);
+      gauss.setAttribute('result', 'ds_blur');
+      filterEl.appendChild(gauss);
+
+      const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
+      offset.setAttribute('dx', dx);
+      offset.setAttribute('dy', dy);
+      offset.setAttribute('in', 'ds_blur');
+      offset.setAttribute('result', 'ds_offset');
+      filterEl.appendChild(offset);
+
+      const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+      flood.setAttribute('flood-color', color);
+      flood.setAttribute('flood-opacity', opacity);
+      flood.setAttribute('result', 'ds_flood');
+      filterEl.appendChild(flood);
+
+      const comp = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      comp.setAttribute('in', 'ds_flood');
+      comp.setAttribute('in2', 'ds_offset');
+      comp.setAttribute('operator', 'in');
+      comp.setAttribute('result', 'ds_final');
+      filterEl.appendChild(comp);
+
+      const merge = doc.createElementNS("http://www.w3.org/2000/svg", "feMerge");
+      const nodeShadow = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+      nodeShadow.setAttribute('in', 'ds_final');
+      const nodeInput = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+      nodeInput.setAttribute('in', graphicIn);
+
+      merge.appendChild(nodeShadow);
+      merge.appendChild(nodeInput);
+      merge.setAttribute('result', 'final_merged');
+      filterEl.appendChild(merge);
+    }
+
+    el.setAttribute('filter', `url(#${filterId})`);
+    el.style.filter = '';
   };
 
   return (

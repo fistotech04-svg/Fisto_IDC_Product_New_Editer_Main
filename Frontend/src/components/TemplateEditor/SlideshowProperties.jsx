@@ -32,6 +32,7 @@ import { getVisualBBox } from './MainEditor';
 });
 import PremiumDropdown from '../CustomizedEditor/PremiumDropdown';
 import NavIconStylesPopup, { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
+import DotStylesPopup, { DotRenderer } from '../CustomizedEditor/popups/DotStylesPopup';
 import axios from 'axios';
 import ColorPicker from './ColorPicker';
 
@@ -121,7 +122,12 @@ const SectionHeader = ({ title }) => (
 
 const compressImage = (file) => {
   return new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) {
+    if (!file || !(file instanceof File) || !file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+    // Fast path: skip canvas overhead for small files (<= 1.5MB)
+    if (file.size <= 1.5 * 1024 * 1024) {
       resolve(file);
       return;
     }
@@ -140,24 +146,31 @@ const compressImage = (file) => {
           width = Math.round((width * maxDim) / height);
           height = maxDim;
         }
+      } else if (file.size <= 2.5 * 1024 * 1024) {
+        resolve(file);
+        return;
       }
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
+      const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
       canvas.toBlob((blob) => {
-        if (blob) {
+        if (blob && blob.size < file.size) {
           const compressedFile = new File([blob], file.name, {
-            type: file.type === 'image/png' ? 'image/png' : 'image/jpeg',
+            type: outputType,
             lastModified: Date.now()
           });
           resolve(compressedFile);
         } else {
           resolve(file);
         }
-      }, file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.8);
+      }, outputType, 0.85);
     };
-    img.onerror = () => resolve(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
     img.src = url;
   });
 };
@@ -187,6 +200,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     dragToSlide: false,
     dotColor: '#000000',
     dotOpacity: 100,
+    dotStyle: 1,
     navIconColor: '#000000',
     navStyle: 1,
     autoSlide: true
@@ -234,6 +248,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [libraryTargetIndex, setLibraryTargetIndex] = useState(null);
   const [showDotColorPicker, setShowDotColorPicker] = useState(false);
+  const [showDotStylesPopup, setShowDotStylesPopup] = useState(false);
   const [showNavColorPicker, setShowNavColorPicker] = useState(false);
   const [showNavStylesPopup, setShowNavStylesPopup] = useState(false);
   const fileInputRef = useRef(null);
@@ -639,17 +654,27 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     setIsUpdatingDOM(true);
     liveRunnerIndexRef.current = newIdx; // Update early to prevent interval double-trigger
 
+    const overlay = liveRunnerOverlayRef.current;
+    if (overlay && overlay._updateDots) {
+      overlay._updateDots(newIdx);
+    }
+
     const finalize = () => {
       targetElement.setAttribute('data-active-index', newIdx.toString());
       liveRunnerIndexRef.current = newIdx; // Crucial for auto-slide interval
       setActiveSlideIndex(newIdx);
 
       // Sync overlay if exists
-      const overlay = liveRunnerOverlayRef.current;
-      if (overlay) {
-        overlay.querySelectorAll('.editor-ss-dot').forEach((d, i) => {
+      const currentOverlay = liveRunnerOverlayRef.current;
+      if (currentOverlay) {
+        if (currentOverlay._updateDots) {
+          currentOverlay._updateDots(newIdx);
+        }
+        currentOverlay.querySelectorAll('.editor-ss-dot').forEach((d, i) => {
           d.style.opacity = i === newIdx ? '1' : '0.4';
-          d.style.transform = i === newIdx ? 'scale(1.4)' : 'scale(1)';
+          const activeScale = d.getAttribute('data-active-scale') || 'scale(1.4)';
+          const inactiveScale = d.getAttribute('data-inactive-scale') || 'scale(1)';
+          d.style.transform = i === newIdx ? activeScale : inactiveScale;
         });
       }
 
@@ -839,6 +864,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     navIconColor: slideshowSettings.navIconColor,
     navStyle: slideshowSettings.navStyle,
     showDots: slideshowSettings.showDots,
+    dotStyle: slideshowSettings.dotStyle,
     showArrows: slideshowSettings.showArrows,
     showNav: slideshowSettings.showNav,
     dotColor: slideshowSettings.dotColor,
@@ -981,14 +1007,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       if (dotsWrap) {
         dotsWrap.style.bottom = (8 * scaleFactor) + 'px';
         dotsWrap.style.gap = (5 * scaleFactor) + 'px';
-        dotsWrap.querySelectorAll('.editor-ss-dot').forEach((dot, i) => {
-          const size = 7 * scaleFactor;
-          dot.style.width = size + 'px';
-          dot.style.height = size + 'px';
-          // Maintain active dot scaling
-          const isActive = i === liveRunnerIndexRef.current;
-          dot.style.transform = isActive ? `scale(1.4)` : 'scale(1)';
-        });
+        dotsWrap.style.transform = `translateX(-50%) scale(${Math.max(0.6, scaleFactor)})`;
+        dotsWrap.style.transformOrigin = 'bottom center';
       }
     };
 
@@ -1237,25 +1257,33 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       });
       dotsWrap.addEventListener('mouseleave', handleContainerLeave);
 
-      slideshowImages.forEach((_, i) => {
-        const dot = document.createElement('div');
-        dot.className = 'editor-ss-dot';
-        Object.assign(dot.style, {
-          width: '7px', height: '7px', borderRadius: '50%', background: dotColor,
-          cursor: 'pointer', transition: 'opacity 0.25s, transform 0.25s',
-          opacity: i === liveRunnerIndexRef.current ? '1' : '0.4',
-          transform: i === liveRunnerIndexRef.current ? 'scale(1.4)' : 'scale(1)',
-          pointerEvents: 'auto',
-        });
-        dot.addEventListener('mousedown', e => e.stopPropagation());
-        dot.addEventListener('click', (e) => {
-          e.stopPropagation(); e.preventDefault();
-          if (i === liveRunnerIndexRef.current) return;
-          switchTo(i, i > liveRunnerIndexRef.current ? 'next' : 'prev');
-          resetAutoTimer();
-        });
-        dotsWrap.appendChild(dot);
-      });
+      const dotsRoot = createRoot(dotsWrap);
+      roots.push(dotsRoot);
+
+      const RenderCanvasDots = ({ currentIdx = liveRunnerIndexRef.current }) => {
+        return (
+          <DotRenderer
+            styleId={slideshowSettings.dotStyle || 1}
+            size="8px"
+            color={dotColor || '#000000'}
+            activeIndex={currentIdx}
+            count={slideshowImages.length}
+            onDotClick={(e, i) => {
+              e.stopPropagation(); e.preventDefault();
+              if (i === liveRunnerIndexRef.current) return;
+              switchTo(i, i > liveRunnerIndexRef.current ? 'next' : 'prev');
+              resetAutoTimer();
+            }}
+          />
+        );
+      };
+
+      const updateDots = (newIdx = liveRunnerIndexRef.current) => {
+        dotsRoot.render(<RenderCanvasDots currentIdx={newIdx} />);
+      };
+
+      overlay._updateDots = updateDots;
+      updateDots(liveRunnerIndexRef.current);
       overlay.appendChild(dotsWrap);
     }
 
@@ -1638,12 +1666,23 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                   }
                 }}
               >
-                {slideshowImages[i]?.isUploading ? (
-                  <div className="flex flex-col items-center justify-center gap-[0.375vw] w-full h-full">
-                    <div className="w-[1.2vw] h-[1.2vw] border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                ) : slideshowImages[i] ? (
-                  <img src={slideshowImages[i].url} className="w-full h-full rounded-[0.3vw] transition-all duration-300" style={{ objectFit: (slideshowSettings.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain', opacity: localOpacity / 100 }} alt="" />
+                {slideshowImages[i] ? (
+                  <>
+                    <img
+                      src={slideshowImages[i].url}
+                      className="w-full h-full rounded-[0.3vw] transition-all duration-300"
+                      style={{
+                        objectFit: (slideshowSettings.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain',
+                        opacity: localOpacity / 100
+                      }}
+                      alt=""
+                    />
+                    {slideshowImages[i].isUploading && (
+                      <div className="absolute inset-0 bg-black/30 rounded-[0.3vw] flex items-center justify-center z-10">
+                        <div className="w-[1.2vw] h-[1.2vw] border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div
                     onClick={(e) => {
@@ -1902,7 +1941,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                   <Switch enabled={slideshowSettings.showDots ?? true} onChange={(v) => updateSetting('showDots', v)} />
                 </div>
                 {(slideshowSettings.showDots ?? true) && (
-                  <div className="flex items-center justify-center ml-[-2vw] px-[0.5vw] mb-[1vw] animate-in slide-in-from-top-1 fade-in duration-200 mt-[0.5vw]">
+                  <div className="flex items-center justify-center gap-[1vw] mb-[1vw] animate-in slide-in-from-top-1 fade-in duration-200 mt-[0.5vw]">
+                    {/* Left: Color & Hex */}
                     <div className="flex items-center gap-[0.4vw] shrink-0">
                       <div
                         className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] cursor-pointer shadow-sm border border-gray-100"
@@ -1915,6 +1955,22 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                       <div className="flex items-center justify-between border border-gray-400 rounded-[0.5vw] px-[0.75vw] bg-white h-[2.2vw] w-[8vw]">
                         <span className="text-[0.75vw] text-gray-700 font-semibold uppercase truncate block w-[4.5vw]" title={slideshowSettings.dotColor || '#000000'}>{slideshowSettings.dotColor || '#000000'}</span>
                         <span className="text-[0.75vw] text-gray-400 shrink-0">100%</span>
+                      </div>
+                    </div>
+
+                    {/* Right: Dots Preview Card */}
+                    <div
+                      onClick={() => setShowDotStylesPopup(true)}
+                      className="w-[6vw] h-[3.5vw] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)] rounded-[0.5vw] flex items-center justify-center relative group/dots shrink-0 cursor-pointer border border-gray-200 hover:border-gray-500 transition-all"
+                    >
+                      {/* Hover Overlay Button */}
+                      <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1.5vw] h-[1.5vw] bg-white shadow-md rounded-[0.3vw] flex items-center justify-center scale-90 opacity-0 group-hover/dots:opacity-100 group-hover/dots:scale-100 transition-all duration-300">
+                        <Icon icon="lucide:arrow-right-left" className="w-[0.8vw] h-[0.8vw] text-gray-700" />
+                      </div>
+
+                      {/* Dots Content (Blurred on hover) */}
+                      <div className="flex items-center justify-center w-full h-full transition-all duration-300 group-hover/dots:opacity-30">
+                        <DotRenderer styleId={slideshowSettings.dotStyle || 1} size="0.6vw" color="#000000" activeIndex={0} count={3} />
                       </div>
                     </div>
                   </div>
@@ -1978,6 +2034,19 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           }}
           currentStyle={slideshowSettings.navStyle}
           color={slideshowSettings.navIconColor}
+          positionStyle={{ top: '70%', right: '15vw', transform: 'translateY(-50%)' }}
+        />
+      )}
+
+      {showDotStylesPopup && (
+        <DotStylesPopup
+          isOpen={true}
+          onClose={() => setShowDotStylesPopup(false)}
+          onSelect={(styleId) => {
+            updateSetting('dotStyle', styleId);
+            setShowDotStylesPopup(false);
+          }}
+          currentStyle={slideshowSettings.dotStyle}
           positionStyle={{ top: '70%', right: '15vw', transform: 'translateY(-50%)' }}
         />
       )}
