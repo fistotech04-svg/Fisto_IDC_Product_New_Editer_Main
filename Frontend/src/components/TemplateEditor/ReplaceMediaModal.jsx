@@ -6,7 +6,7 @@ import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { checkIsAnimatedWebp } from './editorUtils';
 import { useToast } from '../CustomToast';
 
-const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) => {
+const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image', titleText, buttonText }) => {
   const toast = useToast();
   const [replaceModalTab, setReplaceModalTab] = useState('Upload');
   const [replaceModalFile, setReplaceModalFile] = useState(null);
@@ -279,7 +279,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
         {/* Header */}
         <div className="flex items-center justify-between p-[1.5vw] pb-[0.5vw]">
           <h2 className="text-[1.1vw] font-bold text-gray-900 mr-[1vw]">
-            {mediaType === 'video' ? 'Replace Video' : mediaType === 'gif' ? 'Replace Gif' : 'Replace Image'}
+            {titleText || (mediaType === 'video' ? 'Replace Video' : mediaType === 'gif' ? 'Replace Gif' : 'Replace Image')}
           </h2>
           <div className="flex-1 h-px bg-gray-200 mx-[0.5vw]"></div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -759,7 +759,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
             onClick={() => executeConfirmReplace()}
             className={`flex-1 py-[0.5vw] rounded-[0.3vw] text-white text-[0.8vw] font-medium transition-colors ${replaceModalFile ? 'bg-black hover:bg-gray-800' : 'bg-[#B1B1B1] cursor-not-allowed'}`}
           >
-            Replace {mediaType === 'video' ? 'Video' : mediaType === 'gif' ? 'Gif' : 'Image'}
+            {buttonText || `Replace ${mediaType === 'video' ? 'Video' : mediaType === 'gif' ? 'Gif' : 'Image'}`}
           </button>
         </div>
       </div>
