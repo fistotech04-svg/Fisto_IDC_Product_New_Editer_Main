@@ -46,6 +46,7 @@ const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
   let cachedLogo = null;
   let cachedWatermark = null;
   let cachedProfile = null;
+  let cachedPreloader = null;
   let cachedAppearance = null;
 
   // Only check local cache for non-published editor preview
@@ -62,8 +63,9 @@ const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
         cachedLogo = parsed.logo || parsed.logoSettings || parsed.Branding?.logoSettings;
         cachedWatermark = parsed.watermark || parsed.watermarkSettings || parsed.Branding?.watermarkSettings;
         cachedProfile = parsed.profile || parsed.profileSettings || parsed.Branding?.profileSettings;
+        cachedPreloader = parsed.preloader || parsed.preloaderSettings || parsed.Branding?.preloaderSettings;
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const bObj = inputSettings?.Branding || inputSettings?.Customized_Settings?.Branding || {};
@@ -74,7 +76,7 @@ const parseInitialSettings = (inputSettings, v_id, isPublishedPreview) => {
     ...(inputSettings || {}),
     logo: inputSettings?.logo || inputSettings?.logoSettings || bObj.logoSettings || cachedLogo,
     watermark: inputSettings?.watermark || inputSettings?.watermarkSettings || bObj.watermarkSettings || cachedWatermark,
-    preloader: inputSettings?.preloader || inputSettings?.preloaderSettings || bObj.preloaderSettings || bObj.preloader || inputSettings?.Customized_Settings?.Branding?.preloaderSettings || null,
+    preloader: inputSettings?.preloader || inputSettings?.preloaderSettings || bObj.preloaderSettings || bObj.preloader || inputSettings?.Customized_Settings?.Branding?.preloaderSettings || cachedPreloader || null,
     profile: inputSettings?.profile || inputSettings?.profileSettings || bObj.profileSettings || cachedProfile,
     appearance: appObj,
     bookAppearanceSettings: appObj,
@@ -201,6 +203,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             if (branding) {
               if (branding.logoSettings) finalSettings.logo = branding.logoSettings;
               if (branding.watermarkSettings) finalSettings.watermark = branding.watermarkSettings;
+              if (branding.preloaderSettings) finalSettings.preloader = branding.preloaderSettings;
             }
             const setup = await getFromDB(`customized_editor_setup_${v_id || 'default'}`);
             if (setup) {
@@ -225,7 +228,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
           if (storedUser) {
             const user = JSON.parse(storedUser);
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-            
+
             const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
               params: { emailId: user.emailId, v_id, metadataOnly: true }
             });
@@ -315,14 +318,14 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
     e.preventDefault();
     setIsDraggerDragging(true);
     draggerHasMovedRef.current = false;
-    
+
     const draggerWidth = (window.innerWidth * 4) / 100;
     let currentLeft = draggerTabLeft;
     if (draggerTabLeft < 5) currentLeft = 0;
     else if (draggerTabLeft >= 10) currentLeft = window.innerWidth - draggerWidth;
-    
+
     setDraggerTabLeft(currentLeft);
-    
+
     const rect = e.currentTarget.getBoundingClientRect();
     draggerOffsetRef.current = {
       x: e.clientX - rect.left,
@@ -431,13 +434,13 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
   }, [localSettings?.layout, localSettings?.layoutColors]);
 
   return (
-    <div 
+    <div
       ref={containerRef}
       onContextMenu={(e) => e.preventDefault()}
       className="fixed inset-0 z-[1000] flex flex-col overflow-hidden select-none"
-      style={{ 
+      style={{
         backgroundColor: '#ffffff',
-        ...(layoutColorVars ? Object.fromEntries(layoutColorVars.split(';').filter(Boolean).map(v => v.split(':').map(s => s.trim()))) : {}) 
+        ...(layoutColorVars ? Object.fromEntries(layoutColorVars.split(';').filter(Boolean).map(v => v.split(':').map(s => s.trim()))) : {})
       }}
     >
       <style>{`:root { ${layoutColorVars} }`}</style>
@@ -459,9 +462,8 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             )}
 
             <div
-              className={`fixed z-[2000] bg-black text-white py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between pointer-events-auto cursor-grab active:cursor-grabbing ${
-                isDraggerDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
-              }`}
+              className={`fixed z-[2000] bg-black text-white py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between pointer-events-auto cursor-grab active:cursor-grabbing ${isDraggerDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
+                }`}
               style={{
                 top: `${draggerTabTop}px`,
                 left: isDraggerDragging ? `${draggerTabLeft}px` : (draggerTabLeft < 5 ? '0' : 'auto'),
@@ -483,57 +485,57 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                   <AttachedCurve position="bottom-right" />
                 </>
               )}
-              
-                <div className="flex flex-col gap-[0.2vw] w-full items-center">
-                  <div className="flex flex-col items-center justify-center w-full">
-                    <div 
-                      className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent group cursor-pointer'} w-[1.8vw]`}
-                      onMouseDown={(e) => { if (!isDraggerExpanded) e.stopPropagation(); }}
-                      onClick={(e) => {
-                        if (!isDraggerExpanded) {
-                          e.stopPropagation();
-                          setIsDraggerExpanded(true);
-                        }
-                      }}
-                    >
-                      {!isDraggerExpanded ? (
-                        <>
-                          <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
-                            <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
-                          </div>
-                          <div className="mt-[0.2vw]">
-                            <Icon icon="lucide:chevron-down" className="w-[1vw] h-[1vw] text-gray-400 group-hover:text-white transition-colors" />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex flex-col w-full h-full justify-between items-center">
-                          {['Desktop', 'Tablet', 'Mobile'].map((device) => (
-                            <div
-                              key={device}
-                              className="w-full flex items-center justify-center cursor-pointer py-[0.2vw]"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeviceChange(device);
-                                setIsDraggerExpanded(false);
-                              }}
-                            >
-                              <Icon icon={device === 'Desktop' ? 'mynaui:desktop' : device === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className={`w-[1.5vw] h-[1.5vw] ${activeDevice === device ? 'text-white' : 'text-gray-400 hover:text-white'}`} />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    className="flex flex-col items-center gap-[0.2vw] py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full text-[#ff3333]"
-                    title="Exit Preview"
-                    onClick={(e) => { e.stopPropagation(); onClose(); }}
-                    onMouseDown={(e) => e.stopPropagation()}
+
+              <div className="flex flex-col gap-[0.2vw] w-full items-center">
+                <div className="flex flex-col items-center justify-center w-full">
+                  <div
+                    className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent group cursor-pointer'} w-[1.8vw]`}
+                    onMouseDown={(e) => { if (!isDraggerExpanded) e.stopPropagation(); }}
+                    onClick={(e) => {
+                      if (!isDraggerExpanded) {
+                        e.stopPropagation();
+                        setIsDraggerExpanded(true);
+                      }
+                    }}
                   >
-                    <Icon icon="lucide:log-out" className="w-[1.2vw] h-[1.2vw] transition-transform group-hover:scale-110" />
-                  </button>
+                    {!isDraggerExpanded ? (
+                      <>
+                        <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
+                          <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
+                        </div>
+                        <div className="mt-[0.2vw]">
+                          <Icon icon="lucide:chevron-down" className="w-[1vw] h-[1vw] text-gray-400 group-hover:text-white transition-colors" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col w-full h-full justify-between items-center">
+                        {['Desktop', 'Tablet', 'Mobile'].map((device) => (
+                          <div
+                            key={device}
+                            className="w-full flex items-center justify-center cursor-pointer py-[0.2vw]"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeviceChange(device);
+                              setIsDraggerExpanded(false);
+                            }}
+                          >
+                            <Icon icon={device === 'Desktop' ? 'mynaui:desktop' : device === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className={`w-[1.5vw] h-[1.5vw] ${activeDevice === device ? 'text-white' : 'text-gray-400 hover:text-white'}`} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+                <button
+                  className="flex flex-col items-center gap-[0.2vw] py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full text-[#ff3333]"
+                  title="Exit Preview"
+                  onClick={(e) => { e.stopPropagation(); onClose(); }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <Icon icon="lucide:log-out" className="w-[1.2vw] h-[1.2vw] transition-transform group-hover:scale-110" />
+                </button>
+              </div>
             </div>
           </>
         );
@@ -543,8 +545,8 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         return settingsContent;
       })()}
 
-      <PreviewArea 
-        bookName={pageName || bookName} 
+      <PreviewArea
+        bookName={pageName || bookName}
         pages={pages}
         targetPage={targetPage}
         logoSettings={localSettings?.logo || localSettings?.logoSettings || localSettings?.Branding?.logoSettings}
@@ -587,9 +589,8 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             )}
 
             <div
-              className={`fixed z-[2000] bg-black text-white py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between pointer-events-auto cursor-grab active:cursor-grabbing ${
-                isDraggerDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
-              }`}
+              className={`fixed z-[2000] bg-black text-white py-[0.5vw] px-[0.5vw] flex flex-col items-center justify-between pointer-events-auto cursor-grab active:cursor-grabbing ${isDraggerDragging ? 'rounded-[0.8vw] shadow-[0_10px_30px_rgba(0,0,0,0.3)]' : 'transition-all duration-500 ease-in-out ' + (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none shadow-none' : 'rounded-l-[0.8vw] rounded-r-none shadow-none')
+                }`}
               style={{
                 top: `${draggerTabTop}px`,
                 left: isDraggerDragging ? `${draggerTabLeft}px` : (draggerTabLeft < 5 ? '0' : 'auto'),
@@ -611,57 +612,57 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                   <AttachedCurve position="bottom-right" />
                 </>
               )}
-              
-                <div className="flex flex-col gap-[0.2vw] w-full items-center">
-                  <div className="flex flex-col items-center justify-center w-full">
-                    <div 
-                      className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent group cursor-pointer'} w-[1.8vw]`}
-                      onMouseDown={(e) => { if (!isDraggerExpanded) e.stopPropagation(); }}
-                      onClick={(e) => {
-                        if (!isDraggerExpanded) {
-                          e.stopPropagation();
-                          setIsDraggerExpanded(true);
-                        }
-                      }}
-                    >
-                      {!isDraggerExpanded ? (
-                        <>
-                          <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
-                            <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
-                          </div>
-                          <div className="mt-[0.2vw]">
-                            <Icon icon="lucide:chevron-down" className="w-[1vw] h-[1vw] text-gray-400 group-hover:text-white transition-colors" />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex flex-col w-full h-full justify-between items-center">
-                          {['Desktop', 'Tablet', 'Mobile'].map((device) => (
-                            <div
-                              key={device}
-                              className="w-full flex items-center justify-center cursor-pointer py-[0.2vw]"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeviceChange(device);
-                                setIsDraggerExpanded(false);
-                              }}
-                            >
-                              <Icon icon={device === 'Desktop' ? 'mynaui:desktop' : device === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className={`w-[1.5vw] h-[1.5vw] ${activeDevice === device ? 'text-white' : 'text-gray-400 hover:text-white'}`} />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    className="flex flex-col items-center gap-[0.2vw] py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full text-[#ff3333]"
-                    title="Exit Preview"
-                    onClick={(e) => { e.stopPropagation(); onClose(); }}
-                    onMouseDown={(e) => e.stopPropagation()}
+
+              <div className="flex flex-col gap-[0.2vw] w-full items-center">
+                <div className="flex flex-col items-center justify-center w-full">
+                  <div
+                    className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent group cursor-pointer'} w-[1.8vw]`}
+                    onMouseDown={(e) => { if (!isDraggerExpanded) e.stopPropagation(); }}
+                    onClick={(e) => {
+                      if (!isDraggerExpanded) {
+                        e.stopPropagation();
+                        setIsDraggerExpanded(true);
+                      }
+                    }}
                   >
-                    <Icon icon="lucide:log-out" className="w-[1.2vw] h-[1.2vw] transition-transform group-hover:scale-110" />
-                  </button>
+                    {!isDraggerExpanded ? (
+                      <>
+                        <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
+                          <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
+                        </div>
+                        <div className="mt-[0.2vw]">
+                          <Icon icon="lucide:chevron-down" className="w-[1vw] h-[1vw] text-gray-400 group-hover:text-white transition-colors" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col w-full h-full justify-between items-center">
+                        {['Desktop', 'Tablet', 'Mobile'].map((device) => (
+                          <div
+                            key={device}
+                            className="w-full flex items-center justify-center cursor-pointer py-[0.2vw]"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeviceChange(device);
+                              setIsDraggerExpanded(false);
+                            }}
+                          >
+                            <Icon icon={device === 'Desktop' ? 'mynaui:desktop' : device === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className={`w-[1.5vw] h-[1.5vw] ${activeDevice === device ? 'text-white' : 'text-gray-400 hover:text-white'}`} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+                <button
+                  className="flex flex-col items-center gap-[0.2vw] py-[0.2vw] px-[0.4vw] rounded-xl group transition-all cursor-pointer w-full text-[#ff3333]"
+                  title="Exit Preview"
+                  onClick={(e) => { e.stopPropagation(); onClose(); }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <Icon icon="lucide:log-out" className="w-[1.2vw] h-[1.2vw] transition-transform group-hover:scale-110" />
+                </button>
+              </div>
             </div>
           </>
         );
@@ -696,6 +697,9 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             }}
           >
             <div className="flex flex-col items-center gap-6">
+              {preloader?.layout !== 'spinner' && preloader?.logo && (
+                <img src={preloader.logo} alt="Preloader Logo" className="h-[60px] object-contain" />
+              )}
               {preloader.layout === 'bar' ? (
                 <div className="flex flex-col items-center gap-3 w-[250px]">
                   <div className="w-full bg-gray-600/40 h-[6px] rounded-full overflow-hidden">
@@ -724,15 +728,23 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                 </div>
               ) : (
                 // circular spinner
-                <div className="relative flex items-center justify-center">
-                  <div
-                    className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin"
-                    style={{
-                      borderColor: `${preloader.spinnerColor || '#3B3C8A'} ${preloader.spinnerColor || '#3B3C8A'} ${preloader.spinnerColor || '#3B3C8A'} transparent`
-                    }}
-                  ></div>
-                  {preloader.showPercentage && (
-                    <span className="absolute text-[11px] font-bold">{loadingProgress}%</span>
+                <div className="relative flex flex-col items-center justify-center">
+                  <div className="relative flex items-center justify-center">
+                    <div
+                      className={`${preloader?.logo ? 'w-[80px] h-[80px]' : 'w-12 h-12'} border-4 border-t-transparent rounded-full animate-spin`}
+                      style={{
+                        borderColor: `${preloader.spinnerColor || '#3B3C8A'} ${preloader.spinnerColor || '#3B3C8A'} ${preloader.spinnerColor || '#3B3C8A'} transparent`
+                      }}
+                    ></div>
+                    {preloader?.logo && (
+                      <img src={preloader.logo} alt="Preloader Logo" className="absolute h-[45px] max-w-[60px] object-contain" />
+                    )}
+                    {preloader.showPercentage && !preloader?.logo && (
+                      <span className="absolute text-[11px] font-bold">{loadingProgress}%</span>
+                    )}
+                  </div>
+                  {preloader.showPercentage && preloader?.logo && (
+                    <span className="text-[11px] font-bold mt-2">{loadingProgress}%</span>
                   )}
                 </div>
               )}
