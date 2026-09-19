@@ -158,6 +158,15 @@ const ImageEditor = ({
         const bytes = Math.round(base64str.length * (3 / 4));
         setImageFileSize(formatBytes(bytes, 1));
       }
+    } else if (previewSrc.startsWith('blob:')) {
+      fetch(previewSrc)
+        .then(res => res.blob())
+        .then(blob => {
+          setImageFileSize(formatBytes(blob.size, 1));
+        })
+        .catch(() => {
+          setImageFileSize('Unknown Size');
+        });
     } else {
       fetch(previewSrc, { method: 'HEAD' })
         .then(res => {
@@ -1049,39 +1058,10 @@ const ImageEditor = ({
 
           if (applyToLeaf) {
             if (forceClip) {
-              // Blur only content, tight bounds for intrinsic clipping
+              // Blur only content, tight bounds for intrinsic clipping matching VideoEditor
               liveElement.style.removeProperty('filter');
-
-              if (activeEffects.includes('Blur')) {
-                const blurVal = effectSettings['Blur'].blur / 2;
-                let svgFiltId = `tight-blur-${liveElement.id || 'img'}`;
-                let defs = liveElement.ownerSVGElement?.querySelector('defs');
-                if (!defs && liveElement.ownerSVGElement) {
-                  defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                  liveElement.ownerSVGElement.prepend(defs);
-                }
-                if (defs) {
-                  let f = defs.querySelector(`#${svgFiltId}`);
-                  if (!f) {
-                    f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-                    f.id = svgFiltId;
-                    defs.appendChild(f);
-                  }
-                  f.setAttribute('x', '0%');
-                  f.setAttribute('y', '0%');
-                  f.setAttribute('width', '100%');
-                  f.setAttribute('height', '100%');
-                  f.innerHTML = `<feGaussianBlur stdDeviation="${blurVal}"/>`;
-
-                  svgImageEl.style.setProperty('filter', `${adjustmentFilters} url(#${svgFiltId})`.trim(), 'important');
-                } else {
-                  const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
-                  svgImageEl.style.setProperty('filter', leafFilter, 'important');
-                }
-              } else {
-                const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
-                svgImageEl.style.setProperty('filter', leafFilter, 'important');
-              }
+              const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+              svgImageEl.style.setProperty('filter', leafFilter, 'important');
             } else {
               // Blur everything (stroke, fill) via parent, adjustments only on content
               const outerFilter = effectFilters.trim() || 'none';

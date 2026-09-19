@@ -130,23 +130,52 @@ export function formatTemplateSvgToPageSvg(svgContent, targetW = 210, targetH = 
     const templateSvg = templateDoc.querySelector('svg');
     if (!templateSvg) return '';
 
-    // Scope all IDs and classes in template to avoid collisions
+    // Calculate dimensions, viewBox, scaling
+    let templateWidth = parseFloat(templateSvg.getAttribute('width'));
+    let templateHeight = parseFloat(templateSvg.getAttribute('height'));
+    const viewBoxStr = templateSvg.getAttribute('viewBox');
+    let viewBoxX = 0;
+    let viewBoxY = 0;
+
+    if (viewBoxStr) {
+      const parts = viewBoxStr.trim().split(/[ ,]+/).map(parseFloat);
+      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+        viewBoxX = parts[0];
+        viewBoxY = parts[1];
+        templateWidth = parts[2];
+        templateHeight = parts[3];
+      }
+    }
+
+    if (!templateWidth || isNaN(templateWidth)) templateWidth = targetW;
+    if (!templateHeight || isNaN(templateHeight)) templateHeight = targetH;
+
+    const scale = Math.min(targetW / templateWidth, targetH / templateHeight);
+    const offsetX = (targetW - templateWidth * scale) / 2;
+    const offsetY = (targetH - templateHeight * scale) / 2;
+
+    // 1. Scope all IDs and classes in template to avoid collisions
     const tplPrefix = `tpl-${Math.random().toString(36).substr(2, 4)}`;
     const allTplElements = Array.from(templateSvg.querySelectorAll('*'));
     const idRefRegex = /url\(['"]?#([^)'"]+)['"]?\)/g;
+    const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
     const idMap = new Map();
-    // 1. Identify all elements with existing IDs and create sanitized prefixed IDs
+    // Identify all elements with existing IDs and create sanitized prefixed IDs
     allTplElements.forEach(el => {
-      if (el.id) {
-        const safeOld = el.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const oldId = el.getAttribute('id');
+      if (oldId && oldId.trim() !== '') {
+        const trimmedOld = oldId.trim();
+        const safeOld = trimmedOld.replace(/[^a-zA-Z0-9_-]/g, '_');
         const newId = `${tplPrefix}-${safeOld}`;
-        idMap.set(el.id, newId);
-        el.id = newId;
+        idMap.set(trimmedOld, newId);
+        idMap.set(safeOld, newId);
+        el.setAttribute('id', newId);
+        el.setAttribute('data-original-id', trimmedOld.replace(/&/g, 'and'));
       }
     });
 
-    // 2. Replace all url(#id) and href="#id" references
+    // Replace all url(#id) and href="#id" references
     allTplElements.forEach(el => {
       const classVal = el.getAttribute('class');
       if (classVal) {
@@ -154,12 +183,12 @@ export function formatTemplateSvgToPageSvg(svgContent, targetW = 210, targetH = 
         el.setAttribute('class', prefixedClasses);
       }
 
-      const refAttrs = ['fill', 'stroke', 'filter', 'mask', 'clip-path'];
+      const refAttrs = ['fill', 'stroke', 'filter', 'mask', 'clip-path', 'marker-start', 'marker-mid', 'marker-end'];
       refAttrs.forEach(attr => {
         const val = el.getAttribute(attr);
         if (val) {
           const newVal = val.replace(idRefRegex, (m, oldRef) => {
-            const mapped = idMap.get(oldRef);
+            const mapped = idMap.get(oldRef) || idMap.get(oldRef.replace(/[^a-zA-Z0-9_-]/g, '_'));
             return `url(#${mapped || `${tplPrefix}-${oldRef.replace(/[^a-zA-Z0-9_-]/g, '_')}`})`;
           });
           if (newVal !== val) el.setAttribute(attr, newVal);
@@ -169,26 +198,30 @@ export function formatTemplateSvgToPageSvg(svgContent, targetW = 210, targetH = 
       const styleText = el.getAttribute('style');
       if (styleText && styleText.includes('url(#')) {
         el.setAttribute('style', styleText.replace(idRefRegex, (m, oldRef) => {
-          const mapped = idMap.get(oldRef);
+          const mapped = idMap.get(oldRef) || idMap.get(oldRef.replace(/[^a-zA-Z0-9_-]/g, '_'));
           return `url(#${mapped || `${tplPrefix}-${oldRef.replace(/[^a-zA-Z0-9_-]/g, '_')}`})`;
         }));
       }
 
-      ['xlink:href', 'href'].forEach(attr => {
-        const val = el.getAttribute(attr);
-        if (val && val.startsWith('#')) {
-          const oldRef = val.substring(1);
-          const mapped = idMap.get(oldRef);
-          el.setAttribute(attr, `#${mapped || `${tplPrefix}-${oldRef.replace(/[^a-zA-Z0-9_-]/g, '_')}`}`);
-        }
-      });
+      // Handle href / xlink:href properly with namespaces
+      const hrefVal = el.getAttributeNS(XLINK_NS, 'href') || el.getAttribute('href') || el.getAttribute('xlink:href');
+      if (hrefVal && hrefVal.startsWith('#')) {
+        const oldRef = hrefVal.substring(1);
+        const mapped = idMap.get(oldRef) || idMap.get(oldRef.replace(/[^a-zA-Z0-9_-]/g, '_')) || `${tplPrefix}-${oldRef.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+        const newRef = `#${mapped}`;
+        el.setAttribute('href', newRef);
+        el.setAttribute('xlink:href', newRef);
+        try {
+          el.setAttributeNS(XLINK_NS, 'xlink:href', newRef);
+        } catch (nsErr) {}
+      }
     });
 
     const tplStyles = templateSvg.querySelectorAll('style');
     tplStyles.forEach(style => {
       if (style.textContent) {
         let css = style.textContent.replace(idRefRegex, (m, oldRef) => {
-          const mapped = idMap.get(oldRef);
+          const mapped = idMap.get(oldRef) || idMap.get(oldRef.replace(/[^a-zA-Z0-9_-]/g, '_'));
           return `url(#${mapped || `${tplPrefix}-${oldRef.replace(/[^a-zA-Z0-9_-]/g, '_')}`})`;
         });
         css = css.replace(/\.([a-zA-Z0-9_-]+)(?=[^{}]*\{)/g, `.${tplPrefix}-$1`);
@@ -209,186 +242,157 @@ export function formatTemplateSvgToPageSvg(svgContent, targetW = 210, targetH = 
     const pageSvg = pageDoc.querySelector('svg');
     const rootFolder = pageSvg.querySelector('g[data-type="frame"]') || pageSvg.querySelector('g');
 
-    // Calculate dimensions, viewBox, scaling
-    let templateWidth = parseFloat(templateSvg.getAttribute('width'));
-    let templateHeight = parseFloat(templateSvg.getAttribute('height'));
-    const viewBoxStr = templateSvg.getAttribute('viewBox');
-    let viewBoxX = 0;
-    let viewBoxY = 0;
-
-    if (viewBoxStr) {
-      const parts = viewBoxStr.trim().split(/[ ,]+/).map(parseFloat);
-      if (parts.length === 4) {
-        viewBoxX = parts[0];
-        viewBoxY = parts[1];
-        templateWidth = parts[2];
-        templateHeight = parts[3];
-      }
-    }
-
-    if (!templateWidth) templateWidth = targetW;
-    if (!templateHeight) templateHeight = targetH;
-
-    const scale = Math.min(targetW / templateWidth, targetH / templateHeight);
-    const offsetX = (targetW - templateWidth * scale) / 2;
-    const offsetY = (targetH - templateHeight * scale) / 2;
-
-    // Merge resource tags into defs
-    const RESOURCE_TAGS = ['mask', 'clippath', 'lineargradient', 'radialgradient', 'pattern', 'filter', 'symbol', 'marker'];
-    const allResources = templateSvg.querySelectorAll(RESOURCE_TAGS.join(','));
+    // 2. Resource tags (<defs>) extraction and merging
     let targetDefs = pageSvg.querySelector('defs');
-
-    if (allResources.length > 0) {
-      if (!targetDefs) {
-        targetDefs = pageDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
-        pageSvg.insertBefore(targetDefs, pageSvg.firstChild);
-      }
-      allResources.forEach(res => {
-        targetDefs.appendChild(pageDoc.importNode(res, true));
-      });
+    if (!targetDefs) {
+      targetDefs = pageDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      pageSvg.insertBefore(targetDefs, pageSvg.firstChild);
     }
 
-    const templateDefs = templateSvg.querySelector('defs');
-    if (templateDefs) {
-      if (!targetDefs) {
-        targetDefs = pageDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
-        pageSvg.insertBefore(targetDefs, pageSvg.firstChild);
-      }
-      Array.from(templateDefs.children).forEach(child => {
-        targetDefs.appendChild(pageDoc.importNode(child, true));
-      });
-    }
+    const addedDefIds = new Set();
+    const importToTargetDefs = (node) => {
+      const id = node.getAttribute('id');
+      if (id && addedDefIds.has(id)) return;
+      if (id) addedDefIds.add(id);
+      targetDefs.appendChild(pageDoc.importNode(node, true));
+    };
 
-    const templateStyles = templateSvg.querySelectorAll('style');
-    if (templateStyles.length > 0) {
+    // A. Import all children of existing <defs> in template
+    const templateDefsList = templateSvg.querySelectorAll('defs');
+    templateDefsList.forEach(tDefs => {
+      Array.from(tDefs.children).forEach(child => {
+        importToTargetDefs(child);
+      });
+      tDefs.parentNode?.removeChild(tDefs);
+    });
+
+    // B. Import any resource tags defined outside of <defs>
+    const RESOURCE_SELECTORS = [
+      'mask', 'clipPath', 'clippath', 'linearGradient', 'lineargradient',
+      'radialGradient', 'radialgradient', 'pattern', 'filter', 'symbol', 'marker'
+    ];
+    templateSvg.querySelectorAll(RESOURCE_SELECTORS.join(',')).forEach(res => {
+      if (res.parentNode) {
+        importToTargetDefs(res);
+        res.parentNode.removeChild(res);
+      }
+    });
+
+    // C. Import styles
+    if (tplStyles.length > 0) {
       let targetStyle = pageSvg.querySelector('style');
       if (!targetStyle) {
         targetStyle = pageDoc.createElementNS('http://www.w3.org/2000/svg', 'style');
         pageSvg.insertBefore(targetStyle, pageSvg.firstChild);
       }
-      templateStyles.forEach(s => {
-        targetStyle.textContent += s.textContent + '\n';
+      tplStyles.forEach(s => {
+        targetStyle.textContent += (s.textContent || '') + '\n';
+        s.parentNode?.removeChild(s);
       });
     }
 
-    // Helper: unwrap a group and inherit its properties to its children
-    const unwrapGroup = (g) => {
-      const children = Array.from(g.children);
+    // 3. Clean up empty groups
+    Array.from(templateSvg.querySelectorAll('g')).forEach(g => {
+      if (g.children.length === 0 && !g.textContent?.trim()) {
+        g.parentNode?.removeChild(g);
+      }
+    });
+
+    // 4. Handle outermost dummy artboard/parent groups
+    // Templates exported from Figma/Illustrator wrap the entire artboard in a parent <g> (e.g. <g id="2 - Table of content" clip-path="...">)
+    // We unwrap these top-level container groups so all child elements are placed directly in the Root Page Folder.
+    const unwrapOuterGroup = (group) => {
+      // 1. Inherit visual styling attributes to children so elements preserve their appearance
       const attrsToInherit = [
         'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
-        'opacity', 'visibility', 'filter', 'color',
+        'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
         'font-family', 'font-size', 'font-weight', 'font-style', 'text-anchor', 'letter-spacing', 'word-spacing'
       ];
       attrsToInherit.forEach(attr => {
-        const val = g.getAttribute(attr);
+        const val = group.getAttribute(attr);
         if (val) {
-          children.forEach(child => {
+          Array.from(group.children).forEach(child => {
             if (!child.hasAttribute(attr)) child.setAttribute(attr, val);
           });
         }
       });
 
-      const gStyle = g.getAttribute('style');
-      if (gStyle) {
-        children.forEach(child => {
-          const cStyle = child.getAttribute('style');
-          child.setAttribute('style', cStyle ? `${gStyle}; ${cStyle}` : gStyle);
+      // 2. Inherit styles
+      const groupStyle = group.getAttribute('style');
+      if (groupStyle) {
+        Array.from(group.children).forEach(child => {
+          const childStyle = child.getAttribute('style');
+          child.setAttribute('style', childStyle ? `${groupStyle}; ${childStyle}` : groupStyle);
         });
       }
 
-      const gClass = g.getAttribute('class');
-      if (gClass) {
-        children.forEach(child => {
-          const cClass = child.getAttribute('class');
-          child.setAttribute('class', cClass ? `${gClass} ${cClass}` : gClass);
+      // 3. Inherit CSS classes
+      const groupClass = group.getAttribute('class');
+      if (groupClass) {
+        Array.from(group.children).forEach(child => {
+          const childClass = child.getAttribute('class');
+          child.setAttribute('class', childClass ? `${groupClass} ${childClass}` : groupClass);
         });
       }
 
-      const gTransform = g.getAttribute('transform');
-      if (gTransform) {
-        children.forEach(child => {
-          const cTransform = child.getAttribute('transform') || '';
-          child.setAttribute('transform', `${gTransform} ${cTransform}`.trim());
+      // 4. Inherit transforms (accumulate parent transform before child transform)
+      const groupTransform = group.getAttribute('transform') || '';
+      if (groupTransform) {
+        Array.from(group.children).forEach(child => {
+          const childTransform = child.getAttribute('transform') || '';
+          child.setAttribute('transform', `${groupTransform} ${childTransform}`.trim());
         });
       }
 
-      const gClip = g.getAttribute('clip-path');
-      if (gClip) {
-        children.forEach(child => {
-          if (!child.hasAttribute('clip-path')) child.setAttribute('clip-path', gClip);
-        });
-      }
-
-      const parent = g.parentNode;
-      if (parent) {
-        children.forEach(child => {
-          parent.insertBefore(child, g);
-        });
-        parent.removeChild(g);
-      }
+      // 5. Move all children out before the group, then remove the group
+      const children = Array.from(group.children);
+      children.forEach(c => group.parentNode.insertBefore(c, group));
+      group.parentNode.removeChild(group);
     };
 
-    // Recursively unwrap all structural/container groups so individual elements are directly accessible
-    let unwrappedAny = true;
-    let maxPasses = 25;
-    while (unwrappedAny && maxPasses-- > 0) {
-      unwrappedAny = false;
-      const groups = Array.from(templateSvg.querySelectorAll('g'));
-      for (const g of groups) {
-        if (!g.parentNode) continue;
+    const getDirectContentChildren = () => Array.from(templateSvg.children).filter(c =>
+      !['defs', 'metadata', 'style', 'title', 'desc'].includes(c.tagName.toLowerCase())
+    );
 
-        // 1. Empty group
-        if (g.children.length === 0) {
-          g.parentNode.removeChild(g);
-          unwrappedAny = true;
-          continue;
-        }
+    // Repeatedly unwrap wrapper groups as long as all page content is wrapped in a container
+    let directContent = getDirectContentChildren();
+    let unwrapped = true;
+    while (unwrapped) {
+      unwrapped = false;
+      directContent = getDirectContentChildren();
 
-        // 2. Single child group: always unwrap
-        if (g.children.length === 1) {
-          unwrapGroup(g);
-          unwrappedAny = true;
-          continue;
-        }
+      // Case A: Exactly 1 child, and it is a <g> (single wrapper artboard group)
+      if (directContent.length === 1 && directContent[0].tagName.toLowerCase() === 'g') {
+        unwrapOuterGroup(directContent[0]);
+        unwrapped = true;
+        continue;
+      }
 
-        // 3. Groups containing text elements: always unwrap so text can be directly clicked and edited
-        const hasText = g.querySelector('text, tspan, foreignObject') !== null;
-        if (hasText) {
-          unwrapGroup(g);
-          unwrappedAny = true;
-          continue;
-        }
-
-        // 4. Groups containing nested groups: unwrap outer container
-        const hasNestedGroup = Array.from(g.children).some(c => c.tagName.toLowerCase() === 'g');
-        if (hasNestedGroup) {
-          unwrapGroup(g);
-          unwrappedAny = true;
-          continue;
-        }
-
-        // 5. Keep small vector-only groups (e.g. icons with <= 5 paths) as icon units; unwrap other containers
-        const isSmallVectorIcon = g.children.length <= 5 && Array.from(g.children).every(c =>
-          ['path', 'circle', 'line', 'polygon', 'polyline'].includes(c.tagName.toLowerCase())
-        );
-        if (!isSmallVectorIcon) {
-          unwrapGroup(g);
-          unwrappedAny = true;
-          continue;
+      // Case B: Exactly 2 children: one is an artboard background <rect> and the other is a wrapper <g>
+      if (directContent.length === 2) {
+        const groupEl = directContent.find(c => c.tagName.toLowerCase() === 'g');
+        const rectEl = directContent.find(c => c.tagName.toLowerCase() === 'rect');
+        if (groupEl && rectEl) {
+          const rW = parseFloat(rectEl.getAttribute('width')) || 0;
+          const rH = parseFloat(rectEl.getAttribute('height')) || 0;
+          if ((rW === 0 || rW >= templateWidth * 0.8) && (rH === 0 || rH >= templateHeight * 0.8)) {
+            unwrapOuterGroup(groupEl);
+            unwrapped = true;
+            continue;
+          }
         }
       }
     }
 
-    // Children of template after unwrapping
+    // 5. Gather page infant elements
     let infants = Array.from(templateSvg.children).filter(child =>
-      !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
-      !RESOURCE_TAGS.includes(child.tagName.toLowerCase())
+      !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase())
     );
 
     const targetParent = rootFolder || pageSvg;
     const overlayChild = Array.from(targetParent.children).find(el => el.getAttribute('data-name') === 'Overlay');
 
-    // Background rectangle detection: if the first element is a full-page rectangle, transfer its fill to Overlay
+    // 6. Background rectangle detection
     if (infants.length > 0 && infants[0].tagName.toLowerCase() === 'rect') {
       const firstRect = infants[0];
       const rW = parseFloat(firstRect.getAttribute('width')) || 0;
@@ -400,69 +404,84 @@ export function formatTemplateSvgToPageSvg(svgContent, targetW = 210, targetH = 
         (rW >= templateWidth * 0.9) && (rH >= templateHeight * 0.9);
 
       if (isFullBg) {
-        const bgFill = firstRect.getAttribute('fill');
-        if (overlayChild && bgFill && bgFill !== 'none') {
+        const bgFill = firstRect.getAttribute('fill') || '';
+        // Only transfer if solid color (patterns and gradients are kept as elements so their coordinates scale properly)
+        if (overlayChild && bgFill && !bgFill.startsWith('url(#') && bgFill !== 'none') {
           overlayChild.setAttribute('fill', bgFill);
           const bgOpacity = firstRect.getAttribute('fill-opacity') || firstRect.getAttribute('opacity');
           if (bgOpacity) overlayChild.setAttribute('fill-opacity', bgOpacity);
+          firstRect.parentNode?.removeChild(firstRect);
+          infants = infants.slice(1);
         }
-        firstRect.parentNode?.removeChild(firstRect);
-        infants = infants.slice(1);
       }
     }
 
-    // Assign IDs and semantic data-type / data-name to EVERY element
+    // 7. Assign IDs and semantic data-type / data-name recursively
     let elemCounter = 1;
-    infants.forEach(child => {
-      const tag = child.tagName.toLowerCase();
+    const assignMetadata = (node) => {
+      const tag = node.tagName.toLowerCase();
 
-      // Ensure every element has a unique, clean ID
-      if (!child.id || child.id.trim() === '') {
-        child.id = `${tag}-${tplPrefix}-${elemCounter++}`;
+      // Ensure every element has a unique ID
+      if (!node.id || node.id.trim() === '') {
+        node.id = `${tag}-${tplPrefix}-${elemCounter++}`;
       }
 
-      // Assign data-type and human-readable data-name
+      const origId = node.getAttribute('data-original-id') || '';
+      const cleanOrigName = origId ? origId.replace(/^tpl-[a-z0-9]+-/, '').replace(/_/g, ' ') : '';
+
       if (tag === 'text') {
-        child.setAttribute('data-type', 'text');
-        const textStr = (child.textContent || '').trim().replace(/\s+/g, ' ');
-        child.setAttribute('data-name', textStr ? `Text - ${textStr.slice(0, 24)}` : 'Text');
+        node.setAttribute('data-type', 'text');
+        const textStr = (node.textContent || '').trim().replace(/\s+/g, ' ');
+        node.setAttribute('data-name', cleanOrigName || (textStr ? `Text - ${textStr.slice(0, 24)}` : 'Text'));
       } else if (tag === 'image') {
-        child.setAttribute('data-type', 'image');
-        child.setAttribute('data-name', 'Image');
+        node.setAttribute('data-type', 'image');
+        node.setAttribute('data-name', cleanOrigName || 'Image');
       } else if (tag === 'rect') {
-        const fill = child.getAttribute('fill') || '';
+        const fill = node.getAttribute('fill') || '';
         if (fill.startsWith('url(#')) {
-          child.setAttribute('data-type', 'image');
-          child.setAttribute('data-name', 'Image');
+          node.setAttribute('data-type', 'image');
+          node.setAttribute('data-name', cleanOrigName || 'Image');
         } else {
-          child.setAttribute('data-type', 'shape');
-          child.setAttribute('data-name', 'Rectangle');
+          node.setAttribute('data-type', 'shape');
+          node.setAttribute('data-name', cleanOrigName || 'Rectangle');
         }
       } else if (tag === 'circle') {
-        child.setAttribute('data-type', 'shape');
-        child.setAttribute('data-name', 'Circle');
+        node.setAttribute('data-type', 'shape');
+        node.setAttribute('data-name', cleanOrigName || 'Circle');
       } else if (tag === 'ellipse') {
-        child.setAttribute('data-type', 'shape');
-        child.setAttribute('data-name', 'Ellipse');
+        node.setAttribute('data-type', 'shape');
+        node.setAttribute('data-name', cleanOrigName || 'Ellipse');
       } else if (tag === 'line') {
-        child.setAttribute('data-type', 'shape');
-        child.setAttribute('data-name', 'Line');
+        node.setAttribute('data-type', 'shape');
+        node.setAttribute('data-name', cleanOrigName || 'Line');
       } else if (tag === 'path') {
-        child.setAttribute('data-type', 'shape');
-        child.setAttribute('data-name', 'Shape');
+        const fill = node.getAttribute('fill') || '';
+        if (fill.startsWith('url(#')) {
+          node.setAttribute('data-type', 'image');
+          node.setAttribute('data-name', cleanOrigName || 'Image');
+        } else {
+          node.setAttribute('data-type', 'shape');
+          node.setAttribute('data-name', cleanOrigName || 'Shape');
+        }
       } else if (tag === 'polygon' || tag === 'polyline') {
-        child.setAttribute('data-type', 'shape');
-        child.setAttribute('data-name', 'Polygon');
+        node.setAttribute('data-type', 'shape');
+        node.setAttribute('data-name', cleanOrigName || 'Polygon');
       } else if (tag === 'g') {
-        child.setAttribute('data-type', 'icon');
-        child.setAttribute('data-name', 'Icon');
+        node.setAttribute('data-type', 'group');
+        node.setAttribute('data-name', cleanOrigName || 'Group');
+        Array.from(node.children).forEach(child => assignMetadata(child));
       }
-    });
+    };
 
+    infants.forEach(child => assignMetadata(child));
+
+    // 8. Apply fitting transform and append to page frame
     const svgAttrs = [
       'fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color',
       'font-family', 'font-size', 'font-weight', 'font-style', 'text-anchor', 'letter-spacing', 'word-spacing'
     ];
+
+    const fittingTransform = `translate(${offsetX}, ${offsetY}) scale(${scale}) translate(${-viewBoxX}, ${-viewBoxY})`;
 
     infants.forEach(child => {
       const imported = pageDoc.importNode(child, true);
@@ -480,14 +499,16 @@ export function formatTemplateSvgToPageSvg(svgContent, targetW = 210, targetH = 
         const importedClass = imported.getAttribute('class');
         imported.setAttribute('class', importedClass ? `${svgClass} ${importedClass}` : svgClass);
       }
+
       const currentTransform = imported.getAttribute('transform') || '';
-      const fittingTransform = `translate(${offsetX}, ${offsetY}) scale(${scale}) translate(${-viewBoxX}, ${-viewBoxY})`;
       imported.setAttribute('transform', `${fittingTransform} ${currentTransform}`.trim());
 
       targetParent.appendChild(imported);
     });
 
-    return new XMLSerializer().serializeToString(pageSvg);
+    let serialized = new XMLSerializer().serializeToString(pageSvg);
+    serialized = serialized.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+    return serialized;
   } catch (err) {
     console.error('Error formatting template SVG to page SVG:', err);
     return '';

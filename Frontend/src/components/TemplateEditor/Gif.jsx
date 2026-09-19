@@ -851,34 +851,7 @@ const GifEditor = ({
         if (svgImageEl) {
           let leafFilter = adjustOnlyFilter;
           if (forceClip && blurOnlyFilter !== 'none') {
-            if (svgImageEl.tagName?.toLowerCase() === 'img') {
-              leafFilter = `${leafFilter} ${blurStr}`.trim();
-            } else {
-              const blurVal = effectSettings['Blur'].blur / 2;
-              let svgFiltId = `tight-blur-${liveElement.id || 'gif'}`;
-              let defs = liveElement.ownerSVGElement?.querySelector('defs');
-              if (!defs && liveElement.ownerSVGElement) {
-                defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                liveElement.ownerSVGElement.prepend(defs);
-              }
-              if (defs) {
-                let f = defs.querySelector(`#${svgFiltId}`);
-                if (!f) {
-                  f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-                  f.id = svgFiltId;
-                  defs.appendChild(f);
-                }
-                f.setAttribute('x', '0%');
-                f.setAttribute('y', '0%');
-                f.setAttribute('width', '100%');
-                f.setAttribute('height', '100%');
-                f.innerHTML = `<feGaussianBlur stdDeviation="${blurVal}"/>`;
-
-                leafFilter = `${adjustOnlyFilter} url(#${svgFiltId})`.trim();
-              } else {
-                leafFilter = `${leafFilter} ${blurStr}`.trim();
-              }
-            }
+            leafFilter = `${adjustOnlyFilter} ${blurStr}`.trim();
           }
           svgImageEl.style.setProperty('filter', leafFilter, 'important');
         }

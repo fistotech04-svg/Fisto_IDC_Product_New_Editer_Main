@@ -244,6 +244,15 @@ const VideoEditor = ({
         const bytes = Math.round(base64str.length * (3 / 4));
         setVideoFileSize(formatBytes(bytes, 1));
       }
+    } else if (previewSrc.startsWith('blob:')) {
+      fetch(previewSrc)
+        .then(res => res.blob())
+        .then(blob => {
+          setVideoFileSize(formatBytes(blob.size, 1));
+        })
+        .catch(() => {
+          setVideoFileSize('Unknown Size');
+        });
     } else {
       fetch(previewSrc, { method: 'HEAD' })
         .then(res => {

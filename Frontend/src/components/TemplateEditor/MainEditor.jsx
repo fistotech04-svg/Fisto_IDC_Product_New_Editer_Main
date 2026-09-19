@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
+import { DotRenderer } from '../CustomizedEditor/popups/DotStylesPopup';
 import { checkIsAnimatedWebp } from './editorUtils';
 import FlipBookEngine from '../CustomizedEditor/FlipBookEngine';
 import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
@@ -999,16 +1000,10 @@ const MainEditor = ({
 
     // Auto-fix for corrupted templates: strip out the pink XML parsererror and any baked-in custom controls
     if (clean.includes('parsererror') || clean.includes('id="custom-ctrl-')) {
-      try {
-        const temp = document.createElement('div');
-        temp.innerHTML = clean;
-        temp.querySelectorAll('parsererror').forEach(el => el.remove());
-        temp.querySelectorAll('[id^="custom-ctrl-"]').forEach(el => el.remove());
-        clean = temp.innerHTML;
-      } catch (e) {
-        console.error('Error cleaning template HTML:', e);
-      }
+      clean = clean.replace(/<parsererror[\s\S]*?<\/parsererror>/gi, '');
+      clean = clean.replace(/<[^>]*id="custom-ctrl-[^>]*>.*?<\/[^>]*>/gi, '');
     }
+    clean = clean.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
 
     // Ensure invisible Document Shield exists above PDF Background in converted document pages
     if ((isConvertedFlipbook || clean.includes('PDF Background') || clean.includes('pdf-vector-layer')) && !clean.includes('data-name="Document Shield"')) {
@@ -1371,42 +1366,52 @@ const MainEditor = ({
           }
 
           if (showDots) {
-            const dotsWrap = document.createElement('div');
-            Object.assign(dotsWrap.style, {
-              position: 'absolute',
-              bottom: (8 * scaleFactor) + 'px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              gap: (5 * scaleFactor) + 'px',
-              alignItems: 'center',
-              pointerEvents: 'auto',
-            });
-            images.forEach((_, i) => {
-              const dot = document.createElement('div');
-              dot.className = 'editor-ss-dot';
-              const size = 7 * scaleFactor;
-              Object.assign(dot.style, {
-                width: size + 'px', height: size + 'px', borderRadius: '50%', background: dotColor,
-                cursor: 'pointer', transition: 'opacity 0.25s, transform 0.25s',
-                opacity: '0.4',
-                transform: 'scale(1)',
+            let dotsWrap = overlay.querySelector('.editor-ss-dots-wrap');
+            if (!dotsWrap) {
+              dotsWrap = document.createElement('div');
+              dotsWrap.className = 'editor-ss-dots-wrap';
+              Object.assign(dotsWrap.style, {
+                position: 'absolute',
+                bottom: (8 * scaleFactor) + 'px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: (5 * scaleFactor) + 'px',
+                alignItems: 'center',
                 pointerEvents: 'auto',
               });
-              dot.addEventListener('mousedown', e => e.stopPropagation());
-              dot.addEventListener('click', e => {
-                e.stopPropagation(); e.preventDefault();
-                const current = parseInt(el.getAttribute('data-active-index') || '0');
-                if (i === current) return;
-                el.setAttribute('data-active-index', i.toString());
-                el._lastSlideTime = Date.now();
+              overlay.appendChild(dotsWrap);
+            }
 
-                const evt = new CustomEvent('force-slideshow-advance', { detail: { el, nextIndex: i } });
-                window.dispatchEvent(evt);
-              });
-              dotsWrap.appendChild(dot);
-            });
-            overlay.appendChild(dotsWrap);
+            if (!dotsWrap._reactRoot) {
+              dotsWrap._reactRoot = createRoot(dotsWrap);
+            }
+
+            const dotStyleId = settings.dotStyle || 1;
+            const dotsSig = `${dotStyleId}-${activeIndex}-${images.length}-${dotColor}-${scaleFactor.toFixed(2)}`;
+
+            if (dotsWrap._lastSig !== dotsSig) {
+              dotsWrap._lastSig = dotsSig;
+              dotsWrap._reactRoot.render(
+                <DotRenderer
+                  styleId={dotStyleId}
+                  size={`${Math.max(6, 8 * scaleFactor)}px`}
+                  color={dotColor || '#000000'}
+                  activeIndex={activeIndex}
+                  count={images.length}
+                  onDotClick={(e, i) => {
+                    e.stopPropagation(); e.preventDefault();
+                    const current = parseInt(el.getAttribute('data-active-index') || '0');
+                    if (i === current) return;
+                    el.setAttribute('data-active-index', i.toString());
+                    el._lastSlideTime = Date.now();
+
+                    const evt = new CustomEvent('force-slideshow-advance', { detail: { el, nextIndex: i } });
+                    window.dispatchEvent(evt);
+                  }}
+                />
+              );
+            }
           }
         }
 
@@ -1415,11 +1420,6 @@ const MainEditor = ({
         overlay.querySelectorAll('.editor-ss-nav').forEach(btn => {
           btn.style.opacity = isHovering ? '1' : '0';
           btn.style.pointerEvents = isHovering ? 'auto' : 'none';
-        });
-
-        overlay.querySelectorAll('.editor-ss-dot').forEach((dot, i) => {
-          dot.style.opacity = i === activeIndex ? '1' : '0.4';
-          dot.style.transform = i === activeIndex ? 'scale(1.4)' : 'scale(1)';
         });
       });
 
@@ -2504,7 +2504,11 @@ const MainEditor = ({
   useEffect(() => {
     let animationFrameId;
     const updateScrollbarStyles = () => {
-      const els = document.querySelectorAll('[data-scrollbar-color], [data-bg-fill], [data-bg-stroke]');
+      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument;
+      const elsDoc = Array.from(document.querySelectorAll('[data-scrollbar-color], [data-bg-fill], [data-bg-stroke]'));
+      const elsIframe = editorDoc ? Array.from(editorDoc.querySelectorAll('[data-scrollbar-color], [data-bg-fill], [data-bg-stroke]')) : [];
+      const els = [...elsDoc, ...elsIframe];
+
       let cssRules = '';
       els.forEach(el => {
         if (el.id) {
@@ -2538,19 +2542,28 @@ const MainEditor = ({
       }
       if (styleTag.textContent !== cssRules) {
         styleTag.textContent = cssRules;
-        // Force live sync redraw for WebKit after rules are applied
-        // We use a tiny timeout so the browser has time to parse the new CSS rule before we kick it!
         setTimeout(() => {
           els.forEach(el => {
             const innerDiv = el.querySelector('.flipbook-text-scrollbar');
             if (innerDiv) {
               const currentOverflow = innerDiv.style.overflowY;
               innerDiv.style.overflowY = 'hidden';
-              void innerDiv.offsetHeight; // This triggers the redraw
+              void innerDiv.offsetHeight;
               innerDiv.style.overflowY = currentOverflow || 'auto';
             }
           });
         }, 10);
+      }
+      if (editorDoc) {
+        let iframeStyleTag = editorDoc.getElementById('global-scrollbar-styles');
+        if (!iframeStyleTag) {
+          iframeStyleTag = editorDoc.createElement('style');
+          iframeStyleTag.id = 'global-scrollbar-styles';
+          (editorDoc.head || editorDoc.documentElement).appendChild(iframeStyleTag);
+        }
+        if (iframeStyleTag.textContent !== cssRules) {
+          iframeStyleTag.textContent = cssRules;
+        }
       }
     };
 
@@ -2561,6 +2574,13 @@ const MainEditor = ({
 
     updateScrollbarStyles();
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
+
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument;
+    if (editorDoc && editorDoc.body) {
+      try {
+        observer.observe(editorDoc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
+      } catch (e) {}
+    }
 
     return () => {
       observer.disconnect();
@@ -2936,6 +2956,7 @@ const MainEditor = ({
           'slideshow': 'slideshow',
           'zoom': 'zoom',
           'download': 'download',
+          'audio': 'audio',
           'info-box': 'info-box',
           'location': 'open-link',
           '3d-viewer': '3d-viewer',
@@ -4553,8 +4574,22 @@ const MainEditor = ({
       if (!isFrame && !isLine) {
         let localBBox = getVisualBBox(el);
         const isHotspot = el.getAttribute('data-is-hotspot') === 'true';
-        const isInteractiveButton = isHotspot && el.querySelector('rect') !== null && el.querySelector('text') !== null;
-        if (isHotspot && !isInteractiveButton) {
+        const isInteractiveButton = isHotspot && el.querySelector('rect') !== null && (el.querySelector('text') !== null || el.querySelector('[data-type="text"]') !== null);
+        if (isHotspot && isInteractiveButton) {
+          const rectChild = el.querySelector('rect');
+          if (rectChild) {
+            const w = parseFloat(rectChild.getAttribute('width')) || 0;
+            const h = parseFloat(rectChild.getAttribute('height')) || 0;
+            const x = parseFloat(rectChild.getAttribute('x') || '0');
+            const y = parseFloat(rectChild.getAttribute('y') || '0');
+            if (w > 0 && h > 0) {
+              localBBox = { x, y, width: w, height: h };
+            }
+          }
+          if (!localBBox || localBBox.width <= 0 || localBBox.height <= 0) {
+            localBBox = { x: 0, y: 0, width: 80, height: 32 };
+          }
+        } else if (isHotspot && !isInteractiveButton) {
           const imgChild = el.querySelector('image, svg, rect');
           if (imgChild) {
             const w = parseFloat(imgChild.getAttribute('width') || imgChild.viewBox?.baseVal?.width) || 0;
@@ -7982,6 +8017,16 @@ const MainEditor = ({
                 matrix = getElementMatrix(el);
               }
               bbox = getVisualBBox(el);
+              if (el.getAttribute('data-is-hotspot') === 'true' && el.querySelector('rect') && (el.querySelector('text') || el.querySelector('[data-type="text"]'))) {
+                const rc = el.querySelector('rect');
+                const rw = parseFloat(rc.getAttribute('width')) || 0;
+                const rh = parseFloat(rc.getAttribute('height')) || 0;
+                const rx = parseFloat(rc.getAttribute('x') || '0');
+                const ry = parseFloat(rc.getAttribute('y') || '0');
+                if (rw > 0 && rh > 0) {
+                  bbox = { x: rx, y: ry, width: rw, height: rh };
+                }
+              }
             }
 
             const svg = el.ownerSVGElement || canvasSvg;
@@ -8013,11 +8058,7 @@ const MainEditor = ({
 
             // Define anchor point in local space (opposite point)
             let localAnchor;
-            const isInteractiveBtn = el.getAttribute('data-is-hotspot') === 'true' && el.querySelector('rect') && (el.querySelector('text') || el.querySelector('[data-type="text"]'));
-
-            if (isInteractiveBtn && ['e', 'w', 'n', 's'].includes(dir)) {
-              localAnchor = { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
-            } else if (dir === 'se') localAnchor = { x: bbox.x, y: bbox.y };
+            if (dir === 'se') localAnchor = { x: bbox.x, y: bbox.y };
             else if (dir === 'sw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y };
             else if (dir === 'ne') localAnchor = { x: bbox.x, y: bbox.y + bbox.height };
             else if (dir === 'nw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height };
@@ -8096,7 +8137,25 @@ const MainEditor = ({
                   const parts = childVb.split(/[\s,]+/).map(parseFloat);
                   if (parts.length === 4) { vbX = parts[0]; vbY = parts[1]; }
                 }
-                return { child, initialMatrix: cMatrix, bound, fracX, fracY, initialVbX: vbX, initialVbY: vbY };
+
+                let initialFontSize = null;
+                if (child.tagName?.toLowerCase() === 'text' || child.getAttribute('data-type') === 'text') {
+                  initialFontSize = parseFloat(child.getAttribute('font-size') || child.style?.fontSize || '14');
+                  child.setAttribute('data-base-font-size', initialFontSize);
+                }
+                let initialRect = null;
+                if (child.tagName?.toLowerCase() === 'rect') {
+                  initialRect = {
+                    x: parseFloat(child.getAttribute('x') || '0'),
+                    y: parseFloat(child.getAttribute('y') || '0'),
+                    width: parseFloat(child.getAttribute('width') || '80'),
+                    height: parseFloat(child.getAttribute('height') || '32'),
+                    rx: parseFloat(child.getAttribute('rx') || '4')
+                  };
+                  child.setAttribute('data-base-rx', initialRect.rx);
+                }
+
+                return { child, initialMatrix: cMatrix, bound, fracX, fracY, initialVbX: vbX, initialVbY: vbY, initialFontSize, initialRect };
               });
             }
 
@@ -8285,44 +8344,24 @@ const MainEditor = ({
 
             const isInteractiveUniform = isInteractiveButton && (dir === 'n' || dir === 's');
 
-            let originalDroppedWidth;
-            let originalDroppedHeight;
             if (isInteractiveButton) {
-              originalDroppedWidth = el.getAttribute('data-dropped-width');
-              if (!originalDroppedWidth) {
-                let textWidth = 40;
-                try {
-                  const textEl = el.querySelector('text');
-                  if (textEl) textWidth = textEl.getBBox().width;
-                } catch (e) { }
-                originalDroppedWidth = Math.max(textWidth + 30, 80);
-                el.setAttribute('data-dropped-width', originalDroppedWidth);
-              } else {
-                originalDroppedWidth = parseFloat(originalDroppedWidth);
-              }
-
-              originalDroppedHeight = el.getAttribute('data-dropped-height');
-              if (!originalDroppedHeight) {
-                originalDroppedHeight = 32;
-                el.setAttribute('data-dropped-height', originalDroppedHeight);
-              } else {
-                originalDroppedHeight = parseFloat(originalDroppedHeight);
-              }
-            }
-
-            if (isInteractiveButton && (dir === 'e' || dir === 'w')) {
-              const startA = matrix.a || 1;
-              const minScale = 0.5 / Math.abs(startA);
-              if (scaleX < minScale) {
-                scaleX = minScale;
-              }
-            }
-
-            if (isInteractiveUniform) {
-              const startD = matrix.d || 1;
-              const minScale = 0.5 / Math.abs(startD);
-              if (scaleY < minScale) {
-                scaleY = minScale;
+              if (isCorner) {
+                // Diagonal projection for smooth, natural scaling up and down
+                const dot = vCurrentLocal.x * vOriginalLocal.x + vCurrentLocal.y * vOriginalLocal.y;
+                const origLenSq = vOriginalLocal.x * vOriginalLocal.x + vOriginalLocal.y * vOriginalLocal.y;
+                let s = origLenSq > 0 ? (dot / origLenSq) : ((scaleX + scaleY) / 2);
+                const minS = bbox.height > 0 ? (12 / bbox.height) : 0.1;
+                if (s < minS) s = minS;
+                scaleX = s;
+                scaleY = s;
+              } else if (dir === 'e' || dir === 'w') {
+                const minScaleX = bbox.width > 0 ? (20 / bbox.width) : 0.1;
+                if (scaleX < minScaleX) scaleX = minScaleX;
+                scaleY = 1;
+              } else if (dir === 'n' || dir === 's') {
+                const minScaleY = bbox.height > 0 ? (12 / bbox.height) : 0.1;
+                if (scaleY < minScaleY) scaleY = minScaleY;
+                scaleX = scaleY;
               }
             }
 
@@ -8369,9 +8408,9 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isScaledImage || isShape || isHotspotPreset || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || isHotspotPreset || isInteractiveUniform))) {
+            } else if (!isInteractiveButton && ((isCorner && (isScaledImage || isShape || isHotspotPreset || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || isHotspotPreset)))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-              if (!isCorner && ((isText && !isForeignObject) || isHotspotPreset || isInteractiveUniform)) {
+              if (!isCorner && ((isText && !isForeignObject) || isHotspotPreset)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
                 scaleX = sSide;
                 scaleY = sSide;
@@ -8751,17 +8790,14 @@ const MainEditor = ({
                     const tag = child.tagName?.toLowerCase();
                     const isChildText = tag === 'text' || child.getAttribute('data-type') === 'text';
 
+                    if (isHotspot && isInteractiveButton && (isChildText || tag === 'image' || tag === 'g' || tag === 'path')) {
+                      return; // Text and icons are positioned/scaled in the dedicated interactive button block below
+                    }
+
                     let myScaleX = scaleX;
                     let myScaleY = scaleY;
                     let myAnchorX = la.x;
                     let myAnchorY = la.y;
-
-                    if (isHotspot && isInteractiveButton && (dir === 'e' || dir === 'w')) {
-                      myAnchorX = bound.x + bound.width / 2; // Anchor at the center
-                      if (tag !== 'rect') {
-                        myScaleX = 1; // Do not scale text/icons horizontally
-                      }
-                    }
 
                     // Scale bound in <g> local space from localAnchor
                     const newMinX = myAnchorX + (bound.x - myAnchorX) * myScaleX;
@@ -9080,56 +9116,116 @@ const MainEditor = ({
                     }
                   });
 
-                  if (isHotspot) {
+                  if (isHotspot && isInteractiveButton) {
                     const rectData = state.childrenData.find(c => c.child.tagName.toLowerCase() === 'rect');
                     const textData = state.childrenData.find(c => c.child.tagName.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
 
                     if (rectData && textData) {
-                      const rectBound = rectData.bound;
-
-                      let myAnchorX = la.x;
-                      let myAnchorY = la.y;
-                      let myScaleX = scaleX;
-                      let myScaleY = scaleY;
-
-                      if (dir === 'e' || dir === 'w') {
-                        myAnchorX = rectBound.x + rectBound.width / 2;
-                        let newMyScaleX = 1 + 2 * (scaleX - 1);
-                        if (newMyScaleX < 1) newMyScaleX = 1;
-                        if (rectBound.width * newMyScaleX < 180) newMyScaleX = 180 / rectBound.width;
-                        myScaleX = newMyScaleX;
-                      }
-
-                      if (dir === 'n' || dir === 's') {
-                        myAnchorX = rectBound.x + rectBound.width / 2;
-                        myAnchorY = rectBound.y + rectBound.height / 2;
-                        let newMyScale = 1 + 2 * (scaleY - 1);
-                        if (newMyScale < 1) newMyScale = 1;
-                        if (rectBound.height * newMyScale < 60) newMyScale = 60 / rectBound.height;
-                        myScaleX = newMyScale;
-                        myScaleY = newMyScale;
-                      }
-
-                      const newMinX = myAnchorX + (rectBound.x - myAnchorX) * myScaleX;
-                      const newMaxX = myAnchorX + (rectBound.x + rectBound.width - myAnchorX) * myScaleX;
-                      const newMinY = myAnchorY + (rectBound.y - myAnchorY) * myScaleY;
-                      const newMaxY = myAnchorY + (rectBound.y + rectBound.height - myAnchorY) * myScaleY;
-
-                      const newRectX = Math.min(newMinX, newMaxX);
-                      const newRectW = Math.abs(newMaxX - newMinX);
-                      const newRectY = Math.min(newMinY, newMaxY);
-                      const newRectH = Math.abs(newMaxY - newMinY);
-
+                      const rectEl = rectData.child;
                       const textEl = textData.child;
-                      textEl.setAttribute('x', newRectX + newRectW / 2);
-                      textEl.setAttribute('y', newRectY + newRectH / 2);
-                      textEl.setAttribute('dominant-baseline', 'central');
-                      textEl.setAttribute('text-anchor', 'middle');
+
+                      const rectX = parseFloat(rectEl.getAttribute('x')) || 0;
+                      const rectY = parseFloat(rectEl.getAttribute('y')) || 0;
+                      const rectW = parseFloat(rectEl.getAttribute('width')) || 0;
+                      const rectH = parseFloat(rectEl.getAttribute('height')) || 0;
+
+                      const initRectW = rectData.initialRect?.width || rectData.bound?.width || 80;
+                      const initRectH = rectData.initialRect?.height || rectData.bound?.height || 32;
+
+                      // Scale factor based on button height change (proportional scaling)
+                      const scaleRatio = initRectH > 0 ? (rectH / initRectH) : 1;
+
+                      // Update rect border radius rx proportionally
+                      const baseRx = rectData.initialRect?.rx ?? parseFloat(rectEl.getAttribute('data-base-rx') || rectEl.getAttribute('rx') || '4');
+                      const newRx = Math.max(0, Math.min(rectW / 2, rectH / 2, Math.round(baseRx * scaleRatio * 10) / 10));
+                      rectEl.setAttribute('rx', newRx);
+
+                      // Update text font-size proportionally with button scale
+                      const baseFontSize = textData.initialFontSize || parseFloat(textEl.getAttribute('data-base-font-size') || textEl.getAttribute('font-size') || '14');
+                      let newFontSize = Math.max(6, Math.round(baseFontSize * scaleRatio * 10) / 10);
+
+                      // Check if button has an icon
+                      const iconImg = el.querySelector('image');
+                      const iconG = el.querySelector('g:not(defs g)');
+                      const iconPath = el.querySelector('path');
+                      const hasIcon = !!(iconImg || iconG || iconPath);
+
+                      const label = textEl.textContent || '';
+                      // Prevent font size from overflowing button width if narrowed
+                      if (label.length > 0 && rectW > 0) {
+                        const availableWidth = Math.max(8, rectW - (hasIcon ? 18 * scaleRatio : 6));
+                        const maxFontForWidth = availableWidth / (label.length * 0.6);
+                        if (maxFontForWidth > 0 && newFontSize > maxFontForWidth) {
+                          newFontSize = Math.max(5, Math.round(maxFontForWidth * 10) / 10);
+                        }
+                      }
+
+                      textEl.setAttribute('font-size', newFontSize);
+                      textEl.style.fontSize = `${newFontSize}px`;
                       textEl.removeAttribute('transform');
                       textEl.querySelectorAll('tspan').forEach(ts => {
                         ts.removeAttribute('x');
                         ts.removeAttribute('y');
+                        ts.removeAttribute('font-size');
+                        ts.style.removeProperty('font-size');
                       });
+
+                      if (hasIcon) {
+                        const iconSize = Math.max(6, Math.round(14 * scaleRatio));
+                        const gap = Math.max(2, Math.round(5 * scaleRatio));
+
+                        let textWidth = 0;
+                        try {
+                          textWidth = textEl.getBBox().width;
+                        } catch (e) { }
+                        if (!textWidth || textWidth <= 0) {
+                          textWidth = label.length * (newFontSize * 0.55);
+                        }
+
+                        let isEndPlacement = false;
+                        if (iconImg) {
+                          const imgX = parseFloat(iconImg.getAttribute('x') || '0');
+                          const tX = parseFloat(textEl.getAttribute('x') || '0');
+                          if (imgX > tX) isEndPlacement = true;
+                        } else if (iconG) {
+                          const gT = iconG.getAttribute('transform') || '';
+                          const m = gT.match(/translate\(([-\d.]+)/);
+                          if (m && parseFloat(m[1]) > (initRectW / 2)) isEndPlacement = true;
+                        }
+
+                        const contentWidth = iconSize + gap + textWidth;
+                        const startX = rectX + (rectW - contentWidth) / 2;
+
+                        let iconX, textX;
+                        if (isEndPlacement) {
+                          textX = startX + textWidth / 2;
+                          iconX = startX + textWidth + gap;
+                        } else {
+                          iconX = startX;
+                          textX = startX + iconSize + gap + textWidth / 2;
+                        }
+
+                        if (iconImg) {
+                          iconImg.setAttribute('x', iconX);
+                          iconImg.setAttribute('y', rectY + (rectH - iconSize) / 2);
+                          iconImg.setAttribute('width', iconSize);
+                          iconImg.setAttribute('height', iconSize);
+                          iconImg.removeAttribute('transform');
+                        } else if (iconG) {
+                          iconG.setAttribute('transform', `translate(${iconX - 20 * scaleRatio}, ${rectY + (rectH - 32 * scaleRatio) / 2}) scale(${scaleRatio})`);
+                        }
+
+                        textEl.setAttribute('x', textX);
+                        textEl.setAttribute('y', rectY + rectH / 2);
+                        textEl.setAttribute('dominant-baseline', 'central');
+                        textEl.setAttribute('text-anchor', 'middle');
+                      } else {
+                        // No icon: center text directly in rect
+                        textEl.setAttribute('x', rectX + rectW / 2);
+                        textEl.setAttribute('y', rectY + rectH / 2);
+                        textEl.setAttribute('dominant-baseline', 'central');
+                        textEl.setAttribute('text-anchor', 'middle');
+                      }
                     }
                   }
                 }
@@ -9317,6 +9413,18 @@ const MainEditor = ({
 
             const state = event.interaction.resizeState;
             if (state) {
+              if (state.childrenData) {
+                const textChild = state.childrenData.find(c => c.child.tagName?.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
+                if (textChild) {
+                  const curFs = textChild.child.getAttribute('font-size');
+                  if (curFs) textChild.child.setAttribute('data-base-font-size', curFs);
+                }
+                const rectChild = state.childrenData.find(c => c.child.tagName?.toLowerCase() === 'rect');
+                if (rectChild) {
+                  const curRx = rectChild.child.getAttribute('rx');
+                  if (curRx) rectChild.child.setAttribute('data-base-rx', curRx);
+                }
+              }
               if (updatePageHtmlRef.current) {
                 // state.el may be a fake object for multi-selection, use state.svg's container
                 const container = state.svg?.closest?.('.page-svg-container') ||

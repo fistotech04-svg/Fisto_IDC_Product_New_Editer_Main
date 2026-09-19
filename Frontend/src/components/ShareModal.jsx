@@ -1076,11 +1076,17 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                 case 'whatsapp':
                     url = `https://wa.me/?text=${encodeURIComponent(shareTitle + ' ' + shareUrl)}`;
                     break;
+                case 'facebook':
+                    url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+                    break;
                 case 'x':
                     url = `https://x.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`;
                     break;
                 case 'mail':
                     url = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent('Check out this flipbook: ' + shareUrl)}`;
+                    break;
+                case 'linkedin':
+                    url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
                     break;
                 case 'drive':
                     // Just copy link for drive
@@ -1287,6 +1293,15 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         className={`w-[4cqw] h-[4cqw] rounded-[0.8cqw] border flex items-center justify-center transition-all cursor-pointer shadow-sm group ${showEmbedCode ? 'bg-gray-100 border-gray-400' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}`}
                                     >
                                         <Icon icon="lucide:code-2" className={`w-[1.8cqw] h-[1.8cqw] ${showEmbedCode ? 'text-gray-800' : 'text-gray-600'} transition-transform`} />
+                                    </div>
+
+                                    {/* Facebook */}
+                                    <div
+                                        onClick={() => shareModel('facebook')}
+                                        className="w-[4cqw] h-[4cqw] rounded-[0.8cqw] bg-[#1877F2] flex items-center justify-center transition-all cursor-pointer shadow-md hover:opacity-90"
+                                        title="Share on Facebook"
+                                    >
+                                        <Icon icon="ri:facebook-fill" className="w-[2.2cqw] h-[2.2cqw] text-white" />
                                     </div>
                                     {/* WhatsApp */}
                                     <div
@@ -1587,6 +1602,15 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             className={`w-[2.8vw] h-[2.8vw] rounded-[0.5vw] border flex items-center justify-center transition-all cursor-pointer shadow-sm group ${showEmbedCode ? 'bg-gray-100 border-gray-400' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}`}
                                         >
                                             <Icon icon="lucide:code-2" className={`w-[1.2vw] h-[1.2vw] ${showEmbedCode ? 'text-gray-800' : 'text-gray-600'} transition-transform`} />
+                                        </div>
+
+                                        {/* Facebook */}
+                                        <div
+                                            onClick={() => shareModel('facebook')}
+                                            className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] bg-[#1877F2] flex items-center justify-center transition-all cursor-pointer shadow-md hover:opacity-90"
+                                            title="Share on Facebook"
+                                        >
+                                            <Icon icon="ri:facebook-fill" className="w-[1.6vw] h-[1.6vw] text-white" />
                                         </div>
                                         {/* WhatsApp */}
                                         <div

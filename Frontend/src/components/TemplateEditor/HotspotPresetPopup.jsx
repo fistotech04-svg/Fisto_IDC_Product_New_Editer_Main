@@ -21,6 +21,7 @@ import slideshowSvg from '../../assets/hotspot preset icon/icons/slideshow.svg';
 import zoomSvg from '../../assets/hotspot preset icon/icons/zoom.svg';
 import downloadSvg from '../../assets/hotspot preset icon/icons/download.svg';
 import infoSvg from '../../assets/hotspot preset icon/icons/info.svg';
+import audioSvg from '../../assets/hotspot preset icon/icons/audio.svg';
 
 export const presets = [
   { id: 'open-link', label: 'Open Link', src: openLinkSvg },
@@ -34,6 +35,7 @@ export const presets = [
   { id: 'slideshow', label: 'Slideshow', src: slideshowSvg },
   { id: 'zoom', label: 'Zoom', src: zoomSvg },
   { id: 'download', label: 'Download', src: downloadSvg },
+  { id: 'audio', label: 'Audio', src: audioSvg },
   { id: 'info-box', label: 'Info Popup', src: infoSvg },
   { id: 'whatsapp', label: 'WhatsApp', src: whatsappSvg },
   { id: 'youtube', label: 'You tube', src: youtubeSvg },

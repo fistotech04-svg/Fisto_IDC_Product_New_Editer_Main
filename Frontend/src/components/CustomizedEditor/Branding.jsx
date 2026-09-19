@@ -141,6 +141,11 @@ const Branding = ({
         const bytes = Math.round(base64str.length * (3 / 4));
         setLogoFileSize(formatBytes(bytes, 1));
       }
+    } else if (logoSettings.src.startsWith('blob:')) {
+      fetch(logoSettings.src)
+        .then(res => res.blob())
+        .then(blob => setLogoFileSize(formatBytes(blob.size, 1)))
+        .catch(() => setLogoFileSize('Unknown Size'));
     } else {
       fetch(logoSettings.src, { method: 'HEAD' })
         .then(res => {
@@ -179,6 +184,11 @@ const Branding = ({
         const bytes = Math.round(base64str.length * (3 / 4));
         setWatermarkFileSize(formatBytes(bytes, 1));
       }
+    } else if (watermarkSettings.src.startsWith('blob:')) {
+      fetch(watermarkSettings.src)
+        .then(res => res.blob())
+        .then(blob => setWatermarkFileSize(formatBytes(blob.size, 1)))
+        .catch(() => setWatermarkFileSize('Unknown Size'));
     } else {
       fetch(watermarkSettings.src, { method: 'HEAD' })
         .then(res => {

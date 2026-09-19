@@ -131,12 +131,22 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
   useEffect(() => {
     // Clear any previously played animations in this session so they replay when preview is opened
     try {
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('fisto_anim_played_')) {
-          sessionStorage.removeItem(key);
+        Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('fisto_anim_played_')) {
+                sessionStorage.removeItem(key);
+            }
+        });
+    } catch (err) {}
+
+    return () => {
+      try {
+        if (window._activePreviewAudio) {
+          window._activePreviewAudio.pause();
+          window._activePreviewAudio = null;
+          window._activePreviewAudioEl = null;
         }
-      });
-    } catch (err) { }
+      } catch (e) {}
+    };
   }, []);
 
   useEffect(() => {

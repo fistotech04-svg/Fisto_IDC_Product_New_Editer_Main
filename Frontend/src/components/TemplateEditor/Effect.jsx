@@ -214,6 +214,8 @@ const Effect = ({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  setActiveEffectPopupId(null);
+                  if (setActiveEffects) setActiveEffects([]);
                   updateAttr('data-effect-drop-shadow', 'false');
                   updateAttr('data-effect-inner-shadow', 'false');
                   updateAttr('data-effect-blur', 'false');

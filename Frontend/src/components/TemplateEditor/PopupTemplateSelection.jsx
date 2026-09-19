@@ -1,24 +1,16 @@
 import React, { useState } from 'react';
-import Template1 from '../../assets/Pop-Up Templates/PopupTemplete1.svg';
-import Template2 from '../../assets/Pop-Up Templates/PopupTemplete2.svg';
-import Template3 from '../../assets/Pop-Up Templates/PopupTemplete3.svg';
-import Template4 from '../../assets/Pop-Up Templates/PopupTemplete4.svg';
-import Template5 from '../../assets/Pop-Up Templates/PopupTemplete5.svg';
-import Template6 from '../../assets/Pop-Up Templates/PopupTemplete6.svg';
-import Template7 from '../../assets/Pop-Up Templates/PopupTemplete7.svg';
-import Template8 from '../../assets/Pop-Up Templates/PopupTemplete8.svg';
-import Template9 from '../../assets/Pop-Up Templates/PopupTemplete9.svg';
+import { getPopupTemplateUrl } from '../../utils/templateAssets';
 
 export const TEMPLATES = [
-  { id: 'template1', image: Template1, category: 'Image Based' },
-  { id: 'template2', image: Template2, category: 'Image Based' },
-  { id: 'template3', image: Template3, category: 'Image Based' },
-  { id: 'template4', image: Template4, category: 'Image Based' },
-  { id: 'template5', image: Template5, category: 'Image Based' },
-  { id: 'template6', image: Template6, category: 'Image Based' },
-  { id: 'template7', image: Template7, category: 'Image Based' },
-  { id: 'template8', image: Template8, category: 'Image Based' },
-  { id: 'template9', image: Template9, category: 'Image Based' }
+  { id: 'template1', image: getPopupTemplateUrl(1), category: 'Image Based' },
+  { id: 'template2', image: getPopupTemplateUrl(2), category: 'Image Based' },
+  { id: 'template3', image: getPopupTemplateUrl(3), category: 'Image Based' },
+  { id: 'template4', image: getPopupTemplateUrl(4), category: 'Image Based' },
+  { id: 'template5', image: getPopupTemplateUrl(5), category: 'Image Based' },
+  { id: 'template6', image: getPopupTemplateUrl(6), category: 'Image Based' },
+  { id: 'template7', image: getPopupTemplateUrl(7), category: 'Image Based' },
+  { id: 'template8', image: getPopupTemplateUrl(8), category: 'Image Based' },
+  { id: 'template9', image: getPopupTemplateUrl(9), category: 'Image Based' }
 ];
 
 const CATEGORIES = [
@@ -41,28 +33,39 @@ const PopupTemplateSelection = ({ isOpen, onClose, onSelect, onCustomize, select
     }
   }, [isOpen, selectedTemplateId]);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div
       className="fixed inset-0 z-[1000] bg-black/30 flex items-center justify-center p-[2vw] backdrop-blur-[1px]"
+      onClick={onClose}
     >
       <div
-        className="bg-white rounded-[0.8vw] w-[70vw] h-[70vh] flex flex-col shadow-2xl relative overflow-hidden"
+        className="bg-white rounded-[0.8vw] w-[70vw] h-[72vh] flex flex-col shadow-2xl relative overflow-hidden pb-[2.5vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header Section */}
-        <div className="flex items-start justify-between pt-[3vh] px-[3vw] pb-[1.5vh]">
-          <div className="flex flex-col gap-[0.5vh]">
+        <div className="flex items-center justify-between pt-[2.2vh] pb-[1.6vh] px-[2vw] border-b border-gray-100/80">
+          <div className="flex flex-col gap-[0.3vh]">
             <h2 className="text-[1.2vw] font-semibold text-[#111827]">Popup Templets</h2>
             <p className="text-[0.75vw] text-[#6B7280]">Select a professional popup design to get start</p>
           </div>
 
-          <div className="flex items-center gap-[1vw]">
+          <div className="flex items-center gap-[0.8vw]">
             {/* Search Input */}
             <div className="relative">
-              <div className="absolute left-[1.2vw] top-1/2 -translate-y-1/2 text-gray-400">
-                <svg width="1.1vw" height="1.1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="absolute left-[1vw] top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
@@ -72,22 +75,35 @@ const PopupTemplateSelection = ({ isOpen, onClose, onSelect, onCustomize, select
                 placeholder="Search.."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-[17vw] h-[4vh] pl-[3vw] pr-[1.5vw] rounded-full border border-[#E5E7EB] outline-none text-[0.9vw] text-[#4B5563] placeholder-gray-400 focus:border-[#D1D5DB] transition-colors"
+                className="w-[16vw] h-[4vh] pl-[2.6vw] pr-[1.2vw] rounded-full border border-[#E5E7EB] outline-none text-[0.85vw] text-[#4B5563] placeholder-gray-400 focus:border-[#5145F6] transition-colors"
               />
             </div>
 
             {/* Filter Button */}
-            <button className="flex items-center justify-center gap-[0.5vw] h-[4vh] px-[1.5vw] rounded-full border border-[#E5E7EB] bg-[#F9FAFB] hover:bg-gray-100 text-[#4B5563] text-[0.9vw] font-medium transition-colors">
-              <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <button className="flex items-center justify-center gap-[0.4vw] h-[4vh] px-[1.2vw] rounded-full border border-[#E5E7EB] bg-[#F9FAFB] hover:bg-gray-100 text-[#4B5563] text-[0.85vw] font-medium transition-colors">
+              <svg width="0.95vw" height="0.95vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
               </svg>
               Filter
+            </button>
+
+            {/* Highlighted Red Close Button */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-full bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 hover:border-red-500 transition-all cursor-pointer shadow-sm active:scale-95 ml-[0.3vw] flex-shrink-0 group"
+              title="Close modal"
+            >
+              <svg width="1.1vw" height="1.1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:scale-110">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
             </button>
           </div>
         </div>
 
         {/* Categories Row */}
-        <div className="flex items-center gap-[1vw] px-[1vw] pl-[3vw] pb-[1.5vh] pt-[0.5vh]">
+        <div className="flex items-center gap-[0.8vw] px-[2vw] py-[1.4vh] overflow-x-auto no-scrollbar">
           {CATEGORIES.map((cat, i) => (
             <button
               key={i}
@@ -103,8 +119,8 @@ const PopupTemplateSelection = ({ isOpen, onClose, onSelect, onCustomize, select
         </div>
 
         {/* Templates Grid */}
-        <div className="flex-1 overflow-y-auto px-[3vw] pb-[1vh] pt-[1vh] popup-template-scrollbar">
-          <div className="grid grid-cols-3 gap-[1vw] pb-[8vh]">
+        <div className="flex-1 min-h-0 overflow-y-auto px-[2vw] pt-[0.5vh] pb-[2vh] popup-template-scrollbar">
+          <div className="grid grid-cols-3 gap-[1.2vw] pb-[2vh]">
             {TEMPLATES.map((tpl) => (
               <div
                 key={tpl.id}
@@ -134,7 +150,7 @@ const PopupTemplateSelection = ({ isOpen, onClose, onSelect, onCustomize, select
 
         {/* Action Buttons Overlay / Footer */}
         {localSelectedId && (
-          <div className="absolute bottom-0 left-0 w-full bg-white pt-[1vh] pb-[1vh] px-[3vw] flex justify-end gap-[0.8vw] z-10 ">
+          <div className="absolute bottom-0 left-0 w-full bg-white/95 backdrop-blur-sm border-t border-gray-100 py-[1.2vh] px-[2vw] flex justify-end gap-[0.8vw] z-10 shadow-lg rounded-b-[0.8vw]">
             <div className="absolute inset-x-0 top-[-2vh] h-[2vh] pointer-events-none"></div>
             <button
               className="flex items-center gap-[0.4vw] px-[1.2vw] py-[1vh] rounded-[0.6vw] bg-white border border-[#EF4444] text-[#EF4444] font-semibold text-[0.85vw] hover:bg-red-50 transition-all"

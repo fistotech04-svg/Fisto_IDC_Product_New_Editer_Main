@@ -11,7 +11,8 @@ const getCategoryKeywords = (actionId) => {
   const map = {
     'zoom': ['zoom'],
     'download': ['download'],
-    'info': ['info']
+    'info': ['info'],
+    'audio': ['audio']
   };
   return map[actionId] || [];
 };
@@ -34,7 +35,12 @@ const getIconsForAction = (actionId) => {
     'email': 'email',
     'call': 'call',
     'location': 'location',
-    'navigate-to': 'navigation page'
+    'navigate-to': 'navigation page',
+    'zoom': 'zoom',
+    'info': 'info',
+    'info-box': 'info',
+    'download': 'download',
+    'audio': 'audio'
   };
 
   const folder = folderMap[actionId];
@@ -155,7 +161,12 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
     let extraBg = '';
     let fillAttr = '';
     let strokeAttr = '';
+    let extraSvgAttrs = '';
     
+    if (inlinedSvgInfo.strokeWidth) extraSvgAttrs += ` stroke-width="${inlinedSvgInfo.strokeWidth}"`;
+    if (inlinedSvgInfo.strokeLinecap) extraSvgAttrs += ` stroke-linecap="${inlinedSvgInfo.strokeLinecap}"`;
+    if (inlinedSvgInfo.strokeLinejoin) extraSvgAttrs += ` stroke-linejoin="${inlinedSvgInfo.strokeLinejoin}"`;
+
     if (inlinedSvgInfo.isRawIcon) {
       // Scale down raw icon background circle to match non-raw icon size perfectly
       extraBg = `<circle cx="24" cy="24" r="16" fill="${bgFill}" />`;
@@ -163,21 +174,16 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
       
       const origFill = inlinedSvgInfo.svgTagFill;
       const origStroke = inlinedSvgInfo.svgTagStroke;
+      const isStrokeBased = inlinedSvgInfo.isStrokeBased || 
+        (origFill && origFill.toLowerCase() === 'none') || 
+        (origStroke && origStroke.toLowerCase() !== 'none');
       
-      if (origStroke === 'none') {
-        strokeAttr = 'stroke="none"';
-      } else if (origStroke) {
+      if (isStrokeBased) {
         strokeAttr = `stroke="${fgFill}"`;
-      }
-
-      if (origFill === 'none') {
-        fillAttr = 'fill="none"';
-      } else if (origFill) {
-        fillAttr = `fill="${fgFill}"`;
-      }
-      
-      if (!origFill && !origStroke) {
-        fillAttr = `fill="${fgFill}"`;
+        fillAttr = (origFill && origFill.toLowerCase() !== 'none') ? `fill="${fgFill}"` : 'fill="none"';
+      } else {
+        fillAttr = (origFill && origFill.toLowerCase() === 'none') ? 'fill="none"' : `fill="${fgFill}"`;
+        strokeAttr = (origStroke && origStroke.toLowerCase() !== 'none') ? `stroke="${fgFill}"` : 'stroke="none"';
       }
     } else {
       const origFill = inlinedSvgInfo.svgTagFill;
@@ -192,6 +198,11 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
     }
 
     let innerHTML = inlinedSvgInfo.innerHTML;
+
+    if (inlinedSvgInfo.isRawIcon) {
+      innerHTML = innerHTML.replace(/<path[^>]*d\s*=\s*["']\s*M\s*0\s+0h\d+v\d+H0z\s*["'][^>]*\/?>/gi, '');
+      innerHTML = innerHTML.replace(/<rect[^>]*fill\s*=\s*["']none["'][^>]*stroke\s*=\s*["']none["'][^>]*\/?>/gi, '');
+    }
 
     if (!inlinedSvgInfo.isRawIcon && preset !== 'preset1') {
       try {
@@ -222,7 +233,7 @@ export const generateHotspotSVG = (preset, bgColor, iconColor, src, inlinedSvgIn
     return `
       ${backgroundHTML}
       ${extraBg}
-      <g transform="translate(${tx.toFixed(4)}, ${ty.toFixed(4)}) scale(${s.toFixed(6)})" ${fillAttr} ${strokeAttr}>
+      <g transform="translate(${tx.toFixed(4)}, ${ty.toFixed(4)}) scale(${s.toFixed(6)})" ${fillAttr} ${strokeAttr}${extraSvgAttrs}>
         ${innerHTML}
       </g>
     `;
@@ -460,7 +471,16 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
       isRawIcon = !isBasePreset;
     }
 
-    const allShapes = Array.from(svg.querySelectorAll('g, rect, circle, path, ellipse, polygon'));
+    const allShapes = Array.from(svg.querySelectorAll('g, rect, circle, path, ellipse, polygon, line, polyline'));
+    const rootFill = svg.getAttribute('fill');
+    const rootStroke = svg.getAttribute('stroke');
+    const rootIsFillNone = rootFill && rootFill.toLowerCase() === 'none';
+    const rootHasStroke = rootStroke && rootStroke.toLowerCase() !== 'none';
+    const anyShapeHasStroke = allShapes.some(el => {
+      const s = el.getAttribute('stroke') || el.style.stroke;
+      return s && s.toLowerCase() !== 'none';
+    });
+    const isStrokeBased = rootIsFillNone || rootHasStroke || anyShapeHasStroke;
 
     if (isRawIcon) {
       const styleTags = svg.querySelectorAll('style');
@@ -477,7 +497,27 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
       allShapes.forEach(el => {
         const fill = el.getAttribute('fill') || el.style.fill;
         const stroke = el.getAttribute('stroke') || el.style.stroke;
+        const d = el.getAttribute('d');
         const isWhite = (c) => c && (c.toLowerCase() === 'white' || c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff' || c.replace(/\s+/g,'').toLowerCase() === 'rgb(255,255,255)');
+
+        // Remove transparent spacer bounding box paths (like M0 0h24v24H0z or transparent rect)
+        const isSpacerBox = (d && /^M\s*0\s+0h\d+v\d+H0z/i.test(d.trim())) ||
+          ((fill === 'none' || fill === 'transparent') && (!stroke || stroke === 'none') && (
+            el.tagName.toLowerCase() === 'rect' ||
+            (d && /^M\s*0\s+0/i.test(d.trim()) && d.toLowerCase().includes('h') && d.toLowerCase().includes('v') && d.toLowerCase().includes('z'))
+          ));
+
+        if (isSpacerBox) {
+          el.remove();
+          return;
+        }
+
+        // Any element that was explicitly fill="none" and had NO stroke must never inherit a stroke from parent <g>!
+        if (fill && fill.toLowerCase() === 'none' && (!stroke || stroke.toLowerCase() === 'none')) {
+          el.setAttribute('stroke', 'none');
+          el.setAttribute('fill', 'none');
+          return;
+        }
 
         if (fill && fill.toLowerCase() !== 'none') {
            if (isWhite(fill)) {
@@ -487,7 +527,11 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
            }
            el.style.fill = '';
         } else if (!fill && !stroke && (!el.hasAttribute('class') || styleTags.length === 0) && el.tagName.toLowerCase() !== 'g') {
-           el.setAttribute('fill', fgInfo.fillValue);
+           if (isStrokeBased) {
+             el.setAttribute('fill', 'none');
+           } else {
+             el.setAttribute('fill', fgInfo.fillValue);
+           }
         }
         
         if (stroke && stroke.toLowerCase() !== 'none') {
@@ -540,8 +584,12 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
       innerHTML: bgInfo.defsString + fgInfo.defsString + svg.innerHTML,
       viewBox: svg.getAttribute('viewBox') || '0 0 52 52',
       isRawIcon,
-      svgTagFill: svg.getAttribute('fill'),
-      svgTagStroke: svg.getAttribute('stroke')
+      isStrokeBased,
+      svgTagFill: rootFill,
+      svgTagStroke: rootStroke,
+      strokeWidth: svg.getAttribute('stroke-width'),
+      strokeLinecap: svg.getAttribute('stroke-linecap'),
+      strokeLinejoin: svg.getAttribute('stroke-linejoin')
     };
   };
 
@@ -640,14 +688,26 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
             'navigation': 'navigate-to',
             '/navigation page/': 'navigate-to',
             'openlink': 'open-link',
-            '/open_link/': 'open-link'
+            '/open_link/': 'open-link',
+            'zoom': 'zoom',
+            'zoomicon': 'zoom',
+            '/zoom/': 'zoom',
+            'info': 'info',
+            'infoicon': 'info',
+            '/info/': 'info',
+            'download': 'download',
+            'downloadicon': 'download',
+            '/download/': 'download',
+            'audio': 'audio',
+            'audioicon': 'audio',
+            '/audio/': 'audio'
         };
 
         // Prioritize specific icons (like social media presets) so they don't fall back to generic interaction types
         let foundMatch = false;
         
         // 1. First, check for specific icon names in the URL or original path
-        const specificIcons = ['instagram', 'facebook', 'linkedin', 'youtube', 'yotube', 'whatsapp'];
+        const specificIcons = ['instagram', 'facebook', 'linkedin', 'youtube', 'yotube', 'whatsapp', 'zoom', 'info', 'download', 'audio'];
         for (const icon of specificIcons) {
             if (originalPathLower.includes(icon)) {
                 lookupKey = icon === 'yotube' ? 'youtube' : icon;
@@ -802,7 +862,16 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                       type="checkbox" 
                       className="w-[1vw] h-[1vw] accent-black cursor-pointer"
                       checked={btnHasIcon}
-                      onChange={(e) => setBtnHasIcon(e.target.checked)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setBtnHasIcon(checked);
+                        const estTextWidth = btnLabel.length * (btnFontSize * 0.55);
+                        const iconSpace = checked ? 20 : 0;
+                        const neededW = Math.max(80, Math.ceil(estTextWidth + iconSpace + 24));
+                        if (neededW > btnWidth) {
+                          setBtnWidth(neededW);
+                        }
+                      }}
                     />
                     <span className="text-[0.7vw] font-medium text-gray-700 select-none">Add Icon to the Button</span>
                   </label>
@@ -949,10 +1018,19 @@ const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => 
                         type="text"
                         className="text-[0.75vw] text-gray-600 font-medium bg-transparent outline-none flex-1 min-w-0"
                         value={btnLabel}
-                        maxLength={20}
-                        onChange={(e) => setBtnLabel(e.target.value)}
+                        maxLength={30}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setBtnLabel(val);
+                          const estTextWidth = val.length * (btnFontSize * 0.55);
+                          const iconSpace = btnHasIcon ? 20 : 0;
+                          const neededW = Math.max(80, Math.ceil(estTextWidth + iconSpace + 24));
+                          if (neededW > btnWidth) {
+                            setBtnWidth(neededW);
+                          }
+                        }}
                       />
-                      <span className="text-[0.6vw] text-gray-400 select-none">{btnLabel.length}/10</span>
+                      <span className="text-[0.6vw] text-gray-400 select-none">{btnLabel.length}/30</span>
                     </div>
                   </div>
 
