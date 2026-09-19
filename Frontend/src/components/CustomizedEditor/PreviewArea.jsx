@@ -981,9 +981,14 @@ const getInteractionScript = (pageNumber) => `
                             try { if (settingsStr) settings = JSON.parse(settingsStr); } catch(e){}
                             if (settings) {
                                 settings.isInfoBox = true;
+                                settings.isWidthAuto = true;
+                                settings.isHeightAuto = true;
                                 settings.shape = settings.shape || 'bottom-center';
+                                if (settings.text && settings.text.length > 15) {
+                                    settings.text = settings.text.slice(0, 15);
+                                }
                             } else {
-                                settings = { isInfoBox: true, shape: 'bottom-center' };
+                                settings = { isInfoBox: true, isWidthAuto: true, isHeightAuto: true, shape: 'bottom-center' };
                             }
                             var absLeft = rect.left, absTop = rect.top, absW = rect.width, absH = rect.height;
                             try {
@@ -2422,44 +2427,56 @@ const TooltipOverlay = React.memo(({ tooltip }) => {
                         height: '100%'
                     }}
                 >
-                    <div
-                        style={{
-                            backgroundColor: settings.bgColor || '#1F2937',
-                            color: settings.textColor || '#FFFFFF',
-                            fontFamily: settings.fontFamily || 'sans-serif',
-                            fontWeight: settings.bold ? 'bold' : (settings.fontWeight === 'Bold' ? '800' : settings.fontWeight === 'Semi Bold' ? '600' : settings.fontWeight === 'Medium' ? '500' : settings.fontWeight === 'Regular' ? '400' : settings.fontWeight === 'Light' ? '200' : settings.fontWeight === 'Extra Light' ? '100' : settings.fontWeight === 'Thin' ? '50' : 'normal'),
-                            fontStyle: settings.italic ? 'italic' : 'normal',
-                            fontSize: Math.max(9, (settings.fontSize || 14)) + 'px',
-                            textAlign: settings.align || 'center',
-                            textDecoration: [settings.underline ? 'underline' : '', settings.lineThrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
-                            width: (settings.w || 100) + 'px',
-                            height: (settings.h || 60) + 'px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            wordBreak: 'break-word',
-                            whiteSpace: 'pre-wrap',
-                            padding: settings.isInfoBox ? '14px' : '7px 14px',
-                            borderRadius: '7px',
-                            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-                            order: isReversedOrder ? 2 : 1
-                        }}
-                    >
-                        <div
-                            style={{
-                                width: settings.isWidthAuto ? 'auto' : (settings.textW || 80) + 'px',
-                                height: settings.isHeightAuto ? 'auto' : (settings.textH || 40) + 'px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: settings.align === 'left' ? 'flex-start' : settings.align === 'right' ? 'flex-end' : 'center',
-                                wordBreak: 'break-word',
-                                whiteSpace: 'pre-wrap'
-                            }}
-                        >
-                            {settings.text || 'Tooltip'}
-                        </div>
-                    </div>
-                    {!settings.isInfoBox && <div style={tailStyle} />}
+                    {(() => {
+                        const isAutoWidth = settings.isInfoBox || settings.isWidthAuto;
+                        const isAutoHeight = settings.isInfoBox || settings.isHeightAuto;
+
+                        return (
+                            <>
+                                <div
+                                    style={{
+                                        backgroundColor: settings.bgColor || '#1F2937',
+                                        color: settings.textColor || '#FFFFFF',
+                                        fontFamily: settings.fontFamily || 'sans-serif',
+                                        fontWeight: settings.bold ? 'bold' : (settings.fontWeight === 'Bold' ? '800' : settings.fontWeight === 'Semi Bold' ? '600' : settings.fontWeight === 'Medium' ? '500' : settings.fontWeight === 'Regular' ? '400' : settings.fontWeight === 'Light' ? '200' : settings.fontWeight === 'Extra Light' ? '100' : settings.fontWeight === 'Thin' ? '50' : 'normal'),
+                                        fontStyle: settings.italic ? 'italic' : 'normal',
+                                        fontSize: Math.max(9, (settings.fontSize || 14)) + 'px',
+                                        textAlign: settings.align || 'center',
+                                        textDecoration: [settings.underline ? 'underline' : '', settings.lineThrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
+                                        width: isAutoWidth ? 'auto' : ((settings.w || 100) + 'px'),
+                                        minWidth: isAutoWidth ? 'max-content' : undefined,
+                                        maxWidth: isAutoWidth ? '85vw' : undefined,
+                                        height: isAutoHeight ? 'auto' : ((settings.h || 60) + 'px'),
+                                        minHeight: 'auto',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        wordBreak: isAutoWidth ? 'normal' : 'break-word',
+                                        whiteSpace: isAutoWidth ? 'nowrap' : 'pre-wrap',
+                                        padding: settings.isInfoBox ? '8px 16px' : (isAutoWidth ? '8px 14px' : '7px 14px'),
+                                        borderRadius: '7px',
+                                        boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+                                        order: isReversedOrder ? 2 : 1
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: isAutoWidth ? 'auto' : ((settings.textW || 80) + 'px'),
+                                            height: isAutoHeight ? 'auto' : ((settings.textH || 40) + 'px'),
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: settings.align === 'left' ? 'flex-start' : settings.align === 'right' ? 'flex-end' : 'center',
+                                            wordBreak: isAutoWidth ? 'normal' : 'break-word',
+                                            whiteSpace: isAutoWidth ? 'nowrap' : 'pre-wrap'
+                                        }}
+                                    >
+                                        {settings.text || (settings.isInfoBox ? 'Info' : 'Tooltip')}
+                                    </div>
+                                </div>
+                                <div style={tailStyle} />
+                            </>
+                        );
+                    })()}
                 </motion.div>
             </div>
         </motion.div>

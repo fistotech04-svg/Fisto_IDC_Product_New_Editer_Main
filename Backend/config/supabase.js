@@ -104,8 +104,11 @@ export const uploadFileToSupabase = async (localFilePath, destinationPath) => {
     }
 
     const fileData = fs.readFileSync(localFilePath);
-    const ext = path.extname(localFilePath).toLowerCase();
-    const contentType = mimeTypes[ext] || "application/octet-stream";
+    const ext = path.extname(destinationPath).toLowerCase();
+    let contentType = mimeTypes[ext] || "application/octet-stream";
+    if (destinationPath.includes('/assets/audio/') && (ext === '.webm' || ext === '.weba')) {
+      contentType = 'audio/webm';
+    }
 
     const cleanDestination = destinationPath.replace(/\\/g, "/").replace(/^\/+/, "");
 
