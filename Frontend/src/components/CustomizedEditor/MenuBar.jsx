@@ -651,24 +651,6 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                       )}
                     </div>
 
-                    <div className="mt-[0.5vw] pt-[0.5vw] pr-[0.4vw] border-t border-gray-300 flex justify-end">
-                      {(() => {
-                        const hasContent = (activeTocSettings.content?.length || 0) > 0;
-                        return (
-                          <button
-                            onClick={() => onUpdate(settings)}
-                            disabled={!hasContent}
-                            className={`px-[1vw] py-[0.3vw] rounded-[0.5vw] text-[0.8vw] font-medium transition-all ${
-                              hasContent 
-                                ? 'bg-[#4D39FF] text-white hover:bg-[#3F2CFF] active:scale-95 cursor-pointer' 
-                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            }`}
-                          >
-                            Save
-                          </button>
-                        );
-                      })()}
-                    </div>
                   </div>
                 </motion.div>
               )}

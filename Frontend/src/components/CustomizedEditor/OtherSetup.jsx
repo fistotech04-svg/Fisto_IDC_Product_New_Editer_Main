@@ -98,10 +98,15 @@ const RadioGroup = ({ options, value, onChange }) => (
   </div>
 );
 
-const SectionHeader = ({ title }) => (
+const SectionHeader = ({ title, toggle, onToggle }) => (
   <div className="flex items-center gap-[0.5vw] mb-[0.5vw] mt-[0.8vw]">
     <h4 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">{title}</h4>
-    <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.3vw' }}> </div>
+    <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: toggle !== undefined ? '0' : '-1.3vw' }}> </div>
+    {toggle !== undefined && (
+      <div className="ml-[1vw]">
+        <Switch enabled={toggle} onChange={onToggle} />
+      </div>
+    )}
   </div>
 );
 
@@ -612,7 +617,11 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     return (
       <div className="space-y-[1.5vw] p-[1vw]">
         <div>
-          <SectionHeader title="Flip Sound" />
+          <SectionHeader 
+            title="Flip Sound" 
+            toggle={settings.sound?.flipSoundEnabled ?? true} 
+            onToggle={(v) => updateNested('sound', 'flipSoundEnabled', v)} 
+          />
           <div className="space-y-[1vw] pl-[1vw]">
             {[
               { id: 'None', label: 'None' },
@@ -681,7 +690,11 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
         </div>
 
         <div>
-          <SectionHeader title="Background Sound" />
+          <SectionHeader 
+            title="Background Sound" 
+            toggle={settings.sound?.bgSoundEnabled ?? true} 
+            onToggle={(v) => updateNested('sound', 'bgSoundEnabled', v)} 
+          />
           <input type="file" ref={bgSoundInputRef} onChange={handleBgSoundUpload} accept=".mp3, .wav, .m4a" className="hidden" />
           <div
             className={`border-2 border-dashed border-gray-400 rounded-[0.5vw] p-[0.8vw] flex flex-col items-center justify-center gap-[0.50vw] cursor-pointer hover:border-[#4A3AFF]/50 transition-all mb-[1.5vw] group/upload ${settings.sound?.bgSound?.startsWith('BG Sound') && parseInt(settings.sound.bgSound.split(' ')[2]) >= 5 ? 'border-[#4A3AFF] bg-[#4A3AFF]/5' : 'bg-transparent'}`}
@@ -1296,7 +1309,11 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
         >
           <div className="space-y-[1.5vw] ">
             <div>
-              <SectionHeader title="Flip Sound" />
+              <SectionHeader 
+                title="Flip Sound" 
+                toggle={settings.sound?.flipSoundEnabled ?? true} 
+                onToggle={(v) => updateNested('sound', 'flipSoundEnabled', v)} 
+              />
               <div className="space-y-[1vw] pl-[1vw]">
                 {[
                   { id: 'None', label: 'None' },
@@ -1365,7 +1382,11 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
             </div>
 
             <div>
-              <SectionHeader title="Background Sound" />
+              <SectionHeader 
+                title="Background Sound" 
+                toggle={settings.sound?.bgSoundEnabled ?? true} 
+                onToggle={(v) => updateNested('sound', 'bgSoundEnabled', v)} 
+              />
               <input type="file" ref={bgSoundInputRef} onChange={handleBgSoundUpload} accept=".mp3, .wav, .m4a" className="hidden" />
               <div
                 className={`border-2 border-dashed border-gray-400 rounded-[0.5vw] p-[0.8vw] flex flex-col items-center justify-center gap-[0.50vw] cursor-pointer hover:border-[#4A3AFF]/50 transition-all mb-[1.5vw] group/upload ${settings.sound?.bgSound?.startsWith('BG Sound') && parseInt(settings.sound.bgSound.split(' ')[2]) >= 5 ? 'border-[#4A3AFF] bg-[#4A3AFF]/5' : 'bg-transparent'}`}

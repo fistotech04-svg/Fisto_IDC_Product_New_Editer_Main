@@ -977,13 +977,13 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 closeAll();
                                 if (!wasOpen) setShowTOCMemo?.(true);
                             }}
-                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 ${showTOC ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all ${showTOC ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
                             style={{
                                 color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 opacity: getLayoutOpacity('toolbar-text-main', 1)
                             }}
                         >
-                            <Icon icon="fluent:text-bullet-list-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
+                            <Icon icon="fluent:text-bullet-list-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Table of<br />Contents</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
@@ -1011,14 +1011,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 closeAll();
                                 if (!wasOpen) setShowThumbnails(true);
                             }}
-                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 ${showThumbnails ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all ${showThumbnails ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
                             style={{
                                 color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 opacity: getLayoutOpacity('toolbar-text-main', 1)
                             }}
                         >
-                            <Icon icon="ph:squares-four-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Thumbnails</span>}
+                            <Icon icon="ph:squares-four-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Thumbnails</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1044,14 +1044,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 closeAll();
                                 setShowGalleryPopupMemo(true);
                             }}
-                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
+                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all opacity-90 hover:opacity-100"
                             style={{
                                 color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 opacity: getLayoutOpacity('toolbar-text-main', 1)
                             }}
                         >
-                            <Icon icon="clarity:image-gallery-solid" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Gallery</span>}
+                            <Icon icon="clarity:image-gallery-solid" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Gallery</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1079,14 +1079,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 closeAll();
                                 if (!wasOpen) setShowSoundPopupMemo?.(true);
                             }}
-                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 ${showSoundPopup ? 'opacity-100' : 'opacity-90 hover:opacity-100'} ${isMuted ? 'opacity-30' : ''}`}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all ${showSoundPopup ? 'opacity-100' : 'opacity-90 hover:opacity-100'} ${isMuted ? 'opacity-30' : ''}`}
                             style={{
                                 color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 opacity: getLayoutOpacity('toolbar-text-main', 1)
                             }}
                         >
-                            <Icon icon="solar:music-notes-bold" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Sound</span>}
+                            <Icon icon="solar:music-notes-bold" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Sound</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1112,14 +1112,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 closeAll();
                                 setShowProfilePopup?.(true);
                             }}
-                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 opacity-90 hover:opacity-100`}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all opacity-90 hover:opacity-100`}
                             style={{
                                 color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 opacity: getLayoutOpacity('toolbar-text-main', 1)
                             }}
                         >
-                            <Icon icon="fluent:person-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Profile</span>}
+                            <Icon icon="fluent:person-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Profile</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1142,14 +1142,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                     {(settings?.shareExport?.share ?? true) && (
                         <button
                             onClick={handleShare}
-                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
+                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all opacity-90 hover:opacity-100"
                             style={{
                                 color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 opacity: getLayoutOpacity('toolbar-text-main', 1)
                             }}
                         >
-                            <Icon icon="mage:share-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Share</span>}
+                            <Icon icon="mage:share-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Share</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1172,14 +1172,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                     {(settings?.shareExport?.download ?? true) && (
                         <button
                             onClick={handleDownload}
-                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
+                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all opacity-90 hover:opacity-100"
                             style={{
                                 color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 opacity: getLayoutOpacity('toolbar-text-main', 1)
                             }}
                         >
-                            <Icon icon="meteor-icons:download" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Download</span>}
+                            <Icon icon="meteor-icons:download" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Download</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1201,15 +1201,15 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                     )}
                     {(settings?.viewing?.fullScreen ?? true) && <button
                         onClick={handleFullScreen}
-                        className="group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 border-t pt-[1vh] mt-[0.5vh] w-full justify-center hover:opacity-100"
+                        className="group relative flex flex-col items-center gap-[0.2vh] transition-all border-t pt-[1vh] mt-[0.5vh] w-full justify-center hover:opacity-100"
                         style={{
                             color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                             opacity: getLayoutOpacity('toolbar-text-main', 1) * 0.9,
                             borderColor: 'rgba(255,255,255,0.2)'
                         }}
                     >
-                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                        {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>}
+                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
+                        {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>}
                         <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                             style={{
                                 background: 'rgba(10, 10, 12, 0.55)',

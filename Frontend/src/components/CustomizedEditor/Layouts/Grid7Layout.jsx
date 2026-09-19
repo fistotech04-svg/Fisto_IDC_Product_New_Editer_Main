@@ -107,13 +107,13 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
                 <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.3vw', padding: '0.18vw', background: glowBg }}>
                     {iconEl}
                 </motion.span>
-                {addTextBelowIcons && (
-                    <span
-                        className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold mt-[0.15vw] leading-none whitespace-nowrap`}
-                        style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
-                    >{label}</span>
-                )}
             </motion.div>
+            {addTextBelowIcons && (
+                <span
+                    className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold mt-[0.15vw] leading-none whitespace-nowrap`}
+                    style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
+                >{label}</span>
+            )}
             {showTooltip && !addTextBelowIcons && (
                 <div
                     className="absolute bottom-full mb-[2.8vh] left-1/2 -translate-x-1/2 whitespace-nowrap"
@@ -773,13 +773,13 @@ const Grid7Layout = ({
             {/* Page Info Pill (Bottom Left) */}
             {(settings?.navigation?.pageQuickAccess ?? true) && (
                 <div
-                    className={`absolute left-[3vw] ${isTablet ? 'bottom-[9vh]' : 'bottom-[12vh]'} rounded-[0.4vw] px-[1.2vw] py-[0.6vh] shadow-sm z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                    className={`absolute left-[3vw] ${isTablet ? 'bottom-[9vh]' : 'bottom-[12vh]'} rounded-[0.4vw] ${isTablet ? 'px-[0.4vw] py-[0.15vw]' : 'px-[0.5vw] py-[0.2vw]'} shadow-sm z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
                     style={{
                         backgroundColor: getLayoutColor('page-number-bg', getLayoutColor('toolbar-bg', '#575C9C')),
                         opacity: isFullscreen && isCanvasHovered ? 0 : 1
                     }}
                 >
-                    <span className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-medium`} style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')) }}>Page </span>
+                    <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-medium`} style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')) }}>Page </span>
                     <input
                         type="text"
                         value={pageInputValue}
@@ -808,10 +808,10 @@ const Grid7Layout = ({
                                 setPageInputValue(String(currentPage + 1));
                             }
                         }}
-                        className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-medium bg-transparent border-none outline-none text-center`}
+                        className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-medium bg-transparent border-none outline-none text-center`}
                         style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')), width: `${String(pages.length).length + 1}ch` }}
                     />
-                    <span className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-medium`} style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')) }}> / {totalPages}</span>
+                    <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-medium`} style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')) }}> / {totalPages}</span>
                 </div>
             )}
 
@@ -1118,7 +1118,7 @@ const Grid7Layout = ({
                         style={{
                             left: isFullscreen ? '25vw' : (isSidebarOpen ? '43.5vw' : '34vw'),
                             right: isFullscreen ? '25vw' : (isSidebarOpen ? '6.5vw' : '16vw'),
-                            bottom: isTablet ? '7.5vh' : '9vh',
+                            bottom: isTablet ? '5.5vh' : '7vh',
                             backgroundColor: '#FFFFFF',
                             maxHeight: '45vh',
                             boxShadow: '0 -10px 40px rgba(0,0,0,0.3)',

@@ -2875,7 +2875,7 @@ const PreviewArea = React.memo(({
 
     const settings = React.useMemo(() => {
         const defaultMenuBarSettings = {
-            navigation: { nextPrevButtons: true, mouseWheel: false, dragToTurn: true, pageQuickAccess: true, tableOfContents: true, pageThumbnails: true, bookmark: true, startEndNav: true },
+            navigation: { nextPrevButtons: true, mouseWheel: false, dragToTurn: true, pageQuickAccess: true, tableOfContents: true, pageThumbnails: true, bookmark: false, startEndNav: true },
             viewing: { zoom: true, fullScreen: true },
             interaction: { search: true, notes: true, gallery: true },
             media: { autoFlip: true, backgroundAudio: true },
@@ -2975,8 +2975,14 @@ const PreviewArea = React.memo(({
     // Listen for clicks outside the flipbook to trigger interaction blinks
     useEffect(() => {
         const handleGlobalClick = (e) => {
-            // Prevent blinking if clicking on toolbars or interactive UI elements (buttons/inputs)
             const target = e.target;
+            
+            // Do not blink if clicking outside the preview area (e.g., left sidebar)
+            if (containerRef.current && !containerRef.current.contains(target)) {
+                return;
+            }
+
+            // Prevent blinking if clicking on toolbars or interactive UI elements (buttons/inputs)
             if (target.closest('button') || target.closest('input') || target.closest('a') || target.closest('.toolbar')) {
                 return;
             }
@@ -3428,6 +3434,19 @@ const PreviewArea = React.memo(({
             setShowExportPopup(false);
         }
     }, [settings?.shareExport?.download]);
+
+    useEffect(() => {
+        if (settings?.interaction?.gallery === false) {
+            setShowGalleryPopup(false);
+        }
+    }, [settings?.interaction?.gallery]);
+
+    useEffect(() => {
+        const audioEnabled = settings?.media?.backgroundAudio ?? settings?.media?.audio ?? true;
+        if (audioEnabled === false) {
+            setShowSoundPopup(false);
+        }
+    }, [settings?.media?.backgroundAudio, settings?.media?.audio]);
 
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -4807,7 +4826,7 @@ const PreviewArea = React.memo(({
                 isLoading={isLoading}
             />
 
-            {showTOC && !((isMobile && !isLandscape) || [4, 5, 6, 7].includes(Number(activeLayout))) && !isTablet && (
+            {showTOC && !((isMobile && !isLandscape) || [4, 5, 6].includes(Number(activeLayout))) && !isTablet && (
                 <TableOfContentsPopup
                     onClose={() => setShowTOC(false)}
                     onNavigate={(pageIndex) => {

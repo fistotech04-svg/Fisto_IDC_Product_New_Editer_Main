@@ -237,7 +237,12 @@ const ShapeProperties = ({
   if (selectedElementProps['data-effect-blur'] === 'true') activeEffects.push('Blur');
 
   const handleSetActiveEffects = (updater) => {
-    const next = typeof updater === 'function' ? updater(activeEffects) : updater;
+    const currentActive = [];
+    if (selectedElementProps['data-effect-drop-shadow'] === 'true') currentActive.push('Drop Shadow');
+    if (selectedElementProps['data-effect-inner-shadow'] === 'true') currentActive.push('Inner Shadow');
+    if (selectedElementProps['data-effect-blur'] === 'true') currentActive.push('Blur');
+
+    const next = typeof updater === 'function' ? updater(currentActive) : updater;
     const updates = {};
     const hasDropShadow = next.includes('Drop Shadow');
     const hasInnerShadow = next.includes('Inner Shadow');
