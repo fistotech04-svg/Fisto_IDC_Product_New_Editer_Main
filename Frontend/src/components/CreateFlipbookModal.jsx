@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getPdfPageCount, getPdfDetails, getDocumentDetails, isOfficeDocument, getOfficeDocType } from '../utils/pdfUtils';
 import AlertModal from './AlertModal';
 
-const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate', existingFlipbooks = [], initialFiles = null }) => {
+const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate', initialPageCount = 12, existingFlipbooks = [], initialFiles = null }) => {
   const [view, setView] = useState(initialView);
   const [initialFlipbookName, setInitialFlipbookName] = useState('');
   const initialFlipbookNameRef = React.useRef('');
@@ -15,7 +15,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
 
   // Template View State
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialTemplateId);
-  const [pageCount, setPageCount] = useState(12);
+  const [pageCount, setPageCount] = useState(initialPageCount || 12);
   const [orientation, setOrientation] = useState('portrait');
 
   const getFormattedDateTime = () => {
@@ -38,6 +38,9 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     if (isOpen) {
       setView(initialView === 'selection' ? 'upload' : initialView);
       setSelectedTemplateId(initialTemplateId);
+      if (initialPageCount && initialPageCount >= 4) {
+        setPageCount(initialPageCount);
+      }
       setUploadedFiles([]);
       hasUserEditedNameRef.current = false;
       const isTemplate = (initialView === 'selection' ? 'upload' : initialView) === 'template';
@@ -47,7 +50,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
       initialFlipbookNameRef.current = defaultName;
       setNameError(false);
     }
-  }, [isOpen, initialView, initialTemplateId]);
+  }, [isOpen, initialView, initialTemplateId, initialPageCount]);
 
   const handleNameChange = (e) => {
       const val = e.target.value;

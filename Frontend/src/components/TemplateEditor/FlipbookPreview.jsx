@@ -135,6 +135,16 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             }
         });
     } catch (err) {}
+
+    return () => {
+      try {
+        if (window._activePreviewAudio) {
+          window._activePreviewAudio.pause();
+          window._activePreviewAudio = null;
+          window._activePreviewAudioEl = null;
+        }
+      } catch (e) {}
+    };
   }, []);
 
   useEffect(() => {

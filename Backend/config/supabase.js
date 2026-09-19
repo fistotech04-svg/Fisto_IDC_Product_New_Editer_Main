@@ -77,7 +77,14 @@ const mimeTypes = {
   ".webp": "image/webp",
   ".json": "application/json",
   ".pdf": "application/pdf",
-  ".hdr": "image/vnd.radiance"
+  ".hdr": "image/vnd.radiance",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".ogg": "audio/ogg",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm"
 };
 
 /**

@@ -4402,7 +4402,7 @@ router.post("/trash", async (req, res) => {
           isPublished: false,
           'Customized_Settings.FlipbookInfo.tags': []
         },
-        $pull: { folderName: "Recent Book" }
+        $pull: { folderName: { $in: ["Recent Book", "Recent", "Recent book"] } }
       },
       { new: true }
     );
@@ -4417,10 +4417,32 @@ router.post("/trash", async (req, res) => {
             isPublished: false,
             'Customized_Settings.FlipbookInfo.tags': []
           },
-          $pull: { folderName: "Recent Book" }
+          $pull: { folderName: { $in: ["Recent Book", "Recent", "Recent book"] } }
         },
         { new: true }
       );
+    }
+
+    // Ensure all documents associated with this book (by v_id or flipbookName) are marked trash: true and pulled from Recent Book
+    const orConditions = [];
+    if (v_id) orConditions.push({ v_id });
+    if (updated?.v_id) orConditions.push({ v_id: updated.v_id });
+    if (bookName) orConditions.push({ flipbookName: bookName });
+    if (updated?.flipbookName) orConditions.push({ flipbookName: updated.flipbookName });
+
+    if (orConditions.length > 0) {
+      await Flipbook.updateMany(
+        { userEmail: emailId, $or: orConditions },
+        {
+          $set: { 
+            trash: true, 
+            trashedAt: new Date(), 
+            isPublished: false,
+            'Customized_Settings.FlipbookInfo.tags': []
+          },
+          $pull: { folderName: { $in: ["Recent Book", "Recent", "Recent book"] } }
+        }
+      ).catch(() => {});
     }
 
     // Remove from everyone's shelf if it was on shelves
@@ -4502,13 +4524,13 @@ router.post("/empty-trash", async (req, res) => {
       const folder = realFolders[0] || "My_Flipbooks";
 
       const supabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folder}/${book.flipbookName}`;
-      deleteFolderFromSupabase(supabaseBookPrefix).catch(() => {});
+      await deleteFolderFromSupabase(supabaseBookPrefix).catch(() => {});
 
       if (book.v_id) {
         try {
           const assets = await FlipbookAsset.find({ flipbook_v_id: book.v_id });
           for (const asset of assets) {
-            if (asset.url) deleteFileFromSupabase(asset.url).catch(() => {});
+            if (asset.url) await deleteFileFromSupabase(asset.url).catch(() => {});
           }
           await FlipbookAsset.deleteMany({ flipbook_v_id: book.v_id });
         } catch (e) {}
@@ -4589,7 +4611,7 @@ router.delete("/delete", async (req, res) => {
 
     // Delete flipbook folder and all files from Supabase Storage
     const supabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${storageFolder}/${targetBookName}`;
-    deleteFolderFromSupabase(supabaseBookPrefix).catch(e => console.warn("[Supabase] Delete book folder warning:", e));
+    await deleteFolderFromSupabase(supabaseBookPrefix).catch(e => console.warn("[Supabase] Delete book folder warning:", e));
 
     // Delete from MongoDB
     let deletedBook = null;
@@ -4609,7 +4631,7 @@ router.delete("/delete", async (req, res) => {
         const assets = await FlipbookAsset.find({ flipbook_v_id: bookVId });
         for (const asset of assets) {
           if (asset.url) {
-            deleteFileFromSupabase(asset.url).catch(e => console.warn("[Supabase] Delete asset warning:", e));
+            await deleteFileFromSupabase(asset.url).catch(e => console.warn("[Supabase] Delete asset warning:", e));
           }
         }
         await FlipbookAsset.deleteMany({ flipbook_v_id: bookVId });
