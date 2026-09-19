@@ -3249,6 +3249,23 @@ const TemplateEditor = () => {
               element.innerHTML = val;
             } else {
               element.setAttribute(attr, val);
+              if ((attr === 'fill' || attr === 'stroke') && element.getAttribute('data-type') === 'icon') {
+                const children = element.querySelectorAll('*');
+                children.forEach(c => {
+                  const tag = c.tagName.toLowerCase();
+                  if (['path', 'rect', 'circle', 'polygon', 'ellipse', 'line', 'polyline'].includes(tag)) {
+                    if (tag === 'rect' && !c.hasAttribute('fill')) {
+                      c.setAttribute('fill', 'none');
+                    }
+                    if (attr === 'fill' && c.hasAttribute('fill') && c.getAttribute('fill') !== 'none') {
+                      c.setAttribute('fill', val);
+                    }
+                    if (attr === 'stroke' && c.hasAttribute('stroke') && c.getAttribute('stroke') !== 'none') {
+                      c.setAttribute('stroke', val);
+                    }
+                  }
+                });
+              }
             }
             if (attr === 'stroke-width' && val !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
               element.setAttribute('stroke', '#000000');

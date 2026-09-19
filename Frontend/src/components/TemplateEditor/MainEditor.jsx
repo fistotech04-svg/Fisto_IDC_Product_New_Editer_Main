@@ -2910,6 +2910,15 @@ const MainEditor = ({
         }
       }
 
+      if (icon.html) {
+        const rects = g.querySelectorAll('rect');
+        rects.forEach(rect => {
+          if (!rect.hasAttribute('fill')) {
+            rect.setAttribute('fill', 'none');
+          }
+        });
+      }
+
       const targetContainer = svg.querySelector('[data-type="frame"]') || svg.querySelector('[data-name="Overlay"]') || svg;
       targetContainer.appendChild(g);
 
