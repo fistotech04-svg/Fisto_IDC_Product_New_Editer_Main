@@ -108,6 +108,9 @@ class PageCacheManager {
     // Inject styles right after opening <svg ...>
     cleaned = cleaned.replace(/<svg([^>]*)>/i, `<svg$1 width="100%" height="100%" preserveAspectRatio="xMidYMid meet">${hideStyles}`);
 
+    // Sanitize any bare ampersands not part of valid XML entities
+    cleaned = cleaned.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+
     return cleaned;
   }
 

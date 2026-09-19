@@ -199,7 +199,7 @@ export default function MyFlipbooks() {
     });
     const [isLoadingStorage, setIsLoadingStorage] = useState(false);
 
-    useEffect(() => {
+    const fetchLiveStorageSettings = useCallback(async () => {
         let targetEmail = emailId;
         if (!targetEmail) {
             try {
@@ -209,32 +209,33 @@ export default function MyFlipbooks() {
         }
         if (!targetEmail || targetEmail === 'No Email' || targetEmail === 'guest@example.com') return;
 
-        const fetchLiveStorageSettings = async () => {
-            setIsLoadingStorage(true);
-            try {
-                const response = await fetch(`${backendUrl}/api/usersetting/get-settings?emailId=${encodeURIComponent(targetEmail)}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data) {
-                        const newStorage = {
-                            used: typeof data.usedStorage === 'number' ? data.usedStorage : 0,
-                            total: typeof data.maxStorage === 'number' ? data.maxStorage : 300 * 1024 * 1024
-                        };
-                        setStorage(newStorage);
-                        try {
-                            localStorage.setItem('user_storage_settings', JSON.stringify(newStorage));
-                        } catch (e) {}
-                    }
+        setIsLoadingStorage(true);
+        try {
+            const response = await fetch(`${backendUrl}/api/usersetting/get-settings?emailId=${encodeURIComponent(targetEmail)}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data) {
+                    const newStorage = {
+                        used: typeof data.usedStorage === 'number' ? data.usedStorage : 0,
+                        total: typeof data.maxStorage === 'number' ? data.maxStorage : 300 * 1024 * 1024
+                    };
+                    setStorage(newStorage);
+                    try {
+                        localStorage.setItem('user_storage_settings', JSON.stringify(newStorage));
+                        window.dispatchEvent(new Event('storage'));
+                    } catch (e) {}
                 }
-            } catch (error) {
-                console.error("Error fetching live storage settings in MyFlipbooks:", error);
-            } finally {
-                setIsLoadingStorage(false);
             }
-        };
-
-        fetchLiveStorageSettings();
+        } catch (error) {
+            console.error("Error fetching live storage settings in MyFlipbooks:", error);
+        } finally {
+            setIsLoadingStorage(false);
+        }
     }, [emailId, backendUrl]);
+
+    useEffect(() => {
+        fetchLiveStorageSettings();
+    }, [fetchLiveStorageSettings]);
 
     const [activeFolder, setActiveFolder] = useState(() => {
         const saved = localStorage.getItem('last_active_folder');
@@ -1254,15 +1255,35 @@ export default function MyFlipbooks() {
 
         if (isEmptyTrashAction) {
             const previousBooks = [...books];
+            const trashedBooks = books.filter(b => b.trash || b.folder === 'Trash');
+            const freedBytes = trashedBooks.reduce((sum, b) => sum + (b.sizeBytes || b.fileSize || 0), 0);
+
+            // Optimistically remove all trashed books
             setBooks(prev => prev.filter(b => !b.trash && b.folder !== 'Trash'));
             setSelectedBooks([]);
             setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '' });
+
+            // Optimistically update storage
+            if (freedBytes > 0) {
+                setStorage(prev => {
+                    const updatedUsed = Math.max(0, (prev?.used || 0) - freedBytes);
+                    const updated = { ...prev, used: updatedUsed };
+                    try {
+                        localStorage.setItem('user_storage_settings', JSON.stringify(updated));
+                        window.dispatchEvent(new Event('storage'));
+                    } catch (e) {}
+                    return updated;
+                });
+            }
+
             try {
                 await axios.post(`${backendUrl}/api/flipbook/empty-trash`, { emailId });
+                await fetchLiveStorageSettings();
             } catch (err) {
                 console.error(err);
                 setBooks(previousBooks);
                 showAlert('Empty Trash Failed', err.response?.data?.message || err.message);
+                fetchLiveStorageSettings();
             }
             return;
         }
@@ -1275,23 +1296,56 @@ export default function MyFlipbooks() {
                 : [];
 
         const targetBooks = books.filter(b => idsToProcess.includes(b.id));
+        const targetVIds = new Set(targetBooks.map(b => b.v_id).filter(Boolean));
+        const targetRealNames = new Set(targetBooks.map(b => b.realName || b.title).filter(Boolean));
+
+        const isTargetBook = (b) => {
+            if (idsToProcess.includes(b.id)) return true;
+            if (b.v_id && targetVIds.has(b.v_id)) return true;
+            if ((b.realName && targetRealNames.has(b.realName)) || (b.title && targetRealNames.has(b.title))) return true;
+            return false;
+        };
 
         if (isTrashAction) {
-            // Optimistic update: mark books as trashed and unpublished
+            // Optimistic update: mark physical book as trashed and unpublished, and REMOVE completely from Recent list
             const previousBooks = [...books];
-            setBooks(prev => prev.map(b => {
-                if (idsToProcess.includes(b.id)) {
-                    return {
+            setBooks(prev => {
+                const matching = prev.filter(isTargetBook);
+                const hasPhysicalMatch = matching.some(b => b.folder !== 'Recent Book' && b.folder !== 'Recent' && !String(b.id).startsWith('Recent_'));
+
+                return prev.flatMap(b => {
+                    if (!isTargetBook(b)) return [b];
+
+                    const isRecentEntry = b.folder === 'Recent Book' || b.folder === 'Recent' || String(b.id).startsWith('Recent_');
+                    if (isRecentEntry) {
+                        // Virtual recent entry: drop it completely if physical counterpart exists
+                        if (hasPhysicalMatch) return [];
+                        // Otherwise convert it to trash entry
+                        return [{
+                            ...b,
+                            id: b.id.replace(/^Recent_/, ''),
+                            trash: true,
+                            isPublished: false,
+                            published: false,
+                            folder: 'Trash',
+                            originalFolder: b.actualFolder || b.originalFolder || 'My_Flipbooks'
+                        }];
+                    }
+
+                    // Physical book: move to Trash
+                    return [{
                         ...b,
                         trash: true,
                         isPublished: false,
                         published: false,
                         folder: 'Trash',
-                        originalFolder: b.folder !== 'Trash' ? b.folder : (b.originalFolder || 'My_Flipbooks')
-                    };
-                }
-                return b;
-            }));
+                        originalFolder: (b.folder !== 'Trash' && b.folder !== 'Recent Book' && b.folder !== 'Recent')
+                            ? b.folder
+                            : (b.originalFolder || 'My_Flipbooks')
+                    }];
+                });
+            });
+
             if (deleteBookConfirmation.bookId === 'BULK') setSelectedBooks([]);
             else setSelectedBooks(prev => prev.filter(id => !idsToProcess.includes(id)));
             setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '', isPublished: false });
@@ -1323,10 +1377,25 @@ export default function MyFlipbooks() {
         // Permanent Delete or Remove from Recent
         const endpoint = isRecent ? `${backendUrl}/api/flipbook/remove-recent` : `${backendUrl}/api/flipbook/delete`;
         const removedBooks = books.filter(b => idsToProcess.includes(b.id));
+        const freedBytes = !isRecent ? removedBooks.reduce((sum, b) => sum + (b.sizeBytes || b.fileSize || 0), 0) : 0;
+
         setBooks(prev => prev.filter(b => !idsToProcess.includes(b.id)));
         if (deleteBookConfirmation.bookId === 'BULK') setSelectedBooks([]);
         else setSelectedBooks(prev => prev.filter(id => !idsToProcess.includes(id)));
         setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '' });
+
+        // Optimistically update storage if permanently deleting
+        if (!isRecent && freedBytes > 0) {
+            setStorage(prev => {
+                const updatedUsed = Math.max(0, (prev?.used || 0) - freedBytes);
+                const updated = { ...prev, used: updatedUsed };
+                try {
+                    localStorage.setItem('user_storage_settings', JSON.stringify(updated));
+                    window.dispatchEvent(new Event('storage'));
+                } catch (e) {}
+                return updated;
+            });
+        }
 
         try {
             await Promise.all(removedBooks.map(book => {
@@ -1343,10 +1412,16 @@ export default function MyFlipbooks() {
                     });
                 }
             }));
+            if (!isRecent) {
+                await fetchLiveStorageSettings();
+            }
         } catch (err) {
             console.error(err);
             setBooks(prev => [...prev, ...removedBooks]);
             showAlert('Delete Failed', err.response?.data?.message || err.message);
+            if (!isRecent) {
+                fetchLiveStorageSettings();
+            }
         }
     };
 
@@ -1967,7 +2042,7 @@ export default function MyFlipbooks() {
                 {(() => {
                     // Fallback to local books sum if backend hasn't returned used storage yet
                     const fallbackBooksSize = Array.isArray(books) ? books.reduce((acc, b) => acc + (b.sizeBytes || b.fileSize || 0), 0) : 0;
-                    const effectiveUsed = storage.used > 0 ? storage.used : fallbackBooksSize;
+                    const effectiveUsed = (typeof storage.used === 'number' && !isNaN(storage.used)) ? storage.used : fallbackBooksSize;
                     const effectiveTotal = storage.total > 0 ? storage.total : (300 * 1024 * 1024);
 
                     const formatMB = (bytes) => {

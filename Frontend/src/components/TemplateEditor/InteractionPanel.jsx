@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
@@ -16,7 +17,7 @@ import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { fontFamilies, fontWeights } from '../../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import ColorPicker from './ColorPicker';
-import HotspotCustomizationPopup, { generateHotspotSVG } from './HotspotCustomizationPopup';
+import HotspotCustomizationPopup, { generateHotspotSVG, generateButtonSVG } from './HotspotCustomizationPopup';
 
 const GlbModelScene = ({ url }) => {
   const { scene, animations } = useGLTF(url);
@@ -327,8 +328,11 @@ const ZoomTargetThumbnail = ({ targetId }) => {
 };
 
 const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
+  const defaultCountry = 'in';
+  const defaultDialCode = '91';
+
   const parsedInitial = React.useMemo(() => {
-    if (!initialValue) return { country: 'af', nationalNumber: '', dialCode: '93' };
+    if (!initialValue) return { country: defaultCountry, nationalNumber: '', dialCode: defaultDialCode };
     const str = initialValue.startsWith('+') ? initialValue : '+' + initialValue;
     try {
       const phoneNumber = parsePhoneNumberFromString(str);
@@ -340,7 +344,7 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
         };
       }
     } catch (e) {}
-    return { country: 'af', nationalNumber: '', dialCode: '93' };
+    return { country: defaultCountry, nationalNumber: '', dialCode: defaultDialCode };
   }, [initialValue]);
 
   const [localValue, setLocalValue] = useState(parsedInitial.nationalNumber);
@@ -382,8 +386,8 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
       } catch (e) {}
     } else {
       setLocalValue('');
-      setSelectedCountry('af');
-      setDialCode('93');
+      setSelectedCountry(defaultCountry);
+      setDialCode(defaultDialCode);
     }
     setIsSaved(true);
   }, [initialValue]);
@@ -537,24 +541,35 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
 };
 
 
-const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setOpenDropdownId, updateElementAttribute, activePageIndex, setCardActionOverrides, setItemValueOverrides, setLocalInputValues, setTooltipSettingsOverrides }) => {
+const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setOpenDropdownId, updateElementAttribute, activePageIndex, setCardActionOverrides, setItemValueOverrides, setLocalInputValues, setTooltipSettingsOverrides, isCollapsed, onExpandAccordion }) => {
   const triggerRef = useRef(null);
   const [dropdownStyles, setDropdownStyles] = useState({});
 
   useEffect(() => {
-    if (isDropdownOpen && triggerRef.current) {
+    if (isCollapsed && isDropdownOpen) {
+      setOpenDropdownId(null);
+    }
+  }, [isCollapsed, isDropdownOpen, setOpenDropdownId]);
+
+  useEffect(() => {
+    if (isDropdownOpen && !isCollapsed && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
+      const dropdownMaxHeight = Math.min(window.innerHeight * 0.28, 260);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUpwards = spaceBelow < dropdownMaxHeight && rect.top > dropdownMaxHeight;
+
       setDropdownStyles({
         position: 'fixed',
         left: `${rect.left}px`,
-        top: `${rect.bottom + 5}px`, // Open downwards, 5px gap
-        width: '11vw',
+        top: openUpwards ? `${Math.max(10, rect.top - dropdownMaxHeight - 5)}px` : `${rect.bottom + 5}px`,
+        width: '10.5vw',
+        minWidth: '145px',
         zIndex: 999999
       });
     } else {
       setDropdownStyles({});
     }
-  }, [isDropdownOpen]);
+  }, [isDropdownOpen, isCollapsed]);
 
   // Close dropdown when scrolling to avoid detached floating menu
   useEffect(() => {
@@ -575,31 +590,35 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
       <div
         ref={triggerRef}
         data-dropdown-trigger="true"
-        className={`h-[3.5vh] bg-white border border-gray-200/80 shadow-sm rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] transition-all duration-300 relative select-none group ${isLocked ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-md hover:border-[#5145F6]/40 cursor-pointer'}`}
+        className={`h-[3.2vh] bg-white border border-gray-200/80 shadow-sm rounded-[0.3vw] flex items-center justify-center gap-[0.4vw] px-[0.7vw] transition-all duration-300 relative select-none group ${isLocked ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-md hover:border-[#5145F6]/40 cursor-pointer'}`}
         onClick={(e) => {
           e.stopPropagation();
           if (isLocked) return;
+          if (isCollapsed) {
+            if (onExpandAccordion) onExpandAccordion();
+            return;
+          }
           setOpenDropdownId(isDropdownOpen ? null : item.id);
         }}
       >
-        <span className="text-[0.85vw] text-gray-700 font-medium font-sans group-hover:text-[#5145F6] transition-colors">{currentAction.label}</span>
+        <span className="text-[0.8vw] text-gray-800 font-medium font-sans group-hover:text-[#5145F6] transition-colors select-none">{currentAction.label}</span>
         {!isLocked && (
-          <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" className="stroke-gray-500 group-hover:stroke-[#5145F6] transition-colors" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="0.75vw" height="0.75vw" viewBox="0 0 24 24" fill="none" className="stroke-gray-500 group-hover:stroke-[#5145F6] transition-colors flex-shrink-0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 7h16M16 3l4 4-4 4M20 17H4M8 13l-4 4 4 4" />
           </svg>
         )}
       </div>
 
-      {isDropdownOpen && dropdownStyles.left && createPortal(
+      {isDropdownOpen && !isCollapsed && dropdownStyles.left && createPortal(
         <div
           data-dropdown-menu="true"
-          className="bg-white border border-gray-200 rounded-[0.8vw] shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col gap-[0.5vh] p-[0.5vw] max-h-[60vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-left"
+          className="bg-white border border-gray-200 rounded-[0.35vw] shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col gap-[0.4vh] p-[0.3vw] pr-[0.35vw] max-h-[26vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-left"
           style={dropdownStyles}
         >
           {actionTypes.map(action => (
             <div
               key={action.id}
-              className="flex items-center gap-[0.8vw] px-[0.8vw] py-[0.8vh] rounded-[0.4vw] bg-[#F9FAFB] hover:bg-gray-100 cursor-pointer transition-colors group"
+              className="flex items-center gap-[0.6vw] px-[0.7vw] py-[0.7vh] rounded-[0.25vw] bg-[#F9FAFB] hover:bg-gray-100 cursor-pointer transition-colors group"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdownId(null);
@@ -626,8 +645,8 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
                 }, 50);
               }}
             >
-              <Icon icon={action.icon} className="text-gray-600 text-[1.3vw]" />
-              <span className="text-[0.9vw] text-gray-700 font-medium">{action.label}</span>
+              <Icon icon={action.icon} className="text-gray-600 text-[1.1vw] group-hover:text-[#5145F6] transition-colors flex-shrink-0" />
+              <span className="text-[0.8vw] text-gray-800 font-medium font-sans group-hover:text-[#5145F6] transition-colors truncate">{action.label}</span>
             </div>
           ))}
         </div>,
@@ -724,8 +743,17 @@ const InteractionPanel = ({
   flipbookDimensions = { width: 210, height: 297 },
   onCustomizePopup,
   setIs3DModalOpen,
-  setCurrent3DItem
+  setCurrent3DItem,
+  v_id: v_idProp,
+  folderName: folderNameProp,
+  flipbookName: flipbookNameProp
 }) => {
+  const { folder: paramFolder, v_id: paramVId } = useParams() || {};
+  const location = useLocation() || {};
+
+  const effectiveVId = v_idProp || paramVId || location?.state?.v_id || location?.state?.flipbook_v_id;
+  const effectiveFolder = folderNameProp || paramFolder || location?.state?.folderName || 'My_Flipbooks';
+  const effectiveBook = flipbookNameProp || location?.state?.flipbookName || 'Untitled Flipbook';
   const [activeTemplateSelectionId, setActiveTemplateSelectionId] = useState(null);
   const [alertState, setAlertState] = useState({ isOpen: false, title: '', message: '', type: 'warning', showCancel: false, confirmText: 'Okay', cancelText: 'Cancel', onConfirm: null });
   const [dimensionUnit, setDimensionUnit] = useState('px');
@@ -758,6 +786,87 @@ const InteractionPanel = ({
   const [highlightOverrides, setHighlightOverrides] = useState({});
   const activeAudioRef = useRef(null);
 
+  const formatAudioTime = (secs) => {
+    if (!secs || isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const formatAudioFileSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const handleTogglePlayAudio = (itemId, audioSrc) => {
+    if (!audioSrc) return;
+
+    const resolvedSrc = resolveUploadsPath(audioSrc);
+
+    if (playingAudioId === itemId && activeAudioRef.current) {
+      if (!activeAudioRef.current.paused) {
+        activeAudioRef.current.pause();
+        setPlayingAudioId(null);
+        return;
+      }
+    }
+
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+
+    const audio = new Audio(resolvedSrc);
+    activeAudioRef.current = audio;
+    setPlayingAudioId(itemId);
+
+    audio.ontimeupdate = () => {
+      if (!audio.duration) return;
+      const cur = audio.currentTime || 0;
+      const dur = audio.duration || 1;
+      const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
+      setAudioPlaybackTimes(prev => ({
+        ...prev,
+        [itemId]: `${formatAudioTime(cur)} / ${formatAudioTime(dur)}`
+      }));
+      setAudioProgressPercent(prev => ({
+        ...prev,
+        [itemId]: pct
+      }));
+    };
+
+    audio.onloadedmetadata = () => {
+      const cur = audio.currentTime || 0;
+      const dur = audio.duration || 0;
+      setAudioPlaybackTimes(prev => ({
+        ...prev,
+        [itemId]: `${formatAudioTime(cur)} / ${formatAudioTime(dur)}`
+      }));
+    };
+
+    audio.onended = () => {
+      setPlayingAudioId(null);
+      setAudioProgressPercent(prev => ({ ...prev, [itemId]: 0 }));
+    };
+
+    audio.play().catch(err => {
+      console.error('Audio playback failed in panel', err);
+      setPlayingAudioId(null);
+    });
+  };
+
+  const handleAudioSeek = (e, itemId) => {
+    if (!activeAudioRef.current || playingAudioId !== itemId) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const pct = Math.min(1, Math.max(0, clickX / rect.width));
+    if (activeAudioRef.current.duration) {
+      activeAudioRef.current.currentTime = pct * activeAudioRef.current.duration;
+    }
+  };
+
   // Clean up audio on unmount
   useEffect(() => {
     return () => {
@@ -787,6 +896,7 @@ const InteractionPanel = ({
     { id: 'slideshow', label: 'Slideshow', icon: 'clarity:image-gallery-line' },
     { id: 'zoom', label: 'Zoom', icon: 'fluent:zoom-in-32-regular' },
     { id: 'download', label: 'Download', icon: 'mynaui:download' },
+    { id: 'audio', label: 'Audio', icon: 'lucide:volume-2' },
     { id: 'info-box', label: 'Info Box', icon: 'fontisto:info' }
   ];
   const [selectedActionType, setSelectedActionType] = useState(actionTypes[0]);
@@ -1215,7 +1325,10 @@ const InteractionPanel = ({
         const isHotspot = foundEl.getAttribute('data-is-hotspot') === 'true' || 
                           (foundEl.getAttribute('data-type') === 'icon' || foundEl.getAttribute('data-type') === 'hotspot') && imageEl && imageEl.getAttribute('width') === '52';
         
-        const isInteractiveButton = isHotspot && foundEl.querySelector('rect') !== null && (foundEl.querySelector('text') !== null || foundEl.querySelector('[data-type="text"]') !== null);
+        const isInteractiveButton = isHotspot && (
+          foundEl.getAttribute('data-preset-id') === 'interactive-button' ||
+          (foundEl.querySelector('rect') !== null && (foundEl.querySelector('text') !== null || foundEl.querySelector('[data-type="text"]') !== null))
+        );
 
         let hotspotIconSrc = null;
         if (!isInteractiveButton) {
@@ -1227,12 +1340,39 @@ const InteractionPanel = ({
         
         let hotspotHtml = null;
         let hotspotBBox = "0 0 48 48";
-        if (isHotspot || isInteractiveButton) {
-           hotspotHtml = foundEl.innerHTML;
-           const rectMatch = hotspotHtml.match(/<rect[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"/);
-           if (rectMatch) {
-             hotspotBBox = `0 0 ${rectMatch[1]} ${rectMatch[2]}`;
-           }
+        let previewHtml = null;
+        let previewBBox = null;
+
+        if (isInteractiveButton) {
+          hotspotHtml = foundEl.innerHTML;
+          const textEl = foundEl.querySelector('text') || foundEl.querySelector('[data-type="text"]');
+          const btnLabel = textEl ? textEl.textContent.trim() : 'Button';
+          const rectEl = foundEl.querySelector('rect');
+          const bgCol = foundEl.getAttribute('data-bg-color') || (rectEl ? (rectEl.getAttribute('fill') || rectEl.style.fill) : '#359CFD') || '#359CFD';
+          const textCol = foundEl.getAttribute('data-icon-color') || (textEl ? (textEl.getAttribute('fill') || textEl.style.fill) : '#FFFFFF') || '#FFFFFF';
+          const pathEl = foundEl.querySelector('path');
+          const imgEl = foundEl.querySelector('image');
+          const hasIcon = !!(pathEl || imgEl);
+          const btnIconSrc = imgEl ? imgEl.getAttribute('href') : null;
+          const btnIconCol = pathEl ? (pathEl.getAttribute('stroke') || textCol) : textCol;
+
+          let btnIconPlacement = 'Front';
+          if (hasIcon && textEl) {
+            const iconX = imgEl ? parseFloat(imgEl.getAttribute('x') || 0) : (pathEl ? (pathEl.parentElement?.tagName?.toLowerCase() === 'g' && pathEl.parentElement.getAttribute('transform')?.includes('translate') ? parseFloat(pathEl.parentElement.getAttribute('transform').match(/translate\(([^,\s)]+)/)?.[1] || 0) : 0) : 0);
+            const textX = parseFloat(textEl.getAttribute('x') || 0);
+            if (iconX > textX) btnIconPlacement = 'Back';
+          }
+
+          // Generate a normalized, stable button preview so adjusting the button on canvas doesn't resize or distort the sidebar preview box
+          previewHtml = generateButtonSVG(btnLabel, bgCol, textCol, hasIcon, btnIconCol, btnIconPlacement, 80, 32, 4, 14, btnIconSrc);
+          previewBBox = "0 0 80 32";
+          hotspotBBox = "0 0 80 32";
+        } else if (isHotspot) {
+          hotspotHtml = foundEl.innerHTML;
+          const rectMatch = hotspotHtml.match(/<rect[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"/);
+          if (rectMatch) {
+            hotspotBBox = `0 0 ${rectMatch[1]} ${rectMatch[2]}`;
+          }
         }
 
         list.push({
@@ -1248,9 +1388,13 @@ const InteractionPanel = ({
           zoomTargetId: foundEl.getAttribute('data-zoom-target') || null,
           zoomLevel: foundEl.getAttribute('data-zoom-level') || '2X',
           isHotspot: isHotspot,
+          isInteractiveButton: isInteractiveButton,
+          'data-show-highlight': foundEl.getAttribute('data-show-highlight'),
           hotspotIconSrc: hotspotIconSrc,
           hotspotHtml: hotspotHtml,
           hotspotBBox: hotspotBBox,
+          previewHtml: previewHtml,
+          previewBBox: previewBBox,
           presetId: foundEl.getAttribute('data-preset-id') || null,
           bgColor: foundEl.getAttribute('data-bg-color') || null,
           iconColor: foundEl.getAttribute('data-icon-color') || null
@@ -1463,35 +1607,37 @@ const InteractionPanel = ({
                   {/* Card Header / Settings */}
                   <div className="flex flex-col">
                     {/* Top Row: Icon + Dropdowns */}
-                    <div className={`flex items-center justify-between gap-[0.8vw] ${isCollapsed ? 'py-[1.6vh] pl-[0.8vw] pr-[1.2vw]' : 'pt-[1.2vh] pl-[0.8vw] pr-[1.2vw] pb-[1.2vh]'}`}>
+                    <div className="flex items-center justify-between gap-[0.8vw] py-[1.2vh] pl-[0.8vw] pr-[1.2vw]">
                       <div className="flex items-center gap-[0.8vw]">
                         {/* Touch Icon */}
                         <div className="flex-shrink-0 text-gray-500 flex items-center pl-[0.6vw]">
-                          <Icon icon="hugeicons:touch-interaction-01" className="text-[1.4vw]" />
+                          <Icon icon="hugeicons:touch-interaction-01" className="text-[1.3vw]" />
                         </div>
 
-                        {/* Expanded state pills directly in header */}
-                        {!isCollapsed ? (
-                          <div className="flex items-center gap-[0.6vw]">
-                            {/* Action selector dropdown styled as a pill */}
-                            <ActionDropdown
-                              item={item}
-                              currentAction={currentAction}
-                              actionTypes={actionTypes}
-                              isDropdownOpen={isDropdownOpen}
-                              setOpenDropdownId={setOpenDropdownId}
-                              updateElementAttribute={updateElementAttribute}
-                              activePageIndex={activePageIndex}
-                              setCardActionOverrides={setCardActionOverrides}
-                              setItemValueOverrides={setItemValueOverrides}
-                              setLocalInputValues={setLocalInputValues}
-                              setTooltipSettingsOverrides={setTooltipSettingsOverrides}
-                            />
-
-                          </div>
-                        ) : (
-                          <span className="text-[0.95vw] font-medium text-gray-800 select-none">{currentAction.label}</span>
-                        )}
+                        {/* Action selector dropdown styled as a pill */}
+                        <ActionDropdown
+                          item={item}
+                          currentAction={currentAction}
+                          actionTypes={actionTypes}
+                          isDropdownOpen={isDropdownOpen}
+                          setOpenDropdownId={setOpenDropdownId}
+                          updateElementAttribute={updateElementAttribute}
+                          activePageIndex={activePageIndex}
+                          setCardActionOverrides={setCardActionOverrides}
+                          setItemValueOverrides={setItemValueOverrides}
+                          setLocalInputValues={setLocalInputValues}
+                          setTooltipSettingsOverrides={setTooltipSettingsOverrides}
+                          isCollapsed={isCollapsed}
+                          onExpandAccordion={() => {
+                            if (!isSelected) {
+                              setActiveLayerId(item.id);
+                              window.dispatchEvent(new CustomEvent('select-layer', {
+                                detail: { layerId: item.id }
+                              }));
+                            }
+                            setCollapsedCardIds(prev => ({ ...prev, [item.id]: false }));
+                          }}
+                        />
                       </div>
 
                       {/* Collapse/Expand Toggle Chevron */}
@@ -1550,13 +1696,13 @@ const InteractionPanel = ({
                               </div>
                               
                               {/* Icon Preview */}
-                              {item.hotspotHtml ? (
+                              {(item.previewHtml || item.hotspotHtml) ? (
                                 <div className="w-[8vw] h-[4.5vw] flex items-center justify-center overflow-hidden pointer-events-none">
                                   <svg 
                                     className="w-full h-full" 
-                                    viewBox={item.hotspotBBox || "0 0 48 48"} 
+                                    viewBox={item.previewBBox || item.hotspotBBox || "0 0 48 48"} 
                                     preserveAspectRatio="xMidYMid meet"
-                                    dangerouslySetInnerHTML={{ __html: item.hotspotHtml }} 
+                                    dangerouslySetInnerHTML={{ __html: item.previewHtml || item.hotspotHtml }} 
                                   />
                                 </div>
                               ) : item.hotspotIconSrc ? (
@@ -1570,11 +1716,11 @@ const InteractionPanel = ({
                           </div>
                         )}
                         
-                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup', '3d-viewer'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
+                        <div className={`flex flex-col gap-[1.5vh] w-full ${resolvedActionId === 'slideshow' ? 'px-[1vw]' : 'px-[1.6vw]'} ${['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup', '3d-viewer', 'audio'].includes(resolvedActionId) ? (item.isHotspot ? 'pt-[1vh] pb-[1.5vh]' : 'pt-[1vh] pb-[1.5vh]') : 'pt-[4vh] pb-[4vh]'}`}>
                           <div className="flex items-start gap-[0.5vw] w-full">
                             {(() => {
                               if (item.isHotspot) return null;
-                              if (['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup', '3d-viewer'].includes(resolvedActionId)) return null;
+                              if (['open-link', 'whatsapp', 'email', 'navigate-to', 'call', 'slideshow', 'zoom', 'info-box', 'download', 'popup', '3d-viewer', 'audio'].includes(resolvedActionId)) return null;
 
                               const labelMarginClass =
                                 ['audio', 'zoom'].includes(resolvedActionId) ? 'mt-[3.5vh]' :
@@ -2210,6 +2356,198 @@ const InteractionPanel = ({
                                         </div>
                                       }
                                       subText=""
+                                    />
+                                  </div>
+                                );
+                              })()
+                            ) : resolvedActionId === 'audio' ? (
+                              (() => {
+                                let fileMeta = null;
+                                try {
+                                  if (resolvedValue && resolvedValue.startsWith('{')) {
+                                    fileMeta = JSON.parse(resolvedValue);
+                                  } else if (resolvedValue) {
+                                    fileMeta = { name: 'Audio File', data: resolvedValue, url: resolvedValue };
+                                  }
+                                } catch (e) { }
+
+                                return (
+                                  <div className="flex flex-col w-full gap-[0.8vh]" onClick={(e) => e.stopPropagation()}>
+                                    <span className="text-[0.85vw] text-black font-normal">{fileMeta ? "Audio Preview" : "Upload Audio File"}</span>
+                                    <CommonDropBox
+                                      boxClassName={`w-full h-[18vh] rounded-[0.6vw] flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative ${fileMeta ? 'p-0' : 'bg-[#F3F4F6] hover:bg-gray-100 p-[0.3vw] gap-[0.5vh]'}`}
+                                      boxStyle={!fileMeta ? {
+                                        backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='10' ry='10' stroke='%238A94A6' stroke-width='2' stroke-dasharray='5%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e")`
+                                      } : {}}
+                                      id={`audio-upload-${item.id}`}
+                                      accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
+                                      onFileSelect={async (file) => {
+                                        if (file && updateElementAttribute) {
+                                          const storedUser = localStorage.getItem('user');
+                                          if (!storedUser) { alert("You must be logged in to upload a file."); return; }
+                                          const user = JSON.parse(storedUser);
+
+                                          setUploadingItems(prev => ({ ...prev, [item.id]: true }));
+
+                                          try {
+                                            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                                            const formData = new FormData();
+                                            formData.append('emailId', user.emailId);
+                                            if (effectiveVId) formData.append('v_id', effectiveVId);
+                                            if (effectiveFolder) formData.append('folderName', effectiveFolder);
+                                            if (effectiveBook) formData.append('flipbookName', effectiveBook);
+                                            formData.append('type', 'audio');
+                                            formData.append('page_v_id', 'global');
+                                            formData.append('file', file);
+
+                                            const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+                                              headers: { 'Content-Type': 'multipart/form-data' }
+                                            });
+
+                                            if (res.data && res.data.url) {
+                                              const uploadedUrl = resolveUploadsPath(res.data.url);
+                                              const storedVal = JSON.stringify({
+                                                name: file.name,
+                                                type: file.type || 'audio/mpeg',
+                                                size: file.size,
+                                                data: uploadedUrl,
+                                                url: uploadedUrl
+                                              });
+
+                                              setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                              updateElementAttribute(targetIdx, item.id, {
+                                                'data-interaction': 'audio',
+                                                'data-interaction-value': storedVal
+                                              });
+                                            } else {
+                                              throw new Error("Failed to upload audio asset");
+                                            }
+                                          } catch (err) {
+                                            console.error("Audio upload error:", err);
+                                            alert("Failed to upload audio file. Please try again.");
+                                          } finally {
+                                            setUploadingItems(prev => ({ ...prev, [item.id]: false }));
+                                          }
+                                        }
+                                      }}
+                                      isUploading={uploadingItems[item.id]}
+                                      fileMeta={fileMeta}
+                                      renderPreview={(meta) => {
+                                        const optionsDropId = `audio-options-${item.id}`;
+                                        const isOptionsDropOpen = openDropdownId === optionsDropId;
+                                        const isPlaying = playingAudioId === item.id;
+                                        const timeText = audioPlaybackTimes[item.id] || '0:00';
+                                        const progress = audioProgressPercent[item.id] || 0;
+
+                                        const threeDots = (
+                                          <div className="absolute top-[0.4vw] right-[0.4vw] z-[20]" onClick={(e) => e.stopPropagation()}>
+                                            <div
+                                              data-dropdown-trigger="true"
+                                              className="bg-white/90 rounded-[0.2vw] shadow-sm p-[0.2vw] flex items-center justify-center cursor-pointer hover:bg-white transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setOpenDropdownId(isOptionsDropOpen ? null : optionsDropId);
+                                              }}
+                                            >
+                                              <Icon icon="lucide:more-vertical" className="text-gray-700 text-[1vw]" />
+                                            </div>
+                                            {isOptionsDropOpen && (
+                                              <div data-dropdown-menu="true" className="absolute right-0 top-[calc(100%+0.2vw)] bg-white border border-gray-200 rounded-[0.4vw] shadow-lg py-[0.4vh] min-w-[7.5vw] z-[99999] flex flex-col">
+                                                <div
+                                                  className="px-[0.8vw] py-[0.6vh] text-[0.8vw] text-gray-700 hover:bg-gray-50 cursor-pointer flex items-center gap-[0.4vw]"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdownId(null);
+                                                    const inputEl = document.getElementById(`audio-upload-${item.id}`);
+                                                    if (inputEl) inputEl.click();
+                                                  }}
+                                                >
+                                                  <Icon icon="lucide:refresh-cw" className="text-[0.9vw]" /> Replace
+                                                </div>
+                                                <div
+                                                  className="px-[0.8vw] py-[0.6vh] text-[0.8vw] text-red-600 hover:bg-red-50 cursor-pointer flex items-center gap-[0.4vw]"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdownId(null);
+                                                    if (playingAudioId === item.id && activeAudioRef.current) {
+                                                      activeAudioRef.current.pause();
+                                                      setPlayingAudioId(null);
+                                                    }
+                                                    setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                    if (updateElementAttribute) {
+                                                      updateElementAttribute(targetIdx, item.id, {
+                                                        'data-interaction': 'audio',
+                                                        'data-interaction-value': ''
+                                                      });
+                                                    }
+                                                  }}
+                                                >
+                                                  <Icon icon="lucide:trash-2" className="text-[0.9vw]" /> Delete
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+
+                                        return (
+                                          <div className="w-full h-full bg-gradient-to-br from-[#FAF5FF] via-white to-[#F3E8FF] flex flex-col justify-between p-[0.8vw] relative border border-[#E9D5FF] rounded-[0.6vw]">
+                                            {threeDots}
+
+                                            {/* Top Info */}
+                                            <div className="flex items-center gap-[0.6vw] pr-[1.8vw]">
+                                              <div className="w-[2.4vw] h-[2.4vw] rounded-[0.5vw] bg-[#7C3AED]/10 text-[#7C3AED] flex items-center justify-center flex-shrink-0">
+                                                <Icon icon="solar:music-note-2-bold" className="text-[1.3vw]" />
+                                              </div>
+                                              <div className="flex flex-col min-w-0 flex-1">
+                                                <span className="text-[0.8vw] font-semibold text-gray-800 truncate" title={meta.name || 'Audio File'}>
+                                                  {meta.name || 'Audio File'}
+                                                </span>
+                                                <span className="text-[0.65vw] text-gray-500 font-medium">
+                                                  {meta.size ? formatAudioFileSize(meta.size) : 'Audio Clip'}
+                                                </span>
+                                              </div>
+                                            </div>
+
+                                            {/* Player Controls & Progress */}
+                                            <div className="flex flex-col gap-[0.4vh] mt-[0.5vh]" onClick={(e) => e.stopPropagation()}>
+                                              <div className="flex items-center gap-[0.6vw]">
+                                                <button
+                                                  type="button"
+                                                  className="w-[2vw] h-[2vw] rounded-full bg-[#7C3AED] text-white flex items-center justify-center hover:bg-[#6D28D9] transition-transform active:scale-95 shadow-sm flex-shrink-0"
+                                                  onClick={() => handleTogglePlayAudio(item.id, meta.data || meta.url)}
+                                                  title={isPlaying ? "Pause" : "Play"}
+                                                >
+                                                  <Icon icon={isPlaying ? "solar:pause-bold" : "solar:play-bold"} className="text-[1vw]" />
+                                                </button>
+                                                
+                                                <div 
+                                                  className="flex-1 h-[0.5vw] bg-purple-100 rounded-full cursor-pointer relative overflow-hidden group"
+                                                  onClick={(e) => handleAudioSeek(e, item.id)}
+                                                >
+                                                  <div 
+                                                    className="h-full bg-[#7C3AED] rounded-full transition-all duration-100"
+                                                    style={{ width: `${progress}%` }}
+                                                  />
+                                                </div>
+
+                                                <span className="text-[0.65vw] text-gray-600 font-mono flex-shrink-0 select-none">
+                                                  {timeText}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      }}
+                                      emptyIcon=""
+                                      emptyTitle={
+                                        <div className="flex items-center gap-[0.4vw]">
+                                          <Icon icon="lucide:plus" className="text-[1.2vw] text-[#9CA3AF]" />
+                                          <span className="text-[0.85vw] text-[#9CA3AF] font-medium">Add Audio File</span>
+                                        </div>
+                                      }
+                                      subText="Supports MP3, WAV, OGG, M4A"
                                     />
                                   </div>
                                 );
@@ -3311,7 +3649,8 @@ const InteractionPanel = ({
                                       { value: 'Slide Down', label: 'Slide Down' },
                                       { value: 'Zoom In', label: 'Zoom In' }
                                     ];
-                                    const savedAnim = document.getElementById(item.id)?.getAttribute('data-interaction-popup-animation');
+                                    const liveEl = (document.getElementById('main-flipbook-editor')?.contentDocument || document).getElementById(item.id);
+                                    const savedAnim = liveEl?.getAttribute('data-interaction-popup-animation');
                                     const currentAnim = itemValueOverrides[animDropId] || savedAnim || item.popupAnimation || 'Fade In /Out';
                                     const currentAnimLabel = popupAnimations.find(a => a.value === currentAnim)?.label || 'Fade in';
 
@@ -3351,6 +3690,11 @@ const InteractionPanel = ({
                                                       'data-interaction-popup-animation': anim.value
                                                     });
                                                   }
+                                                  try {
+                                                    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                                                    const el = editorDoc.getElementById(item.id);
+                                                    if (el) el.setAttribute('data-interaction-popup-animation', anim.value);
+                                                  } catch (_) {}
                                                   setOpenDropdownId(null);
                                                 }}
                                               >
@@ -3373,7 +3717,8 @@ const InteractionPanel = ({
                                     const speedDropId = `popup-speed-${item.id}`;
                                     const isSpeedDropOpen = openDropdownId === speedDropId;
                                     const popupSpeeds = ['Slow', 'Medium', 'Fast'];
-                                    const savedSpeed = document.getElementById(item.id)?.getAttribute('data-interaction-popup-speed');
+                                    const liveSpeedEl = (document.getElementById('main-flipbook-editor')?.contentDocument || document).getElementById(item.id);
+                                    const savedSpeed = liveSpeedEl?.getAttribute('data-interaction-popup-speed');
                                     const currentSpeed = itemValueOverrides[speedDropId] || savedSpeed || item.popupSpeed || 'Medium';
 
                                     return (
@@ -3412,6 +3757,11 @@ const InteractionPanel = ({
                                                       'data-interaction-popup-speed': speed
                                                     });
                                                   }
+                                                  try {
+                                                    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                                                    const el = editorDoc.getElementById(item.id);
+                                                    if (el) el.setAttribute('data-interaction-popup-speed', speed);
+                                                  } catch (_) {}
                                                   setOpenDropdownId(null);
                                                 }}
                                               >
@@ -3429,43 +3779,65 @@ const InteractionPanel = ({
                           )}
                         </div>
 
-                        {/* Card Footer (Highlight Component) */}
+                        {/* Card Footer (Highlight Component & Trash) */}
                         <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw]`}>
-                          <div 
-                            className="flex items-center gap-[0.6vw] cursor-pointer group"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const isCurrentlyOn = highlightOverrides[item.id] !== undefined 
+                          {(() => {
+                            const isHotspotItem = Boolean(item.isHotspot || item.id?.toLowerCase().includes('hotspot'));
+                            const isChecked = !isHotspotItem && (
+                              highlightOverrides[item.id] !== undefined 
                                 ? highlightOverrides[item.id] 
-                                : (item['data-show-highlight'] !== 'false'); // Default to true
-                              
-                              setHighlightOverrides(prev => ({ ...prev, [item.id]: !isCurrentlyOn }));
-                              
-                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                              if (updateElementAttribute) {
-                                updateElementAttribute(targetIdx, item.id, {
-                                  'data-show-highlight': (!isCurrentlyOn).toString()
-                                });
-                              }
-                            }}
-                          >
-                            <div className={`w-[1.2vw] h-[1.2vw] flex-shrink-0 rounded-[0.25vw] flex items-center justify-center transition-colors ${
-                              (highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false')
-                                ? 'bg-[#5145F6]'
-                                : 'border border-gray-300 bg-white group-hover:border-[#5145F6]'
-                            }`}>
-                              {(highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false') && (
-                                <Icon icon="lucide:check" className="text-white text-[0.9vw]" strokeWidth="3" />
-                              )}
-                            </div>
-                            <span className={`text-[0.85vw] font-medium transition-colors ${
-                              (highlightOverrides[item.id] !== undefined ? highlightOverrides[item.id] : item['data-show-highlight'] !== 'false')
-                                ? 'text-gray-600'
-                                : 'text-gray-400 group-hover:text-gray-600'
-                            }`}>
-                              Highlight interaction in preview
-                            </span>
-                          </div>
+                                : (item['data-show-highlight'] !== 'false')
+                            );
+
+                            return (
+                              <div 
+                                className={`flex items-center gap-[0.6vw] select-none ${
+                                  isHotspotItem 
+                                    ? 'cursor-not-allowed opacity-90' 
+                                    : 'cursor-pointer group'
+                                }`}
+                                title={isHotspotItem ? 'Highlight interaction is disabled for hotspots' : undefined}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isHotspotItem) return;
+
+                                  const isCurrentlyOn = highlightOverrides[item.id] !== undefined 
+                                    ? highlightOverrides[item.id] 
+                                    : (item['data-show-highlight'] !== 'false'); // Default to true
+                                  
+                                  setHighlightOverrides(prev => ({ ...prev, [item.id]: !isCurrentlyOn }));
+                                  
+                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                  if (updateElementAttribute) {
+                                    updateElementAttribute(targetIdx, item.id, {
+                                      'data-show-highlight': (!isCurrentlyOn).toString()
+                                    });
+                                  }
+                                }}
+                              >
+                                <div className={`w-[1.2vw] h-[1.2vw] flex-shrink-0 rounded-[0.25vw] flex items-center justify-center transition-colors ${
+                                  isChecked
+                                    ? 'bg-[#5145F6]'
+                                    : isHotspotItem
+                                    ? 'border border-gray-300 bg-gray-100'
+                                    : 'border border-gray-300 bg-white group-hover:border-[#5145F6]'
+                                }`}>
+                                  {isChecked && (
+                                    <Icon icon="lucide:check" className="text-white text-[0.9vw]" strokeWidth="3" />
+                                  )}
+                                </div>
+                                <span className={`text-[0.85vw] font-medium transition-colors ${
+                                  isChecked
+                                    ? 'text-gray-600'
+                                    : isHotspotItem
+                                    ? 'text-gray-400'
+                                    : 'text-gray-400 group-hover:text-gray-600'
+                                }`}>
+                                  Highlight interaction in preview
+                                </span>
+                              </div>
+                            );
+                          })()}
 
                           {/* Trash Icon */}
                           <button
@@ -3686,14 +4058,14 @@ const InteractionPanel = ({
             isOpen={true}
             onClose={() => setEditingHotspotId(null)}
             initialData={{
-               preset: item?.presetId || 'preset3',
+               preset: item?.presetId || (item?.isInteractiveButton ? 'interactive-button' : 'preset3'),
                iconColor: item?.iconColor || '#FFFFFF',
                bgColor: item?.bgColor || getDefaultBgColor(item?.presetId || item?.actionId, item?.hotspotIconSrc),
                iconStyle: 'style1',
                src: item?.hotspotIconSrc || null,
                actionId: item?.actionId,
-               hotspotHtml: item?.hotspotHtml || null,
-               hotspotBBox: item?.hotspotBBox || null
+               hotspotHtml: item?.previewHtml || item?.hotspotHtml || null,
+               hotspotBBox: item?.previewBBox || item?.hotspotBBox || null
             }}
             onSave={(data) => {
                if (!item) return;

@@ -799,6 +799,9 @@ const getInteractionScript = (pageNumber) => `
                        var customHtml = el.dataset.interactionPopupCustomHtml || el.getAttribute('data-interaction-popup-custom-html');
                        var popupAnim = el.dataset.interactionPopupAnimation || el.getAttribute('data-interaction-popup-animation') || 'Fade In /Out';
                        var popupSpeed = el.dataset.interactionPopupSpeed || el.getAttribute('data-interaction-popup-speed') || 'Medium';
+                       if (!customHtml && value) {
+                           customHtml = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%"><rect width="100%" height="100%" fill="#ffffff" rx="16" /><text x="50%" y="50%" font-family="Arial" font-size="24" text-anchor="middle" fill="#333">Popup Content</text></svg>';
+                       }
                        if (customHtml) {
                            window.parent.postMessage({
                                type: 'show-popup-interaction',
@@ -883,29 +886,61 @@ const getInteractionScript = (pageNumber) => `
                        e.preventDefault();
                        e.stopPropagation();
                        try {
-                           const audioData = JSON.parse(value);
-                           if (audioData && audioData.data) {
-                               if (window.parent._activePreviewAudio && window.parent._activePreviewAudioEl === el) {
-                                   if (!window.parent._activePreviewAudio.paused) {
-                                       window.parent._activePreviewAudio.pause();
-                                       window.parent._activePreviewAudio.currentTime = 0;
+                           let audioSrc = null;
+                           if (typeof value === 'string' && value.startsWith('{')) {
+                               const audioData = JSON.parse(value);
+                               audioSrc = audioData.data || audioData.url || audioData.src;
+                           } else {
+                               audioSrc = value;
+                           }
+
+                           if (audioSrc) {
+                               let targetWin = window;
+                               try {
+                                   if (window.parent && window.parent.document) targetWin = window.parent;
+                               } catch (err) {
+                                   targetWin = window;
+                               }
+
+                               if (typeof audioSrc === 'string' && audioSrc.startsWith('/uploads/')) {
+                                   try {
+                                       if (targetWin && typeof targetWin.resolveUploadsPath === 'function') {
+                                           audioSrc = targetWin.resolveUploadsPath(audioSrc);
+                                       } else if (!audioSrc.startsWith('http')) {
+                                           audioSrc = (targetWin?.location?.origin || '') + audioSrc;
+                                       }
+                                   } catch (_) {}
+                               }
+
+                               if (targetWin._activePreviewAudio && targetWin._activePreviewAudioEl === el) {
+                                   if (!targetWin._activePreviewAudio.paused) {
+                                       targetWin._activePreviewAudio.pause();
+                                       targetWin._activePreviewAudio.currentTime = 0;
                                    } else {
-                                       window.parent._activePreviewAudio.play().catch(function(e) { console.error('Audio playback failed', e) });
+                                       targetWin._activePreviewAudio.play().catch(function(err) { console.error('Audio playback failed', err); });
                                    }
                                } else {
-                                   if (window.parent._activePreviewAudio) {
-                                       window.parent._activePreviewAudio.pause();
-                                       window.parent._activePreviewAudio.currentTime = 0;
+                                   if (targetWin._activePreviewAudio) {
+                                       targetWin._activePreviewAudio.pause();
+                                       targetWin._activePreviewAudio.currentTime = 0;
                                    }
-                                   const audio = new Audio(audioData.data);
-                                   window.parent._activePreviewAudio = audio;
-                                   window.parent._activePreviewAudioEl = el;
-                                   audio.play().catch(function(e) { console.error('Audio playback failed', e) });
-                                }
-                            }
-                        } catch(err) {
-                            console.error('Failed to parse or play audio interaction', err);
-                        }
+                                   const audio = new Audio(audioSrc);
+                                   targetWin._activePreviewAudio = audio;
+                                   targetWin._activePreviewAudioEl = el;
+
+                                   audio.onended = function() {
+                                       if (targetWin._activePreviewAudio === audio) {
+                                           targetWin._activePreviewAudio = null;
+                                           targetWin._activePreviewAudioEl = null;
+                                       }
+                                   };
+
+                                   audio.play().catch(function(err) { console.error('Audio playback failed', err); });
+                               }
+                           }
+                       } catch(err) {
+                           console.error('Failed to parse or play audio interaction', err);
+                       }
                     } else if (type === 'whatsapp' && value) {
                         e.preventDefault();
                         e.stopPropagation();
@@ -2025,24 +2060,35 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
             if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
             else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
 
-            const opacity = (watermarkSettings.opacity ?? 64) / 100;
+            const opacity = (watermarkSettings.opacity ?? 100) / 100;
             let positionStyle = "";
             const offset = '4%';
+            const posX = watermarkSettings.positionX ?? 0;
+            const posY = watermarkSettings.positionY ?? 0;
 
             switch (watermarkSettings.position) {
                 case 'Top Left': positionStyle = `top: ${offset}; left: ${offset};`; break;
                 case 'Top Right': positionStyle = `top: ${offset}; right: ${offset};`; break;
                 case 'Bottom Left': positionStyle = `bottom: ${offset}; left: ${offset};`; break;
-                case 'Center': positionStyle = `top: 50%; left: 50%; transform: translate(-50%, -50%);`; break;
+                case 'Center': positionStyle = `top: 50%; left: 50%;`; break;
                 case 'Bottom Right':
                 default: positionStyle = `bottom: ${offset}; right: ${offset};`; break;
             }
+            
+            if (watermarkSettings.position === 'Center') {
+                positionStyle += ` transform: translate(calc(-50% + ${posX}%), calc(-50% + ${posY}%));`;
+            } else {
+                positionStyle += ` transform: translate(${posX}%, ${posY}%);`;
+            }
 
             const objectFit = watermarkSettings.type === 'Fill' ? 'cover' : watermarkSettings.type === 'Stretch' ? 'fill' : 'contain';
+            
+            const scale = (watermarkSettings.scale ?? 100) / 100;
+            const rotate = watermarkSettings.rotate ?? 0;
 
             return `
-                        <div style="position: absolute; z-index: 9999; pointer-events: none; opacity: ${opacity}; width: 15%; height: auto; ${positionStyle}">
-                            <img src="${watermarkSettings.src}" style="width: 100%; height: auto; object-fit: ${objectFit}; filter: ${filterStr};" />
+                        <div id="flipbook-watermark-container" style="position: absolute; z-index: 9999; pointer-events: none; opacity: ${opacity}; width: 15%; height: auto; ${positionStyle}">
+                            <img id="flipbook-watermark-img" src="${watermarkSettings.src}" style="width: 100%; height: auto; object-fit: ${objectFit}; filter: ${filterStr}; transform: scale(${scale}) rotate(${rotate}deg); transform-origin: center center;" />
                         </div>
                     `;
         })()}
@@ -4045,9 +4091,77 @@ const PreviewArea = React.memo(({
         return () => window.removeEventListener('message', handleMessage);
     }, [currentPage, pages.length]);
 
+    const watermarkSettingsRef = useRef(watermarkSettings);
+    
+    useEffect(() => {
+        watermarkSettingsRef.current = watermarkSettings;
+        
+        // Dynamically update the watermark in all iframes to prevent flickering
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach(iframe => {
+            try {
+                if (!iframe.contentDocument) return;
+                const container = iframe.contentDocument.getElementById('flipbook-watermark-container');
+                const img = iframe.contentDocument.getElementById('flipbook-watermark-img');
+                
+                if (container && img) {
+                    const ws = watermarkSettings;
+                    const opacity = (ws?.opacity ?? 100) / 100;
+                    
+                    let positionStyle = "";
+                    const offset = '4%';
+                    const posX = ws?.positionX ?? 0;
+                    const posY = ws?.positionY ?? 0;
+        
+                    switch (ws?.position) {
+                        case 'Top Left': positionStyle = `top: ${offset}; left: ${offset}; bottom: auto; right: auto;`; break;
+                        case 'Top Right': positionStyle = `top: ${offset}; right: ${offset}; bottom: auto; left: auto;`; break;
+                        case 'Bottom Left': positionStyle = `bottom: ${offset}; left: ${offset}; top: auto; right: auto;`; break;
+                        case 'Center': positionStyle = `top: 50%; left: 50%; bottom: auto; right: auto;`; break;
+                        case 'Bottom Right':
+                        default: positionStyle = `bottom: ${offset}; right: ${offset}; top: auto; left: auto;`; break;
+                    }
+                    
+                    if (ws?.position === 'Center') {
+                        container.style.transform = `translate(calc(-50% + ${posX}%), calc(-50% + ${posY}%))`;
+                    } else {
+                        container.style.transform = `translate(${posX}%, ${posY}%)`;
+                    }
+                    
+                    container.style.cssText += positionStyle;
+                    container.style.opacity = opacity;
+                    
+                    const scale = (ws?.scale ?? 100) / 100;
+                    const rotate = ws?.rotate ?? 0;
+                    
+                    const f = ws?.adjustments || {};
+                    const exposure = f.exposure || 0;
+                    const contrast = f.contrast || 0;
+                    const saturation = f.saturation || 0;
+                    const temperature = f.temperature || 0;
+                    const tint = f.tint || 0;
+                    const hl = f.highlights || 0;
+                    const sd = f.shadows || 0;
+                    let filterStr = "";
+                    filterStr += `brightness(${100 + exposure + (hl / 5)}%) `;
+                    filterStr += `contrast(${100 + contrast + (sd / 5)}%) `;
+                    filterStr += `saturate(${100 + saturation}%) `;
+                    if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
+                    if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
+                    else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
+
+                    img.style.transform = `scale(${scale}) rotate(${rotate}deg)`;
+                    img.style.filter = filterStr;
+                }
+            } catch (e) {}
+        });
+    }, [watermarkSettings]);
+
+    const watermarkSrc = watermarkSettings?.src;
+
     const memoizedBuildPageDoc = useCallback((html, pageNum) => {
-        return getIframeContent(html, pageNum, watermarkSettings, pages.length, isSinglePage);
-    }, [watermarkSettings, pages.length, isSinglePage]);
+        return getIframeContent(html, pageNum, watermarkSettingsRef.current, pages.length, isSinglePage);
+    }, [watermarkSrc, pages.length, isSinglePage]);
 
     const bookRendererProps = {
         augmentedPages,
@@ -5993,42 +6107,49 @@ const PreviewArea = React.memo(({
                     </div>
 
                     <AnimatePresence>
-                        {activePopupInteraction && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="absolute inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-[1px] p-[2vw]"
+                        {activePopupInteraction && (() => {
+                            const animRaw = (activePopupInteraction?.animation || 'Fade In /Out').toLowerCase();
+                            const isSlideUp = animRaw.includes('slide') && animRaw.includes('up');
+                            const isSlideDown = animRaw.includes('slide') && animRaw.includes('down');
+                            const isZoomIn = animRaw.includes('zoom');
 
-                                onClick={() => setActivePopupInteraction(null)}
-                            >
+                            const speedRaw = (activePopupInteraction?.speed || 'Medium').toLowerCase();
+                            let duration = 0.35;
+                            if (speedRaw === 'slow') duration = 0.75;
+                            else if (speedRaw === 'fast') duration = 0.18;
+
+                            const getInitial = () => {
+                                if (isSlideUp) return { y: 60, opacity: 0, scale: 1 };
+                                if (isSlideDown) return { y: -60, opacity: 0, scale: 1 };
+                                if (isZoomIn) return { scale: 0.6, opacity: 0, y: 0 };
+                                return { opacity: 0, scale: 1, y: 0 }; // Fade in
+                            };
+
+                            const getExit = () => {
+                                if (isSlideUp) return { y: 60, opacity: 0, scale: 1 };
+                                if (isSlideDown) return { y: -60, opacity: 0, scale: 1 };
+                                if (isZoomIn) return { scale: 0.6, opacity: 0, y: 0 };
+                                return { opacity: 0, scale: 1, y: 0 };
+                            };
+
+                            return (
                                 <motion.div
-                                    initial={(() => {
-                                        const anim = activePopupInteraction?.animation || 'Fade In /Out';
-                                        if (anim === 'Slide Up') return { y: 50, opacity: 0 };
-                                        if (anim === 'Slide Down') return { y: -50, opacity: 0 };
-                                        if (anim === 'Zoom In') return { scale: 0.5, opacity: 0 };
-                                        return { opacity: 0 }; // Fade In /Out
-                                    })()}
-                                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                                    exit={(() => {
-                                        const anim = activePopupInteraction?.animation || 'Fade In /Out';
-                                        if (anim === 'Slide Up') return { y: 50, opacity: 0 };
-                                        if (anim === 'Slide Down') return { y: -50, opacity: 0 };
-                                        if (anim === 'Zoom In') return { scale: 0.5, opacity: 0 };
-                                        return { opacity: 0 };
-                                    })()}
-                                    transition={{
-                                        duration: (() => {
-                                            const s = activePopupInteraction?.speed || 'Medium';
-                                            if (s === 'Slow') return 0.6;
-                                            if (s === 'Fast') return 0.15;
-                                            return 0.3; // Medium
-                                        })(),
-                                        ease: "easeOut"
-                                    }}
-                                    className="relative pointer-events-auto flex items-center justify-center"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: Math.min(duration, 0.35) }}
+                                    className="absolute inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-[1px] p-[2vw]"
+                                    onClick={() => setActivePopupInteraction(null)}
+                                >
+                                    <motion.div
+                                        initial={getInitial()}
+                                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                                        exit={getExit()}
+                                        transition={{
+                                            duration,
+                                            ease: [0.16, 1, 0.3, 1] // smooth easeOut
+                                        }}
+                                        className="relative pointer-events-auto flex items-center justify-center"
                                     style={{
                                         width: (() => {
                                             if (!activePopupInteraction?.html) return '800px';
@@ -6064,7 +6185,7 @@ const PreviewArea = React.memo(({
                                     <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
                                 </motion.div>
                             </motion.div>
-                        )}
+                        ); })()}
                         {activeSlideshowInteraction && (
                             <motion.div
                                 initial={{ opacity: 0 }}

@@ -18,6 +18,7 @@ import { getSupabaseBaseUrl, resolveUploadsPath } from '../../utils/supabaseUtil
 import PasswordProtectModal from '../PasswordProtectModal';
 import { checkIsAnimatedWebp } from './editorUtils';
 import pageCacheManager from './PageCacheManager';
+import { formatTemplateSvgToPageSvg } from '../../utils/editorUtils';
 
 
 /**
@@ -894,6 +895,20 @@ const TemplateEditor = () => {
               const isVideo = blob.type.startsWith('video/');
               const assetType = isAudio ? 'audio' : (isVideo ? 'video' : 'image');
 
+              let fileExt = '.bin';
+              if (isAudio) {
+                if (mimeString.includes('mpeg') || mimeString.includes('mp3')) fileExt = '.mp3';
+                else if (mimeString.includes('wav')) fileExt = '.wav';
+                else if (mimeString.includes('ogg')) fileExt = '.ogg';
+                else if (mimeString.includes('mp4') || mimeString.includes('m4a')) fileExt = '.m4a';
+                else if (mimeString.includes('aac')) fileExt = '.aac';
+                else fileExt = '.mp3';
+              } else if (isVideo) {
+                fileExt = mimeString.includes('webm') ? '.webm' : '.mp4';
+              } else {
+                fileExt = mimeString.includes('png') ? '.png' : (mimeString.includes('webp') ? '.webp' : '.jpg');
+              }
+
               const formData = new FormData();
               formData.append('emailId', user?.emailId);
               formData.append('folderName', fNameFor3D);
@@ -903,7 +918,7 @@ const TemplateEditor = () => {
               if (currentVId || v_id) {
                 formData.append('v_id', currentVId || v_id);
               }
-              formData.append('file', blob, `asset_${Date.now()}`);
+              formData.append('file', blob, `asset_${Date.now()}${fileExt}`);
 
               const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -4192,30 +4207,19 @@ const TemplateEditor = () => {
       }
 
       // 6. Inject template content into root folder (Ungrouped)
-      // Extract children from the template - if it has a single main container <g>, we enter it
+      // Extract children from the template - unwrap any outermost artboard/parent container <g> tags
       const getExplodedTemplateChildren = (svg) => {
-        // Now identify renderable content (filtering out metadata/defs/style)
-        let infants = Array.from(svg.children).filter(child =>
-          !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
-          !RESOURCE_TAGS.includes(child.tagName.toLowerCase())
-        );
-
-        // If there's exactly one main group, we "explode" it to take its contents directly
-        if (infants.length === 1 && infants[0].tagName.toLowerCase() === 'g') {
-          const mainGroup = infants[0];
-          const children = Array.from(mainGroup.children);
-
-          // IMPORTANT: Transfer visual inheritance (fill, stroke, masks, etc.)
-          // This prevents elements from losing their masks or colors when the container is exploded.
+        const unwrapGroup = (group) => {
+          // IMPORTANT: Transfer visual inheritance (fill, stroke, masks, clip-path, etc.)
           const attrsToInherit = [
             'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
             'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
             'font-family', 'font-size', 'font-weight', 'font-style', 'text-anchor', 'letter-spacing', 'word-spacing'
           ];
           attrsToInherit.forEach(attr => {
-            const val = mainGroup.getAttribute(attr);
+            const val = group.getAttribute(attr);
             if (val) {
-              children.forEach(child => {
+              Array.from(group.children).forEach(child => {
                 if (!child.hasAttribute(attr)) {
                   child.setAttribute(attr, val);
                 }
@@ -4223,36 +4227,70 @@ const TemplateEditor = () => {
             }
           });
 
-          // Inherit the main container's style to keep text styling stable
-          const groupStyle = mainGroup.getAttribute('style');
+          // Inherit style
+          const groupStyle = group.getAttribute('style');
           if (groupStyle) {
-            children.forEach(child => {
+            Array.from(group.children).forEach(child => {
               const childStyle = child.getAttribute('style');
               child.setAttribute('style', childStyle ? `${groupStyle}; ${childStyle}` : groupStyle);
             });
           }
 
-          // Inherit the main container's classes
-          const groupClass = mainGroup.getAttribute('class');
+          // Inherit classes
+          const groupClass = group.getAttribute('class');
           if (groupClass) {
-            children.forEach(child => {
+            Array.from(group.children).forEach(child => {
               const childClass = child.getAttribute('class');
               child.setAttribute('class', childClass ? `${groupClass} ${childClass}` : groupClass);
             });
           }
 
-          // Inherit the main container's transform to keep positions stable
-          const groupTransform = mainGroup.getAttribute('transform') || '';
+          // Inherit transform
+          const groupTransform = group.getAttribute('transform') || '';
           if (groupTransform) {
-            children.forEach(child => {
+            Array.from(group.children).forEach(child => {
               const childTransform = child.getAttribute('transform') || '';
               child.setAttribute('transform', `${groupTransform} ${childTransform}`.trim());
             });
           }
 
-          return children;
+          // Move children before group and remove group
+          const children = Array.from(group.children);
+          children.forEach(c => group.parentNode.insertBefore(c, group));
+          group.parentNode.removeChild(group);
+        };
+
+        const getContentChildren = () => Array.from(svg.children).filter(child =>
+          !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
+          !RESOURCE_TAGS.includes(child.tagName.toLowerCase())
+        );
+
+        let infants = getContentChildren();
+        let unwrapped = true;
+        while (unwrapped) {
+          unwrapped = false;
+          infants = getContentChildren();
+
+          // If there's exactly one main group, unwrap it
+          if (infants.length === 1 && infants[0].tagName.toLowerCase() === 'g') {
+            unwrapGroup(infants[0]);
+            unwrapped = true;
+            continue;
+          }
+
+          // If there are 2 elements (one background rect and one content group), unwrap the group
+          if (infants.length === 2) {
+            const groupEl = infants.find(c => c.tagName.toLowerCase() === 'g');
+            const rectEl = infants.find(c => c.tagName.toLowerCase() === 'rect');
+            if (groupEl && rectEl) {
+              unwrapGroup(groupEl);
+              unwrapped = true;
+              continue;
+            }
+          }
         }
-        return infants;
+
+        return getContentChildren();
       };
 
       const finalTemplateElements = getExplodedTemplateChildren(templateSvg);
@@ -4372,6 +4410,153 @@ const TemplateEditor = () => {
     }
   };
 
+  // Handler to add or replace template pages into the active flipbook
+  const handleAddTemplatePages = async ({ selectedPages, placement = 'start_at', targetIndex, paperSize }) => {
+    if (!selectedPages || selectedPages.length === 0) return;
+    saveToHistory();
+
+    const { width: targetW, height: targetH } = getFlipbookDimensions();
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+    const insertIdx = targetIndex !== undefined && targetIndex !== null ? targetIndex : activePageIndex;
+
+    const formattedPages = await Promise.all(
+      selectedPages.map(async (p, idx) => {
+        let svgText = p.rawSvg || '';
+        if (!svgText && p.url) {
+          try {
+            const fetchUrl = p.url.startsWith('http') ? p.url : `${backendUrl}${p.url}`;
+            const res = await fetch(fetchUrl);
+            if (res.ok) svgText = await res.text();
+          } catch (e) {
+            console.error('Failed to fetch page svg:', e);
+          }
+        }
+
+        let targetPageNum;
+        if (placement === 'start_at' || placement === 'replace') {
+          targetPageNum = insertIdx + idx + 1;
+        } else if (placement === 'after') {
+          targetPageNum = insertIdx + idx + 2;
+        } else if (placement === 'before' || placement === 'start') {
+          targetPageNum = (placement === 'start' ? 0 : insertIdx) + idx + 1;
+        } else {
+          targetPageNum = pages.length + idx + 1;
+        }
+
+        const pageName = `Page ${targetPageNum}`;
+        const formattedHtml = formatTemplateSvgToPageSvg(svgText || '', targetW, targetH, pageName);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(formattedHtml, 'image/svg+xml');
+        const svgEl = doc.querySelector('svg');
+        const layers = svgEl ? parseLayersFromSVG(svgEl) : [];
+
+        const newPageId = 'page_' + Math.random().toString(36).substr(2, 9);
+        return {
+          id: newPageId,
+          v_id: newPageId,
+          name: pageName,
+          html: formattedHtml,
+          layers: layers,
+          isHidden: false,
+          isLazy: false
+        };
+      })
+    );
+
+    let newActiveIdx = insertIdx;
+
+    setPages(prev => {
+      let updated = [...prev];
+
+      if (placement === 'start_at' || placement === 'replace') {
+        // Place template pages starting at the open page (insertIdx), continuing sequentially
+        formattedPages.forEach((fPage, idx) => {
+          const currentIdx = insertIdx + idx;
+          if (currentIdx < updated.length) {
+            updated[currentIdx] = {
+              ...updated[currentIdx],
+              html: fPage.html,
+              layers: fPage.layers
+            };
+          } else {
+            updated.push(fPage);
+          }
+        });
+        newActiveIdx = insertIdx;
+      } else if (placement === 'after') {
+        updated.splice(insertIdx + 1, 0, ...formattedPages);
+        newActiveIdx = insertIdx + 1;
+      } else if (placement === 'before') {
+        updated.splice(insertIdx, 0, ...formattedPages);
+        newActiveIdx = insertIdx;
+      } else if (placement === 'start') {
+        updated.unshift(...formattedPages);
+        newActiveIdx = 0;
+      } else if (placement === 'end') {
+        newActiveIdx = updated.length;
+        updated.push(...formattedPages);
+      } else {
+        formattedPages.forEach((fPage, idx) => {
+          const currentIdx = insertIdx + idx;
+          if (currentIdx < updated.length) {
+            updated[currentIdx] = {
+              ...updated[currentIdx],
+              html: fPage.html,
+              layers: fPage.layers
+            };
+          } else {
+            updated.push(fPage);
+          }
+        });
+        newActiveIdx = insertIdx;
+      }
+
+      // Re-index all pages so names and layer data-name are continuous: Page 1, Page 2, Page 3...
+      updated = updated.map((page, i) => {
+        const canonicalName = `Page ${i + 1}`;
+        let updatedHtml = page.html || '';
+
+        if (updatedHtml) {
+          updatedHtml = updatedHtml.replace(
+            /(<g\b[^>]*\bdata-type=["']frame["'][^>]*\bdata-name=["'])[^"']*([ "'])/i,
+            `$1${canonicalName}$2`
+          );
+        }
+
+        const updatedLayers = Array.isArray(page.layers) ? page.layers.map(l => {
+          if (l.children && (l.type === 'g' || l.name?.startsWith('Page '))) {
+            return { ...l, name: canonicalName };
+          }
+          return l;
+        }) : page.layers;
+
+        return {
+          ...page,
+          name: canonicalName,
+          html: updatedHtml,
+          layers: updatedLayers
+        };
+      });
+
+      return updated;
+    });
+
+    setTimeout(() => {
+      const firstRootId = formattedPages[0]?.layers?.[0]?.id;
+      if (firstRootId) {
+        setSelectedLayerId(firstRootId);
+        setMultiSelectedIds(new Set([firstRootId]));
+        setCurrentFrameId(firstRootId);
+      }
+    }, 50);
+
+    setActivePageIndex(newActiveIdx);
+    setHasUnsavedChanges(true);
+    setShowTemplateModal(false);
+    setTemplateTargetIndex(null);
+  };
+
   const handleOpenTemplateModal = (index) => {
     if (popupEditContext) {
       setShowPopupTemplateChange(true);
@@ -4423,9 +4608,11 @@ const TemplateEditor = () => {
 
             const processPageItem = (p, i, parseLayers = true) => {
               const name = p.name || `Page ${i + 1}`;
-              let pageHtml = p.html;
+              let pageHtml = p.html || p.content;
 
-              if (i === 0 && (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') && location.state?.initialTemplateSvg) {
+              if ((!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') && location.state?.templatePages?.[i]) {
+                pageHtml = location.state.templatePages[i];
+              } else if (i === 0 && (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') && location.state?.initialTemplateSvg) {
                 pageHtml = location.state.initialTemplateSvg;
               }
 
@@ -4449,12 +4636,10 @@ const TemplateEditor = () => {
               }
 
               if (updatedHtml.includes('parsererror') || updatedHtml.includes('id="custom-ctrl-')) {
-                const temp = document.createElement('div');
-                temp.innerHTML = updatedHtml;
-                temp.querySelectorAll('parsererror').forEach(el => el.remove());
-                temp.querySelectorAll('[id^="custom-ctrl-"]').forEach(el => el.remove());
-                updatedHtml = temp.innerHTML;
+                updatedHtml = updatedHtml.replace(/<parsererror[\s\S]*?<\/parsererror>/gi, '');
+                updatedHtml = updatedHtml.replace(/<[^>]*id="custom-ctrl-[^>]*>.*?<\/[^>]*>/gi, '');
               }
+              updatedHtml = updatedHtml.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
 
 
               // Check if layer cache already has it
@@ -4603,7 +4788,13 @@ const TemplateEditor = () => {
         const newPages = Array.from({ length: count }, (_, i) => {
           const name = `Page ${i + 1}`;
           let html, layers;
-          if (i === 0 && location.state?.initialTemplateSvg) {
+          if (location.state?.templatePages?.[i]) {
+            html = location.state.templatePages[i];
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            layers = svgEl ? parseLayersFromSVG(svgEl) : [];
+          } else if (i === 0 && location.state?.initialTemplateSvg) {
             html = location.state.initialTemplateSvg;
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'image/svg+xml');
@@ -4950,6 +5141,12 @@ const TemplateEditor = () => {
           setShowTemplateModal={setShowTemplateModal}
           clearCanvas={() => clearPage(templateTargetIndex !== null ? templateTargetIndex : activePageIndex)}
           loadTemplate={loadTemplate}
+          pages={pages}
+          activePageIndex={activePageIndex}
+          templateTargetIndex={templateTargetIndex}
+          currentBook={currentBook}
+          flipbookDimensions={getFlipbookDimensions()}
+          onAddTemplatePages={handleAddTemplatePages}
         />
       )}
 
