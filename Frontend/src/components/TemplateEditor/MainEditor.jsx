@@ -1048,7 +1048,19 @@ const MainEditor = ({
 
   useEffect(() => {
     activeTopToolRef.current = activeTopTool;
-  }, [activeTopTool]);
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation') {
+      if (marqueeOverlayRef1.current) marqueeOverlayRef1.current.style.display = 'none';
+      if (marqueeOverlayRef2.current) marqueeOverlayRef2.current.style.display = 'none';
+      if (marqueeDataRef.current) marqueeDataRef.current = null;
+      setMarquee(null);
+      if (multiSelectedIds && multiSelectedIds.size > 1 && setMultiSelectedIds) {
+        setMultiSelectedIds(new Set(selectedLayerId ? [selectedLayerId] : []));
+      }
+      document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
+      const boundsPoly = document.getElementById('overlay-poly-selected-multi-selection-bounds');
+      if (boundsPoly) boundsPoly.remove();
+    }
+  }, [activeTopTool, selectedLayerId, multiSelectedIds, setMultiSelectedIds]);
 
   useEffect(() => {
     paperScopeRef.current = new paper.PaperScope();
@@ -6838,6 +6850,7 @@ const MainEditor = ({
 
   const enterNodeEditMode = (targetEl, pageIndex) => {
     if (!targetEl) return;
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation' || activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') return;
 
     const pathEl = targetEl.tagName?.toLowerCase() === 'path' ? targetEl : targetEl.querySelector('path');
     if (!pathEl || !pathEl.getAttribute('d')) return;
@@ -6925,6 +6938,12 @@ const MainEditor = ({
 
   // ── Sync refs and perform page-level DOM highlights ──────────────────────────
   useEffect(() => {
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation') {
+      if (nodeEditModeRef.current) {
+        exitNodeEditMode();
+      }
+    }
+
     // Force immediate visual cleanup of all overlays before redraw
     clearOverlayType('selected');
     clearOverlayType('entered');
@@ -10208,8 +10227,9 @@ const MainEditor = ({
 
     // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
     // (Also start if Shift is held so Shift+Drag can draw marquee over elements without Ctrl)
-    // Converted flipbooks: NEVER start marquee drag-selection over static vector document pages
-    const shouldStartMarquee = !isConvertedFlipbook && (((e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current));
+    // Converted flipbooks / Interaction & Animation modules: NEVER start marquee drag-selection
+    const isModuleWithoutMarquee = activeTopTool === 'interaction' || activeTopTool === 'animation' || activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation';
+    const shouldStartMarquee = !isModuleWithoutMarquee && !isConvertedFlipbook && (((e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current));
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -10563,7 +10583,8 @@ const MainEditor = ({
     const container = e.currentTarget;
 
     // ── MARQUEE UPDATE ──
-    if (marqueeRef.current && !isConvertedFlipbook) {
+    const isModuleWithoutMarquee = activeTopTool === 'interaction' || activeTopTool === 'animation' || activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation';
+    if (marqueeRef.current && !isConvertedFlipbook && !isModuleWithoutMarquee) {
       const { startX, startY, containerRect, scale } = marqueeDataRef.current;
       const curX = (e.clientX - containerRect.left) / scale;
       const curY = (e.clientY - containerRect.top) / scale;
@@ -12324,7 +12345,8 @@ const MainEditor = ({
     }
 
     // ── NODE EDIT MODE: Check if double-clicking a vector/path/shape element ───
-    if (target && !['text', 'tspan', 'foreignobject'].includes(target.tagName?.toLowerCase())) {
+    const isModuleWithoutPenEdit = activeTopTool === 'interaction' || activeTopTool === 'animation' || activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation';
+    if (!isModuleWithoutPenEdit && target && !['text', 'tspan', 'foreignobject'].includes(target.tagName?.toLowerCase())) {
       const tag = target.tagName?.toLowerCase();
       const dataType = target.getAttribute('data-type') || '';
       const isVectorOrPath = (
