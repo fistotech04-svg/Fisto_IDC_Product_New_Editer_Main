@@ -2065,24 +2065,35 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
             if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
             else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
 
-            const opacity = (watermarkSettings.opacity ?? 64) / 100;
+            const opacity = (watermarkSettings.opacity ?? 100) / 100;
             let positionStyle = "";
             const offset = '4%';
+            const posX = watermarkSettings.positionX ?? 0;
+            const posY = watermarkSettings.positionY ?? 0;
 
             switch (watermarkSettings.position) {
                 case 'Top Left': positionStyle = `top: ${offset}; left: ${offset};`; break;
                 case 'Top Right': positionStyle = `top: ${offset}; right: ${offset};`; break;
                 case 'Bottom Left': positionStyle = `bottom: ${offset}; left: ${offset};`; break;
-                case 'Center': positionStyle = `top: 50%; left: 50%; transform: translate(-50%, -50%);`; break;
+                case 'Center': positionStyle = `top: 50%; left: 50%;`; break;
                 case 'Bottom Right':
                 default: positionStyle = `bottom: ${offset}; right: ${offset};`; break;
             }
+            
+            if (watermarkSettings.position === 'Center') {
+                positionStyle += ` transform: translate(calc(-50% + ${posX}%), calc(-50% + ${posY}%));`;
+            } else {
+                positionStyle += ` transform: translate(${posX}%, ${posY}%);`;
+            }
 
             const objectFit = watermarkSettings.type === 'Fill' ? 'cover' : watermarkSettings.type === 'Stretch' ? 'fill' : 'contain';
+            
+            const scale = (watermarkSettings.scale ?? 100) / 100;
+            const rotate = watermarkSettings.rotate ?? 0;
 
             return `
-                        <div style="position: absolute; z-index: 9999; pointer-events: none; opacity: ${opacity}; width: 15%; height: auto; ${positionStyle}">
-                            <img src="${watermarkSettings.src}" style="width: 100%; height: auto; object-fit: ${objectFit}; filter: ${filterStr};" />
+                        <div id="flipbook-watermark-container" style="position: absolute; z-index: 9999; pointer-events: none; opacity: ${opacity}; width: 15%; height: auto; ${positionStyle}">
+                            <img id="flipbook-watermark-img" src="${watermarkSettings.src}" style="width: 100%; height: auto; object-fit: ${objectFit}; filter: ${filterStr}; transform: scale(${scale}) rotate(${rotate}deg); transform-origin: center center;" />
                         </div>
                     `;
         })()}
@@ -4097,9 +4108,77 @@ const PreviewArea = React.memo(({
         return () => window.removeEventListener('message', handleMessage);
     }, [currentPage, pages.length]);
 
+    const watermarkSettingsRef = useRef(watermarkSettings);
+    
+    useEffect(() => {
+        watermarkSettingsRef.current = watermarkSettings;
+        
+        // Dynamically update the watermark in all iframes to prevent flickering
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach(iframe => {
+            try {
+                if (!iframe.contentDocument) return;
+                const container = iframe.contentDocument.getElementById('flipbook-watermark-container');
+                const img = iframe.contentDocument.getElementById('flipbook-watermark-img');
+                
+                if (container && img) {
+                    const ws = watermarkSettings;
+                    const opacity = (ws?.opacity ?? 100) / 100;
+                    
+                    let positionStyle = "";
+                    const offset = '4%';
+                    const posX = ws?.positionX ?? 0;
+                    const posY = ws?.positionY ?? 0;
+        
+                    switch (ws?.position) {
+                        case 'Top Left': positionStyle = `top: ${offset}; left: ${offset}; bottom: auto; right: auto;`; break;
+                        case 'Top Right': positionStyle = `top: ${offset}; right: ${offset}; bottom: auto; left: auto;`; break;
+                        case 'Bottom Left': positionStyle = `bottom: ${offset}; left: ${offset}; top: auto; right: auto;`; break;
+                        case 'Center': positionStyle = `top: 50%; left: 50%; bottom: auto; right: auto;`; break;
+                        case 'Bottom Right':
+                        default: positionStyle = `bottom: ${offset}; right: ${offset}; top: auto; left: auto;`; break;
+                    }
+                    
+                    if (ws?.position === 'Center') {
+                        container.style.transform = `translate(calc(-50% + ${posX}%), calc(-50% + ${posY}%))`;
+                    } else {
+                        container.style.transform = `translate(${posX}%, ${posY}%)`;
+                    }
+                    
+                    container.style.cssText += positionStyle;
+                    container.style.opacity = opacity;
+                    
+                    const scale = (ws?.scale ?? 100) / 100;
+                    const rotate = ws?.rotate ?? 0;
+                    
+                    const f = ws?.adjustments || {};
+                    const exposure = f.exposure || 0;
+                    const contrast = f.contrast || 0;
+                    const saturation = f.saturation || 0;
+                    const temperature = f.temperature || 0;
+                    const tint = f.tint || 0;
+                    const hl = f.highlights || 0;
+                    const sd = f.shadows || 0;
+                    let filterStr = "";
+                    filterStr += `brightness(${100 + exposure + (hl / 5)}%) `;
+                    filterStr += `contrast(${100 + contrast + (sd / 5)}%) `;
+                    filterStr += `saturate(${100 + saturation}%) `;
+                    if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
+                    if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
+                    else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
+
+                    img.style.transform = `scale(${scale}) rotate(${rotate}deg)`;
+                    img.style.filter = filterStr;
+                }
+            } catch (e) {}
+        });
+    }, [watermarkSettings]);
+
+    const watermarkSrc = watermarkSettings?.src;
+
     const memoizedBuildPageDoc = useCallback((html, pageNum) => {
-        return getIframeContent(html, pageNum, watermarkSettings, pages.length, isSinglePage);
-    }, [watermarkSettings, pages.length, isSinglePage]);
+        return getIframeContent(html, pageNum, watermarkSettingsRef.current, pages.length, isSinglePage);
+    }, [watermarkSrc, pages.length, isSinglePage]);
 
     const bookRendererProps = {
         augmentedPages,
