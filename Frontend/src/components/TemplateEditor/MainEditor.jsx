@@ -9482,7 +9482,9 @@ const MainEditor = ({
     tempDiv.innerHTML = targetSvg.outerHTML;
     tempDiv.querySelectorAll('.slideshow-transition-clone').forEach(el => el.remove());
     let finalHtml = tempDiv.innerHTML;
-    finalHtml = finalHtml.replace(/<br\s*>/gi, '<br/>');
+    finalHtml = finalHtml
+      .replace(/<\s*br[^>]*>(?:<\/\s*br\s*>)?/gi, '<br/>')
+      .replace(/<\/\s*br\s*>/gi, '');
     if (updatePageHtmlRef.current) {
       updatePageHtmlRef.current(targetPageIndex, finalHtml);
     } else if (typeof updatePageHtml === 'function') {
@@ -11546,7 +11548,21 @@ const MainEditor = ({
       }
     };
 
-    const handleBlur = () => {
+    const handleBlur = (e) => {
+      const activeEl = document.activeElement;
+      const isSidebarTarget = activeEl && (
+        activeEl.closest('.right-sidebar') ||
+        activeEl.closest('#right-sidebar') ||
+        activeEl.closest('[data-panel]') ||
+        activeEl.closest('.z-50') ||
+        activeEl.closest('.text-editor-panel') ||
+        activeEl.closest('.color-picker')
+      );
+
+      if (window.__isInteractingWithSidebar || isSidebarTarget) {
+        return;
+      }
+
       suppressClickRef.current = true;
       setTimeout(() => { suppressClickRef.current = false; }, 200);
 
