@@ -113,6 +113,112 @@ app.use("/textures", express.static(path.join(__dirname, "Texture")));
 app.use("/assets/bgimg", express.static(path.join(__dirname, "assets/bgimg"), { maxAge: '1d', immutable: true }));
 app.use("/assets/Videos", express.static(path.join(__dirname, "assets/Videos"), { maxAge: '1d', immutable: true }));
 
+// Serve Templates and Pop-Up Templates from Backend assets
+app.use("/assets", express.static(path.join(__dirname, "assets"), {
+  maxAge: '1d',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.svg')) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+    }
+  }
+}));
+app.use("/assets/Templates", express.static(path.join(__dirname, "assets", "Templates"), {
+  maxAge: '1d',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.svg')) res.setHeader('Content-Type', 'image/svg+xml');
+  }
+}));
+app.use(["/assets/Pop-Up%20Templates", "/assets/Pop-Up Templates", "/assets/Pop-Up-Templates", "/assets/popup-templates"], express.static(path.join(__dirname, "assets", "Pop-Up Templates"), {
+  maxAge: '1d',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.svg')) res.setHeader('Content-Type', 'image/svg+xml');
+  }
+}));
+
+// API endpoints to dynamically list available assets
+app.get("/api/templates/assets-list", (req, res) => {
+  const templatesDir = path.join(__dirname, "assets", "Templates");
+  fs.readdir(templatesDir, (err, files) => {
+    if (err) return res.status(500).json({ error: "Failed to read templates" });
+    const svgFiles = (files || []).filter(f => f.endsWith(".svg"));
+    res.json({ files: svgFiles });
+  });
+});
+
+app.get("/api/popup-templates/assets-list", (req, res) => {
+  const popupDir = path.join(__dirname, "assets", "Pop-Up Templates");
+  fs.readdir(popupDir, (err, files) => {
+    if (err) return res.status(500).json({ error: "Failed to read popup templates" });
+    const svgFiles = (files || []).filter(f => f.endsWith(".svg"));
+    res.json({ files: svgFiles });
+  });
+});
+
+// API endpoint to discover all full book templates (directories with Page_*.svg)
+app.get("/api/templates/books", (req, res) => {
+  const templatesDir = path.join(__dirname, "assets", "Templates");
+  if (!fs.existsSync(templatesDir)) {
+    return res.json({ books: [] });
+  }
+
+  try {
+    const entries = fs.readdirSync(templatesDir, { withFileTypes: true });
+    const books = [];
+
+    // Natural numeric sorting: Page_1.svg, Page_2.svg, ... Page_12.svg
+    const naturalSort = (a, b) => {
+      const numA = parseInt((a.match(/\d+/) || [0])[0], 10);
+      const numB = parseInt((b.match(/\d+/) || [0])[0], 10);
+      if (numA !== numB) return numA - numB;
+      return a.localeCompare(b);
+    };
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const bookFolder = entry.name;
+        if (bookFolder === 'popup_template') continue;
+
+        const bookDirPath = path.join(templatesDir, bookFolder);
+        const files = fs.readdirSync(bookDirPath);
+        const svgFiles = files.filter(f => f.toLowerCase().endsWith('.svg')).sort(naturalSort);
+
+        if (svgFiles.length > 0) {
+          const firstPage = svgFiles[0];
+          const pageUrls = svgFiles.map(f => `/assets/Templates/${encodeURIComponent(bookFolder)}/${encodeURIComponent(f)}`);
+
+          const title = bookFolder.replace(/[-_]+/g, ' ').trim();
+
+          books.push({
+            id: bookFolder.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+            folder: bookFolder,
+            title: title,
+            thumbnail: `/assets/Templates/${encodeURIComponent(bookFolder)}/${encodeURIComponent(firstPage)}`,
+            pagesCount: svgFiles.length,
+            pages: pageUrls,
+            isMultiPageBook: true
+          });
+        }
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.svg')) {
+        const file = entry.name;
+        const title = file.replace(/\.svg$/i, '').replace(/[-_]+/g, ' ').trim();
+        books.push({
+          id: file.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+          title: title,
+          thumbnail: `/assets/Templates/${encodeURIComponent(file)}`,
+          pagesCount: 1,
+          pages: [`/assets/Templates/${encodeURIComponent(file)}`],
+          isMultiPageBook: false
+        });
+      }
+    }
+
+    res.json({ books });
+  } catch (err) {
+    console.error("[/api/templates/books Error]:", err);
+    res.status(500).json({ error: "Failed to read template books" });
+  }
+});
+
 
 
 

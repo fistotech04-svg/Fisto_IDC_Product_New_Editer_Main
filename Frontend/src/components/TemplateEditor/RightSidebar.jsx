@@ -1237,6 +1237,9 @@ const RightSidebar = ({
                   onCustomizePopup={onCustomizePopup}
                   setIs3DModalOpen={setIs3DModalOpen}
                   setCurrent3DItem={setCurrent3DItem}
+                  v_id={effectiveVId}
+                  folderName={effectiveFolder}
+                  flipbookName={effectiveBook}
                 />
               ) : (
                 <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">
@@ -1655,6 +1658,9 @@ const RightSidebar = ({
             onCustomizePopup={onCustomizePopup}
             setIs3DModalOpen={setIs3DModalOpen}
             setCurrent3DItem={setCurrent3DItem}
+            v_id={effectiveVId}
+            folderName={effectiveFolder}
+            flipbookName={effectiveBook}
           />
 
         ) : (
