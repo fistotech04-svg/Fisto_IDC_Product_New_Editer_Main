@@ -362,17 +362,18 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
             let newImages = (savedData.images || []).slice(0, MAX_GALLERY_IMAGES);
 
-            // Check localStorage fallback for unsaved refreshes
+            // Check localStorage fallback ONLY if DOM savedData has no images
             const localKey = `slideshow_${flipbookVId || 'local'}_${targetElement.id}`;
-            const localRaw = localStorage.getItem(localKey);
-            if (localRaw) {
-              try {
-                const localImages = JSON.parse(localRaw);
-                // If localStorage has more images, it means the DOM wasn't saved before refresh. Trust localStorage.
-                if (Array.isArray(localImages) && localImages.length > newImages.length) {
-                  newImages = localImages.slice(0, MAX_GALLERY_IMAGES);
-                }
-              } catch (e) { }
+            if (!newImages || newImages.length === 0) {
+              const localRaw = localStorage.getItem(localKey);
+              if (localRaw) {
+                try {
+                  const localImages = JSON.parse(localRaw);
+                  if (Array.isArray(localImages) && localImages.length > 0) {
+                    newImages = localImages.slice(0, MAX_GALLERY_IMAGES);
+                  }
+                } catch (e) { }
+              }
             }
 
             // If forced (e.g. element selection), we sync. 
@@ -1483,8 +1484,21 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     if (!img) return;
 
     // Optimistic remove
-    setSlideshowImages(prev => prev.filter((_, idx) => idx !== index));
+    const updatedImages = slideshowImages.filter((_, idx) => idx !== index);
+    setSlideshowImages(updatedImages);
     setOpenContextMenu(null);
+
+    // Sync localStorage immediately
+    if (selectedElement?.id) {
+      const key = `slideshow_${flipbookVId || 'local'}_${selectedElement.id}`;
+      try {
+        if (updatedImages.length > 0) {
+          localStorage.setItem(key, JSON.stringify(updatedImages));
+        } else {
+          localStorage.removeItem(key);
+        }
+      } catch (e) {}
+    }
 
     // Backend delete
     if (img.file_v_id) {

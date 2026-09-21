@@ -1127,7 +1127,7 @@ const GifEditor = ({
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
 
           if (backgroundColor.strokeDashStyle === 'Dashed' || backgroundColor.strokeType === 'Dashed') {
-            const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+            const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
             liveElement.setAttribute('stroke-dasharray', dashArray);
           } else {
             liveElement.removeAttribute('stroke-dasharray');
@@ -1372,7 +1372,7 @@ const GifEditor = ({
             strokeOverlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
 
             if (backgroundColor.strokeDashStyle === 'Dashed' || backgroundColor.strokeType === 'Dashed') {
-              const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+              const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
               strokeOverlay.setAttribute('stroke-dasharray', dashArray);
             } else {
               strokeOverlay.removeAttribute('stroke-dasharray');
