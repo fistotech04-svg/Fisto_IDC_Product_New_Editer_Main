@@ -311,7 +311,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
     if (!selectedAsset || !onFileSelect) return;
 
     if (selectedAsset.file) {
-      onFileSelect(selectedAsset.file);
+      onFileSelect(selectedAsset.file, selectedAsset);
       onClose();
     } else {
       try {
@@ -320,7 +320,7 @@ const MediaGalleryPopup = ({ isOpen, onClose, anchorRef, onFileSelect, initialGa
         const mimeType = blob.type || (selectedAsset.type === 'video' ? 'video/mp4' : 'image/png');
         const ext = mimeType.split('/')[1] || 'png';
         const file = new File([blob], `${selectedAsset.name}.${ext}`, { type: mimeType });
-        onFileSelect(file);
+        onFileSelect(file, selectedAsset);
         onClose();
       } catch (err) {
         console.error('Error fetching file for page insert:', err);

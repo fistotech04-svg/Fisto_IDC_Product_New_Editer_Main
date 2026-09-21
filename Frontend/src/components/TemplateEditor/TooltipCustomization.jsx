@@ -596,23 +596,25 @@ const TooltipCustomization = ({
                     textAlign: settings.align,
                     textDecoration: `${settings.underline ? 'underline ' : ''}${settings.lineThrough ? 'line-through' : ''}`.trim() || 'none',
                     textTransform: settings.textTransform || 'none',
-                    width: `${settings.w}px`,
-                    height: `${settings.h}px`,
-                    wordBreak: 'break-word',
-                    whiteSpace: 'pre-wrap',
+                    width: settings.isWidthAuto ? 'auto' : `${settings.w}px`,
+                    minWidth: settings.isWidthAuto ? 'max-content' : undefined,
+                    height: settings.isHeightAuto ? 'auto' : `${settings.h}px`,
+                    minHeight: 'auto',
+                    wordBreak: settings.isWidthAuto ? 'normal' : 'break-word',
+                    whiteSpace: settings.isWidthAuto ? 'nowrap' : 'pre-wrap',
                     order: 1
                   }}
                 >
                   <div
                     style={{
-                      width: '100%',
-                      height: '100%',
+                      width: settings.isWidthAuto ? 'auto' : '100%',
+                      height: settings.isHeightAuto ? 'auto' : '100%',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: settings.align === 'left' ? 'flex-start' : settings.align === 'right' ? 'flex-end' : 'center',
                       textAlign: settings.align,
-                      wordBreak: 'break-word',
-                      whiteSpace: 'pre-wrap'
+                      wordBreak: settings.isWidthAuto ? 'normal' : 'break-word',
+                      whiteSpace: settings.isWidthAuto ? 'nowrap' : 'pre-wrap'
                     }}
                   >
                     {localText || 'Tooltip'}

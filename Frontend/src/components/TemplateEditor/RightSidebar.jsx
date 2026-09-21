@@ -887,7 +887,7 @@ const RightSidebar = ({
 
       {/* Persistent Dimension Section (Common for all) */}
       {!is3DModalOpen && (
-        <div className="bg-white px-[1.5vw] pt-[1.4vw] pb-[1vw] border-b border-gray-100 flex-shrink-0">
+        <div className="bg-white px-[1.5vw] pt-[1.4vw] pb-[0.85vw] border-b border-gray-100 flex-shrink-0">
           <div className="space-y-[0.8vw]">
             <div className="flex flex-col gap-[1vw]">
               {/* Position Row */}
