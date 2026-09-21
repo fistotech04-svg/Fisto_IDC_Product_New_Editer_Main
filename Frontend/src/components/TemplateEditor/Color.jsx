@@ -258,6 +258,7 @@ const Color = ({
       strokeOpacity,
       strokeWeight,
       strokeDashStyle: dashStyle,
+      strokeDasharrayValue: strokeArray !== 'none' ? strokeArray : undefined,
       strokeDashLength: dashLen,
       strokeDashGap: dashGap,
       strokePosition: el.getAttribute('data-stroke-position') || 'Center',
@@ -318,6 +319,7 @@ const Color = ({
       };
     });
   }, [selectedElement, standaloneMode]);
+
 
   // Apply visual updates directly to DOM in standalone mode
   useEffect(() => {
@@ -912,8 +914,8 @@ const Color = ({
                       <span className="text-[0.7vw] text-gray-500 font-medium">Alignment</span>
                       <div className="relative">
                         <div
-                          className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                          onClick={() => setIsDashPosOpen(!isDashPosOpen)}
+                          className={`h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between bg-white ${isText ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                          onClick={() => !isText && setIsDashPosOpen(!isDashPosOpen)}
                         >
                           <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{backgroundColor?.bgStrokePosition || 'Center'}</span>
                           <ChevronDown size="0.8vw" className="text-gray-400" />
@@ -988,6 +990,7 @@ const Color = ({
                   </div>
 
                   {/* Row 3: Line style and Dash Property */}
+                  {!isText && (
                   <div className="flex items-center gap-[1vw]">
                     {/* Line style */}
                     <div className="flex-1 flex flex-col gap-[0.3vw]">
@@ -1082,15 +1085,17 @@ const Color = ({
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Row 4: Line Corner */}
+                  {!isText && (
                   <div className="flex items-center gap-[1vw]">
                     <div className="flex-1 flex flex-col gap-[0.3vw]">
                       <span className="text-[0.7vw] text-gray-500 font-medium">Line Corner</span>
                       <div className="relative">
                         <div
-                          className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                          onClick={() => setIsStrokeStyleOpen(!isStrokeStyleOpen)}
+                          className={`h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between bg-white ${isText ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                          onClick={() => !isText && setIsStrokeStyleOpen(!isStrokeStyleOpen)}
                         >
                           <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{(selectedElementProps?.['data-bg-stroke-linecap'] === 'round') ? 'Rounded' : 'Square'}</span>
                           <ChevronDown size="0.8vw" className="text-gray-400" />
@@ -1120,6 +1125,7 @@ const Color = ({
                     </div>
                     <div className="flex-1"></div>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1312,8 +1318,8 @@ const Color = ({
                     <span className="text-[0.7vw] text-gray-500 font-medium">Alignment</span>
                     <div className="relative">
                       <div
-                        className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                        onClick={() => setIsDashPosOpen(!isDashPosOpen)}
+                        className={`h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between bg-white ${isText ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                        onClick={() => !isText && setIsDashPosOpen(!isDashPosOpen)}
                       >
                         <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{pseudoProps['data-stroke-position'] || 'Center'}</span>
                         <ChevronDown size="0.8vw" className="text-gray-400" />
@@ -1381,6 +1387,7 @@ const Color = ({
                 </div>
 
                 {/* Row 3: Line style and Dash Property */}
+                {!isText && (
                 <div className="flex items-center gap-[1vw]">
                   {/* Line style */}
                   <div className="flex-1 flex flex-col gap-[0.3vw]">
@@ -1475,15 +1482,17 @@ const Color = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Row 4: Line Corner */}
+                {!isText && (
                 <div className="flex items-center gap-[1vw]">
                   <div className="flex-1 flex flex-col gap-[0.3vw]">
                     <span className="text-[0.7vw] text-gray-500 font-medium">Line Corner</span>
                     <div className="relative">
                       <div
-                        className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                        onClick={() => setIsStrokeStyleOpen(!isStrokeStyleOpen)}
+                        className={`h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between bg-white ${isText ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                        onClick={() => !isText && setIsStrokeStyleOpen(!isStrokeStyleOpen)}
                       >
                         <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{(pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round') ? 'Rounded' : 'Square'}</span>
                         <ChevronDown size="0.8vw" className="text-gray-400" />
@@ -1514,6 +1523,7 @@ const Color = ({
                   {/* Empty div for right side to maintain grid alignment */}
                   <div className="flex-1"></div>
                 </div>
+                )}
               </div>
             </div>
           </div>

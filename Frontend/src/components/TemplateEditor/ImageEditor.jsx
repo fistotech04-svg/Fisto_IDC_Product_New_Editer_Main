@@ -661,7 +661,7 @@ const ImageEditor = ({
       strokeAngle: parseFloat(activeEl.getAttribute('data-stroke-angle') || '0'),
       strokeRadius: parseFloat(activeEl.getAttribute('data-stroke-radius') || '100'),
       strokeWeight: parseFloat(strokeW),
-      strokeDasharrayValue: strokeArray !== 'none' ? strokeArray : undefined,
+      strokeDasharrayValue: strokeArray,
       strokeDashLength: dashLen,
       strokeDashGap: dashGap,
       strokePosition: dashPos,
@@ -674,8 +674,9 @@ const ImageEditor = ({
     }
 
     if (force) {
-      // Clear isHydrating synchronously once state sync from DOM completes
-      isHydrating.current = false;
+      setTimeout(() => {
+        isHydrating.current = false;
+      }, 50);
     }
   }, [selectedElement, activePageIndex, selectedLayerId]);
 
@@ -830,7 +831,7 @@ const ImageEditor = ({
       strokeDashStyle: (strokeArray !== 'none') ? 'Dashed' : 'Solid',
       strokeDashLength: dashLen,
       strokeDashGap: dashGap,
-      strokeDasharrayValue: (strokeArray !== 'none') ? strokeArray : undefined,
+      strokeDasharrayValue: strokeArray,
       strokePosition: liveElement.getAttribute('data-stroke-position') || 'Center',
       strokeLinecap: liveElement.getAttribute('stroke-linecap') || 'butt',
       strokeType: liveElement.getAttribute('data-stroke-type') || 'solid'
@@ -1792,6 +1793,11 @@ const ImageEditor = ({
             let isWPercent = false, isHPercent = false, isXPercent = false, isYPercent = false;
 
             if (effectiveImageType !== 'Crop') {
+              const origWStr = liveElement.getAttribute('data-crop-orig-w') || targetImgForFrame.getAttribute('width') || '100';
+              const origHStr = liveElement.getAttribute('data-crop-orig-h') || targetImgForFrame.getAttribute('height') || '100';
+              const origXStr = liveElement.getAttribute('data-crop-orig-x') || targetImgForFrame.getAttribute('x') || '0';
+              const origYStr = liveElement.getAttribute('data-crop-orig-y') || targetImgForFrame.getAttribute('y') || '0';
+
               liveElement.removeAttribute('data-crop-orig-w');
               liveElement.removeAttribute('data-crop-orig-h');
               liveElement.removeAttribute('data-crop-orig-x');
@@ -1799,15 +1805,15 @@ const ImageEditor = ({
               liveElement.removeAttribute('data-crop-data');
               liveElement.removeAttribute('data-saved-crop-data');
 
-              const wAttr = targetImgForFrame.getAttribute('width') || '100';
-              const hAttr = targetImgForFrame.getAttribute('height') || '100';
-              const xAttr = targetImgForFrame.getAttribute('x') || '0';
-              const yAttr = targetImgForFrame.getAttribute('y') || '0';
+              const wAttr = origWStr;
+              const hAttr = origHStr;
+              const xAttr = origXStr;
+              const yAttr = origYStr;
 
-              isWPercent = wAttr.includes('%');
-              isHPercent = hAttr.includes('%');
-              isXPercent = xAttr.includes('%');
-              isYPercent = yAttr.includes('%');
+              isWPercent = wAttr.toString().includes('%');
+              isHPercent = hAttr.toString().includes('%');
+              isXPercent = xAttr.toString().includes('%');
+              isYPercent = yAttr.toString().includes('%');
 
               targetW = parseFloat(wAttr);
               targetH = parseFloat(hAttr);
@@ -2475,7 +2481,7 @@ const ImageEditor = ({
         liveElement.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
 
         if (backgroundColor.strokeDashStyle === 'Dashed') {
-          const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+          const dashArray = (backgroundColor.strokeDasharrayValue && backgroundColor.strokeDasharrayValue !== 'none') ? backgroundColor.strokeDasharrayValue : `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
           liveElement.setAttribute('data-stroke-dasharray', dashArray);
         } else {
           liveElement.setAttribute('data-stroke-dasharray', 'none');
@@ -2676,7 +2682,7 @@ const ImageEditor = ({
 
             // Ensure the strokeOverlay actually gets the dashed properties
             if (backgroundColor.strokeDashStyle === 'Dashed') {
-              const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+              const dashArray = (backgroundColor.strokeDasharrayValue && backgroundColor.strokeDasharrayValue !== 'none') ? backgroundColor.strokeDasharrayValue : `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
               strokeOverlay.setAttribute('stroke-dasharray', dashArray);
             } else {
               strokeOverlay.removeAttribute('stroke-dasharray');
