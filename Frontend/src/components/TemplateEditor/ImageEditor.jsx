@@ -661,6 +661,7 @@ const ImageEditor = ({
       strokeAngle: parseFloat(activeEl.getAttribute('data-stroke-angle') || '0'),
       strokeRadius: parseFloat(activeEl.getAttribute('data-stroke-radius') || '100'),
       strokeWeight: parseFloat(strokeW),
+      strokeDasharrayValue: strokeArray !== 'none' ? strokeArray : undefined,
       strokeDashLength: dashLen,
       strokeDashGap: dashGap,
       strokePosition: dashPos,
@@ -707,7 +708,7 @@ const ImageEditor = ({
         m.attributeName === 'src' || m.attributeName === 'href' ||
         m.attributeName === 'opacity' || m.attributeName === 'style' ||
         m.attributeName === 'data-slideshow' ||
-        m.attributeName === 'data-fill-color' || m.attributeName === 'data-stroke-color' || m.attributeName === 'data-stroke-width' ||
+        m.attributeName === 'data-fill-color' || m.attributeName === 'data-stroke-color' || m.attributeName === 'data-stroke-width' || m.attributeName === 'data-stroke-dasharray' || m.attributeName === 'stroke-dasharray' ||
         m.attributeName === 'width' || m.attributeName === 'height' ||
         m.attributeName === 'x' || m.attributeName === 'y'
       ));
@@ -717,7 +718,7 @@ const ImageEditor = ({
       }
     });
     observerRef.current = observer;
-    observer.observe(selectedElement, { attributes: true, subtree: true, attributeFilter: ['style', 'src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width', 'data-object-fit', 'width', 'height', 'x', 'y'] });
+    observer.observe(selectedElement, { attributes: true, subtree: true, attributeFilter: ['style', 'src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width', 'data-stroke-dasharray', 'stroke-dasharray', 'data-object-fit', 'width', 'height', 'x', 'y'] });
     syncStateFromDOM(true); // Force sync on mount/element change
     return () => {
       observer.disconnect();
@@ -829,6 +830,7 @@ const ImageEditor = ({
       strokeDashStyle: (strokeArray !== 'none') ? 'Dashed' : 'Solid',
       strokeDashLength: dashLen,
       strokeDashGap: dashGap,
+      strokeDasharrayValue: (strokeArray !== 'none') ? strokeArray : undefined,
       strokePosition: liveElement.getAttribute('data-stroke-position') || 'Center',
       strokeLinecap: liveElement.getAttribute('stroke-linecap') || 'butt',
       strokeType: liveElement.getAttribute('data-stroke-type') || 'solid'
@@ -2473,7 +2475,8 @@ const ImageEditor = ({
         liveElement.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
 
         if (backgroundColor.strokeDashStyle === 'Dashed') {
-          liveElement.setAttribute('data-stroke-dasharray', `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`);
+          const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+          liveElement.setAttribute('data-stroke-dasharray', dashArray);
         } else {
           liveElement.setAttribute('data-stroke-dasharray', 'none');
         }
@@ -2518,7 +2521,7 @@ const ImageEditor = ({
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
           liveElement.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
           if (backgroundColor.strokeDashStyle === 'Dashed') {
-            const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+            const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
             liveElement.setAttribute('stroke-dasharray', dashArray);
           } else {
             liveElement.setAttribute('stroke-dasharray', 'none');
@@ -2670,10 +2673,18 @@ const ImageEditor = ({
             c_bl = Math.max(0, Math.min(c_bl, maxR));
 
             strokeOverlay.setAttribute('d', getPathDLocal(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
+
+            // Ensure the strokeOverlay actually gets the dashed properties
+            if (backgroundColor.strokeDashStyle === 'Dashed') {
+              const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+              strokeOverlay.setAttribute('stroke-dasharray', dashArray);
+            } else {
+              strokeOverlay.removeAttribute('stroke-dasharray');
+            }
           };
 
           strokeOverlay._obs = new MutationObserver(syncOverlay);
-          strokeOverlay._obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+          strokeOverlay._obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style', 'data-stroke-dasharray', 'stroke-dasharray'] });
           if (svgImageEl && svgImageEl !== liveElement) {
             strokeOverlay._obs.observe(svgImageEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
           }
@@ -2836,7 +2847,7 @@ const ImageEditor = ({
           strokeOverlay.setAttribute('stroke-opacity', ((backgroundColor.strokeOpacity / 100) * (opacity / 100)).toString());
 
           if (backgroundColor.strokeDashStyle === 'Dashed') {
-            const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+            const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
             strokeOverlay.setAttribute('stroke-dasharray', dashArray);
           } else {
             strokeOverlay.removeAttribute('stroke-dasharray');
@@ -3030,7 +3041,28 @@ const ImageEditor = ({
         isUpdatingDOMTimeoutRef.current = null;
       }, resetDelay);
     }
-  }, [selectedElement, filters, activeEffects, effectSettings, opacity, imageType, radius, isSlideshow, backgroundColor]);
+  }, [
+    selectedElement,
+    filters,
+    activeEffects,
+    effectSettings,
+    opacity,
+    imageType,
+    radius,
+    isSlideshow,
+    backgroundColor,
+    backgroundColor.fill,
+    backgroundColor.fillOpacity,
+    backgroundColor.stroke,
+    backgroundColor.strokeOpacity,
+    backgroundColor.strokeWeight,
+    backgroundColor.strokeDashStyle,
+    backgroundColor.strokeDashLength,
+    backgroundColor.strokeDashGap,
+    backgroundColor.strokePosition,
+    backgroundColor.strokeLinecap,
+    backgroundColor.strokeDasharrayValue
+  ]);
 
   useEffect(() => {
     applyVisualsRef.current = applyVisuals;

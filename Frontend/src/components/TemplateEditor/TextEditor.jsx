@@ -602,6 +602,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     strokeStops: selectedElementProps?.['stroke-stops'],
     strokeAngle: parseFloat(selectedElementProps?.['stroke-angle'] || 0),
     strokeRadius: parseFloat(selectedElementProps?.['stroke-radius'] || 100),
+    strokeDasharrayValue: selectedElementProps?.strokeDasharray,
     strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
     strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
   });
@@ -672,6 +673,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       strokeStops: selectedElementProps?.['stroke-stops'],
       strokeAngle: parseFloat(selectedElementProps?.['stroke-angle'] || 0),
       strokeRadius: parseFloat(selectedElementProps?.['stroke-radius'] || 100),
+      strokeDasharrayValue: selectedElementProps?.strokeDasharray,
       strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
       strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
     });
@@ -710,7 +712,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
 
       if (backgroundColor.scrollBarColor !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollbar-color', backgroundColor.scrollBarColor);
-      
+
       if (backgroundColor.bgFill !== undefined) {
         if (backgroundColor.bgFill && backgroundColor.bgFill !== 'transparent' && backgroundColor.bgFill !== 'none' && backgroundColor.bgFill !== '#') {
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', backgroundColor.bgFill);
@@ -752,7 +754,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'solid');
       }
 
-      const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}` : 'none';
+      const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? (backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`) : 'none';
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeDasharray', dashVal);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-stroke-position', backgroundColor.strokePosition || 'Center');
 
@@ -1074,9 +1076,11 @@ const TextEditor = ({
                 const applyColor = finalVal === 'none' ? 'transparent' : finalVal;
                 liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', applyColor, 'important');
                 Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', applyColor, 'important'));
+                liveEl.setAttribute('stroke', finalVal);
               } else if (styleProp === 'strokeWidth') {
                 liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
                 Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important'));
+                liveEl.setAttribute('stroke-width', finalVal);
               } else {
                 const liveProp = styleProp === 'fill' ? 'color' : styleProp;
                 const cssPropName = liveProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
@@ -1093,7 +1097,7 @@ const TextEditor = ({
             if (layoutProps.includes(attribute) && liveEl.getAttribute('data-scrollable') !== 'true') {
               const div = liveEl.firstElementChild;
               const mode = liveEl.getAttribute('data-sizing-mode');
-              
+
               if (mode === 'auto-width') {
                 div.style.setProperty('width', 'max-content', 'important');
                 const contentW = div.scrollWidth;
@@ -1103,7 +1107,7 @@ const TextEditor = ({
                 }
                 div.style.setProperty('width', '100%', 'important');
               }
-              
+
               div.style.setProperty('height', 'auto', 'important');
               div.style.setProperty('min-height', '0px', 'important');
 
@@ -1369,7 +1373,7 @@ const TextEditor = ({
             const liveTag = liveEl.tagName.toLowerCase();
             if (liveTag === 'foreignobject' && liveEl.firstElementChild) {
               const liveTarget = liveEl.querySelector('.flipbook-text-scrollbar') || liveEl.firstElementChild;
-              
+
               if (!skipLiveUpdate) {
                 const tempDoc = new DOMParser().parseFromString(`<div>${value.replace(/\n/g, '<br/>')}</div>`, 'text/html');
                 liveTarget.innerHTML = '';
@@ -1552,7 +1556,7 @@ const TextEditor = ({
           innerDiv.style.width = '100%';
           innerDiv.style.overflowX = 'hidden';
           innerDiv.style.wordBreak = 'normal';
-          
+
           if (element.hasAttribute('data-scrollbar-color')) {
             // MainEditor observer handles the style automatically based on this attribute
           }
@@ -1596,7 +1600,7 @@ const TextEditor = ({
               outer.className = 'flipbook-text-outer';
               const viewport = parentFo.ownerDocument.createElementNS('http://www.w3.org/1999/xhtml', 'div');
               viewport.className = 'flipbook-text-viewport';
-              
+
               div.style.setProperty('overflow-y', 'auto', 'important');
               div.style.setProperty('overflow-x', 'hidden', 'important');
               div.classList.add('flipbook-text-scrollbar');
@@ -1656,7 +1660,7 @@ const TextEditor = ({
                 const scrollbarDiv = div.querySelector('.flipbook-text-scrollbar');
                 if (scrollbarDiv) targetDiv = scrollbarDiv;
               }
-              
+
               if (isScrollable) {
                 targetDiv.style.setProperty('overflow-y', 'auto', 'important');
                 targetDiv.style.setProperty('overflow-x', 'hidden', 'important');

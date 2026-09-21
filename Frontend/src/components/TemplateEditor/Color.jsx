@@ -297,7 +297,8 @@ const Color = ({
         prev.stroke === stroke &&
         prev.strokeOpacity === strokeOpacity &&
         prev.strokeWeight === strokeWeight &&
-        prev.strokeDashStyle === dashStyle
+        prev.strokeDashStyle === dashStyle &&
+        prev.strokeDasharrayValue === strokeArray
       ) {
         return prev;
       }
@@ -308,10 +309,12 @@ const Color = ({
         strokeOpacity,
         strokeWeight,
         strokeDashStyle: dashStyle,
+        strokeDasharrayValue: strokeArray !== 'none' ? strokeArray : undefined,
         strokeDashLength: dashLen,
         strokeDashGap: dashGap,
         strokePosition: el.getAttribute('data-stroke-position') || 'Center',
-        strokeLinecap: el.getAttribute('stroke-linecap') || 'butt'
+        strokeLinecap: el.getAttribute('stroke-linecap') || 'butt',
+        bgStrokeDasharray: strokeArray !== 'none' ? strokeArray : undefined,
       };
     });
   }, [selectedElement, standaloneMode]);
@@ -441,7 +444,7 @@ const Color = ({
         const isStrokeGradient = backgroundColor.stroke.includes('gradient');
 
         const dashArray = backgroundColor.strokeDashStyle === 'Dashed'
-          ? `${backgroundColor.strokeDashLength ?? 10},${backgroundColor.strokeDashGap ?? 10}`
+          ? (backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength ?? 10},${backgroundColor.strokeDashGap ?? 10}`)
           : 'none';
 
         el.setAttribute('data-stroke-dasharray', dashArray);
@@ -594,6 +597,11 @@ const Color = ({
               strokeLayer.setAttribute('stroke', backgroundColor.stroke);
             }
             strokeLayer.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
+            if (dashArray !== 'none') {
+              strokeLayer.setAttribute('stroke-dasharray', dashArray);
+            } else {
+              strokeLayer.removeAttribute('stroke-dasharray');
+            }
           }
         }
       }
@@ -641,8 +649,8 @@ const Color = ({
     'stroke-radius': backgroundColor?.strokeRadius || 100,
     'stroke-width': backgroundColor?.strokeWeight || 0,
     strokeWidth: backgroundColor?.strokeWeight || 0,
-    'stroke-dasharray': backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}` : 'none',
-    strokeDasharray: backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}` : 'none',
+    'stroke-dasharray': backgroundColor?.strokeDashStyle === 'Dashed' ? (backgroundColor?.strokeDasharrayValue || `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}`) : 'none',
+    strokeDasharray: backgroundColor?.strokeDashStyle === 'Dashed' ? (backgroundColor?.strokeDasharrayValue || `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}`) : 'none',
     'stroke-linecap': backgroundColor?.strokeLinecap || 'butt',
     'data-stroke-position': backgroundColor?.strokePosition || 'Center',
   };
@@ -675,6 +683,7 @@ const Color = ({
         setBackgroundColor(p => ({
           ...p,
           strokeDashStyle: 'Dashed',
+          strokeDasharrayValue: value,
           strokeDashLength: dashLen,
           strokeDashGap: dashGap
         }));
@@ -695,7 +704,28 @@ const Color = ({
     if (attr === 'data-bg-stroke-opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeOpacity: parseFloat(value) * 100 }));
     if (attr === 'data-bg-stroke-width' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeWidth: parseFloat(value) }));
     if (attr === 'data-bg-stroke-position' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokePosition: value }));
-    if (attr === 'data-bg-stroke-dasharray' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeDasharray: value }));
+    if (attr === 'data-bg-stroke-dasharray' && setBackgroundColor) {
+      if (value === 'none') {
+        setBackgroundColor(p => ({ ...p, bgStrokeDashStyle: 'Solid', bgStrokeDasharray: value, strokeDashStyle: 'Solid', strokeDasharrayValue: value }));
+      } else {
+        const parts = value.split(',');
+        const parsedLen = parseInt(parts[0]);
+        const dashLen = isNaN(parsedLen) ? 10 : parsedLen;
+        const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+        const dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
+        setBackgroundColor(p => ({
+          ...p,
+          bgStrokeDashStyle: 'Dashed',
+          bgStrokeDasharray: value,
+          bgStrokeDashLength: dashLen,
+          bgStrokeDashGap: dashGap,
+          strokeDashStyle: 'Dashed',
+          strokeDasharrayValue: value,
+          strokeDashLength: dashLen,
+          strokeDashGap: dashGap
+        }));
+      }
+    }
   };
 
   const updateAttr = (attribute, value) => {
@@ -973,25 +1003,25 @@ const Color = ({
                         {/* Dashed (Short) */}
                         <button
                           onClick={() => updateAttr('data-bg-stroke-dasharray', '4,4')}
-                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
                         >
                           <div className="flex gap-[0.15vw]">
-                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
                           </div>
                         </button>
                         {/* Dashed (Long) */}
                         <button
-                          onClick={() => updateAttr('data-bg-stroke-dasharray', '8,4')}
-                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                          onClick={() => updateAttr('data-bg-stroke-dasharray', '6, 12, 18, 12')}
+                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
                         >
                           <div className="flex gap-[0.1vw] items-center">
-                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
                           </div>
                         </button>
                       </div>
@@ -1002,9 +1032,26 @@ const Color = ({
                       <span className="text-[0.7vw] text-gray-500 font-medium">Dash Property</span>
                       <div className="flex items-center gap-[0.3vw] h-[2vw]">
                         {(() => {
-                          const dashArray = (selectedElementProps?.['data-bg-stroke-dasharray'] || '8,4').split(',');
-                          const lVal = isNaN(parseInt(dashArray[0])) ? 8 : parseInt(dashArray[0]);
+                          const dashArrayStr = selectedElementProps?.['data-bg-stroke-dasharray'];
+                          const isCustom = dashArrayStr && dashArrayStr !== 'none' && dashArrayStr.split(',').length > 2;
+                          const dashArray = (dashArrayStr || '4,4').split(',');
+                          const lVal = isNaN(parseInt(dashArray[0])) ? 4 : parseInt(dashArray[0]);
                           const gVal = isNaN(parseInt(dashArray[1] || dashArray[0])) ? 4 : parseInt(dashArray[1] || dashArray[0]);
+
+                          if (isCustom) {
+                            return (
+                              <div className="flex-1 flex items-center border border-gray-200 rounded-[0.5vw] bg-white h-full px-[0.5vw]">
+                                <span className="text-[0.65vw] text-gray-400 font-medium whitespace-nowrap mr-[0.3vw]">Custom</span>
+                                <input
+                                  type="text"
+                                  value={dashArrayStr || '6, 12, 18, 12'}
+                                  onChange={(e) => updateAttr('data-bg-stroke-dasharray', e.target.value)}
+                                  className="w-full bg-transparent outline-none text-[0.65vw] text-gray-700 font-medium text-right cursor-text"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            );
+                          }
 
                           return (
                             <>
@@ -1349,25 +1396,25 @@ const Color = ({
                       {/* Dashed (Short) */}
                       <button
                         onClick={() => updateAttr('stroke-dasharray', '4,4')}
-                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
                       >
                         <div className="flex gap-[0.15vw]">
-                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
                         </div>
                       </button>
                       {/* Dashed (Long) */}
                       <button
-                        onClick={() => updateAttr('stroke-dasharray', '8,4')}
-                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                        onClick={() => updateAttr('stroke-dasharray', '6, 12, 18, 12')}
+                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
                       >
                         <div className="flex gap-[0.1vw] items-center">
-                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
                         </div>
                       </button>
                     </div>
@@ -1378,9 +1425,26 @@ const Color = ({
                     <span className="text-[0.7vw] text-gray-500 font-medium">Dash Property</span>
                     <div className="flex items-center gap-[0.3vw] h-[2vw]">
                       {(() => {
-                        const dashArray = (pseudoProps.strokeDasharray || '8,4').split(',');
-                        const lVal = isNaN(parseInt(dashArray[0])) ? 8 : parseInt(dashArray[0]);
+                        const dashArrayStr = pseudoProps.strokeDasharray;
+                        const isCustom = dashArrayStr && dashArrayStr !== 'none' && dashArrayStr.split(',').length > 2;
+                        const dashArray = (dashArrayStr || '4,4').split(',');
+                        const lVal = isNaN(parseInt(dashArray[0])) ? 4 : parseInt(dashArray[0]);
                         const gVal = isNaN(parseInt(dashArray[1] || dashArray[0])) ? 4 : parseInt(dashArray[1] || dashArray[0]);
+
+                        if (isCustom) {
+                          return (
+                            <div className="flex-1 flex items-center border border-gray-200 rounded-[0.5vw] bg-white h-full px-[0.5vw]">
+                              <span className="text-[0.65vw] text-gray-400 font-medium whitespace-nowrap mr-[0.3vw]">Custom</span>
+                              <input
+                                type="text"
+                                value={dashArrayStr || '6, 12, 18, 12'}
+                                onChange={(e) => updateAttr('stroke-dasharray', e.target.value)}
+                                className="w-full bg-transparent outline-none text-[0.65vw] text-gray-700 font-medium text-right cursor-text"
+                                onPointerDown={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          );
+                        }
 
                         return (
                           <>

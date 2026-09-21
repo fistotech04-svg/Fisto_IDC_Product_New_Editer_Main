@@ -380,23 +380,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
         return;
       }
 
-      // If both panels are open and we start a new click outside
-      if ((e.type === 'mousedown' || e.type === 'pointerdown') && view === "custom" && !hidePalette) {
-        // Stop the event from reaching RightSidebar or Canvas
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-
-        // Flag that we are intercepting the rest of this click sequence
-        ignoreClickRef.current = true;
-        // Just revert to the main palette
-        setView("palette");
-        setEditingStopIndex(null);
-
-        // Reset the flag after the click sequence should be finished
-        setTimeout(() => {
-          ignoreClickRef.current = false;
-        }, 400);
-      } else if (e.type === 'mousedown' || e.type === 'pointerdown') {
+      if (e.type === 'mousedown' || e.type === 'pointerdown') {
         if (onClose) {
           onClose();
         }
@@ -765,13 +749,13 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
               )}
 
               {onClose && (
-                <button onClick={() => {
-                  if (view === "custom") {
-                    setMainPaletteHidden(true);
-                  } else {
+                <button 
+                  onClick={() => {
                     onClose();
-                  }
-                }} className="p-[0.1vw] rounded-[0.5vw] text-gray-400 hover:bg-gray-100 transition-all">
+                  }} 
+                  disabled={view === "custom"}
+                  className={`p-[0.1vw] rounded-[0.5vw] transition-all ${view === "custom" ? "text-gray-200 cursor-not-allowed" : "text-gray-400 hover:bg-gray-100"}`}
+                >
                   <X size="1.2vw" />
                 </button>
               )}

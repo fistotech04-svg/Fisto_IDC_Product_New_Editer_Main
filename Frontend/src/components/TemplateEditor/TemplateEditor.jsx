@@ -3249,7 +3249,7 @@ const TemplateEditor = () => {
               element.innerHTML = val;
             } else {
               element.setAttribute(attr, val);
-              if ((attr === 'fill' || attr === 'stroke') && element.getAttribute('data-type') === 'icon') {
+              if ((attr === 'fill' || attr === 'stroke' || attr === 'stroke-width' || attr === 'stroke-dasharray') && element.getAttribute('data-type') === 'icon') {
                 const children = element.querySelectorAll('*');
                 children.forEach(c => {
                   const tag = c.tagName.toLowerCase();
@@ -3262,6 +3262,12 @@ const TemplateEditor = () => {
                     }
                     if (attr === 'stroke' && c.hasAttribute('stroke') && c.getAttribute('stroke') !== 'none') {
                       c.setAttribute('stroke', val);
+                    }
+                    if (attr === 'stroke-width' && c.hasAttribute('stroke') && c.getAttribute('stroke') !== 'none') {
+                      c.setAttribute('stroke-width', val);
+                    }
+                    if (attr === 'stroke-dasharray' && c.hasAttribute('stroke') && c.getAttribute('stroke') !== 'none') {
+                      c.setAttribute('stroke-dasharray', val);
                     }
                   }
                 });
@@ -3397,9 +3403,11 @@ const TemplateEditor = () => {
             const children = element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon');
             children.forEach(child => {
               updates.forEach(([attr]) => {
-                if (attr === 'fill' || attr === 'stroke' || attr === 'stroke-width' || attr === 'stroke-dasharray' || attr === 'opacity') {
-                  child.removeAttribute(attr);
-                  if (child.style) child.style.removeProperty(attr);
+                if (element.getAttribute('data-type') !== 'icon') {
+                  if (attr === 'fill' || attr === 'stroke' || attr === 'stroke-width' || attr === 'stroke-dasharray' || attr === 'opacity') {
+                    child.removeAttribute(attr);
+                    if (child.style) child.style.removeProperty(attr);
+                  }
                 }
               });
               if (typeof attribute === 'object' && attribute !== null ? Object.keys(attribute).some(a => a.includes('-stops') || a.includes('-gradient-type') || a.includes('-type')) : (attribute.includes('-stops') || attribute.includes('-gradient-type') || attribute.includes('-type'))) {

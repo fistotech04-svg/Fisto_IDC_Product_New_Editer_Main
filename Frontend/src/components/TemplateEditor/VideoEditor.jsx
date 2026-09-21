@@ -821,7 +821,7 @@ const VideoEditor = ({
       visualTarget.setAttribute('data-stroke-width', weight); // Keep for legacy
 
       if (backgroundColor.strokeDashStyle === 'Dashed') {
-        const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+        const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
         visualTarget.setAttribute('stroke-dasharray', dashArray);
       } else {
         visualTarget.setAttribute('stroke-dasharray', 'none');
@@ -978,7 +978,7 @@ const VideoEditor = ({
         }
         strokeOverlay.setAttribute('stroke-width', weight.toString());
         if (backgroundColor.strokeDashStyle === 'Dashed') {
-          const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
+          const dashArray = backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
           strokeOverlay.setAttribute('stroke-dasharray', dashArray);
         } else {
           strokeOverlay.setAttribute('stroke-dasharray', 'none');
