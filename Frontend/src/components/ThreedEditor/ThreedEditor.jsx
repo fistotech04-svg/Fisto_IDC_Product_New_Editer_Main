@@ -82,7 +82,11 @@ export default function ThreedEditor() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingModelInfo, setLoadingModelInfo] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const loadingProgressRef = useRef(0);
   const loadingTimerRef = useRef(null);
+  const conversionTickerRef = useRef(null);
+  const mountingSafetyTimerRef = useRef(null);
   const isCompletingRef = useRef(false);
   const pendingModelIdRef = useRef(null);
   const modelsRef = useRef(models);
@@ -93,59 +97,28 @@ export default function ThreedEditor() {
 
   const { active, progress } = useProgress();
 
-  // Unified startModelLoading coordinator
-  const startModelLoading = useCallback((modelInfo) => {
-    if (loadingTimerRef.current) clearInterval(loadingTimerRef.current);
-    isCompletingRef.current = false;
-    pendingModelIdRef.current = modelInfo?.id ? String(modelInfo.id) : null;
-
-    setLoadingModelInfo(modelInfo || null);
-    const ext = (modelInfo?.type || modelInfo?.name?.split('.').pop() || '').toLowerCase();
-    const isCad = ['step', 'stp', 'iges', 'igs'].includes(ext);
-    const isArchive = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2'].some(e => (modelInfo?.name || '').toLowerCase().endsWith(e));
-
-    setLoadingText(
-      isArchive
-        ? "Unpacking 3D model archive & textures..."
-        : (isCad
-            ? "Preparing CAD model & tessellation engine..."
-            : "Reading 3D model file...")
-    );
-    setLoadingProgress(8);
-    setManualLoading(true);
-
-    // Smooth progressive ticker: smoothly glides from 8% up to 93% while Three.js loads & positions the model
-    let current = 8;
-    loadingTimerRef.current = setInterval(() => {
-      if (isCompletingRef.current) return;
-
-      if (current < 30) {
-        current += Math.random() * 5 + 3;
-        setLoadingText(prev => isCad ? "Initializing CAD OpenCASCADE engine..." : "Parsing 3D geometry...");
-      } else if (current < 60) {
-        current += Math.random() * 3 + 2;
-        setLoadingText(prev => isCad ? "Tessellating CAD surfaces & facets..." : "Processing materials & meshes...");
-      } else if (current < 85) {
-        current += Math.random() * 2 + 1;
-        setLoadingText("Calculating bounds & normalizing scale...");
-      } else if (current < 94) {
-        current += 0.35;
-        setLoadingText("Positioning model on base grid...");
-      }
-
-      current = Math.min(94, current);
-      setLoadingProgress(Math.round(current));
-    }, 110);
+  // Monotonic progress setter: guarantees percentage never decreases during loading
+  const setSafeProgress = useCallback((val) => {
+    if (isCompletingRef.current) return;
+    const num = typeof val === 'function' ? val(loadingProgressRef.current) : Number(val);
+    if (isNaN(num)) return;
+    const clamped = Math.max(loadingProgressRef.current, Math.min(100, Math.round(num)));
+    loadingProgressRef.current = clamped;
+    setLoadingProgress(clamped);
   }, []);
 
-  // Update progress from sub-loaders (e.g. CadModel)
-  const handleModelProgress = useCallback((modelId, progressPct, stageText) => {
-    if (pendingModelIdRef.current && modelId && String(pendingModelIdRef.current) !== String(modelId) && (modelsRef.current?.length > 1)) return;
-    if (isCompletingRef.current) return;
-
-    if (stageText) setLoadingText(stageText);
-    if (typeof progressPct === 'number' && !isNaN(progressPct)) {
-      setLoadingProgress(prev => Math.max(prev, Math.min(95, Math.round(progressPct))));
+  const clearAllLoadingTimers = useCallback(() => {
+    if (loadingTimerRef.current) {
+      clearInterval(loadingTimerRef.current);
+      loadingTimerRef.current = null;
+    }
+    if (conversionTickerRef.current) {
+      clearInterval(conversionTickerRef.current);
+      conversionTickerRef.current = null;
+    }
+    if (mountingSafetyTimerRef.current) {
+      clearTimeout(mountingSafetyTimerRef.current);
+      mountingSafetyTimerRef.current = null;
     }
   }, []);
 
@@ -159,44 +132,162 @@ export default function ThreedEditor() {
     }
 
     isCompletingRef.current = true;
-    if (loadingTimerRef.current) {
-      clearInterval(loadingTimerRef.current);
-      loadingTimerRef.current = null;
-    }
+    clearAllLoadingTimers();
 
-    // Set 100% and notify user the model is on base
+    loadingProgressRef.current = 100;
     setLoadingProgress(100);
     setLoadingText("Model ready on base!");
 
     // Hold at 100% for 380ms for visual satisfaction, then cleanly dismiss
     setTimeout(() => {
       setManualLoading(false);
+      loadingProgressRef.current = 0;
       setLoadingProgress(0);
       setLoadingText("");
       setLoadingModelInfo(null);
       pendingModelIdRef.current = null;
       isCompletingRef.current = false;
     }, 380);
+  }, [clearAllLoadingTimers]);
+
+  // Smoothly advances progress while backend converts the model (45% -> 76%) so it never freezes
+  const startConversionTicker = useCallback((ext, engineName = "OpenCASCADE") => {
+    if (conversionTickerRef.current) clearInterval(conversionTickerRef.current);
+    if (isCompletingRef.current) return;
+
+    const upperExt = (ext || '3D').toUpperCase();
+    let convCurrent = Math.max(45, loadingProgressRef.current);
+    setSafeProgress(convCurrent);
+
+    conversionTickerRef.current = setInterval(() => {
+      if (isCompletingRef.current) return;
+      const targetMax = 76;
+      const remaining = targetMax - convCurrent;
+      if (remaining > 0.4) {
+        const step = Math.max(0.12, remaining * 0.04);
+        convCurrent = Math.min(targetMax, convCurrent + step);
+        setSafeProgress(Math.round(convCurrent));
+
+        if (convCurrent < 54) {
+          setLoadingText(`Converting ${upperExt} model with ${engineName}...`);
+        } else if (convCurrent < 66) {
+          setLoadingText("Tessellating 3D geometry & mesh surfaces...");
+        } else {
+          setLoadingText("Optimizing materials & compiling GLTF binary...");
+        }
+      }
+    }, 220);
+  }, [setSafeProgress]);
+
+  const stopConversionTicker = useCallback(() => {
+    if (conversionTickerRef.current) {
+      clearInterval(conversionTickerRef.current);
+      conversionTickerRef.current = null;
+    }
   }, []);
+
+  // Smoothly glides progress forward while Three.js mounts and positions the model on base grid
+  const startMountingBridgeTicker = useCallback((initialPct) => {
+    if (loadingTimerRef.current) clearInterval(loadingTimerRef.current);
+    if (isCompletingRef.current) return;
+
+    let cur = Math.max(loadingProgressRef.current, initialPct || 78);
+    setSafeProgress(cur);
+
+    loadingTimerRef.current = setInterval(() => {
+      if (isCompletingRef.current) return;
+      const targetMax = 95;
+      const remaining = targetMax - cur;
+      if (remaining > 0.3) {
+        const step = Math.max(0.1, remaining * 0.06);
+        cur = Math.min(targetMax, cur + step);
+        setSafeProgress(Math.round(cur));
+
+        if (cur < 88) {
+          setLoadingText("Calculating bounds & normalizing scale...");
+        } else {
+          setLoadingText("Positioning model on base grid...");
+        }
+      }
+    }, 180);
+
+    // Watchdog: If GenericModel has mounted and is taking > 7s at 94%+, auto-complete cleanly
+    if (mountingSafetyTimerRef.current) clearTimeout(mountingSafetyTimerRef.current);
+    mountingSafetyTimerRef.current = setTimeout(() => {
+      if (manualLoading && !isCompletingRef.current) {
+        console.log("[ThreedEditor] Mounting watchdog auto-resolving ready state");
+        handleModelReady(pendingModelIdRef.current);
+      }
+    }, 7000);
+  }, [handleModelReady, manualLoading, setSafeProgress]);
+
+  // Unified startModelLoading coordinator
+  const startModelLoading = useCallback((modelInfo) => {
+    clearAllLoadingTimers();
+    isCompletingRef.current = false;
+    pendingModelIdRef.current = modelInfo?.id ? String(modelInfo.id) : null;
+
+    setLoadingModelInfo(modelInfo || null);
+    const ext = (modelInfo?.type || modelInfo?.name?.split('.').pop() || '').toLowerCase();
+    const isCad = ['step', 'stp', 'iges', 'igs'].includes(ext);
+    const isArchive = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2'].some(e => (modelInfo?.name || '').toLowerCase().endsWith(e));
+    const isDirectGlb = ext === 'glb' || ext === 'gltf';
+
+    loadingProgressRef.current = 10;
+    setLoadingProgress(10);
+    setManualLoading(true);
+
+    if (isArchive) {
+      setLoadingText("Unpacking 3D model archive & textures...");
+    } else if (isCad) {
+      setLoadingText("Preparing CAD model & OpenCASCADE engine...");
+    } else if (isDirectGlb) {
+      setLoadingText("Reading 3D GLB model...");
+      let cur = 10;
+      loadingTimerRef.current = setInterval(() => {
+        if (isCompletingRef.current) return;
+        if (cur < 85) {
+          cur += (85 - cur) * 0.12;
+          setSafeProgress(Math.round(cur));
+          if (cur < 45) setLoadingText("Reading 3D scene geometry...");
+          else if (cur < 70) setLoadingText("Processing textures & materials...");
+          else setLoadingText("Calculating bounds & normalizing scale...");
+        }
+      }, 160);
+    } else {
+      setLoadingText(`Reading ${ext.toUpperCase() || '3D'} model file...`);
+    }
+  }, [clearAllLoadingTimers, setSafeProgress]);
+
+  // Update progress from sub-loaders (e.g. CadModel)
+  const handleModelProgress = useCallback((modelId, progressPct, stageText) => {
+    if (pendingModelIdRef.current && modelId && String(pendingModelIdRef.current) !== String(modelId) && (modelsRef.current?.length > 1)) return;
+    if (isCompletingRef.current) return;
+
+    if (stageText) setLoadingText(stageText);
+    if (typeof progressPct === 'number' && !isNaN(progressPct)) {
+      setSafeProgress(progressPct);
+    }
+  }, [setSafeProgress]);
 
   // Sync with Drei useProgress if active (for external textures and secondary downloads)
   useEffect(() => {
     if (active && manualLoading && !isCompletingRef.current) {
-      const mapped = Math.round(25 + (progress * 0.67));
-      setLoadingProgress(prev => Math.max(prev, Math.min(93, mapped)));
+      if (typeof progress === 'number' && progress > 0) {
+        const mapped = Math.round(75 + (progress * 0.19));
+        setSafeProgress(mapped);
+      }
     }
-  }, [active, progress, manualLoading]);
+  }, [active, progress, manualLoading, setSafeProgress]);
 
   // Safety stuck timer: only auto-dismiss if loading has stalled for 15 minutes (aligned with converter timeout & GlobalLoader)
   useEffect(() => {
     if (!manualLoading) return;
     const t = setTimeout(() => {
       console.warn("[ThreedEditor] Loading safety limit reached (15m) — clearing loader.");
-      if (loadingTimerRef.current) {
-        clearInterval(loadingTimerRef.current);
-        loadingTimerRef.current = null;
-      }
+      clearAllLoadingTimers();
       setManualLoading(false);
+      loadingProgressRef.current = 0;
       setLoadingProgress(0);
       setLoadingText("");
       setLoadingModelInfo(null);
@@ -204,7 +295,7 @@ export default function ThreedEditor() {
       isCompletingRef.current = false;
     }, 15 * 60 * 1000);
     return () => clearTimeout(t);
-  }, [manualLoading]);
+  }, [manualLoading, clearAllLoadingTimers]);
 
   const isGlobalLoading = manualLoading || active;
   
@@ -438,11 +529,14 @@ export default function ThreedEditor() {
                 modelName: newModel.name,
                 selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
               });
+              startMountingBridgeTicker(loadingProgressRef.current);
               return; // End here for ID-based load
             }
           } catch (err) {
             console.error("Specified model not found, redirecting to 404...", err);
+            clearAllLoadingTimers();
             setManualLoading(false);
+            loadingProgressRef.current = 0;
             setLoadingProgress(0);
             setLoadingText("");
             navigate('/not-found', { replace: true });
@@ -485,10 +579,13 @@ export default function ThreedEditor() {
               selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
             });
             localStorage.removeItem('tempThreedEditModel');
+            startMountingBridgeTicker(loadingProgressRef.current);
             return; // End here for temp model load
           } catch(e) {
             console.error("Failed to parse tempThreedEditModel", e);
+            clearAllLoadingTimers();
             setManualLoading(false);
+            loadingProgressRef.current = 0;
             setLoadingProgress(0);
             setLoadingText("");
             localStorage.removeItem('tempThreedEditModel');
@@ -881,11 +978,13 @@ export default function ThreedEditor() {
     const fileSizeMB = file.size ? (file.size / (1024 * 1024)) : 0;
     
     setLoadingText(`Reading ${isIges ? 'IGES' : 'STEP'} CAD file (${fileSizeMB > 0 ? fileSizeMB.toFixed(1) + ' MB' : ''})...`);
+    setSafeProgress(15);
     await new Promise(r => setTimeout(r, 60));
 
     const buffer = await file.arrayBuffer();
     
     setLoadingText("Initializing OpenCASCADE WASM...");
+    setSafeProgress(25);
     await new Promise(r => setTimeout(r, 60));
 
     const occt = await initOCCT({
@@ -904,6 +1003,7 @@ export default function ThreedEditor() {
     };
 
     setLoadingText(`Tessellating ${isIges ? 'IGES' : 'STEP'} geometry with OpenCASCADE...`);
+    setSafeProgress(45);
     await new Promise(r => setTimeout(r, 60));
 
     const fileData = new Uint8Array(buffer);
@@ -932,6 +1032,7 @@ export default function ThreedEditor() {
     }
 
     setLoadingText(`Processing ${result.meshes.length} geometry components...`);
+    setSafeProgress(70);
     await new Promise(r => setTimeout(r, 60));
 
     const group = new THREE.Group();
@@ -992,6 +1093,7 @@ export default function ThreedEditor() {
     group.updateMatrixWorld(true);
 
     setLoadingText("Compiling 3D model...");
+    setSafeProgress(85);
     await new Promise(r => setTimeout(r, 60));
 
     const exporter = new GLTFExporter();
@@ -1004,6 +1106,7 @@ export default function ThreedEditor() {
       );
     });
 
+    setSafeProgress(88);
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
@@ -1011,11 +1114,13 @@ export default function ThreedEditor() {
 
   const convertObjToGlbBlob = async (file) => {
     setLoadingText("Parsing OBJ model in browser...");
+    setSafeProgress(25);
     const text = await file.text();
     const loader = new OBJLoader();
     const obj = loader.parse(text);
     
     setLoadingText("Generating GLB from OBJ model...");
+    setSafeProgress(65);
     const exporter = new GLTFExporter();
     const glbBuffer = await new Promise((resolve, reject) => {
       exporter.parse(
@@ -1025,6 +1130,7 @@ export default function ThreedEditor() {
         { binary: true, embedImages: true, animations: [] }
       );
     });
+    setSafeProgress(85);
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
@@ -1050,7 +1156,7 @@ export default function ThreedEditor() {
 
   const convertFbxToGlbBlob = async (file) => {
     setLoadingText("Parsing FBX model in browser...");
-    setLoadingProgress(30);
+    setSafeProgress(25);
     const buffer = await file.arrayBuffer();
 
     // Isolated loading manager so texture fetches do not pollute Drei useProgress
@@ -1069,7 +1175,7 @@ export default function ThreedEditor() {
     }
 
     setLoadingText("Optimizing FBX geometry and materials...");
-    setLoadingProgress(60);
+    setSafeProgress(55);
 
     // Helper to safely validate texture images before GLTFExporter processes them
     const isValidTexture = (tex) => {
@@ -1139,7 +1245,7 @@ export default function ThreedEditor() {
     });
 
     setLoadingText("Generating GLB from FBX model...");
-    setLoadingProgress(75);
+    setSafeProgress(75);
 
     const fbxAnimations = (fbx.animations || []).filter(a => a && Array.isArray(a.tracks) && a.tracks.length > 0);
     const exporter = new GLTFExporter();
@@ -1184,12 +1290,13 @@ export default function ThreedEditor() {
     }
 
     setLoadingText("FBX converted to GLB successfully!");
-    setLoadingProgress(90);
+    setSafeProgress(88);
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
   const convertStlToGlbBlob = async (file) => {
     setLoadingText("Parsing STL model in browser...");
+    setSafeProgress(25);
     const buffer = await file.arrayBuffer();
     const loader = new STLLoader();
     const geom = loader.parse(buffer);
@@ -1197,6 +1304,7 @@ export default function ThreedEditor() {
     const mesh = new THREE.Mesh(geom, mat);
     
     setLoadingText("Generating GLB from STL model...");
+    setSafeProgress(65);
     const exporter = new GLTFExporter();
     const glbBuffer = await new Promise((resolve, reject) => {
       exporter.parse(
@@ -1206,11 +1314,13 @@ export default function ThreedEditor() {
         { binary: true, animations: [] }
       );
     });
+    setSafeProgress(85);
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
   const convertLwoToGlbBlob = async (file) => {
     setLoadingText("Parsing LWO model in browser...");
+    setSafeProgress(25);
     const buffer = await file.arrayBuffer();
     const loader = new LWOLoader();
     const lwoData = loader.parse(buffer, '', file.name.split('.')[0]);
@@ -1221,6 +1331,7 @@ export default function ThreedEditor() {
     group.updateMatrixWorld(true);
 
     setLoadingText("Generating GLB from LWO model...");
+    setSafeProgress(65);
     const exporter = new GLTFExporter();
     const glbBuffer = await new Promise((resolve, reject) => {
       exporter.parse(
@@ -1230,17 +1341,20 @@ export default function ThreedEditor() {
         { binary: true, animations: [] }
       );
     });
+    setSafeProgress(85);
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
   const convert3dsToGlbBlob = async (file) => {
     setLoadingText("Parsing 3DS model in browser...");
+    setSafeProgress(25);
     const buffer = await file.arrayBuffer();
     const loader = new TDSLoader();
     const group = loader.parse(buffer, '');
     group.updateMatrixWorld(true);
 
     setLoadingText("Generating GLB from 3DS model...");
+    setSafeProgress(65);
     const exporter = new GLTFExporter();
     const glbBuffer = await new Promise((resolve, reject) => {
       exporter.parse(
@@ -1250,6 +1364,7 @@ export default function ThreedEditor() {
         { binary: true, animations: [] }
       );
     });
+    setSafeProgress(85);
     return new Blob([glbBuffer], { type: 'model/gltf-binary' });
   };
 
@@ -1276,9 +1391,9 @@ export default function ThreedEditor() {
         const end = Math.min(start + CHUNK_SIZE, fileSize);
         const chunk = file.slice(start, end);
 
-        const percent = Math.round(((chunkIndex + 1) / totalChunks) * 100);
-        setLoadingText(`Uploading heavy ${ext.toUpperCase()} (${percent}% - chunk ${chunkIndex + 1}/${totalChunks})...`);
-        setLoadingProgress(Math.min(75, Math.round(percent * 0.7)));
+        const uploadPct = Math.round(12 + ((chunkIndex + 1) / totalChunks) * 33);
+        setLoadingText(`Uploading heavy ${ext.toUpperCase()} (chunk ${chunkIndex + 1}/${totalChunks})...`);
+        setSafeProgress(uploadPct);
 
         const chunkFormData = new FormData();
         chunkFormData.append('uploadId', uploadId);
@@ -1297,6 +1412,7 @@ export default function ThreedEditor() {
             maxBodyLength: Infinity
           });
         } catch (chunkErr) {
+          stopConversionTicker();
           const errMsg = chunkErr.response?.data?.message || chunkErr.message;
           const customErr = new Error(errMsg);
           customErr.response = chunkErr.response;
@@ -1304,10 +1420,13 @@ export default function ThreedEditor() {
         }
       }
 
-      setLoadingText(`Converting heavy ${ext.toUpperCase()} to GLB with ${engineName}...`);
-      setLoadingProgress(80);
+      startConversionTicker(ext, engineName);
 
       if (lastRes && lastRes.data && lastRes.data.url) {
+        stopConversionTicker();
+        setLoadingText(`Importing converted ${ext.toUpperCase()} model...`);
+        setSafeProgress(78);
+
         const rawUrl = lastRes.data.url;
         const finalUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
           ? rawUrl
@@ -1324,13 +1443,14 @@ export default function ThreedEditor() {
     }
 
     // Standard files (<= 15MB): Single upload with fast direct URL response
-    setLoadingText(`Converting ${ext.toUpperCase()} model to GLB with ${engineName}...`);
-    setLoadingProgress(25);
+    setLoadingText(`Uploading ${ext.toUpperCase()} model...`);
+    setSafeProgress(12);
     const formData = new FormData();
     formData.append('model', file);
     formData.append('emailId', emailId);
 
     try {
+      let uploadDone = false;
       const response = await axios.post(`${backendUrl}/api/3d-models/convert-model`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 1200000, // 20 minutes extended timeout for heavy conversions
@@ -1338,15 +1458,23 @@ export default function ThreedEditor() {
         maxBodyLength: Infinity,
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
-            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setLoadingText(`Uploading ${ext.toUpperCase()} (${percent}%)...`);
-            setLoadingProgress(Math.min(75, Math.max(15, Math.round(percent * 0.7))));
+            const ratio = Math.min(1, progressEvent.loaded / progressEvent.total);
+            const uploadProgress = Math.round(12 + ratio * 33);
+            setSafeProgress(uploadProgress);
+
+            if (ratio < 1) {
+              setLoadingText(`Uploading ${ext.toUpperCase()} model...`);
+            } else if (!uploadDone) {
+              uploadDone = true;
+              startConversionTicker(ext, engineName);
+            }
           }
         }
       });
 
-      setLoadingText(`Loading converted ${ext.toUpperCase()} model into editor...`);
-      setLoadingProgress(90);
+      stopConversionTicker();
+      setLoadingText(`Importing converted ${ext.toUpperCase()} model...`);
+      setSafeProgress(78);
 
       if (response.data && response.data.url) {
         const rawUrl = response.data.url;
@@ -1365,6 +1493,7 @@ export default function ThreedEditor() {
 
       throw new Error("Conversion succeeded but no model URL was returned.");
     } catch (err) {
+      stopConversionTicker();
       let message = err.message;
       if (err.response?.data?.message) {
         message = err.response.data.message;
@@ -1438,7 +1567,7 @@ export default function ThreedEditor() {
     if (ext === 'fbx') {
       try {
         setLoadingText("Converting FBX model to GLB with Assimp...");
-        setLoadingProgress(20);
+        setSafeProgress(20);
         return await convertModelViaBackend(file, ext, baseName);
       } catch (backendErr) {
         console.warn("Backend Assimp FBX conversion notice, inspecting fallback:", backendErr.message);
@@ -1551,16 +1680,19 @@ export default function ThreedEditor() {
           }
 
           setIsSidebarCollapsed(false);
+          startMountingBridgeTicker(loadingProgressRef.current);
           // Loader remains active while Three.js loads, calculates bounding box, and positions the model on base.
           // handleModelReady() is called once the model has physically rendered on the base!
       } catch (err) {
           console.error("Error adding/converting model:", err);
-          if (loadingTimerRef.current) clearInterval(loadingTimerRef.current);
+          clearAllLoadingTimers();
           setManualLoading(false);
+          loadingProgressRef.current = 0;
           setLoadingProgress(0);
           setLoadingText("");
           setLoadingModelInfo(null);
           pendingModelIdRef.current = null;
+          isCompletingRef.current = false;
           
           const errMsg = err.response?.data?.message || err.message || "Failed to add 3D model";
           if (errMsg.includes("6100") || errMsg.includes("legacy FBX") || errMsg.includes("FileVersion")) {
@@ -1939,11 +2071,26 @@ export default function ThreedEditor() {
       models.forEach(model => {
           const rawList = modelMaterialLists[model.id] || [];
           if (Array.isArray(rawList) && rawList.length > 0) {
+              const matNames = new Set();
+              const findMats = (node) => {
+                  if (!node) return;
+                  if (typeof node === 'string') { matNames.add(node); return; }
+                  if (typeof node.material === 'string') matNames.add(node.material);
+                  if (Array.isArray(node.materials)) {
+                      node.materials.forEach(m => {
+                          if (typeof m === 'string') matNames.add(m);
+                          else if (m && typeof m.name === 'string') matNames.add(m.name);
+                      });
+                  }
+                  if (Array.isArray(node.children)) node.children.forEach(findMats);
+              };
+              rawList.forEach(findMats);
+
               result.push({
                   id: model.id,
                   group: model.name,
                   tree: rawList,
-                  materials: rawList
+                  materials: Array.from(matNames)
               });
           }
       });
@@ -2213,17 +2360,23 @@ export default function ThreedEditor() {
       let nextMaterialLists = modelMaterialLists;
       if (model) {
           const prevList = modelMaterialLists[model.id] || [];
-          const nextList = prevList.map(item => {
+          const renameNode = (item) => {
               if (typeof item === 'string') {
                   return item === oldName ? newName : item;
-              } else if (item.materials) {
-                   return {
-                       ...item,
-                       materials: item.materials.map(m => m === oldName ? newName : m)
-                   };
               }
-              return item;
-          });
+              if (!item || typeof item !== 'object') return item;
+              const updated = { ...item };
+              if (updated.name === oldName) updated.name = newName;
+              if (updated.material === oldName) updated.material = newName;
+              if (Array.isArray(updated.materials)) {
+                  updated.materials = updated.materials.map(m => m === oldName ? newName : m);
+              }
+              if (Array.isArray(updated.children)) {
+                  updated.children = updated.children.map(renameNode);
+              }
+              return updated;
+          };
+          const nextList = prevList.map(renameNode);
           nextMaterialLists = { ...modelMaterialLists, [model.id]: nextList };
           setModelMaterialLists(nextMaterialLists);
           
@@ -2477,15 +2630,18 @@ export default function ThreedEditor() {
         });
 
         setIsSidebarCollapsed(false); 
+        startMountingBridgeTicker(loadingProgressRef.current);
         // NOTE: Loader remains active while Three.js mounts and GenericModel base positioning calls handleModelReady!
     } catch (err) {
         console.error("Error processing/converting 3D model:", err);
-        if (loadingTimerRef.current) clearInterval(loadingTimerRef.current);
+        clearAllLoadingTimers();
         setManualLoading(false);
+        loadingProgressRef.current = 0;
         setLoadingProgress(0);
         setLoadingText("");
         setLoadingModelInfo(null);
         pendingModelIdRef.current = null;
+        isCompletingRef.current = false;
         
         const errMsg = err.response?.data?.message || err.message || "Failed to process 3D model";
         if (errMsg.includes("6100") || errMsg.includes("legacy FBX") || errMsg.includes("FileVersion")) {
@@ -2567,6 +2723,7 @@ export default function ThreedEditor() {
     });
 
     setIsSidebarCollapsed(false);
+    startMountingBridgeTicker(loadingProgressRef.current);
     
     // Update URL to the new model ID
     if (model.modelId) {
@@ -2607,11 +2764,9 @@ export default function ThreedEditor() {
          if (m.url) URL.revokeObjectURL(m.url);
     });
 
-    if (loadingTimerRef.current) {
-        clearInterval(loadingTimerRef.current);
-        loadingTimerRef.current = null;
-    }
+    clearAllLoadingTimers();
     setManualLoading(false);
+    loadingProgressRef.current = 0;
     setLoadingProgress(0);
     setLoadingText("");
     setLoadingModelInfo(null);
@@ -2835,7 +2990,7 @@ export default function ThreedEditor() {
   const [settings, setSettings] = useState({
     backgroundColor: "#393939", // Blender default dark grey
     baseColor: "#2c2c2c",
-    base: true, // Blender doesn't have a solid floor plane by default
+    base: false,
     grid: true,
     wireframe: false,
   });
@@ -2930,17 +3085,24 @@ export default function ThreedEditor() {
       const getNames = (s) => {
           if (!s) return [];
           if (typeof s === 'string') return [s];
-          if (Array.isArray(s.materials)) return s.materials;
-          if (s.name) return [s.name];
+          if (Array.isArray(s.materials)) {
+              return s.materials.map(m => typeof m === 'string' ? m : (m?.name || m?.material || '')).filter(Boolean);
+          }
+          if (typeof s === 'object' && s.name) {
+              return [typeof s.name === 'string' ? s.name : (s.name?.name || '')].filter(Boolean);
+          }
           return [];
       };
 
-      // Ensure we have an object for the new selection
+      // Ensure we have an object for the new selection with clean string name
       const target = typeof val === 'object' ? { ...val } : { name: val };
+      if (target.name && typeof target.name !== 'string') {
+          target.name = target.name.name || target.name.material || String(target.name);
+      }
       const isShift = !!target.isShift;
 
-      // Optimization: If clicking the same material and not holding shift, ignore to prevent re-renders/stutter
-      if (!isShift && selectedMaterial && !selectedMaterial.isGroup && selectedMaterial.name === target.name) {
+      // Optimization: If clicking the same mesh/material and not holding shift, ignore to prevent re-renders/stutter
+      if (!isShift && selectedMaterial && !selectedMaterial.isGroup && selectedMaterial.name === target.name && (!target.uuid || selectedMaterial.uuid === target.uuid)) {
           return;
       }
 
@@ -2975,8 +3137,7 @@ export default function ThreedEditor() {
               };
           }
           
-          
-          return { ...target, uuid: target.uuid || null, ts: Date.now() };
+          return { ...target, uuid: target.uuid || target.meshUuid || null, meshUuid: target.meshUuid || target.uuid || null, ts: Date.now() };
       });
 
       // Clear property specific maps first to prevent bleeding, then check for defaults
@@ -2989,8 +3150,12 @@ export default function ThreedEditor() {
           if (!isShift && target.name && !isModelLevelSelection && target.name !== "Scene") {
               // Find which model this material belongs to
               let defaultData = null;
+              const lookupKey = target.material || target.name;
               for (const modelId in modelMaterialDataMap) {
-                  if (modelMaterialDataMap[modelId][target.name]) {
+                  if (modelMaterialDataMap[modelId][lookupKey]) {
+                      defaultData = modelMaterialDataMap[modelId][lookupKey];
+                      break;
+                  } else if (modelMaterialDataMap[modelId][target.name]) {
                       defaultData = modelMaterialDataMap[modelId][target.name];
                       break;
                   }

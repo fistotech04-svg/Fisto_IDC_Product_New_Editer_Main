@@ -393,7 +393,10 @@ export default function Export3DModal({
                         className="w-full h-full overflow-y-auto custom-scrollbar p-[1.2vw] pr-[0.8vw]"
                     >
                         <div className="grid grid-cols-2 gap-x-[1.2vw] gap-y-[1.5vw]">
-                            {(selectedMaterial?.isGroup ? (selectedMaterial.materials || []) : [selectedMaterial?.name || "Material"]).map((name, idx) => (
+                            {(selectedMaterial?.isGroup 
+                                ? (selectedMaterial.materials || []).map(m => typeof m === 'string' ? m : (m?.name || m?.material || String(m))) 
+                                : [typeof selectedMaterial?.name === 'string' ? selectedMaterial.name : (selectedMaterial?.name?.name || "Material")]
+                            ).map((name, idx) => (
                                 <div key={idx} className="flex flex-col gap-[0.6vw]">
                                     <div 
                                         onClick={() => {
