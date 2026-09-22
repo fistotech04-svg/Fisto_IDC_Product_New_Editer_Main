@@ -412,7 +412,7 @@ const TreeItem = ({
         if (node.isMesh) {
             if (node.meshUuid && hiddenMaterials.has(node.meshUuid)) return false;
             if (node.name && hiddenMaterials.has(node.name)) return false;
-            if (node.material && hiddenMaterials.has(node.material)) return false;
+            if (!node.meshUuid && !node.name && node.material && hiddenMaterials.has(node.material)) return false;
             return true;
         }
 
@@ -422,10 +422,10 @@ const TreeItem = ({
             const check = (n) => {
                 if (!n) return;
                 if (n.isMesh) {
-                    const v = (!n.meshUuid || !hiddenMaterials.has(n.meshUuid)) &&
-                              (!n.name || !hiddenMaterials.has(n.name)) &&
-                              (!n.material || !hiddenMaterials.has(n.material));
-                    if (v) hasVisibleMesh = true;
+                    const isHidden = (n.meshUuid && hiddenMaterials.has(n.meshUuid)) ||
+                                     (n.name && hiddenMaterials.has(n.name)) ||
+                                     (!n.meshUuid && !n.name && n.material && hiddenMaterials.has(n.material));
+                    if (!isHidden) hasVisibleMesh = true;
                 }
                 if (Array.isArray(n.children)) n.children.forEach(check);
             };
@@ -762,10 +762,10 @@ export default function MaterialList({
         const checkVis = (n) => {
             if (!n) return;
             if (n.isMesh) {
-                const v = (!n.meshUuid || !hiddenMaterials?.has(n.meshUuid)) &&
-                          (!n.name || !hiddenMaterials?.has(n.name)) &&
-                          (!n.material || !hiddenMaterials?.has(n.material));
-                if (v) anyVisible = true;
+                const isHidden = (n.meshUuid && hiddenMaterials?.has(n.meshUuid)) ||
+                                 (n.name && hiddenMaterials?.has(n.name)) ||
+                                 (!n.meshUuid && !n.name && n.material && hiddenMaterials?.has(n.material));
+                if (!isHidden) anyVisible = true;
             }
             if (Array.isArray(n.children)) n.children.forEach(checkVis);
         };
@@ -779,16 +779,17 @@ export default function MaterialList({
         const targetState = !isCurrentlyVisible;
 
         if (node.isMesh) {
-            const keys = [node.name, node.material, node.meshUuid].filter(Boolean);
+            const keys = [node.meshUuid, node.name].filter(Boolean);
+            if (keys.length === 0 && node.material) keys.push(node.material);
             onToggleVisibility(keys, targetState);
         } else if (node.isGroup) {
             const meshKeys = new Set();
             const collectRecursive = (item) => {
                 if (!item) return;
                 if (item.isMesh) {
-                    if (item.name) meshKeys.add(item.name);
-                    if (item.material) meshKeys.add(item.material);
                     if (item.meshUuid) meshKeys.add(item.meshUuid);
+                    if (item.name) meshKeys.add(item.name);
+                    if (!item.meshUuid && !item.name && item.material) meshKeys.add(item.material);
                 }
                 if (Array.isArray(item.children)) item.children.forEach(collectRecursive);
             };
@@ -807,9 +808,9 @@ export default function MaterialList({
         const collectAll = (n) => {
             if (!n) return;
             if (n.isMesh) {
-                if (n.name) allKeys.add(n.name);
-                if (n.material) allKeys.add(n.material);
                 if (n.meshUuid) allKeys.add(n.meshUuid);
+                if (n.name) allKeys.add(n.name);
+                if (!n.meshUuid && !n.name && n.material) allKeys.add(n.material);
             }
             if (Array.isArray(n.children)) n.children.forEach(collectAll);
         };

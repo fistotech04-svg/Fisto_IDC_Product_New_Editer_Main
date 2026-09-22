@@ -12,8 +12,6 @@ export default function RightPanel({
     isLoading, 
     materialSettings, 
     onUpdateMaterialSetting,
-    activeTab = "pre",
-    setActiveTab,
     activeAccordion,
     setActiveAccordion,
     transformValues,
@@ -23,7 +21,9 @@ export default function RightPanel({
     onUvUnwrap,
     onMapUpload,
     selectedTextureId,
-    onSelectTexture
+    onSelectTexture,
+    savedHdrs,
+    onDeleteHdr
 }) {
   const fileRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -190,6 +190,8 @@ export default function RightPanel({
                   onMapUpload={onMapUpload}
                   selectedTextureId={selectedTextureId}
                   onSelectTexture={onSelectTexture}
+                  savedHdrs={savedHdrs}
+                  onDeleteHdr={onDeleteHdr}
               />
             </div>
           </div>

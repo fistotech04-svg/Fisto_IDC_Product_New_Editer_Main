@@ -2,7 +2,7 @@ import React, { useState, Suspense, useEffect, useCallback, useRef, useMemo } fr
 import { useParams, useNavigate } from "react-router-dom";
 import * as THREE from "three";
 import { Icon } from "@iconify/react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, useProgress, ContactShadows, TransformControls, useGLTF } from "@react-three/drei";
 import RightPanel from "./ThreedRightpanel";
 import EditorInfoBox from "./EditorInfoBox";
@@ -27,6 +27,7 @@ import initOCCT from "occt-import-js";
 import CameraModal from "./Components/CameraModal";
 import AddMaterial from "./Components/AddMaterial";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
+import { getFromDB, saveToDB } from "../../utils/dbUtils";
 import { process3DDropEvent } from "./utils/modelDropHandler";
 import { useOutletContext } from "react-router-dom";
 import axios from "axios";
@@ -45,6 +46,84 @@ if (GLTFExporter && GLTFExporter.prototype && !GLTFExporter.prototype._isSafeExp
   };
 }
 
+// Controller to ensure environment lighting rotation updates in real-time.
+// Uses a ref to avoid stale closures and always runs in useFrame so that
+// drei's <Environment> re-render cannot override the user-set rotation.
+function SceneEnvironmentController({ envRotation = 0 }) {
+  const { scene } = useThree();
+  const rotRef = useRef(0);
+
+  // Keep the ref current every render so useFrame always reads the latest value
+  rotRef.current = (envRotation || 0) * (Math.PI / 180);
+
+  // Apply immediately on mount and whenever the value changes
+  useEffect(() => {
+    if (!scene) return;
+    const rad = rotRef.current;
+    if (scene.environmentRotation) {
+      scene.environmentRotation.set(0, rad, 0);
+    } else {
+      scene.environmentRotation = new THREE.Euler(0, rad, 0);
+    }
+    if (scene.backgroundRotation) {
+      scene.backgroundRotation.set(0, rad, 0);
+    }
+  }, [scene, envRotation]);
+
+  // Enforce rotation every frame so drei re-renders cannot override it
+  useFrame(() => {
+    if (!scene) return;
+    const rad = rotRef.current;
+    if (scene.environmentRotation) {
+      if (scene.environmentRotation.y !== rad) {
+        scene.environmentRotation.set(0, rad, 0);
+      }
+    } else {
+      scene.environmentRotation = new THREE.Euler(0, rad, 0);
+    }
+    if (scene.backgroundRotation && scene.backgroundRotation.y !== rad) {
+      scene.backgroundRotation.set(0, rad, 0);
+    }
+  });
+
+  return null;
+}
+
+// DirectionalSunLight ensures shadow updates dynamically with smooth, responsive softness
+function DirectionalSunLight({ position, specular = 50, softness = 50 }) {
+  const lightRef = useRef();
+
+  // Dynamic shadow radius: scales from 1 (sharp, clean edge) to 28 (wide, soft blur)
+  const shadowSoftRadius = 1 + ((softness ?? 50) / 100) * 27;
+
+  useFrame(() => {
+    if (lightRef.current && lightRef.current.shadow) {
+      if (lightRef.current.shadow.radius !== shadowSoftRadius) {
+        lightRef.current.shadow.radius = shadowSoftRadius;
+        lightRef.current.shadow.needsUpdate = true;
+      }
+    }
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      position={position}
+      intensity={1.5 + (specular ?? 50) / 40}
+      castShadow
+      shadow-bias={-0.0001}
+      shadow-normalBias={0.02}
+      shadow-radius={shadowSoftRadius}
+      shadow-mapSize={[2048, 2048]}
+      shadow-camera-left={-8}
+      shadow-camera-right={8}
+      shadow-camera-top={8}
+      shadow-camera-bottom={-8}
+      shadow-camera-near={0.5}
+      shadow-camera-far={60}
+    />
+  );
+}
 
 export default function ThreedEditor() {
   const { modelId: urlModelId } = useParams();
@@ -410,6 +489,44 @@ export default function ThreedEditor() {
   const [selectedTextureId, setSelectedTextureId] = useState(null);
 
   const [materialSettings, setMaterialSettings] = useState(threedState.materialSettings);
+  const [savedHdrs, setSavedHdrs] = useState([]);
+
+  // Load saved custom HDRs from IndexedDB on mount
+  useEffect(() => {
+    const loadSavedHdrs = async () => {
+      try {
+        const list = await getFromDB('saved_hdrs');
+        if (Array.isArray(list) && list.length > 0) {
+          const restored = list.map(item => {
+            if (item.file instanceof Blob) {
+              const ext = (item.name || '').split('.').pop().toLowerCase();
+              const isHDREXR = ext === 'hdr' || ext === 'exr';
+              const url = URL.createObjectURL(item.file) + (isHDREXR ? `#.${ext}` : '');
+              return { ...item, url };
+            }
+            return item;
+          });
+          setSavedHdrs(restored);
+
+          const activeId = await getFromDB('active_hdr_id');
+          if (activeId) {
+            const matched = restored.find(h => h.id === activeId || h.id === `custom_${activeId}` || `custom_${h.id}` === activeId);
+            if (matched && matched.url) {
+              setMaterialSettings(prev => ({
+                ...prev,
+                environment: matched.id.startsWith('custom_') ? matched.id : `custom_${matched.id}`,
+                customEnvMap: matched.url,
+                maps: { ...(prev.maps || {}), envMap: matched.url }
+              }));
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[ThreedEditor] Error loading saved HDRs:", e);
+      }
+    };
+    loadSavedHdrs();
+  }, []);
 
   const [resetKey, setResetKey] = useState(0);
   
@@ -2097,10 +2214,30 @@ export default function ThreedEditor() {
       return result;
   }, [models, modelMaterialLists, deletedMaterials]);
 
-  const handleToggleVisibility = useCallback((matName, isVisible) => {
+  const handleToggleVisibility = useCallback((matTarget, isVisible) => {
       const next = new Set(hiddenMaterials);
-      if (isVisible) next.delete(matName);
-      else next.add(matName);
+      
+      const keysToProcess = [];
+      if (Array.isArray(matTarget)) {
+          keysToProcess.push(...matTarget);
+      } else if (matTarget && typeof matTarget === 'object') {
+          if (matTarget.meshUuid) keysToProcess.push(matTarget.meshUuid);
+          if (matTarget.uuid) keysToProcess.push(matTarget.uuid);
+          if (matTarget.name) keysToProcess.push(matTarget.name);
+          if (matTarget.material) keysToProcess.push(matTarget.material);
+      } else if (matTarget) {
+          keysToProcess.push(matTarget);
+      }
+
+      keysToProcess.forEach(k => {
+          if (!k || typeof k !== 'string') return;
+          if (isVisible) {
+              next.delete(k);
+          } else {
+              next.add(k);
+          }
+      });
+
       setHiddenMaterials(next);
 
       pushHistory({
@@ -2443,24 +2580,41 @@ export default function ThreedEditor() {
           return prev;
       }
       
-      const next = { ...prev, [key]: val };
+      // Preserve custom HDR / envMap when maps are updated
+      let effectiveVal = val;
+      if (key === 'maps') {
+          const preservedEnvMap = prev.customEnvMap || prev.maps?.envMap || null;
+          if (preservedEnvMap && val && typeof val === 'object') {
+              effectiveVal = { ...val, envMap: preservedEnvMap };
+          }
+      }
+
+      const next = { ...prev, [key]: effectiveVal };
+      if (key === 'maps' && prev.customEnvMap) {
+          next.customEnvMap = prev.customEnvMap;
+      }
       
       if (!fromSync) {
           // If a material-specific property is changed, enable the override flag
-          // so that the changes apply in "Full Model" mode.
+          // so that the changes apply in "Full Model" mode, and record the changed property.
           const materialKeys = [
               'color', 'metallic', 'roughness', 'alpha', 'emissiveIntensity', 
               'emissiveColor', 'normal', 'bump', 'scale', 'rotation', 'offset', 
-              'colorIntensity', 'reflection', 'ao', 'specular', 'softness'
+              'colorIntensity', 'ao', 'reflection', 'specular'
           ];
           if (materialKeys.includes(key)) {
               next.useFactorColor = true;
+              next.lastChangedProp = key;
           }
 
           pushHistoryThrottled({
               ...stateRef.current,
               materialSettings: next
           });
+      } else {
+          // When syncing from model to UI, ensure factor override and lastChangedProp are disabled
+          next.useFactorColor = false;
+          next.lastChangedProp = null;
       }
       
       return next;
@@ -2473,10 +2627,119 @@ export default function ThreedEditor() {
   }, [updateMaterialSetting]);
 
   const handleMaterialUIUpdate = useCallback((key, val) => {
-      updateMaterialSetting(key, val, false);
-  }, [updateMaterialSetting]);
+      if (key === 'environment') {
+          React.startTransition(() => {
+              if (val && val.startsWith('custom_')) {
+                  const matched = savedHdrs.find(h => h.id === val || `custom_${h.id}` === val);
+                  if (matched && matched.url) {
+                      setMaterialSettings(prev => {
+                          const nextMaps = { ...(prev.maps || {}), envMap: matched.url };
+                          return {
+                              ...prev,
+                              environment: val,
+                              customEnvMap: matched.url,
+                              maps: nextMaps
+                          };
+                      });
+                      saveToDB('active_hdr_id', matched.id);
+                      return;
+                  }
+              }
+              // Standard preset (studio, city, etc.)
+              updateMaterialSetting(key, val, false);
+          });
+      } else {
+          updateMaterialSetting(key, val, false);
+      }
+  }, [updateMaterialSetting, savedHdrs]);
 
-  const handleMapUpload = useCallback((mapType, file) => {
+  const handleDeleteHdr = useCallback(async (hdrId) => {
+    try {
+      const existingHdrs = (await getFromDB('saved_hdrs')) || [];
+      const updated = existingHdrs.filter(h => h.id !== hdrId && `custom_${h.id}` !== hdrId);
+      await saveToDB('saved_hdrs', updated);
+      setSavedHdrs(prev => prev.filter(h => h.id !== hdrId && `custom_${h.id}` !== hdrId));
+
+      setMaterialSettings(prev => {
+        if (prev.environment === hdrId || prev.environment === `custom_${hdrId}`) {
+          const nextMaps = { ...(prev.maps || {}) };
+          delete nextMaps.envMap;
+          saveToDB('active_hdr_id', null);
+          return {
+            ...prev,
+            environment: 'studio',
+            customEnvMap: null,
+            maps: nextMaps
+          };
+        }
+        return prev;
+      });
+    } catch (e) {
+      console.warn("[ThreedEditor] Error deleting HDR:", e);
+    }
+  }, []);
+
+  const handleMapUpload = useCallback(async (mapType, file) => {
+    if (mapType === 'envMap') {
+      if (file === null) {
+        setMaterialSettings(prev => {
+          const nextMaps = { ...(prev.maps || {}) };
+          delete nextMaps.envMap;
+          const next = { 
+            ...prev, 
+            customEnvMap: null, 
+            environment: 'studio', 
+            maps: nextMaps 
+          };
+          pushHistory({
+            ...stateRef.current,
+            materialSettings: next
+          });
+          return next;
+        });
+        saveToDB('active_hdr_id', null);
+        return;
+      }
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      const isHDREXR = ext === 'hdr' || ext === 'exr';
+      const url = URL.createObjectURL(file) + (isHDREXR ? `#.${ext}` : '');
+      const hdrId = `custom_${Date.now()}`;
+      const newHdr = {
+        id: hdrId,
+        name: file.name,
+        file: file,
+        url: url,
+        date: Date.now()
+      };
+
+      try {
+        const existingHdrs = (await getFromDB('saved_hdrs')) || [];
+        const updated = [newHdr, ...existingHdrs.filter(h => h.name !== file.name)].slice(0, 15);
+        await saveToDB('saved_hdrs', updated);
+        await saveToDB('active_hdr_id', hdrId);
+        setSavedHdrs(updated);
+      } catch (e) {
+        console.warn("[ThreedEditor] Could not save HDR to IndexedDB:", e);
+      }
+
+      setMaterialSettings(prev => {
+        const nextMaps = { ...(prev.maps || {}), envMap: url };
+        const next = { 
+          ...prev, 
+          customEnvMap: url, 
+          environment: hdrId, 
+          maps: nextMaps 
+        };
+        pushHistory({
+          ...stateRef.current,
+          materialSettings: next
+        });
+        return next;
+      });
+      return;
+    }
+
     if (file === null) {
       setMaterialSettings(prev => {
         const nextMaps = { ...(prev.maps || {}), [mapType]: null };
@@ -2492,15 +2755,13 @@ export default function ThreedEditor() {
       return;
     }
 
-    // For HDR/EXR environment files, we append the extension as a fragment (#.hdr or #.exr)
-    // This allows the Environment component to correctly identify the required loader.
     const ext = file.name.split('.').pop().toLowerCase();
     const isHDREXR = ext === 'hdr' || ext === 'exr';
     const url = URL.createObjectURL(file) + (isHDREXR ? `#.${ext}` : '');
     
     setMaterialSettings(prev => {
         const nextMaps = { ...(prev.maps || {}), [mapType]: url };
-        let next = { ...prev, maps: nextMaps };
+        let next = { ...prev, maps: nextMaps, useFactorColor: true };
         
         // Auto-set factors to 100% for maps that are multipliers (Standard Material behavior)
         if (mapType === 'map') next.color = '#ffffff';
@@ -2887,7 +3148,7 @@ export default function ThreedEditor() {
     });
   };
 
-  const handleManualTransformChange = (type, axis, value) => {
+  const handleManualTransformChange = (type, axis, value, isDragging = false) => {
     setTransformValues(prev => {
         const next = { ...prev };
         
@@ -2904,10 +3165,17 @@ export default function ThreedEditor() {
             [axis]: numVal
         };
         
-        pushHistory({
-            ...stateRef.current,
-            transformValues: next
-        });
+        if (isDragging) {
+            updateHistory({
+                ...stateRef.current,
+                transformValues: next
+            });
+        } else {
+            pushHistory({
+                ...stateRef.current,
+                transformValues: next
+            });
+        }
         
         return next;
     });
@@ -3142,7 +3410,14 @@ export default function ThreedEditor() {
 
       // Clear property specific maps first to prevent bleeding, then check for defaults
       setMaterialSettings(prev => {
-          const next = { ...prev, maps: {} };
+          const preservedEnvMap = prev.customEnvMap || prev.maps?.envMap || null;
+          const next = { 
+              ...prev, 
+              maps: preservedEnvMap ? { envMap: preservedEnvMap } : {}, 
+              customEnvMap: preservedEnvMap, 
+              useFactorColor: false, 
+              lastChangedProp: null 
+          };
           
           // If it's a single material selection, try to fetch default textures/properties from the model.
           // Skip lookup when target is a model-level selection (model name clicked in the list).
@@ -3150,18 +3425,26 @@ export default function ThreedEditor() {
           if (!isShift && target.name && !isModelLevelSelection && target.name !== "Scene") {
               // Find which model this material belongs to
               let defaultData = null;
-              const lookupKey = target.material || target.name;
+              const lookupKeys = [target.uuid, target.meshUuid, target.name, target.material].filter(Boolean);
               for (const modelId in modelMaterialDataMap) {
-                  if (modelMaterialDataMap[modelId][lookupKey]) {
-                      defaultData = modelMaterialDataMap[modelId][lookupKey];
-                      break;
-                  } else if (modelMaterialDataMap[modelId][target.name]) {
-                      defaultData = modelMaterialDataMap[modelId][target.name];
-                      break;
+                  const mData = modelMaterialDataMap[modelId];
+                  if (!mData) continue;
+                  for (const key of lookupKeys) {
+                      if (mData[key]) {
+                          defaultData = mData[key];
+                          break;
+                      }
                   }
+                  if (defaultData) break;
               }
 
               if (defaultData) {
+                  const cleanMaps = {};
+                  if (defaultData.maps && typeof defaultData.maps === 'object') {
+                      for (const [k, v] of Object.entries(defaultData.maps)) {
+                          if (v) cleanMaps[k] = v;
+                      }
+                  }
                   return {
                       ...next,
                       color: defaultData.color || next.color,
@@ -3169,7 +3452,10 @@ export default function ThreedEditor() {
                       roughness: defaultData.roughness !== undefined ? defaultData.roughness : next.roughness,
                       alpha: defaultData.opacity !== undefined ? defaultData.opacity : next.alpha,
                       scale: defaultData.scale !== undefined ? defaultData.scale : next.scale,
-                      maps: defaultData.maps || {}
+                      maps: { ...cleanMaps, ...(preservedEnvMap ? { envMap: preservedEnvMap } : {}) },
+                      customEnvMap: preservedEnvMap,
+                      useFactorColor: false,
+                      lastChangedProp: null
                   };
               }
           }
@@ -3185,7 +3471,8 @@ export default function ThreedEditor() {
   useEffect(() => {
     setMaterialSettings(prev => ({
         ...prev,
-        useFactorColor: false
+        useFactorColor: false,
+        lastChangedProp: null
     }));
     if (!selectedMaterial) {
         setTransformMode(null);
@@ -3222,7 +3509,29 @@ export default function ThreedEditor() {
       });
   }, []);
 
+  const canvasPointerDownPosRef = useRef(null);
 
+  const handleCanvasPointerDown = useCallback((e) => {
+    canvasPointerDownPosRef.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const handlePointerMissed = useCallback((e) => {
+    if (canvasPointerDownPosRef.current) {
+      const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
+      const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
+      // If dragged more than 5px, it's a camera orbit/drag, not a click to unselect
+      if (dx > 5 || dy > 5) return;
+    }
+
+    // Ignore if clicking on UI overlay controls
+    if (e.target && e.target.closest && e.target.closest('.pointer-events-auto')) {
+      return;
+    }
+
+    if (selectedMaterial) {
+      setSelectedMaterial(null);
+    }
+  }, [selectedMaterial]);
 
   return (
     <div 
@@ -3382,67 +3691,58 @@ export default function ThreedEditor() {
             </div>
           )}
 
-          {/* 3D CANVAS */}
-          <div className="flex-1 h-full w-full">
-{!isSyncing && (
-            <Canvas
-              camera={{ position: [0, 1, 5], fov: 45 }}
-              
-              dpr={[1, 2]}
-              gl={{
-                preserveDrawingBuffer: true,
-                antialias: true,
-                alpha: true,
-                logarithmicDepthBuffer: true
-              }}
-              shadows={{ type: THREE.PCFSoftShadowMap }}
-              onCreated={({ gl, camera }) => {
-                glInstanceRef.current = gl;
-                cameraInstanceRef.current = camera;
-                gl.toneMapping = THREE.ACESFilmicToneMapping;
-                gl.outputColorSpace = THREE.SRGBColorSpace;
-              }}
-            >
-              {/* Only show background color if NOT capturing for a clean model-only shot */}
-              {!isCapturing && <color attach="background" args={[settings.backgroundColor]} />}
+          {/* Dynamic sun position: only adjusts when adjusting sunlight */}
+          {(() => {
+            const rawX = materialSettings.lightPosition?.x ?? 10;
+            const rawY = materialSettings.lightPosition?.y ?? 12;
+            const rawZ = materialSettings.lightPosition?.z ?? 10;
+            const sunX = rawX;
+            const sunY = Math.max(1.5, Math.abs(rawY));
+            const sunZ = rawZ;
 
-              <ambientLight intensity={(materialSettings.shadow ?? 50) / 40} />
-              <spotLight
-                position={[
-                    materialSettings.lightPosition?.x ?? 5, 
-                    materialSettings.lightPosition?.y ?? 10, 
-                    materialSettings.lightPosition?.z ?? 5
-                ]}
-                angle={0.25}
-                penumbra={1}
-                intensity={(materialSettings.reflection ?? 50) / 20} 
-                castShadow
-                shadow-bias={-0.00005}
-                shadow-normalBias={0.04}
-                shadow-radius={(materialSettings.softness ?? 50) / 8} 
-                shadow-mapSize={[4096, 4096]}
-                shadow-camera-near={0.1}
-                shadow-camera-far={40}
-              />
-              <directionalLight
-                position={[
-                    -(materialSettings.lightPosition?.x ?? 5), 
-                    materialSettings.lightPosition?.y ?? 8, 
-                    -(materialSettings.lightPosition?.z ?? 5)
-                ]}
-                intensity={(materialSettings.reflection ?? 50) / 40}
-                castShadow
-                shadow-bias={-0.00005}
-                shadow-normalBias={0.04}
-                shadow-radius={(materialSettings.softness ?? 50) / 8}
-                shadow-mapSize={[4096, 4096]}
-                shadow-camera-left={-7}
-                shadow-camera-right={7}
-                shadow-camera-top={7}
-                shadow-camera-bottom={-7}
-                shadow-camera-near={0.1}
-                shadow-camera-far={40}
-              />
+            return (
+              <div className="flex-1 h-full w-full">
+                {!isSyncing && (
+                  <Canvas
+                    camera={{ position: [0, 1, 5], fov: 45, near: 0.05, far: 1000 }}
+                    onPointerDown={handleCanvasPointerDown}
+                    onPointerMissed={handlePointerMissed}
+                    dpr={[1, 2]}
+                    gl={{
+                      preserveDrawingBuffer: true,
+                      antialias: true,
+                      alpha: true,
+                      logarithmicDepthBuffer: true
+                    }}
+                    shadows={{ type: THREE.PCFShadowMap }}
+                    onCreated={({ gl, camera }) => {
+                      glInstanceRef.current = gl;
+                      cameraInstanceRef.current = camera;
+                      gl.shadowMap.enabled = true;
+                      gl.shadowMap.type = THREE.PCFShadowMap;
+                      gl.toneMapping = THREE.ACESFilmicToneMapping;
+                      gl.outputColorSpace = THREE.SRGBColorSpace;
+                    }}
+                  >
+                    {/* Only show background color if NOT capturing for a clean model-only shot */}
+                    {!isCapturing && <color attach="background" args={[settings.backgroundColor]} />}
+
+                    {/* Ambient: balanced with shadow slider so high shadow gives rich contrast */}
+                    <ambientLight intensity={0.4 + (100 - (materialSettings.shadow ?? 50)) / 250} />
+
+                    {/* Primary Sun Directional Light: casts realistic dynamic shadows with responsive softness */}
+                    <DirectionalSunLight
+                      position={[sunX, sunY, sunZ]}
+                      specular={materialSettings.specular}
+                      softness={materialSettings.softness}
+                    />
+
+                    {/* Secondary Fill Light: soft fill to prevent pitch-black ambient shadow without opposing shadow */}
+                    <directionalLight
+                      position={[-sunX * 0.4, Math.max(sunY * 0.6, 4), -sunZ * 0.4]}
+                      intensity={0.35}
+                      castShadow={false}
+                    />
 
               <Suspense fallback={null}>
                 <group ref={sceneWrapperRef}>
@@ -3458,7 +3758,7 @@ export default function ThreedEditor() {
                         url={model.url}
                         wireframe={settings.wireframe}
                         setModelStats={(stats) => handleSetModelStats(model.id, stats)}
-                        setMaterialList={(list) => handleSetMaterialList(model.id, list)}
+                        setMaterialList={(list, dataMap) => handleSetMaterialList(model.id, list, dataMap)}
                         selectedMaterial={selectedMaterial}
                         onSelectMaterial={handleSelectMaterial}
                         modelName={model.name}
@@ -3503,52 +3803,110 @@ export default function ThreedEditor() {
 
               </Suspense>
 
-              {/* Blender-style Grid: Hide center black lines by matching background */}
-              {settings.grid && !isCapturing && <gridHelper args={[30, 30, 0x393939, 0x222222]} position={[0, 0, 0]} />}
-
+              {/* Clean sparse grid with reduced opacity */}
               {settings.grid && !isCapturing && (
-                <group position={[0, 0, 0]}>
-                    {/* X Axis - Red */}
-                    <line>
-                        <bufferGeometry attach="geometry">
-                            <bufferAttribute
-                                attach="attributes-position"
-                                count={2}
-                                array={new Float32Array([-15, 0, 0, 15, 0, 0])}
-                                itemSize={3}
-                            />
-                        </bufferGeometry>
-                        <lineBasicMaterial attach="material" color="red" linewidth={2} />
-                    </line>
+                <gridHelper
+                  args={[30, 15, 0x555566, 0x3a3a4a]}
+                  position={[0, 0.001, 0]}
+                  renderOrder={-1}
+                >
+                  <lineBasicMaterial
+                    attach="material"
+                    transparent
+                    opacity={0.28}
+                    depthWrite={false}
+                  />
+                </gridHelper>
+              )}
 
-                    {/* Z Axis - Green */}
-                    <line>
-                        <bufferGeometry attach="geometry">
-                             <bufferAttribute
-                                attach="attributes-position"
-                                count={2}
-                                array={new Float32Array([0, 0, -15, 0, 0, 15])}
-                                itemSize={3}
-                            />
-                        </bufferGeometry>
-                        <lineBasicMaterial attach="material" color="green" linewidth={2} />
-                    </line>
+              {/* Subtle axis indicators: X = red, Z = teal */}
+              {settings.grid && !isCapturing && (
+                <group position={[0, 0.002, 0]}>
+                  {/* X Axis */}
+                  <line>
+                    <bufferGeometry attach="geometry">
+                      <bufferAttribute
+                        attach="attributes-position"
+                        count={2}
+                        array={new Float32Array([-15, 0, 0, 15, 0, 0])}
+                        itemSize={3}
+                      />
+                    </bufferGeometry>
+                    <lineBasicMaterial attach="material" color={0xee4444} transparent opacity={0.55} depthWrite={false} />
+                  </line>
+                  {/* Z Axis */}
+                  <line>
+                    <bufferGeometry attach="geometry">
+                      <bufferAttribute
+                        attach="attributes-position"
+                        count={2}
+                        array={new Float32Array([0, 0, -15, 0, 0, 15])}
+                        itemSize={3}
+                      />
+                    </bufferGeometry>
+                    <lineBasicMaterial attach="material" color={0x44bbaa} transparent opacity={0.55} depthWrite={false} />
+                  </line>
                 </group>
               )}
 
+              {/* DYNAMIC SUN SHADOW CATCHER PLANE: 
+                  When base is disabled (default / grid view), this transparent plane receives the dynamic sun shadow directly on the grid/floor.
+              */}
+              {!settings.base && !isCapturing && (
+                <mesh 
+                  rotation={[-Math.PI / 2, 0, 0]} 
+                  position={[0, 0, 0]} 
+                  receiveShadow
+                  onClick={(e) => {
+                    if (canvasPointerDownPosRef.current) {
+                      const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
+                      const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
+                      if (dx > 6 || dy > 6) return;
+                    }
+                    if (selectedMaterial) {
+                      setSelectedMaterial(null);
+                    }
+                  }}
+                >
+                  <planeGeometry args={[120, 120]} />
+                  <shadowMaterial 
+                    transparent 
+                    opacity={Math.min(1, Math.max(0, (materialSettings.shadow ?? 50) / 100))} 
+                    depthWrite={false} 
+                  />
+                </mesh>
+              )}
+
               {settings.base && !isCapturing && (
-                 <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-                    <planeGeometry args={[30, 30]} />
-                    <meshStandardMaterial color={settings.baseColor} />
+                 <mesh 
+                    rotation={[-Math.PI / 2, 0, 0]} 
+                    position={[0, -0.01, 0]} 
+                    receiveShadow
+                    onClick={(e) => {
+                      if (canvasPointerDownPosRef.current) {
+                        const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
+                        const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
+                        if (dx > 6 || dy > 6) return;
+                      }
+                      if (selectedMaterial) {
+                        setSelectedMaterial(null);
+                      }
+                    }}
+                 >
+                    <planeGeometry args={[120, 120]} />
+                    <meshStandardMaterial color={settings.baseColor} roughness={0.8} />
                  </mesh>
               )}
 
               <SmoothOrbitControls
                 ref={controlsRef}
+                sceneWrapperRef={sceneWrapperRef}
                 autoRotate={autoRotate}
                 dampingFactor={0.08}
                 momentumFriction={0.95}
                 rotateSpeed={1.0}
+                minDistance={Math.max(0.8, 1.4 * (transformValues?.scale?.x || 1))}
+                maxDistance={Math.max(30, 25 * (transformValues?.scale?.x || 1))}
                 onChange={handleControlsChange}
               />
 
@@ -3560,29 +3918,33 @@ export default function ThreedEditor() {
                   />
               )}
 
-              {models.length > 0 && (
-                  <ContactShadows
-                      position={[0, -0.005, 0]}
-                      opacity={(materialSettings.shadow ?? 50) / 100}
-                      scale={50}
-                      blur={2.5}
-                      far={5}
-                      resolution={1024}
-                      color="#000000"
-                  />
-              )}
 
-               <Environment
-                   files={materialSettings?.maps?.envMap || null}
-                   preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'studio')}
-                   background={false}
-                   blur={0.5}
-                   environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
-                   rotation={[0, (materialSettings?.envRotation || 0) * (Math.PI / 180), 0]}
-               />
+
+              <Suspense fallback={null}>
+                  <Environment
+                      files={
+                          (materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
+                              ? (materialSettings?.customEnvMap || materialSettings?.maps?.envMap || null)
+                              : null
+                      }
+                      preset={
+                          (materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
+                              ? null
+                              : (materialSettings?.environment || 'studio')
+                      }
+                      background={false}
+                      blur={0.5}
+                      environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
+                  />
+                  {/* SceneEnvironmentController enforces the rotation every frame,
+                      overriding whatever drei's Environment sets on scene.environmentRotation */}
+                  <SceneEnvironmentController envRotation={materialSettings?.envRotation || 0} />
+              </Suspense>
             </Canvas>
             )}
           </div>
+        );
+      })()}
         </div>
 
         {/* RIGHT SETTINGS PANEL */}
@@ -3603,6 +3965,7 @@ export default function ThreedEditor() {
               onResetTransform={handleResetTransform}
               onResetFactorSettings={() => {
                   setMaterialSettings(prev => {
+                      const preservedEnvMap = prev.customEnvMap || prev.maps?.envMap || null;
                       const next = {
                           ...prev,
                            alpha: 100,
@@ -3618,7 +3981,8 @@ export default function ThreedEditor() {
                            colorIntensity: 100,
                            emissiveColor: '#000000',
                            emissiveIntensity: 0,
-                           maps: { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null, alphaMap: null },
+                           maps: { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null, alphaMap: null, ...(preservedEnvMap ? { envMap: preservedEnvMap } : {}) },
+                           customEnvMap: preservedEnvMap,
                            appliedTexture: null
                        };
                       pushHistory({ ...stateRef.current, materialSettings: next });
@@ -3630,6 +3994,8 @@ export default function ThreedEditor() {
               onMapUpload={handleMapUpload}
               selectedTextureId={selectedTextureId}
               onSelectTexture={handleSelectTexture}
+              savedHdrs={savedHdrs}
+              onDeleteHdr={handleDeleteHdr}
             />
         </div>
       </div>
