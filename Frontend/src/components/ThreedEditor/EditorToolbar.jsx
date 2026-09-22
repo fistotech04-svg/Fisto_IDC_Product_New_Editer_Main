@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
-import ColorPicker from "./ColorPicker";
 
 export default function EditorToolbar({ 
     hasModel, 
@@ -27,44 +25,21 @@ export default function EditorToolbar({
             setTransformMode(mode);
         }
     };
-    const [activeColorPicker, setActiveColorPicker] = useState(null); // 'bg' | 'base' | null
-    const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
     const settingsRef = useRef(null);
 
     // Close settings when clicking outside
     useEffect(() => {
         function handleClickOutside(event) {
-            // If clicking inside the color picker, don't close
-            if (activeColorPicker && event.target.closest(".color-picker-popover")) return;
-
             if (settingsRef.current && !settingsRef.current.contains(event.target)) {
-                // Only close if we are not interacting with the active color picker
                 setShowSettings(false);
-                setActiveColorPicker(null);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [activeColorPicker]);
+    }, []);
 
     const updateSetting = (key, value) => {
         setSettings((prev) => ({ ...prev, [key]: value }));
-    };
-
-    const handleBasePickerToggle = (e) => {
-        e.stopPropagation();
-        if (activeColorPicker === 'base') {
-            setActiveColorPicker(null);
-        } else {
-            if (settingsRef.current) {
-                const rect = settingsRef.current.getBoundingClientRect();
-                setPickerPos({
-                    top: rect.top,
-                    left: rect.right + 12
-                });
-            }
-            setActiveColorPicker('base');
-        }
     };
 
     return (
@@ -83,7 +58,7 @@ export default function EditorToolbar({
                              <span className="font-semibold text-gray-800 text-[0.85vw]">Settings</span>
                         </div>
                         <button 
-                            onClick={() => { setShowSettings(false); setActiveColorPicker(null); }}
+                            onClick={() => setShowSettings(false)}
                            className="p-[0.35vw] rounded-[0.4vw] cursor-pointer text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all"
                         >
                              <Icon icon="heroicons:x-mark" width="1vw" />   
@@ -92,34 +67,6 @@ export default function EditorToolbar({
 
                     {/* Toggles */}
                     <div className="space-y-[1vw] pt-[0.5vw]">
-                        <div>
-                            <ToggleRow 
-                                label="Base" 
-                                isActive={settings?.base} 
-                                onToggle={() => updateSetting("base", !settings?.base)} 
-                            />
-                            {settings?.base && (
-                                <div className="mt-[0.75vw] flex items-center gap-[0.5vw] pl-[0.125vw] relative">
-                                    <div 
-                                        className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 shadow-sm cursor-pointer hover:border-gray-300 transition-colors"
-                                        style={{ backgroundColor: settings.baseColor || '#000000' }}
-                                        onClick={handleBasePickerToggle}
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                    ></div>
-                                    
-                                    <div 
-                                        className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] bg-white hover:border-gray-300 transition-colors shadow-sm cursor-pointer"
-                                        onClick={handleBasePickerToggle}
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                    >
-                                        <span className="text-[0.6vw] text-gray-600 font-medium tracking-wide font-mono uppercase">{settings.baseColor || '#000000'}</span>
-                                        <span className="text-[0.6vw] text-gray-400 font-medium">100%</span>
-                                    </div>
-
-                                </div>
-                            )}
-                        </div>
-                        
                         <ToggleRow 
                             label="Grid lines" 
                             isActive={settings?.grid} 
@@ -146,21 +93,7 @@ export default function EditorToolbar({
                         </button>
                     </div>
 
-                    {/* Color Picker Sidebar */}
-                    {activeColorPicker === 'base' && createPortal(
-                        <div 
-                            className="fixed z-[9999] color-picker-popover"
-                            style={{ top: pickerPos.top, left: pickerPos.left }}
-                        >
-                            <ColorPicker 
-                                color={settings.baseColor || '#2c2c2c'}
-                                onChange={(c) => updateSetting('baseColor', c)}
-                                onClose={() => setActiveColorPicker(null)}
-                                className="block"
-                            />
-                        </div>,
-                        document.body
-                    )}
+
                 </div>
             )}
 

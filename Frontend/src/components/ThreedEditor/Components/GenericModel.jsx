@@ -275,6 +275,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       renameMaterial: (oldName, newName) => {
           if (!scene || !oldName || !newName) return;
           scene.traverse((child) => {
+              if (child.name === oldName) {
+                  child.name = newName;
+              }
               if (child.isMesh && child.material) {
                   const mats = Array.isArray(child.material) ? child.material : [child.material];
                   mats.forEach(m => {
@@ -1205,6 +1208,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     meshIndexRef.current.forEach(meshes => {
         meshes.forEach(child => {
             if (child.isMesh && child.material) {
+                // If a single mesh is selected, only flash that specific mesh
+                if (selectedMaterial && (selectedMaterial.uuid || selectedMaterial.meshUuid || selectedMaterial.isMesh)) {
+                    const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid;
+                    if (targetUuid) {
+                        if (child.uuid !== targetUuid) return;
+                    } else {
+                        const targetName = selectedMaterial.meshName || selectedMaterial.name;
+                        if (!targetName || child.name !== targetName) return;
+                    }
+                }
+
                 if (Array.isArray(child.material)) {
                     child.material.forEach(processHighlight);
                 } else {
@@ -1633,11 +1647,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         if (child.isMesh && child.material) {
             let isHidden = false;
             if (hiddenMaterials) {
-                if (Array.isArray(child.material)) {
-                    isHidden = child.material.some(m => hiddenMaterials.has(m.name));
-                } else {
-                    isHidden = hiddenMaterials.has(child.material.name);
-                }
+                const childMatNames = Array.isArray(child.material) 
+                    ? child.material.map(m => m?.name).filter(Boolean)
+                    : [child.material?.name].filter(Boolean);
+
+                isHidden = hiddenMaterials.has(child.name) || 
+                           hiddenMaterials.has(child.uuid) || 
+                           childMatNames.some(mName => hiddenMaterials.has(mName));
             }
             child.visible = !isHidden;
         }
@@ -2142,7 +2158,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     return;
                 }
 
-                if (mesh && mesh.isMesh && mesh.material) {
+                if (mesh && mesh.isMesh) {
                     let mat = mesh.material;
                     if (Array.isArray(mat)) {
                         if (e.face && e.face.materialIndex !== undefined) {
@@ -2151,11 +2167,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             mat = mat[0];
                         }
                     }
-                    if (mat && mat.name && typeof onSelectMaterial === 'function') {
+                    const matName = (mat && mat.name) ? mat.name : (mesh.name || "Material");
+                    const meshName = mesh.name || matName;
+                    if (typeof onSelectMaterial === 'function') {
                         onSelectMaterial({ 
-                            name: mat.name, 
+                            name: meshName, 
+                            material: matName,
                             uuid: mesh.uuid, 
+                            meshUuid: mesh.uuid,
+                            meshName: mesh.name || meshName,
                             parentGroup: modelName,
+                            isMesh: true,
                             isShift: e.shiftKey 
                         });
                     }

@@ -1,13 +1,59 @@
 import fs from "fs";
 import path from "path";
+import { createRequire } from "module";
 import { fileURLToPath } from "url";
-import opencascade from "opencascade.js/dist/opencascade.wasm.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
 
 let occInstance = null;
 let occInitPromise = null;
+let opencascadeFactory = null;
+
+/**
+ * Dynamically loads the OpenCASCADE WebAssembly factory function in Node.js.
+ * 
+ * opencascade.js (v1.1.x) ships with an Emscripten-compiled bundle containing `export default opencascade;`,
+ * but its package.json does not declare `"type": "module"`. In Node.js ESM mode, importing it directly
+ * causes Node's CommonJS loader to fail with:
+ *   "SyntaxError: Unexpected token 'export'"
+ * 
+ * Loading and transforming the factory function at runtime avoids modifying node_modules
+ * and correctly provides CommonJS globals (require, __dirname, __filename) needed by Emscripten in Node.
+ */
+const loadOpenCascadeFactory = () => {
+  if (opencascadeFactory) return opencascadeFactory;
+
+  const wasmJsPath = require.resolve("opencascade.js/dist/opencascade.wasm.js");
+  if (!fs.existsSync(wasmJsPath)) {
+    throw new Error(`OpenCASCADE JS runtime not found at ${wasmJsPath}`);
+  }
+
+  let code = fs.readFileSync(wasmJsPath, "utf8");
+  // Replace the ESM export statement with module.exports assignment for Node execution
+  code = code.replace(/export\s+default\s+opencascade\s*;?/g, "module.exports = opencascade;");
+
+  const scriptDir = path.dirname(wasmJsPath);
+  const moduleObj = { exports: {} };
+  const wrapper = new Function(
+    "module",
+    "exports",
+    "require",
+    "__dirname",
+    "__filename",
+    code
+  );
+
+  wrapper(moduleObj, moduleObj.exports, require, scriptDir, wasmJsPath);
+
+  if (typeof moduleObj.exports !== "function") {
+    throw new Error("Failed to initialize OpenCASCADE: factory export is not a function.");
+  }
+
+  opencascadeFactory = moduleObj.exports;
+  return opencascadeFactory;
+};
 
 /**
  * Supported CAD formats for OpenCASCADE conversion
@@ -136,7 +182,14 @@ export const getOpenCascade = async () => {
   if (occInitPromise) return occInitPromise;
 
   occInitPromise = (async () => {
-    const wasmPath = path.resolve(__dirname, "../node_modules/opencascade.js/dist/opencascade.wasm.wasm");
+    const opencascade = loadOpenCascadeFactory();
+    let wasmPath;
+    try {
+      wasmPath = require.resolve("opencascade.js/dist/opencascade.wasm.wasm");
+    } catch {
+      const wasmJsPath = require.resolve("opencascade.js/dist/opencascade.wasm.js");
+      wasmPath = path.join(path.dirname(wasmJsPath), "opencascade.wasm.wasm");
+    }
     let wasmBinary = null;
     if (fs.existsSync(wasmPath)) {
       wasmBinary = fs.readFileSync(wasmPath);
