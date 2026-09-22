@@ -1,18 +1,21 @@
 import React, { useRef, useEffect } from "react";
+import * as THREE from "three";
 import { useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 
 /**
  * SmoothOrbitControls
- * Provides ultra-smooth 60-120fps camera rotation with natural inertial coasting / momentum.
- * When the user drags and releases the mouse, the scene glides smoothly with momentum
- * and eases to a graceful stop instead of abruptly freezing.
+ * Provides ultra-smooth 60-120fps camera rotation with natural inertial coasting / momentum,
+ * and intelligent boundary protection to prevent zooming inside the 3D model.
  */
 const SmoothOrbitControls = React.forwardRef(({
   autoRotate = false,
   dampingFactor = 0.08,
   momentumFriction = 0.95,
   rotateSpeed = 1.0,
+  minDistance = 1.4,
+  maxDistance = 25,
+  sceneWrapperRef,
   onChange,
   onStart,
   onEnd,
@@ -30,6 +33,10 @@ const SmoothOrbitControls = React.forwardRef(({
   const velocityRef = useRef({ x: 0, y: 0 });
   const lastPointerRef = useRef({ x: 0, y: 0, time: 0 });
   const recentDeltasRef = useRef([]);
+
+  // Bounding box tracking for model penetration protection
+  const cachedBoxRef = useRef(new THREE.Box3());
+  const lastBoxCheckRef = useRef(0);
 
   // 1. Pointer Event Handlers for Velocity Tracking
   useEffect(() => {
@@ -125,8 +132,82 @@ const SmoothOrbitControls = React.forwardRef(({
     };
   }, [domElement, rotateSpeed]);
 
-  // 2. Momentum Coasting Animation in useFrame
+  // 2. Dynamic Boundary Protection & Momentum Coasting Animation in useFrame
   useFrame((state, delta) => {
+    const ctrl = controlsRef.current;
+
+    // 1. Dynamic Boundary Protection to prevent camera from zooming inside the model
+    if (ctrl && ctrl.target) {
+      const now = performance.now();
+      if (now - lastBoxCheckRef.current > 120) {
+        lastBoxCheckRef.current = now;
+        if (sceneWrapperRef?.current && sceneWrapperRef.current.children.length > 0) {
+          cachedBoxRef.current.setFromObject(sceneWrapperRef.current);
+        }
+      }
+
+      const box = cachedBoxRef.current;
+      if (box && !box.isEmpty()) {
+        const camera = state.camera;
+        const target = ctrl.target;
+
+        const dx = camera.position.x - target.x;
+        const dy = camera.position.y - target.y;
+        const dz = camera.position.z - target.z;
+        const curDist = Math.hypot(dx, dy, dz);
+
+        if (curDist > 0.0001) {
+          const dirX = dx / curDist;
+          const dirY = dy / curDist;
+          const dirZ = dz / curDist;
+
+          // Check if target is inside or near the model box
+          const distToBox = box.distanceToPoint(target);
+          if (distToBox < 0.8) {
+            // Target is focused on or near the model
+            const clampedX = Math.max(box.min.x, Math.min(box.max.x, target.x));
+            const clampedY = Math.max(box.min.y, Math.min(box.max.y, target.y));
+            const clampedZ = Math.max(box.min.z, Math.min(box.max.z, target.z));
+
+            let tx = Infinity;
+            let ty = Infinity;
+            let tz = Infinity;
+
+            if (dirX > 0.00001) tx = (box.max.x - clampedX) / dirX;
+            else if (dirX < -0.00001) tx = (box.min.x - clampedX) / dirX;
+
+            if (dirY > 0.00001) ty = (box.max.y - clampedY) / dirY;
+            else if (dirY < -0.00001) ty = (box.min.y - clampedY) / dirY;
+
+            if (dirZ > 0.00001) tz = (box.max.z - clampedZ) / dirZ;
+            else if (dirZ < -0.00001) tz = (box.min.z - clampedZ) / dirZ;
+
+            const tExit = Math.min(tx, ty, tz);
+            const margin = 0.35;
+            const dynamicMin = (Number.isFinite(tExit) && tExit > 0)
+              ? (tExit + margin)
+              : Math.max(minDistance, 1.2);
+
+            ctrl.minDistance = Math.max(minDistance, dynamicMin);
+
+            // Hard barrier: prevent camera from ever being closer than safe minDistance
+            if (curDist < ctrl.minDistance) {
+              const pushFactor = ctrl.minDistance / curDist;
+              camera.position.x = target.x + dx * pushFactor;
+              camera.position.y = target.y + dy * pushFactor;
+              camera.position.z = target.z + dz * pushFactor;
+            }
+          } else {
+            // User panned far away from the model
+            ctrl.minDistance = minDistance;
+          }
+        }
+      } else {
+        ctrl.minDistance = minDistance;
+      }
+    }
+
+    // 2. Momentum Coasting
     // If autoRotate is on or user is currently dragging, don't coast
     if (autoRotate || isInteractingRef.current) {
       isCoastingRef.current = false;
@@ -134,8 +215,6 @@ const SmoothOrbitControls = React.forwardRef(({
     }
 
     if (!isCoastingRef.current) return;
-
-    const ctrl = controlsRef.current;
     if (!ctrl || typeof ctrl.getAzimuthalAngle !== "function") return;
 
     // Frame step in milliseconds (clamped to prevent jumps on tab focus)
@@ -174,6 +253,8 @@ const SmoothOrbitControls = React.forwardRef(({
       enableDamping={true}
       dampingFactor={dampingFactor}
       rotateSpeed={rotateSpeed}
+      minDistance={minDistance}
+      maxDistance={maxDistance}
       onChange={onChange}
       onStart={onStart}
       onEnd={onEnd}

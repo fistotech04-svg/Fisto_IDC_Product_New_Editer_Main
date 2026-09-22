@@ -4,7 +4,7 @@ export default function EditorInfoBox({ stats }) {
   const displayStats = [
     { label: "Vertex Count", value: stats?.vertexCount || "0" },
     { label: "Polygon Count", value: stats?.polygonCount || "0" },
-    { label: "Material Count", value: stats?.materialCount || "0" },
+    { label: "Mesh Count", value: stats?.materialCount || "0" },
     { label: "File Size", value: stats?.fileSize || "0 MB" },
     { label: "Dimensions", value: stats?.dimensions || "0 X 0 X 0 cm" },
   ];
