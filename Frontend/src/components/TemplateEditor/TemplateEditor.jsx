@@ -3679,6 +3679,29 @@ const TemplateEditor = () => {
               element.innerHTML = val;
             } else {
               element.setAttribute(attr, val);
+              if ((attr === 'fill' || attr === 'stroke' || attr === 'stroke-width' || attr === 'stroke-dasharray') && element.getAttribute('data-type') === 'icon') {
+                const children = element.querySelectorAll('*');
+                children.forEach(c => {
+                  const tag = c.tagName.toLowerCase();
+                  if (['path', 'rect', 'circle', 'polygon', 'ellipse', 'line', 'polyline'].includes(tag)) {
+                    if (tag === 'rect' && !c.hasAttribute('fill')) {
+                      c.setAttribute('fill', 'none');
+                    }
+                    if (attr === 'fill' && c.hasAttribute('fill') && c.getAttribute('fill') !== 'none') {
+                      c.setAttribute('fill', val);
+                    }
+                    if (attr === 'stroke' && c.hasAttribute('stroke') && c.getAttribute('stroke') !== 'none') {
+                      c.setAttribute('stroke', val);
+                    }
+                    if (attr === 'stroke-width' && c.hasAttribute('stroke') && c.getAttribute('stroke') !== 'none') {
+                      c.setAttribute('stroke-width', val);
+                    }
+                    if (attr === 'stroke-dasharray' && c.hasAttribute('stroke') && c.getAttribute('stroke') !== 'none') {
+                      c.setAttribute('stroke-dasharray', val);
+                    }
+                  }
+                });
+              }
             }
             if (attr === 'stroke-width' && val !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
               element.setAttribute('stroke', '#000000');
@@ -3810,9 +3833,11 @@ const TemplateEditor = () => {
             const children = element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon');
             children.forEach(child => {
               updates.forEach(([attr]) => {
-                if (attr === 'fill' || attr === 'stroke' || attr === 'stroke-width' || attr === 'stroke-dasharray' || attr === 'opacity') {
-                  child.removeAttribute(attr);
-                  if (child.style) child.style.removeProperty(attr);
+                if (element.getAttribute('data-type') !== 'icon') {
+                  if (attr === 'fill' || attr === 'stroke' || attr === 'stroke-width' || attr === 'stroke-dasharray' || attr === 'opacity') {
+                    child.removeAttribute(attr);
+                    if (child.style) child.style.removeProperty(attr);
+                  }
                 }
               });
               if (typeof attribute === 'object' && attribute !== null ? Object.keys(attribute).some(a => a.includes('-stops') || a.includes('-gradient-type') || a.includes('-type')) : (attribute.includes('-stops') || attribute.includes('-gradient-type') || attribute.includes('-type'))) {
@@ -3889,6 +3914,12 @@ const TemplateEditor = () => {
             }
             layersList.splice(i, 1);
             if (element) element.remove();
+
+            // Clean up any associated slideshow key from localStorage
+            try {
+              const effectiveVId = flipbookVId || 'local';
+              localStorage.removeItem(`slideshow_${effectiveVId}_${layerId}`);
+            } catch (e) { }
           } else if (layersList[i].children) {
             deleteFromLayers(layersList[i].children);
           }

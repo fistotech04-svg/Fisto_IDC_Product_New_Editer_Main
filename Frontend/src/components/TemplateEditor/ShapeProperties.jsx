@@ -150,6 +150,7 @@ const ShapeProperties = ({
     strokeRadius: parseFloat(selectedElementProps['stroke-radius'] || 100),
     strokeWeight: parseFloat(selectedElementProps['stroke-width'] || 0),
     strokeDashStyle: (selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'Dashed' : 'Solid',
+    strokeDasharrayValue: selectedElementProps.strokeDasharray,
     strokeDashLength: parseInt((selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[0]) || 10,
     strokeDashGap: parseInt(((selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[1] || (selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[0])) || 10,
     strokeLinecap: selectedElementProps['stroke-linecap'] || 'butt',
@@ -175,11 +176,11 @@ const ShapeProperties = ({
       updates['strokeWidth'] = next.strokeWeight.toString();
       updates['data-stroke-width'] = next.strokeWeight.toString();
     }
-    if (backgroundColor.strokeDashStyle !== next.strokeDashStyle || backgroundColor.strokeDashLength !== next.strokeDashLength || backgroundColor.strokeDashGap !== next.strokeDashGap) {
+    if (backgroundColor.strokeDashStyle !== next.strokeDashStyle || backgroundColor.strokeDashLength !== next.strokeDashLength || backgroundColor.strokeDashGap !== next.strokeDashGap || backgroundColor.strokeDasharrayValue !== next.strokeDasharrayValue) {
       if (next.strokeDashStyle === 'none' || next.strokeDashStyle === 'Solid') {
         updates['stroke-dasharray'] = 'none';
       } else {
-        updates['stroke-dasharray'] = `${next.strokeDashLength || 10},${next.strokeDashGap || 10}`;
+        updates['stroke-dasharray'] = next.strokeDasharrayValue || `${next.strokeDashLength || 10},${next.strokeDashGap || 10}`;
       }
     }
     if (backgroundColor.strokePosition !== next.strokePosition) updates['data-stroke-position'] = next.strokePosition;

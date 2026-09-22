@@ -4,6 +4,7 @@ import ColorPicker, { parseGradient } from './ColorPicker';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import Color from './Color';
 import Effect from './Effect';
+import { applyStyleToActiveTextSelection } from './editorUtils';
 
 import { Icon } from '@iconify/react';
 import {
@@ -108,7 +109,8 @@ const STYLE_MAP = {
   strokeWidth: 'strokeWidth',
   strokeDasharray: 'strokeDasharray',
   strokeLinecap: 'strokeLinecap',
-  strokeLinejoin: 'strokeLinejoin'
+  strokeLinejoin: 'strokeLinejoin',
+  opacity: 'opacity'
 };
 
 // Maps React/camelCase property names to SVG presentation attribute names
@@ -600,6 +602,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     strokeStops: selectedElementProps?.['stroke-stops'],
     strokeAngle: parseFloat(selectedElementProps?.['stroke-angle'] || 0),
     strokeRadius: parseFloat(selectedElementProps?.['stroke-radius'] || 100),
+    strokeDasharrayValue: selectedElementProps?.strokeDasharray,
     strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
     strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
   });
@@ -670,6 +673,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       strokeStops: selectedElementProps?.['stroke-stops'],
       strokeAngle: parseFloat(selectedElementProps?.['stroke-angle'] || 0),
       strokeRadius: parseFloat(selectedElementProps?.['stroke-radius'] || 100),
+      strokeDasharrayValue: selectedElementProps?.strokeDasharray,
       strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
       strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
     });
@@ -708,7 +712,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
 
       if (backgroundColor.scrollBarColor !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollbar-color', backgroundColor.scrollBarColor);
-      
+
       if (backgroundColor.bgFill !== undefined) {
         if (backgroundColor.bgFill && backgroundColor.bgFill !== 'transparent' && backgroundColor.bgFill !== 'none' && backgroundColor.bgFill !== '#') {
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', backgroundColor.bgFill);
@@ -721,7 +725,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       }
 
       if (backgroundColor.bgStroke !== undefined) {
-        if (backgroundColor.bgStroke && backgroundColor.bgStroke !== 'none' && backgroundColor.bgStroke !== 'transparent' && Number(backgroundColor.bgStrokeWidth) > 0) {
+        if (backgroundColor.bgStroke && backgroundColor.bgStroke !== 'none' && backgroundColor.bgStroke !== 'transparent' && backgroundColor.bgStroke !== '#') {
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', backgroundColor.bgStroke);
           if (backgroundColor.bgStrokeOpacity !== undefined) {
             updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-opacity', (backgroundColor.bgStrokeOpacity / 100).toString());
@@ -750,7 +754,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'solid');
       }
 
-      const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}` : 'none';
+      const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? (backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`) : 'none';
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeDasharray', dashVal);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-stroke-position', backgroundColor.strokePosition || 'Center');
 
@@ -1005,7 +1009,7 @@ const TextEditor = ({
     return props;
   }, [selectedLayerId, pages, activePageIndex]);
 
-  const updateElementAttributeLocal = (pageIdx, elId, attribute, value) => {
+  const updateElementAttributeLocal = (pageIdx, elId, attribute, value, skipLiveUpdate = false) => {
     // Immediate Live Feedback for DOM and Overlay
     const liveEl = document.getElementById(elId);
     const styleProp = STYLE_MAP[attribute];
@@ -1015,6 +1019,45 @@ const TextEditor = ({
       const liveTag = liveEl.tagName.toLowerCase();
       console.log(`[TextEditor] Live update: tag=${liveTag}, id=${elId}, attr=${attribute}, val=${value}`);
 
+      if (attribute && (attribute.startsWith('data-bg-') || attribute === 'data-scrollbar-color')) {
+        liveEl.setAttribute(attribute, value);
+        if (attribute.startsWith('data-bg-')) {
+          const cssVar = '--' + attribute.substring(5);
+          liveEl.style.setProperty(cssVar, value);
+          const outerDiv = liveEl.querySelector('.flipbook-text-outer') || liveEl.firstElementChild;
+          if (outerDiv && outerDiv.style) {
+            outerDiv.style.setProperty(cssVar, value, 'important');
+            const bgFill = liveEl.getAttribute('data-bg-fill');
+            const bgFillOpacity = liveEl.getAttribute('data-bg-fill-opacity') !== null ? liveEl.getAttribute('data-bg-fill-opacity') : '1';
+            if (bgFill && bgFill !== 'none' && bgFill !== 'transparent') {
+              let c = bgFill.replace('#', '');
+              if (c.length === 3) c = c.split('').map(x => x + x).join('');
+              const num = parseInt(c, 16);
+              if (!isNaN(num)) {
+                const r = (num >> 16) & 255;
+                const g = (num >> 8) & 255;
+                const b = num & 255;
+                const op = parseFloat(bgFillOpacity);
+                const clampedOp = isNaN(op) ? 1 : (op > 1 ? op / 100 : op);
+                outerDiv.style.setProperty('background-color', `rgba(${r}, ${g}, ${b}, ${clampedOp})`, 'important');
+              }
+            }
+            const bgStroke = liveEl.getAttribute('data-bg-stroke');
+            const bgStrokeWidth = liveEl.getAttribute('data-bg-stroke-width') || '0';
+            const bgStrokeDash = liveEl.getAttribute('data-bg-stroke-dasharray');
+            const borderStyle = (bgStrokeDash && bgStrokeDash !== 'none') ? 'dashed' : 'solid';
+            if (bgStroke && bgStroke !== 'none' && bgStroke !== 'transparent' && Number(bgStrokeWidth) > 0) {
+              outerDiv.style.setProperty('border', `${bgStrokeWidth}px ${borderStyle} ${bgStroke}`, 'important');
+            } else if (attribute === 'data-bg-stroke' && (value === 'none' || value === 'transparent')) {
+              outerDiv.style.setProperty('border', 'none', 'important');
+            }
+          }
+        }
+        if (attribute === 'rx') {
+          liveEl.style.setProperty('--bg-rx', value + 'px');
+        }
+      }
+
       if (styleProp || attribute === 'data-stroke-position') {
         if (liveTag === 'foreignobject') {
           if (liveEl.firstElementChild && styleProp) {
@@ -1022,31 +1065,56 @@ const TextEditor = ({
             if (styleProp === 'fontFamily' && typeof applyVal === 'string' && !applyVal.includes("'") && !applyVal.includes('"')) {
               applyVal = `'${applyVal}'`;
             }
-            if (styleProp === 'stroke') {
-              const applyColor = finalVal === 'none' ? 'transparent' : finalVal;
-              liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', applyColor, 'important');
-              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', applyColor, 'important'));
-            } else if (styleProp === 'strokeWidth') {
-              liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
-              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important'));
-            } else {
-              const liveProp = styleProp === 'fill' ? 'color' : styleProp;
-              const cssPropName = liveProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
-              liveEl.firstElementChild.style.setProperty(cssPropName, applyVal, 'important');
-              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty(cssPropName, applyVal, 'important'));
+            const isCharacterProp = ['fill', 'color', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textDecoration', 'textTransform'].includes(attribute);
+            let selectionApplied = false;
+            if (isCharacterProp) {
+              selectionApplied = applyStyleToActiveTextSelection(elId, attribute, value);
+            }
+
+            if (!selectionApplied) {
+              if (styleProp === 'stroke') {
+                const applyColor = finalVal === 'none' ? 'transparent' : finalVal;
+                liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', applyColor, 'important');
+                Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', applyColor, 'important'));
+                liveEl.setAttribute('stroke', finalVal);
+              } else if (styleProp === 'strokeWidth') {
+                liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
+                Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important'));
+                liveEl.setAttribute('stroke-width', finalVal);
+              } else {
+                const liveProp = styleProp === 'fill' ? 'color' : styleProp;
+                const cssPropName = liveProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+                liveEl.firstElementChild.style.setProperty(cssPropName, applyVal, 'important');
+                const scrollTarget = liveEl.querySelector('.flipbook-text-scrollbar');
+                if (scrollTarget) {
+                  scrollTarget.style.setProperty(cssPropName, applyVal, 'important');
+                }
+              }
             }
 
             // General Auto-resize for layout-affecting properties
             const layoutProps = ['fontSize', 'lineHeight', 'letterSpacing', 'fontFamily', 'fontWeight', 'textAlign', 'textTransform'];
             if (layoutProps.includes(attribute) && liveEl.getAttribute('data-scrollable') !== 'true') {
               const div = liveEl.firstElementChild;
+              const mode = liveEl.getAttribute('data-sizing-mode');
+
+              if (mode === 'auto-width') {
+                div.style.setProperty('width', 'max-content', 'important');
+                const contentW = div.scrollWidth;
+                const foW = parseFloat(liveEl.getAttribute('width')) || 0;
+                if (Math.abs(contentW - foW) > 2) {
+                  liveEl.setAttribute('width', contentW + 4);
+                }
+                div.style.setProperty('width', '100%', 'important');
+              }
+
               div.style.setProperty('height', 'auto', 'important');
               div.style.setProperty('min-height', '0px', 'important');
 
               const contentH = div.scrollHeight;
               const foH = parseFloat(liveEl.getAttribute('height')) || 0;
 
-              if (Math.abs(contentH - foH) > 2) {
+              if (Math.abs(contentH - foH) > 2 || (mode === 'auto-width' && Math.abs(div.scrollWidth - parseFloat(liveEl.getAttribute('width') || 0)) > 2)) {
                 liveEl.setAttribute('height', contentH + 4);
                 window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
               }
@@ -1079,18 +1147,10 @@ const TextEditor = ({
               liveEl.style.setProperty(cssPropName, applyVal, 'important');
             }
           }
-          if (attribute && attribute.startsWith('data-bg-')) {
-            liveEl.setAttribute(attribute, value);
-            liveEl.style.setProperty('--' + attribute.substring(5), value);
-          }
-          if (attribute === 'data-scrollbar-color') {
-            liveEl.setAttribute(attribute, value);
-            // The actual color and WebKit repaint is strictly handled by the MainEditor MutationObserver
-          }
           if (attribute === 'rx') {
-          liveEl.style.setProperty('--bg-rx', value + 'px');
+            liveEl.style.setProperty('--bg-rx', value + 'px');
           }
-          if (attribute === 'fill' || attribute === 'stroke') {
+          if (attribute === 'fill' || attribute === 'stroke' || attribute === 'opacity') {
             liveEl.setAttribute(attribute, value);
           }
           if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
@@ -1220,10 +1280,23 @@ const TextEditor = ({
       if (!page || !page.html) return prevPages;
 
       const parser = new DOMParser();
-      // Replace any variation of <br> (with or without attributes/slashes) with a clean <br/>
+      // Replace any variation of <br> (with or without attributes/slashes) and any closing </br> with a clean <br/>
       // and replace invalid XML entity &nbsp; with &#160;
-      const cleanHtml = page.html.replace(/<br[^>]*>/gi, '<br/>').replace(/&nbsp;/gi, '&#160;');
-      const doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
+      const cleanHtml = page.html
+        .replace(/<\s*br[^>]*>(?:<\/\s*br\s*>)?/gi, '<br/>')
+        .replace(/<\/\s*br\s*>/gi, '')
+        .replace(/&nbsp;/gi, '&#160;');
+      let doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
+
+      // Auto-recover if the React state was permanently corrupted by a previous crash
+      // (meaning the cleanHtml string literally contains the error document itself)
+      if (cleanHtml.includes('parsererror') && doc.documentElement.tagName.toLowerCase() === 'html') {
+        const svgEl = doc.querySelector('svg');
+        if (svgEl) {
+          // Extract the valid SVG portion and re-parse it to cure the state
+          doc = parser.parseFromString(svgEl.outerHTML, 'image/svg+xml');
+        }
+      }
 
       if (doc.querySelector('parsererror')) {
         const errorText = doc.querySelector('parsererror').textContent;
@@ -1245,7 +1318,7 @@ const TextEditor = ({
           errDiv.style.maxWidth = '80vw';
           errDiv.style.wordWrap = 'break-word';
           errDiv.style.fontFamily = 'monospace';
-          errDiv.innerText = 'XML PARSE ERROR: ' + errorText;
+          errDiv.innerText = 'XML PARSE ERROR: ' + errorText + '\n\nHTML:\n' + cleanHtml;
           document.body.appendChild(errDiv);
         }
 
@@ -1283,10 +1356,12 @@ const TextEditor = ({
             });
           } else if (tag === 'foreignobject' && element.firstElementChild) {
             // Safely parse the live HTML using an HTML parser, then import nodes to the XML Virtual DOM
-            const tempDoc = new DOMParser().parseFromString(`<div>${liveEl.firstElementChild.innerHTML}</div>`, 'text/html');
-            element.firstElementChild.innerHTML = '';
+            const liveTarget = liveEl.querySelector('.flipbook-text-scrollbar') || liveEl.firstElementChild;
+            const elemTarget = element.querySelector('.flipbook-text-scrollbar') || element.firstElementChild;
+            const tempDoc = new DOMParser().parseFromString(`<div>${liveTarget.innerHTML}</div>`, 'text/html');
+            elemTarget.innerHTML = '';
             Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
-              element.firstElementChild.appendChild(doc.importNode(child, true));
+              elemTarget.appendChild(doc.importNode(child, true));
             });
           }
         }
@@ -1297,55 +1372,73 @@ const TextEditor = ({
           if (liveEl) {
             const liveTag = liveEl.tagName.toLowerCase();
             if (liveTag === 'foreignobject' && liveEl.firstElementChild) {
-              const tempDoc = new DOMParser().parseFromString(`<div>${value.replace(/\n/g, '<br/>')}</div>`, 'text/html');
-              liveEl.firstElementChild.innerHTML = '';
-              Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
-                liveEl.firstElementChild.appendChild(liveEl.ownerDocument.importNode(child, true));
-              });
+              const liveTarget = liveEl.querySelector('.flipbook-text-scrollbar') || liveEl.firstElementChild;
+
+              if (!skipLiveUpdate) {
+                const tempDoc = new DOMParser().parseFromString(`<div>${value.replace(/\n/g, '<br/>')}</div>`, 'text/html');
+                liveTarget.innerHTML = '';
+                Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
+                  liveTarget.appendChild(liveEl.ownerDocument.importNode(child, true));
+                });
+              }
 
               // Auto-grow live DOM element
               if (liveEl.getAttribute('data-scrollable') !== 'true') {
+                const mode = liveEl.getAttribute('data-sizing-mode');
+                if (mode === 'auto-width') {
+                  liveEl.firstElementChild.style.setProperty('width', 'max-content', 'important');
+                  const contentW = liveEl.firstElementChild.scrollWidth;
+                  const foW = parseFloat(liveEl.getAttribute('width')) || 0;
+                  if (Math.abs(contentW - foW) > 2) {
+                    liveEl.setAttribute('width', contentW + 4);
+                  }
+                  liveEl.firstElementChild.style.setProperty('width', '100%', 'important');
+                }
+
                 liveEl.firstElementChild.style.setProperty('height', 'auto', 'important');
                 liveEl.firstElementChild.style.setProperty('min-height', '0px', 'important');
 
                 const contentH = liveEl.firstElementChild.scrollHeight;
                 const foH = parseFloat(liveEl.getAttribute('height')) || 0;
 
-                if (Math.abs(contentH - foH) > 2) {
+                if (Math.abs(contentH - foH) > 2 || mode === 'auto-width') {
                   liveEl.setAttribute('height', contentH + 4);
                   window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
                 }
               }
             } else if (liveTag === 'text') {
-              const origFirstTspan3 = liveEl.querySelector('tspan');
-              const origTspanX3 = origFirstTspan3 ? origFirstTspan3.getAttribute('x') : null;
-              const origTspanY3 = origFirstTspan3 ? origFirstTspan3.getAttribute('y') : null;
-              const origTspanDy3 = origFirstTspan3 ? origFirstTspan3.getAttribute('dy') : null;
-              liveEl.innerHTML = '';
-              const lines = value.split('\n');
-              const xValLive = origTspanX3 !== null ? origTspanX3 : (liveEl.getAttribute('x') || '0');
-              const lhLive = liveEl.getAttribute('data-line-height') || '1.2';
-              lines.forEach((line, i) => {
-                const tspan = liveEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
-                tspan.setAttribute('x', xValLive);
-                if (i === 0) {
-                  if (origTspanY3 !== null) tspan.setAttribute('y', origTspanY3);
-                  if (origTspanDy3 !== null) tspan.setAttribute('dy', origTspanDy3);
-                } else {
-                  tspan.setAttribute('dy', `${parseFloat(lhLive).toFixed(2)}em`);
-                }
-                liveEl.appendChild(tspan);
-              });
+              if (!skipLiveUpdate) {
+                const origFirstTspan3 = liveEl.querySelector('tspan');
+                const origTspanX3 = origFirstTspan3 ? origFirstTspan3.getAttribute('x') : null;
+                const origTspanY3 = origFirstTspan3 ? origFirstTspan3.getAttribute('y') : null;
+                const origTspanDy3 = origFirstTspan3 ? origFirstTspan3.getAttribute('dy') : null;
+                liveEl.innerHTML = '';
+                const lines = value.split('\n');
+                const xValLive = origTspanX3 !== null ? origTspanX3 : (liveEl.getAttribute('x') || '0');
+                const lhLive = liveEl.getAttribute('data-line-height') || '1.2';
+                lines.forEach((line, i) => {
+                  const tspan = liveEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                  tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
+                  tspan.setAttribute('x', xValLive);
+                  if (i === 0) {
+                    if (origTspanY3 !== null) tspan.setAttribute('y', origTspanY3);
+                    if (origTspanDy3 !== null) tspan.setAttribute('dy', origTspanDy3);
+                  } else {
+                    tspan.setAttribute('dy', `${parseFloat(lhLive).toFixed(2)}em`);
+                  }
+                  liveEl.appendChild(tspan);
+                });
+              }
             }
           }
 
           // --- VIRTUAL DOM UPDATE ---
           if (tag === 'foreignobject' && element.firstElementChild) {
+            const elemTarget = element.querySelector('.flipbook-text-scrollbar') || element.firstElementChild;
             const tempDoc = new DOMParser().parseFromString(`<div>${value.replace(/\n/g, '<br/>')}</div>`, 'text/html');
-            element.firstElementChild.innerHTML = '';
+            elemTarget.innerHTML = '';
             Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
-              element.firstElementChild.appendChild(doc.importNode(child, true));
+              elemTarget.appendChild(doc.importNode(child, true));
             });
 
             // Mirror live DOM dimensions to Virtual DOM
@@ -1463,7 +1556,7 @@ const TextEditor = ({
           innerDiv.style.width = '100%';
           innerDiv.style.overflowX = 'hidden';
           innerDiv.style.wordBreak = 'normal';
-          
+
           if (element.hasAttribute('data-scrollbar-color')) {
             // MainEditor observer handles the style automatically based on this attribute
           }
@@ -1507,7 +1600,7 @@ const TextEditor = ({
               outer.className = 'flipbook-text-outer';
               const viewport = parentFo.ownerDocument.createElementNS('http://www.w3.org/1999/xhtml', 'div');
               viewport.className = 'flipbook-text-viewport';
-              
+
               div.style.setProperty('overflow-y', 'auto', 'important');
               div.style.setProperty('overflow-x', 'hidden', 'important');
               div.classList.add('flipbook-text-scrollbar');
@@ -1567,7 +1660,7 @@ const TextEditor = ({
                 const scrollbarDiv = div.querySelector('.flipbook-text-scrollbar');
                 if (scrollbarDiv) targetDiv = scrollbarDiv;
               }
-              
+
               if (isScrollable) {
                 targetDiv.style.setProperty('overflow-y', 'auto', 'important');
                 targetDiv.style.setProperty('overflow-x', 'hidden', 'important');
@@ -1612,6 +1705,10 @@ const TextEditor = ({
               } else {
                 const cssPropName = finalProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
                 element.firstElementChild.style.setProperty(cssPropName, value, 'important');
+                const scrollTarget = element.querySelector('.flipbook-text-scrollbar');
+                if (scrollTarget) {
+                  scrollTarget.style.setProperty(cssPropName, value, 'important');
+                }
               }
               applyScrollStyles(element.firstElementChild);
             }
@@ -1626,6 +1723,10 @@ const TextEditor = ({
                 } else {
                   const cssPropName = finalProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
                   liveEl.firstElementChild.style.setProperty(cssPropName, value, 'important');
+                  const scrollTarget = liveEl.querySelector('.flipbook-text-scrollbar');
+                  if (scrollTarget) {
+                    scrollTarget.style.setProperty(cssPropName, value, 'important');
+                  }
                 }
                 applyScrollStyles(liveEl.firstElementChild);
               }
@@ -1824,7 +1925,10 @@ const TextEditor = ({
                 const page = { ...next[pageIdx2] };
                 if (!page.html) return prev;
                 const parser = new DOMParser();
-                const cleanHtml = page.html.replace(/<br\s*>/gi, '<br/>').replace(/&nbsp;/gi, '&#160;');
+                const cleanHtml = page.html
+                  .replace(/<\s*br[^>]*>(?:<\/\s*br\s*>)?/gi, '<br/>')
+                  .replace(/<\/\s*br\s*>/gi, '')
+                  .replace(/&nbsp;/gi, '&#160;');
                 const doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
 
                 if (doc.querySelector('parsererror')) {
@@ -1863,7 +1967,8 @@ const TextEditor = ({
           const el = document.getElementById(selectedLayerId);
           if (el) {
             if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
-              el.firstElementChild.innerHTML = newText.replace(/\n/g, '<br/>');
+              const targetDiv = el.querySelector('.flipbook-text-scrollbar') || el.firstElementChild;
+              targetDiv.innerHTML = newText.replace(/\n/g, '<br/>');
             } else if (el.tagName.toLowerCase() === 'text') {
               updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
             }
@@ -1886,7 +1991,8 @@ const TextEditor = ({
         if (overlay) {
           latestText = overlay.innerText || overlay.textContent || latestText;
         } else if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
-          latestText = el.firstElementChild.innerText || el.firstElementChild.textContent || latestText;
+          const targetDiv = el.querySelector('.flipbook-text-scrollbar') || el.firstElementChild;
+          latestText = targetDiv.innerText || targetDiv.textContent || latestText;
         } else if (el.tagName.toLowerCase() === 'text') {
           const tspans = Array.from(el.querySelectorAll('tspan'));
           if (tspans.length > 0) {
@@ -1932,7 +2038,8 @@ const TextEditor = ({
       // Live DOM Update for instant feedback
       if (el) {
         if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
-          el.firstElementChild.innerHTML = newText.replace(/\n/g, '<br/>');
+          const targetDiv = el.querySelector('.flipbook-text-scrollbar') || el.firstElementChild;
+          targetDiv.innerHTML = newText.replace(/\n/g, '<br/>');
         } else if (el.tagName.toLowerCase() === 'text') {
           // Triggering a local update will rebuild tspans
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
@@ -1970,85 +2077,68 @@ const TextEditor = ({
         }
       }
 
-      if (el) {
-        const styleProp = STYLE_MAP[property];
-        if (styleProp) {
-          const finalVal = (property === 'fontSize' || property === 'letterSpacing') && !adjustedValue.toString().includes('px') && !adjustedValue.toString().includes('em') ? `${adjustedValue}px` : adjustedValue;
+      const isCharacterProp = ['fill', 'color', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textDecoration', 'textTransform'].includes(property);
+      let selectionApplied = false;
 
-          if (el.tagName.toLowerCase() === 'foreignobject') {
-            if (el.firstElementChild) {
-              const div = el.firstElementChild;
-              div.style[styleProp] = finalVal;
-            }
-          } else {
-            // SVG text element — set both CSS style and SVG presentation attribute
-            el.style[styleProp] = finalVal;
-            const svgAttrName = SVG_ATTR_MAP[property] || property;
-            if (property === 'textAlign') {
-              const anchorVal = TEXT_ALIGN_TO_ANCHOR[value] || 'start';
-              el.setAttribute('text-anchor', anchorVal);
-            } else {
-              el.setAttribute(svgAttrName, finalVal);
-            }
-            // Propagate to tspan children
-            const elTag = el.tagName.toLowerCase();
-            if (elTag === 'text' || elTag === 'g') {
-              Array.from(el.querySelectorAll('tspan')).forEach(child => {
-                child.style[styleProp] = finalVal;
-                if (property === 'textAlign') {
-                  child.setAttribute('text-anchor', TEXT_ALIGN_TO_ANCHOR[value] || 'start');
-                } else {
-                  child.setAttribute(svgAttrName, finalVal);
-                }
-              });
-            }
-          }
-
-          // Also update the editing overlay if it exists!
-          // Search globally within the SVG for the active editing box
-          const svgRoot = el.ownerSVGElement || el.closest('svg');
-          const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
-          if (overlay) {
-            overlay.style[styleProp] = finalVal;
-          }
-
-          // Force MainEditor to redraw the selection box around this element
-          window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: el.id } }));
-        }
+      if (isCharacterProp) {
+        selectionApplied = applyStyleToActiveTextSelection(selectedLayerId, property, value);
       }
 
-      const { start, end } = selectionRange;
-      if (start !== end && (property === 'fontFamily' || property === 'fontSize')) {
-        // Partial styling: Wrap selection in a span
-        const fullText = textContent;
-        const before = fullText.slice(0, start);
-        const selected = fullText.slice(start, end);
-        const after = fullText.slice(end);
-
-        // This is a simplified approach: we rebuild the innerHTML
-        // In a real app, you'd want to handle nested spans properly
-        const cssProp = property === 'fontFamily' ? 'font-family' : 'font-size';
-        const cssVal = property === 'fontSize' ? `${value}px` : value;
-
-        // Find existing innerHTML and wrap selection
-        // For now, let's just use spans for simplicity
-        const styledText = `${before}<span style="${cssProp}: ${cssVal}">${selected}</span>${after}`;
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerHTML', styledText);
+      if (selectionApplied) {
+        if (el) {
+          const liveTarget = el.querySelector('.flipbook-text-scrollbar') || el.firstElementChild;
+          if (liveTarget) {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerHTML', liveTarget.innerHTML, true);
+          }
+          window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: el.id } }));
+        }
       } else {
-        // Whole element styling: apply to container and clear child overrides for this property
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, property, adjustedValue);
+        if (el) {
+          const styleProp = STYLE_MAP[property];
+          if (styleProp) {
+            const finalVal = (property === 'fontSize' || property === 'letterSpacing') && !adjustedValue.toString().includes('px') && !adjustedValue.toString().includes('em') ? `${adjustedValue}px` : adjustedValue;
 
-        // If it's a rich text element, we might need to clear internal spans to let parent style through
-        const el = document.getElementById(selectedLayerId);
-        if (el && (el.tagName.toLowerCase() === 'div' || el.tagName.toLowerCase() === 'p')) {
-          const cssProp = property === 'fontFamily' ? 'font-family' : (property === 'fontSize' ? 'font-size' : null);
-          if (cssProp) {
-            const spans = el.querySelectorAll('span');
-            spans.forEach(span => span.style.removeProperty(cssProp));
-            // Sync this change back to the main app
-            onUpdate(new XMLSerializer().serializeToString(el.ownerDocument.documentElement));
+            if (el.tagName.toLowerCase() === 'foreignobject') {
+              if (el.firstElementChild) {
+                const div = el.firstElementChild;
+                div.style[styleProp] = finalVal;
+              }
+            } else {
+              // SVG text element — set both CSS style and SVG presentation attribute
+              el.style[styleProp] = finalVal;
+              const svgAttrName = SVG_ATTR_MAP[property] || property;
+              if (property === 'textAlign') {
+                const anchorVal = TEXT_ALIGN_TO_ANCHOR[value] || 'start';
+                el.setAttribute('text-anchor', anchorVal);
+              } else {
+                el.setAttribute(svgAttrName, finalVal);
+              }
+              // Propagate to tspan children
+              const elTag = el.tagName.toLowerCase();
+              if (elTag === 'text' || elTag === 'g') {
+                Array.from(el.querySelectorAll('tspan')).forEach(child => {
+                  child.style[styleProp] = finalVal;
+                  if (property === 'textAlign') {
+                    child.setAttribute('text-anchor', TEXT_ALIGN_TO_ANCHOR[value] || 'start');
+                  } else {
+                    child.setAttribute(svgAttrName, finalVal);
+                  }
+                });
+              }
+            }
+
+            // Also update the editing overlay if it exists!
+            const svgRoot = el.ownerSVGElement || el.closest('svg');
+            const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
+            if (overlay) {
+              overlay.style[styleProp] = finalVal;
+            }
+
+            window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: el.id } }));
           }
         }
+
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, property, adjustedValue);
       }
     }
   }, [selectedLayerId, activePageIndex, updateElementAttributeLocal, selectionRange, textContent, onUpdate]);
@@ -2247,7 +2337,7 @@ const TextEditor = ({
 
     // 1. If the element is a foreignObject being edited, read from the editable div
     if (tag === 'foreignobject') {
-      const div = el.firstElementChild;
+      const div = el.querySelector('.flipbook-text-scrollbar') || el.firstElementChild;
       if (!div) return '';
       // innerText respects <br> elements and converts them to \n
       return div.innerText || div.textContent || '';
@@ -2482,17 +2572,24 @@ const TextEditor = ({
   if (!selectedElement) return null;
 
   return (
-    <div className="w-full flex flex-col gap-[0.4vw] font-sans text-gray-800">
+    <div
+      className="w-full flex flex-col gap-[0.4vw] font-sans text-gray-800"
+      onMouseDown={(e) => {
+        if (e.target.tagName !== 'INPUT') {
+          e.preventDefault();
+        }
+      }}
+    >
       {/* Header */}
-      <div className="flex items-center gap-[0.75vw]">
+      <div className="flex items-center gap-[0.75vw] mb-[0.5vw]">
         <h2 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Text Property</h2>
-        <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+        <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
       </div>
 
 
 
       {/* Font Selectors Row 1 */}
-      <div className="flex gap-[0.65vw]">
+      <div className="flex gap-[0.65vw] mb-[0.5vw]">
         <div className="relative flex-[1.5]" ref={dropdownRef}>
           <button
             onClick={() => setShowFontDropdown(!showFontDropdown)}
@@ -2553,11 +2650,11 @@ const TextEditor = ({
       </div>
 
       {/* Font Selectors Row 2 */}
-      <div className="flex gap-[0.65vw]">
+      <div className="flex gap-[0.65vw] mb-[0.5vw]">
         <div className="relative flex-1" ref={weightRef}>
           <button
             onClick={() => setShowWeightDropdown(!showWeightDropdown)}
-            className="w-[8vw] h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
+            className="w-full h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
           >
             <span className="text-[0.85vw] truncate">{fontWeights.find(w => w.value === fontWeight.toString())?.name || 'Regular'}</span>
             <ChevronDown size="1vw" className="text-gray-500" />
@@ -2664,14 +2761,75 @@ const TextEditor = ({
               : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
               }`}
           >
-            <Minus size="1.3vw" strokeWidth={3} />
+            <span className="font-semibold text-[0.9vw] tracking-tight">
+              {textTransform === 'capitalize' ? 'Aa' : textTransform === 'uppercase' ? 'AA' : textTransform === 'lowercase' ? 'aa' : 'aA'}
+            </span>
           </button>
           {activePanel === 'case' && (
             <div className="absolute top-[3.5vw] left-0 z-50 p-[0.5vw] bg-white border border-gray-100 rounded-[1vw] flex gap-[0.4vw] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] animate-in fade-in zoom-in-95 duration-200">
-              <button onClick={() => { updateStyle('textTransform', 'none'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'none' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><Minus size="1.1vw" strokeWidth={3} /></button>
-              <button onClick={() => { updateStyle('textTransform', 'capitalize'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'capitalize' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>Aa</button>
-              <button onClick={() => { updateStyle('textTransform', 'uppercase'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'uppercase' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>AB</button>
-              <button onClick={() => { updateStyle('textTransform', 'lowercase'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'lowercase' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>ab</button>
+              {/* Default */}
+              <div className="relative group/btn flex items-center justify-center">
+                <button
+                  onClick={() => { updateStyle('textTransform', 'none'); togglePanel(null); }}
+                  className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center font-semibold text-[0.85vw] tracking-tight transition-all ${textTransform === 'none' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
+                >
+                  aA
+                </button>
+                <div className="absolute bottom-full mb-[0.4vw] hidden group-hover/btn:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
+                  <div className="bg-gray-900 text-white text-[0.65vw] px-[0.5vw] py-[0.25vw] rounded-[0.4vw] shadow-lg font-medium">
+                    Default
+                  </div>
+                  <div className="w-0 h-0 border-x-[0.25vw] border-x-transparent border-t-[0.3vw] border-t-gray-900"></div>
+                </div>
+              </div>
+
+              {/* Capitalize */}
+              <div className="relative group/btn flex items-center justify-center">
+                <button
+                  onClick={() => { updateStyle('textTransform', 'capitalize'); togglePanel(null); }}
+                  className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center font-semibold text-[0.85vw] tracking-tight transition-all ${textTransform === 'capitalize' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
+                >
+                  Aa
+                </button>
+                <div className="absolute bottom-full mb-[0.4vw] hidden group-hover/btn:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
+                  <div className="bg-gray-900 text-white text-[0.65vw] px-[0.5vw] py-[0.25vw] rounded-[0.4vw] shadow-lg font-medium">
+                    Capitalize
+                  </div>
+                  <div className="w-0 h-0 border-x-[0.25vw] border-x-transparent border-t-[0.3vw] border-t-gray-900"></div>
+                </div>
+              </div>
+
+              {/* Uppercase */}
+              <div className="relative group/btn flex items-center justify-center">
+                <button
+                  onClick={() => { updateStyle('textTransform', 'uppercase'); togglePanel(null); }}
+                  className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center font-semibold text-[0.85vw] tracking-tight transition-all ${textTransform === 'uppercase' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
+                >
+                  AA
+                </button>
+                <div className="absolute bottom-full mb-[0.4vw] hidden group-hover/btn:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
+                  <div className="bg-gray-900 text-white text-[0.65vw] px-[0.5vw] py-[0.25vw] rounded-[0.4vw] shadow-lg font-medium">
+                    Uppercase
+                  </div>
+                  <div className="w-0 h-0 border-x-[0.25vw] border-x-transparent border-t-[0.3vw] border-t-gray-900"></div>
+                </div>
+              </div>
+
+              {/* Lowercase */}
+              <div className="relative group/btn flex items-center justify-center">
+                <button
+                  onClick={() => { updateStyle('textTransform', 'lowercase'); togglePanel(null); }}
+                  className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center font-semibold text-[0.85vw] tracking-tight transition-all ${textTransform === 'lowercase' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
+                >
+                  aa
+                </button>
+                <div className="absolute bottom-full mb-[0.4vw] hidden group-hover/btn:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
+                  <div className="bg-gray-900 text-white text-[0.65vw] px-[0.5vw] py-[0.25vw] rounded-[0.4vw] shadow-lg font-medium">
+                    Lowercase
+                  </div>
+                  <div className="w-0 h-0 border-x-[0.25vw] border-x-transparent border-t-[0.3vw] border-t-gray-900"></div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -2713,9 +2871,9 @@ const TextEditor = ({
       </div>
 
       {/* Text Sizing Mode (Auto Width / Auto Height) */}
-      <div className="flex flex-col gap-[1vw] pt-[0.8vw] border-t border-gray-100">
+      <div className="flex flex-col gap-[1vw] pt-[1vw] mb-[1vw] border-t border-gray-100">
         <div className="flex items-center gap-[0.5vw] transition-opacity duration-200 opacity-100">
-          <span className="text-[0.75vw] font-semibold text-gray-600 whitespace-nowrap">Resize</span>
+          <span className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap">Resize</span>
           <div className="flex gap-[0.35vw] p-[0.2vw] bg-gray-100 rounded-[0.6vw] flex-1">
             {/* Auto Width */}
             <button
@@ -2759,8 +2917,8 @@ const TextEditor = ({
         </div>
 
         {/* Scrollable Toggle */}
-        <div className={`flex items-center justify-between ${sizingMode !== 'fixed' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-          <span className="text-[0.8vw] font-semibold">Scrollable Text Box Feature</span>
+        <div className={`flex items-center justify-between  ${sizingMode !== 'fixed' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+          <span className="text-[0.8vw] font-semibold text-gray-900">Scrollable Text Box Feature</span>
           <div className="flex-1 mx-[1vw] border-b border-dashed border-gray-300"></div>
           <button
             onClick={() => {
@@ -2770,9 +2928,9 @@ const TextEditor = ({
                 updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollable', nextValue.toString());
               }
             }}
-            className={`w-[2.2vw] h-[1.1vw] rounded-full p-[0.15vw] transition-colors duration-200 ${isScrollable ? 'bg-indigo-600' : 'bg-gray-300'}`}
+            className={`w-[2.3vw] h-[1.2vw] rounded-full p-[0.15vw] transition-colors duration-200 ${isScrollable ? 'bg-indigo-600' : 'bg-gray-300'}`}
           >
-            <div className={`w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
+            <div className={`w-[0.9vw] h-[0.9vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
           </button>
         </div>
       </div>

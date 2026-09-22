@@ -392,3 +392,140 @@ export const parseLayersFromSVG = (element) => {
     });
 };
 
+// Global listener to track active text selection range inside contenteditable elements
+if (typeof window !== 'undefined' && !window.__textSelectionTrackingInitialized) {
+  window.__textSelectionTrackingInitialized = true;
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      const r = sel.getRangeAt(0);
+      const container = r.commonAncestorContainer.nodeType === 1 
+        ? r.commonAncestorContainer 
+        : r.commonAncestorContainer.parentElement;
+      const editableDiv = container?.closest('[contenteditable="true"]');
+      if (editableDiv) {
+        const fo = editableDiv.closest('foreignObject') || editableDiv.closest('[id]');
+        if (fo && fo.id) {
+          window.__savedTextSelection = {
+            elementId: fo.id,
+            range: r.cloneRange()
+          };
+        }
+      }
+    }
+  });
+
+  document.addEventListener('mousedown', (e) => {
+    const target = e.target;
+    if (target && (
+      target.closest('.right-sidebar') ||
+      target.closest('#right-sidebar') ||
+      target.closest('[data-panel]') ||
+      target.closest('.z-50') ||
+      target.closest('button') ||
+      target.closest('input') ||
+      target.closest('select')
+    )) {
+      window.__isInteractingWithSidebar = true;
+      setTimeout(() => {
+        window.__isInteractingWithSidebar = false;
+      }, 350);
+    }
+  }, true);
+}
+
+/**
+ * Applies character-level style properties (color, fontSize, fontFamily, etc.)
+ * specifically to the active or saved text selection range inside a contenteditable text box.
+ * Returns true if a text selection range was styled, or false if no selection exists.
+ */
+export const applyStyleToActiveTextSelection = (elementId, attribute, value) => {
+  if (!elementId) return false;
+  const sel = window.getSelection();
+  let range = null;
+
+  const fo = document.getElementById(elementId);
+  if (!fo) return false;
+  const contentDiv = fo.querySelector('[contenteditable="true"]') || fo.firstElementChild;
+  if (!contentDiv) return false;
+
+  // 1. Check current live selection in browser window
+  if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+    const r = sel.getRangeAt(0);
+    if (contentDiv.contains(r.commonAncestorContainer)) {
+      range = r;
+    }
+  }
+
+  // 2. Check saved selection if focus shifted to sidebar property controls
+  if (!range && window.__savedTextSelection && window.__savedTextSelection.elementId === elementId) {
+    const savedRange = window.__savedTextSelection.range;
+    if (savedRange && contentDiv.contains(savedRange.commonAncestorContainer)) {
+      range = savedRange;
+    }
+  }
+
+  if (!range || range.collapsed) return false;
+
+  const cssPropMap = {
+    fill: 'color',
+    color: 'color',
+    fontSize: 'font-size',
+    fontFamily: 'font-family',
+    fontWeight: 'font-weight',
+    fontStyle: 'font-style',
+    textDecoration: 'text-decoration',
+    textTransform: 'text-transform'
+  };
+
+  const cssProp = cssPropMap[attribute];
+  if (!cssProp) return false;
+
+  let finalVal = value;
+  if (attribute === 'fontSize' && typeof finalVal === 'number') {
+    finalVal = `${finalVal}px`;
+  } else if (attribute === 'fontFamily' && typeof finalVal === 'string' && !finalVal.includes("'") && !finalVal.includes('"')) {
+    finalVal = `'${finalVal}'`;
+  }
+
+  try {
+    const span = document.createElement('span');
+    span.style.setProperty(cssProp, finalVal, 'important');
+
+    const contents = range.extractContents();
+    
+    // Clean up any nested instances of the same property to prevent override conflicts
+    const nestedElements = contents.querySelectorAll('*');
+    nestedElements.forEach(el => {
+      if (el.style) {
+        el.style.removeProperty(cssProp);
+        
+        // Also remove camelCase version just in case
+        const camelProp = cssProp.replace(/-([a-z])/g, g => g[1].toUpperCase());
+        el.style.removeProperty(camelProp);
+      }
+    });
+
+    span.appendChild(contents);
+    range.insertNode(span);
+
+    // Restore focus and range selection
+    contentDiv.focus();
+    const newRange = document.createRange();
+    newRange.selectNodeContents(span);
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    }
+    window.__savedTextSelection = {
+      elementId,
+      range: newRange.cloneRange()
+    };
+
+    return true;
+  } catch (err) {
+    console.error('[applyStyleToActiveTextSelection] Error applying inline selection style:', err);
+    return false;
+  }
+};
+

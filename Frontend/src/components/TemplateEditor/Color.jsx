@@ -258,6 +258,7 @@ const Color = ({
       strokeOpacity,
       strokeWeight,
       strokeDashStyle: dashStyle,
+      strokeDasharrayValue: strokeArray !== 'none' ? strokeArray : undefined,
       strokeDashLength: dashLen,
       strokeDashGap: dashGap,
       strokePosition: el.getAttribute('data-stroke-position') || 'Center',
@@ -297,7 +298,8 @@ const Color = ({
         prev.stroke === stroke &&
         prev.strokeOpacity === strokeOpacity &&
         prev.strokeWeight === strokeWeight &&
-        prev.strokeDashStyle === dashStyle
+        prev.strokeDashStyle === dashStyle &&
+        prev.strokeDasharrayValue === strokeArray
       ) {
         return prev;
       }
@@ -308,13 +310,16 @@ const Color = ({
         strokeOpacity,
         strokeWeight,
         strokeDashStyle: dashStyle,
+        strokeDasharrayValue: strokeArray !== 'none' ? strokeArray : undefined,
         strokeDashLength: dashLen,
         strokeDashGap: dashGap,
         strokePosition: el.getAttribute('data-stroke-position') || 'Center',
-        strokeLinecap: el.getAttribute('stroke-linecap') || 'butt'
+        strokeLinecap: el.getAttribute('stroke-linecap') || 'butt',
+        bgStrokeDasharray: strokeArray !== 'none' ? strokeArray : undefined,
       };
     });
   }, [selectedElement, standaloneMode]);
+
 
   // Apply visual updates directly to DOM in standalone mode
   useEffect(() => {
@@ -337,6 +342,11 @@ const Color = ({
         if (!isImage) {
           if (!isGradient) el.setAttribute('fill', backgroundColor.fill);
           el.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+          el.setAttribute('opacity', (backgroundColor.fillOpacity / 100).toString());
+          el.style.setProperty('opacity', (backgroundColor.fillOpacity / 100).toString(), 'important');
+          if (el.tagName?.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+            el.firstElementChild.style.setProperty('opacity', (backgroundColor.fillOpacity / 100).toString(), 'important');
+          }
         } else {
           // --- Fast path: directly patch existing SVG gradient stops ---
           // If a gradient fill layer already exists with a url(#...) fill, we update
@@ -430,11 +440,13 @@ const Color = ({
       } else {
         el.setAttribute('data-stroke-color', backgroundColor.stroke);
         el.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
+        el.setAttribute('data-stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
+        el.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
 
         const isStrokeGradient = backgroundColor.stroke.includes('gradient');
 
         const dashArray = backgroundColor.strokeDashStyle === 'Dashed'
-          ? `${backgroundColor.strokeDashLength ?? 10},${backgroundColor.strokeDashGap ?? 10}`
+          ? (backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength ?? 10},${backgroundColor.strokeDashGap ?? 10}`)
           : 'none';
 
         el.setAttribute('data-stroke-dasharray', dashArray);
@@ -587,6 +599,11 @@ const Color = ({
               strokeLayer.setAttribute('stroke', backgroundColor.stroke);
             }
             strokeLayer.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
+            if (dashArray !== 'none') {
+              strokeLayer.setAttribute('stroke-dasharray', dashArray);
+            } else {
+              strokeLayer.removeAttribute('stroke-dasharray');
+            }
           }
         }
       }
@@ -634,8 +651,8 @@ const Color = ({
     'stroke-radius': backgroundColor?.strokeRadius || 100,
     'stroke-width': backgroundColor?.strokeWeight || 0,
     strokeWidth: backgroundColor?.strokeWeight || 0,
-    'stroke-dasharray': backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}` : 'none',
-    strokeDasharray: backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}` : 'none',
+    'stroke-dasharray': backgroundColor?.strokeDashStyle === 'Dashed' ? (backgroundColor?.strokeDasharrayValue || `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}`) : 'none',
+    strokeDasharray: backgroundColor?.strokeDashStyle === 'Dashed' ? (backgroundColor?.strokeDasharrayValue || `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}`) : 'none',
     'stroke-linecap': backgroundColor?.strokeLinecap || 'butt',
     'data-stroke-position': backgroundColor?.strokePosition || 'Center',
   };
@@ -668,6 +685,7 @@ const Color = ({
         setBackgroundColor(p => ({
           ...p,
           strokeDashStyle: 'Dashed',
+          strokeDasharrayValue: value,
           strokeDashLength: dashLen,
           strokeDashGap: dashGap
         }));
@@ -675,6 +693,41 @@ const Color = ({
     }
     if (attr === 'data-stroke-position' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokePosition: value }));
     if (attr === 'stroke-linecap' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeLinecap: value }));
+    if (attr === 'data-scrollbar-color' && setBackgroundColor) setBackgroundColor(p => ({ ...p, scrollBarColor: value }));
+    if (attr === 'data-bg-fill' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgFill: value }));
+    if (attr === 'data-bg-fill-opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgFillOpacity: parseFloat(value) * 100 }));
+    if (attr === 'data-bg-stroke' && setBackgroundColor) {
+      setBackgroundColor(p => ({
+        ...p,
+        bgStroke: value,
+        bgStrokeWidth: (p.bgStrokeWidth === 0 && value !== 'transparent' && value !== 'none' && value !== '#') ? 1 : p.bgStrokeWidth
+      }));
+    }
+    if (attr === 'data-bg-stroke-opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeOpacity: parseFloat(value) * 100 }));
+    if (attr === 'data-bg-stroke-width' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeWidth: parseFloat(value) }));
+    if (attr === 'data-bg-stroke-position' && setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokePosition: value }));
+    if (attr === 'data-bg-stroke-dasharray' && setBackgroundColor) {
+      if (value === 'none') {
+        setBackgroundColor(p => ({ ...p, bgStrokeDashStyle: 'Solid', bgStrokeDasharray: value, strokeDashStyle: 'Solid', strokeDasharrayValue: value }));
+      } else {
+        const parts = value.split(',');
+        const parsedLen = parseInt(parts[0]);
+        const dashLen = isNaN(parsedLen) ? 10 : parsedLen;
+        const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+        const dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
+        setBackgroundColor(p => ({
+          ...p,
+          bgStrokeDashStyle: 'Dashed',
+          bgStrokeDasharray: value,
+          bgStrokeDashLength: dashLen,
+          bgStrokeDashGap: dashGap,
+          strokeDashStyle: 'Dashed',
+          strokeDasharrayValue: value,
+          strokeDashLength: dashLen,
+          strokeDashGap: dashGap
+        }));
+      }
+    }
   };
 
   const updateAttr = (attribute, value) => {
@@ -693,13 +746,13 @@ const Color = ({
   return (
     <div ref={containerRef} className="flex flex-col gap-[0.4vw] font-sans">
       {isText && (isScrollable === true || selectedElementProps?.['data-scrollable'] === 'true') && (sizingMode === 'fixed' || selectedElementProps?.['data-sizing-mode'] === 'fixed') && (
-        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden mb-[1vw]">
+        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
           <div
             onClick={() => setOpenSubSection(openSubSection === 'color' || openSubSection === 'bgColor' ? null : 'bgColor')}
             className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
           >
             <div className="flex items-center gap-[0.5vw]">
-              <span className="font-semibold text-[0.85vw] text-gray-900">BG Color</span>
+              <span className={`font-semibold text-[0.85vw] ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'text-gray-900' : 'text-gray-500'}`}>BG Color</span>
             </div>
             <ChevronUp size="1vw" className={`transition-transform duration-200 ${(openSubSection === 'color' || openSubSection === 'bgColor') ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
           </div>
@@ -861,8 +914,8 @@ const Color = ({
                       <span className="text-[0.7vw] text-gray-500 font-medium">Alignment</span>
                       <div className="relative">
                         <div
-                          className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                          onClick={() => setIsDashPosOpen(!isDashPosOpen)}
+                          className={`h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between bg-white ${isText ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                          onClick={() => !isText && setIsDashPosOpen(!isDashPosOpen)}
                         >
                           <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{backgroundColor?.bgStrokePosition || 'Center'}</span>
                           <ChevronDown size="0.8vw" className="text-gray-400" />
@@ -937,6 +990,7 @@ const Color = ({
                   </div>
 
                   {/* Row 3: Line style and Dash Property */}
+                  {!isText && (
                   <div className="flex items-center gap-[1vw]">
                     {/* Line style */}
                     <div className="flex-1 flex flex-col gap-[0.3vw]">
@@ -952,25 +1006,25 @@ const Color = ({
                         {/* Dashed (Short) */}
                         <button
                           onClick={() => updateAttr('data-bg-stroke-dasharray', '4,4')}
-                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
                         >
                           <div className="flex gap-[0.15vw]">
-                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
                           </div>
                         </button>
                         {/* Dashed (Long) */}
                         <button
-                          onClick={() => updateAttr('data-bg-stroke-dasharray', '8,4')}
-                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                          onClick={() => updateAttr('data-bg-stroke-dasharray', '6, 12, 18, 12')}
+                          className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
                         >
                           <div className="flex gap-[0.1vw] items-center">
-                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                            <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(selectedElementProps?.['data-bg-stroke-dasharray'] && selectedElementProps?.['data-bg-stroke-dasharray'] !== 'none' && selectedElementProps?.['data-bg-stroke-dasharray'].split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
                           </div>
                         </button>
                       </div>
@@ -981,9 +1035,26 @@ const Color = ({
                       <span className="text-[0.7vw] text-gray-500 font-medium">Dash Property</span>
                       <div className="flex items-center gap-[0.3vw] h-[2vw]">
                         {(() => {
-                          const dashArray = (selectedElementProps?.['data-bg-stroke-dasharray'] || '8,4').split(',');
-                          const lVal = isNaN(parseInt(dashArray[0])) ? 8 : parseInt(dashArray[0]);
+                          const dashArrayStr = selectedElementProps?.['data-bg-stroke-dasharray'];
+                          const isCustom = dashArrayStr && dashArrayStr !== 'none' && dashArrayStr.split(',').length > 2;
+                          const dashArray = (dashArrayStr || '4,4').split(',');
+                          const lVal = isNaN(parseInt(dashArray[0])) ? 4 : parseInt(dashArray[0]);
                           const gVal = isNaN(parseInt(dashArray[1] || dashArray[0])) ? 4 : parseInt(dashArray[1] || dashArray[0]);
+
+                          if (isCustom) {
+                            return (
+                              <div className="flex-1 flex items-center border border-gray-200 rounded-[0.5vw] bg-white h-full px-[0.5vw]">
+                                <span className="text-[0.65vw] text-gray-400 font-medium whitespace-nowrap mr-[0.3vw]">Custom</span>
+                                <input
+                                  type="text"
+                                  value={dashArrayStr || '6, 12, 18, 12'}
+                                  onChange={(e) => updateAttr('data-bg-stroke-dasharray', e.target.value)}
+                                  className="w-full bg-transparent outline-none text-[0.65vw] text-gray-700 font-medium text-right cursor-text"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            );
+                          }
 
                           return (
                             <>
@@ -1014,15 +1085,17 @@ const Color = ({
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Row 4: Line Corner */}
+                  {!isText && (
                   <div className="flex items-center gap-[1vw]">
                     <div className="flex-1 flex flex-col gap-[0.3vw]">
                       <span className="text-[0.7vw] text-gray-500 font-medium">Line Corner</span>
                       <div className="relative">
                         <div
-                          className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                          onClick={() => setIsStrokeStyleOpen(!isStrokeStyleOpen)}
+                          className={`h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between bg-white ${isText ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                          onClick={() => !isText && setIsStrokeStyleOpen(!isStrokeStyleOpen)}
                         >
                           <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{(selectedElementProps?.['data-bg-stroke-linecap'] === 'round') ? 'Rounded' : 'Square'}</span>
                           <ChevronDown size="0.8vw" className="text-gray-400" />
@@ -1052,6 +1125,7 @@ const Color = ({
                     </div>
                     <div className="flex-1"></div>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1244,8 +1318,8 @@ const Color = ({
                     <span className="text-[0.7vw] text-gray-500 font-medium">Alignment</span>
                     <div className="relative">
                       <div
-                        className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                        onClick={() => setIsDashPosOpen(!isDashPosOpen)}
+                        className={`h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between bg-white ${isText ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                        onClick={() => !isText && setIsDashPosOpen(!isDashPosOpen)}
                       >
                         <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{pseudoProps['data-stroke-position'] || 'Center'}</span>
                         <ChevronDown size="0.8vw" className="text-gray-400" />
@@ -1313,6 +1387,7 @@ const Color = ({
                 </div>
 
                 {/* Row 3: Line style and Dash Property */}
+                {!isText && (
                 <div className="flex items-center gap-[1vw]">
                   {/* Line style */}
                   <div className="flex-1 flex flex-col gap-[0.3vw]">
@@ -1328,25 +1403,25 @@ const Color = ({
                       {/* Dashed (Short) */}
                       <button
                         onClick={() => updateAttr('stroke-dasharray', '4,4')}
-                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
                       >
                         <div className="flex gap-[0.15vw]">
-                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] <= 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.2vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length <= 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
                         </div>
                       </button>
                       {/* Dashed (Long) */}
                       <button
-                        onClick={() => updateAttr('stroke-dasharray', '8,4')}
-                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
+                        onClick={() => updateAttr('stroke-dasharray', '6, 12, 18, 12')}
+                        className={`flex-1 h-full flex items-center justify-center rounded-[0.5vw] border transition-colors ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-200/60 hover:bg-gray-100'}`}
                       >
                         <div className="flex gap-[0.1vw] items-center">
-                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
-                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',')[0] > 6) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.4vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
+                          <div className={`w-[0.1vw] h-[0.1vw] rounded-full ${(pseudoProps.strokeDasharray && pseudoProps.strokeDasharray !== 'none' && pseudoProps.strokeDasharray.split(',').length > 2) ? 'bg-gray-700' : 'bg-gray-400'}`}></div>
                         </div>
                       </button>
                     </div>
@@ -1357,9 +1432,26 @@ const Color = ({
                     <span className="text-[0.7vw] text-gray-500 font-medium">Dash Property</span>
                     <div className="flex items-center gap-[0.3vw] h-[2vw]">
                       {(() => {
-                        const dashArray = (pseudoProps.strokeDasharray || '8,4').split(',');
-                        const lVal = isNaN(parseInt(dashArray[0])) ? 8 : parseInt(dashArray[0]);
+                        const dashArrayStr = pseudoProps.strokeDasharray;
+                        const isCustom = dashArrayStr && dashArrayStr !== 'none' && dashArrayStr.split(',').length > 2;
+                        const dashArray = (dashArrayStr || '4,4').split(',');
+                        const lVal = isNaN(parseInt(dashArray[0])) ? 4 : parseInt(dashArray[0]);
                         const gVal = isNaN(parseInt(dashArray[1] || dashArray[0])) ? 4 : parseInt(dashArray[1] || dashArray[0]);
+
+                        if (isCustom) {
+                          return (
+                            <div className="flex-1 flex items-center border border-gray-200 rounded-[0.5vw] bg-white h-full px-[0.5vw]">
+                              <span className="text-[0.65vw] text-gray-400 font-medium whitespace-nowrap mr-[0.3vw]">Custom</span>
+                              <input
+                                type="text"
+                                value={dashArrayStr || '6, 12, 18, 12'}
+                                onChange={(e) => updateAttr('stroke-dasharray', e.target.value)}
+                                className="w-full bg-transparent outline-none text-[0.65vw] text-gray-700 font-medium text-right cursor-text"
+                                onPointerDown={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          );
+                        }
 
                         return (
                           <>
@@ -1390,15 +1482,17 @@ const Color = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Row 4: Line Corner */}
+                {!isText && (
                 <div className="flex items-center gap-[1vw]">
                   <div className="flex-1 flex flex-col gap-[0.3vw]">
                     <span className="text-[0.7vw] text-gray-500 font-medium">Line Corner</span>
                     <div className="relative">
                       <div
-                        className="h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                        onClick={() => setIsStrokeStyleOpen(!isStrokeStyleOpen)}
+                        className={`h-[2vw] px-[0.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between bg-white ${isText ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                        onClick={() => !isText && setIsStrokeStyleOpen(!isStrokeStyleOpen)}
                       >
                         <span className="text-[0.75vw] font-medium text-gray-700 capitalize">{(pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round') ? 'Rounded' : 'Square'}</span>
                         <ChevronDown size="0.8vw" className="text-gray-400" />
@@ -1429,6 +1523,7 @@ const Color = ({
                   {/* Empty div for right side to maintain grid alignment */}
                   <div className="flex-1"></div>
                 </div>
+                )}
               </div>
             </div>
           </div>
@@ -1543,13 +1638,16 @@ const Color = ({
                   if (setBackgroundColor) setBackgroundColor(p => ({ ...p, scrollBarOpacity: parseFloat(newOpacity) }));
                 } else if (activeColorPicker === 'bg-fill') {
                   if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgFillOpacity: parseFloat(newOpacity) }));
+                  updateAttr('data-bg-fill-opacity', (newOpacity / 100).toString());
                 } else if (activeColorPicker === 'bg-stroke') {
                   if (setBackgroundColor) setBackgroundColor(p => ({ ...p, bgStrokeOpacity: parseFloat(newOpacity) }));
+                  updateAttr('data-bg-stroke-opacity', (newOpacity / 100).toString());
                 } else if (activeColorPicker === 'fill') {
                   updateAttr('opacity', (newOpacity / 100).toString());
                 } else if (activeColorPicker === 'stroke') {
                   updateAttr('stroke-opacity', (newOpacity / 100).toString());
                 }
+                if (onUpdate) onUpdate({ shouldRefresh: true });
               }}
               onClose={() => setActiveColorPicker(null)}
               colorsOnPage={colorsOnPage}
