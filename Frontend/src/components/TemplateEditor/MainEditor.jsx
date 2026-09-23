@@ -2548,9 +2548,13 @@ const MainEditor = ({
             const bgFillOpacity = el.getAttribute('data-bg-fill-opacity') !== null ? el.getAttribute('data-bg-fill-opacity') : '1';
             if (bgFill && bgFill !== 'transparent' && bgFill !== 'none' && bgFill !== '#') {
               const finalBgFill = hexToRgbaStr(bgFill, bgFillOpacity);
-              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: ${finalBgFill} !important; --bg-fill: ${finalBgFill} !important; }\n`;
+              if (finalBgFill.includes('gradient')) {
+                cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-image: ${finalBgFill} !important; background-color: transparent !important; --bg-fill: ${finalBgFill} !important; }\n`;
+              } else {
+                cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: ${finalBgFill} !important; background-image: none !important; --bg-fill: ${finalBgFill} !important; }\n`;
+              }
             } else {
-              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: transparent !important; --bg-fill: transparent !important; }\n`;
+              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: transparent !important; background-image: none !important; --bg-fill: transparent !important; }\n`;
             }
           }
           if (el.hasAttribute('data-bg-stroke')) {
@@ -2721,7 +2725,7 @@ const MainEditor = ({
         overlay.setAttribute('fill', 'none');
         overlay.setAttribute('stroke-opacity', el.getAttribute('data-stroke-opacity') || '1');
 
-        const dashArray = el.getAttribute('data-stroke-dasharray');
+        const dashArray = el.getAttribute('data-stroke-dasharray') || el.getAttribute('stroke-dasharray');
         if (dashArray && dashArray !== 'none') overlay.setAttribute('stroke-dasharray', dashArray);
         else overlay.removeAttribute('stroke-dasharray');
 
