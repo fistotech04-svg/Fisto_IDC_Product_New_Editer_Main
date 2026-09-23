@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { TransformControls } from "@react-three/drei";
@@ -17,33 +17,53 @@ sharedTextureLoader.setCrossOrigin('anonymous');
 
 // Helper to extract a usable image URL/DataURL from a Three.js texture
 const getTextureSource = (tex) => {
-    if (!tex || !tex.image) return null;
+    if (!tex) return null;
+    if (tex.userData?.url) return tex.userData.url;
+    if (!tex.image) return null;
     const img = tex.image;
     
     // 1. If it's a standard Image/HTMLImageElement with a valid src
-    if (img.src && (img.src.startsWith('http') || img.src.startsWith('blob:') || img.src.startsWith('data:'))) {
+    if (img.src && typeof img.src === 'string' && (img.src.startsWith('http') || img.src.startsWith('blob:') || img.src.startsWith('data:'))) {
         return img.src;
     }
     
     // 2. If it's a Canvas element
-    if (img instanceof HTMLCanvasElement) {
+    if (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement) {
         try { return img.toDataURL(); } catch (e) { return null; }
     }
 
-    // 3. Fallback: Draw to a temporary canvas to extract the data
+    // 3. If it has raw pixel data (DataTexture / ImageData)
+    if (img.data && img.width && img.height) {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            const imgData = ctx.createImageData(img.width, img.height);
+            if (img.data instanceof Uint8Array || img.data instanceof Uint8ClampedArray) {
+                imgData.data.set(img.data);
+                ctx.putImageData(imgData, 0, 0);
+                return canvas.toDataURL();
+            }
+        } catch (e) {
+            // fallback
+        }
+    }
+
+    // 4. Fallback: Draw to a temporary canvas to extract the data (supports ImageBitmap, HTMLImageElement)
     try {
+        const w = img.width || img.naturalWidth || 256;
+        const h = img.height || img.naturalHeight || 256;
+        if (w === 0 || h === 0) return "existing";
+        
         const canvas = document.createElement('canvas');
-        canvas.width = img.width || img.naturalWidth || 256;
-        canvas.height = img.height || img.naturalHeight || 256;
-        
-        if (canvas.width === 0 || canvas.height === 0) return null;
-        
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
         return canvas.toDataURL();
     } catch (e) {
-        console.warn("Failed to extract texture data URL:", e);
-        return null;
+        return "existing";
     }
 };
 
@@ -84,11 +104,85 @@ const safeComputeTangents = (geometry) => {
   }
 };
 
+// --- Selection Bounding Box ---
+// Draws a bright yellow wireframe box around the selected mesh/group, updated every frame.
+function SelectionBoundingBox({ target }) {
+  const linesRef = useRef(null);
+  const box3 = useMemo(() => new THREE.Box3(), []);
+  const center = useMemo(() => new THREE.Vector3(), []);
+  const size   = useMemo(() => new THREE.Vector3(), []);
+  const timeRef = useRef(0);
+
+  // Build box geometry: 12 edges = 24 vertices for lineSegments
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const v = [
+      [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+      [-1,-1, 1],[1,-1, 1],[1,1, 1],[-1,1, 1]
+    ];
+    const edges = [
+      0,1, 1,2, 2,3, 3,0,
+      4,5, 5,6, 6,7, 7,4,
+      0,4, 1,5, 2,6, 3,7
+    ];
+    const positions = [];
+    edges.forEach(i => positions.push(...v[i]));
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    return geo;
+  }, []);
+
+  useFrame((_, delta) => {
+    if (!linesRef.current || !target) return;
+    timeRef.current += delta;
+
+    box3.setFromObject(target, true);
+    if (box3.isEmpty()) return;
+
+    box3.getCenter(center);
+    box3.getSize(size);
+
+    const padding = Math.max(size.x, size.y, size.z) * 0.04 + 0.01;
+    linesRef.current.position.copy(center);
+    linesRef.current.scale.set(
+      (size.x / 2) + padding,
+      (size.y / 2) + padding,
+      (size.z / 2) + padding
+    );
+
+    // Pulse: range 0.76 → 1.0
+    const pulse = 0.88 + Math.sin(timeRef.current * 2.8) * 0.12;
+    if (linesRef.current.material) linesRef.current.material.opacity = pulse;
+  });
+
+  if (!target) return null;
+
+  return (
+    <lineSegments ref={linesRef} geometry={geometry} renderOrder={999}>
+      <lineBasicMaterial
+        color={0xffe033}
+        transparent
+        opacity={1.0}
+        depthTest={false}
+        depthWrite={false}
+        linewidth={2}
+      />
+    </lineSegments>
+  );
+}
+
 const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady }, ref) => {
   const [position, setPosition] = useState(() => scene?.userData?.normalization?.position || [0, 0, 0]);
   const [scale, setScale] = useState(() => scene?.userData?.normalization?.scale || 1);
   const groupRef = React.useRef(null);
   const [modelGroup, setModelGroup] = useState(null);
+
+  useEffect(() => {
+    if (scene?.userData?.normalization) {
+      setPosition(scene.userData.normalization.position);
+      setScale(scene.userData.normalization.scale);
+    }
+  }, [scene]);
+
   const [syncedSelectionSignature, setSyncedSelectionSignature] = useState(null);
   const activeTextureRef = React.useRef(selectedTexture);
   activeTextureRef.current = selectedTexture;
@@ -227,6 +321,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                       mat.userData.originalRoughness = mat.roughness;
                       mat.userData.originalMetalness = mat.metalness;
                       mat.userData.originalOpacity = mat.opacity;
+                      mat.userData.originalClearcoat = mat.clearcoat !== undefined ? mat.clearcoat : 0;
+                      mat.userData.originalSpecularIntensity = mat.specularIntensity !== undefined ? mat.specularIntensity : 1.0;
+                      mat.userData.originalEnvMapIntensity = mat.envMapIntensity !== undefined ? mat.envMapIntensity : 1.0;
                   }
 
                   if (includeTextures === false) {
@@ -247,6 +344,122 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
   // Mesh Index for fast material lookups - avoids expensive scene.traverse calls
   const meshIndexRef = React.useRef(new Map()); // Map<MaterialName, Mesh[]>
+
+  // Helper to resolve all 3D meshes targeted by the current selection
+  const resolveTargetMeshes = useCallback((selMat) => {
+      if (!selMat || !scene) return [];
+
+      const isFullModel = !selMat || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene";
+      if (isFullModel) {
+          const all = [];
+          scene.traverse(child => {
+              if (child.isMesh && child.material) all.push(child);
+          });
+          return all;
+      }
+
+      if (selMat.isGroup && Array.isArray(selMat.materials)) {
+          const result = new Set();
+          selMat.materials.forEach(mName => {
+              if (meshIndexRef.current.has(mName)) {
+                  meshIndexRef.current.get(mName).forEach(c => result.add(c));
+              }
+          });
+          return Array.from(result);
+      }
+
+      const targetUuid = selMat.uuid || selMat.meshUuid;
+      const targetMat = selMat.material;
+      const targetName = selMat.meshName || selMat.name;
+
+      if (targetUuid && meshIndexRef.current.has(targetUuid)) {
+          return meshIndexRef.current.get(targetUuid);
+      }
+      if (targetName && meshIndexRef.current.has(targetName)) {
+          return meshIndexRef.current.get(targetName);
+      }
+      if (targetMat && meshIndexRef.current.has(targetMat)) {
+          return meshIndexRef.current.get(targetMat);
+      }
+
+      const matches = [];
+      scene.traverse(child => {
+          if (child.isMesh && child.material) {
+              if (targetUuid && child.uuid === targetUuid) {
+                  matches.push(child);
+              } else if (targetName && child.name === targetName) {
+                  matches.push(child);
+              } else if (targetMat) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  if (mats.some(m => m && m.name === targetMat)) {
+                      matches.push(child);
+                  }
+              }
+          }
+      });
+      return matches;
+  }, [scene, modelName]);
+
+  // Helper to resolve the primary THREE.Material targeted by the current selection
+  const resolveTargetMaterial = useCallback((selMat) => {
+      if (!selMat || !scene) return null;
+
+      const isFullModel = !selMat || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene";
+      if (isFullModel) {
+          // In Full Model mode, do not arbitrarily pick the first mesh's material
+          // to avoid polluting global settings with a random mesh's colors/textures.
+          return null;
+      }
+
+      const targetUuid = selMat.uuid || selMat.meshUuid;
+      const targetMat = selMat.material;
+      const targetName = selMat.meshName || selMat.name;
+
+      if (targetUuid) {
+          let found = null;
+          scene.traverse(child => {
+              if (found) return;
+              if (child.isMesh && child.uuid === targetUuid && child.material) {
+                  if (Array.isArray(child.material)) {
+                      found = targetMat ? (child.material.find(m => m.name === targetMat) || child.material[0]) : child.material[0];
+                  } else {
+                      found = child.material;
+                  }
+              }
+          });
+          if (found) return found;
+      }
+
+      if (targetMat && meshIndexRef.current.has(targetMat)) {
+          const meshes = meshIndexRef.current.get(targetMat);
+          if (meshes.length > 0 && meshes[0].material) {
+              const m = meshes[0].material;
+              return Array.isArray(m) ? (m.find(mat => mat.name === targetMat) || m[0]) : m;
+          }
+      }
+
+      if (targetName && meshIndexRef.current.has(targetName)) {
+          const meshes = meshIndexRef.current.get(targetName);
+          if (meshes.length > 0 && meshes[0].material) {
+              return Array.isArray(meshes[0].material) ? meshes[0].material[0] : meshes[0].material;
+          }
+      }
+
+      let found = null;
+      scene.traverse(child => {
+          if (found) return;
+          if (child.isMesh && child.material) {
+              const mats = Array.isArray(child.material) ? child.material : [child.material];
+              for (const m of mats) {
+                  if (m && ((targetMat && m.name === targetMat) || (targetName && m.name === targetName))) {
+                      found = m;
+                      break;
+                  }
+              }
+          }
+      });
+      return found;
+  }, [scene, modelName]);
 
 
   // Expose Helper Functionality
@@ -275,6 +488,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       renameMaterial: (oldName, newName) => {
           if (!scene || !oldName || !newName) return;
           scene.traverse((child) => {
+              if (child.name === oldName) {
+                  child.name = newName;
+              }
               if (child.isMesh && child.material) {
                   const mats = Array.isArray(child.material) ? child.material : [child.material];
                   mats.forEach(m => {
@@ -315,8 +531,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
               t.flipY = false; 
               t.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
               t.anisotropy = 8; // Performance optimization: 8 is usually plenty and faster than 16
+              t.userData = { url: resolved };
               t.needsUpdate = true;
           });
+          tex.userData = { url: resolved };
 
           globalTextureCache.set(cacheKey, tex);
           return tex;
@@ -348,8 +566,43 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
      // Optimized application using mesh index
      const processedMaterials = new Set();
+     const ensureMeshUniqueMaterial = (mesh) => {
+          if (!mesh || !mesh.material || isFullModelSelect || (selMat && selMat.isGroup)) return;
+          const currentMat = mesh.material;
+          const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
+          let didClone = false;
+          const newMats = mats.map(m => {
+              if (!m) return m;
+              let isShared = false;
+              scene.traverse(c => {
+                  if (isShared) return;
+                  if (c.isMesh && c !== mesh && c.material) {
+                      const cm = Array.isArray(c.material) ? c.material : [c.material];
+                      if (cm.some(mat => mat === m || mat.uuid === m.uuid)) {
+                          isShared = true;
+                      }
+                  }
+              });
+              if (isShared) {
+                  const cloned = m.clone();
+                  cloned.name = `${m.name}_${mesh.name || mesh.uuid.slice(0, 4)}`;
+                  cloned.userData = { ...m.userData };
+                  didClone = true;
+                  if (meshIndexRef.current) {
+                      meshIndexRef.current.set(cloned.name, [mesh]);
+                  }
+                  return cloned;
+              }
+              return m;
+          });
+          if (didClone) {
+              mesh.material = Array.isArray(currentMat) ? newMats : newMats[0];
+          }
+     };
+
      const applyToMesh = (child) => {
           if (child.isMesh && child.material) {
+              ensureMeshUniqueMaterial(child);
               const apply = (mat) => {
                    if (!mat.isMeshStandardMaterial && !mat.isMeshPhysicalMaterial && !mat.isMeshPhongMaterial) return;
                    if (processedMaterials.has(mat.uuid)) return;
@@ -357,7 +610,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                    
                     // Surgical replacement: Only replace maps that are provided by the new texture.
                     // This prevents clobbering existing maps (like an original diffuse map) when applying a partial gallery texture.
-                    if (newMaps.map) mat.map = newMaps.map;
+                    if (newMaps.map) {
+                        mat.map = newMaps.map;
+                        mat.userData.appliedMap = newMaps.map;
+                    }
                     if (newMaps.normalMap) {
                         mat.normalMap = newMaps.normalMap;
                         mat.bumpMap = newMaps.normalMap; // Use normal map as bump fallback
@@ -420,8 +676,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
          meshIndexRef.current.forEach(meshes => {
              meshes.forEach(applyToMesh);
          });
-     } else if (targetMatName && meshIndexRef.current.has(targetMatName)) {
-         const targetMeshes = meshIndexRef.current.get(targetMatName);
+     } else {
+         const targetMeshes = resolveTargetMeshes(selMat);
          targetMeshes.forEach(applyToMesh);
      }
      
@@ -439,6 +695,12 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   // 0.2. Apply Manual Map Uploads
   useEffect(() => {
     if (!materialSettings?.maps || !scene) return;
+    
+    // CRITICAL: Manual map uploads must ONLY run when maps or appliedTexture were explicitly changed or on reset/undo!
+    // Slider adjustments (scale, rotation, offset, color, roughness, etc.) must NEVER trigger map reloads!
+    const isResetOrUndo = resetKey !== lastApplyResetKeyRef.current;
+    const changedProp = materialSettings.lastChangedProp;
+    if (!isResetOrUndo && changedProp !== 'maps' && changedProp !== 'appliedTexture') return;
     
     // We only apply to the selected material (scoping is handled by the component that updates maps)
     const selMat = selectedMaterial;
@@ -472,8 +734,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
               t.flipY = false; 
               t.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
               t.anisotropy = 8;
+              t.userData = { url: resolved };
               t.needsUpdate = true;
           });
+          tex.userData = { url: resolved };
           
           globalTextureCache.set(cacheKey, tex);
           return tex;
@@ -488,89 +752,187 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const roughnessImg = newMapsList.roughnessMap || newMapsList.roughness;
     const metalnessImg = newMapsList.metalnessMap || newMapsList.metallic || newMapsList.metalness;
     const displacementImg = newMapsList.displacementMap || newMapsList.displacement;
+    const bumpImg = newMapsList.bumpMap || newMapsList.bump;
     const aoImg = newMapsList.aoMap || newMapsList.ao;
     const alphaImg = newMapsList.alphaMap || newMapsList.opacity;
     const emissiveImg = newMapsList.emissiveMap || newMapsList.emissive;
 
-    if (baseImg) loadedMaps.map = loadMapManual(baseImg, true);
-    if (normalImg) loadedMaps.normalMap = loadMapManual(normalImg, false);
-    if (roughnessImg) loadedMaps.roughnessMap = loadMapManual(roughnessImg, false);
-    if (metalnessImg) loadedMaps.metalnessMap = loadMapManual(metalnessImg, false);
-    if (displacementImg) loadedMaps.displacementMap = loadMapManual(displacementImg, false);
-    if (aoImg) loadedMaps.aoMap = loadMapManual(aoImg, false);
-    if (alphaImg) loadedMaps.alphaMap = loadMapManual(alphaImg, false);
-    if (emissiveImg) loadedMaps.emissiveMap = loadMapManual(emissiveImg, true);
+    const texScaleX = 100 / (materialSettings.scale || 100);
+    const texScaleY = 100 / (materialSettings.scale || 100);
+
+    const applyScaleToTex = (tex) => {
+        if (tex && tex.repeat && typeof tex.repeat.set === 'function') {
+            tex.repeat.set(texScaleX, texScaleY);
+        }
+    };
+
+    if (baseImg) { loadedMaps.map = loadMapManual(baseImg, true); applyScaleToTex(loadedMaps.map); }
+    if (normalImg) { loadedMaps.normalMap = loadMapManual(normalImg, false); applyScaleToTex(loadedMaps.normalMap); }
+    if (roughnessImg) { loadedMaps.roughnessMap = loadMapManual(roughnessImg, false); applyScaleToTex(loadedMaps.roughnessMap); }
+    if (metalnessImg) { loadedMaps.metalnessMap = loadMapManual(metalnessImg, false); applyScaleToTex(loadedMaps.metalnessMap); }
+    if (displacementImg) { loadedMaps.displacementMap = loadMapManual(displacementImg, false); applyScaleToTex(loadedMaps.displacementMap); }
+    if (bumpImg) { loadedMaps.bumpMap = loadMapManual(bumpImg, false); applyScaleToTex(loadedMaps.bumpMap); }
+    if (aoImg) { loadedMaps.aoMap = loadMapManual(aoImg, false); applyScaleToTex(loadedMaps.aoMap); }
+    if (alphaImg) { loadedMaps.alphaMap = loadMapManual(alphaImg, false); applyScaleToTex(loadedMaps.alphaMap); }
+    if (emissiveImg) { loadedMaps.emissiveMap = loadMapManual(emissiveImg, true); applyScaleToTex(loadedMaps.emissiveMap); }
 
     const applyToMeshLocal = (child) => {
          if (child.isMesh && child.material) {
+             if (!isFullModel && !(selMat && selMat.isGroup)) {
+                 const currentMat = child.material;
+                 const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
+                 let didClone = false;
+                 const newMats = mats.map(m => {
+                     if (!m) return m;
+                     let isShared = false;
+                     scene.traverse(c => {
+                         if (isShared) return;
+                         if (c.isMesh && c !== child && c.material) {
+                             const cm = Array.isArray(c.material) ? c.material : [c.material];
+                             if (cm.some(mat => mat === m || mat.uuid === m.uuid)) {
+                                 isShared = true;
+                             }
+                         }
+                     });
+                     if (isShared) {
+                         const cloned = m.clone();
+                         cloned.name = `${m.name}_${child.name || child.uuid.slice(0, 4)}`;
+                         cloned.userData = { ...m.userData };
+                         didClone = true;
+                         if (meshIndexRef.current) {
+                             meshIndexRef.current.set(cloned.name, [child]);
+                         }
+                         return cloned;
+                     }
+                     return m;
+                 });
+                 if (didClone) {
+                     child.material = Array.isArray(currentMat) ? newMats : newMats[0];
+                 }
+             }
              const apply = (mat) => {
                   const hasMapUpdate = newMapsList.hasOwnProperty('map') && newMapsList.map !== "existing";
                   const hasNormalUpdate = newMapsList.hasOwnProperty('normalMap') && newMapsList.normalMap !== "existing";
                   const hasRoughnessUpdate = newMapsList.hasOwnProperty('roughnessMap') && newMapsList.roughnessMap !== "existing";
                   const hasMetalnessUpdate = newMapsList.hasOwnProperty('metalnessMap') && newMapsList.metalnessMap !== "existing";
-                  const hasBumpUpdate = newMapsList.hasOwnProperty('bumpMap') && newMapsList.bumpMap !== "existing";
+                  const hasBumpUpdate = (newMapsList.hasOwnProperty('bumpMap') && newMapsList.bumpMap !== "existing") || (newMapsList.hasOwnProperty('bump') && newMapsList.bump !== "existing");
                   const hasAoUpdate = newMapsList.hasOwnProperty('aoMap') && newMapsList.aoMap !== "existing";
-                  const hasDispUpdate = newMapsList.hasOwnProperty('displacementMap') && newMapsList.displacementMap !== "existing";
+                  const hasDispUpdate = (newMapsList.hasOwnProperty('displacementMap') && newMapsList.displacementMap !== "existing") || (newMapsList.hasOwnProperty('displacement') && newMapsList.displacement !== "existing");
 
                   if (hasMapUpdate) {
-                      const nextMap = loadedMaps.map || null;
-                      if (mat.map !== nextMap) mat.map = nextMap;
-                      if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                      mat.userData.manualMaps.map = newMapsList.map;
+                      if (loadedMaps.map) {
+                          if (mat.map !== loadedMaps.map) mat.map = loadedMaps.map;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.map = newMapsList.map;
+                      } else if (newMapsList.map === null) {
+                          mat.map = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.map = null;
+                      }
                   }
                   
                   if (hasNormalUpdate) {
-                      const nextNormal = loadedMaps.normalMap || null;
-                      if (mat.normalMap !== nextNormal) mat.normalMap = nextNormal;
-                      if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                      mat.userData.manualMaps.normalMap = newMapsList.normalMap;
-                      if (mat.normalMap && !mat.normalScale) mat.normalScale = new THREE.Vector2(1, 1);
+                      if (loadedMaps.normalMap) {
+                          if (mat.normalMap !== loadedMaps.normalMap) mat.normalMap = loadedMaps.normalMap;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.normalMap = newMapsList.normalMap;
+                          if (mat.normalMap && !mat.normalScale) mat.normalScale = new THREE.Vector2(1, 1);
+                      } else if (newMapsList.normalMap === null) {
+                          mat.normalMap = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.normalMap = null;
+                      }
                   }
                   
                   if (hasRoughnessUpdate) {
-                      const nextRoughness = loadedMaps.roughnessMap || null;
-                      if (mat.roughnessMap !== nextRoughness) mat.roughnessMap = nextRoughness;
-                      if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                      mat.userData.manualMaps.roughnessMap = newMapsList.roughnessMap;
-                      if (mat.roughnessMap) mat.roughness = 1.0;
+                      if (loadedMaps.roughnessMap) {
+                          if (mat.roughnessMap !== loadedMaps.roughnessMap) mat.roughnessMap = loadedMaps.roughnessMap;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.roughnessMap = newMapsList.roughnessMap;
+                          if (mat.roughnessMap) mat.roughness = 1.0;
+                      } else if (newMapsList.roughnessMap === null) {
+                          mat.roughnessMap = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.roughnessMap = null;
+                      }
                   }
                   
                   if (hasMetalnessUpdate) {
-                      const nextMetalness = loadedMaps.metalnessMap || null;
-                      if (mat.metalnessMap !== nextMetalness) mat.metalnessMap = nextMetalness;
-                      if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                      mat.userData.manualMaps.metalnessMap = newMapsList.metalnessMap;
-                      if (mat.metalnessMap) mat.metalness = 1.0;
+                      if (loadedMaps.metalnessMap) {
+                          if (mat.metalnessMap !== loadedMaps.metalnessMap) mat.metalnessMap = loadedMaps.metalnessMap;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.metalnessMap = newMapsList.metalnessMap;
+                          if (mat.metalnessMap) mat.metalness = 1.0;
+                      } else if (newMapsList.metalnessMap === null) {
+                          mat.metalnessMap = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.metalnessMap = null;
+                      }
                   }
                   
                   if (hasDispUpdate) {
-                      const nextDisp = loadedMaps.displacementMap || null;
-                      if (mat.displacementMap !== nextDisp) mat.displacementMap = nextDisp;
-                      if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                      mat.userData.manualMaps.displacementMap = newMapsList.displacementMap;
-                      if (mat.displacementMap && mat.displacementScale === undefined) mat.displacementScale = 0.01;
+                      const dispVal = newMapsList.displacementMap || newMapsList.displacement;
+                      if (loadedMaps.displacementMap) {
+                          if (mat.displacementMap !== loadedMaps.displacementMap) mat.displacementMap = loadedMaps.displacementMap;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.displacementMap = dispVal;
+                          if (mat.displacementMap && mat.displacementScale === undefined) mat.displacementScale = 0.01;
+                      } else if (dispVal === null) {
+                          mat.displacementMap = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.displacementMap = null;
+                      }
+                  }
+
+                  if (hasBumpUpdate) {
+                      const bumpVal = newMapsList.bumpMap || newMapsList.bump;
+                      if (loadedMaps.bumpMap) {
+                          if (mat.bumpMap !== loadedMaps.bumpMap) mat.bumpMap = loadedMaps.bumpMap;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.bumpMap = bumpVal;
+                          if (mat.bumpMap && mat.bumpScale === undefined) mat.bumpScale = 0.05;
+                      } else if (bumpVal === null) {
+                          mat.bumpMap = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.bumpMap = null;
+                      }
                   }
                   
                   if (hasAoUpdate) {
-                      const nextAo = loadedMaps.aoMap || null;
-                      if (mat.aoMap !== nextAo) mat.aoMap = nextAo;
-                      if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                      mat.userData.manualMaps.aoMap = newMapsList.aoMap;
-                      if (mat.aoMap && mat.aoMapIntensity === undefined) mat.aoMapIntensity = 1;
+                      if (loadedMaps.aoMap) {
+                          if (mat.aoMap !== loadedMaps.aoMap) mat.aoMap = loadedMaps.aoMap;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.aoMap = newMapsList.aoMap;
+                          if (mat.aoMap && mat.aoMapIntensity === undefined) mat.aoMapIntensity = 1;
+                      } else if (newMapsList.aoMap === null) {
+                          mat.aoMap = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.aoMap = null;
+                      }
                   }
 
                   if (newMapsList.hasOwnProperty('alphaMap') && newMapsList.alphaMap !== "existing") {
-                      const nextAlpha = loadedMaps.alphaMap || null;
-                      if (mat.alphaMap !== nextAlpha) mat.alphaMap = nextAlpha;
-                      if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                      mat.userData.manualMaps.alphaMap = newMapsList.alphaMap;
+                      if (loadedMaps.alphaMap) {
+                          if (mat.alphaMap !== loadedMaps.alphaMap) mat.alphaMap = loadedMaps.alphaMap;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.alphaMap = newMapsList.alphaMap;
+                      } else if (newMapsList.alphaMap === null) {
+                          mat.alphaMap = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.alphaMap = null;
+                      }
                   }
 
                   if (newMapsList.hasOwnProperty('emissiveMap') && newMapsList.emissiveMap !== "existing") {
-                      const nextEmissive = loadedMaps.emissiveMap || null;
-                      if (mat.emissiveMap !== nextEmissive) mat.emissiveMap = nextEmissive;
-                      if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                      mat.userData.manualMaps.emissiveMap = newMapsList.emissiveMap;
+                      if (loadedMaps.emissiveMap) {
+                          if (mat.emissiveMap !== loadedMaps.emissiveMap) mat.emissiveMap = loadedMaps.emissiveMap;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.emissiveMap = newMapsList.emissiveMap;
+                      } else if (newMapsList.emissiveMap === null) {
+                          mat.emissiveMap = null;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.emissiveMap = null;
+                      }
                   }
                   
                   mat.needsUpdate = true;
@@ -589,14 +951,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     };
 
     if (isFullModel) {
-        // Guard: In Full Model mode, only apply manual map overrides if explicitly enabled
-        if (!materialSettings.useFactorColor) return;
         meshIndexRef.current.forEach(applyToTarget);
-    } else if (targetMatName && meshIndexRef.current.has(targetMatName)) {
-        applyToTarget(meshIndexRef.current.get(targetMatName));
+    } else {
+        const targetMeshes = resolveTargetMeshes(selMat);
+        applyToTarget(targetMeshes);
     }
 
-  }, [materialSettings?.maps, scene, selectedMaterial, modelName]);
+  }, [materialSettings?.maps, materialSettings?.useFactorColor, scene, selectedMaterial, modelName, resolveTargetMeshes]);
 
   // 0.6. Sync UI with Selected Material (Fetch existing values)
 
@@ -606,7 +967,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       if (!scene || !onTextureIdentified) return;
 
       const isFullModel = !selectedMaterial || (modelName && selectedMaterial.name === modelName) || selectedMaterial.name === "Scene";
-      const targetMatName = isFullModel ? null : selectedMaterial.name;
       
       let foundMat = null;
 
@@ -622,26 +982,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           }
       }
       
-      if (isFullModel) {
-          // Find first material style
-          scene.traverse((child) => {
-              if (foundMat) return;
-              if (child.isMesh && child.material) {
-                  foundMat = Array.isArray(child.material) ? child.material[0] : child.material;
-              }
-          });
-      } else if (targetMatName && meshIndexRef.current.has(targetMatName)) {
-          // Optimized lookup using mesh index
-          const targetMeshes = meshIndexRef.current.get(targetMatName);
-          if (targetMeshes.length > 0) {
-              const mesh = targetMeshes[0];
-              if (Array.isArray(mesh.material)) {
-                  foundMat = mesh.material.find(m => m.name === targetMatName);
-              } else {
-                  foundMat = mesh.material;
-              }
-          }
-      }
+      foundMat = resolveTargetMaterial(selectedMaterial);
 
       // Helper to extract URL from a Three.js Texture
       const getTexUrl = (tex) => {
@@ -663,15 +1004,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           } else {
               // Extract current visual state for the UI checkmarks
               const nativeMaps = {};
-              const applied = foundMat.userData.appliedTexture;
-              const aMaps = applied?.maps || {};
 
               if (foundMat.map) nativeMaps.map = getTexUrl(foundMat.map);
               if (foundMat.normalMap) nativeMaps.normalMap = getTexUrl(foundMat.normalMap);
               if (foundMat.roughnessMap) nativeMaps.roughnessMap = getTexUrl(foundMat.roughnessMap);
               if (foundMat.metalnessMap) nativeMaps.metalnessMap = getTexUrl(foundMat.metalnessMap);
               if (foundMat.displacementMap) nativeMaps.displacementMap = getTexUrl(foundMat.displacementMap);
+              if (foundMat.bumpMap) nativeMaps.bumpMap = getTexUrl(foundMat.bumpMap);
               if (foundMat.aoMap) nativeMaps.aoMap = getTexUrl(foundMat.aoMap);
+              if (foundMat.alphaMap) nativeMaps.alphaMap = getTexUrl(foundMat.alphaMap);
+              if (foundMat.emissiveMap) nativeMaps.emissiveMap = getTexUrl(foundMat.emissiveMap);
 
               if (typeof onUpdateMaterialSetting === 'function') {
                   onUpdateMaterialSetting('maps', nativeMaps);
@@ -689,7 +1031,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           }
       }
 
-  }, [selectedMaterial, scene, onTextureIdentified, onUpdateMaterialSetting, modelName]);
+  }, [selectedMaterial, scene, onTextureIdentified, onUpdateMaterialSetting, modelName, resolveTargetMaterial]);
   
   // 1. Initial Setup: Centering, Scaling, Stats, Material Naming
   useLayoutEffect(() => {
@@ -760,6 +1102,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         position: [centeredX, bottomY, centeredZ],
         scale: targetScale
     };
+    if (modelGroup) {
+        modelGroup.userData.originalTransform = {
+            position: new THREE.Vector3(centeredX, bottomY, centeredZ),
+            rotation: new THREE.Euler(0, 0, 0),
+            scale: new THREE.Vector3(targetScale, targetScale, targetScale)
+        };
+    }
 
     // Stats & Material Naming
     let vertCount = 0;
@@ -783,6 +1132,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                 if (!meshIndex.has(name)) meshIndex.set(name, []);
                 meshIndex.get(name).push(child);
             });
+        }
+        // Also register mesh uuid and mesh name in meshIndex for instant direct lookups
+        if (child.uuid) {
+            if (!meshIndex.has(child.uuid)) meshIndex.set(child.uuid, []);
+            meshIndex.get(child.uuid).push(child);
+        }
+        if (child.name) {
+            if (!meshIndex.has(child.name)) meshIndex.set(child.name, []);
+            meshIndex.get(child.name).push(child);
         }
 
         child.castShadow = true;
@@ -853,6 +1211,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     // Ensure original data is stored for visibility/UI logic
                     if (!m.userData.originalColor) m.userData.originalColor = m.color?.clone();
                     if (m.userData.originalOpacity === undefined) m.userData.originalOpacity = m.opacity;
+                    if (m.userData.originalRoughness === undefined) m.userData.originalRoughness = m.roughness;
+                    if (m.userData.originalMetalness === undefined) m.userData.originalMetalness = m.metalness;
+                    if (m.userData.originalClearcoat === undefined) m.userData.originalClearcoat = m.clearcoat !== undefined ? m.clearcoat : 0;
+                    if (m.userData.originalSpecularIntensity === undefined) m.userData.originalSpecularIntensity = m.specularIntensity !== undefined ? m.specularIntensity : 1.0;
                     if (m.map) m.userData.originalMap = m.map;
                     if (m.normalMap) m.userData.originalNormalMap = m.normalMap;
                     if (m.alphaMap) m.userData.originalAlphaMap = m.alphaMap;
@@ -1038,24 +1400,57 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         mats.forEach((m, mIdx) => {
           if (!m) return;
           if (!m.name) m.name = `Material_${mIdx + 1}`;
+
+          // Ensure all surface textures on the material have RepeatWrapping enabled
+          // so texture transforms (offset, scale, rotation) tile smoothly and never clamp to black edges
+          [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.bumpMap, m.displacementMap, m.alphaMap, m.emissiveMap].forEach(t => {
+            if (t && t !== m.aoMap && t !== m.lightMap) {
+              t.wrapS = THREE.RepeatWrapping;
+              t.wrapT = THREE.RepeatWrapping;
+            }
+          });
+
+          if (!m.userData.originalMap && m.map) m.userData.originalMap = m.map;
+          if (!m.userData.originalNormalMap && m.normalMap) m.userData.originalNormalMap = m.normalMap;
+          if (!m.userData.originalAlphaMap && m.alphaMap) m.userData.originalAlphaMap = m.alphaMap;
+
           if (!materialDataMap[m.name]) {
             const extractTexture = (tex) => getTextureSource(tex);
-            materialDataMap[m.name] = {
+            const nativeMaps = {};
+            const baseSrc = extractTexture(m.map);
+            if (baseSrc) nativeMaps.map = baseSrc;
+            const normSrc = extractTexture(m.normalMap);
+            if (normSrc) nativeMaps.normalMap = normSrc;
+            const roughSrc = extractTexture(m.roughnessMap);
+            if (roughSrc) nativeMaps.roughnessMap = roughSrc;
+            const metalSrc = extractTexture(m.metalnessMap);
+            if (metalSrc) nativeMaps.metalnessMap = metalSrc;
+            const emissiveSrc = extractTexture(m.emissiveMap);
+            if (emissiveSrc) nativeMaps.emissiveMap = emissiveSrc;
+            const aoSrc = extractTexture(m.aoMap);
+            if (aoSrc) nativeMaps.aoMap = aoSrc;
+            const bumpSrc = extractTexture(m.bumpMap);
+            if (bumpSrc) nativeMaps.bumpMap = bumpSrc;
+            const dispSrc = extractTexture(m.displacementMap);
+            if (dispSrc) nativeMaps.displacementMap = dispSrc;
+            const alphaSrc = extractTexture(m.alphaMap);
+            if (alphaSrc) nativeMaps.alphaMap = alphaSrc;
+
+            const data = {
               color: '#' + (m.color ? m.color.getHexString() : 'ffffff'),
               metallic: m.metalness !== undefined ? m.metalness * 100 : 0,
               roughness: m.roughness !== undefined ? m.roughness * 100 : 50,
               opacity: m.opacity !== undefined ? m.opacity * 100 : 100,
               scale: m.map && m.map.repeat ? Math.round(100 / (m.map.repeat.x || 1)) : 100,
-              maps: {
-                map: extractTexture(m.map),
-                normalMap: extractTexture(m.normalMap),
-                roughnessMap: extractTexture(m.roughnessMap),
-                metalnessMap: extractTexture(m.metalnessMap),
-                emissiveMap: extractTexture(m.emissiveMap),
-                aoMap: extractTexture(m.aoMap),
-                bumpMap: extractTexture(m.bumpMap)
-              }
+              maps: nativeMaps
             };
+            materialDataMap[m.name] = data;
+            if (child.name && !materialDataMap[child.name]) {
+              materialDataMap[child.name] = data;
+            }
+            if (child.uuid && !materialDataMap[child.uuid]) {
+              materialDataMap[child.uuid] = data;
+            }
           }
         });
       }
@@ -1183,20 +1578,20 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
             timeouts.push(setTimeout(() => {
                     if (m.emissive) {
-                        if (typeof m.emissive.set === 'function') m.emissive.set(1, 1, 1); 
-                        else m.emissive.setRGB(1, 1, 1);
+                        const orig = m.userData.originalEmissive || new THREE.Color(0, 0, 0);
+                        m.emissive.copy(orig);
                     }
-                    m.emissiveIntensity = 0; 
+                    m.emissiveIntensity = m.userData.originalIntensity ?? 0; 
                     m.userData.isFlashing = false;
             }, 500)); 
 
         } else {
             if (m.userData.isFlashing) {
                 if (m.emissive) {
-                    if (typeof m.emissive.set === 'function') m.emissive.set(1, 1, 1);
-                    else m.emissive.setRGB(1, 1, 1);
+                    const orig = m.userData.originalEmissive || new THREE.Color(0, 0, 0);
+                    m.emissive.copy(orig);
                 }
-                m.emissiveIntensity = 0;
+                m.emissiveIntensity = m.userData.originalIntensity ?? 0;
                 m.userData.isFlashing = false;
             }
         }
@@ -1205,6 +1600,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     meshIndexRef.current.forEach(meshes => {
         meshes.forEach(child => {
             if (child.isMesh && child.material) {
+                // If a single mesh is selected, only flash that specific mesh
+                if (selectedMaterial && (selectedMaterial.uuid || selectedMaterial.meshUuid || selectedMaterial.isMesh)) {
+                    const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid;
+                    if (targetUuid) {
+                        if (child.uuid !== targetUuid) return;
+                    } else {
+                        const targetName = selectedMaterial.meshName || selectedMaterial.name;
+                        if (!targetName || child.name !== targetName) return;
+                    }
+                }
+
                 if (Array.isArray(child.material)) {
                     child.material.forEach(processHighlight);
                 } else {
@@ -1214,7 +1620,27 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         });
     });
 
-    return () => timeouts.forEach(clearTimeout);
+    return () => {
+        timeouts.forEach(clearTimeout);
+        // Ensure any active flashing materials are restored immediately
+        if (scene) {
+            scene.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(m => {
+                        if (m && m.userData && m.userData.isFlashing) {
+                            if (m.emissive) {
+                                const orig = m.userData.originalEmissive || new THREE.Color(0, 0, 0);
+                                m.emissive.copy(orig);
+                            }
+                            m.emissiveIntensity = m.userData.originalIntensity ?? 0;
+                            m.userData.isFlashing = false;
+                        }
+                    });
+                }
+            });
+        }
+    };
   }, [scene, selectedMaterial, modelName]);
 
   // 3.5. Apply Material Settings (Factor Adjustment)
@@ -1254,29 +1680,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const targetMatName = selMat ? selMat.name : (modelName || "Scene");
     const isFullModel = !selMat || targetMatName === modelName || targetMatName === "Scene";
 
-    let foundMat = null;
-    if (!isFullModel) {
-        scene.traverse((child) => {
-            if (foundMat) return;
-            if (child.isMesh && child.material) {
-                const materials = Array.isArray(child.material) ? child.material : [child.material];
-                for (const m of materials) {
-                    if (m.name === targetMatName) {
-                        foundMat = m;
-                        break;
-                    }
-                }
-            }
-        });
-    } else {
-        // For Full Model, we take properties from the first material found as a baseline
-        scene.traverse((child) => {
-            if (foundMat) return;
-            if (child.isMesh && child.material) {
-                 foundMat = Array.isArray(child.material) ? child.material[0] : child.material;
-            }
-        });
-    }
+    let foundMat = resolveTargetMaterial(selMat);
 
     if (foundMat) {
         const m = foundMat;
@@ -1332,7 +1736,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         // Texture transformations
         const tex = m.map || m.normalMap || m.roughnessMap;
         if (tex) {
-            safeUpdate('scale', Math.round(tex.repeat.x * 100));
+            safeUpdate('scale', Math.round(100 / (tex.repeat.x || 1)));
             safeUpdate('rotation', Math.round(tex.rotation * (180 / Math.PI)));
             safeUpdate('offset', { x: tex.offset.x * 100, y: tex.offset.y * 100 });
         } else {
@@ -1354,7 +1758,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const sig = `${modelName || ''}_${selMat ? (selMat.uuid || selMat.name) : 'FULL'}`;
     setSyncedSelectionSignature(sig);
 
-  }, [selectedMaterial, scene, modelName, resetKey]); 
+  }, [selectedMaterial, scene, modelName, resetKey, resolveTargetMaterial]); 
 
   // B. Apply Settings when UI changes
   useEffect(() => {
@@ -1373,6 +1777,14 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         return;
     }
 
+    // CRITICAL: Prevent overwriting 3D materials on passive selection change!
+    // Material factors are only pushed to the 3D model if the user moved a slider/color (useFactorColor === true)
+    // or triggered an Undo/Redo/Reset (isResetOrUndo === true).
+    if (!isResetOrUndo && !materialSettings.useFactorColor) {
+        return;
+    }
+
+    const changedProp = materialSettings.lastChangedProp;
     const isFullModel = !selMat || targetMatName === modelName || targetMatName === "Scene";
     
     const alpha = (materialSettings.alpha ?? 100) / 100;
@@ -1384,8 +1796,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const emissiveColor = materialSettings.emissiveColor || '#000000';
     const emissiveIntensity = (materialSettings.emissiveIntensity ?? 0) / 100;
     
-    const texScaleX = 100 / (materialSettings.scale || 0.01);
-    const texScaleY = 100 / (materialSettings.scale || 0.01);
+    const rawScale = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 100;
+    const safeScale = Math.max(1, Math.min(1000, isNaN(rawScale) ? 100 : rawScale));
+    const texScaleX = 100 / safeScale;
+    const texScaleY = 100 / safeScale;
     const texRotation = (materialSettings.rotation ?? 0) * (Math.PI / 180);
     const texOffsetX = (materialSettings.offset?.x ?? 0) / 100;
     const texOffsetY = (materialSettings.offset?.y ?? 0) / 100;
@@ -1402,83 +1816,109 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                      if (selMat.isGroup && Array.isArray(selMat.materials)) {
                           isMatch = selMat.materials.includes(m.name);
                      } else {
-                          isMatch = m.name === targetMatName || (selMat.material && selMat.material === m.name);
+                          const targetUuid = selMat.uuid || selMat.meshUuid;
+                          if (targetUuid) {
+                              isMatch = child.uuid === targetUuid;
+                          } else {
+                              isMatch = m.name === targetMatName || child.name === targetMatName || (selMat.material && selMat.material === m.name);
+                          }
                      }
                 } else if (isFullModel) {
-                     // In Full Model mode, we only apply overrides if they are explicitly enabled 
-                     // (e.g. user moved a slider). This prevents broad clobbering of different 
-                     // materials on selection change or project load.
-                     isMatch = materialSettings.useFactorColor;
+                     // In Full Model mode, apply overrides only if user moved a slider or on reset/undo
+                     isMatch = materialSettings.useFactorColor || isResetOrUndo;
                 }
 
                 if (isMatch) {
-                    // 1. Basic Material Factors
-                    if (color && m.color && typeof m.color.set === 'function') {
+                    // Apply ONLY the specific property that the user changed, or all on preset/reset/undo
+                    const applyAll = isResetOrUndo || !changedProp;
+                    
+                    // 1. Color / Color Intensity
+                    const applyColor = applyAll || changedProp === 'color' || changedProp === 'colorIntensity';
+                    if (applyColor && color && m.color && typeof m.color.set === 'function') {
                         const intensity = (materialSettings.colorIntensity ?? 100) / 100;
                         const finalColor = new THREE.Color(color);
                         finalColor.multiplyScalar(intensity);
                         m.color.copy(finalColor);
                     }
 
+                    // 2. Metallic, Roughness, Reflection, AO, Specular
                     if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
-                        m.metalness = metallic;
-                        m.roughness = roughness;
+                        if (applyAll || changedProp === 'metallic') {
+                            m.metalness = metallic;
+                        }
+                        if (applyAll || changedProp === 'roughness') {
+                            m.roughness = roughness;
+                        }
                         
-                        // Reflection & AO
-                        const reflection = Math.max(0, Math.min(1, (materialSettings.reflection ?? 50) / 100)); 
-                        const aoIntensity = (materialSettings.ao ?? 100) / 100;
-                        m.envMapIntensity = reflection;
-                        if (m.aoMap) m.aoMapIntensity = aoIntensity;
+                        // Reflection & AO — envMapIntensity combines reflection + specular for standard mats
+                        if (applyAll || changedProp === 'reflection' || changedProp === 'specular') {
+                            const reflection = Math.max(0, Math.min(1, (materialSettings.reflection ?? 50) / 100));
+                            if (m.isMeshPhysicalMaterial) {
+                                // Physical material: keep envMap driven by reflection only
+                                m.envMapIntensity = reflection;
+                            } else {
+                                // Standard material: blend reflection + a small specular boost
+                                const specularBoost = ((materialSettings.specular ?? 50) - 50) / 200; // -0.25 .. +0.25
+                                m.envMapIntensity = Math.max(0, Math.min(2, reflection + specularBoost));
+                            }
+                        }
+                        if ((applyAll || changedProp === 'ao') && m.aoMap) {
+                            const aoIntensity = (materialSettings.ao ?? 100) / 100;
+                            m.aoMapIntensity = aoIntensity;
+                        }
 
-                        // Physical Material specific refinements
+                        // Physical Material: apply specularIntensity directly
                         if (m.isMeshPhysicalMaterial) {
-                            const spec = Math.max(0, Math.min(1, (materialSettings.specular ?? 50) / 100));
-                            if (m.specularIntensity !== undefined) m.specularIntensity = spec;
-                            if (m.clearcoat !== undefined) m.clearcoat = Math.max(0, Math.min(1, (materialSettings.softness ?? 50) / 100));
+                            if (applyAll || changedProp === 'specular') {
+                                // Map 0–100 slider to 0–2 specularIntensity range
+                                m.specularIntensity = Math.max(0, (materialSettings.specular ?? 50) / 50);
+                            }
+                            if (applyAll) {
+                                if (m.userData.originalClearcoat !== undefined) {
+                                    m.clearcoat = m.userData.originalClearcoat;
+                                }
+                            }
                         }
                     }
 
-                    // Improved transparency logic: 
-                    // 1. Always set depthWrite to true to prevent see-through artifacts.
-                    // 2. Use alphaTest to help with depth sorting.
-                    // 3. Only preserve transparency in "Full Model" mode for likely glass/window parts.
-                    const isLikelyGlass = m.name?.toLowerCase().includes('glass') || 
-                                          m.name?.toLowerCase().includes('window') || 
-                                          (m.userData.originalOpacity !== undefined && m.userData.originalOpacity < 0.95);
-
-                    // Final transparency & depth logic
-                    const isTransparent = alpha < 0.999 || !!m.alphaMap;
-                    m.transparent = isTransparent;
-                    m.opacity = alpha;
-                    
-                    // Critical: depthWrite MUST be false for semi-transparent materials 
-                    // to prevent objects behind them from being discarded.
-                    m.depthWrite = !isTransparent;
-                    m.alphaTest = 0; 
-                    m.needsUpdate = true;
-                    
-                    if (m.emissive && typeof m.emissive.set === 'function') {
-                        m.emissive.set(emissiveColor);
-                        m.emissiveIntensity = emissiveIntensity;
+                    // 3. Opacity & Transparency
+                    if (applyAll || changedProp === 'alpha') {
+                        const isTransparent = alpha < 0.999 || !!m.alphaMap;
+                        m.transparent = isTransparent;
+                        m.opacity = alpha;
+                        m.depthWrite = !isTransparent;
+                        m.alphaTest = 0; 
                     }
 
-                    // 2. Map Scales
-                    if (m.normalMap && m.normalScale) {
+                    // 4. Emissive
+                    if (applyAll || changedProp === 'emissiveColor' || changedProp === 'emissiveIntensity') {
+                        if (m.emissive && typeof m.emissive.set === 'function') {
+                            m.emissive.set(emissiveColor);
+                            m.emissiveIntensity = emissiveIntensity;
+                        }
+                    }
+
+                    // 5. Normal Scale
+                    if ((applyAll || changedProp === 'normal') && m.normalMap && m.normalScale) {
                         m.normalScale.set(normalScaleVal, normalScaleVal);
                     }
-                    if (m.displacementMap) {
-                        m.displacementScale = bumpScaleVal;
-                    }
-                    if (m.bumpMap) {
-                        m.bumpScale = bumpScaleVal * 10;
+
+                    // 6. Displacement & Bump Scale
+                    if (applyAll || changedProp === 'bump') {
+                        if (m.displacementMap) {
+                            m.displacementScale = bumpScaleVal;
+                        }
+                        if (m.bumpMap) {
+                            m.bumpScale = bumpScaleVal * 10;
+                        }
                     }
 
-                    // 3. Texture Removal Check
+                    // 7. Texture Removal Check
                     const configTextureId = materialSettings.appliedTexture?.id || materialSettings.appliedTexture?._id || null;
                     const matTextureId = m.userData.appliedTextureId || null;
                     const isNone = configTextureId === 'none';
 
-                    if (matTextureId && (!configTextureId || isNone)) {
+                    if (matTextureId && (isNone || (isResetOrUndo && !configTextureId && materialSettings.useFactorColor))) {
                          // Texture was stripped from state (e.g. Undo) or 'None' selected, so strip from material
                          m.map = null;
                          m.normalMap = null;
@@ -1499,26 +1939,51 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                          m.needsUpdate = true;
                     }
 
-                    // 4. Texture Transformations (Syncing logic moved to dedicated effect)
-
-                    // 4. Texture Transformations
-                    // Only apply if the current mesh matches the selection scope (isMatch).
-                    // This avoids forcing the first material's scale/offset onto everything 
-                    // when simply switching to "Full Model" view.
-                    if (isMatch) {
-                        [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.aoMap, m.displacementMap, m.bumpMap, m.alphaMap, m.emissiveMap].forEach(tex => {
+                    // 8. Texture Transformations
+                    if (applyAll || changedProp === 'scale' || changedProp === 'rotation' || changedProp === 'offset') {
+                        // Transform only surface patterns, NEVER aoMap or lightMap (baked geometry ambient occlusion)
+                        const surfaceTextures = [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.displacementMap, m.bumpMap, m.alphaMap, m.emissiveMap];
+                        surfaceTextures.forEach(tex => {
                             if (tex) {
+                                // IMPORTANT: Do not transform textures that are shared with baked aoMap or lightMap
+                                if (tex === m.aoMap || tex === m.lightMap) return;
+
+                                // GLTF textures default to ClampToEdgeWrapping which samples black borders when offset/rotated/scaled.
+                                // RepeatWrapping allows texture patterns to repeat and slide seamlessly without turning black.
+                                if (tex.wrapS !== THREE.RepeatWrapping || tex.wrapT !== THREE.RepeatWrapping) {
+                                    tex.wrapS = THREE.RepeatWrapping;
+                                    tex.wrapT = THREE.RepeatWrapping;
+                                    if (tex.image) {
+                                        tex.needsUpdate = true;
+                                    }
+                                }
+                                // Safety: if texture was marked for update but has no image, clear it to prevent Three.js warning loop
+                                if (!tex.image && tex.needsUpdate) {
+                                    tex.needsUpdate = false;
+                                }
+
                                 if (tex.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(texScaleX, texScaleY);
                                 if (tex.offset && typeof tex.offset.set === 'function') tex.offset.set(texOffsetX, texOffsetY);
                                 if (tex.rotation !== undefined) tex.rotation = texRotation;
-                                if (tex.center && typeof tex.center.set === 'function') tex.center.set(0.5, 0.5); 
+                                if (tex.center && typeof tex.center.set === 'function') {
+                                    if (texRotation !== 0) {
+                                        tex.center.set(0.5, 0.5);
+                                    } else {
+                                        tex.center.set(0, 0);
+                                    }
+                                }
+                                tex.matrixAutoUpdate = true;
+                                if (typeof tex.updateMatrix === 'function') tex.updateMatrix();
                             }
                         });
                     }
 
-                    // Restore original map if it exists, no custom texture is applied, and user hasn't explicitly deleted it
+                    // Restore original or applied map if it exists, and user hasn't explicitly deleted it
                     const currentMaps = materialSettings?.maps || {};
-                    if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap && !m.userData.is_map_removed && currentMaps.map !== null) {
+                    if (m.userData.appliedMap && !m.map && !m.userData.is_map_removed && currentMaps.map !== null) {
+                        m.map = m.userData.appliedMap;
+                        m.needsUpdate = true;
+                    } else if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap && !m.userData.is_map_removed && currentMaps.map !== null) {
                         m.map = m.userData.originalMap;
                         m.needsUpdate = true;
                     }
@@ -1531,7 +1996,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                         m.userData.originalColor = m.color.clone();
                     }
 
-                    m.needsUpdate = true;
+                    // Only trigger material recompile if structural properties changed (not high-frequency texture placement)
+                    if (applyAll || changedProp === 'color' || changedProp === 'alpha' || changedProp === 'normal' || changedProp === 'bump') {
+                        m.needsUpdate = true;
+                    }
                 }
             });
         }
@@ -1542,15 +2010,33 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   useEffect(() => {
     if (!scene || !materialSettings?.maps) return;
 
-    const targetMatName = selectedMaterial ? selectedMaterial.name : (modelName || "Scene");
-    const isFullModel = !selectedMaterial || targetMatName === modelName || targetMatName === "Scene";
+    const isResetOrUndo = resetKey !== lastApplyResetKeyRef.current;
+    
+    // CRITICAL: Passive selection changes or slider adjustments (scale, rotation, offset, color, roughness, etc.)
+    // must NEVER run this effect! Only run when maps/textures are explicitly uploaded or changed or on reset/undo.
+    const changedProp = materialSettings.lastChangedProp;
+    if (!isResetOrUndo && changedProp !== 'maps' && changedProp !== 'appliedTexture') {
+        return;
+    }
+
+    const selMat = selectedMaterial;
+    const targetMatName = selMat ? selMat.name : (modelName || "Scene");
+    const isFullModel = !selMat || targetMatName === modelName || targetMatName === "Scene";
+
+    const currentSig = `${modelName || ''}_${selMat ? (selMat.uuid || selMat.name) : 'FULL'}`;
+    if (!isResetOrUndo && syncedSelectionSignature && syncedSelectionSignature !== currentSig) {
+        return;
+    }
+
     const stateMaps = materialSettings.maps;
     const isNone = materialSettings.appliedTexture?.id === 'none';
 
     if (isNone) return;
 
-    const texScaleX = 100 / (materialSettings.scale || 0.01);
-    const texScaleY = 100 / (materialSettings.scale || 0.01);
+    const rawScaleC = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 100;
+    const safeScaleC = Math.max(1, Math.min(1000, isNaN(rawScaleC) ? 100 : rawScaleC));
+    const texScaleX = 100 / safeScaleC;
+    const texScaleY = 100 / safeScaleC;
 
     const applyToMeshes = (meshes) => {
         meshes.forEach(child => {
@@ -1562,7 +2048,12 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                          if (selectedMaterial.isGroup && Array.isArray(selectedMaterial.materials)) {
                              isMatch = selectedMaterial.materials.includes(m.name);
                          } else {
-                             isMatch = m.name === targetMatName;
+                             const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid;
+                             if (targetUuid) {
+                                 isMatch = child.uuid === targetUuid;
+                             } else {
+                                 isMatch = m.name === targetMatName || child.name === targetMatName || (selectedMaterial.material && selectedMaterial.material === m.name);
+                             }
                          }
                     } else if (isFullModel) {
                          isMatch = materialSettings.useFactorColor;
@@ -1593,8 +2084,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                     m.userData[`is_${mapProp}_removed`] = false;
                                     m.needsUpdate = true;
                                 });
-                            } else if (stateUrl === null || stateUrl === undefined || stateUrl === 'none') {
-                                if (m[mapProp]) {
+                            } else if (stateUrl === null || stateUrl === 'none') {
+                                if (materialSettings.useFactorColor && m[mapProp]) {
                                     m[mapProp] = null;
                                     m.userData[`is_${mapProp}_removed`] = true;
                                     m.needsUpdate = true;
@@ -1620,10 +2111,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     if (isFullModel) {
         if (!materialSettings.useFactorColor) return;
         meshIndexRef.current.forEach(applyToMeshes);
-    } else if (targetMatName && meshIndexRef.current.has(targetMatName)) {
-        applyToMeshes(meshIndexRef.current.get(targetMatName));
+    } else {
+        const targetMeshes = resolveTargetMeshes(selectedMaterial);
+        applyToMeshes(targetMeshes);
     }
-  }, [scene, materialSettings?.maps, materialSettings?.appliedTexture, selectedMaterial, modelName, resetKey]);
+  }, [scene, materialSettings?.maps, materialSettings?.appliedTexture, selectedMaterial, modelName, resetKey, resolveTargetMeshes]);
 
   // C. Handle overall visibility
   useEffect(() => {
@@ -1633,11 +2125,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         if (child.isMesh && child.material) {
             let isHidden = false;
             if (hiddenMaterials) {
-                if (Array.isArray(child.material)) {
-                    isHidden = child.material.some(m => hiddenMaterials.has(m.name));
-                } else {
-                    isHidden = hiddenMaterials.has(child.material.name);
-                }
+                const childMatNames = Array.isArray(child.material) 
+                    ? child.material.map(m => m?.name).filter(Boolean)
+                    : [child.material?.name].filter(Boolean);
+
+                isHidden = (child.uuid && hiddenMaterials.has(child.uuid)) || 
+                           (child.name && hiddenMaterials.has(child.name)) || 
+                           (!child.name && childMatNames.some(mName => hiddenMaterials.has(mName)));
             }
             child.visible = !isHidden;
         }
@@ -1688,10 +2182,27 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         if (modelGroup) {
             setTransformTarget(modelGroup);
             if (typeof onTransformChange === 'function') {
+                const norm = scene.userData?.normalization;
+                const bx = norm?.position?.[0] ?? 0;
+                const by = norm?.position?.[1] ?? 0;
+                const bz = norm?.position?.[2] ?? 0;
+                const bScale = norm?.scale ?? 1;
                 onTransformChange({
-                    position: modelGroup.position,
-                    rotation: modelGroup.rotation,
-                    scale: modelGroup.scale
+                    position: {
+                        x: modelGroup.position.x - bx,
+                        y: modelGroup.position.y - by,
+                        z: modelGroup.position.z - bz
+                    },
+                    rotation: {
+                        x: modelGroup.rotation.x,
+                        y: modelGroup.rotation.y,
+                        z: modelGroup.rotation.z
+                    },
+                    scale: {
+                        x: bScale ? modelGroup.scale.x / bScale : 1,
+                        y: bScale ? modelGroup.scale.y / bScale : 1,
+                        z: bScale ? modelGroup.scale.z / bScale : 1
+                    }
                 });
             }
         }
@@ -1867,6 +2378,31 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       }
       prevTransformTargetRef.current = transformTarget;
 
+      if (transformTarget === modelGroup) {
+          const norm = scene.userData?.normalization;
+          if (norm) {
+              const [bx, by, bz] = norm.position || [0, 0, 0];
+              const bScale = norm.scale || 1;
+              transformTarget.position.set(
+                  bx + (transformValues.position.x || 0),
+                  by + (transformValues.position.y || 0),
+                  bz + (transformValues.position.z || 0)
+              );
+              transformTarget.rotation.set(
+                  transformValues.rotation.x || 0,
+                  transformValues.rotation.y || 0,
+                  transformValues.rotation.z || 0
+              );
+              transformTarget.scale.set(
+                  bScale * (transformValues.scale.x || 1),
+                  bScale * (transformValues.scale.y || 1),
+                  bScale * (transformValues.scale.z || 1)
+              );
+              transformTarget.updateMatrixWorld?.(true);
+              return;
+          }
+      }
+
       transformTarget.position.set(
           transformValues.position.x,
           transformValues.position.y,
@@ -1926,18 +2462,24 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
         // Reset the main model group wrapper if it was moved
         if (modelGroup) {
-             // Reset its transform
-             if (modelGroup.userData.originalTransform) {
+             const norm = scene.userData?.normalization;
+             if (norm) {
+                 const [bx, by, bz] = norm.position || [0, 0, 0];
+                 const bScale = norm.scale || 1;
+                 modelGroup.position.set(bx, by, bz);
+                 modelGroup.rotation.set(0, 0, 0);
+                 modelGroup.scale.set(bScale, bScale, bScale);
+             } else if (modelGroup.userData.originalTransform) {
                  const original = modelGroup.userData.originalTransform;
                  modelGroup.position.copy(original.position);
                  modelGroup.rotation.copy(original.rotation);
                  modelGroup.scale.copy(original.scale);
-                 modelGroup.updateMatrix();
              } else {
                  modelGroup.position.set(0,0,0);
                  modelGroup.rotation.set(0,0,0);
                  modelGroup.scale.set(1,1,1);
              }
+             modelGroup.updateMatrix();
              modelGroup.updateMatrixWorld(true);
         }
     }
@@ -2007,37 +2549,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         const applyToSelection = (meshes) => {
             meshes.forEach(child => {
                 if (child.isMesh && child.material) {
-                    let shouldApply = false;
-                    
-                    if (isFullModel) {
-                        shouldApply = true;
-                    } else {
-                        const mats = Array.isArray(child.material) ? child.material : [child.material];
-                        if (isGroup) {
-                             shouldApply = mats.some(m => groupMats.includes(m.name));
-                        } else {
-                             shouldApply = mats.some(m => m.name === targetMatName);
-                        }
-                    }
-                    
-                    if (shouldApply) {
-                        applyBoxUV(child);
-                        modifiedAny = true;
-                    }
+                    applyBoxUV(child);
+                    modifiedAny = true;
                 }
             });
         };
 
         if (isFullModel) {
             meshIndexRef.current.forEach(applyToSelection);
-        } else if (targetMatName && meshIndexRef.current.has(targetMatName)) {
-            applyToSelection(meshIndexRef.current.get(targetMatName));
-        } else if (isGroup) {
-            groupMats.forEach(mName => {
-                if (meshIndexRef.current.has(mName)) {
-                    applyToSelection(meshIndexRef.current.get(mName));
-                }
-            });
+        } else {
+            const targetMeshes = resolveTargetMeshes(selectedMaterial);
+            applyToSelection(targetMeshes);
         }
 
         if (modifiedAny) {
@@ -2051,7 +2573,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
             }
         }
     }
-  }, [uvUnwrapTrigger, scene, selectedMaterial, modelName, onUpdateMaterialSetting]);
+  }, [uvUnwrapTrigger, scene, selectedMaterial, modelName, onUpdateMaterialSetting, resolveTargetMeshes]);
 
 
   return (
@@ -2099,11 +2621,36 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
                          // Always report the current target's live values back to the panel
                          // so the display stays in sync while the user drags the gizmo.
-                         onTransformChange({
-                             position: transformTarget.position,
-                             rotation: transformTarget.rotation,
-                             scale: transformTarget.scale
-                         });
+                         if (transformTarget === modelGroup) {
+                             const norm = scene.userData?.normalization;
+                             const bx = norm?.position?.[0] ?? 0;
+                             const by = norm?.position?.[1] ?? 0;
+                             const bz = norm?.position?.[2] ?? 0;
+                             const bScale = norm?.scale ?? 1;
+                             onTransformChange({
+                                 position: {
+                                     x: transformTarget.position.x - bx,
+                                     y: transformTarget.position.y - by,
+                                     z: transformTarget.position.z - bz
+                                 },
+                                 rotation: {
+                                     x: transformTarget.rotation.x,
+                                     y: transformTarget.rotation.y,
+                                     z: transformTarget.rotation.z
+                                 },
+                                 scale: {
+                                     x: bScale ? transformTarget.scale.x / bScale : 1,
+                                     y: bScale ? transformTarget.scale.y / bScale : 1,
+                                     z: bScale ? transformTarget.scale.z / bScale : 1
+                                 }
+                             });
+                         } else {
+                             onTransformChange({
+                                 position: transformTarget.position,
+                                 rotation: transformTarget.rotation,
+                                 scale: transformTarget.scale
+                             });
+                         }
                      }
                  }}
                   onMouseDown={typeof onTransformStart === 'function' ? onTransformStart : undefined}
@@ -2142,7 +2689,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     return;
                 }
 
-                if (mesh && mesh.isMesh && mesh.material) {
+                if (mesh && mesh.isMesh) {
                     let mat = mesh.material;
                     if (Array.isArray(mat)) {
                         if (e.face && e.face.materialIndex !== undefined) {
@@ -2151,11 +2698,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             mat = mat[0];
                         }
                     }
-                    if (mat && mat.name && typeof onSelectMaterial === 'function') {
+                    const matName = (mat && mat.name) ? mat.name : (mesh.name || "Material");
+                    const meshName = mesh.name || matName;
+                    if (typeof onSelectMaterial === 'function') {
                         onSelectMaterial({ 
-                            name: mat.name, 
+                            name: meshName, 
+                            material: matName,
                             uuid: mesh.uuid, 
+                            meshUuid: mesh.uuid,
+                            meshName: mesh.name || meshName,
                             parentGroup: modelName,
+                            isMesh: true,
                             isShift: e.shiftKey 
                         });
                     }
@@ -2166,6 +2719,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                 object={scene} 
             />
         </group>
+
+        {/* Yellow selection bounding box — shown for individual mesh/group selection only */}
+        {transformTarget && selectedMaterial && selectedMaterial.name !== modelName && selectedMaterial.name !== 'Scene' && transformTarget.visible !== false && (
+          <SelectionBoundingBox key={selectedMaterial?.uuid || selectedMaterial?.name} target={transformTarget} />
+        )}
     </>
   );
 }));

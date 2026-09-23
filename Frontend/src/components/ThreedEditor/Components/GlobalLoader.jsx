@@ -99,11 +99,17 @@ export const GlobalLoader = ({
         displayProgressRef.current = target;
         setDisplayProgress(target);
       } else {
-        // Smooth asymptotic ease-out
-        const step = diff > 0 ? Math.max(0.25, diff * 0.18) : Math.min(-0.25, diff * 0.25);
-        const next = current + step;
-        displayProgressRef.current = next;
-        setDisplayProgress(next);
+        // Monotonic forward progression: smoothly step forward towards target
+        if (diff > 0) {
+          const step = Math.max(0.25, diff * 0.22);
+          const next = Math.min(target, current + step);
+          displayProgressRef.current = next;
+          setDisplayProgress(next);
+        } else if (target <= 8) {
+          // Snap down only when explicitly resetting/reinitializing
+          displayProgressRef.current = target;
+          setDisplayProgress(target);
+        }
       }
 
       rafIdRef.current = requestAnimationFrame(animate);
@@ -115,7 +121,7 @@ export const GlobalLoader = ({
     };
   }, [shouldRender]);
 
-  // Safety stuck timer — auto-recovers after 10 seconds max if manualLoading is somehow stuck
+  // Safety stuck timer — auto-recovers after 15 minutes max if manualLoading is somehow stuck
   React.useEffect(() => {
     if (!isActive) {
       if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current);
@@ -138,15 +144,21 @@ export const GlobalLoader = ({
   const isComplete = roundedPct >= 100;
   const displayPct = Math.max(8, roundedPct);
 
-  // Determine stage text
+  // Determine stage text and sanitize duplicate percentage tokens
   const defaultStage = modelInfo?.type
     ? `Loading ${modelInfo.type.toUpperCase()} model...`
     : "Loading 3D model...";
 
-  const labelPrefix = stage || text || defaultStage;
+  const rawLabel = stage || text || defaultStage;
+  const cleanPrefix = rawLabel
+    .replace(/\(\s*\d+%\s*-\s*(chunk\s*\d+\/\d+)\)/gi, '($1)')
+    .replace(/\s*\(\s*\d+%\s*\)/gi, '')
+    .replace(/\s*\d+%/g, '')
+    .trim();
+
   const loadingLabel = isComplete
     ? "Model ready on base! 100%"
-    : `${labelPrefix} ${displayPct}%`;
+    : `${cleanPrefix} ${displayPct}%`;
 
   return (
     <div className={`absolute inset-0 z-[9999] pointer-events-auto transition-opacity duration-300 ${isFadingOut ? 'opacity-0' : 'opacity-100'}`}>

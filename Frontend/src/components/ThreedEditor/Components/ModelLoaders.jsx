@@ -194,6 +194,9 @@ export const GLBModel = React.forwardRef(({ url, shouldClone, ...props }, ref) =
   const displayScene = useMemo(() => {
     if (!scene) return null;
     const cloned = SkeletonUtils.clone(scene);
+    if (scene.userData?.normalization) {
+      cloned.userData.normalization = { ...scene.userData.normalization };
+    }
     // Prefer useGLTF animations, fall back to scene.animations
     const srcAnimations = (animations && animations.length > 0) ? animations : (scene.animations || []);
     // Deep-clone each AnimationClip so this instance owns its tracks

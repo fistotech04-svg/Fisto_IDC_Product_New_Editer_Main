@@ -63,7 +63,6 @@ const TopToolbar = ({
                     onDeleteModel={onDeleteModel}
                     onRenameMaterial={onRenameMaterial}
                     modelName={modelName}
-                    models={materialList} // Actually TopToolbar passes 'materialList' as 'materials' to list, but it's a bit mixed up. Wait.
                 />
                 
                 <div className="flex items-center bg-white h-[2.5vw] px-[0.4vw] rounded-[0.62vw] border border-gray-200 gap-[0.21vw] shadow-sm">
