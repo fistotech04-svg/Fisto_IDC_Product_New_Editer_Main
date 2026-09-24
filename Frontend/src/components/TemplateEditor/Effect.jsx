@@ -25,12 +25,12 @@ const Effect = ({
     'data-effect-drop-shadow-opacity': effectSettings?.['Drop Shadow']?.opacity ?? 35,
     'data-effect-drop-shadow-x': effectSettings?.['Drop Shadow']?.x ?? 2,
     'data-effect-drop-shadow-y': effectSettings?.['Drop Shadow']?.y ?? 2,
-    'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur ?? 1,
+    'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur ?? (props.isShape ? 0 : 1),
     'data-effect-inner-shadow-color': effectSettings?.['Inner Shadow']?.color ?? '#000000',
     'data-effect-inner-shadow-opacity': effectSettings?.['Inner Shadow']?.opacity ?? 35,
     'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x ?? 2,
     'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y ?? 2,
-    'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur ?? 1,
+    'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur ?? (props.isShape ? 0 : 1),
     'data-effect-blur-value': effectSettings?.['Blur']?.blur ?? 0.3,
     'data-effect-blur-clip': effectSettings?.['Blur']?.clipContent ? 'true' : 'false',
   };
@@ -47,7 +47,7 @@ const Effect = ({
               opacity: 35,
               x: 2,
               y: 2,
-              blur: 1
+              blur: props.isShape ? 0 : 1
             }
           }));
         }
@@ -61,7 +61,7 @@ const Effect = ({
               opacity: 35,
               x: 2,
               y: 2,
-              blur: 1
+              blur: props.isShape ? 0 : 1
             }
           }));
         }
