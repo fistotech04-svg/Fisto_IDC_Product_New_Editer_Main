@@ -2442,7 +2442,7 @@ const VideoEditor = ({
       {/* Default Playback Settings / Settings */}
       <div className="space-y-[1.2vw]">
         <div className="flex items-center gap-[0.5vw]">
-          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">
+          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap mt-[0.5vw]">
             {previewSrc && (previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be")) ? "Settings" : "Default Playback Settings"}
           </span>
           <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
@@ -2530,7 +2530,7 @@ const VideoEditor = ({
       {!(previewSrc && (previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be"))) && (
         <div className="space-y-[1.2vw]">
           <div className="flex items-center gap-[0.5vw]">
-            <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Video Player Controls</span>
+            <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap mt-[1vw]">Video Player Controls</span>
             <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
           </div>
 

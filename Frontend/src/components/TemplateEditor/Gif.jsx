@@ -2,7 +2,6 @@ import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import ReactDOM from 'react-dom';
 import axios from "axios";
 import { useParams } from "react-router-dom";
-import { initGifRunner } from './AnimationRunner';
 import useDeviceDetection from '../../hooks/useDeviceDetection';
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
 import {
@@ -456,6 +455,16 @@ const GifEditor = ({
         // drop-shadow filter is more robust for images and follows transparency
         dsCssString = `drop-shadow(${ds.x}px ${ds.y}px ${ds.blur}px ${colorWithAlpha})`;
       }
+
+      // --- Loop Count ---
+      if (isSvgEl && svgImageEl) {
+        svgImageEl.setAttribute('data-loop-count', loopCount);
+        if (customLoopCount) svgImageEl.setAttribute('data-custom-loop-count', customLoopCount);
+        else svgImageEl.removeAttribute('data-custom-loop-count');
+      }
+      liveElement.setAttribute('data-loop-count', loopCount);
+      if (customLoopCount) liveElement.setAttribute('data-custom-loop-count', customLoopCount);
+      else liveElement.removeAttribute('data-custom-loop-count');
 
       // --- Opacity ---
       const opacityVal = (opacity / 100).toString();
@@ -1802,8 +1811,6 @@ const GifEditor = ({
       if (isUpdatingDOMTimeoutRef.current) clearTimeout(isUpdatingDOMTimeoutRef.current);
       isUpdatingDOMTimeoutRef.current = setTimeout(() => {
         isUpdatingDOM.current = false;
-        // Trigger GIF runner to apply loop limits immediately in the workspace
-        initGifRunner(document);
       }, 50);
     }
   }, [selectedElement, selectedLayerId, activePageIndex, filters, activeEffects, effectSettings, opacity, imageType, radius, isRadiusLinked, backgroundColor, getSvgImageEl, loopCount, customLoopCount]);
@@ -2208,7 +2215,7 @@ const GifEditor = ({
               <div className="relative">
                 <div
                   className="flex items-center justify-between w-[10.5vw] h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
-                  onClick={() => { setShowLoopDropdown(!showLoopDropdown); setShowPlayWhileDropdown(false); }}
+                  onClick={() => { setShowLoopDropdown(!showLoopDropdown); }}
                 >
                   <span className="text-[0.75vw] text-gray-600 truncate">{loopCount === "Custom" ? customLoopCount || "Custom" : loopCount}</span>
                   <Icon icon="lucide:chevron-down" className="w-[0.9vw] h-[0.9vw] text-gray-500 flex-shrink-0" />
@@ -2233,6 +2240,11 @@ const GifEditor = ({
                         onChange={(e) => {
                           setCustomLoopCount(e.target.value);
                           setLoopCount("Custom");
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setShowLoopDropdown(false);
+                          }
                         }}
                         className="w-[3.5vw] h-[1.6vw] text-[0.7vw] border border-gray-200 rounded-[0.2vw] px-[0.3vw] outline-none text-center"
                       />
