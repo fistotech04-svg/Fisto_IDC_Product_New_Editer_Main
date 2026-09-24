@@ -2748,6 +2748,14 @@ const PreviewArea = React.memo(({
 
     const bookAppearanceSettings = React.useMemo(() => {
         const rawApp = incomingBookAppearanceSettings || incomingSettings?.bookAppearanceSettings || incomingSettings?.BookAppearance || incomingSettings?.appearance || currentBook?.Customized_Settings?.BookAppearance || {};
+        
+        let validSpeed = rawApp.flipSpeed || 'Fast';
+        if (validSpeed === 'medium') {
+           validSpeed = 'Fast';
+        } else if (validSpeed === 'Slow' && !rawApp.speedChanged) {
+           validSpeed = 'Fast';
+        }
+
         return {
             texture: 'Plain White',
             hardCover: false,
@@ -2756,10 +2764,11 @@ const PreviewArea = React.memo(({
             textureScale: 0,
             opacity: 100,
             flipStyle: 'Classic Flip',
-            flipSpeed: 'medium',
+            flipSpeed: validSpeed,
             corner: 'Sharp',
             dropShadow: { active: true, color: '#4f4f4fff', opacity: 50, xAxis: 0, yAxis: 0, blur: 0, spread: 0 },
-            ...rawApp
+            ...rawApp,
+            flipSpeed: validSpeed
         };
     }, [incomingBookAppearanceSettings, incomingSettings, currentBook]);
 
@@ -3352,11 +3361,87 @@ const PreviewArea = React.memo(({
 
 
 
-    // Augmented pages for turn.js centering logic
     const augmentedPages = useMemo(() => {
         if (!pages || pages.length === 0) return [];
-        return pages.filter(p => !p.isHidden);
-    }, [pages]);
+        const basePages = pages.filter(p => !p.isHidden);
+        
+        const transparentSheets = bookAppearanceSettings?.transparentSheets || [];
+        if (!transparentSheets.length) return basePages;
+        
+        let finalPages = [];
+        let logicalIndexCounter = 0;
+        basePages.forEach((page, index) => {
+            // Check for "Page 1" special case
+            // If the transparent sheet is set to 'Page 1', it should appear before the actual Page 1
+            if (index === 0) {
+                const sheetPage1 = transparentSheets.find(s => s.page === 'Page 1');
+                if (sheetPage1) {
+                    const sImgScale = sheetPage1.scale !== undefined ? sheetPage1.scale / 100 : 1;
+                    const sImgRotate = sheetPage1.rotate || 90;
+                    const sImgOpacity = sheetPage1.opacity !== undefined ? sheetPage1.opacity / 100 : 1;
+                    const sheet1HtmlFront = sheetPage1.image 
+                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                        : '';
+                    const sheet1HtmlBack = sheetPage1.image 
+                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                        : '';
+                    finalPages.push({
+                        id: `ts-${sheetPage1.id}-front`,
+                        isTransparentSheet: true,
+                        sheetData: sheetPage1,
+                        content: sheet1HtmlFront,
+                        html: sheet1HtmlFront,
+                        logicalPageIndex: logicalIndexCounter
+                    });
+                    finalPages.push({
+                        id: `ts-${sheetPage1.id}-back`,
+                        isTransparentSheet: true,
+                        sheetData: sheetPage1,
+                        content: sheet1HtmlBack,
+                        html: sheet1HtmlBack,
+                        logicalPageIndex: logicalIndexCounter
+                    });
+                }
+            }
+
+            finalPages.push({ ...page, isTransparentSheet: false, logicalPageIndex: logicalIndexCounter });
+            logicalIndexCounter++;
+            
+            // "Page 2-3" means after Page 2 (index 1), before Page 3 (index 2)
+            // Based on standard flipbooks, sheet between 2-3 is added after index 1.
+            const sheetForThisGap = transparentSheets.find(s => s.page === `Page ${index + 1}-${index + 2}`);
+            if (sheetForThisGap) {
+                const sImgScale = sheetForThisGap.scale !== undefined ? sheetForThisGap.scale / 100 : 1;
+                const sImgRotate = sheetForThisGap.rotate || 90;
+                const sImgOpacity = sheetForThisGap.opacity !== undefined ? sheetForThisGap.opacity / 100 : 1;
+                const sheetHtmlFront = sheetForThisGap.image 
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                    : '';
+                const sheetHtmlBack = sheetForThisGap.image 
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                    : '';
+                // Insert Front of transparent sheet
+                finalPages.push({
+                    id: `ts-${sheetForThisGap.id}-front`,
+                    isTransparentSheet: true,
+                    sheetData: sheetForThisGap,
+                    content: sheetHtmlFront,
+                    html: sheetHtmlFront,
+                    logicalPageIndex: Math.max(0, logicalIndexCounter - 1)
+                });
+                // Insert Back of transparent sheet
+                finalPages.push({
+                    id: `ts-${sheetForThisGap.id}-back`,
+                    isTransparentSheet: true,
+                    sheetData: sheetForThisGap,
+                    content: sheetHtmlBack,
+                    html: sheetHtmlBack,
+                    logicalPageIndex: Math.max(0, logicalIndexCounter - 1)
+                });
+            }
+        });
+        return finalPages;
+    }, [pages, bookAppearanceSettings?.transparentSheets]);
 
     useEffect(() => {
         if (!disableAutoGallery && !isPublishedPreview && otherSetupSettings?.gallery?.previewOpen && otherSetupSettings.gallery.previewOpen !== lastPreviewOpen.current) {
@@ -3659,8 +3744,10 @@ const PreviewArea = React.memo(({
     }, [setBookmarks]);
 
     const onPageClick = useCallback((index) => {
-        bookRef.current?.pageFlip()?.turnToPage(index);
-    }, []);
+        const physicalIndex = augmentedPages.findIndex(p => p.logicalPageIndex === index && !p.isTransparentSheet);
+        const targetIndex = physicalIndex !== -1 ? physicalIndex : index;
+        bookRef.current?.pageFlip()?.turnToPage(targetIndex);
+    }, [augmentedPages]);
 
     // Listen to page navigation events sent from the page iframe
     useEffect(() => {
@@ -6062,7 +6149,7 @@ const PreviewArea = React.memo(({
                                     logoObjectFit={logoObjectFit}
                                     logoCropStyle={logoCropStyle}
                                     onPageClick={onPageClick}
-                                    currentPage={currentPage}
+                                    currentPage={augmentedPages[currentPage]?.logicalPageIndex ?? currentPage}
                                     pages={pages}
                                     bookRef={bookRef}
                                     showSoundPopup={showSoundPopup}

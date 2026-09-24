@@ -68,6 +68,14 @@ const PreviewPage = () => {
           const otherSetupObj = processedData.Customized_Settings?.otherSetup || processedData.Customized_Settings?.othersetup || processedData.settings?.otherSetup || processedData.settings?.othersetup || {};
           const layoutsObj = processedData.Customized_Settings?.Layouts || {};
           const rawApp = processedData.Customized_Settings?.BookAppearance || processedData.Customized_Settings?.Appearance || processedData.settings?.BookAppearance || processedData.settings?.appearance || {};
+          
+          let validSpeed = rawApp.flipSpeed || 'Fast';
+          if (validSpeed === 'medium') {
+             validSpeed = 'Fast';
+          } else if (validSpeed === 'Slow' && !rawApp.speedChanged) {
+             validSpeed = 'Fast';
+          }
+
           const appearanceObj = {
             texture: 'Plain White',
             hardCover: false,
@@ -76,10 +84,11 @@ const PreviewPage = () => {
             textureScale: 0,
             opacity: 100,
             flipStyle: 'Classic Flip',
-            flipSpeed: 'medium',
+            flipSpeed: validSpeed,
             corner: 'Sharp',
             dropShadow: { active: true, color: '#4f4f4fff', opacity: 50, xAxis: 0, yAxis: 0, blur: 0, spread: 0 },
-            ...rawApp
+            ...rawApp,
+            flipSpeed: validSpeed
           };
           const leadFormObj = processedData.Customized_Settings?.leadForm || processedData.Customized_Settings?.leadform || processedData.settings?.leadForm || processedData.settings?.leadform || {};
           const mergedSettings = {

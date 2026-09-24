@@ -56,6 +56,11 @@ const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) => {
     return `rgba(var(--${id}-rgb, ${defaultRgb}), calc(var(--${id}-opacity, 1) * ${defaultOpacity}))`;
 };
 
+const getLayoutColorAlpha = (id, defaultRgb, alpha) => {
+    return `rgba(var(--${id}-rgb, ${defaultRgb}), ${alpha})`;
+};
+
+
 const getLayoutOpacity = (id, defaultOpacity) => `calc(var(--${id}-opacity, 1) * ${defaultOpacity})`;
 
 const TopMagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassName = '', mousePos, addTextBelowIcons, isMobileLandscape, isTablet, textFont, hideTooltip = false }) => {
@@ -994,10 +999,26 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         setPageInputValue(String(currentPage + 1));
                                     }
                                 }}
-                                className={`${isMobileLandscape ? 'text-[0.45vw]' : isTablet ? 'text-[0.55vw]' : 'text-[0.75vw]'} font-bold bg-transparent border-none outline-none text-center`}
+                                className={`${isMobileLandscape ? 'text-[0.45vw] mx-[0.2vw] px-[0.2vw] py-[0.05vw]' : isTablet ? 'text-[0.55vw] mx-[0.3vw] px-[0.3vw] py-[0.05vw]' : 'text-[0.75vw] mx-[0.4vw] px-[0.4vw] py-[0.1vw]'} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner`}
                                 style={{
-                                    width: `${String(pages.length).length + 0.8}ch`,
-                                    color: getLayoutColor('toolbar-bg', '#575C9C')
+                                    color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                    backgroundColor: getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1),
+                                    border: `1px solid ${getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.2)}`,
+                                    width: `${String(pages.length).length + 1.2}ch`
+                                }}
+                                onFocus={(e) => {
+                                    e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15);
+                                    e.target.style.borderColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.4);
+                                }}
+                                onMouseOver={(e) => {
+                                    if(document.activeElement !== e.target) {
+                                        e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15);
+                                    }
+                                }}
+                                onMouseOut={(e) => {
+                                    if(document.activeElement !== e.target) {
+                                        e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1);
+                                    }
                                 }}
                             />
                             <span

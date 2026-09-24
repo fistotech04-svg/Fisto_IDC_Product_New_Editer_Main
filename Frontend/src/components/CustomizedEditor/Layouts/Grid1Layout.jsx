@@ -888,7 +888,7 @@ const Grid1Layout = React.memo((props) => {
             {/* Canvas Area - Added min-h-0 to allow shrinking in flex layout */}
             <div
                 ref={containerRef}
-                className={`flex-1 min-h-0 flex items-center justify-center relative overflow-hidden ${isFullscreen ? 'p-0' : isMobileLandscape ? 'p-0' : 'py-[6vw] px-[2vw]'} z-[1]`}
+                className={`flex-1 min-h-0 flex items-center justify-center relative overflow-hidden ${isFullscreen ? 'p-0' : isMobileLandscape ? 'p-0' : 'py-[6vw] px-[2vw]'}`}
                 onClick={() => {
                     setRecommendations([]);
                     closeAllPopups();
@@ -926,7 +926,7 @@ const Grid1Layout = React.memo((props) => {
                         <>
                             {(settings?.navigation?.nextPrevButtons ?? true) && (
                                 <button
-                                    className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[2.2vw] h-[2.2vw]'} backdrop-blur-md rounded-[0.25vw] flex items-center justify-center transition-all shadow-lg group z-20 ${currentPage === 0 ? 'opacity-40 cursor-default pointer-events-none' : 'hover:brightness-110 cursor-pointer'}`}
+                                    className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[2.2vw] h-[2.2vw]'} backdrop-blur-md rounded-[0.25vw] flex items-center justify-center transition-all shadow-lg group z-[200] ${currentPage === 0 ? 'opacity-40 cursor-default pointer-events-none' : 'hover:brightness-110 cursor-pointer'}`}
                                     style={{ left: leftPos, backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.8'), color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: currentPage === 0 ? 0.4 : 'var(--toolbar-text-main-opacity, 1)' }}
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -941,7 +941,7 @@ const Grid1Layout = React.memo((props) => {
 
                             {(settings?.navigation?.nextPrevButtons ?? true) && (
                                 <button
-                                    className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[2.2vw] h-[2.2vw]'} backdrop-blur-md rounded-[0.25vw] flex items-center justify-center transition-all shadow-lg group z-20 ${currentPage >= pages.length - 1 ? 'opacity-40 cursor-default pointer-events-none' : 'hover:brightness-110 cursor-pointer'}`}
+                                    className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[2.2vw] h-[2.2vw]'} backdrop-blur-md rounded-[0.25vw] flex items-center justify-center transition-all shadow-lg group z-[200] ${currentPage >= pages.length - 1 ? 'opacity-40 cursor-default pointer-events-none' : 'hover:brightness-110 cursor-pointer'}`}
                                     style={{ right: rightPos, backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.8'), color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: currentPage >= pages.length - 1 ? 0.4 : 'var(--toolbar-text-main-opacity, 1)' }}
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -999,10 +999,26 @@ const Grid1Layout = React.memo((props) => {
                                     setPageInputValue(String(currentPage + 1));
                                 }
                             }}
-                            className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold bg-transparent border-none outline-none text-center transition-colors`}
+                            className={`${isMobileLandscape ? 'text-[0.55vw] mx-[0.2vw] px-[0.2vw] py-[0.05vw]' : isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.3vw] py-[0.05vw]' : 'text-[0.85vw] mx-[0.4vw] px-[0.4vw] py-[0.1vw]'} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner`}
                             style={{
                                 color: getLayoutColor('toolbar-bg', '#575C9C'),
-                                width: `${String(pages.length).length + 0.8}ch`
+                                backgroundColor: getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1),
+                                border: `1px solid ${getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.2)}`,
+                                width: `${String(pages.length).length + 1.2}ch`
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15);
+                                e.target.style.borderColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.4);
+                            }}
+                            onMouseOver={(e) => {
+                                if(document.activeElement !== e.target) {
+                                    e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15);
+                                }
+                            }}
+                            onMouseOut={(e) => {
+                                if(document.activeElement !== e.target) {
+                                    e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1);
+                                }
                             }}
                         />
                         <span
@@ -1558,7 +1574,7 @@ const Grid1Layout = React.memo((props) => {
                 let dynamicMaxWidth = Math.floor(exactSixWidth + totalGaps + outerMargin);
 
                 return (
-                <div className="absolute inset-0 z-[150] pointer-events-none">
+                <div className="absolute inset-0 z-[250] pointer-events-none">
                     <div
                         className="absolute flex items-center group/bar fisto-menu-content thumbnail-bar pointer-events-auto transition-all shadow-[0_8px_32px_rgba(0,0,0,0.3)] rounded-[0.7vw] backdrop-blur-md"
                         style={{
@@ -1573,7 +1589,7 @@ const Grid1Layout = React.memo((props) => {
                             backdropFilter: 'blur(10px)',
                             borderRadius: isTablet ? '0.7vw' : '0.7vw',
                             border: '1px solid rgba(255,255,255,0.2)',
-                            zIndex: 150,
+                            zIndex: 250,
                             display: 'flex',
                             alignItems: 'center',
                             boxSizing: 'border-box',
@@ -1630,7 +1646,9 @@ const Grid1Layout = React.memo((props) => {
                                             opacity: 1,
                                             transition: 'all 0.3s ease'
                                         }}
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            closeAllPopups();
                                             onPageClick(spread.indices[0]);
                                         }}
                                     >

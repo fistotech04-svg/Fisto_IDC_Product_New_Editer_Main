@@ -1403,11 +1403,28 @@ const CustomizedEditor = () => {
             }
             const customizedAppearance = res.data.Customized_Settings?.BookAppearance || res.data.Customized_Settings?.bookAppearance || res.data.Customized_Settings?.appearance || res.data.settings?.appearance || res.data.settings?.bookAppearanceSettings;
             if (customizedAppearance) {
+              let validSpeed = customizedAppearance.flipSpeed;
+              if (validSpeed === 'medium') {
+                 validSpeed = 'Fast';
+              } else if (validSpeed === 'Slow' && !customizedAppearance.speedChanged) {
+                 validSpeed = 'Fast'; // force Fast if it's Slow but user hasn't explicitly saved it
+              }
+              customizedAppearance.flipSpeed = validSpeed;
               setBookAppearanceSettings(customizedAppearance);
             }
             if (res.data.settings) {
               if (res.data.settings.background && !customizedBackground) setBackgroundSettings(res.data.settings.background);
-              if (res.data.settings.appearance) setBookAppearanceSettings(res.data.settings.appearance);
+              if (res.data.settings.appearance) {
+                  const appSettings = res.data.settings.appearance;
+                  let vSpeed = appSettings.flipSpeed;
+                  if (vSpeed === 'medium') {
+                     vSpeed = 'Fast';
+                  } else if (vSpeed === 'Slow' && !appSettings.speedChanged) {
+                     vSpeed = 'Fast';
+                  }
+                  appSettings.flipSpeed = vSpeed;
+                  setBookAppearanceSettings(appSettings);
+              }
               if (res.data.settings.layout && (!loadedLayouts || (loadedLayouts.layoutStyle === undefined && loadedLayouts.style === undefined))) {
                 setLayoutSettings(res.data.settings.layout);
               }

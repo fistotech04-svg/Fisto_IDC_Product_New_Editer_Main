@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 import PremiumDropdown from './PremiumDropdown';
+import { TransparentSheetSection } from './TransparentSheetUI';
 import * as BookAppearanceHelpers from './bookAppearanceHelpers';
 import {
   CustomColorPicker,
@@ -179,6 +180,13 @@ const BookAppearanceSection = ({
         </div>
       </div>
 
+      {/* Transparent Sheet */}
+      <TransparentSheetSection 
+        bookAppearanceSettings={bookAppearanceSettings} 
+        onUpdateBookAppearance={onUpdateBookAppearance} 
+        pages={pages}
+      />
+
       {/* Page Flipping Styles */}
       <div className="space-y-[0.5vw] pt-[1.5vw]">
         <div className="flex items-center gap-[1.5vw]">
@@ -200,8 +208,8 @@ const BookAppearanceSection = ({
           <span className="text-[0.75vw] font-semibold text-gray-700">Flip Speed :</span>
           <PremiumDropdown
             options={['Slow', 'Medium', 'Fast']}
-            value={bookAppearanceSettings?.flipSpeed || 'Slow'}
-            onChange={(opt) => onUpdateBookAppearance({ ...bookAppearanceSettings, flipSpeed: opt })}
+            value={bookAppearanceSettings?.flipSpeed || 'Fast'}
+            onChange={(opt) => onUpdateBookAppearance({ ...bookAppearanceSettings, flipSpeed: opt, speedChanged: true })}
             width="10vw"
             buttonClassName="!border-gray-600 !rounded-[0.5vw]"
             align="right"
