@@ -464,14 +464,23 @@ const ShareViewBook = () => {
 
     const appearanceObj = React.useMemo(() => {
         const rawApp = bookData?.Customized_Settings?.BookAppearance || bookData?.Customized_Settings?.Appearance || bookData?.settings?.BookAppearance || bookData?.settings?.appearance || {};
+        
+        let validSpeed = rawApp.flipSpeed || 'Fast';
+        if (validSpeed === 'medium') {
+           validSpeed = 'Fast';
+        } else if (validSpeed === 'Slow' && !rawApp.speedChanged) {
+           validSpeed = 'Fast';
+        }
+
         return {
             texture: 'Plain White',
             hardCover: false,
             flipStyle: 'Classic Flip',
-            flipSpeed: 'medium',
+            flipSpeed: validSpeed,
             corner: 'Sharp',
             dropShadow: { active: true, color: '#4f4f4fff', opacity: 50, xAxis: 0, yAxis: 0, blur: 0, spread: 0 },
-            ...rawApp
+            ...rawApp,
+            flipSpeed: validSpeed
         };
     }, [bookData]);
 

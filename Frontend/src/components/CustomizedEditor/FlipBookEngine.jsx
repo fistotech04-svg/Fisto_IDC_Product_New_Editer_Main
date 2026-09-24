@@ -189,9 +189,48 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     const onTurningRef = useRef(onTurning);
     const [ready, setReady] = useState(false);
     const [currentPage, setCurrentPage] = useState(startPage);
+    const [cloneUnderlay, setCloneUnderlay] = useState({ left: null, right: null });
 
     const [mobileShadowSide, setMobileShadowSide] = useState('left');
     const prevPageRef = useRef(currentPage);
+
+    useEffect(() => {
+        if (!pages || pages.length === 0) return;
+        
+        const getNextSolidPage = (startIndex, direction) => {
+            let idx = startIndex;
+            while(idx >= 0 && idx < pages.length) {
+                if (!pages[idx].isTransparentSheet && !pages[idx].isPad) {
+                    return { page: pages[idx], index: idx };
+                }
+                idx += direction;
+            }
+            return null;
+        };
+
+        let leftInfo = null;
+        let rightInfo = null;
+        
+        let leftIdx = singlePage ? null : (currentPage % 2 !== 0 ? currentPage : currentPage - 1);
+        let rightIdx = singlePage ? currentPage : (currentPage % 2 === 0 ? currentPage : currentPage + 1);
+        
+        if (leftIdx !== null && leftIdx >= 0 && pages[leftIdx]?.isTransparentSheet) {
+            leftInfo = getNextSolidPage(leftIdx - 1, -1);
+            if (leftInfo) {
+                const blurPercent = pages[leftIdx].sheetData?.blur ?? 100;
+                leftInfo.blurPx = (blurPercent / 100) * 20;
+            }
+        }
+        if (rightIdx !== null && rightIdx < pages.length && pages[rightIdx]?.isTransparentSheet) {
+            rightInfo = getNextSolidPage(rightIdx + 1, 1);
+            if (rightInfo) {
+                const blurPercent = pages[rightIdx].sheetData?.blur ?? 100;
+                rightInfo.blurPx = (blurPercent / 100) * 20;
+            }
+        }
+        
+        setCloneUnderlay({ left: leftInfo, right: rightInfo });
+    }, [currentPage, pages, singlePage]);
 
     useEffect(() => {
         if (!singlePage) return;
@@ -286,14 +325,26 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         const isLastPage = (i === augmentedPages.length - 1 || (i === augmentedPages.length - 2 && augmentedPages[i + 1]?.isPad));
         const directionClass = i % 2 === 0 ? 'right' : 'left';
 
+        let sheetStyles = {};
+        if (page.isTransparentSheet) {
+             sheetStyles = {
+                 backgroundColor: 'rgba(236, 236, 236, 0.4)',
+                 transform: 'translateZ(0)'
+             };
+        } else {
+             sheetStyles = {
+                 backgroundColor: page.isPad ? 'transparent' : '#fff',
+                 opacity: pageOpacity
+             };
+        }
+
         return (
             <div
                 key={i}
                 data-density={isHardPage ? 'hard' : 'soft'}
                 className={`fbe-react-page fbe-react-page--${directionClass} ${i === 0 ? 'fbe-page--first' : ''} ${isLastPage ? 'fbe-page--last' : ''}`}
                 style={{
-                    backgroundColor: page.isPad ? 'transparent' : '#fff',
-                    opacity: pageOpacity
+                    ...sheetStyles
                 }}
                 onMouseDown={(e) => {
                     startX = e.clientX;
@@ -317,7 +368,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                         <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'inherit' }}>
                             <div
                                 className="fbe-static-bg"
-                                style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#fff', borderRadius: 'inherit', pointerEvents: 'none' }}
+                                style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: page.isTransparentSheet ? 'transparent' : '#fff', borderRadius: 'inherit', pointerEvents: 'none' }}
                                 dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '') }}
                             />
                             <iframe
@@ -332,10 +383,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                     } catch(err) { console.error("Error init gif runner", err); }
                                 }}
                                 frameBorder="0"
-                                style={{ position: 'absolute', inset: 0, border: 'none', outline: 'none', width: '100%', height: '100%', pointerEvents: 'auto', borderRadius: 'inherit', opacity: 0.01, transition: 'opacity 0.3s ease' }}
+                                style={{ position: 'absolute', inset: 0, border: 'none', outline: 'none', width: '100%', height: '100%', pointerEvents: 'auto', borderRadius: 'inherit', opacity: 0.01, transition: 'opacity 0.3s ease', display: page.isTransparentSheet ? 'none' : 'block' }}
                             />
                         </div>
-                        {textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor) && (
+                        {(!page.isTransparentSheet && textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor)) && (
                             <div
                                 className="absolute inset-0 z-10 pointer-events-none"
                                 style={{
@@ -421,7 +472,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     }, [augmentedPages]);
 
     /* ── Turn.js — "sheet" paper-curl for COVER PAGES only ── */
-    const pagesHash = React.useMemo(() => pages.map(p => p.html || p.content || '').join('|'), [pages]);
+    const pagesHash = React.useMemo(() => pages.map(p => (p.html || p.content || '') + (p.sheetData ? JSON.stringify(p.sheetData) : '')).join('|'), [pages]);
 
     useEffect(() => {
         if (!ready || !bookEl.current || !pages.length || !window.jQuery?.fn?.turn || !useFullTurnJs) return;
@@ -495,24 +546,31 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             if (isPageHard) {
                 pageDiv.className = `hard cover fbe-page fbe-page--${directionClass} ${positionClass}`;
                 pageDiv.setAttribute('data-density', 'hard');
-                pageDiv.style.backgroundColor = '#ffffff';
+                pageDiv.style.backgroundColor = page.isTransparentSheet ? 'transparent' : '#ffffff';
                 pageDiv.style.borderRadius = directionClass === 'right' ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
                 pageDiv.style.transition = 'border-radius 0.5s ease';
             } else {
                 pageDiv.className = `fbe-page fbe-page--soft fbe-page--${directionClass} ${positionClass}`;
+                pageDiv.style.backgroundColor = page.isTransparentSheet ? 'transparent' : '';
                 pageDiv.style.borderRadius = directionClass === 'right' ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
                 pageDiv.style.transition = 'border-radius 0.5s ease';
+            }
+
+            if (page.isTransparentSheet) {
+                pageDiv.style.backgroundColor = 'rgba(236, 236, 236, 0.4)';
+                pageDiv.style.transform = 'translateZ(0)';
             }
 
             if (!page.isPad) {
                 const inner = document.createElement('div');
                 inner.className = 'fbe-inner';
-
+                inner.style.backgroundColor = page.isTransparentSheet ? 'transparent' : '';
                 inner.style.position = 'relative';
 
                 const staticBg = document.createElement('div');
                 staticBg.className = 'fbe-static-bg';
-                staticBg.style.cssText = 'position:absolute;inset:0;overflow:hidden;background:#fff;pointer-events:none;border-radius:inherit;';
+                const bgStyleColor = page.isTransparentSheet ? 'transparent' : '#fff';
+                staticBg.style.cssText = `position:absolute;inset:0;overflow:hidden;background:${bgStyleColor};pointer-events:none;border-radius:inherit;`;
                 staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg *:not([data-type="pdf-vector-layer"] *):not([data-type="pdf-vector-layer"]) { vector-effect: non-scaling-stroke !important; } .fbe-static-bg [data-type="pdf-vector-layer"], .fbe-static-bg [data-type="pdf-vector-layer"] * { vector-effect: none !important; }</style>` + (page.html || page.content || '');
                 inner.appendChild(staticBg);
 
@@ -532,7 +590,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 inner.appendChild(iframe);
 
                 // Add texture overlay
-                if (textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor)) {
+                if (!page.isTransparentSheet && textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor)) {
                     const textureOverlay = document.createElement('div');
                     textureOverlay.className = 'fbe-texture-overlay';
                     Object.assign(textureOverlay.style, {
@@ -849,6 +907,40 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 </div>
             )}
 
+            {/* ── CLONE UNDERLAY for Transparent Sheets ── */}
+            <div className="fbe-clone-underlay" style={{
+                position: 'absolute', zIndex: showingTurnJs ? 2 : 90, 
+                display: 'flex', pointerEvents: 'none',
+                width: singlePage ? width : width * 2, height,
+                visibility: (showingTurnJs || showingReactFlip) ? 'visible' : 'hidden',
+                background: 'transparent',
+                transform: (showingReactFlip && hardCoverZoom) ? `scale(${hardCoverZoom.scale})` : 'none',
+                transformOrigin: '0 0'
+            }}>
+                <div style={{flex: 1, position: 'relative', overflow: 'hidden'}}>
+                    {cloneUnderlay.left && (
+                        <iframe 
+                            title={`Clone Left`}
+                            frameBorder="0"
+                            srcDoc={(externalBuildPageDoc || buildPageDoc)(cloneUnderlay.left.page.html || cloneUnderlay.left.page.content || '', cloneUnderlay.left.index + 1)}
+                            style={{position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', background: '#fff', filter: `blur(${cloneUnderlay.left.blurPx}px)`}} 
+                        />
+                    )}
+                </div>
+                {!singlePage && (
+                    <div style={{flex: 1, position: 'relative', overflow: 'hidden'}}>
+                        {cloneUnderlay.right && (
+                            <iframe 
+                                title={`Clone Right`}
+                                frameBorder="0"
+                                srcDoc={(externalBuildPageDoc || buildPageDoc)(cloneUnderlay.right.page.html || cloneUnderlay.right.page.content || '', cloneUnderlay.right.index + 1)}
+                                style={{position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', background: '#fff', filter: `blur(${cloneUnderlay.right.blurPx}px)`}} 
+                            />
+                        )}
+                    </div>
+                )}
+            </div>
+
             {/* ── TURN.JS ENGINE — centering wrapper ── */}
             <div
                 style={{
@@ -1085,6 +1177,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 }
                 
                 /* Reset global cursor pointer applied by flipbook engines and their descendants */
+                .stf__wrapper, .stf__block {
+                    background: transparent !important;
+                }
                 .stf__wrapper, .stf__wrapper *, 
                 .stf__block, .stf__block *, 
                 .turn-page-wrapper, .turn-page-wrapper *, 

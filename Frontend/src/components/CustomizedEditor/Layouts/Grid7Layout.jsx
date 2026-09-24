@@ -503,6 +503,17 @@ const Grid7Layout = ({
         return defaultOpacity;
     };
 
+    const getLayoutColorAlpha = (tokenId, defaultRgb, alpha) => {
+        const color = getLayoutColor(tokenId, null) || getLayoutColor('toolbar-text-main', null);
+        if (color && typeof color === 'string' && color.startsWith('#')) {
+            const r = parseInt(color.slice(1, 3), 16) || 0;
+            const g = parseInt(color.slice(3, 5), 16) || 0;
+            const b = parseInt(color.slice(5, 7), 16) || 0;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return `rgba(var(--${tokenId}-rgb, ${defaultRgb}), ${alpha})`;
+    };
+
     // Toolbar display settings
     const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons ?? false;
     const textFont = settings?.toolbar?.textProperties?.font || 'inherit';
@@ -808,8 +819,27 @@ const Grid7Layout = ({
                                 setPageInputValue(String(currentPage + 1));
                             }
                         }}
-                        className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-medium bg-transparent border-none outline-none text-center`}
-                        style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')), width: `${String(pages.length).length + 1}ch` }}
+                        className={`${isTablet ? 'text-[0.7vw] mx-[0.3vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.4vw] py-[0.15vw]'} font-medium rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
+                        style={{
+                            color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')), 
+                            width: `${String(pages.length).length + 1.2}ch`,
+                            backgroundColor: getLayoutColorAlpha('page-number-text', '255, 255, 255', 0.2),
+                            border: `1px solid ${getLayoutColorAlpha('page-number-text', '255, 255, 255', 0.35)}`
+                        }}
+                        onFocus={(e) => {
+                            e.target.style.backgroundColor = getLayoutColorAlpha('page-number-text', '255, 255, 255', 0.3);
+                            e.target.style.borderColor = getLayoutColorAlpha('page-number-text', '255, 255, 255', 0.6);
+                        }}
+                        onMouseOver={(e) => {
+                            if(document.activeElement !== e.target) {
+                                e.target.style.backgroundColor = getLayoutColorAlpha('page-number-text', '255, 255, 255', 0.25);
+                            }
+                        }}
+                        onMouseOut={(e) => {
+                            if(document.activeElement !== e.target) {
+                                e.target.style.backgroundColor = getLayoutColorAlpha('page-number-text', '255, 255, 255', 0.2);
+                            }
+                        }}
                     />
                     <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-medium`} style={{ color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')) }}> / {totalPages}</span>
                 </div>
