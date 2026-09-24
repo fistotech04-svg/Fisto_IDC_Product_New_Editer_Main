@@ -1164,8 +1164,27 @@ const Grid4Layout = ({
                                         setPageInputValue(String(currentPage + 1));
                                     }
                                 }}
-                                className={`${!isBigBars ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium bg-transparent border-none outline-none text-center p-0`}
-                                style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('search-text-v1', '#575C9C') }}
+                                className={`${!isBigBars ? 'text-[0.6vw] mx-[0.3vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.85vw] mx-[0.4vw] px-[0.4vw] py-[0.15vw]'} font-medium rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
+                                style={{
+                                    width: `${String(pages.length).length + 1.2}ch`,
+                                    color: getLayoutColor('search-text-v1', '#575C9C'),
+                                    backgroundColor: getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.1),
+                                    border: `1px solid ${getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.2)}`
+                                }}
+                                onFocus={(e) => {
+                                    e.target.style.backgroundColor = getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.15);
+                                    e.target.style.borderColor = getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.4);
+                                }}
+                                onMouseOver={(e) => {
+                                    if(document.activeElement !== e.target) {
+                                        e.target.style.backgroundColor = getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.15);
+                                    }
+                                }}
+                                onMouseOut={(e) => {
+                                    if(document.activeElement !== e.target) {
+                                        e.target.style.backgroundColor = getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.1);
+                                    }
+                                }}
                             />
                             <span className={`${!isBigBars ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}> / {totalPages}</span>
                         </div>

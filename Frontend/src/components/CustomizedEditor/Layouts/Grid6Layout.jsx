@@ -272,6 +272,17 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
         return defaultOpacity;
     };
 
+    const getLayoutColorAlpha = (tokenId, defaultRgb, alpha) => {
+        const color = getLayoutColor(tokenId, null);
+        if (color && typeof color === 'string' && color.startsWith('#')) {
+            const r = parseInt(color.slice(1, 3), 16) || 0;
+            const g = parseInt(color.slice(3, 5), 16) || 0;
+            const b = parseInt(color.slice(5, 7), 16) || 0;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return `rgba(var(--${tokenId}-rgb, ${defaultRgb}), ${alpha})`;
+    };
+
     const [showThumbnails, setShowThumbnails] = useState(false);
     const [showLocalProfile, setShowLocalProfile] = useState(false);
     const [showBookmarks, setShowBookmarks] = useState(false);
@@ -1271,8 +1282,27 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                     setPageInputValue(String(currentPage + 1));
                                 }
                             }}
-                            className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold bg-transparent border-none outline-none text-center`}
-                            style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}
+                            className={`${isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.4vw] py-[0.15vw]'} font-bold rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
+                            style={{
+                                width: `${String(pages.length).length + 1.2}ch`,
+                                color: getLayoutColor('bottom-toolbar-bg', '#575C9C'),
+                                backgroundColor: getLayoutColorAlpha('bottom-toolbar-bg', '87, 92, 156', 0.2),
+                                border: `1px solid ${getLayoutColorAlpha('bottom-toolbar-bg', '87, 92, 156', 0.35)}`
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.backgroundColor = getLayoutColorAlpha('bottom-toolbar-bg', '87, 92, 156', 0.3);
+                                e.target.style.borderColor = getLayoutColorAlpha('bottom-toolbar-bg', '87, 92, 156', 0.6);
+                            }}
+                            onMouseOver={(e) => {
+                                if(document.activeElement !== e.target) {
+                                    e.target.style.backgroundColor = getLayoutColorAlpha('bottom-toolbar-bg', '87, 92, 156', 0.25);
+                                }
+                            }}
+                            onMouseOut={(e) => {
+                                if(document.activeElement !== e.target) {
+                                    e.target.style.backgroundColor = getLayoutColorAlpha('bottom-toolbar-bg', '87, 92, 156', 0.2);
+                                }
+                            }}
                         />
                         <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}> / {pagesCount}</span>
                     </div>
