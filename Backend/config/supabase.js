@@ -13,7 +13,27 @@ if (!supabaseUrl || !supabaseKey) {
   console.warn("[Supabase] SUPABASE_URL or keys missing in environment variables.");
 }
 
-export const supabase = createClient(supabaseUrl || "https://placeholder.supabase.co", supabaseKey || "placeholder");
+const WebSocketTransport = typeof WebSocket !== "undefined" 
+  ? WebSocket 
+  : (globalThis.WebSocket || class DummyWebSocket {
+      constructor() {
+        throw new Error("Realtime WebSocket is not supported in Node.js < 22 without --experimental-websocket or a ws polyfill.");
+      }
+    });
+
+export const supabase = createClient(
+  supabaseUrl || "https://placeholder.supabase.co",
+  supabaseKey || "placeholder",
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    realtime: {
+      transport: WebSocketTransport,
+    },
+  }
+);
 export const SUPABASE_URL = supabaseUrl || "";
 
 /**
@@ -104,8 +124,11 @@ export const uploadFileToSupabase = async (localFilePath, destinationPath) => {
     }
 
     const fileData = fs.readFileSync(localFilePath);
-    const ext = path.extname(localFilePath).toLowerCase();
-    const contentType = mimeTypes[ext] || "application/octet-stream";
+    const ext = path.extname(destinationPath).toLowerCase();
+    let contentType = mimeTypes[ext] || "application/octet-stream";
+    if (destinationPath.includes('/assets/audio/') && (ext === '.webm' || ext === '.weba')) {
+      contentType = 'audio/webm';
+    }
 
     const cleanDestination = destinationPath.replace(/\\/g, "/").replace(/^\/+/, "");
 

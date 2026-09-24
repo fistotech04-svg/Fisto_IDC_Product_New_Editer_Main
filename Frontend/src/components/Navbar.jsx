@@ -83,6 +83,14 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
   const isThreedEditor = location.pathname.includes('threed_editor');
   const isCustomizedEditor = location.pathname.includes('customized_editor');
 
+  const handleLinkClick = (e) => {
+    if (hasUnsavedChanges) {
+      if (!window.confirm("Leave site?\n\nChanges you made may not be saved.")) {
+        e.preventDefault();
+      }
+    }
+  };
+
   return (
     <>
       <nav 
@@ -91,7 +99,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
       >
         {/* Left Section - Logo and Navigation */}
         <div className="flex items-center gap-[3.5vw]">
-          <Link to="/" className="flex-shrink-0">
+          <Link to="/" className="flex-shrink-0" onClick={handleLinkClick}>
             <img 
               className="h-[2.5vw] w-auto object-contain" 
               src={logo} 
@@ -103,24 +111,28 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
           <div className="flex items-center gap-[2.5vw]">
             <Link 
               to="/my-flipbooks" 
+              onClick={handleLinkClick}
               className={isActive('/my-flipbooks') ? activeLinkStyle : baseLinkStyle}
             >
               My Flipbook
             </Link>
             <Link 
               to="/features" 
+              onClick={handleLinkClick}
               className={isActive('/features') ? activeLinkStyle : baseLinkStyle}
             >
               Features
             </Link>
             <Link 
               to="/support" 
+              onClick={handleLinkClick}
               className={isActive('/support') ? activeLinkStyle : baseLinkStyle}
             >
               Support
             </Link>
             <Link 
               to="/help" 
+              onClick={handleLinkClick}
               className={isActive('/help') ? activeLinkStyle : baseLinkStyle}
             >
               Help
@@ -214,7 +226,14 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
           {/* Action Button (Add 3D Model / Go To Editor) */}
           <div className="relative group/tooltip flex items-center ml-[0.2vw]">
             <button 
-              onClick={() => navigate(isThreedEditor ? (localStorage.getItem('lastEditorPath') || '/editor') : '/editor/threed_editor')}
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  if (!window.confirm("Leave site?\n\nChanges you made may not be saved.")) {
+                    return;
+                  }
+                }
+                navigate(isThreedEditor ? (localStorage.getItem('lastEditorPath') || '/editor') : '/editor/threed_editor');
+              }}
               className={`flex items-center gap-[0.4vw] px-[1.2vw] cursor-pointer py-[0.6vw] text-white rounded-[0.5vw] transition-all duration-300 active:scale-95
                 ${isThreedEditor 
                   ? 'bg-[#4A3AFF] shadow-[0_0_1.2vw_rgba(74,58,255,0.5)] hover:bg-[#3b2eff]' 

@@ -197,28 +197,36 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false, disa
       <input type="file" ref={fileInputRef} hidden accept=".hdr,.exr,image/*" onChange={handleFileChange} disabled={disabled} />
       {currentMap ? (
         <div className="w-full h-full relative group/thumb">
-           <img 
-              src={resolveMapUrl ? resolveMapUrl(currentMap) : (typeof currentMap === 'string' ? currentMap : '')} 
-              alt="Texture Preview"
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                  // Fallback if image fails to load
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-              }}
-           />
-           <div className="hidden absolute inset-0 bg-indigo-50 items-center justify-center text-[#5d5efc]">
+           {resolveMapUrl && resolveMapUrl(currentMap) ? (
+               <img 
+                  src={resolveMapUrl(currentMap)} 
+                  alt="Texture Preview"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                      e.target.style.display = 'none';
+                      if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                  }}
+               />
+           ) : null}
+           <div className={`${resolveMapUrl && resolveMapUrl(currentMap) ? 'hidden' : 'flex'} absolute inset-0 bg-indigo-50 items-center justify-center text-[#5d5efc]`}>
                <Icon icon="heroicons:check-circle" width="1.25vw" />
            </div>
-           {/* Clear Button on Hover */}
+
+           {/* Upload-new hint on hover (main area) */}
+           <div className="absolute inset-0 bg-[#5d5efc]/60 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity z-10 pointer-events-none">
+             <Icon icon="heroicons:arrow-up-tray" width="1vw" />
+           </div>
+
+           {/* Small X remove button — corner only, doesn't block main click */}
            <div 
              onClick={(e) => {
                e.stopPropagation();
                if (onUpload) onUpload(mapType, null);
              }}
-             className="absolute inset-0 bg-red-500/80 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity z-10"
+             className="absolute top-0 right-0 w-[0.85vw] h-[0.85vw] bg-red-500 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity z-20 rounded-bl-[0.2vw] cursor-pointer"
+             title="Remove"
            >
-              <Icon icon="heroicons:x-mark" width="1.25vw" />
+              <Icon icon="heroicons:x-mark" width="0.65vw" />
            </div>
         </div>
       ) : (
@@ -307,11 +315,27 @@ const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, d
                 <div className="flex gap-[0.65vw] items-start">
                     <div className={`w-[7vw] h-[7vw] rounded-[0.5vw] shrink-0 overflow-hidden relative group border border-gray-300 shadow-inner transition-colors ${disabled ? 'bg-black cursor-not-allowed' : 'bg-white cursor-pointer hover:border-[#5d5efc]'}`}>
                         {currentMap ? (
-                            <img src={resolveMapUrl(currentMap)} className="w-full h-full object-cover" alt={title} />
+                            resolveMapUrl(currentMap) ? (
+                                <img 
+                                    src={resolveMapUrl(currentMap)} 
+                                    className="w-full h-full object-cover" 
+                                    alt={title} 
+                                    onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                />
+                            ) : null
                         ) : (
                             <div className={`w-full h-full flex flex-col items-center justify-center gap-[0.4vw] ${disabled ? 'text-white/40' : 'text-gray-300'}`}>
                                 <Icon icon={disabled ? "mdi:block" : "glyphs:image-duo"} width={disabled ? "2.5vw" : "5.5vw"} />
                                 {!disabled && <span className="text-[0.7vw] text-gray-400 font-semibold -mt-[0.5vw]">No Image Found</span>}
+                            </div>
+                        )}
+                        {currentMap && (
+                            <div className={`${resolveMapUrl(currentMap) ? 'hidden' : 'flex'} absolute inset-0 flex-col items-center justify-center bg-indigo-50/80 text-[#5d5efc] p-2 text-center pointer-events-none`}>
+                                <Icon icon="heroicons:check-circle" className="w-[1.8vw] h-[1.8vw] mb-1" />
+                                <span className="text-[0.65vw] font-bold uppercase tracking-tight">Active Texture</span>
                             </div>
                         )}
                         <MapUploadControl 
@@ -423,25 +447,226 @@ const StackedSliderBox = ({ label, val, onChange, children, min = 0, max = 100, 
   );
 };
 
-const NumberStepper = ({ label, value, axisLabel, compact, onChange, step = 1 }) => {
-  const handleIncrement = () => {
+const NumberStepper = ({ label, value, axisLabel, compact, onChange, step = 1, min, max }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef(null);
+  const dragRef = useRef({
+    isDown: false,
+    startX: 0,
+    startVal: 0,
+    hasMoved: false,
+    currentVal: 0,
+  });
+
+  const numericVal = parseFloat(value);
+  const currentNum = isNaN(numericVal) ? 0 : numericVal;
+
+  // Determine decimal precision from step
+  const stepDecimals = useMemo(() => {
+    const s = String(step);
+    if (s.includes(".")) return s.split(".")[1].length;
+    return 0;
+  }, [step]);
+
+  // Focus and select input text when entering edit mode
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const clamp = (val) => {
+    let v = val;
+    if (min !== undefined && v < min) v = min;
+    if (max !== undefined && v > max) v = max;
+    return v;
+  };
+
+  const roundToPrecision = (val, extraPrecision = 0) => {
+    const decimals = Math.max(0, stepDecimals + extraPrecision);
+    return Number(val.toFixed(decimals));
+  };
+
+  const handleIncrement = (e) => {
+    e?.stopPropagation();
     if (onChange) {
-      onChange(parseFloat(value) + step);
+      const next = clamp(roundToPrecision(currentNum + step));
+      onChange(next, false);
     }
   };
 
-  const handleDecrement = () => {
+  const handleDecrement = (e) => {
+    e?.stopPropagation();
     if (onChange) {
-      onChange(parseFloat(value) - step);
+      const next = clamp(roundToPrecision(currentNum - step));
+      onChange(next, false);
     }
+  };
+
+  const startEdit = () => {
+    setIsEditing(true);
+    setEditValue(String(value ?? "0"));
+  };
+
+  const commitEdit = () => {
+    setIsEditing(false);
+    const parsed = parseFloat(editValue);
+    if (!isNaN(parsed) && onChange) {
+      const clamped = clamp(roundToPrecision(parsed));
+      onChange(clamped, false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      commitEdit();
+    } else if (e.key === "Escape") {
+      setIsEditing(false);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const parsed = parseFloat(editValue);
+      const base = isNaN(parsed) ? currentNum : parsed;
+      const next = clamp(roundToPrecision(base + (e.shiftKey ? step * 0.1 : step)));
+      setEditValue(String(next));
+      if (onChange) onChange(next, false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const parsed = parseFloat(editValue);
+      const base = isNaN(parsed) ? currentNum : parsed;
+      const next = clamp(roundToPrecision(base - (e.shiftKey ? step * 0.1 : step)));
+      setEditValue(String(next));
+      if (onChange) onChange(next, false);
+    }
+  };
+
+  const handleMouseDown = (e) => {
+    if (isEditing) return;
+    if (e.button !== 0) return; // Only primary left click
+    e.preventDefault();
+
+    dragRef.current = {
+      isDown: true,
+      startX: e.clientX,
+      startVal: currentNum,
+      hasMoved: false,
+      currentVal: currentNum,
+    };
+
+    const handleMouseMove = (moveEvent) => {
+      if (!dragRef.current.isDown) return;
+      const diffX = moveEvent.clientX - dragRef.current.startX;
+
+      if (!dragRef.current.hasMoved && Math.abs(diffX) > 2) {
+        dragRef.current.hasMoved = true;
+        setIsDragging(true);
+        document.body.style.cursor = "ew-resize";
+        document.body.style.userSelect = "none";
+      }
+
+      if (dragRef.current.hasMoved) {
+        let multiplier = 1;
+        if (moveEvent.shiftKey) multiplier = 0.1; // Shift for fine precision
+        if (moveEvent.altKey || moveEvent.ctrlKey) multiplier = 5; // Alt/Ctrl for coarse speed
+
+        // 1 step per 12 pixels dragged
+        const deltaUnits = (diffX / 12) * step * multiplier;
+        const rawNext = dragRef.current.startVal + deltaUnits;
+        const extraDecimals = moveEvent.shiftKey ? 1 : 0;
+        const nextVal = clamp(roundToPrecision(rawNext, extraDecimals));
+        dragRef.current.currentVal = nextVal;
+
+        if (onChange) {
+          onChange(nextVal, true);
+        }
+      }
+    };
+
+    const handleMouseUp = (upEvent) => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+
+      if (dragRef.current.hasMoved) {
+        if (onChange) {
+          onChange(dragRef.current.currentVal, false);
+        }
+        setIsDragging(false);
+      } else {
+        startEdit();
+      }
+
+      dragRef.current.isDown = false;
+      dragRef.current.hasMoved = false;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  // Touch device support for scrubbing and tapping
+  const handleTouchStart = (e) => {
+    if (isEditing) return;
+    const touch = e.touches[0];
+    dragRef.current = {
+      isDown: true,
+      startX: touch.clientX,
+      startVal: currentNum,
+      hasMoved: false,
+      currentVal: currentNum,
+    };
+
+    const handleTouchMove = (moveEvent) => {
+      if (!dragRef.current.isDown) return;
+      const t = moveEvent.touches[0];
+      const diffX = t.clientX - dragRef.current.startX;
+
+      if (!dragRef.current.hasMoved && Math.abs(diffX) > 4) {
+        dragRef.current.hasMoved = true;
+        setIsDragging(true);
+      }
+
+      if (dragRef.current.hasMoved) {
+        const deltaUnits = (diffX / 12) * step;
+        const nextVal = clamp(roundToPrecision(dragRef.current.startVal + deltaUnits));
+        dragRef.current.currentVal = nextVal;
+        if (onChange) onChange(nextVal, true);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+
+      if (dragRef.current.hasMoved) {
+        if (onChange) onChange(dragRef.current.currentVal, false);
+        setIsDragging(false);
+      } else {
+        startEdit();
+      }
+      dragRef.current.isDown = false;
+      dragRef.current.hasMoved = false;
+    };
+
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd);
   };
 
   return (
     <div
-      className={`flex items-center ${
+      className={`flex ${axisLabel ? "flex-col items-center gap-[0.25vw]" : "items-center"} ${
         label ? "justify-between" : "justify-center"
       } ${compact ? "gap-[0.25vw]" : "gap-[0.5vw] mb-[0.75vw]"}`}
     >
+      {axisLabel && (
+        <span className="text-[0.6vw] font-semibold text-gray-400 uppercase text-center tracking-wider">
+          {axisLabel}
+        </span>
+      )}
+
       {label && (
         <div className={`font-medium text-gray-600 ${compact ? "text-[0.65vw] w-[4vw]" : "text-[0.68vw] w-[6vw]"}`}>
            {label} :
@@ -449,14 +674,11 @@ const NumberStepper = ({ label, value, axisLabel, compact, onChange, step = 1 })
       )}
 
       <div className={`flex items-center ${compact ? "gap-[0.2vw]" : "gap-[0.5vw]"}`}>
-        {axisLabel && (
-          <span className={`${compact ? "text-[0.6vw] w-[0.8vw]" : "text-[0.58vw] w-[1vw]"} text-gray-400 uppercase text-center font-black tracking-tighter`}>
-            {axisLabel}
-          </span>
-        )}
         <button 
+          type="button"
           onClick={handleDecrement}
-          className={`text-gray-400 hover:text-[#5d5efc] transition-colors ${compact ? "" : "p-[0.15vw] hover:bg-indigo-50 rounded"}`}
+          className={`text-gray-400 hover:text-[#5d5efc] transition-colors ${compact ? "p-[0.1vw] hover:bg-indigo-50 rounded" : "p-[0.15vw] hover:bg-indigo-50 rounded"}`}
+          title="Decrease"
         >
           <Icon
             icon="heroicons:chevron-left"
@@ -464,16 +686,43 @@ const NumberStepper = ({ label, value, axisLabel, compact, onChange, step = 1 })
             height={compact ? "0.65vw" : "0.85vw"}
           />
         </button>
+
         <div
-          className={`${
-            compact ? "w-[2.8vw] py-[0.15vw] text-[0.6vw] rounded-[0.25vw]" : "w-[3.5vw] py-[0.4vw] text-[0.65vw] rounded-[0.35vw]"
-          } border border-gray-200 text-gray-700 font-bold text-center bg-white shadow-xs hover:border-[#5d5efc] transition-colors tabular-nums overflow-hidden`}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          title={isEditing ? "Press Enter to save, Esc to cancel" : "Click to type, drag left/right to adjust (Shift for precision)"}
+          className={`relative ${
+            compact ? "w-[3.1vw] py-[0.15vw] text-[0.62vw] rounded-[0.25vw]" : "w-[3.8vw] py-[0.4vw] text-[0.68vw] rounded-[0.35vw]"
+          } border text-center font-bold transition-all tabular-nums select-none ${
+            isEditing
+              ? "border-[#5d5efc] ring-2 ring-[#5d5efc]/20 bg-white"
+              : isDragging
+              ? "border-[#5d5efc] ring-2 ring-[#5d5efc]/30 bg-indigo-50/50 cursor-ew-resize text-[#5d5efc]"
+              : "border-gray-200 text-gray-700 bg-white shadow-xs hover:border-[#5d5efc] hover:bg-indigo-50/10 cursor-ew-resize"
+          }`}
         >
-          {value}
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={handleKeyDown}
+              className="w-full h-full text-center bg-transparent border-none outline-none font-bold text-gray-800 p-0 m-0"
+            />
+          ) : (
+            <span className="pointer-events-none block truncate px-[0.1vw]">
+              {value}
+            </span>
+          )}
         </div>
+
         <button 
+          type="button"
           onClick={handleIncrement}
-          className={`text-gray-400 hover:text-[#5d5efc] transition-colors ${compact ? "" : "p-[0.15vw] hover:bg-indigo-50 rounded"}`}
+          className={`text-gray-400 hover:text-[#5d5efc] transition-colors ${compact ? "p-[0.1vw] hover:bg-indigo-50 rounded" : "p-[0.15vw] hover:bg-indigo-50 rounded"}`}
+          title="Increase"
         >
           <Icon
             icon="heroicons:chevron-right"
@@ -568,7 +817,9 @@ export default function Customized({
     onUvUnwrap,
     onMapUpload,
     selectedTextureId,
-    onSelectTexture
+    onSelectTexture,
+    savedHdrs = [],
+    onDeleteHdr
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [activeColorType, setActiveColorType] = useState('color');
@@ -751,7 +1002,7 @@ export default function Customized({
                         value={controls.normal}
                         onChange={(v) => updateControl("normal", v)}
                         mapType="normalMap"
-                        currentMap={controls.maps?.normalMap}
+                        currentMap={controls.maps?.normalMap || controls.maps?.normal}
                         onUpload={onMapUpload}
                         description="Adds surface details like bumps and grooves without changing the model geometry."
                         disabled={isNoneSelected}
@@ -763,7 +1014,7 @@ export default function Customized({
                         value={controls.metallic}
                         onChange={(v) => updateControl("metallic", v)}
                         mapType="metalnessMap"
-                        currentMap={controls.maps?.metalnessMap}
+                        currentMap={controls.maps?.metalnessMap || controls.maps?.metallic || controls.maps?.metalness}
                         onUpload={onMapUpload}
                         description={"Determines which parts of the material behave like metal.\nWhite areas appear metallic, black areas remain non-metal."}
                         disabled={isNoneSelected}
@@ -775,19 +1026,19 @@ export default function Customized({
                         value={controls.roughness}
                         onChange={(v) => updateControl("roughness", v)}
                         mapType="roughnessMap"
-                        currentMap={controls.maps?.roughnessMap}
+                        currentMap={controls.maps?.roughnessMap || controls.maps?.roughness}
                         onUpload={onMapUpload}
                         description={"Controls how rough or smooth the material surface appears.\n\nLower values create a shiny surface."}
                         disabled={isNoneSelected}
                     />
                     <MapAccordion 
-                        title="Height/Bump Map"
+                        title="Displacement Map"
                         isOpen={openInnerAccordion === "bump"}
                         onToggle={() => toggleInnerAccordion("bump")}
                         value={controls.bump}
                         onChange={(v) => updateControl("bump", v)}
                         mapType="displacementMap"
-                        currentMap={controls.maps?.displacementMap}
+                        currentMap={controls.maps?.displacementMap || controls.maps?.bumpMap || controls.maps?.bump || controls.maps?.displacement}
                         onUpload={onMapUpload}
                         description="Physically displaces the vertices of the model to create real surface depth and topology."
                         disabled={isNoneSelected}
@@ -799,7 +1050,7 @@ export default function Customized({
                         value={controls.ao || 100}
                         onChange={(v) => updateControl("ao", v)}
                         mapType="aoMap"
-                        currentMap={controls.maps?.aoMap}
+                        currentMap={controls.maps?.aoMap || controls.maps?.ao}
                         onUpload={onMapUpload}
                         description="Enhances shadows in small crevices and corners to add depth and realism to the material."
                         disabled={isNoneSelected}
@@ -811,7 +1062,7 @@ export default function Customized({
                         value={controls.emissiveIntensity || 0}
                         onChange={(v) => updateControl("emissiveIntensity", v)}
                         mapType="emissiveMap"
-                        currentMap={controls.maps?.emissiveMap}
+                        currentMap={controls.maps?.emissiveMap || controls.maps?.emissive}
                         onUpload={onMapUpload}
                         description="Adds glowing areas to the material."
                         disabled={isNoneSelected}
@@ -848,7 +1099,7 @@ export default function Customized({
                         value={controls.alpha || 100}
                         onChange={(v) => updateControl("alpha", v)}
                         mapType="alphaMap"
-                        currentMap={controls.maps?.alphaMap}
+                        currentMap={controls.maps?.alphaMap || controls.maps?.opacity}
                         onUpload={onMapUpload}
                         description={"Controls the visibility of the material using a texture.\nWhite areas are opaque, black areas are fully transparent."}
                         disabled={isNoneSelected}
@@ -878,8 +1129,8 @@ export default function Customized({
                         label="Scale"
                         value={controls.scale}
                         onChange={(v) => updateControl("scale", v)}
-                        min={0}
-                        max={100}
+                        min={1}
+                        max={200}
                         unit="%"
                     />
                     <CustomSlider
@@ -888,7 +1139,7 @@ export default function Customized({
                         min={-180}
                         max={180}
                         onChange={(v) => updateControl("rotation", v)}
-                        unit="%"
+                        unit="°"
                     />
                     <CustomSlider
                         label="Offset (X)"
@@ -909,19 +1160,7 @@ export default function Customized({
                         unit="%"
                     />
                 </div>
-                
-                <div className="flex items-center justify-between mt-[1.25vw] bg-[#f8fafc] px-[0.75vw] py-[0.5vw] rounded-[0.5vw] border border-gray-100">
-                    <div className="flex items-center gap-[0.5vw]">
-                        <Icon icon="fluent:checkmark-circle-20-filled" className="text-green-500 w-[1vw] h-[1vw]" />
-                        <span className="text-[0.75vw] font-bold text-gray-700">UV Protection</span>
-                    </div>
-                    <button 
-                        onClick={onUvUnwrap}
-                        className="text-[0.65vw] font-bold text-[#5d5efc] hover:underline cursor-pointer"
-                    >
-                        Unwrap UV
-                    </button>
-                </div>
+
             </div>
         </div>
       </Accordion>
@@ -947,15 +1186,15 @@ export default function Customized({
               <div className="flex gap-[0.5vw]">
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">X</span>
-                    <NumberStepper value={fmt(transformValues?.position?.x)} compact onChange={(val) => onManualTransformChange('position', 'x', val)} step={0.5} />
+                    <NumberStepper value={fmt(transformValues?.position?.x)} compact onChange={(val, isDragging) => onManualTransformChange('position', 'x', val, isDragging)} step={0.5} />
                   </div>
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">Y</span>
-                    <NumberStepper value={fmt(transformValues?.position?.y)} compact onChange={(val) => onManualTransformChange('position', 'y', val)} step={0.5} />
+                    <NumberStepper value={fmt(transformValues?.position?.y)} compact onChange={(val, isDragging) => onManualTransformChange('position', 'y', val, isDragging)} step={0.5} />
                   </div>
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">Z</span>
-                    <NumberStepper value={fmt(transformValues?.position?.z)} compact onChange={(val) => onManualTransformChange('position', 'z', val)} step={0.5} />
+                    <NumberStepper value={fmt(transformValues?.position?.z)} compact onChange={(val, isDragging) => onManualTransformChange('position', 'z', val, isDragging)} step={0.5} />
                   </div>
               </div>
            </div>
@@ -971,15 +1210,15 @@ export default function Customized({
               <div className="flex gap-[0.5vw]">
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">X</span>
-                    <NumberStepper value={fmtDeg(transformValues?.rotation?.x)} compact onChange={(val) => onManualTransformChange('rotation', 'x', val)} step={5} />
+                    <NumberStepper value={fmtDeg(transformValues?.rotation?.x)} compact onChange={(val, isDragging) => onManualTransformChange('rotation', 'x', val, isDragging)} step={5} />
                   </div>
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">Y</span>
-                    <NumberStepper value={fmtDeg(transformValues?.rotation?.y)} compact onChange={(val) => onManualTransformChange('rotation', 'y', val)} step={5} />
+                    <NumberStepper value={fmtDeg(transformValues?.rotation?.y)} compact onChange={(val, isDragging) => onManualTransformChange('rotation', 'y', val, isDragging)} step={5} />
                   </div>
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">Z</span>
-                    <NumberStepper value={fmtDeg(transformValues?.rotation?.z)} compact onChange={(val) => onManualTransformChange('rotation', 'z', val)} step={5} />
+                    <NumberStepper value={fmtDeg(transformValues?.rotation?.z)} compact onChange={(val, isDragging) => onManualTransformChange('rotation', 'z', val, isDragging)} step={5} />
                   </div>
               </div>
            </div>
@@ -995,15 +1234,15 @@ export default function Customized({
               <div className="flex gap-[0.5vw]">
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">X</span>
-                    <NumberStepper value={fmt(transformValues?.scale?.x)} compact onChange={(val) => onManualTransformChange('scale', 'x', val)} step={0.1} />
+                    <NumberStepper value={fmt(transformValues?.scale?.x)} compact min={0.01} onChange={(val, isDragging) => onManualTransformChange('scale', 'x', val, isDragging)} step={0.1} />
                   </div>
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">Y</span>
-                    <NumberStepper value={fmt(transformValues?.scale?.y)} compact onChange={(val) => onManualTransformChange('scale', 'y', val)} step={0.1} />
+                    <NumberStepper value={fmt(transformValues?.scale?.y)} compact min={0.01} onChange={(val, isDragging) => onManualTransformChange('scale', 'y', val, isDragging)} step={0.1} />
                   </div>
                   <div className="flex flex-col items-center gap-[0.35vw]">
                     <span className="text-[0.6vw] font-semibold text-gray-400 uppercase">Z</span>
-                    <NumberStepper value={fmt(transformValues?.scale?.z)} compact onChange={(val) => onManualTransformChange('scale', 'z', val)} step={0.1} />
+                    <NumberStepper value={fmt(transformValues?.scale?.z)} compact min={0.01} onChange={(val, isDragging) => onManualTransformChange('scale', 'z', val, isDragging)} step={0.1} />
                   </div>
               </div>
            </div>
@@ -1031,9 +1270,24 @@ export default function Customized({
             onWheel={handleLightWheel}
             className={`relative bg-[#f8fafc] h-[9.375vw] rounded-[0.5vw] border border-gray-100 mb-[1.5vw] flex flex-col items-center justify-center shadow-inner overflow-hidden group ${isDraggingLight ? 'cursor-grabbing' : 'cursor-crosshair'}`}
         >
+            {/* Visual Sun Ray Line from Center (Model) to Sun */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-1">
+                <line 
+                    x1="50%" 
+                    y1="50%" 
+                    x2={`${Math.max(6, Math.min(94, 50 + (controls.lightPosition?.x ?? 10) * 2))}%`} 
+                    y2={`${Math.max(6, Math.min(94, 50 - (controls.lightPosition?.y ?? 10) * 2))}%`} 
+                    stroke="#f59e0b" 
+                    strokeWidth="1.5" 
+                    strokeDasharray="4 3"
+                    strokeLinecap="round"
+                    className="opacity-70"
+                />
+            </svg>
+
             {/* Dynamic Sun Position based on lightPosition */}
             <div 
-                className={`absolute text-amber-400 drop-shadow-sm pointer-events-none ${isDraggingLight ? '' : 'transition-all duration-300'}`}
+                className={`absolute text-amber-400 drop-shadow-sm pointer-events-none z-2 ${isDraggingLight ? '' : 'transition-all duration-300'}`}
                 style={{
                   left: `${50 + (controls.lightPosition?.x || 10) * 2}%`,
                   top: `${50 - (controls.lightPosition?.y || 10) * 2}%`,
@@ -1042,7 +1296,7 @@ export default function Customized({
             >
                 <Icon icon="heroicons:sun" width="1.25vw" height="1.25vw" />
             </div>
-            <div className="flex flex-col items-center text-gray-300 group-hover:text-gray-400 transition-colors">
+            <div className="flex flex-col items-center text-gray-300 group-hover:text-gray-400 transition-colors z-2">
                 <Icon icon="heroicons:cube" width="2.08vw" height="2.08vw" className="stroke-1" />
                 <span className="text-[0.58vw] mt-[0.5vw] font-medium tracking-wide uppercase">Model Preview</span>
             </div>
@@ -1082,6 +1336,10 @@ export default function Customized({
                             value={controls.environment || 'studio'}
                             onChange={(val) => updateControl('environment', val)}
                             options={[
+                                ...(savedHdrs || []).map(hdr => ({
+                                    label: `HDR: ${hdr.name.replace(/\.[^/.]+$/, "")}`,
+                                    value: hdr.id.startsWith('custom_') ? hdr.id : `custom_${hdr.id}`
+                                })),
                                 { label: 'City', value: 'city' },
                                 { label: 'Apartment', value: 'apartment' },
                                 { label: 'Dawn', value: 'dawn' },
@@ -1098,11 +1356,54 @@ export default function Customized({
                     <div className="mb-[1.25vw]">
                         <MapUploadControl 
                             mapType="envMap" 
-                            currentMap={controls.maps?.envMap} 
+                            currentMap={controls.customEnvMap || controls.maps?.envMap} 
                             onUpload={onMapUpload} 
                         />
                     </div>
                 </div>
+
+                {savedHdrs && savedHdrs.length > 0 && (
+                    <div className="mb-[0.75vw]">
+                        <div className="text-[0.62vw] text-gray-400 font-medium mb-[0.3vw] flex items-center justify-between">
+                            <span>Saved Custom HDRs</span>
+                            <span className="text-[0.55vw] text-gray-400">{savedHdrs.length} saved locally</span>
+                        </div>
+                        <div className="flex flex-wrap gap-[0.35vw] max-h-[6vw] overflow-y-auto custom-scrollbar p-[0.1vw]">
+                            {savedHdrs.map(hdr => {
+                                const hdrVal = hdr.id.startsWith('custom_') ? hdr.id : `custom_${hdr.id}`;
+                                const isActive = controls.environment === hdrVal || controls.customEnvMap === hdr.url;
+                                return (
+                                    <div 
+                                        key={hdr.id}
+                                        onClick={() => updateControl('environment', hdrVal)}
+                                        className={`group flex items-center gap-[0.3vw] px-[0.5vw] py-[0.25vw] rounded-[0.35vw] border text-[0.62vw] cursor-pointer transition-all ${
+                                            isActive 
+                                                ? 'bg-[#5d5efc]/10 border-[#5d5efc] text-[#5d5efc] font-semibold shadow-xs' 
+                                                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 hover:border-gray-300'
+                                        }`}
+                                        title={hdr.name}
+                                    >
+                                        <Icon icon="solar:sun-fog-bold" className="w-[0.75vw] h-[0.75vw] shrink-0" />
+                                        <span className="max-w-[7vw] truncate">{hdr.name.replace(/\.[^/.]+$/, "")}</span>
+                                        {onDeleteHdr && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onDeleteHdr(hdr.id);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 p-[0.1vw] hover:text-red-500 rounded transition-opacity ml-[0.1vw]"
+                                                title="Delete saved HDR"
+                                            >
+                                                <Icon icon="solar:trash-bin-trash-linear" className="w-[0.65vw] h-[0.65vw]" />
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
                 <div className="mt-[0.5vw]">
                     <CustomSlider
                         label="Env Rotation"
@@ -1136,12 +1437,12 @@ export default function Customized({
                 <div className="space-y-[0.25vw]">
                     <CustomSlider
                         label="Shadow"
-                        value={controls.shadow}
+                        value={controls.shadow ?? 50}
                         onChange={(v) => updateControl("shadow", v)}
                     />
                     <CustomSlider
                         label="Softness"
-                        value={controls.softness}
+                        value={controls.softness ?? 50}
                         onChange={(v) => updateControl("softness", v)}
                     />
                 </div>

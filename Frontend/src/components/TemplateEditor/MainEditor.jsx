@@ -1048,7 +1048,19 @@ const MainEditor = ({
 
   useEffect(() => {
     activeTopToolRef.current = activeTopTool;
-  }, [activeTopTool]);
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation') {
+      if (marqueeOverlayRef1.current) marqueeOverlayRef1.current.style.display = 'none';
+      if (marqueeOverlayRef2.current) marqueeOverlayRef2.current.style.display = 'none';
+      if (marqueeDataRef.current) marqueeDataRef.current = null;
+      setMarquee(null);
+      if (multiSelectedIds && multiSelectedIds.size > 1 && setMultiSelectedIds) {
+        setMultiSelectedIds(new Set(selectedLayerId ? [selectedLayerId] : []));
+      }
+      document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
+      const boundsPoly = document.getElementById('overlay-poly-selected-multi-selection-bounds');
+      if (boundsPoly) boundsPoly.remove();
+    }
+  }, [activeTopTool, selectedLayerId, multiSelectedIds, setMultiSelectedIds]);
 
   useEffect(() => {
     paperScopeRef.current = new paper.PaperScope();
@@ -2503,6 +2515,22 @@ const MainEditor = ({
   // Global observer for dynamic styling to bypass WebKit pseudo-element bugs and ensure styles persist on load
   useEffect(() => {
     let animationFrameId;
+
+    const hexToRgbaStr = (color, opacityVal) => {
+      if (!color || color === 'transparent' || color === 'none' || color === '#') return 'transparent';
+      if (color.startsWith('rgba') || color.startsWith('hsla') || color.includes('gradient')) return color;
+      let c = color.replace('#', '');
+      if (c.length === 3) c = c.split('').map(x => x + x).join('');
+      const num = parseInt(c, 16);
+      if (isNaN(num)) return color;
+      const r = (num >> 16) & 255;
+      const g = (num >> 8) & 255;
+      const b = num & 255;
+      const op = parseFloat(opacityVal);
+      const clampedOp = isNaN(op) ? 1 : (op > 1 ? op / 100 : op);
+      return `rgba(${r}, ${g}, ${b}, ${clampedOp})`;
+    };
+
     const updateScrollbarStyles = () => {
       const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument;
       const elsDoc = Array.from(document.querySelectorAll('[data-scrollbar-color], [data-bg-fill], [data-bg-stroke]'));
@@ -2517,17 +2545,27 @@ const MainEditor = ({
           }
           if (el.hasAttribute('data-bg-fill')) {
             const bgFill = el.getAttribute('data-bg-fill');
+            const bgFillOpacity = el.getAttribute('data-bg-fill-opacity') !== null ? el.getAttribute('data-bg-fill-opacity') : '1';
             if (bgFill && bgFill !== 'transparent' && bgFill !== 'none' && bgFill !== '#') {
-              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: ${bgFill} !important; --bg-fill: ${bgFill} !important; }\n`;
+              const finalBgFill = hexToRgbaStr(bgFill, bgFillOpacity);
+              if (finalBgFill.includes('gradient')) {
+                cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-image: ${finalBgFill} !important; background-color: transparent !important; --bg-fill: ${finalBgFill} !important; }\n`;
+              } else {
+                cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: ${finalBgFill} !important; background-image: none !important; --bg-fill: ${finalBgFill} !important; }\n`;
+              }
             } else {
-              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: transparent !important; --bg-fill: transparent !important; }\n`;
+              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { background-color: transparent !important; background-image: none !important; --bg-fill: transparent !important; }\n`;
             }
           }
           if (el.hasAttribute('data-bg-stroke')) {
             const bgStroke = el.getAttribute('data-bg-stroke');
+            const bgStrokeOpacity = el.getAttribute('data-bg-stroke-opacity') !== null ? el.getAttribute('data-bg-stroke-opacity') : '1';
             const sw = el.getAttribute('data-bg-stroke-width') !== null ? el.getAttribute('data-bg-stroke-width') : 0;
-            if (bgStroke && bgStroke !== 'none' && bgStroke !== 'transparent' && Number(sw) > 0) {
-              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { border: ${sw}px solid ${bgStroke} !important; }\n`;
+            const dash = el.getAttribute('data-bg-stroke-dasharray');
+            const borderStyle = (dash && dash !== 'none') ? 'dashed' : 'solid';
+            if (bgStroke && bgStroke !== 'none' && bgStroke !== 'transparent' && bgStroke !== '#' && Number(sw) > 0) {
+              const finalBgStroke = hexToRgbaStr(bgStroke, bgStrokeOpacity);
+              cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { border: ${sw}px ${borderStyle} ${finalBgStroke} !important; --bg-stroke: ${finalBgStroke} !important; --bg-stroke-width: ${sw} !important; }\n`;
             } else {
               cssRules += `[id="${el.id}"] .flipbook-text-outer, [id="${el.id}"] > div { border: none !important; }\n`;
             }
@@ -2573,12 +2611,12 @@ const MainEditor = ({
     });
 
     updateScrollbarStyles();
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width', 'id'] });
 
     const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument;
     if (editorDoc && editorDoc.body) {
       try {
-        observer.observe(editorDoc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-stroke', 'data-bg-stroke-width', 'id'] });
+        observer.observe(editorDoc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width', 'id'] });
       } catch (e) {}
     }
 
@@ -2687,7 +2725,7 @@ const MainEditor = ({
         overlay.setAttribute('fill', 'none');
         overlay.setAttribute('stroke-opacity', el.getAttribute('data-stroke-opacity') || '1');
 
-        const dashArray = el.getAttribute('data-stroke-dasharray');
+        const dashArray = el.getAttribute('data-stroke-dasharray') || el.getAttribute('stroke-dasharray');
         if (dashArray && dashArray !== 'none') overlay.setAttribute('stroke-dasharray', dashArray);
         else overlay.removeAttribute('stroke-dasharray');
 
@@ -2888,11 +2926,34 @@ const MainEditor = ({
         }
       }
 
+      if (icon.html) {
+        const rects = g.querySelectorAll('rect');
+        rects.forEach(rect => {
+          if (!rect.hasAttribute('fill')) {
+            rect.setAttribute('fill', 'none');
+          }
+        });
+      }
+
       const targetContainer = svg.querySelector('[data-type="frame"]') || svg.querySelector('[data-name="Overlay"]') || svg;
       targetContainer.appendChild(g);
 
       updatePageHtml(targetPageIndex, svg.outerHTML);
-      setSelectedLayerId(newId);
+      if (typeof setSingleSelection === 'function') {
+        setSingleSelection(newId);
+      } else {
+        if (setSelectedLayerId) setSelectedLayerId(newId);
+        selectedLayerIdRef.current = newId;
+        if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
+        multiSelectedIdsRef.current = new Set([newId]);
+      }
+      if (setActiveMainTool) setActiveMainTool('select');
+      setTimeout(() => {
+        const el = document.getElementById(newId);
+        if (el && typeof drawOverlayHighlight === 'function') {
+          drawOverlayHighlight(el, 'selected');
+        }
+      }, 50);
     };
 
     const handleAddHotspot = (e) => {
@@ -2993,7 +3054,21 @@ const MainEditor = ({
       targetContainer.appendChild(g);
 
       updatePageHtml(targetPageIndex, svg.outerHTML);
-      setSelectedLayerId(newId);
+      if (typeof setSingleSelection === 'function') {
+        setSingleSelection(newId);
+      } else {
+        if (setSelectedLayerId) setSelectedLayerId(newId);
+        selectedLayerIdRef.current = newId;
+        if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
+        multiSelectedIdsRef.current = new Set([newId]);
+      }
+      if (setActiveMainTool) setActiveMainTool('select');
+      setTimeout(() => {
+        const el = document.getElementById(newId);
+        if (el && typeof drawOverlayHighlight === 'function') {
+          drawOverlayHighlight(el, 'selected');
+        }
+      }, 50);
 
       if (e.detail.isHotspot && typeof setActiveTopTool === 'function') {
         setActiveTopTool('interaction');
@@ -3193,9 +3268,21 @@ const MainEditor = ({
             saveModifiedPageHtml(targetPageIndex, svg);
           }
 
-          if (setSelectedLayerId) setSelectedLayerId(newId);
-          if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
+          if (typeof setSingleSelection === 'function') {
+            setSingleSelection(newId);
+          } else {
+            if (setSelectedLayerId) setSelectedLayerId(newId);
+            selectedLayerIdRef.current = newId;
+            if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
+            multiSelectedIdsRef.current = new Set([newId]);
+          }
           if (setActiveMainTool) setActiveMainTool('select');
+          setTimeout(() => {
+            const el = document.getElementById(newId);
+            if (el && typeof drawOverlayHighlight === 'function') {
+              drawOverlayHighlight(el, 'selected');
+            }
+          }, 50);
 
         } catch (err) {
           console.error("[MainEditor] Failed to insert video into SVG frame:", err);
@@ -3204,6 +3291,9 @@ const MainEditor = ({
     };
 
     const handleAddImage = (e) => {
+      if (typeof setActiveMainTool === 'function') {
+        setActiveMainTool('select');
+      }
       const { url, gifUrl, pageIndex, dropPoint, type, targetShapeId } = e.detail || {};
       const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
       const mediaUrl = gifUrl || url;
@@ -6419,6 +6509,9 @@ const MainEditor = ({
 
   const insertImageIntoPage = (pageIdx, rawDataUrl, dataType = 'image', dropPoint = null, targetShapeId = null) => {
     if (!rawDataUrl) return;
+    if (typeof setActiveMainTool === 'function') {
+      setActiveMainTool('select');
+    }
 
     // 0. Clean & sanitize URL (handle HTML snippets, newlines in text/uri-list, quotes)
     let dataUrl = typeof rawDataUrl === 'string' ? rawDataUrl.trim() : rawDataUrl;
@@ -6590,7 +6683,21 @@ const MainEditor = ({
             if (updatePageHtml) {
               saveModifiedPageHtml(pageIdx, svg);
             }
-            if (setSelectedLayerId) setSelectedLayerId(targetShapeId);
+            if (typeof setSingleSelection === 'function') {
+              setSingleSelection(targetShapeId);
+            } else {
+              if (setSelectedLayerId) setSelectedLayerId(targetShapeId);
+              selectedLayerIdRef.current = targetShapeId;
+              if (setMultiSelectedIds) setMultiSelectedIds(new Set([targetShapeId]));
+              multiSelectedIdsRef.current = new Set([targetShapeId]);
+            }
+            if (setActiveMainTool) setActiveMainTool('select');
+            setTimeout(() => {
+              const el = document.getElementById(targetShapeId);
+              if (el && typeof drawOverlayHighlight === 'function') {
+                drawOverlayHighlight(el, 'selected');
+              }
+            }, 50);
             return;
           } catch (err) {
             console.error('[MainEditor] Masking image failed:', err);
@@ -6600,21 +6707,34 @@ const MainEditor = ({
 
       // Append to root frame
       const topFrames = getTopLevelFrames(svg);
-      const rootFrame = topFrames[0] || svg.querySelector('g');
+      const targetFrame = currentFrameIdRef.current ? svg.querySelector(`[id="${currentFrameIdRef.current}"]`) : null;
+      const rootFrame = targetFrame || topFrames[0] || svg.querySelector('g') || svg;
 
       if (rootFrame) {
         try {
           // Determine full page container bounds
-          let pWidth = 210, pHeight = 297;
+          let pWidth = baseWidth || 210, pHeight = baseHeight || 297;
           let pX = 0, pY = 0;
 
           try {
-            const bbox = rootFrame.getBBox();
-            if (bbox.width > 0 && bbox.height > 0) {
-              pWidth = bbox.width;
-              pHeight = bbox.height;
-              pX = bbox.x;
-              pY = bbox.y;
+            const viewBoxAttr = svg.getAttribute('viewBox');
+            if (viewBoxAttr) {
+              const vb = viewBoxAttr.split(/[\s,]+/).map(Number);
+              if (vb.length === 4 && !isNaN(vb[2]) && !isNaN(vb[3]) && vb[2] > 0 && vb[3] > 0) {
+                pX = vb[0];
+                pY = vb[1];
+                pWidth = vb[2];
+                pHeight = vb[3];
+              }
+            }
+            if (rootFrame.getBBox) {
+              const bbox = rootFrame.getBBox();
+              if (bbox.width > 0 && bbox.height > 0) {
+                pWidth = bbox.width;
+                pHeight = bbox.height;
+                pX = bbox.x;
+                pY = bbox.y;
+              }
             }
           } catch (e) { }
 
@@ -6646,13 +6766,26 @@ const MainEditor = ({
           }
 
           // Select the newly added group while preserving root folder context
-          if (setSelectedLayerId) setSelectedLayerId(groupId);
-          if (setMultiSelectedIds) setMultiSelectedIds(new Set([groupId]));
+          if (typeof setSingleSelection === 'function') {
+            setSingleSelection(groupId);
+          } else {
+            if (setSelectedLayerId) setSelectedLayerId(groupId);
+            selectedLayerIdRef.current = groupId;
+            if (setMultiSelectedIds) setMultiSelectedIds(new Set([groupId]));
+            multiSelectedIdsRef.current = new Set([groupId]);
+          }
           if (setActiveMainTool) setActiveMainTool('select');
           if (setCurrentFrameId && rootFrame.id) {
             setCurrentFrameId(rootFrame.id);
             currentFrameIdRef.current = rootFrame.id;
           }
+
+          setTimeout(() => {
+            const el = document.getElementById(groupId);
+            if (el && typeof drawOverlayHighlight === 'function') {
+              drawOverlayHighlight(el, 'selected');
+            }
+          }, 50);
 
           console.log(`[MainEditor] Image ${groupId} uploaded and inserted into page ${pageIdx}`);
         } catch (err) {
@@ -6838,6 +6971,7 @@ const MainEditor = ({
 
   const enterNodeEditMode = (targetEl, pageIndex) => {
     if (!targetEl) return;
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation' || activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') return;
 
     const pathEl = targetEl.tagName?.toLowerCase() === 'path' ? targetEl : targetEl.querySelector('path');
     if (!pathEl || !pathEl.getAttribute('d')) return;
@@ -6925,6 +7059,12 @@ const MainEditor = ({
 
   // ── Sync refs and perform page-level DOM highlights ──────────────────────────
   useEffect(() => {
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation') {
+      if (nodeEditModeRef.current) {
+        exitNodeEditMode();
+      }
+    }
+
     // Force immediate visual cleanup of all overlays before redraw
     clearOverlayType('selected');
     clearOverlayType('entered');
@@ -9456,7 +9596,9 @@ const MainEditor = ({
     tempDiv.innerHTML = targetSvg.outerHTML;
     tempDiv.querySelectorAll('.slideshow-transition-clone').forEach(el => el.remove());
     let finalHtml = tempDiv.innerHTML;
-    finalHtml = finalHtml.replace(/<br\s*>/gi, '<br/>');
+    finalHtml = finalHtml
+      .replace(/<\s*br[^>]*>(?:<\/\s*br\s*>)?/gi, '<br/>')
+      .replace(/<\/\s*br\s*>/gi, '');
     if (updatePageHtmlRef.current) {
       updatePageHtmlRef.current(targetPageIndex, finalHtml);
     } else if (typeof updatePageHtml === 'function') {
@@ -10208,8 +10350,9 @@ const MainEditor = ({
 
     // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
     // (Also start if Shift is held so Shift+Drag can draw marquee over elements without Ctrl)
-    // Converted flipbooks: NEVER start marquee drag-selection over static vector document pages
-    const shouldStartMarquee = !isConvertedFlipbook && (((e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current));
+    // Converted flipbooks / Interaction & Animation modules: NEVER start marquee drag-selection
+    const isModuleWithoutMarquee = activeTopTool === 'interaction' || activeTopTool === 'animation' || activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation';
+    const shouldStartMarquee = !isModuleWithoutMarquee && !isConvertedFlipbook && (((e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current));
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -10563,7 +10706,8 @@ const MainEditor = ({
     const container = e.currentTarget;
 
     // ── MARQUEE UPDATE ──
-    if (marqueeRef.current && !isConvertedFlipbook) {
+    const isModuleWithoutMarquee = activeTopTool === 'interaction' || activeTopTool === 'animation' || activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation';
+    if (marqueeRef.current && !isConvertedFlipbook && !isModuleWithoutMarquee) {
       const { startX, startY, containerRect, scale } = marqueeDataRef.current;
       const curX = (e.clientX - containerRect.left) / scale;
       const curY = (e.clientY - containerRect.top) / scale;
@@ -11520,7 +11664,21 @@ const MainEditor = ({
       }
     };
 
-    const handleBlur = () => {
+    const handleBlur = (e) => {
+      const activeEl = document.activeElement;
+      const isSidebarTarget = activeEl && (
+        activeEl.closest('.right-sidebar') ||
+        activeEl.closest('#right-sidebar') ||
+        activeEl.closest('[data-panel]') ||
+        activeEl.closest('.z-50') ||
+        activeEl.closest('.text-editor-panel') ||
+        activeEl.closest('.color-picker')
+      );
+
+      if (window.__isInteractingWithSidebar || isSidebarTarget) {
+        return;
+      }
+
       suppressClickRef.current = true;
       setTimeout(() => { suppressClickRef.current = false; }, 200);
 
@@ -12324,7 +12482,8 @@ const MainEditor = ({
     }
 
     // ── NODE EDIT MODE: Check if double-clicking a vector/path/shape element ───
-    if (target && !['text', 'tspan', 'foreignobject'].includes(target.tagName?.toLowerCase())) {
+    const isModuleWithoutPenEdit = activeTopTool === 'interaction' || activeTopTool === 'animation' || activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation';
+    if (!isModuleWithoutPenEdit && target && !['text', 'tspan', 'foreignobject'].includes(target.tagName?.toLowerCase())) {
       const tag = target.tagName?.toLowerCase();
       const dataType = target.getAttribute('data-type') || '';
       const isVectorOrPath = (
@@ -13601,6 +13760,9 @@ const MainEditor = ({
                                 }}
                                 onDrop={(e) => {
                                   e.preventDefault();
+                                  if (typeof setActiveMainTool === 'function') {
+                                    setActiveMainTool('select');
+                                  }
                                   try {
                                     const svg = e.currentTarget.querySelector('svg');
                                     if (!svg) return;

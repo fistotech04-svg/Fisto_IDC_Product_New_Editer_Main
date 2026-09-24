@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft, MoreVertical, Layers, Plus, Copy, Edit2,
@@ -498,6 +498,7 @@ const Layer = ({
 }) => {
   const navigate = useNavigate();
   const { folder, v_id } = useParams();
+  const { hasUnsavedChanges } = useOutletContext() || {};
   const [activeLayerMenu, setActiveLayerMenu] = useState(null); // { layerId, x, y }
   const layerMenuRef = useRef(null);
   const [isVisible, setIsVisible] = useState(true);
@@ -544,6 +545,11 @@ const Layer = ({
   });
 
   const handleGoToCustomize = () => {
+    if (hasUnsavedChanges) {
+      if (!window.confirm("Leave site?\n\nChanges you made may not be saved.")) {
+        return;
+      }
+    }
     const path = folder
       ? `/editor/customized_editor/${folder}/${v_id}`
       : `/editor/customized_editor/${v_id}`;

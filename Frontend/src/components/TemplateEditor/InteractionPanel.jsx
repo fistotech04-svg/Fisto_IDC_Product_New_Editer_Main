@@ -18,6 +18,7 @@ import { fontFamilies, fontWeights } from '../../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import ColorPicker from './ColorPicker';
 import HotspotCustomizationPopup, { generateHotspotSVG, generateButtonSVG } from './HotspotCustomizationPopup';
+import MediaGalleryPopup from './MediaGalleryPopup';
 
 const GlbModelScene = ({ url }) => {
   const { scene, animations } = useGLTF(url);
@@ -541,6 +542,91 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
 };
 
 
+const SOCIAL_PLATFORMS = {
+  youtube: {
+    name: 'YouTube',
+    inputLabel: 'Enter your YouTube Link',
+    placeholder: 'https://www.youtube.com/watch?v=... or @channel',
+    icon: 'ri:youtube-fill',
+    iconColor: 'text-[#FF0000]',
+    regex: /^(https?:\/\/)?((www|m|music)\.)?(youtube\.com(\/[^\s]*)?|youtu\.be\/[^\s]+)$/i,
+    errorMessage: 'Please enter a valid YouTube link *',
+    successMessage: 'YouTube Link Linked'
+  },
+  instagram: {
+    name: 'Instagram',
+    inputLabel: 'Enter your Instagram Link',
+    placeholder: 'https://www.instagram.com/username',
+    icon: 'ri:instagram-line',
+    iconColor: 'text-[#E1306C]',
+    regex: /^(https?:\/\/)?((www)\.)?(instagram\.com|instagr\.am)(\/[^\s]*)?$/i,
+    errorMessage: 'Please enter a valid Instagram link *',
+    successMessage: 'Instagram Link Linked'
+  },
+  x: {
+    name: 'X (Twitter)',
+    inputLabel: 'Enter your X (Twitter) Link',
+    placeholder: 'https://x.com/username',
+    icon: 'ri:twitter-x-fill',
+    iconColor: 'text-black',
+    regex: /^(https?:\/\/)?((www|mobile)\.)?(x\.com|twitter\.com)(\/[^\s]*)?$/i,
+    errorMessage: 'Please enter a valid X (Twitter) link *',
+    successMessage: 'X Link Linked'
+  },
+  facebook: {
+    name: 'Facebook',
+    inputLabel: 'Enter your Facebook Link',
+    placeholder: 'https://www.facebook.com/username',
+    icon: 'ri:facebook-fill',
+    iconColor: 'text-[#1877F2]',
+    regex: /^(https?:\/\/)?((www|m|web)\.)?(facebook\.com|fb\.com|fb\.me|fb\.watch)(\/[^\s]*)?$/i,
+    errorMessage: 'Please enter a valid Facebook link *',
+    successMessage: 'Facebook Link Linked'
+  },
+  linkedin: {
+    name: 'LinkedIn',
+    inputLabel: 'Enter your LinkedIn Link',
+    placeholder: 'https://www.linkedin.com/in/username',
+    icon: 'ri:linkedin-fill',
+    iconColor: 'text-[#0A66C2]',
+    regex: /^(https?:\/\/)?((www|mobile)\.)?(linkedin\.com|lnkd\.in)(\/[^\s]*)?$/i,
+    errorMessage: 'Please enter a valid LinkedIn link *',
+    successMessage: 'LinkedIn Link Linked'
+  }
+};
+
+const getSocialPlatform = (item, currentVal = '') => {
+  const pId = (item?.presetId || '').toLowerCase();
+  if (SOCIAL_PLATFORMS[pId]) return { platformKey: pId, ...SOCIAL_PLATFORMS[pId] };
+  if (pId === 'twitter') return { platformKey: 'x', ...SOCIAL_PLATFORMS.x };
+
+  const name = ((item?.name || item?.label || '') + '').toLowerCase();
+  if (name.includes('youtube')) return { platformKey: 'youtube', ...SOCIAL_PLATFORMS.youtube };
+  if (name.includes('instagram')) return { platformKey: 'instagram', ...SOCIAL_PLATFORMS.instagram };
+  if (name.includes('twitter') || name === 'x') return { platformKey: 'x', ...SOCIAL_PLATFORMS.x };
+  if (name.includes('facebook')) return { platformKey: 'facebook', ...SOCIAL_PLATFORMS.facebook };
+  if (name.includes('linkedin')) return { platformKey: 'linkedin', ...SOCIAL_PLATFORMS.linkedin };
+
+  const val = (currentVal || '').trim().toLowerCase();
+  if (val.includes('youtube.com') || val.includes('youtu.be')) return { platformKey: 'youtube', ...SOCIAL_PLATFORMS.youtube };
+  if (val.includes('instagram.com') || val.includes('instagr.am')) return { platformKey: 'instagram', ...SOCIAL_PLATFORMS.instagram };
+  if (val.includes('twitter.com') || val.includes('x.com')) return { platformKey: 'x', ...SOCIAL_PLATFORMS.x };
+  if (val.includes('facebook.com') || val.includes('fb.com') || val.includes('fb.watch') || val.includes('fb.me')) return { platformKey: 'facebook', ...SOCIAL_PLATFORMS.facebook };
+  if (val.includes('linkedin.com') || val.includes('lnkd.in')) return { platformKey: 'linkedin', ...SOCIAL_PLATFORMS.linkedin };
+
+  return {
+    platformKey: 'generic',
+    name: 'Open Link',
+    inputLabel: 'Enter your link',
+    placeholder: 'https://maps.app.go...',
+    icon: 'ph:globe',
+    iconColor: 'text-gray-500',
+    regex: /^(https?:\/\/)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(\/[^\s]*)?$/i,
+    errorMessage: 'Please enter a valid link *',
+    successMessage: 'Link Linked'
+  };
+};
+
 const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setOpenDropdownId, updateElementAttribute, activePageIndex, setCardActionOverrides, setItemValueOverrides, setLocalInputValues, setTooltipSettingsOverrides, isCollapsed, onExpandAccordion }) => {
   const triggerRef = useRef(null);
   const [dropdownStyles, setDropdownStyles] = useState({});
@@ -584,26 +670,37 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
   }, [isDropdownOpen, setOpenDropdownId]);
 
   const isLocked = ['youtube', 'instagram', 'x', 'facebook', 'linkedin', 'whatsapp'].includes(item.presetId);
+  const platformInfo = getSocialPlatform(item);
+  const actionLabel = (['youtube', 'instagram', 'x', 'facebook', 'linkedin'].includes(item.presetId) || ['youtube', 'instagram', 'x', 'facebook', 'linkedin'].includes(platformInfo.platformKey))
+    ? platformInfo.name
+    : (item.presetId === 'whatsapp' ? 'WhatsApp' : currentAction.label);
 
   return (
     <>
       <div
         ref={triggerRef}
         data-dropdown-trigger="true"
-        className={`h-[3.2vh] bg-white border border-gray-200/80 shadow-sm rounded-[0.3vw] flex items-center justify-center gap-[0.4vw] px-[0.7vw] transition-all duration-300 relative select-none group ${isLocked ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-md hover:border-[#5145F6]/40 cursor-pointer'}`}
+        className={`h-[3.3vh] flex items-center justify-start gap-[0.5vw] px-[0.8vw] relative select-none outline-none focus:outline-none cursor-pointer transition-colors duration-150 ${
+          isLocked
+            ? 'opacity-70 cursor-not-allowed border border-transparent'
+            : isCollapsed
+            ? 'border border-transparent bg-transparent shadow-none'
+            : 'bg-white border border-gray-300 shadow-sm rounded-[0.45vw] hover:border-[#5145F6]/50'
+        }`}
+        style={{ outline: 'none' }}
         onClick={(e) => {
-          e.stopPropagation();
           if (isLocked) return;
-          if (isCollapsed) {
-            if (onExpandAccordion) onExpandAccordion();
-            return;
+          if (!isCollapsed) {
+            e.stopPropagation();
+            setOpenDropdownId(isDropdownOpen ? null : item.id);
           }
-          setOpenDropdownId(isDropdownOpen ? null : item.id);
         }}
       >
-        <span className="text-[0.8vw] text-gray-800 font-medium font-sans group-hover:text-[#5145F6] transition-colors select-none">{currentAction.label}</span>
-        {!isLocked && (
-          <svg width="0.75vw" height="0.75vw" viewBox="0 0 24 24" fill="none" className="stroke-gray-500 group-hover:stroke-[#5145F6] transition-colors flex-shrink-0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <span className="text-[0.8vw] text-gray-800 font-medium font-sans select-none flex-shrink-0">
+          {actionLabel}
+        </span>
+        {!isLocked && !isCollapsed && (
+          <svg width="0.75vw" height="0.75vw" viewBox="0 0 24 24" fill="none" className="stroke-gray-500 hover:stroke-[#5145F6] transition-colors flex-shrink-0 ml-[0.1vw]" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 7h16M16 3l4 4-4 4M20 17H4M8 13l-4 4 4 4" />
           </svg>
         )}
@@ -733,6 +830,36 @@ const CommonDropBox = ({
   );
 };
 
+const getFormattedPopupSvg = (svgString) => {
+  if (!svgString || typeof svgString !== 'string') return '';
+  try {
+    const trimmed = svgString.trim();
+    if (!trimmed.includes('<svg')) return '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(trimmed, 'image/svg+xml');
+    const svg = doc.querySelector('svg');
+    if (!svg || doc.querySelector('parsererror')) {
+      return trimmed;
+    }
+    if (!svg.getAttribute('viewBox')) {
+      const w = parseFloat(svg.getAttribute('width') || 800);
+      const h = parseFloat(svg.getAttribute('height') || 600);
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    }
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.style.width = '100%';
+    svg.style.height = '100%';
+    svg.style.maxWidth = '100%';
+    svg.style.maxHeight = '100%';
+    svg.style.display = 'block';
+    return new XMLSerializer().serializeToString(svg);
+  } catch (_) {
+    return svgString;
+  }
+};
+
 const InteractionPanel = ({
   selectedElementProps,
   activePageIndex,
@@ -767,6 +894,8 @@ const InteractionPanel = ({
   // Immediate local override for action type so card header updates without waiting for pages re-sync
   const [cardActionOverrides, setCardActionOverrides] = useState({});
   const [active3DGalleryItem, setActive3DGalleryItem] = useState(null);
+  const [isSlideshowGalleryOpen, setIsSlideshowGalleryOpen] = useState(false);
+  const [activeSlideshowItem, setActiveSlideshowItem] = useState(null);
   const [editingHotspotId, setEditingHotspotId] = useState(null);
 
   // Immediate local overrides for input values and triggers to eliminate dropdown lag and system hang
@@ -784,13 +913,69 @@ const InteractionPanel = ({
   const [linkBehaviorOverrides, setLinkBehaviorOverrides] = useState({});
   const [whatsappMessageOverrides, setWhatsappMessageOverrides] = useState({});
   const [highlightOverrides, setHighlightOverrides] = useState({});
+  const [popupCustomHtmlOverrides, setPopupCustomHtmlOverrides] = useState({});
   const activeAudioRef = useRef(null);
 
+  // Audio recording state
+  const [audioSourceMode, setAudioSourceMode] = useState({}); // { [itemId]: 'upload' | 'record' }
+  const [recordingItemId, setRecordingItemId] = useState(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordingMillis, setRecordingMillis] = useState(0);
+  const [isRecordingPaused, setIsRecordingPaused] = useState(false);
+  const [recordingWaveform, setRecordingWaveform] = useState([]);
+  const [recordedDataMap, setRecordedDataMap] = useState({}); // { [itemId]: { blob, url, duration, durationMs, waveform, mimeType, fileExt } }
+  const [recordedPreviewPlaying, setRecordedPreviewPlaying] = useState(null);
+  const [recordedPreviewTimes, setRecordedPreviewTimes] = useState({});
+  const [recordedPreviewPercent, setRecordedPreviewPercent] = useState({});
+
+  const mediaRecorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const recordingTimerRef = useRef(null);
+  const waveformIntervalRef = useRef(null);
+  const recordingStartTimeRef = useRef(0);
+  const recordingAccumulatedMsRef = useRef(0);
+  const recordingWaveformRef = useRef([]);
+  const saveAfterStopRef = useRef(false);
+  const recordedPreviewAudioRef = useRef(null);
+
+  const formatRecordingTimePrecise = (totalMs) => {
+    const ms = Math.max(0, totalMs || 0);
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const hundredths = Math.floor((ms % 1000) / 10);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(minutes)}:${pad(seconds)},${pad(hundredths)}`;
+  };
+
   const formatAudioTime = (secs) => {
-    if (!secs || isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
+    if (!secs || isNaN(secs) || !isFinite(secs) || secs < 0) return '0:00';
+    const sFloor = Math.floor(secs);
+    const m = Math.floor(sFloor / 60);
+    const s = sFloor % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const getAudioDurationFromMeta = (meta) => {
+    if (!meta) return null;
+    if (meta.duration && isFinite(meta.duration) && Number(meta.duration) > 0) {
+      return Number(meta.duration);
+    }
+    if (meta.durationMs && isFinite(meta.durationMs) && Number(meta.durationMs) > 0) {
+      return Number(meta.durationMs) / 1000;
+    }
+    if (meta.name) {
+      const match = String(meta.name).match(/\((\d+):(\d+)\)/);
+      if (match) {
+        const mins = parseInt(match[1], 10) || 0;
+        const secs = parseInt(match[2], 10) || 0;
+        const total = mins * 60 + secs;
+        if (total > 0) return total;
+      }
+    }
+    return null;
   };
 
   const formatAudioFileSize = (bytes) => {
@@ -800,7 +985,7 @@ const InteractionPanel = ({
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const handleTogglePlayAudio = (itemId, audioSrc) => {
+  const handleTogglePlayAudio = (itemId, audioSrc, fallbackDuration) => {
     if (!audioSrc) return;
 
     const resolvedSrc = resolveUploadsPath(audioSrc);
@@ -817,38 +1002,85 @@ const InteractionPanel = ({
       activeAudioRef.current.pause();
       activeAudioRef.current = null;
     }
+    if (recordedPreviewAudioRef.current) {
+      recordedPreviewAudioRef.current.pause();
+      setRecordedPreviewPlaying(null);
+    }
 
     const audio = new Audio(resolvedSrc);
     activeAudioRef.current = audio;
     setPlayingAudioId(itemId);
 
-    audio.ontimeupdate = () => {
-      if (!audio.duration) return;
-      const cur = audio.currentTime || 0;
-      const dur = audio.duration || 1;
-      const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
-      setAudioPlaybackTimes(prev => ({
-        ...prev,
-        [itemId]: `${formatAudioTime(cur)} / ${formatAudioTime(dur)}`
-      }));
-      setAudioProgressPercent(prev => ({
-        ...prev,
-        [itemId]: pct
-      }));
+    let effectiveDuration = (fallbackDuration && isFinite(fallbackDuration) && Number(fallbackDuration) > 0)
+      ? Number(fallbackDuration)
+      : null;
+
+    const resolveDuration = () => {
+      if (effectiveDuration && isFinite(effectiveDuration) && effectiveDuration > 0) {
+        return effectiveDuration;
+      }
+      if (audio.duration && isFinite(audio.duration) && audio.duration > 0 && audio.duration !== Infinity) {
+        effectiveDuration = audio.duration;
+        return audio.duration;
+      }
+      return 0;
     };
 
-    audio.onloadedmetadata = () => {
+    const updateTimesAndProgress = () => {
       const cur = audio.currentTime || 0;
-      const dur = audio.duration || 0;
-      setAudioPlaybackTimes(prev => ({
-        ...prev,
-        [itemId]: `${formatAudioTime(cur)} / ${formatAudioTime(dur)}`
-      }));
+      const dur = resolveDuration();
+
+      if (dur > 0) {
+        const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
+        setAudioPlaybackTimes(prev => ({
+          ...prev,
+          [itemId]: `${formatAudioTime(cur)} / ${formatAudioTime(dur)}`
+        }));
+        setAudioProgressPercent(prev => ({
+          ...prev,
+          [itemId]: pct
+        }));
+      } else {
+        setAudioPlaybackTimes(prev => ({
+          ...prev,
+          [itemId]: `${formatAudioTime(cur)}`
+        }));
+      }
+    };
+
+    // Fix Chromium WebM duration missing bug when duration is Infinity
+    audio.onloadedmetadata = () => {
+      if (!effectiveDuration && (!audio.duration || !isFinite(audio.duration) || audio.duration === Infinity)) {
+        try {
+          const originalTime = audio.currentTime;
+          audio.currentTime = 1e101;
+          const onTimeFix = () => {
+            audio.removeEventListener('timeupdate', onTimeFix);
+            if (audio.duration && isFinite(audio.duration) && audio.duration !== Infinity) {
+              effectiveDuration = audio.duration;
+            }
+            audio.currentTime = originalTime;
+            updateTimesAndProgress();
+          };
+          audio.addEventListener('timeupdate', onTimeFix);
+        } catch (_) {}
+      } else {
+        updateTimesAndProgress();
+      }
+    };
+
+    audio.ontimeupdate = () => {
+      updateTimesAndProgress();
     };
 
     audio.onended = () => {
       setPlayingAudioId(null);
       setAudioProgressPercent(prev => ({ ...prev, [itemId]: 0 }));
+      const dur = resolveDuration();
+      setAudioPlaybackTimes(prev => ({
+        ...prev,
+        [itemId]: `0:00 / ${dur > 0 ? formatAudioTime(dur) : '0:00'}`
+      }));
     };
 
     audio.play().catch(err => {
@@ -857,21 +1089,438 @@ const InteractionPanel = ({
     });
   };
 
-  const handleAudioSeek = (e, itemId) => {
-    if (!activeAudioRef.current || playingAudioId !== itemId) return;
+  const handleAudioSeek = (e, itemId, fallbackDuration) => {
+    const audio = activeAudioRef.current;
+    if (!audio || playingAudioId !== itemId) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const pct = Math.min(1, Math.max(0, clickX / rect.width));
-    if (activeAudioRef.current.duration) {
-      activeAudioRef.current.currentTime = pct * activeAudioRef.current.duration;
+
+    let dur = (audio.duration && isFinite(audio.duration) && audio.duration !== Infinity)
+      ? audio.duration
+      : (fallbackDuration && isFinite(fallbackDuration) ? Number(fallbackDuration) : 0);
+
+    if (dur > 0) {
+      audio.currentTime = pct * dur;
+      setAudioProgressPercent(prev => ({ ...prev, [itemId]: pct * 100 }));
+      const cur = audio.currentTime || 0;
+      setAudioPlaybackTimes(prev => ({
+        ...prev,
+        [itemId]: `${formatAudioTime(cur)} / ${formatAudioTime(dur)}`
+      }));
     }
   };
 
-  // Clean up audio on unmount
+  // Recording handlers
+  const handleStartRecording = async (itemId) => {
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      alert("Audio recording is not supported in your browser.");
+      return;
+    }
+
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      setPlayingAudioId(null);
+    }
+    if (recordedPreviewAudioRef.current) {
+      recordedPreviewAudioRef.current.pause();
+      setRecordedPreviewPlaying(null);
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      // Connect Web Audio API Analyser for real-time waveform visualization
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const src = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 64;
+          analyser.smoothingTimeConstant = 0.5;
+          src.connect(analyser);
+          audioContextRef.current = ctx;
+          analyserRef.current = analyser;
+        }
+      } catch (e) {
+        console.warn("AudioContext initialization note:", e);
+      }
+
+      let mimeType = 'audio/webm';
+      let fileExt = '.webm';
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+          fileExt = '.webm';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm';
+          fileExt = '.webm';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4';
+          fileExt = '.mp4';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+          mimeType = 'audio/ogg';
+          fileExt = '.ogg';
+        }
+      }
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = recorder;
+      const chunks = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const finalMs = recordingAccumulatedMsRef.current || 1000;
+        const finalSecs = Math.max(1, Math.round(finalMs / 1000));
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const dataObj = {
+          blob,
+          url,
+          duration: finalSecs,
+          durationMs: finalMs,
+          waveform: [...(recordingWaveformRef.current || [])],
+          mimeType,
+          fileExt
+        };
+        setRecordedDataMap(prev => ({
+          ...prev,
+          [itemId]: dataObj
+        }));
+
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach(t => t.stop());
+          mediaStreamRef.current = null;
+        }
+        if (audioContextRef.current) {
+          try { audioContextRef.current.close(); } catch (_) {}
+          audioContextRef.current = null;
+          analyserRef.current = null;
+        }
+
+        if (saveAfterStopRef.current) {
+          saveAfterStopRef.current = false;
+          handleSaveRecordedAudio({ id: itemId }, dataObj);
+        }
+      };
+
+      recordingAccumulatedMsRef.current = 0;
+      recordingStartTimeRef.current = Date.now();
+      setRecordingSeconds(0);
+      setRecordingMillis(0);
+      setIsRecordingPaused(false);
+      const initialWave = [0.12, 0.18, 0.14, 0.22, 0.28, 0.2];
+      setRecordingWaveform(initialWave);
+      recordingWaveformRef.current = initialWave;
+      setRecordingItemId(itemId);
+
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => {
+        const elapsed = recordingAccumulatedMsRef.current + (Date.now() - recordingStartTimeRef.current);
+        setRecordingMillis(elapsed);
+        setRecordingSeconds(Math.floor(elapsed / 1000));
+      }, 33);
+
+      if (waveformIntervalRef.current) clearInterval(waveformIntervalRef.current);
+      waveformIntervalRef.current = setInterval(() => {
+        if (analyserRef.current) {
+          const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          const avg = sum / (dataArray.length || 1);
+          const norm = Math.max(0.12, Math.min(1.0, (avg / 100) * 1.35));
+          setRecordingWaveform(prev => {
+            const next = [...prev, norm];
+            const updated = next.length > 28 ? next.slice(next.length - 28) : next;
+            recordingWaveformRef.current = updated;
+            return updated;
+          });
+        }
+      }, 90);
+
+      recorder.start(200);
+    } catch (err) {
+      console.error("Microphone access failed:", err);
+      alert("Microphone permission was denied. Please allow microphone access in your browser to record audio.");
+    }
+  };
+
+  const handleTogglePauseResumeRecording = (itemId) => {
+    if (!mediaRecorderRef.current || recordingItemId !== itemId) return;
+
+    if (!isRecordingPaused) {
+      // Pause
+      if (mediaRecorderRef.current.state === 'recording') {
+        try { mediaRecorderRef.current.pause(); } catch (_) {}
+      }
+      recordingAccumulatedMsRef.current += (Date.now() - recordingStartTimeRef.current);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      if (waveformIntervalRef.current) {
+        clearInterval(waveformIntervalRef.current);
+        waveformIntervalRef.current = null;
+      }
+      setIsRecordingPaused(true);
+    } else {
+      // Resume / Play
+      if (mediaRecorderRef.current.state === 'paused') {
+        try { mediaRecorderRef.current.resume(); } catch (_) {}
+      }
+      recordingStartTimeRef.current = Date.now();
+      setIsRecordingPaused(false);
+
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => {
+        const elapsed = recordingAccumulatedMsRef.current + (Date.now() - recordingStartTimeRef.current);
+        setRecordingMillis(elapsed);
+        setRecordingSeconds(Math.floor(elapsed / 1000));
+      }, 33);
+
+      if (waveformIntervalRef.current) clearInterval(waveformIntervalRef.current);
+      waveformIntervalRef.current = setInterval(() => {
+        if (analyserRef.current) {
+          const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          const avg = sum / (dataArray.length || 1);
+          const norm = Math.max(0.12, Math.min(1.0, (avg / 100) * 1.35));
+          setRecordingWaveform(prev => {
+            const next = [...prev, norm];
+            const updated = next.length > 28 ? next.slice(next.length - 28) : next;
+            recordingWaveformRef.current = updated;
+            return updated;
+          });
+        }
+      }, 90);
+    }
+  };
+
+  const handleStopRecording = (itemId) => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (waveformIntervalRef.current) {
+      clearInterval(waveformIntervalRef.current);
+      waveformIntervalRef.current = null;
+    }
+    if (!isRecordingPaused && recordingStartTimeRef.current) {
+      recordingAccumulatedMsRef.current += (Date.now() - recordingStartTimeRef.current);
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try { mediaRecorderRef.current.stop(); } catch (_) {}
+    }
+    setIsRecordingPaused(false);
+    setRecordingItemId(null);
+  };
+
+  const handleCancelRecording = (itemId) => {
+    saveAfterStopRef.current = false;
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (waveformIntervalRef.current) {
+      clearInterval(waveformIntervalRef.current);
+      waveformIntervalRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch (_) {}
+      audioContextRef.current = null;
+      analyserRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.onstop = null;
+      try { mediaRecorderRef.current.stop(); } catch (_) {}
+      mediaRecorderRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (recordedDataMap[itemId]?.url) {
+      URL.revokeObjectURL(recordedDataMap[itemId].url);
+    }
+    setRecordedDataMap(prev => {
+      const copy = { ...prev };
+      delete copy[itemId];
+      return copy;
+    });
+    setRecordingItemId(null);
+    setRecordingSeconds(0);
+    setRecordingMillis(0);
+    setIsRecordingPaused(false);
+    setRecordingWaveform([]);
+    recordingAccumulatedMsRef.current = 0;
+  };
+
+  const handleTogglePlayRecordedPreview = (itemId) => {
+    const itemData = recordedDataMap[itemId];
+    if (!itemData || !itemData.url) return;
+
+    if (recordedPreviewPlaying === itemId && recordedPreviewAudioRef.current) {
+      if (!recordedPreviewAudioRef.current.paused) {
+        recordedPreviewAudioRef.current.pause();
+        setRecordedPreviewPlaying(null);
+        return;
+      }
+    }
+
+    if (recordedPreviewAudioRef.current) {
+      recordedPreviewAudioRef.current.pause();
+      recordedPreviewAudioRef.current = null;
+    }
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      setPlayingAudioId(null);
+    }
+
+    const audio = new Audio(itemData.url);
+    recordedPreviewAudioRef.current = audio;
+    setRecordedPreviewPlaying(itemId);
+
+    const knownDur = itemData.duration || (itemData.durationMs ? itemData.durationMs / 1000 : 0);
+
+    audio.ontimeupdate = () => {
+      const cur = audio.currentTime || 0;
+      const dur = (audio.duration && isFinite(audio.duration) && audio.duration !== Infinity && audio.duration > 0)
+        ? audio.duration
+        : (knownDur || 1);
+      const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
+      setRecordingMillis(Math.round(cur * 1000));
+      setRecordedPreviewTimes(prev => ({
+        ...prev,
+        [itemId]: `${formatAudioTime(cur)} / ${formatAudioTime(dur)}`
+      }));
+      setRecordedPreviewPercent(prev => ({
+        ...prev,
+        [itemId]: pct
+      }));
+    };
+
+    audio.onended = () => {
+      setRecordedPreviewPlaying(null);
+      setRecordedPreviewPercent(prev => ({ ...prev, [itemId]: 0 }));
+      setRecordingMillis(itemData.durationMs || (itemData.duration * 1000));
+    };
+
+    audio.play().catch(err => {
+      console.error("Failed to play recorded preview:", err);
+      setRecordedPreviewPlaying(null);
+    });
+  };
+
+  const handleSaveRecordedAudio = async (item, overrideData) => {
+    // If currently actively recording or paused, trigger save on stop
+    if (recordingItemId === item.id && !overrideData) {
+      saveAfterStopRef.current = true;
+      handleStopRecording(item.id);
+      return;
+    }
+
+    const recordedData = overrideData || recordedDataMap[item.id];
+    if (!recordedData || !recordedData.blob) return;
+
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser) {
+      alert("You must be logged in to save recorded audio.");
+      return;
+    }
+    const user = JSON.parse(storedUser);
+
+    setUploadingItems(prev => ({ ...prev, [item.id]: true }));
+
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const ext = recordedData.fileExt || '.webm';
+      const mime = recordedData.mimeType || 'audio/webm';
+      const recFile = new File([recordedData.blob], `voice_recording_${Date.now()}${ext}`, { type: mime });
+
+      const formData = new FormData();
+      formData.append('emailId', user.emailId);
+      if (effectiveVId) formData.append('v_id', effectiveVId);
+      if (effectiveFolder) formData.append('folderName', effectiveFolder);
+      if (effectiveBook) formData.append('flipbookName', effectiveBook);
+      formData.append('type', 'audio');
+      formData.append('page_v_id', 'global');
+      formData.append('file', recFile);
+
+      const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data && res.data.url) {
+        const uploadedUrl = resolveUploadsPath(res.data.url);
+        const durText = formatAudioTime(recordedData.duration);
+        const storedVal = JSON.stringify({
+          name: `Voice Recording (${durText})`,
+          type: recFile.type || 'audio/webm',
+          size: recFile.size || recordedData.blob.size,
+          data: uploadedUrl,
+          url: uploadedUrl,
+          duration: recordedData.duration,
+          durationMs: recordedData.durationMs
+        });
+
+        setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+        updateElementAttribute(targetIdx, item.id, {
+          'data-interaction': 'audio',
+          'data-interaction-value': storedVal
+        });
+
+        if (recordedDataMap[item.id]?.url) {
+          URL.revokeObjectURL(recordedDataMap[item.id].url);
+        }
+        setRecordedDataMap(prev => {
+          const copy = { ...prev };
+          delete copy[item.id];
+          return copy;
+        });
+        setAudioSourceMode(prev => ({ ...prev, [item.id]: 'upload' }));
+      } else {
+        throw new Error("Failed to upload recorded audio");
+      }
+    } catch (err) {
+      console.error("Save recorded audio error:", err);
+      alert("Failed to upload recorded audio. Please try again.");
+    } finally {
+      setUploadingItems(prev => ({ ...prev, [item.id]: false }));
+    }
+  };
+
+  // Clean up audio and recorders on unmount
   useEffect(() => {
     return () => {
       if (activeAudioRef.current) {
         activeAudioRef.current.pause();
+      }
+      if (recordedPreviewAudioRef.current) {
+        recordedPreviewAudioRef.current.pause();
+        recordedPreviewAudioRef.current = null;
+      }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      if (waveformIntervalRef.current) {
+        clearInterval(waveformIntervalRef.current);
+      }
+      if (audioContextRef.current) {
+        try { audioContextRef.current.close(); } catch (_) {}
+      }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(t => t.stop());
       }
     };
   }, []);
@@ -1016,6 +1665,65 @@ const InteractionPanel = ({
     };
     window.addEventListener('add-free-frame', handleAddInteraction);
     return () => window.removeEventListener('add-free-frame', handleAddInteraction);
+  }, []);
+
+  // Listen for event to auto open accordion for an invalid interaction on save
+  useEffect(() => {
+    const handleOpenAccordion = (e) => {
+      const elementId = e.detail?.elementId;
+      if (elementId) {
+        setOpenCardIds(prev => ({
+          ...prev,
+          [elementId]: true
+        }));
+        setCollapsedCardIds(prev => {
+          const next = { ...prev };
+          Object.keys(prev).forEach(id => {
+            next[id] = true;
+          });
+          next[elementId] = false;
+          return next;
+        });
+        setActiveLayerId(elementId);
+
+        // Scroll the accordion card into view and focus the input
+        setTimeout(() => {
+          const cardEl = document.querySelector(`[data-interaction-card-id="${elementId}"]`) || document.getElementById(`interaction-card-${elementId}`);
+          if (cardEl) {
+            if (cardEl.scrollIntoView) {
+              cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (e.detail?.field === 'whatsapp-message') {
+              const msgInput = cardEl.querySelector('input[placeholder*="question"], input[placeholder*="Hello"], input[placeholder*="message"]');
+              if (msgInput && msgInput.focus) {
+                msgInput.focus();
+                return;
+              }
+            }
+            const inputEl = cardEl.querySelector('input:not([type="hidden"]), select, textarea');
+            if (inputEl && inputEl.focus) {
+              inputEl.focus();
+            }
+          }
+        }, 150);
+      }
+    };
+    window.addEventListener('open-interaction-accordion', handleOpenAccordion);
+    return () => window.removeEventListener('open-interaction-accordion', handleOpenAccordion);
+  }, []);
+
+  // Listen for popup customization updates to immediately refresh preview
+  useEffect(() => {
+    const handlePopupCustomHtmlUpdate = (e) => {
+      if (e.detail && e.detail.elementId) {
+        setPopupCustomHtmlOverrides(prev => ({
+          ...prev,
+          [e.detail.elementId]: e.detail.customHtml
+        }));
+      }
+    };
+    window.addEventListener('update-popup-custom-html', handlePopupCustomHtmlUpdate);
+    return () => window.removeEventListener('update-popup-custom-html', handlePopupCustomHtmlUpdate);
   }, []);
 
   // Sync existing interactions from the page HTML into openCardIds when page loads or changes
@@ -1382,6 +2090,9 @@ const InteractionPanel = ({
           label: info.name,
           actionId: foundEl.getAttribute('data-interaction') || 'open-link',
           value: foundEl.getAttribute('data-interaction-value') || '',
+          customPopupHtml: foundEl.getAttribute('data-interaction-popup-custom-html') || null,
+          popupAnimation: foundEl.getAttribute('data-interaction-popup-animation') || 'Fade in',
+          popupSpeed: foundEl.getAttribute('data-interaction-popup-speed') || 'Medium',
           tooltipSettings: foundEl.getAttribute('data-tooltip-settings') || '',
           trigger: foundEl.getAttribute('data-interaction-trigger') || 'click',
           linkBehavior: foundEl.getAttribute('data-interaction-link-behavior') || 'current',
@@ -1536,12 +2247,10 @@ const InteractionPanel = ({
   };
 
   return (
-    <div className="flex flex-col gap-[3vh] p-[1.5vw] bg-[#fbfbfb] h-full overflow-y-auto no-scrollbar">
+    <div className="flex flex-col gap-[2vh] px-[1.5vw] pt-[1.8vh] pb-[1.5vw] bg-[#fbfbfb] h-full overflow-y-auto no-scrollbar">
 
-
-
-      {/* Add Interaction Button Removed */}      {/* Interactions in this Page Section */}
-      <div className="space-y-[1.5vh] mt-[2vh]">
+      {/* Interactions in this Page Section */}
+      <div className="space-y-[1.5vh] mt-[0.5vh]">
         <div className="flex items-center gap-[0.75vw]">
           <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Interactions in this Page</span>
           <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
@@ -1584,21 +2293,17 @@ const InteractionPanel = ({
               return (
                 <div
                   key={item.id}
+                  id={`interaction-card-${item.id}`}
+                  data-interaction-card-id={item.id}
                   onClick={() => {
-                    setActiveLayerId(item.id);
-                    setCollapsedCardIds(prev => {
-                      const next = { ...prev };
-                      Object.keys(openCardIds).forEach(id => {
-                        next[id] = true;
-                      });
-                      next[item.id] = false;
-                      return next;
-                    });
-                    window.dispatchEvent(new CustomEvent('select-layer', {
-                      detail: { layerId: item.id }
-                    }));
+                    if (activeLayerId !== item.id) {
+                      setActiveLayerId(item.id);
+                      window.dispatchEvent(new CustomEvent('select-layer', {
+                        detail: { layerId: item.id }
+                      }));
+                    }
                   }}
-                  className={`w-full mx-auto bg-white/70 backdrop-blur-md border rounded-[0.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col relative transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] ${isSelected
+                  className={`w-full mx-auto bg-white/70 backdrop-blur-md border rounded-[0.70vw] shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex flex-col relative transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] ${isSelected
                     ? 'border-[#5145F6]/50 ring-2 ring-[#5145F6]/15 bg-white/95 z-[50]'
                     : 'border-white/40 hover:border-[#5145F6]/30 z-[10]'
                     }`}
@@ -1606,15 +2311,34 @@ const InteractionPanel = ({
 
                   {/* Card Header / Settings */}
                   <div className="flex flex-col">
-                    {/* Top Row: Icon + Dropdowns */}
-                    <div className="flex items-center justify-between gap-[0.8vw] py-[1.2vh] pl-[0.8vw] pr-[1.2vw]">
-                      <div className="flex items-center gap-[0.8vw]">
+                    {/* Top Row: Icon + Dropdowns (Clicking anywhere toggles open/close) */}
+                    <div
+                      className="flex items-center justify-between gap-[0.8vw] py-[1.2vh] pl-[0.8vw] pr-[1.2vw] cursor-pointer select-none rounded-t-[0.70vw]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isSelected) {
+                          setActiveLayerId(item.id);
+                          window.dispatchEvent(new CustomEvent('select-layer', {
+                            detail: { layerId: item.id }
+                          }));
+                        }
+
+                        setCollapsedCardIds(prev => {
+                          const isNowCollapsed = !prev[item.id];
+                          if (isNowCollapsed && resolvedActionId === 'tooltip') {
+                            window.dispatchEvent(new CustomEvent('hide-tooltip-customization'));
+                          }
+                          return { ...prev, [item.id]: isNowCollapsed };
+                        });
+                      }}
+                    >
+                      <div className="flex items-center gap-[1.1vw]">
                         {/* Touch Icon */}
                         <div className="flex-shrink-0 text-gray-500 flex items-center pl-[0.6vw]">
                           <Icon icon="hugeicons:touch-interaction-01" className="text-[1.3vw]" />
                         </div>
 
-                        {/* Action selector dropdown styled as a pill */}
+                        {/* Action selector dropdown */}
                         <ActionDropdown
                           item={item}
                           currentAction={currentAction}
@@ -1642,25 +2366,7 @@ const InteractionPanel = ({
 
                       {/* Collapse/Expand Toggle Chevron */}
                       <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-
-                          if (!isSelected) {
-                            setActiveLayerId(item.id);
-                            window.dispatchEvent(new CustomEvent('select-layer', {
-                              detail: { layerId: item.id }
-                            }));
-                          }
-
-                          setCollapsedCardIds(prev => {
-                            const isNowCollapsed = !prev[item.id];
-                            if (isNowCollapsed && resolvedActionId === 'tooltip') {
-                              window.dispatchEvent(new CustomEvent('hide-tooltip-customization'));
-                            }
-                            return { ...prev, [item.id]: isNowCollapsed };
-                          });
-                        }}
-                        className={`flex-shrink-0 cursor-pointer text-gray-800 hover:text-black transition-transform duration-200 p-[0.2vw] ${isCollapsed ? 'rotate-180' : ''}`}
+                        className={`flex-shrink-0 text-gray-800 hover:text-black transition-transform duration-200 p-[0.2vw] ${isCollapsed ? 'rotate-180' : ''}`}
                       >
                         <svg width="1.2vw" height="1.2vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="18 15 12 9 6 15"></polyline>
@@ -1818,11 +2524,15 @@ const InteractionPanel = ({
                                 try {
                                   if (resolvedValue && resolvedValue.startsWith('{')) {
                                     infoData = { ...infoData, ...JSON.parse(resolvedValue) };
+                                    if (infoData.text && infoData.text.length > 15) {
+                                      infoData.text = infoData.text.slice(0, 15);
+                                    }
                                   }
                                 } catch (e) { }
 
                                 const handleInfoChange = (key, val) => {
-                                  const newData = { ...infoData, [key]: val };
+                                  const processedVal = (key === 'text' && typeof val === 'string') ? val.slice(0, 15) : val;
+                                  const newData = { ...infoData, [key]: processedVal };
                                   const storedVal = JSON.stringify(newData);
                                   setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
                                 };
@@ -1839,8 +2549,9 @@ const InteractionPanel = ({
                                 };
 
                                 const updateInfo = (key, val) => {
-                                  const newData = { ...infoData, [key]: val };
-                                  handleInfoChange(key, val);
+                                  const processedVal = (key === 'text' && typeof val === 'string') ? val.slice(0, 15) : val;
+                                  const newData = { ...infoData, [key]: processedVal };
+                                  handleInfoChange(key, processedVal);
                                   setTimeout(() => saveInfoToCanvas(newData), 50);
                                 };
 
@@ -1859,13 +2570,13 @@ const InteractionPanel = ({
                                             fontSize: `${infoData.fontSize}px`
                                           }}
                                           placeholder="Enter text"
-                                          maxLength={100}
+                                          maxLength={15}
                                           value={infoData.text}
-                                          onChange={(e) => handleInfoChange('text', e.target.value)}
+                                          onChange={(e) => handleInfoChange('text', e.target.value.slice(0, 15))}
                                           onBlur={() => saveInfoToCanvas()}
                                         />
                                         <span className="absolute bottom-[0.4vw] right-[0.6vw] text-[0.7vw] text-gray-400 font-medium">
-                                          {(infoData.text || '').length}/100
+                                          {(infoData.text || '').length}/15
                                         </span>
                                       </div>
                                     </div>
@@ -2371,9 +3082,238 @@ const InteractionPanel = ({
                                   }
                                 } catch (e) { }
 
+                                const isRecordMode = audioSourceMode[item.id] === 'record';
+                                const isRecordingThisItem = recordingItemId === item.id;
+                                const hasRecordedTake = Boolean(recordedDataMap[item.id]);
+                                const defaultAmbientWave = [
+                                  0.15, 0.22, 0.18, 0.26, 0.35, 0.28, 0.42, 0.55, 0.38, 0.62,
+                                  0.48, 0.72, 0.88, 0.65, 0.45, 0.58, 0.42, 0.68, 0.82, 0.60,
+                                  0.48, 0.64, 0.78, 0.92, 0.84
+                                ];
+                                const displayWaveform = isRecordingThisItem && recordingWaveform.length > 0
+                                  ? recordingWaveform
+                                  : hasRecordedTake && recordedDataMap[item.id]?.waveform?.length > 0
+                                  ? recordedDataMap[item.id].waveform
+                                  : defaultAmbientWave;
+
                                 return (
                                   <div className="flex flex-col w-full gap-[0.8vh]" onClick={(e) => e.stopPropagation()}>
-                                    <span className="text-[0.85vw] text-black font-normal">{fileMeta ? "Audio Preview" : "Upload Audio File"}</span>
+                                    <div className="flex items-center justify-between w-full">
+                                      <span className="text-[0.85vw] text-black font-normal">
+                                        {fileMeta && !isRecordMode ? "Audio Preview" : "Audio Interaction"}
+                                      </span>
+                                      {(!fileMeta || isRecordMode) && (
+                                        <div className="flex items-center bg-gray-100 p-[0.15vw] rounded-[0.4vw]">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (isRecordingThisItem) handleCancelRecording(item.id);
+                                              setAudioSourceMode(prev => ({ ...prev, [item.id]: 'upload' }));
+                                            }}
+                                            className={`px-[0.6vw] py-[0.3vh] text-[0.7vw] font-medium rounded-[0.3vw] transition-all flex items-center gap-[0.3vw] ${
+                                              !isRecordMode ? 'bg-white text-[#7C3AED] shadow-xs' : 'text-gray-500 hover:text-gray-800'
+                                            }`}
+                                          >
+                                            <Icon icon="lucide:upload-cloud" className="text-[0.8vw]" />
+                                            Upload
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setAudioSourceMode(prev => ({ ...prev, [item.id]: 'record' }))}
+                                            className={`px-[0.6vw] py-[0.3vh] text-[0.7vw] font-medium rounded-[0.3vw] transition-all flex items-center gap-[0.3vw] ${
+                                              isRecordMode ? 'bg-white text-[#7C3AED] shadow-xs' : 'text-gray-500 hover:text-gray-800'
+                                            }`}
+                                          >
+                                            <Icon icon="solar:microphone-3-bold" className="text-[0.8vw]" />
+                                            Record
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {isRecordMode ? (
+                                       <div className="w-full h-[18vh] rounded-[0.6vw] bg-white border border-gray-200/90 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col justify-between items-center py-[1vh] px-[1vw] relative overflow-hidden select-none">
+                                         {/* Top Timer Display (00:06,23) with sleek modern font */}
+                                         <div className="flex items-center justify-center w-full relative pt-[0.1vh]">
+                                           <span
+                                             className="text-[1.3vw] font-semibold text-[#111827] tracking-tight leading-none"
+                                             style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", fontVariantNumeric: 'tabular-nums' }}
+                                           >
+                                             {isRecordingThisItem
+                                               ? formatRecordingTimePrecise(recordingMillis)
+                                               : hasRecordedTake
+                                               ? formatRecordingTimePrecise(
+                                                   recordedPreviewPlaying === item.id
+                                                     ? recordingMillis
+                                                     : (recordedDataMap[item.id]?.durationMs || recordedDataMap[item.id]?.duration * 1000)
+                                                 )
+                                               : "00:00,00"}
+                                           </span>
+                                           {fileMeta && !isRecordingThisItem && (
+                                             <button
+                                               type="button"
+                                               onClick={() => {
+                                                 handleCancelRecording(item.id);
+                                                 setAudioSourceMode(prev => ({ ...prev, [item.id]: 'upload' }));
+                                               }}
+                                               className="absolute right-0 top-0 text-[0.68vw] text-gray-400 hover:text-gray-700 flex items-center gap-[0.2vw]"
+                                               title="Close and keep current audio"
+                                             >
+                                               <Icon icon="lucide:x" className="text-[0.85vw]" />
+                                             </button>
+                                           )}
+                                         </div>
+
+                                         {/* Waveform Visualization with Red Needle & Dashed Line (Uniform Bar Width) */}
+                                         <div className="w-full flex items-center justify-center px-[0.6vw] h-[4.8vh] my-[0.1vh] overflow-hidden">
+                                           <svg
+                                             viewBox="0 0 240 42"
+                                             className="w-full max-w-[19vw] h-full overflow-hidden select-none"
+                                             preserveAspectRatio="xMidYMid meet"
+                                           >
+                                             <defs>
+                                               <linearGradient id={`waveFade-${item.id}`} x1="0" y1="0" x2="1" y2="0">
+                                                 <stop offset="0%" stopColor="white" stopOpacity="0" />
+                                                 <stop offset="15%" stopColor="white" stopOpacity="1" />
+                                                 <stop offset="100%" stopColor="white" stopOpacity="1" />
+                                               </linearGradient>
+                                               <mask id={`waveMask-${item.id}`}>
+                                                 <rect x="0" y="0" width="150" height="42" fill={`url(#waveFade-${item.id})`} />
+                                               </mask>
+                                             </defs>
+
+                                             {/* Soundwave bars (Uniform 2.4px width with rounded pill caps) */}
+                                             <g mask={`url(#waveMask-${item.id})`}>
+                                               {displayWaveform.map((val, idx) => {
+                                                 const distFromNeedle = displayWaveform.length - 1 - idx;
+                                                 const x = 144 - distFromNeedle * 5.8;
+                                                 if (x < -6) return null;
+
+                                                 const maxBarH = 34;
+                                                 const barH = Math.max(3.5, Math.min(maxBarH, (val || 0.12) * maxBarH));
+                                                 const y = (42 - barH) / 2;
+
+                                                 const ratio = displayWaveform.length > 1 ? idx / (displayWaveform.length - 1) : 1;
+                                                 const r = Math.round(156 - ratio * 126);
+                                                 const g = Math.round(163 - ratio * 122);
+                                                 const b = Math.round(175 - ratio * 116);
+                                                 const color = `rgb(${r}, ${g}, ${b})`;
+
+                                                 return (
+                                                   <rect
+                                                     key={idx}
+                                                     x={x}
+                                                     y={y}
+                                                     width="2.4"
+                                                     height={barH}
+                                                     rx="1.2"
+                                                     fill={color}
+                                                   />
+                                                 );
+                                               })}
+                                             </g>
+
+                                             {/* Red Playhead Needle (Matches 2.4px width of waveform bars) */}
+                                             <rect
+                                               x="150"
+                                               y="3"
+                                               width="2.4"
+                                               height="36"
+                                               rx="1.2"
+                                               fill="#EF4444"
+                                             />
+
+                                             {/* Light Dashed Horizontal Line Extending Right */}
+                                             <line
+                                               x1="158"
+                                               y1="21"
+                                               x2="238"
+                                               y2="21"
+                                               stroke="#D1D5DB"
+                                               strokeWidth="1.8"
+                                               strokeDasharray="4 4"
+                                               strokeLinecap="round"
+                                             />
+                                           </svg>
+                                         </div>
+
+                                         {/* Bottom Controls (3 Buttons: Start/Stop, Pause/Play, Submit) */}
+                                         <div className="flex items-center justify-center gap-[1.1vw] w-full pb-[0.2vh]">
+                                           {/* 1. Start or Stop (Same Button) */}
+                                           {isRecordingThisItem ? (
+                                             <button
+                                               type="button"
+                                               onClick={() => handleStopRecording(item.id)}
+                                               className="w-[2.4vw] h-[2.4vw] rounded-full bg-gradient-to-tr from-[#EF4444] to-[#F87171] hover:from-[#DC2626] hover:to-[#EF4444] shadow-[0_3px_10px_rgba(239,68,68,0.35)] flex items-center justify-center cursor-pointer active:scale-95 transition-all"
+                                               title="Stop Recording"
+                                             >
+                                               <div className="w-[0.8vw] h-[0.8vw] bg-white rounded-[0.18vw] shadow-xs" />
+                                             </button>
+                                           ) : (
+                                             <button
+                                               type="button"
+                                               onClick={() => handleStartRecording(item.id)}
+                                               className="w-[2.4vw] h-[2.4vw] rounded-full bg-gradient-to-tr from-[#EF4444] to-[#F87171] hover:from-[#DC2626] hover:to-[#EF4444] shadow-[0_3px_10px_rgba(239,68,68,0.35)] flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all"
+                                               title={hasRecordedTake ? "Record Again" : "Start Recording"}
+                                             >
+                                               <div className="w-[0.9vw] h-[0.9vw] bg-white rounded-full flex items-center justify-center shadow-xs">
+                                                 <div className="w-[0.45vw] h-[0.45vw] bg-[#EF4444] rounded-full" />
+                                               </div>
+                                             </button>
+                                           )}
+
+                                           {/* 2. Pause or Resume Recording (Enabled ONLY while actively recording) */}
+                                           {isRecordingThisItem ? (
+                                             <button
+                                               type="button"
+                                               onClick={() => handleTogglePauseResumeRecording(item.id)}
+                                               className="w-[2.1vw] h-[2.1vw] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] border border-gray-100 flex items-center justify-center text-gray-900 hover:bg-gray-50 active:scale-95 transition-all cursor-pointer"
+                                               title={isRecordingPaused ? "Resume Recording" : "Pause Recording"}
+                                             >
+                                               <Icon
+                                                 icon={isRecordingPaused ? "solar:play-bold" : "solar:pause-bold"}
+                                                 className={`text-[0.95vw] text-gray-900 ${isRecordingPaused ? 'ml-[0.1vw]' : ''}`}
+                                               />
+                                             </button>
+                                           ) : (
+                                             <button
+                                               type="button"
+                                               disabled
+                                               className="w-[2.1vw] h-[2.1vw] rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-300 opacity-35 cursor-not-allowed"
+                                               title="Pause / Resume recording (enabled during recording)"
+                                             >
+                                               <Icon icon="solar:pause-bold" className="text-[0.95vw] text-gray-300" />
+                                             </button>
+                                           )}
+
+                                           {/* 3. Submit (Tick Mark Button - Enabled ONLY after recording is stopped) */}
+                                           {hasRecordedTake && !isRecordingThisItem ? (
+                                             <button
+                                               type="button"
+                                               disabled={uploadingItems[item.id]}
+                                               onClick={() => handleSaveRecordedAudio(item)}
+                                               className="w-[2.1vw] h-[2.1vw] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] border border-gray-100 flex items-center justify-center text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 active:scale-95 transition-all cursor-pointer"
+                                               title="Submit / Save Audio"
+                                             >
+                                               {uploadingItems[item.id] ? (
+                                                 <Icon icon="lucide:loader-2" className="animate-spin text-[0.95vw] text-[#7C3AED]" />
+                                               ) : (
+                                                 <Icon icon="lucide:check" className="text-[1vw] text-emerald-600" strokeWidth="2.5" />
+                                               )}
+                                             </button>
+                                           ) : (
+                                             <button
+                                               type="button"
+                                               disabled
+                                               className="w-[2.1vw] h-[2.1vw] rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-300 opacity-35 cursor-not-allowed"
+                                               title="Stop recording first to enable submit"
+                                             >
+                                               <Icon icon="lucide:check" className="text-[1vw] text-gray-300" strokeWidth="2.5" />
+                                             </button>
+                                           )}
+                                         </div>
+                                       </div>
+                                    ) : (
                                     <CommonDropBox
                                       boxClassName={`w-full h-[18vh] rounded-[0.6vw] flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative ${fileMeta ? 'p-0' : 'bg-[#F3F4F6] hover:bg-gray-100 p-[0.3vw] gap-[0.5vh]'}`}
                                       boxStyle={!fileMeta ? {
@@ -2437,7 +3377,9 @@ const InteractionPanel = ({
                                         const optionsDropId = `audio-options-${item.id}`;
                                         const isOptionsDropOpen = openDropdownId === optionsDropId;
                                         const isPlaying = playingAudioId === item.id;
-                                        const timeText = audioPlaybackTimes[item.id] || '0:00';
+                                        const knownDur = getAudioDurationFromMeta(meta);
+                                        const defaultTimeText = knownDur ? `0:00 / ${formatAudioTime(knownDur)}` : '0:00';
+                                        const timeText = audioPlaybackTimes[item.id] || defaultTimeText;
                                         const progress = audioProgressPercent[item.id] || 0;
 
                                         const threeDots = (
@@ -2464,6 +3406,20 @@ const InteractionPanel = ({
                                                   }}
                                                 >
                                                   <Icon icon="lucide:refresh-cw" className="text-[0.9vw]" /> Replace
+                                                </div>
+                                                <div
+                                                  className="px-[0.8vw] py-[0.6vh] text-[0.8vw] text-[#7C3AED] hover:bg-purple-50 cursor-pointer flex items-center gap-[0.4vw]"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdownId(null);
+                                                    if (playingAudioId === item.id && activeAudioRef.current) {
+                                                      activeAudioRef.current.pause();
+                                                      setPlayingAudioId(null);
+                                                    }
+                                                    setAudioSourceMode(prev => ({ ...prev, [item.id]: 'record' }));
+                                                  }}
+                                                >
+                                                  <Icon icon="solar:microphone-3-bold" className="text-[0.9vw]" /> Record Voice
                                                 </div>
                                                 <div
                                                   className="px-[0.8vw] py-[0.6vh] text-[0.8vw] text-red-600 hover:bg-red-50 cursor-pointer flex items-center gap-[0.4vw]"
@@ -2516,7 +3472,7 @@ const InteractionPanel = ({
                                                 <button
                                                   type="button"
                                                   className="w-[2vw] h-[2vw] rounded-full bg-[#7C3AED] text-white flex items-center justify-center hover:bg-[#6D28D9] transition-transform active:scale-95 shadow-sm flex-shrink-0"
-                                                  onClick={() => handleTogglePlayAudio(item.id, meta.data || meta.url)}
+                                                  onClick={() => handleTogglePlayAudio(item.id, meta.data || meta.url, knownDur)}
                                                   title={isPlaying ? "Pause" : "Play"}
                                                 >
                                                   <Icon icon={isPlaying ? "solar:pause-bold" : "solar:play-bold"} className="text-[1vw]" />
@@ -2524,7 +3480,7 @@ const InteractionPanel = ({
                                                 
                                                 <div 
                                                   className="flex-1 h-[0.5vw] bg-purple-100 rounded-full cursor-pointer relative overflow-hidden group"
-                                                  onClick={(e) => handleAudioSeek(e, item.id)}
+                                                  onClick={(e) => handleAudioSeek(e, item.id, knownDur)}
                                                 >
                                                   <div 
                                                     className="h-full bg-[#7C3AED] rounded-full transition-all duration-100"
@@ -2542,13 +3498,27 @@ const InteractionPanel = ({
                                       }}
                                       emptyIcon=""
                                       emptyTitle={
-                                        <div className="flex items-center gap-[0.4vw]">
-                                          <Icon icon="lucide:plus" className="text-[1.2vw] text-[#9CA3AF]" />
-                                          <span className="text-[0.85vw] text-[#9CA3AF] font-medium">Add Audio File</span>
+                                        <div className="flex flex-col items-center gap-[0.4vh]">
+                                          <div className="flex items-center gap-[0.4vw]">
+                                            <Icon icon="lucide:plus" className="text-[1.2vw] text-[#9CA3AF]" />
+                                            <span className="text-[0.85vw] text-[#9CA3AF] font-medium">Add Audio File</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setAudioSourceMode(prev => ({ ...prev, [item.id]: 'record' }));
+                                            }}
+                                            className="text-[0.72vw] text-[#7C3AED] hover:text-[#6D28D9] font-medium flex items-center gap-[0.2vw] hover:underline mt-[0.2vh]"
+                                          >
+                                            <Icon icon="solar:microphone-3-bold" className="text-[0.85vw]" />
+                                            Or record with microphone
+                                          </button>
                                         </div>
                                       }
                                       subText="Supports MP3, WAV, OGG, M4A"
                                     />
+                                    )}
                                   </div>
                                 );
                               })()
@@ -2585,6 +3555,39 @@ const InteractionPanel = ({
                                   }
                                 } catch (e) { }
 
+                                const handleFilesToAdd = (files) => {
+                                  const fileArray = Array.from(files || []);
+                                  if (!fileArray.length) return;
+
+                                  const spaceLeft = 6 - images.length;
+                                  const filesToAdd = fileArray.slice(0, spaceLeft);
+
+                                  if (fileArray.length > spaceLeft) {
+                                    alert(`You can only add up to 6 images. Only the first ${spaceLeft} were added.`);
+                                  }
+
+                                  let loadedImages = [...images];
+                                  let loadedCount = 0;
+
+                                  filesToAdd.forEach((file) => {
+                                    const reader = new FileReader();
+                                    reader.onload = (event) => {
+                                      loadedImages.push({
+                                        name: file.name,
+                                        data: event.target.result
+                                      });
+                                      loadedCount++;
+                                      if (loadedCount === filesToAdd.length) {
+                                        const storedVal = JSON.stringify(loadedImages);
+                                        setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        if (updateElementAttribute) updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'slideshow', 'data-interaction-value': storedVal });
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  });
+                                };
+
                                 return (
                                   <div className="flex flex-col w-full gap-[1.5vh] pb-[1vh]" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex flex-col w-full gap-[0.3vh]">
@@ -2603,36 +3606,8 @@ const InteractionPanel = ({
                                       accept="image/*"
                                       multiple
                                       onChange={(e) => {
-                                        const files = Array.from(e.target.files);
-                                        if (!files.length) return;
-
-                                        const spaceLeft = 6 - images.length;
-                                        const filesToAdd = files.slice(0, spaceLeft);
-
-                                        if (files.length > spaceLeft) {
-                                          alert(`You can only add up to 6 images. Only the first ${spaceLeft} were added.`);
-                                        }
-
-                                        let loadedImages = [...images];
-                                        let loadedCount = 0;
-
-                                        filesToAdd.forEach((file) => {
-                                          const reader = new FileReader();
-                                          reader.onload = (event) => {
-                                            loadedImages.push({
-                                              name: file.name,
-                                              data: event.target.result
-                                            });
-                                            loadedCount++;
-                                            if (loadedCount === filesToAdd.length) {
-                                              const storedVal = JSON.stringify(loadedImages);
-                                              setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
-                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                              if (updateElementAttribute) updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'slideshow', 'data-interaction-value': storedVal });
-                                            }
-                                          };
-                                          reader.readAsDataURL(file);
-                                        });
+                                        handleFilesToAdd(e.target.files);
+                                        e.target.value = '';
                                       }}
                                     />
 
@@ -2659,33 +3634,103 @@ const InteractionPanel = ({
                                         ))}
 
                                         {images.length < 6 && (
-                                          <div
-                                            className="w-[3.2vw] h-[3.2vw] rounded-[0.4vw] border-[1.5px] border-dashed border-gray-400 bg-gray-50/80 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors shrink-0"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              document.getElementById(`slideshow-upload-${item.id}`).click();
-                                            }}
-                                          >
-                                            <Icon icon="lucide:upload" className="text-gray-400 text-[1vw] mb-[0.2vh]" />
-                                            <span className="text-[0.6vw] text-gray-400 font-medium">Upload</span>
-                                          </div>
+                                          <>
+                                            <div
+                                              className="w-[3.2vw] h-[3.2vw] rounded-[0.4vw] border-[1.5px] border-dashed border-gray-400 bg-gray-50/80 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors shrink-0"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                document.getElementById(`slideshow-upload-${item.id}`).click();
+                                              }}
+                                              title="Upload from device"
+                                            >
+                                              <Icon icon="lucide:upload" className="text-gray-400 text-[1vw] mb-[0.2vh]" />
+                                              <span className="text-[0.6vw] text-gray-400 font-medium">Upload</span>
+                                            </div>
+
+                                            <div
+                                              className="w-[3.2vw] h-[3.2vw] rounded-[0.4vw] border-[1.5px] border-dashed border-[#5145F6]/40 bg-[#5145F6]/5 flex flex-col items-center justify-center cursor-pointer hover:bg-[#5145F6]/10 hover:border-[#5145F6] transition-colors shrink-0"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveSlideshowItem({ id: item.id, pageIndex: item.pageIndex !== undefined ? item.pageIndex : activePageIndex, currentImages: images });
+                                                setIsSlideshowGalleryOpen(true);
+                                              }}
+                                              title="Choose from Image Gallery"
+                                            >
+                                              <Icon icon="solar:gallery-wide-bold" className="text-[#5145F6] text-[1vw] mb-[0.2vh]" />
+                                              <span className="text-[0.6vw] text-[#5145F6] font-medium">Gallery</span>
+                                            </div>
+                                          </>
                                         )}
                                       </div>
                                     )}
 
-                                    {images.length === 0 && (
-                                      <div
-                                        className="w-full h-[8.5vh] rounded-[0.8vw] border-[2px] border-dashed border-gray-400/80 bg-[#F5F5F5] flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors relative"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          document.getElementById(`slideshow-upload-${item.id}`).click();
-                                        }}
-                                      >
-                                        <div className="flex items-center text-gray-500 gap-[0.5vw] pointer-events-none">
-                                          <Icon icon="lucide:plus" className="text-[1.2vw]" />
-                                          <span className="text-[0.9vw] font-medium tracking-wide">Add Image</span>
+                                    {/* Big Box Manual Upload + Small Box Image Gallery */}
+                                    {images.length === 0 ? (
+                                      <div className="flex flex-col gap-[1vh] w-full mt-[0.3vh]">
+                                        {/* Big Box: Manual Upload */}
+                                        <div
+                                          className="w-full h-[11.5vh] rounded-[0.6vw] border-2 border-dashed border-[#8A94A6]/60 bg-[#F8F9FA] hover:bg-[#5145F6]/5 hover:border-[#5145F6] flex flex-col items-center justify-center cursor-pointer transition-all group p-[0.5vw] shadow-xs select-none"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            document.getElementById(`slideshow-upload-${item.id}`).click();
+                                          }}
+                                          onDragOver={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/10');
+                                          }}
+                                          onDragLeave={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/10');
+                                          }}
+                                          onDrop={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/10');
+                                            if (e.dataTransfer?.files) {
+                                              handleFilesToAdd(e.dataTransfer.files);
+                                            }
+                                          }}
+                                        >
+                                          <div className="w-[2.2vw] h-[2.2vw] rounded-full bg-white shadow-xs border border-gray-100 flex items-center justify-center text-gray-500 group-hover:text-[#5145F6] group-hover:scale-105 transition-all mb-[0.5vh]">
+                                            <Icon icon="lucide:upload-cloud" className="text-[1.2vw]" />
+                                          </div>
+                                          <span className="text-[0.85vw] font-semibold text-gray-800 group-hover:text-[#5145F6] transition-colors">Manual Upload</span>
+                                          <span className="text-[0.62vw] text-gray-400 mt-[0.2vh]">Drag & drop or click to browse from device</span>
+                                        </div>
+
+                                        {/* Small Box: Image Gallery */}
+                                        <div
+                                          className="w-full h-[4.2vh] rounded-[0.5vw] border border-gray-300 bg-white hover:bg-[#5145F6]/5 hover:border-[#5145F6] flex items-center justify-center gap-[0.5vw] cursor-pointer transition-all shadow-xs group"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSlideshowItem({ id: item.id, pageIndex: item.pageIndex !== undefined ? item.pageIndex : activePageIndex, currentImages: images });
+                                            setIsSlideshowGalleryOpen(true);
+                                          }}
+                                        >
+                                          <Icon icon="solar:gallery-wide-bold" className="text-[1.15vw] text-[#5145F6] group-hover:scale-110 transition-transform" />
+                                          <span className="text-[0.8vw] font-semibold text-gray-700 group-hover:text-[#5145F6] transition-colors">
+                                            Image Gallery
+                                          </span>
                                         </div>
                                       </div>
+                                    ) : (
+                                      images.length < 6 && (
+                                        <div
+                                          className="w-full h-[4.2vh] rounded-[0.5vw] border border-gray-300 bg-white hover:bg-[#5145F6]/5 hover:border-[#5145F6] flex items-center justify-center gap-[0.5vw] cursor-pointer transition-all shadow-xs group mt-[0.3vh]"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSlideshowItem({ id: item.id, pageIndex: item.pageIndex !== undefined ? item.pageIndex : activePageIndex, currentImages: images });
+                                            setIsSlideshowGalleryOpen(true);
+                                          }}
+                                        >
+                                          <Icon icon="solar:gallery-wide-bold" className="text-[1.15vw] text-[#5145F6] group-hover:scale-110 transition-transform" />
+                                          <span className="text-[0.8vw] font-semibold text-gray-700 group-hover:text-[#5145F6] transition-colors">
+                                            Image Gallery
+                                          </span>
+                                        </div>
+                                      )
                                     )}
                                     <div className="flex flex-col gap-[1vh] mt-[0.5vh]">
                                       {(() => {
@@ -2889,93 +3934,119 @@ const InteractionPanel = ({
                                 );
                               })()
                             ) : resolvedActionId === 'popup' ? (
-                              <div className="flex flex-col w-full">
-                                <span className="text-[0.9vw] font-medium text-black mb-[1vh]">Popup Preview</span>
-                                {resolvedValue ? (
-                                  <div className="flex flex-col gap-[1.5vh] w-full">
-                                    <div className="w-full bg-white rounded-[0.5vw] border border-gray-100 flex flex-col p-[0.3vw] shadow-sm relative overflow-visible group">
-                                      <div className="flex items-center justify-between px-[0.6vw] pt-[0.4vh] pb-[0.6vh]">
-                                        <span className="text-[0.6vw] text-gray-500">Enter Popup Heading here</span>
-                                        <span className="text-[0.7vw] text-gray-400">×</span>
-                                      </div>
+                              (() => {
+                                const currentCustomHtml = popupCustomHtmlOverrides[item.id] !== undefined
+                                  ? popupCustomHtmlOverrides[item.id]
+                                  : (item.customPopupHtml || null);
 
-                                      {/* Inner container for image */}
-                                      <div className="relative w-full h-[18vh] rounded-[0.4vw] overflow-hidden bg-[#F4F5F7] border border-gray-100">
-                                        {TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image ? (
-                                          <img
-                                            src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image}
-                                            alt="Selected Template"
-                                            className="w-full h-full object-cover"
-                                          />
-                                        ) : null}
+                                let resolvedPopupHtml = currentCustomHtml;
+                                if (!resolvedPopupHtml) {
+                                  try {
+                                    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                                    const liveEl = editorDoc.getElementById?.(item.id) || document.getElementById(item.id);
+                                    resolvedPopupHtml = liveEl?.getAttribute('data-interaction-popup-custom-html') || null;
+                                  } catch (_) {}
+                                }
 
-                                        {/* 3 dots menu inside the image box */}
-                                        <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
-                                          <div
-                                            className="p-[0.2vw] cursor-pointer bg-white/50 backdrop-blur-sm rounded-[0.2vw] opacity-0 group-hover:opacity-100 transition-opacity"
-                                            data-dropdown-trigger="true"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
-                                            }}
-                                          >
-                                            <Icon icon="bi:three-dots-vertical" className="text-gray-800 drop-shadow-md text-[1.2vw]" />
+                                const templateImage = TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image;
+
+                                return (
+                                  <div className="flex flex-col w-full">
+                                    <span className="text-[0.9vw] font-medium text-black mb-[1vh]">Popup Preview</span>
+                                    {resolvedValue ? (
+                                      <div className="flex flex-col gap-[1.5vh] w-full">
+                                        <div className="w-full bg-white rounded-[0.5vw] border border-gray-100 flex flex-col p-[0.3vw] shadow-sm relative overflow-visible group">
+                                          <div className="flex items-center justify-between px-[0.6vw] pt-[0.4vh] pb-[0.6vh]">
+                                            <span className="text-[0.6vw] text-gray-500">Enter Popup Heading here</span>
+                                            <span className="text-[0.7vw] text-gray-400">×</span>
                                           </div>
-                                        </div>
-                                      </div>
 
-                                      {/* 3 dots dropdown menu (placed outside hidden overflow) */}
-                                      {openDropdownId === `popup-${item.id}` && (
+                                          {/* Inner container for image / edited preview */}
+                                          <div className="relative w-full h-[18vh] rounded-[0.4vw] overflow-hidden bg-[#F4F5F7] border border-gray-100 flex items-center justify-center">
+                                            {resolvedPopupHtml ? (
+                                              <div
+                                                className="w-full h-full flex items-center justify-center overflow-hidden pointer-events-none select-none bg-white p-[0.3vw] [&>svg]:w-full [&>svg]:h-full [&>svg]:max-h-full [&>svg]:max-w-full [&>svg]:object-contain"
+                                                dangerouslySetInnerHTML={{ __html: getFormattedPopupSvg(resolvedPopupHtml) }}
+                                              />
+                                            ) : templateImage ? (
+                                              <img
+                                                src={templateImage}
+                                                alt="Selected Template"
+                                                className="w-full h-full object-cover"
+                                              />
+                                            ) : null}
+
+                                            {/* 3 dots menu inside the image box */}
+                                            <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
+                                              <div
+                                                className="p-[0.2vw] cursor-pointer bg-white/50 backdrop-blur-sm rounded-[0.2vw] opacity-0 group-hover:opacity-100 transition-opacity"
+                                                data-dropdown-trigger="true"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
+                                                }}
+                                              >
+                                                <Icon icon="bi:three-dots-vertical" className="text-gray-800 drop-shadow-md text-[1.2vw]" />
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* 3 dots dropdown menu (placed outside hidden overflow) */}
+                                          {openDropdownId === `popup-${item.id}` && (
+                                            <div
+                                              data-dropdown-menu="true"
+                                              className="absolute top-[4vh] right-[0.5vw] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
+                                            >
+                                              <div
+                                                className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group/menu"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setOpenDropdownId(null);
+                                                  setActiveTemplateSelectionId(item.id);
+                                                }}
+                                              >
+                                                <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover/menu:text-black" />
+                                                <span className="text-[0.75vw] text-gray-700 font-medium group-hover/menu:text-gray-900">Change Template</span>
+                                              </div>
+                                              <div
+                                                className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group/menu"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setOpenDropdownId(null);
+                                                  setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                                  setPopupCustomHtmlOverrides(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                                                  if (updateElementAttribute) {
+                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                    updateElementAttribute(targetIdx, item.id, { 
+                                                      'data-interaction-value': null,
+                                                      'data-interaction-popup-custom-html': null 
+                                                    });
+                                                  }
+                                                }}
+                                              >
+                                                <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover/menu:text-red-600" />
+                                                <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover/menu:text-red-600">Delete</span>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Edit Button */}
                                         <div
-                                          data-dropdown-menu="true"
-                                          className="absolute top-[4vh] right-[0.5vw] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
+                                          className="w-full bg-white border border-gray-100 shadow-sm rounded-[0.5vw] flex items-center justify-center py-[1vh] cursor-pointer hover:shadow-md transition-shadow gap-[0.8vw] group"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (onCustomizePopup) {
+                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                              onCustomizePopup(resolvedValue, item.id, targetIdx);
+                                            }
+                                          }}
                                         >
-                                          <div
-                                            className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group/menu"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setOpenDropdownId(null);
-                                              setActiveTemplateSelectionId(item.id);
-                                            }}
-                                          >
-                                            <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover/menu:text-black" />
-                                            <span className="text-[0.75vw] text-gray-700 font-medium group-hover/menu:text-gray-900">Change Template</span>
-                                          </div>
-                                          <div
-                                            className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group/menu"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setOpenDropdownId(null);
-                                              setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
-                                              if (updateElementAttribute) {
-                                                const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
-                                              }
-                                            }}
-                                          >
-                                            <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover/menu:text-red-600" />
-                                            <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover/menu:text-red-600">Delete</span>
-                                          </div>
+                                          <Icon icon="bx:edit" className="text-[1.4vw] text-black group-hover:text-gray-700 transition-colors" />
+                                          <span className="text-[1vw] text-black font-medium group-hover:text-gray-700 transition-colors">Edit Popup</span>
                                         </div>
-                                      )}
-                                    </div>
-
-                                    {/* Edit Button */}
-                                    <div
-                                      className="w-full bg-white border border-gray-100 shadow-sm rounded-[0.5vw] flex items-center justify-center py-[1vh] cursor-pointer hover:shadow-md transition-shadow gap-[0.8vw] group"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (onCustomizePopup) {
-                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                          onCustomizePopup(resolvedValue, item.id, targetIdx);
-                                        }
-                                      }}
-                                    >
-                                      <Icon icon="bx:edit" className="text-[1.4vw] text-black group-hover:text-gray-700 transition-colors" />
-                                      <span className="text-[1vw] text-black font-medium group-hover:text-gray-700 transition-colors">Edit Popup</span>
-                                    </div>
-                                  </div>
-                                ) : (
+                                      </div>
+                                    ) : (
                                   <div className="w-full bg-[#FAFAFA] rounded-[0.5vw] border border-gray-100 flex flex-col p-[0.3vw] shadow-sm relative overflow-hidden group">
                                     <div className="flex items-center justify-between px-[0.6vw] pt-[0.4vh] pb-[0.6vh]">
                                       <span className="text-[0.6vw] text-gray-500">Enter Popup Heading here</span>
@@ -3000,7 +4071,9 @@ const InteractionPanel = ({
                                   </div>
                                 )}
                               </div>
-                            ) : resolvedActionId === '3d-viewer' ? (
+                            );
+                          })()
+                        ) : resolvedActionId === '3d-viewer' ? (
                               (() => {
                                 let fileMeta = null;
                                 try {
@@ -3305,111 +4378,153 @@ const InteractionPanel = ({
                                 </div>
                               </div>
                             ) : resolvedActionId === 'open-link' ? (
-                              <div className="flex flex-col w-full gap-[0.8vh]" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex flex-col gap-[0.2vh]">
-                                  <span className="text-[0.8vw] text-gray-800 font-normal select-none">Enter your link</span>
-                                  <div className="w-full h-[4.5vh] border border-[#C5C5C5] rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden hover:border-gray-400 focus-within:border-[#5145F6] transition-colors shadow-sm">
-                                    <Icon icon="ph:globe" className="text-gray-500 text-[1.2vw] flex-shrink-0 mr-[0.5vw]" />
-                                    <input
-                                      type="text"
-                                      placeholder="https://maps.app.go..."
-                                      value={localInputValues[item.id] !== undefined ? localInputValues[item.id] : (resolvedValue || '')}
-                                      className="flex-1 text-[0.85vw] text-gray-600 placeholder-gray-400 bg-transparent outline-none truncate font-medium"
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setLocalInputValues(prev => ({ ...prev, [item.id]: val }));
-                                      }}
-                                      onBlur={() => {
-                                        const val = localInputValues[item.id];
-                                        if (val !== undefined && val !== resolvedValue) {
-                                          if (updateElementAttribute) {
-                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                            updateElementAttribute(targetIdx, item.id, {
-                                              'data-interaction': 'open-link',
-                                              'data-interaction-value': val
-                                            });
-                                          }
-                                        }
-                                      }}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') e.target.blur();
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="flex flex-col gap-[0.2vh]">
-                                  <span className="text-[0.8vw] text-gray-800 font-normal select-none">Behavior</span>
-                                  <div className="relative w-full">
-                                    {(() => {
-                                      const behaviorDropId = `link-behavior-${item.id}`;
-                                      const isBehaviorDropOpen = openDropdownId === behaviorDropId;
-                                      const currentBehavior = linkBehaviorOverrides[item.id] || item.linkBehavior || 'current';
-                                      
-                                      return (
-                                        <>
-                                          <div
-                                            data-dropdown-trigger="true"
-                                            className={`w-full h-[4.5vh] border ${isBehaviorDropOpen ? 'border-[#5145F6]' : 'border-[#C5C5C5]'} rounded-[0.5vw] flex items-center justify-between px-[1vw] bg-white cursor-pointer select-none transition-colors shadow-sm hover:border-gray-400`}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              if (!isBehaviorDropOpen) {
-                                                const rect = e.currentTarget.getBoundingClientRect();
-                                                const spaceBelow = window.innerHeight - rect.bottom;
-                                                setDropdownDirectionOverrides(prev => ({ ...prev, [behaviorDropId]: spaceBelow < 250 ? 'up' : 'down' }));
-                                              }
-                                              setOpenDropdownId(isBehaviorDropOpen ? null : behaviorDropId);
-                                            }}
-                                          >
-                                            <span className="text-[0.85vw] text-gray-600 font-normal truncate">
-                                              {currentBehavior === 'current' ? 'Open in - Current Tab' : 'Open in - New Tab'}
-                                            </span>
-                                            <Icon
-                                              icon="lucide:chevron-down"
-                                              className={`text-gray-500 text-[1vw] transition-transform duration-200 ${isBehaviorDropOpen ? 'rotate-180' : ''}`}
-                                            />
-                                          </div>
-                                          {isBehaviorDropOpen && (
-                                            <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.6vw] shadow-lg py-[0.5vh] ${dropdownDirectionOverrides[behaviorDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
-                                              <div
-                                                className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer transition-colors ${currentBehavior === 'current' ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setLinkBehaviorOverrides(prev => ({ ...prev, [item.id]: 'current' }));
-                                                  if (updateElementAttribute) {
-                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                    updateElementAttribute(targetIdx, item.id, {
-                                                      'data-interaction-link-behavior': 'current'
-                                                    });
-                                                  }
-                                                  setOpenDropdownId(null);
-                                                }}
-                                              >
-                                                Open in - Current Tab
-                                              </div>
-                                              <div
-                                                className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer transition-colors ${currentBehavior === 'new' ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setLinkBehaviorOverrides(prev => ({ ...prev, [item.id]: 'new' }));
-                                                  if (updateElementAttribute) {
-                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                    updateElementAttribute(targetIdx, item.id, {
-                                                      'data-interaction-link-behavior': 'new'
-                                                    });
-                                                  }
-                                                  setOpenDropdownId(null);
-                                                }}
-                                              >
-                                                Open in - New Tab
-                                              </div>
+                              (() => {
+                                const currentRawVal = localInputValues[item.id] !== undefined ? localInputValues[item.id] : (resolvedValue || '');
+                                const socialConfig = getSocialPlatform(item, currentRawVal);
+                                const trimmedVal = (currentRawVal || '').trim();
+                                const hasValue = trimmedVal.length > 0;
+                                const isValid = hasValue && socialConfig.regex.test(trimmedVal);
+                                const isInvalid = hasValue && !isValid;
+                                const isValidAndFilled = hasValue && isValid;
+
+                                const handleSaveLink = () => {
+                                  const val = localInputValues[item.id];
+                                  if (val !== undefined && val !== resolvedValue) {
+                                    let finalVal = (val || '').trim();
+                                    if (finalVal && !/^https?:\/\//i.test(finalVal) && socialConfig.regex.test(finalVal)) {
+                                      finalVal = 'https://' + finalVal;
+                                      setLocalInputValues(prev => ({ ...prev, [item.id]: finalVal }));
+                                    }
+                                    if (updateElementAttribute) {
+                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                      updateElementAttribute(targetIdx, item.id, {
+                                        'data-interaction': 'open-link',
+                                        'data-interaction-value': finalVal
+                                      });
+                                    }
+                                  }
+                                };
+
+                                return (
+                                  <div className="flex flex-col w-full gap-[0.8vh]" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex flex-col gap-[0.3vh]">
+                                      <span className="text-[0.8vw] text-gray-800 font-normal select-none">{socialConfig.inputLabel}</span>
+                                      <div className={`w-full h-[4.5vh] border ${
+                                        isInvalid
+                                          ? 'border-[#EF4444]'
+                                          : isValidAndFilled
+                                          ? 'border-[#22C55E]'
+                                          : 'border-[#C5C5C5] hover:border-gray-400 focus-within:border-[#5145F6]'
+                                      } rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden transition-colors shadow-sm relative`}>
+                                        <Icon icon={socialConfig.icon} className={`${socialConfig.iconColor} text-[1.2vw] flex-shrink-0 mr-[0.5vw]`} />
+                                        <input
+                                          type="text"
+                                          placeholder={socialConfig.placeholder}
+                                          value={currentRawVal}
+                                          className="flex-1 text-[0.85vw] text-gray-600 placeholder-gray-400 bg-transparent outline-none truncate font-medium pr-[1.8vw]"
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setLocalInputValues(prev => ({ ...prev, [item.id]: val }));
+                                          }}
+                                          onBlur={handleSaveLink}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') e.target.blur();
+                                          }}
+                                        />
+                                        {isValidAndFilled && (
+                                          <div className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+                                            <div className="w-[1vw] h-[1vw] bg-[#22C55E] rounded-full flex items-center justify-center">
+                                              <Icon icon="lucide:check" className="text-white text-[0.7vw]" strokeWidth="3" />
                                             </div>
-                                          )}
-                                        </>
-                                      );
-                                    })()}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {isInvalid && (
+                                        <div className="text-[#EF4444] text-[0.7vw] font-normal whitespace-nowrap pl-[0.2vw] pt-[0.2vh]">
+                                          {socialConfig.errorMessage}
+                                        </div>
+                                      )}
+                                      {isValidAndFilled && (
+                                        <div className="text-[#22C55E] text-[0.7vw] font-normal whitespace-nowrap pl-[0.2vw] pt-[0.2vh]">
+                                          {socialConfig.successMessage}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-col gap-[0.2vh]">
+                                      <span className="text-[0.8vw] text-gray-800 font-normal select-none">Behavior</span>
+                                      <div className="relative w-full">
+                                        {(() => {
+                                          const behaviorDropId = `link-behavior-${item.id}`;
+                                          const isBehaviorDropOpen = openDropdownId === behaviorDropId;
+                                          const currentBehavior = linkBehaviorOverrides[item.id] || item.linkBehavior || 'current';
+                                          
+                                          return (
+                                            <>
+                                              <div
+                                                data-dropdown-trigger="true"
+                                                className={`w-full h-[4.5vh] border ${isBehaviorDropOpen ? 'border-[#5145F6]' : 'border-[#C5C5C5]'} rounded-[0.5vw] flex items-center justify-between px-[1vw] bg-white cursor-pointer select-none transition-colors shadow-sm hover:border-gray-400`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (!isBehaviorDropOpen) {
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                                    setDropdownDirectionOverrides(prev => ({ ...prev, [behaviorDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                                  }
+                                                  setOpenDropdownId(isBehaviorDropOpen ? null : behaviorDropId);
+                                                }}
+                                              >
+                                                <span className="text-[0.85vw] text-gray-600 font-normal truncate">
+                                                  {currentBehavior === 'current' ? 'Open in - Current Tab' : 'Open in - New Tab'}
+                                                </span>
+                                                <Icon
+                                                  icon="lucide:chevron-down"
+                                                  className={`text-gray-500 text-[1vw] transition-transform duration-200 ${isBehaviorDropOpen ? 'rotate-180' : ''}`}
+                                                />
+                                              </div>
+                                              {isBehaviorDropOpen && (
+                                                <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-full bg-white border border-gray-200 rounded-[0.6vw] shadow-lg py-[0.5vh] ${dropdownDirectionOverrides[behaviorDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
+                                                  <div
+                                                    className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer transition-colors ${currentBehavior === 'current' ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setLinkBehaviorOverrides(prev => ({ ...prev, [item.id]: 'current' }));
+                                                      if (updateElementAttribute) {
+                                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                        updateElementAttribute(targetIdx, item.id, {
+                                                          'data-interaction-link-behavior': 'current'
+                                                        });
+                                                      }
+                                                      setOpenDropdownId(null);
+                                                    }}
+                                                  >
+                                                    Open in - Current Tab
+                                                  </div>
+                                                  <div
+                                                    className={`px-[1vw] py-[0.8vh] text-[0.85vw] cursor-pointer transition-colors ${currentBehavior === 'new' ? 'bg-[#F1F5F9] text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setLinkBehaviorOverrides(prev => ({ ...prev, [item.id]: 'new' }));
+                                                      if (updateElementAttribute) {
+                                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                        updateElementAttribute(targetIdx, item.id, {
+                                                          'data-interaction-link-behavior': 'new'
+                                                        });
+                                                      }
+                                                      setOpenDropdownId(null);
+                                                    }}
+                                                  >
+                                                    Open in - New Tab
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
+                                );
+                              })()
                             ) : resolvedActionId === 'whatsapp' ? (
                               <div className="flex flex-col w-full gap-[1.5vh]" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex flex-col gap-[0.4vh]">
@@ -3433,8 +4548,8 @@ const InteractionPanel = ({
                                 </div>
                                 <div className="flex flex-col gap-[0.4vh]">
                                   <div className="flex items-center gap-[0.3vw]">
-                                    <span className="text-[0.8vw] text-gray-800 font-normal select-none">Pre filled Message</span>
-                                    <span className="text-[0.6vw] text-gray-500 font-normal select-none">(Optional)</span>
+                                    <span className="text-gray-800 font-normal select-none text-[0.8vw]">Pre filled Message</span>
+                                    <span className="text-[#EF4444] text-[0.8vw] font-medium select-none ml-[0.1vw]">*</span>
                                   </div>
                                   <div className="relative w-full h-[4.5vh] border border-[#C5C5C5] rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden hover:border-gray-400 focus-within:border-[#5145F6] transition-colors shadow-sm">
                                     <Icon icon="lucide:message-square-text" className="text-gray-500 text-[1.1vw] flex-shrink-0 mr-[0.5vw]" />
@@ -3780,7 +4895,7 @@ const InteractionPanel = ({
                         </div>
 
                         {/* Card Footer (Highlight Component & Trash) */}
-                        <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw]`}>
+                        <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.70vw]`}>
                           {(() => {
                             const isHotspotItem = Boolean(item.isHotspot || item.id?.toLowerCase().includes('hotspot'));
                             const isChecked = !isHotspotItem && (
@@ -3940,6 +5055,11 @@ const InteractionPanel = ({
               </svg>`;
             }
 
+            setPopupCustomHtmlOverrides(prev => ({
+              ...prev,
+              [activeTemplateSelectionId]: fallbackHtml
+            }));
+
             updateElementAttribute(activePageIndex, activeTemplateSelectionId, {
               'data-interaction': 'popup',
               'data-interaction-value': templateId,
@@ -4000,6 +5120,63 @@ const InteractionPanel = ({
             }
           } catch (error) {
             console.error("Failed to fetch gallery model as blob:", error);
+          }
+        }}
+      />
+
+      {/* Slideshow Image Gallery Modal */}
+      <MediaGalleryPopup
+        isOpen={isSlideshowGalleryOpen}
+        onClose={() => {
+          setIsSlideshowGalleryOpen(false);
+          setActiveSlideshowItem(null);
+        }}
+        imageOnly={true}
+        initialGalleryType="Image Gallery"
+        onFileSelect={async (file, asset) => {
+          if (!activeSlideshowItem) return;
+          const currentItem = activeSlideshowItem;
+          setIsSlideshowGalleryOpen(false);
+          setActiveSlideshowItem(null);
+
+          let currentImages = [];
+          if (Array.isArray(currentItem.currentImages)) {
+            currentImages = [...currentItem.currentImages];
+          } else {
+            const raw = itemValueOverrides[currentItem.id] !== undefined
+              ? itemValueOverrides[currentItem.id]
+              : '';
+            try {
+              if (raw) currentImages = JSON.parse(raw);
+            } catch (e) {}
+          }
+
+          if (currentImages.length >= 6) {
+            alert("You can only add up to 6 images in slideshow.");
+            return;
+          }
+
+          const addImage = (dataUrl, name) => {
+            const updated = [...currentImages, { name: name || 'Gallery Image', data: dataUrl }].slice(0, 6);
+            const storedVal = JSON.stringify(updated);
+            setItemValueOverrides(prev => ({ ...prev, [currentItem.id]: storedVal }));
+            const targetIdx = currentItem.pageIndex !== undefined ? currentItem.pageIndex : activePageIndex;
+            if (updateElementAttribute) {
+              updateElementAttribute(targetIdx, currentItem.id, {
+                'data-interaction': 'slideshow',
+                'data-interaction-value': storedVal
+              });
+            }
+          };
+
+          if (asset && asset.url) {
+            addImage(asset.url, asset.name);
+          } else if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              addImage(e.target.result, file.name);
+            };
+            reader.readAsDataURL(file);
           }
         }}
       />
