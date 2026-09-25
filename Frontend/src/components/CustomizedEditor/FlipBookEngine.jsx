@@ -20,6 +20,29 @@ import { initGifRunner } from '../TemplateEditor/AnimationRunner';
 
 /* ─────────────────────────────── helpers ─────────────────────────────── */
 
+const cleanStaticHtml = (html) => {
+    if (!html) return '';
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        // Remove foreignObjects containing video/iframe from static background so they don't load twice or flash
+        doc.querySelectorAll('foreignObject[data-type="video"], foreignObject video, foreignObject iframe').forEach(el => {
+            const fo = el.tagName?.toLowerCase() === 'foreignobject' ? el : el.closest('foreignObject');
+            if (fo) fo.remove();
+            else el.remove();
+        });
+        return doc.body.innerHTML || html;
+    } catch (e) {
+        return html;
+    }
+};
+
+const sanitizePageHtmlForPreview = (html) => {
+    if (!html) return '';
+    // Strip pointer-events: none (and variations with !important) from foreignObject iframe inline styles
+    return html.replace(/(<foreignObject\b[^>]*>[\s\S]*?<iframe\b[^>]*\bstyle="[^"]*?)pointer-events\s*:\s*none\s*(!important)?\s*;?/gi, '$1pointer-events: auto !important;');
+};
+
 const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
 <html>
 <head>
@@ -49,6 +72,37 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
 
   foreignObject * {
     clip-path: none !important;
+  }
+
+  foreignObject video {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    border: none !important;
+    outline: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+  }
+  foreignObject iframe {
+    display: block !important;
+    border: none !important;
+    outline: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    transform-origin: 0 0 !important;
+  }
+
+  foreignObject[data-type="video"] {
+    overflow: hidden !important;
+    pointer-events: auto !important;
+  }
+
+  foreignObject[data-type="video"] * {
+    pointer-events: auto !important;
   }
 
   .flipbook-text-scrollbar::-webkit-scrollbar,
@@ -124,7 +178,7 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
   }
 </style>
 </head>
-<body>${rawHtml || ''}</body>
+<body>${sanitizePageHtmlForPreview(rawHtml || '')}</body>
 </html>`;
 
 const scriptPromises = {};
@@ -369,7 +423,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             <div
                                 className="fbe-static-bg"
                                 style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: page.isTransparentSheet ? 'transparent' : '#fff', borderRadius: 'inherit', pointerEvents: 'none' }}
-                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '') }}
+                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + cleanStaticHtml(page.html || page.content || '') }}
                             />
                             <iframe
                                 title={`Page ${i + 1}`}
@@ -571,7 +625,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 staticBg.className = 'fbe-static-bg';
                 const bgStyleColor = page.isTransparentSheet ? 'transparent' : '#fff';
                 staticBg.style.cssText = `position:absolute;inset:0;overflow:hidden;background:${bgStyleColor};pointer-events:none;border-radius:inherit;`;
-                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg *:not([data-type="pdf-vector-layer"] *):not([data-type="pdf-vector-layer"]) { vector-effect: non-scaling-stroke !important; } .fbe-static-bg [data-type="pdf-vector-layer"], .fbe-static-bg [data-type="pdf-vector-layer"] * { vector-effect: none !important; }</style>` + (page.html || page.content || '');
+                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg *:not([data-type="pdf-vector-layer"] *):not([data-type="pdf-vector-layer"]) { vector-effect: non-scaling-stroke !important; } .fbe-static-bg [data-type="pdf-vector-layer"], .fbe-static-bg [data-type="pdf-vector-layer"] * { vector-effect: none !important; }</style>` + cleanStaticHtml(page.html || page.content || '');
                 inner.appendChild(staticBg);
 
                 const iframe = document.createElement('iframe');

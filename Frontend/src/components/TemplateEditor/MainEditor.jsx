@@ -60,7 +60,7 @@ export const getVisualBBox = (el) => {
     el.getAttribute('data-type') === 'group' ||
     (el.getAttribute('data-name') || '').toLowerCase() === 'group' ||
     (el.id || '').startsWith('group-')
-  ) && el.getAttribute('data-is-image-group') !== 'true';
+  ) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true' && el.getAttribute('data-is-gif-group') !== 'true';
 
   const targetCropEl = !isUserGroup ? (
     (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"], [clip-path*="clip-"]') : null) ||
@@ -259,7 +259,7 @@ export const getVisualBBox = (el) => {
   }
 
   const tag = el.tagName?.toLowerCase();
-  if (tag === 'image' || tag === 'rect') {
+  if (tag === 'image' || tag === 'rect' || tag === 'foreignobject') {
     const w = parseFloat(el.getAttribute('width') || '0');
     const h = parseFloat(el.getAttribute('height') || '0');
     if (w > 0 && h > 0) {
@@ -541,8 +541,7 @@ const svgGlobalStyles = `
   }
 
   /* Video & Iframe Scaling Fixes */
-  foreignObject video, 
-  foreignObject iframe {
+  foreignObject video {
     width: 100% !important;
     height: 100% !important;
     display: block !important;
@@ -551,6 +550,24 @@ const svgGlobalStyles = `
     margin: 0 !important;
     padding: 0 !important;
     box-sizing: border-box !important;
+    pointer-events: auto !important;
+  }
+  foreignObject iframe {
+    display: block !important;
+    border: none !important;
+    outline: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    transform-origin: 0 0 !important;
+  }
+  foreignObject[data-type="video"] {
+    overflow: hidden !important;
+    pointer-events: auto !important;
+  }
+  foreignObject[data-type="video"] * {
+    pointer-events: auto !important;
   }
 
   .hide-controls::-webkit-media-controls {
@@ -2760,52 +2777,41 @@ const MainEditor = ({
         // in the user coordinate space of the overlay. Applying it again causes double-transform bugs.
       });
 
-      // Sync iframe scale
+      // Sync video / iframe elements inside foreignObjects
       svg.querySelectorAll('foreignObject iframe').forEach(iframe => {
         const fo = iframe.closest('foreignObject');
         if (fo) {
-          let foW = parseFloat(fo.getAttribute('width') || '0');
-          let foH = parseFloat(fo.getAttribute('height') || '0');
-
-          const parentG = fo.closest('g');
-          if (parentG && parentG.hasAttribute('data-width')) {
-            foW = parseFloat(parentG.getAttribute('data-width'));
-            foH = parseFloat(parentG.getAttribute('data-height'));
-          } else if (fo.getAttribute('width')?.includes('%')) {
-            const bbox = fo.getBoundingClientRect();
-            if (bbox.width > 0) {
-              const svgEl = fo.closest('svg');
-              const ctm = svgEl ? svgEl.getScreenCTM() : null;
-              const scale = ctm ? ctm.a : 1;
-              foW = bbox.width / scale;
-              foH = bbox.height / scale;
-            }
-          }
-
-          let origW = parseFloat(iframe.getAttribute('data-original-width'));
-          let origH = parseFloat(iframe.getAttribute('data-original-height'));
-
-          if (!origW || !origH || iframe.getAttribute('width') === '100%') {
-            origW = 640;
-            origH = 360;
-            iframe.setAttribute('data-original-width', '640');
-            iframe.setAttribute('data-original-height', '360');
-            iframe.setAttribute('width', '640');
-            iframe.setAttribute('height', '360');
-            iframe.style.width = '640px';
-            iframe.style.height = '360px';
-            iframe.style.transformOrigin = '0 0';
-          }
+          const foW = parseFloat(fo.getAttribute('width') || '0');
+          const foH = parseFloat(fo.getAttribute('height') || '0');
+          const origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+          const origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+          iframe.setAttribute('data-original-width', origW.toString());
+          iframe.setAttribute('data-original-height', origH.toString());
+          iframe.setAttribute('width', origW.toString());
+          iframe.setAttribute('height', origH.toString());
+          iframe.style.setProperty('width', origW + 'px', 'important');
+          iframe.style.setProperty('height', origH + 'px', 'important');
+          iframe.style.setProperty('transform-origin', '0 0', 'important');
+          
+          const isInteractive = fo.getAttribute('data-video-interactive') === 'true';
+          iframe.style.setProperty('pointer-events', isInteractive ? 'auto' : 'none', 'important');
+          iframe.style.setProperty('border', 'none', 'important');
+          iframe.style.setProperty('display', 'block', 'important');
 
           if (foW > 0 && foH > 0 && origW > 0 && origH > 0) {
-            iframe.style.setProperty('width', origW + 'px', 'important');
-            iframe.style.setProperty('height', origH + 'px', 'important');
             const scaleX = foW / origW;
             const scaleY = foH / origH;
             iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
-            iframe.style.setProperty('transform-origin', '0 0', 'important');
           }
         }
+      });
+      svg.querySelectorAll('foreignObject video').forEach(video => {
+        const fo = video.closest('foreignObject');
+        const isInteractive = fo ? fo.getAttribute('data-video-interactive') === 'true' : true;
+        video.style.setProperty('width', '100%', 'important');
+        video.style.setProperty('height', '100%', 'important');
+        video.style.setProperty('display', 'block', 'important');
+        video.style.setProperty('pointer-events', isInteractive ? 'auto' : 'none', 'important');
       });
 
       // Sync Image Masks
@@ -3102,7 +3108,7 @@ const MainEditor = ({
         else if (rawUrl.includes('watch?v=')) videoId = rawUrl.split('v=')[1]?.split('&')[0];
         else if (rawUrl.includes('shorts/')) videoId = rawUrl.split('shorts/')[1]?.split('?')[0]?.split('&')[0];
         else if (rawUrl.includes('embed/')) videoId = rawUrl.split('embed/')[1]?.split('?')[0]?.split('&')[0];
-        if (videoId) finalEmbedUrl = `https://www.youtube.com/embed/${videoId}`;
+        if (videoId) finalEmbedUrl = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
       } else if (isVimeo) {
         let videoId = rawUrl.split('vimeo.com/')[1]?.split('?')[0]?.split('/')[0];
         if (videoId && !isNaN(videoId)) finalEmbedUrl = `https://player.vimeo.com/video/${videoId}`;
@@ -3168,18 +3174,19 @@ const MainEditor = ({
         iframe.setAttribute('data-original-height', intrinsicH.toString());
 
         iframe.setAttribute('frameborder', '0');
-        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
         iframe.setAttribute('allowfullscreen', 'true');
 
-        iframe.style.width = intrinsicW + 'px';
-        iframe.style.height = intrinsicH + 'px';
-        iframe.style.border = 'none';
-        iframe.style.display = 'block';
-        iframe.style.transformOrigin = '0 0';
+        iframe.style.setProperty('width', intrinsicW + 'px', 'important');
+        iframe.style.setProperty('height', intrinsicH + 'px', 'important');
+        iframe.style.setProperty('border', 'none', 'important');
+        iframe.style.setProperty('display', 'block', 'important');
+        iframe.style.setProperty('pointer-events', 'auto', 'important');
+        iframe.style.setProperty('transform-origin', '0 0', 'important');
 
         const scaleX = displayWidth / intrinsicW;
         const scaleY = displayHeight / intrinsicH;
-        iframe.style.transform = `scale(${scaleX}, ${scaleY})`;
+        iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
 
         if (originalUrl) iframe.setAttribute('data-original-url', originalUrl);
         fo.appendChild(iframe);
@@ -5206,46 +5213,106 @@ const MainEditor = ({
             handle.style.boxSizing = 'border-box';
             handle.style.zIndex = isLine ? '2147483647' : (isSide ? '999' : '1000');
 
-            if (handle) {
-              if (isSide) {
-                const zoomScale = zoom / 100;
-                const isHorizontal = (name === 'n' || name === 's');
-                const dist = isHorizontal
-                  ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
-                  : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
-                const length = dist;
-                const thickness = 8 / zoomScale; // Increased for better edge hover sensitivity
+            if (isSide) {
+              const zoomScale = zoom / 100;
+              const isHorizontal = (name === 'n' || name === 's');
+              const dist = isHorizontal
+                ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
+                : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
+              const length = dist;
+              const thickness = 8 / zoomScale;
 
-                handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
-                handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
-                handle.style.left = `${p.x}px`;
-                handle.style.top = `${p.y}px`;
-                handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-              } else {
-                const zoomScale = zoom / 100;
-                // Standard corner handle positioning
-                handle.style.width = `${handleSize}px`;
-                handle.style.height = `${handleSize}px`;
+              handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
+              handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
+              handle.style.left = `${p.x}px`;
+              handle.style.top = `${p.y}px`;
+              handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+            } else {
+              const zoomScale = zoom / 100;
+              handle.style.width = `${handleSize}px`;
+              handle.style.height = `${handleSize}px`;
 
-                // Move handles to align L-bars centered over dotted lines
-                let posX = p.x;
-                let posY = p.y;
-                if (useLBrackets) {
-                  const inwardOffset = ((handleSize - barThickness) / 2) / zoomScale;
-                  if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
-                  if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
-                  if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
-                  if (name === 'sw') { posX += inwardOffset; posY -= inwardOffset; }
-                }
-
-                handle.style.left = `${posX}px`;
-                handle.style.top = `${posY}px`;
-                handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 / zoomScale})`;
+              let posX = p.x;
+              let posY = p.y;
+              if (useLBrackets) {
+                const inwardOffset = ((handleSize - barThickness) / 2) / zoomScale;
+                if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
+                if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
+                if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
+                if (name === 'sw') { posX += inwardOffset; posY -= inwardOffset; }
               }
-              handle.style.cursor = getRotatingCursor(name, rotation);
+
+              handle.style.left = `${posX}px`;
+              handle.style.top = `${posY}px`;
+              handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 / zoomScale})`;
             }
+            handle.style.cursor = getRotatingCursor(name, rotation);
           });
         } // Close if (!hideHandles)
+
+        // ── VIDEO CONTROLS / MOVE TOGGLE BADGE ──
+        const isVideoEl = el.getAttribute('data-type') === 'video' || !!el.querySelector('video, iframe');
+        if (isVideoEl && (type === 'selected' || type === 'child-selected') && htmlOverlay) {
+          const isInteractive = el.getAttribute('data-video-interactive') === 'true';
+          const toggleId = `video-mode-toggle-${el.id}`;
+          let toggleBtn = htmlOverlay.querySelector(`[id="${toggleId}"]`);
+          if (!toggleBtn) {
+            toggleBtn = document.createElement('div');
+            toggleBtn.id = toggleId;
+            htmlOverlay.appendChild(toggleBtn);
+          }
+
+          toggleBtn.className = `video-mode-toggle absolute flex items-center gap-1.5 px-3 py-1 rounded-full text-white shadow-lg text-xs font-semibold cursor-pointer select-none transition-all pointer-events-auto ${
+            isInteractive ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
+          }`;
+          toggleBtn.style.zIndex = '2147483647';
+          toggleBtn.style.left = `${mapped[1].x}px`;
+          toggleBtn.style.top = `${mapped[1].y - (28 / zoomScale)}px`;
+          toggleBtn.style.transform = `translate(-100%, 0) scale(${1 / zoomScale})`;
+          toggleBtn.style.transformOrigin = 'bottom right';
+
+          if (isInteractive) {
+            toggleBtn.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span>Controls Active (Click to Move/Scale)</span>
+            `;
+          } else {
+            toggleBtn.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="5 9 2 12 5 15"></polyline>
+                <polyline points="9 5 12 2 15 5"></polyline>
+                <polyline points="15 19 12 22 9 19"></polyline>
+                <polyline points="19 9 22 12 19 15"></polyline>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <line x1="12" y1="2" x2="22" y2="22"></line>
+              </svg>
+              <span>Move / Scale Mode (Click to Play Video)</span>
+            `;
+          }
+
+          const handleToggleAction = (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const newInteractive = el.getAttribute('data-video-interactive') !== 'true';
+            el.setAttribute('data-video-interactive', newInteractive ? 'true' : 'false');
+
+            const iframe = el.querySelector('iframe');
+            if (iframe) {
+              iframe.style.setProperty('pointer-events', newInteractive ? 'auto' : 'none', 'important');
+            }
+            const video = el.querySelector('video');
+            if (video) {
+              video.style.setProperty('pointer-events', newInteractive ? 'auto' : 'none', 'important');
+            }
+            drawOverlayHighlight(el, 'selected');
+          };
+
+          toggleBtn.onpointerdown = handleToggleAction;
+          toggleBtn.onmousedown = handleToggleAction;
+          toggleBtn.onclick = handleToggleAction;
+        }
 
         // ── INTERACTION BADGE (Floating above the top-middle) ──
         if (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') {
@@ -7356,9 +7423,13 @@ const MainEditor = ({
           current.getAttribute('data-type') === 'icon'
         ))
       ) {
-        // Prevent targeting inner image of an image group directly
+        // Prevent targeting inner image of an image group directly, or inner elements of video/gif groups
         if (tagName === 'image' && current.parentNode?.getAttribute('data-is-image-group') === 'true') {
           // Skip the inner image and let it traverse to the parent group
+        } else if ((tagName === 'foreignobject' || tagName === 'video' || tagName === 'iframe') && current.parentNode?.getAttribute('data-is-video-group') === 'true') {
+          // Skip inner foreignobject/video/iframe and let it traverse to the parent video group
+        } else if (current.parentNode?.getAttribute('data-is-gif-group') === 'true') {
+          // Skip inner gif elements and let it traverse to parent gif group
         } else {
           if (!deepestElementWithId) deepestElementWithId = current;
         }
@@ -7369,7 +7440,7 @@ const MainEditor = ({
         current.getAttribute('data-type') === 'group' ||
         (current.getAttribute('data-name') || '').toLowerCase() === 'group' ||
         current.id.startsWith('group-')
-      ) && current.getAttribute('data-is-image-group') !== 'true';
+      ) && current.getAttribute('data-is-image-group') !== 'true' && current.getAttribute('data-is-video-group') !== 'true' && current.getAttribute('data-is-gif-group') !== 'true';
 
       if (isUserGroup && selectedSelectToolRef.current !== 'direct') {
         const frameId = currentFrameIdRef.current;
@@ -7465,6 +7536,16 @@ const MainEditor = ({
             if (!startPoint) {
               safeStopInteraction(event.interaction);
               return;
+            }
+
+            // Check if dragging via video-move-handle
+            const moveHandle = event.target.closest?.('.video-move-handle');
+            if (moveHandle) {
+              const dragTargetId = moveHandle.getAttribute('data-drag-target-id');
+              const targetEl = dragTargetId ? container?.querySelector(`[id="${dragTargetId}"]`) : null;
+              if (targetEl) {
+                target = targetEl;
+              }
             }
 
             // 1. Handle "Selection Priority" - if clicking inside the current selection's box, drag it!
@@ -7621,7 +7702,7 @@ const MainEditor = ({
                     candidate.id.startsWith('group-') ||
                     candidate.getAttribute('data-is-hotspot') === 'true' ||
                     candidate.getAttribute('data-type') === 'hotspot'
-                  ) && candidate.getAttribute('data-is-image-group') !== 'true';
+                  ) && candidate.getAttribute('data-is-image-group') !== 'true' && candidate.getAttribute('data-is-video-group') !== 'true' && candidate.getAttribute('data-is-gif-group') !== 'true';
 
                   if (!isUserGroupCandidate && leafTarget && leafTarget.id && leafTarget.getAttribute('data-name') !== 'Overlay') {
                     candidate = leafTarget;
@@ -8578,7 +8659,9 @@ const MainEditor = ({
                 let adjustedX = finalX;
                 let adjustedY = finalY;
 
-                if (el.tagName?.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+                const isVideoFo = el.getAttribute('data-type') === 'video' || !!el.querySelector('video, iframe');
+
+                if (el.tagName?.toLowerCase() === 'foreignobject' && !isVideoFo && el.firstElementChild) {
                   const isScrollable = el.getAttribute('data-scrollable') === 'true';
                   const div = el.firstElementChild;
 
@@ -8684,14 +8767,27 @@ const MainEditor = ({
                 if (el.tagName.toLowerCase() === 'foreignobject') {
                   const iframe = el.querySelector('iframe');
                   if (iframe) {
-                    let origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
-                    let origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                    const origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+                    const origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                    iframe.setAttribute('data-original-width', origW.toString());
+                    iframe.setAttribute('data-original-height', origH.toString());
+                    iframe.setAttribute('width', origW.toString());
+                    iframe.setAttribute('height', origH.toString());
+                    iframe.style.setProperty('width', origW + 'px', 'important');
+                    iframe.style.setProperty('height', origH + 'px', 'important');
+                    iframe.style.setProperty('transform-origin', '0 0', 'important');
+                    iframe.style.setProperty('pointer-events', 'auto', 'important');
+
                     if (origW > 0 && origH > 0 && adjustedWidth > 0 && adjustedHeight > 0) {
                       const scaleX = adjustedWidth / origW;
                       const scaleY = adjustedHeight / origH;
                       iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
-                      iframe.style.setProperty('transform-origin', '0 0', 'important');
                     }
+                  }
+                  const video = el.querySelector('video');
+                  if (video) {
+                    video.style.setProperty('width', '100%', 'important');
+                    video.style.setProperty('height', '100%', 'important');
                   }
                 }
               } else if (isShape && !isGroup && !isHotspotIconGroup) {
@@ -9067,14 +9163,27 @@ const MainEditor = ({
                         if (tag === 'foreignobject') {
                           const iframe = child.querySelector('iframe');
                           if (iframe) {
-                            let origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
-                            let origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                            const origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+                            const origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                            iframe.setAttribute('data-original-width', origW.toString());
+                            iframe.setAttribute('data-original-height', origH.toString());
+                            iframe.setAttribute('width', origW.toString());
+                            iframe.setAttribute('height', origH.toString());
+                            iframe.style.setProperty('width', origW + 'px', 'important');
+                            iframe.style.setProperty('height', origH + 'px', 'important');
+                            iframe.style.setProperty('transform-origin', '0 0', 'important');
+                            iframe.style.setProperty('pointer-events', 'auto', 'important');
+
                             if (origW > 0 && origH > 0 && imgW > 0 && imgH > 0) {
                               const scaleX = imgW / origW;
                               const scaleY = imgH / origH;
                               iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
-                              iframe.style.setProperty('transform-origin', '0 0', 'important');
                             }
+                          }
+                          const video = child.querySelector('video');
+                          if (video) {
+                            video.style.setProperty('width', '100%', 'important');
+                            video.style.setProperty('height', '100%', 'important');
                           }
                         }
 
@@ -12511,7 +12620,7 @@ const MainEditor = ({
       return;
     }
 
-    const isText = ['text', 'tspan', 'foreignobject'].includes(target.tagName.toLowerCase());
+    const isText = (['text', 'tspan'].includes(target.tagName.toLowerCase()) || target.tagName.toLowerCase() === 'foreignobject') && target.getAttribute('data-type') !== 'video' && !target.querySelector('video, iframe');
     if (isText && target.id) {
       if (activeTopTool !== 'interaction' && activeTopTool !== 'animation') {
         enterTextEditMode(target, e.clientX, e.clientY);

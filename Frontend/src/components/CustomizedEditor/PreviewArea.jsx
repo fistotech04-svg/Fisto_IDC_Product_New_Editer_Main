@@ -1773,19 +1773,29 @@ const getVideoControlsScript = () => `
   </script>
 `;
 
+const sanitizeHtmlForPreview = (rawHtml) => {
+    if (!rawHtml) return '';
+    // Replace pointer-events: none (including !important) in iframe style attributes
+    let res = rawHtml.replace(/(<foreignObject\b[^>]*>[\s\S]*?<iframe\b[^>]*\bstyle="[^"]*?)pointer-events\s*:\s*none\s*(?:!important)?\s*;?/gi, '$1pointer-events: auto !important;');
+    // Also catch any iframe style attribute containing pointer-events: none
+    res = res.replace(/(<iframe\b[^>]*\bstyle="[^"]*?)pointer-events\s*:\s*none\s*(?:!important)?\s*;?/gi, '$1pointer-events: auto !important;');
+    return res;
+};
+
 const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount = 0, singlePage = false) => {
+    const cleanHtml = sanitizeHtmlForPreview(html);
     // Extract and dynamically load Google Fonts found in the SVG
     const fontsToLoad = new Set();
-    if (html) {
+    if (cleanHtml) {
         const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
         const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
         let match;
-        while ((match = cssRegex.exec(html)) !== null) {
+        while ((match = cssRegex.exec(cleanHtml)) !== null) {
             let f = match[1] || match[2];
             if (f) f = f.split(',')[0].replace(/['"]/g, '').trim();
             if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
         }
-        while ((match = attrRegex.exec(html)) !== null) {
+        while ((match = attrRegex.exec(cleanHtml)) !== null) {
             let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
             if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
         }
@@ -1866,6 +1876,38 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
 
                     foreignObject * {
                         clip-path: none !important;
+                    }
+
+                    foreignObject video {
+                        width: 100% !important;
+                        height: 100% !important;
+                        display: block !important;
+                        border: none !important;
+                        outline: none !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-sizing: border-box !important;
+                        pointer-events: auto !important;
+                    }
+
+                    foreignObject iframe {
+                        display: block !important;
+                        border: none !important;
+                        outline: none !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-sizing: border-box !important;
+                        pointer-events: auto !important;
+                        transform-origin: 0 0 !important;
+                    }
+
+                    foreignObject[data-type="video"] {
+                        overflow: hidden !important;
+                        pointer-events: auto !important;
+                    }
+
+                    foreignObject[data-type="video"] * {
+                        pointer-events: auto !important;
                     }
 
                     .flipbook-text-scrollbar::-webkit-scrollbar,
@@ -2046,7 +2088,7 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                 </script>
             </head>
             <body>
-                ${html || ''}
+                ${cleanHtml || ''}
                 ${(function () {
             if (!watermarkSettings?.src) return '';
             const f = watermarkSettings.adjustments || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
