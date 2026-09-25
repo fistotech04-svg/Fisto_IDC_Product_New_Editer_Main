@@ -252,6 +252,17 @@ const Grid5Layout = ({
         return `rgba(var(--${tokenId}-rgb, ${defaultRgb}), var(--${tokenId}-opacity, ${defaultOpacity}))`;
     };
 
+    const getLayoutColorAlpha = (tokenId, defaultRgb, alpha) => {
+        const color = getLayoutColor(tokenId, null);
+        if (color && typeof color === 'string' && color.startsWith('#')) {
+            const r = parseInt(color.slice(1, 3), 16) || 0;
+            const g = parseInt(color.slice(3, 5), 16) || 0;
+            const b = parseInt(color.slice(5, 7), 16) || 0;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return `rgba(var(--${tokenId}-rgb, ${defaultRgb}), ${alpha})`;
+    };
+
     const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
     const totalPages = pagesCount;
     const progressPercentage = totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0;
@@ -761,11 +772,26 @@ const Grid5Layout = ({
                                     setPageInputValue(String(currentPage + 1));
                                 }
                             }}
-                            className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.78vw]'} font-bold bg-transparent border-none outline-none text-center`}
+                            className={`${isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.78vw] mx-[0.4vw] px-[0.4vw] py-[0.15vw]'} font-bold rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
                             style={{
-                                width: `${String(pages.length).length + 1}ch`,
+                                width: `${String(pages.length).length + 1.2}ch`,
                                 color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),
-                                opacity: 'var(--toolbar-bg-opacity, 1)'
+                                backgroundColor: currentPage === 0 ? getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1) : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.2),
+                                border: `1px solid ${currentPage === 0 ? getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.2) : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.3)}`
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.backgroundColor = currentPage === 0 ? getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15) : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.3);
+                                e.target.style.borderColor = currentPage === 0 ? getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.4) : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.5);
+                            }}
+                            onMouseOver={(e) => {
+                                if(document.activeElement !== e.target) {
+                                    e.target.style.backgroundColor = currentPage === 0 ? getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15) : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.3);
+                                }
+                            }}
+                            onMouseOut={(e) => {
+                                if(document.activeElement !== e.target) {
+                                    e.target.style.backgroundColor = currentPage === 0 ? getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1) : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.2);
+                                }
                             }}
                         />
                         <span

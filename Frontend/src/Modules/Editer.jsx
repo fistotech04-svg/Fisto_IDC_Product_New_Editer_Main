@@ -92,6 +92,21 @@ const Editor = () => {
   const [currentBook, setCurrentBook] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Prevent closing the tab if there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
+
   // Save Success State for Toast
   const [saveSuccessInfo, setSaveSuccessInfo] = useState(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);

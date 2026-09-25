@@ -995,8 +995,28 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                 setPageInputValue(String(currentPage + 1));
                                             }
                                         }}
-                                        className={`${!isBigBars ? (isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold bg-transparent border-none outline-none text-center leading-none`}
-                                        style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
+                                        className={`${!isBigBars ? (isTablet ? 'text-[0.5vw] mx-[0.2vw] px-[0.2vw] py-[0.05vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.4vw] py-[0.1vw]') : (isTablet ? 'text-[0.6vw] mx-[0.3vw] px-[0.3vw] py-[0.05vw]' : 'text-[0.65vw] mx-[0.4vw] px-[0.4vw] py-[0.1vw]')} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner leading-none`}
+                                        style={{
+                                            width: `${String(pages.length).length + 1.2}ch`,
+                                            color: getLayoutColor('search-text-v1', '#575C9C'),
+                                            opacity: 'var(--search-text-v1-opacity, 1)',
+                                            backgroundColor: getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.1),
+                                            border: `1px solid ${getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.2)}`
+                                        }}
+                                        onFocus={(e) => {
+                                            e.target.style.backgroundColor = getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.15);
+                                            e.target.style.borderColor = getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.4);
+                                        }}
+                                        onMouseOver={(e) => {
+                                            if(document.activeElement !== e.target) {
+                                                e.target.style.backgroundColor = getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.15);
+                                            }
+                                        }}
+                                        onMouseOut={(e) => {
+                                            if(document.activeElement !== e.target) {
+                                                e.target.style.backgroundColor = getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.1);
+                                            }
+                                        }}
                                     />
                                     <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}> / {totalPages}</span>
                                 </div>
