@@ -203,7 +203,10 @@ export const GLBModel = React.forwardRef(({ url, shouldClone, ...props }, ref) =
     cloned.animations = srcAnimations.map(a => a.clone());
     cloned.traverse((child) => {
       if (child.isMesh || child.isSkinnedMesh) {
-        child.frustumCulled = false;
+        if (child.geometry && !child.geometry.boundingSphere) {
+          child.geometry.computeBoundingSphere();
+        }
+        child.frustumCulled = !child.isSkinnedMesh;
       }
     });
     console.log(`[GLBModel] Loaded ${cloned.animations.length} animation clip(s) from`, resolvedUrl);

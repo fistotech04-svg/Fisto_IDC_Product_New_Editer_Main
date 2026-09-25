@@ -46,17 +46,45 @@ if (GLTFExporter && GLTFExporter.prototype && !GLTFExporter.prototype._isSafeExp
   };
 }
 
-// Controller to ensure environment lighting rotation updates in real-time.
-// Uses a ref to avoid stale closures and always runs in useFrame so that
-// drei's <Environment> re-render cannot override the user-set rotation.
-function SceneEnvironmentController({ envRotation = 0 }) {
+// Patch Three.js background shaders from ShaderChunk to smoothly mingle the HDRI with the studio gray background color (#393939)
+// and apply the user's Reflection slider to the HDRI in real-time.
+const bgPatchGlsl = /* glsl */`
+  // backgroundIntensity encodes opacity (integer: 0..100) and reflection (fractional: 0.0..0.3 -> 0.0..3.0)
+  float bgOpacity = clamp( floor( backgroundIntensity ) / 100.0, 0.0, 1.0 );
+  float bgReflection = max( 0.0, fract( backgroundIntensity ) * 10.0 );
+
+  // Apply Reflection slider to HDRI radiance in the world
+  texColor.rgb *= bgReflection;
+
+  // #393939 in linear sRGB space
+  vec3 studioGray = vec3( 0.039547, 0.039547, 0.039547 );
+  texColor.rgb = mix( studioGray, texColor.rgb, bgOpacity );
+`;
+
+if (THREE.ShaderLib.backgroundCube && THREE.ShaderChunk.backgroundCube_frag) {
+  THREE.ShaderLib.backgroundCube.fragmentShader = THREE.ShaderChunk.backgroundCube_frag.replace(
+    'texColor.rgb *= backgroundIntensity;',
+    bgPatchGlsl
+  );
+}
+
+if (THREE.ShaderLib.background && THREE.ShaderChunk.background_frag) {
+  THREE.ShaderLib.background.fragmentShader = THREE.ShaderChunk.background_frag.replace(
+    'texColor.rgb *= backgroundIntensity;',
+    bgPatchGlsl
+  );
+}
+
+// Controller to ensure environment lighting, background opacity (mingled with gray color), blur, and rotation
+// update in real-time across every frame so drei re-renders cannot override user settings.
+function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, worldBlur = 0, reflection = 50, isCapturing = false }) {
   const { scene } = useThree();
   const rotRef = useRef(0);
 
   // Keep the ref current every render so useFrame always reads the latest value
   rotRef.current = (envRotation || 0) * (Math.PI / 180);
 
-  // Apply immediately on mount and whenever the value changes
+  // Apply immediately on mount and whenever properties change
   useEffect(() => {
     if (!scene) return;
     const rad = rotRef.current;
@@ -67,12 +95,24 @@ function SceneEnvironmentController({ envRotation = 0 }) {
     }
     if (scene.backgroundRotation) {
       scene.backgroundRotation.set(0, rad, 0);
+    } else {
+      scene.backgroundRotation = new THREE.Euler(0, rad, 0);
+    }
+    // Force background mesh material recompile if background texture was already assigned
+    if (scene.background && scene.background.isTexture) {
+      scene.background.version++;
     }
   }, [scene, envRotation]);
 
-  // Enforce rotation every frame so drei re-renders cannot override it
+  // Enforce rotation, reflection, blur, and opacity every frame so drei re-renders cannot override it
   useFrame(() => {
     if (!scene) return;
+
+    if (isCapturing) {
+      if (scene.background) scene.background = null;
+      return;
+    }
+
     const rad = rotRef.current;
     if (scene.environmentRotation) {
       if (scene.environmentRotation.y !== rad) {
@@ -83,6 +123,27 @@ function SceneEnvironmentController({ envRotation = 0 }) {
     }
     if (scene.backgroundRotation && scene.backgroundRotation.y !== rad) {
       scene.backgroundRotation.set(0, rad, 0);
+    }
+
+    // Dynamic environment reflection intensity from Reflection slider
+    const reflVal = reflection !== undefined ? reflection : 50;
+    const targetEnvIntensity = reflVal <= 50 ? (reflVal / 50) : 1.0 + ((reflVal - 50) / 50) * 2.0;
+    if (scene.environmentIntensity !== undefined && scene.environmentIntensity !== targetEnvIntensity) {
+      scene.environmentIntensity = targetEnvIntensity;
+    }
+
+    // Dynamic background opacity & reflection (mingles smoothly with #393939 gray color and scales HDRI reflection)
+    const targetOpacity = Math.max(0, Math.min(100, Math.round(worldOpacity ?? 0)));
+    // Encode: integer part is opacity (0..100), fractional part is reflection / 10.0 (0.0..0.3)
+    const encodedBgIntensity = targetOpacity + (targetEnvIntensity / 10.0);
+    if (scene.backgroundIntensity !== encodedBgIntensity) {
+      scene.backgroundIntensity = encodedBgIntensity;
+    }
+
+    // Dynamic background blur
+    const targetBlur = Math.max(0, Math.min(1, (worldBlur ?? 0) / 100));
+    if (scene.backgroundBlurriness !== targetBlur) {
+      scene.backgroundBlurriness = targetBlur;
     }
   });
 
@@ -109,12 +170,12 @@ function DirectionalSunLight({ position, specular = 50, softness = 50 }) {
     <directionalLight
       ref={lightRef}
       position={position}
-      intensity={1.5 + (specular ?? 50) / 40}
+      intensity={1.8 + ((specular ?? 50) / 100) * 0.8}
       castShadow
       shadow-bias={-0.0001}
       shadow-normalBias={0.02}
       shadow-radius={shadowSoftRadius}
-      shadow-mapSize={[2048, 2048]}
+      shadow-mapSize={[1024, 1024]}
       shadow-camera-left={-8}
       shadow-camera-right={8}
       shadow-camera-top={8}
@@ -154,6 +215,7 @@ export default function ThreedEditor() {
   const [modelFile, setModelFile] = useState(models.length > 0 ? models[0].file : null); 
   const [modelType, setModelType] = useState(models.length > 0 ? models[0].type : "glb");
   const [autoRotate, setAutoRotate] = useState(false);
+  const [xrayMode, setXrayMode] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(models.length === 0); // If model exists, don't collapse
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
@@ -728,6 +790,7 @@ export default function ThreedEditor() {
             materialSettings: {
                 alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 4, rotation: 0,
                 specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+                worldOpacity: 0, worldBlur: 0,
                 color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
                 lightPosition: { x: 10, y: 10, z: 10 }
             }
@@ -1826,14 +1889,20 @@ export default function ThreedEditor() {
 
   const handleSetModelStats = useCallback((modelId, stats) => {
       setModelStatsMap(prev => {
-          if (JSON.stringify(prev[modelId]) === JSON.stringify(stats)) return prev;
+          if (prev[modelId] === stats) return prev;
+          try {
+              if (JSON.stringify(prev[modelId]) === JSON.stringify(stats)) return prev;
+          } catch (_) {}
           return { ...prev, [modelId]: stats };
       });
   }, []);
 
   const handleSetMaterialList = useCallback((modelId, list, dataMap) => {
       setModelMaterialLists(prev => {
-          if (JSON.stringify(prev[modelId]) === JSON.stringify(list)) return prev;
+          if (prev[modelId] === list) return prev;
+          try {
+              if (JSON.stringify(prev[modelId]) === JSON.stringify(list)) return prev;
+          } catch (_) {}
           const next = { ...prev, [modelId]: list };
           updateHistory({
               ...stateRef.current,
@@ -1844,7 +1913,7 @@ export default function ThreedEditor() {
 
       if (dataMap) {
           setModelMaterialDataMap(prev => {
-              if (JSON.stringify(prev[modelId]) === JSON.stringify(dataMap)) return prev;
+              if (prev[modelId] === dataMap) return prev;
               return { ...prev, [modelId]: dataMap };
           });
       }
@@ -2575,7 +2644,10 @@ export default function ThreedEditor() {
   const updateMaterialSetting = useCallback((key, val, fromSync = false) => {
     setMaterialSettings((prev) => {
       if (val !== null && typeof val === 'object') {
-          if (JSON.stringify(prev[key]) === JSON.stringify(val)) return prev;
+          if (prev[key] === val) return prev;
+          try {
+              if (JSON.stringify(prev[key]) === JSON.stringify(val)) return prev;
+          } catch (_) {}
       } else if (prev[key] === val) {
           return prev;
       }
@@ -2600,7 +2672,7 @@ export default function ThreedEditor() {
           const materialKeys = [
               'color', 'metallic', 'roughness', 'alpha', 'emissiveIntensity', 
               'emissiveColor', 'normal', 'bump', 'scale', 'rotation', 'offset', 
-              'colorIntensity', 'ao', 'reflection', 'specular'
+              'colorIntensity', 'ao', 'reflection', 'specular', 'worldOpacity', 'worldBlur'
           ];
           if (materialKeys.includes(key)) {
               next.useFactorColor = true;
@@ -2869,6 +2941,7 @@ export default function ThreedEditor() {
         const nextMaterialSettings = {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
             specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+            worldOpacity: 0, worldBlur: 0,
             color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
             appliedTexture: null,
             maps: {},
@@ -2966,6 +3039,7 @@ export default function ThreedEditor() {
     const nextMaterialSettings = {
         alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
         specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+        worldOpacity: 0, worldBlur: 0,
         color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         appliedTexture: null,
         lightPosition: { x: 10, y: 10, z: 10 }
@@ -3075,6 +3149,7 @@ export default function ThreedEditor() {
         materialSettings: {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
             specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+            worldOpacity: 0, worldBlur: 0,
             color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
             lightPosition: { x: 10, y: 10, z: 10 }
         }
@@ -3088,6 +3163,7 @@ export default function ThreedEditor() {
         materialSettings: {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
             specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+            worldOpacity: 0, worldBlur: 0,
             color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
             lightPosition: { x: 10, y: 10, z: 10 }
         },
@@ -3707,12 +3783,12 @@ export default function ThreedEditor() {
                     camera={{ position: [0, 1, 5], fov: 45, near: 0.05, far: 1000 }}
                     onPointerDown={handleCanvasPointerDown}
                     onPointerMissed={handlePointerMissed}
-                    dpr={[1, 2]}
+                    dpr={[1, 1.5]}
                     gl={{
                       preserveDrawingBuffer: true,
                       antialias: true,
                       alpha: true,
-                      logarithmicDepthBuffer: true
+                      powerPreference: "high-performance"
                     }}
                     shadows={{ type: THREE.PCFShadowMap }}
                     onCreated={({ gl, camera }) => {
@@ -3724,8 +3800,8 @@ export default function ThreedEditor() {
                       gl.outputColorSpace = THREE.SRGBColorSpace;
                     }}
                   >
-                    {/* Only show background color if NOT capturing for a clean model-only shot */}
-                    {!isCapturing && <color attach="background" args={[settings.backgroundColor]} />}
+                    {/* Capturing mode transparent background check */}
+                    {isCapturing && <color attach="background" args={['transparent']} />}
 
                     {/* Ambient: balanced with shadow slider so high shadow gives rich contrast */}
                     <ambientLight intensity={0.4 + (100 - (materialSettings.shadow ?? 50)) / 250} />
@@ -3757,6 +3833,7 @@ export default function ThreedEditor() {
                         type={model.type}
                         url={model.url}
                         wireframe={settings.wireframe}
+                        xrayMode={xrayMode}
                         setModelStats={(stats) => handleSetModelStats(model.id, stats)}
                         setMaterialList={(list, dataMap) => handleSetMaterialList(model.id, list, dataMap)}
                         selectedMaterial={selectedMaterial}
@@ -3809,6 +3886,7 @@ export default function ThreedEditor() {
                   args={[30, 15, 0x555566, 0x3a3a4a]}
                   position={[0, 0.001, 0]}
                   renderOrder={-1}
+                  raycast={() => null}
                 >
                   <lineBasicMaterial
                     attach="material"
@@ -3823,7 +3901,7 @@ export default function ThreedEditor() {
               {settings.grid && !isCapturing && (
                 <group position={[0, 0.002, 0]}>
                   {/* X Axis */}
-                  <line>
+                  <line raycast={() => null}>
                     <bufferGeometry attach="geometry">
                       <bufferAttribute
                         attach="attributes-position"
@@ -3835,7 +3913,7 @@ export default function ThreedEditor() {
                     <lineBasicMaterial attach="material" color={0xee4444} transparent opacity={0.55} depthWrite={false} />
                   </line>
                   {/* Z Axis */}
-                  <line>
+                  <line raycast={() => null}>
                     <bufferGeometry attach="geometry">
                       <bufferAttribute
                         attach="attributes-position"
@@ -3858,6 +3936,10 @@ export default function ThreedEditor() {
                   position={[0, 0, 0]} 
                   receiveShadow
                   onClick={(e) => {
+                    // If a model mesh was clicked in front of the ground plane, do not clear selection
+                    if (e.intersections && e.intersections.length > 0 && e.intersections[0].object !== e.object) {
+                      return;
+                    }
                     if (canvasPointerDownPosRef.current) {
                       const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
                       const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
@@ -3883,6 +3965,10 @@ export default function ThreedEditor() {
                     position={[0, -0.01, 0]} 
                     receiveShadow
                     onClick={(e) => {
+                      // If a model mesh was clicked in front of the base plane, do not clear selection
+                      if (e.intersections && e.intersections.length > 0 && e.intersections[0].object !== e.object) {
+                        return;
+                      }
                       if (canvasPointerDownPosRef.current) {
                         const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
                         const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
@@ -3905,8 +3991,8 @@ export default function ThreedEditor() {
                 dampingFactor={0.08}
                 momentumFriction={0.95}
                 rotateSpeed={1.0}
-                minDistance={Math.max(0.8, 1.4 * (transformValues?.scale?.x || 1))}
-                maxDistance={Math.max(30, 25 * (transformValues?.scale?.x || 1))}
+                minDistance={0.5}
+                maxDistance={100}
                 onChange={handleControlsChange}
               />
 
@@ -3932,13 +4018,18 @@ export default function ThreedEditor() {
                               ? null
                               : (materialSettings?.environment || 'studio')
                       }
-                      background={false}
-                      blur={0.5}
-                      environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
+                      background={!isCapturing}
+                      blur={(materialSettings?.worldBlur ?? 0) / 100}
+                      environmentIntensity={(materialSettings?.reflection ?? 50) <= 50 ? ((materialSettings?.reflection ?? 50) / 50) : 1.0 + (((materialSettings?.reflection ?? 50) - 50) / 50) * 2.0}
                   />
-                  {/* SceneEnvironmentController enforces the rotation every frame,
-                      overriding whatever drei's Environment sets on scene.environmentRotation */}
-                  <SceneEnvironmentController envRotation={materialSettings?.envRotation || 0} />
+                  {/* SceneEnvironmentController enforces the rotation, opacity, blur, and reflection intensity every frame */}
+                  <SceneEnvironmentController 
+                      envRotation={materialSettings?.envRotation || 0} 
+                      worldOpacity={materialSettings?.worldOpacity ?? 0}
+                      worldBlur={materialSettings?.worldBlur ?? 0}
+                      reflection={materialSettings?.reflection ?? 50}
+                      isCapturing={isCapturing}
+                  />
               </Suspense>
             </Canvas>
             )}
@@ -3955,6 +4046,8 @@ export default function ThreedEditor() {
               onExport={() => setShowExportModal(true)}
               autoRotate={autoRotate}
               setAutoRotate={setAutoRotate}
+              xrayMode={xrayMode}
+              setXrayMode={setXrayMode}
               isLoading={manualLoading}
               materialSettings={materialSettings}
               onUpdateMaterialSetting={handleMaterialUIUpdate}

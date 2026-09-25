@@ -869,19 +869,35 @@ export default function Customized({
       if (!lightPadRef.current) return;
       
       const rect = lightPadRef.current.getBoundingClientRect();
-      const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
-      const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+      const isTouch = e.type && e.type.startsWith('touch');
+      const clientX = isTouch && e.touches && e.touches.length > 0 ? e.touches[0].clientX : (e.clientX ?? 0);
+      const clientY = isTouch && e.touches && e.touches.length > 0 ? e.touches[0].clientY : (e.clientY ?? 0);
       
-      const offsetX = clientX - rect.left;
-      const offsetY = clientY - rect.top;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const radius = rect.width / 2;
       
-      // Calculate percentages (0 to 100)
-      const perX = (offsetX / rect.width) * 100;
-      const perY = (offsetY / rect.height) * 100;
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
       
-      // Map back to -25 to +25 range (since it uses * 2 to fill 100% space)
-      const newX = (perX - 50) / 2;
-      const newY = (50 - perY) / 2;
+      // Limit sun inside the rounded structure (max radius 78% leaves safe margin so sun icon never moves out)
+      const maxVisualRadius = radius * 0.78;
+      let clampedDx = dx;
+      let clampedDy = dy;
+      
+      if (dist > maxVisualRadius && dist > 0) {
+          clampedDx = (dx / dist) * maxVisualRadius;
+          clampedDy = (dy / dist) * maxVisualRadius;
+      }
+      
+      // Map normalized circular displacement to [-20, 20] coordinate range
+      const MAX_COORD = 20;
+      const normX = clampedDx / maxVisualRadius;
+      const normY = clampedDy / maxVisualRadius;
+      
+      const newX = normX * MAX_COORD;
+      const newY = -normY * MAX_COORD; // Screen up is positive Y
       
       updateControl('lightPosition', { 
           ...(controls.lightPosition || { x: 10, y: 10, z: 10 }), 
@@ -1256,76 +1272,144 @@ export default function Customized({
         isOpen={activePanel === "lighting"}
         onToggle={() => handlePanelToggle("lighting")}
       >
-        {/* Visual Preview Box */}
-        <div 
-            ref={lightPadRef}
-            onMouseDown={(e) => {
-                setIsDraggingLight(true);
-                handleLightPadInteraction(e);
-            }}
-            onTouchStart={(e) => {
-                setIsDraggingLight(true);
-                handleLightPadInteraction(e);
-            }}
-            onWheel={handleLightWheel}
-            className={`relative bg-[#f8fafc] h-[9.375vw] rounded-[0.5vw] border border-gray-100 mb-[1.5vw] flex flex-col items-center justify-center shadow-inner overflow-hidden group ${isDraggingLight ? 'cursor-grabbing' : 'cursor-crosshair'}`}
-        >
-            {/* Visual Sun Ray Line from Center (Model) to Sun */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none z-1">
-                <line 
-                    x1="50%" 
-                    y1="50%" 
-                    x2={`${Math.max(6, Math.min(94, 50 + (controls.lightPosition?.x ?? 10) * 2))}%`} 
-                    y2={`${Math.max(6, Math.min(94, 50 - (controls.lightPosition?.y ?? 10) * 2))}%`} 
-                    stroke="#f59e0b" 
-                    strokeWidth="1.5" 
-                    strokeDasharray="4 3"
-                    strokeLinecap="round"
-                    className="opacity-70"
-                />
-            </svg>
+        {(() => {
+          const lightPos = controls.lightPosition || { x: 10, y: 10, z: 10 };
+          const rawPosX = lightPos.x ?? 10;
+          const rawPosY = lightPos.y ?? 10;
+          const MAX_LIGHT_COORD = 20;
+          const coordDist = Math.sqrt(rawPosX * rawPosX + rawPosY * rawPosY);
+          const visualScale = coordDist > MAX_LIGHT_COORD && coordDist > 0 ? MAX_LIGHT_COORD / coordDist : 1;
+          const clampedCoordX = rawPosX * visualScale;
+          const clampedCoordY = rawPosY * visualScale;
+          
+          // Visual boundary radius in percent inside the circular dome
+          // Center is 50%. Max reach is 38% from center (leaves 12% margin so the 1.25vw sun icon stays completely inside)
+          const maxVisualPercent = 38;
+          const sunPercentX = 50 + (clampedCoordX / MAX_LIGHT_COORD) * maxVisualPercent;
+          const sunPercentY = 50 - (clampedCoordY / MAX_LIGHT_COORD) * maxVisualPercent;
 
-            {/* Dynamic Sun Position based on lightPosition */}
-            <div 
-                className={`absolute text-amber-400 drop-shadow-sm pointer-events-none z-2 ${isDraggingLight ? '' : 'transition-all duration-300'}`}
-                style={{
-                  left: `${50 + (controls.lightPosition?.x || 10) * 2}%`,
-                  top: `${50 - (controls.lightPosition?.y || 10) * 2}%`,
-                  transform: 'translate(-50%, -50%)'
-                }}
-            >
-                <Icon icon="heroicons:sun" width="1.25vw" height="1.25vw" />
-            </div>
-            <div className="flex flex-col items-center text-gray-300 group-hover:text-gray-400 transition-colors z-2">
-                <Icon icon="heroicons:cube" width="2.08vw" height="2.08vw" className="stroke-1" />
-                <span className="text-[0.58vw] mt-[0.5vw] font-medium tracking-wide uppercase">Model Preview</span>
-            </div>
-            <div className="absolute inset-0 bg-linear-to-br from-white/60 via-transparent to-indigo-50/10 pointer-events-none"></div>
-        </div>
+          return (
+            <>
+              {/* Rounded Circular Lighting Structure Container */}
+              <div 
+                  className="relative bg-[#f8fafc] rounded-[0.75vw] border border-gray-100/90 py-[0.85vw] px-[0.75vw] mb-[1.5vw] flex flex-col items-center justify-center shadow-inner overflow-hidden"
+                  onMouseDown={(e) => {
+                      setIsDraggingLight(true);
+                      handleLightPadInteraction(e);
+                  }}
+                  onTouchStart={(e) => {
+                      setIsDraggingLight(true);
+                      handleLightPadInteraction(e);
+                  }}
+                  onWheel={handleLightWheel}
+              >
+                  {/* Circular Dome Structure (Strictly locks sun movement inside) */}
+                  <div 
+                      ref={lightPadRef}
+                      className={`relative w-[9.2vw] h-[9.2vw] rounded-full bg-linear-to-b from-white via-[#fcfdff] to-[#f1f5f9] border-2 border-slate-200/90 shadow-[inset_0_2px_8px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] flex flex-col items-center justify-center overflow-hidden select-none transition-shadow ${isDraggingLight ? 'cursor-grabbing shadow-[inset_0_2px_12px_rgba(245,158,11,0.15),0_0_0_2px_rgba(245,158,11,0.35)]' : 'cursor-crosshair hover:border-slate-300'}`}
+                  >
+                      {/* Subtle Crosshair Axes */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-full h-[1px] bg-slate-200/50"></div>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="h-full w-[1px] bg-slate-200/50"></div>
+                      </div>
 
-        <div className="flex justify-center gap-[0.5vw] mb-[2vw]">
-            <NumberStepper 
-                value={Math.round(controls.lightPosition?.x || 10)} 
-                axisLabel="X" 
-                compact 
-                onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, x: val })}
-                step={1}
-            />
-            <NumberStepper 
-                value={Math.round(controls.lightPosition?.y || 10)} 
-                axisLabel="Y" 
-                compact 
-                onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, y: val })}
-                step={1}
-            />
-            <NumberStepper 
-                value={Math.round(controls.lightPosition?.z || 10)} 
-                axisLabel="Z" 
-                compact 
-                onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, z: val })}
-                step={1}
-            />
-        </div>
+                      {/* Outer Orbit Guide Track (defines the boundary where the sun travels) */}
+                      <div 
+                          className="absolute rounded-full border border-dashed border-amber-300/40 pointer-events-none"
+                          style={{ width: `${maxVisualPercent * 2}%`, height: `${maxVisualPercent * 2}%` }}
+                      ></div>
+
+                      {/* Inner Orbit Guide Track */}
+                      <div 
+                          className="absolute rounded-full border border-slate-200/60 pointer-events-none"
+                          style={{ width: '42%', height: '42%' }}
+                      ></div>
+
+                      {/* Cardinal Tick Marks */}
+                      <span className="absolute top-[0.25vw] text-[0.45vw] font-bold text-slate-300 tracking-wider pointer-events-none">N</span>
+                      <span className="absolute bottom-[0.25vw] text-[0.45vw] font-bold text-slate-300 tracking-wider pointer-events-none">S</span>
+                      <span className="absolute left-[0.35vw] text-[0.45vw] font-bold text-slate-300 tracking-wider pointer-events-none">W</span>
+                      <span className="absolute right-[0.35vw] text-[0.45vw] font-bold text-slate-300 tracking-wider pointer-events-none">E</span>
+
+                      {/* Visual Sun Ray Line from Center (Model) to Sun */}
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none z-1">
+                          <line 
+                              x1="50%" 
+                              y1="50%" 
+                              x2={`${sunPercentX}%`} 
+                              y2={`${sunPercentY}%`} 
+                              stroke="#f59e0b" 
+                              strokeWidth="1.5" 
+                              strokeDasharray="4 3"
+                              strokeLinecap="round"
+                              className="opacity-75"
+                          />
+                      </svg>
+
+                      {/* Dynamic Sun Position based on lightPosition (strictly kept inside rounded structure) */}
+                      <div 
+                          className={`absolute text-amber-500 drop-shadow-[0_1px_4px_rgba(245,158,11,0.45)] pointer-events-none z-2 ${isDraggingLight ? '' : 'transition-all duration-200 ease-out'}`}
+                          style={{
+                            left: `${sunPercentX}%`,
+                            top: `${sunPercentY}%`,
+                            transform: 'translate(-50%, -50%)'
+                          }}
+                      >
+                          <div className="relative flex items-center justify-center">
+                              <div className="absolute w-[1.5vw] h-[1.5vw] rounded-full bg-amber-400/20 animate-pulse pointer-events-none"></div>
+                              <Icon icon="heroicons:sun" width="1.25vw" height="1.25vw" className="relative z-1" />
+                          </div>
+                      </div>
+
+                      {/* Center Pivot: Model Preview */}
+                      <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-gray-500 transition-colors z-2 pointer-events-none">
+                          <Icon icon="heroicons:cube" width="1.6vw" height="1.6vw" className="stroke-1 text-slate-400" />
+                          <span className="text-[0.48vw] mt-[0.2vw] font-semibold tracking-wider text-slate-400 uppercase">MODEL</span>
+                      </div>
+                  </div>
+
+                  {/* Hint below dome */}
+                  <div className="mt-[0.5vw] flex items-center gap-[0.35vw] text-[0.55vw] text-slate-400 font-medium select-none pointer-events-none">
+                      <Icon icon="heroicons:cursor-arrow-rays" width="0.7vw" height="0.7vw" className="text-amber-500/70" />
+                      <span>Drag inside circle &bull; Scroll for Z height</span>
+                  </div>
+              </div>
+
+              <div className="flex justify-center gap-[0.5vw] mb-[2vw]">
+                  <NumberStepper 
+                      value={Math.round(controls.lightPosition?.x || 10)} 
+                      axisLabel="X" 
+                      compact 
+                      min={-20}
+                      max={20}
+                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, x: val })}
+                      step={1}
+                  />
+                  <NumberStepper 
+                      value={Math.round(controls.lightPosition?.y || 10)} 
+                      axisLabel="Y" 
+                      compact 
+                      min={-20}
+                      max={20}
+                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, y: val })}
+                      step={1}
+                  />
+                  <NumberStepper 
+                      value={Math.round(controls.lightPosition?.z || 10)} 
+                      axisLabel="Z" 
+                      compact 
+                      min={-50}
+                      max={50}
+                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, z: val })}
+                      step={1}
+                  />
+              </div>
+            </>
+          );
+        })()}
 
         <div className="space-y-[1.5vw]">
             <div>
@@ -1368,7 +1452,7 @@ export default function Customized({
                             <span>Saved Custom HDRs</span>
                             <span className="text-[0.55vw] text-gray-400">{savedHdrs.length} saved locally</span>
                         </div>
-                        <div className="flex flex-wrap gap-[0.35vw] max-h-[6vw] overflow-y-auto custom-scrollbar p-[0.1vw]">
+                        <div className="grid grid-cols-2 gap-[0.35vw] max-h-[6vw] overflow-y-auto custom-scrollbar p-[0.1vw]">
                             {savedHdrs.map(hdr => {
                                 const hdrVal = hdr.id.startsWith('custom_') ? hdr.id : `custom_${hdr.id}`;
                                 const isActive = controls.environment === hdrVal || controls.customEnvMap === hdr.url;
@@ -1376,7 +1460,7 @@ export default function Customized({
                                     <div 
                                         key={hdr.id}
                                         onClick={() => updateControl('environment', hdrVal)}
-                                        className={`group flex items-center gap-[0.3vw] px-[0.5vw] py-[0.25vw] rounded-[0.35vw] border text-[0.62vw] cursor-pointer transition-all ${
+                                        className={`group flex items-center gap-[0.3vw] px-[0.5vw] py-[0.25vw] rounded-[0.35vw] border text-[0.62vw] cursor-pointer transition-all min-w-0 w-full ${
                                             isActive 
                                                 ? 'bg-[#5d5efc]/10 border-[#5d5efc] text-[#5d5efc] font-semibold shadow-xs' 
                                                 : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 hover:border-gray-300'
@@ -1384,7 +1468,7 @@ export default function Customized({
                                         title={hdr.name}
                                     >
                                         <Icon icon="solar:sun-fog-bold" className="w-[0.75vw] h-[0.75vw] shrink-0" />
-                                        <span className="max-w-[7vw] truncate">{hdr.name.replace(/\.[^/.]+$/, "")}</span>
+                                        <span className="truncate flex-1 min-w-0">{hdr.name.replace(/\.[^/.]+$/, "")}</span>
                                         {onDeleteHdr && (
                                             <button
                                                 type="button"
@@ -1392,7 +1476,7 @@ export default function Customized({
                                                     e.stopPropagation();
                                                     onDeleteHdr(hdr.id);
                                                 }}
-                                                className="opacity-0 group-hover:opacity-100 p-[0.1vw] hover:text-red-500 rounded transition-opacity ml-[0.1vw]"
+                                                className="opacity-0 group-hover:opacity-100 p-[0.1vw] hover:text-red-500 rounded transition-opacity ml-auto shrink-0"
                                                 title="Delete saved HDR"
                                             >
                                                 <Icon icon="solar:trash-bin-trash-linear" className="w-[0.65vw] h-[0.65vw]" />
@@ -1420,13 +1504,23 @@ export default function Customized({
                     <div className="space-y-[0.25vw]">
                         <CustomSlider
                             label="Specular"
-                            value={controls.specular}
+                            value={controls.specular ?? 50}
                             onChange={(v) => updateControl("specular", v)}
                         />
                         <CustomSlider
                             label="Reflection"
-                            value={controls.reflection}
+                            value={controls.reflection ?? 50}
                             onChange={(v) => updateControl("reflection", v)}
+                        />
+                        <CustomSlider
+                            label="World Opacity"
+                            value={controls.worldOpacity ?? 0}
+                            onChange={(v) => updateControl("worldOpacity", v)}
+                        />
+                        <CustomSlider
+                            label="World Blur"
+                            value={controls.worldBlur ?? 0}
+                            onChange={(v) => updateControl("worldBlur", v)}
                         />
                     </div>
                 </div>
