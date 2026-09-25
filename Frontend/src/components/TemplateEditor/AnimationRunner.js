@@ -453,31 +453,30 @@ const patchAnimationLoops = (base64Data, maxLoops) => {
 export const initGifRunner = function(doc) {
   const images = doc.querySelectorAll('image, img');
   const gifElements = doc.querySelectorAll('[data-loop-count]');
-  console.log("[initGifRunner] Checking document:", doc.location?.href);
-  console.log("[initGifRunner] Total images found:", images.length);
-  console.log("[initGifRunner] Found GIF elements with data-loop-count:", gifElements.length);
+  // console.log("[initGifRunner] Checking document:", doc.location?.href);
+  // console.log("[initGifRunner] Total images found:", images.length);
+  // console.log("[initGifRunner] Found GIF elements with data-loop-count:", gifElements.length);
   
   if (gifElements.length === 0 && images.length > 0) {
-      console.log("[initGifRunner] Images found, but none have data-loop-count. First image HTML:", images[0].outerHTML);
+      // console.log("[initGifRunner] Images found, but none have data-loop-count. First image HTML:", images[0].outerHTML);
   }
   
   gifElements.forEach(el => {
     const playWhile = el.getAttribute('data-play-gif-while');
     const loopCount = el.getAttribute('data-loop-count');
     const customLoop = parseInt(el.getAttribute('data-custom-loop-count')) || 1;
-    
-    console.log("[initGifRunner] Checking GIF element:", { loopCount, customLoop, playWhile });
+    // console.log("[initGifRunner] Checking GIF element:", { loopCount, customLoop, playWhile });
 
     // Find the actual image element
     const img = el.tagName.toLowerCase() === 'image' || el.tagName.toLowerCase() === 'img' ? el : el.querySelector('image, img');
     if (!img) {
-      console.log("[initGifRunner] No img/image tag found inside element");
+      // console.log("[initGifRunner] No img/image tag found inside element");
       return;
     }
 
     const originalSrc = img.getAttribute('data-original-src') || img.getAttribute('href') || img.src || img.getAttribute('xlink:href');
     if (!originalSrc || (!originalSrc.toLowerCase().includes('.gif') && !originalSrc.toLowerCase().startsWith('data:image/gif') && !originalSrc.toLowerCase().includes('.webp') && !originalSrc.toLowerCase().startsWith('data:image/webp'))) {
-      console.log("[initGifRunner] Src is not a GIF/WebP or is empty:", originalSrc);
+      // console.log("[initGifRunner] Src is not a GIF/WebP or is empty:", originalSrc);
       return;
     }
 
