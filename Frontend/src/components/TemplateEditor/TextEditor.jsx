@@ -420,28 +420,27 @@ const syncTextEffect = (doc, element) => {
     svgRoot.insertBefore(defs, svgRoot.firstChild);
   }
 
-  const filterId = `filter-${element.id || element.getAttribute('data-name') || 'text-effect'}`;
-  let filterEl = defs.querySelector(`[id="${filterId}"]`);
+  const baseFilterId = `filter-${element.id || element.getAttribute('data-name') || 'text-effect'}`;
+  
+  // Cache-busting: Remove any existing filters for this element to force a fresh render
+  Array.from(defs.querySelectorAll(`[id^="${baseFilterId}"]`)).forEach(old => old.remove());
+
+  const filterId = `${baseFilterId}-${Math.random().toString(36).substr(2, 4)}`;
 
   if (!hasDropShadow && !hasInnerShadow && !hasBlur) {
-    if (filterEl) filterEl.remove();
     element.removeAttribute('filter');
     element.style.backdropFilter = '';
     element.style.webkitBackdropFilter = '';
     return;
   }
 
-  if (!filterEl) {
-    filterEl = d.createElementNS("http://www.w3.org/2000/svg", "filter");
-    filterEl.id = filterId;
-    filterEl.setAttribute('x', '-50%');
-    filterEl.setAttribute('y', '-50%');
-    filterEl.setAttribute('width', '200%');
-    filterEl.setAttribute('height', '200%');
-    defs.appendChild(filterEl);
-  }
-
-  while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+  let filterEl = d.createElementNS("http://www.w3.org/2000/svg", "filter");
+  filterEl.id = filterId;
+  filterEl.setAttribute('x', '-50%');
+  filterEl.setAttribute('y', '-50%');
+  filterEl.setAttribute('width', '200%');
+  filterEl.setAttribute('height', '200%');
+  defs.appendChild(filterEl);
 
   let currentIn = "SourceGraphic";
 
