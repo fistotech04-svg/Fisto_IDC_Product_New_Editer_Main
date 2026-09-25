@@ -499,7 +499,13 @@ const VideoEditor = ({
         try {
           const urlObj = new URL(target.src);
           setAutoplay(urlObj.searchParams.get("autoplay") === "1");
-          setControls(urlObj.searchParams.get("controls") !== "0"); // Default is true unless explicitly 0
+          const urlControls = urlObj.searchParams.get("controls");
+          const dataControls = target.getAttribute('data-show-controls') || liveElement.getAttribute('data-show-controls');
+          if (dataControls !== null && dataControls !== undefined) {
+            setControls(dataControls !== "false");
+          } else {
+            setControls(urlControls !== "0"); // Default is true unless explicitly 0
+          }
           setLoop(urlObj.searchParams.get("loop") === "1");
           setMuted(urlObj.searchParams.get("mute") === "1");
         } catch (e) {}
@@ -1513,6 +1519,12 @@ const VideoEditor = ({
         // Controls Size
         target.setAttribute('data-controls-size', controlsSize);
       } else if (target.tagName === "IFRAME") {
+        target.setAttribute('data-show-controls', controls ? 'true' : 'false');
+        if (container) {
+          container.setAttribute('data-show-controls', controls ? 'true' : 'false');
+        }
+        liveElement.setAttribute('data-show-controls', controls ? 'true' : 'false');
+
         try {
           let urlObj = new URL(target.src);
           let changed = false;
