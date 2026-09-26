@@ -25,7 +25,10 @@ export default function RightPanel({
     selectedTextureId,
     onSelectTexture,
     savedHdrs,
-    onDeleteHdr
+    onDeleteHdr,
+    hasAnimations,
+    isAnimationPlaying,
+    onToggleAnimation
 }) {
   const fileRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -87,19 +90,21 @@ export default function RightPanel({
     <div className="w-full h-full bg-white flex flex-col overflow-hidden border-l border-gray-300">
       {/* TOP CONTROLS BAR (Always Visible) */}
       <div className="p-[1vw] flex items-center justify-between bg-white shrink-0">
-        {/* Auto Rotate Toggle */}
-        <div className="flex items-center gap-[0.75vw]">
-          <div
-            onClick={() => hasModel && setAutoRotate(!autoRotate)}
-            className={`w-[2.75vw] h-[1.5vw] rounded-full flex items-center px-[0.25vw] transition-all duration-300 ${
-              hasModel 
-                ? `cursor-pointer ${autoRotate ? "bg-[#5d5efc]" : "bg-gray-200"}` 
-                : "bg-gray-100 cursor-not-allowed opacity-50"
-            }`}
-          >
-            <div className={`w-[1vw] h-[1vw] bg-white rounded-full shadow-sm transition-transform duration-300 ${autoRotate ? "translate-x-[1.25vw]" : "translate-x-0"}`} />
+        <div className="flex items-center gap-[1vw]">
+          {/* Auto Rotate Toggle */}
+          <div className="flex items-center gap-[0.75vw]">
+            <div
+              onClick={() => hasModel && setAutoRotate(!autoRotate)}
+              className={`w-[2.75vw] h-[1.5vw] rounded-full flex items-center px-[0.25vw] transition-all duration-300 ${
+                hasModel 
+                  ? `cursor-pointer ${autoRotate ? "bg-[#5d5efc]" : "bg-gray-200"}` 
+                  : "bg-gray-100 cursor-not-allowed opacity-50"
+              }`}
+            >
+              <div className={`w-[1vw] h-[1vw] bg-white rounded-full shadow-sm transition-transform duration-300 ${autoRotate ? "translate-x-[1.25vw]" : "translate-x-0"}`} />
+            </div>
+            <span className={`text-[0.75vw] font-semibold ${hasModel ? "text-gray-800" : "text-gray-400"}`}>Auto Rotate</span>
           </div>
-          <span className={`text-[0.75vw] font-semibold ${hasModel ? "text-gray-800" : "text-gray-400"}`}>Auto Rotate</span>
         </div>
 
         {/* Export Button */}
@@ -214,6 +219,9 @@ export default function RightPanel({
                   onSelectTexture={onSelectTexture}
                   savedHdrs={savedHdrs}
                   onDeleteHdr={onDeleteHdr}
+                  hasAnimations={hasAnimations}
+                  isAnimationPlaying={isAnimationPlaying}
+                  onToggleAnimation={onToggleAnimation}
               />
             </div>
           </div>

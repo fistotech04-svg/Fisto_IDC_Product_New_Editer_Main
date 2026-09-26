@@ -331,31 +331,54 @@ function MeshSelectionHighlight({ target }) {
 
 const SelectionBoundingBox = MeshSelectionHighlight;
 
-const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady }, ref) => {
-  const [position, setPosition] = useState(() => scene?.userData?.normalization?.position || [0, 0, 0]);
-  const [scale, setScale] = useState(() => scene?.userData?.normalization?.scale || 1);
+const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange }, ref) => {
+  const [position, setPosition] = useState(() => [0, 0, 0]);
+  const [scale, setScale] = useState(() => 1);
   const groupRef = React.useRef(null);
   const meshPointerDownPosRef = useRef({ x: 0, y: 0 });
   const [modelGroup, setModelGroup] = useState(null);
-
-  useEffect(() => {
-    if (scene?.userData?.normalization) {
-      setPosition(scene.userData.normalization.position);
-      setScale(scene.userData.normalization.scale);
-    }
-  }, [scene]);
 
   const [syncedSelectionSignature, setSyncedSelectionSignature] = useState(null);
   const activeTextureRef = React.useRef(selectedTexture);
   activeTextureRef.current = selectedTexture;
 
-  React.useImperativeHandle(ref, () => scene, [scene]);
+  const onUpdateMaterialSettingRef = React.useRef(onUpdateMaterialSetting);
+  onUpdateMaterialSettingRef.current = onUpdateMaterialSetting;
+
+  const onTextureIdentifiedRef = React.useRef(onTextureIdentified);
+  onTextureIdentifiedRef.current = onTextureIdentified;
 
   // Animation Playback Support for GLB / FBX models
   const mixerRef = useRef(null);
+  const onHasAnimationsChangeRef = useRef(onHasAnimationsChange);
+  useEffect(() => {
+    onHasAnimationsChangeRef.current = onHasAnimationsChange;
+  });
+
+  const lastHasAnimRef = useRef(null);
+  const notifyHasAnimations = useCallback((val) => {
+    const boolVal = Boolean(val);
+    if (lastHasAnimRef.current !== boolVal) {
+      lastHasAnimRef.current = boolVal;
+      onHasAnimationsChangeRef.current?.(boolVal);
+    }
+  }, []);
+
+  // Reset animations state on unmount
+  useEffect(() => {
+    return () => {
+      if (lastHasAnimRef.current) {
+        lastHasAnimRef.current = false;
+        onHasAnimationsChangeRef.current?.(false);
+      }
+    };
+  }, []);
 
   useEffect(() => {
-      if (!scene) return;
+      if (!scene) {
+          notifyHasAnimations(false);
+          return;
+      }
 
       // Stop any existing mixer
       if (mixerRef.current) {
@@ -386,7 +409,19 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           if (Array.isArray(child.animations)) child.animations.forEach(add);
       });
 
-      if (allClips.length === 0) return;
+      const hasClips = allClips.length > 0;
+      notifyHasAnimations(hasClips);
+
+      if (!hasClips) return;
+
+      // Capture untouched local bind transforms for all hierarchy nodes before animations begin modifying them
+      scene.traverse((child) => {
+          if (!child.userData.__bindPos) {
+              child.userData.__bindPos = [child.position.x, child.position.y, child.position.z];
+              child.userData.__bindQuat = [child.quaternion.x, child.quaternion.y, child.quaternion.z, child.quaternion.w];
+              child.userData.__bindScale = [child.scale.x, child.scale.y, child.scale.z];
+          }
+      });
 
       // Ensure all animated and skinned meshes never get culled when moving
       scene.traverse((child) => {
@@ -398,6 +433,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       console.log(`[GenericModel] Playing ${allClips.length} animation clip(s) on scene:`, allClips.map(c => c.name));
 
       const mixer = new THREE.AnimationMixer(scene);
+      mixer.timeScale = isAnimationPlaying ? 1 : 0;
 
       // Smart clip conflict filter:
       // If clips target overlapping bone/property tracks (e.g. Idle vs Walk vs Run),
@@ -448,10 +484,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           } catch(_) {}
           mixerRef.current = null;
       };
-  }, [scene, animations]);
+  }, [scene, animations, notifyHasAnimations]);
+
+  // Sync mixer playback state dynamically when toggle changes
+  useEffect(() => {
+      if (mixerRef.current) {
+          mixerRef.current.timeScale = isAnimationPlaying ? 1 : 0;
+      }
+  }, [isAnimationPlaying]);
 
   useFrame((state, delta) => {
-      if (mixerRef.current) {
+      if (mixerRef.current && isAnimationPlaying !== false) {
           // Cap delta to prevent large frame jumps on lag / tab blur
           const safeDelta = Math.min(delta, 0.1);
           mixerRef.current.update(safeDelta);
@@ -701,10 +744,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   }, [scene]);
 
 
-  // Expose Helper Functionality
-  React.useImperativeHandle(ref, () => ({
-      deleteMaterial: (matName) => {
-          if (!scene) return;
+  // Expose Three.js Scene Root augmented with helper methods
+  React.useImperativeHandle(ref, () => {
+      if (!scene) return null;
+      scene.deleteMaterial = (matName) => {
           const meshesToRemove = [];
           scene.traverse((child) => {
               if (child.isMesh && child.material) {
@@ -723,9 +766,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                   if (mesh.geometry) mesh.geometry.dispose();
               }
           });
-      },
-      renameMaterial: (oldName, newName) => {
-          if (!scene || !oldName || !newName) return;
+      };
+      scene.renameMaterial = (oldName, newName) => {
+          if (!oldName || !newName) return;
           scene.traverse((child) => {
               if (child.name === oldName) {
                   child.name = newName;
@@ -739,8 +782,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                   });
               }
           });
-      }
-  }));
+      };
+      scene.scene = scene;
+      return scene;
+  }, [scene]);
     
   // 0. Apply Texture to Selected Material
   useEffect(() => {
@@ -921,15 +966,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
      }
      
      // Update the UI immediately to reflect the new texture as "Active" for this material
-     if (typeof onTextureIdentified === 'function') {
-         onTextureIdentified(selectedTexture.id || null);
-     }
+     onTextureIdentifiedRef.current?.(selectedTexture.id || null);
 
      // Notify parent that texture has been processed so we can reset state
      if (typeof onTextureApplied === 'function') {
          onTextureApplied();
      }
-  }, [selectedTexture, scene, selectedMaterial, modelName, onTextureApplied, onTextureIdentified]);
+  }, [selectedTexture, scene, selectedMaterial, modelName, onTextureApplied]);
 
   // 0.2. Apply Manual Map Uploads
   useEffect(() => {
@@ -1203,7 +1246,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
   // 0.5 Detect Current Texture on Selection Change
   useEffect(() => {
-      if (!scene || !onTextureIdentified) return;
+      if (!scene) return;
 
       const isFullModel = !selectedMaterial || (modelName && selectedMaterial.name === modelName) || selectedMaterial.name === "Scene";
       
@@ -1212,11 +1255,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       if (!isFullModel) {
           const targetParentGroup = selectedMaterial.parentGroup;
           if (targetParentGroup && targetParentGroup !== modelName && targetParentGroup !== "Scene") {
-              onTextureIdentified(null);
+              onTextureIdentifiedRef.current?.(null);
               return;
           }
           if (selectedMaterial.isGroup && selectedMaterial.name !== modelName && selectedMaterial.name !== "Scene") {
-              onTextureIdentified(null);
+              onTextureIdentifiedRef.current?.(null);
               return;
           }
       }
@@ -1229,17 +1272,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       };
 
       if (foundMat && foundMat.userData && foundMat.userData.appliedTextureId) {
-          if (typeof onTextureIdentified === 'function') onTextureIdentified(foundMat.userData.appliedTextureId);
+          onTextureIdentifiedRef.current?.(foundMat.userData.appliedTextureId);
       } else {
-          if (typeof onTextureIdentified === 'function') onTextureIdentified(null);
+          onTextureIdentifiedRef.current?.(null);
       }
 
       // Sync Manual Maps or Original Model Maps back to UI (Detected but not re-applied)
       if (foundMat) {
           if (foundMat.userData && foundMat.userData.manualMaps) {
-              if (typeof onUpdateMaterialSetting === 'function') {
-                  onUpdateMaterialSetting('maps', foundMat.userData.manualMaps);
-              }
+              onUpdateMaterialSettingRef.current?.('maps', foundMat.userData.manualMaps);
           } else {
               // Extract current visual state for the UI checkmarks
               const nativeMaps = {};
@@ -1254,23 +1295,19 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
               if (foundMat.alphaMap) nativeMaps.alphaMap = getTexUrl(foundMat.alphaMap);
               if (foundMat.emissiveMap) nativeMaps.emissiveMap = getTexUrl(foundMat.emissiveMap);
 
-              if (typeof onUpdateMaterialSetting === 'function') {
-                  onUpdateMaterialSetting('maps', nativeMaps);
-                  
-                  // Sync existing scale back to UI
-                  if (foundMat.map && foundMat.map.repeat) {
-                      const detectedScale = Math.round(100 / (foundMat.map.repeat.x || 1));
-                      onUpdateMaterialSetting('scale', detectedScale);
-                  }
+              onUpdateMaterialSettingRef.current?.('maps', nativeMaps);
+              
+              // Sync existing scale back to UI
+              if (foundMat.map && foundMat.map.repeat) {
+                  const detectedScale = Math.round(100 / (foundMat.map.repeat.x || 1));
+                  onUpdateMaterialSettingRef.current?.('scale', detectedScale);
               }
           }
       } else {
-          if (typeof onUpdateMaterialSetting === 'function') {
-              onUpdateMaterialSetting('maps', {});
-          }
+          onUpdateMaterialSettingRef.current?.('maps', {});
       }
 
-  }, [selectedMaterial, scene, onTextureIdentified, onUpdateMaterialSetting, modelName, resolveTargetMaterial]);
+  }, [selectedMaterial, scene, modelName, resolveTargetMaterial]);
   
   // 1. Initial Setup: Centering, Scaling, Stats, Material Naming
   useLayoutEffect(() => {
@@ -1286,7 +1323,19 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     
     // Compute accurate bounding box from all renderable geometry
     scene.traverse((child) => {
-      if ((child.isMesh || child.isSkinnedMesh) && child.geometry) {
+      if (child.isSkinnedMesh) {
+        try {
+          child.computeBoundingBox();
+          if (child.boundingBox) {
+            const skinnedBox = child.boundingBox.clone().applyMatrix4(child.matrixWorld);
+            if (!skinnedBox.isEmpty() && isFinite(skinnedBox.min.x)) {
+              box.union(skinnedBox);
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+      if (child.isMesh && child.geometry) {
         if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
         if (child.geometry.boundingBox) {
           const geomBox = child.geometry.boundingBox.clone().applyMatrix4(child.matrixWorld);
@@ -1765,14 +1814,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   // 3.5. Apply Material Settings (Factor Adjustment - Scope Aware)
   // 3.5. New Approach: Split Load (Selection -> UI) and Apply (UI -> Material)
 
-  // Use a ref to access the sync function without triggering effects
-  const onUpdateMaterialSettingRef = React.useRef(onUpdateMaterialSetting);
-  useEffect(() => {
-      onUpdateMaterialSettingRef.current = onUpdateMaterialSetting;
-  });
+
 
   const lastMaterialResetKeyRef = React.useRef(resetKey);
   const lastApplyResetKeyRef = React.useRef(resetKey);
+  const lastMapResetKeyRef = React.useRef(resetKey);
 
   // A. Load Settings when Selection Changes
   useEffect(() => {
@@ -2158,7 +2204,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   useEffect(() => {
     if (!scene || !materialSettings?.maps || xrayMode) return;
 
-    const isResetOrUndo = resetKey !== lastApplyResetKeyRef.current;
+    const isResetOrUndo = resetKey !== lastMapResetKeyRef.current;
+    lastMapResetKeyRef.current = resetKey;
     
     // CRITICAL: Passive selection changes or slider adjustments (scale, rotation, offset, color, roughness, etc.)
     // must NEVER run this effect! Only run when maps/textures are explicitly uploaded or changed or on reset/undo.
@@ -2204,7 +2251,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                              }
                          }
                     } else if (isFullModel) {
-                         isMatch = materialSettings.useFactorColor;
+                         isMatch = materialSettings.useFactorColor || isResetOrUndo;
                     }
 
                     if (isMatch) {
@@ -2232,9 +2279,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                     m.userData[`is_${mapProp}_removed`] = false;
                                     m.needsUpdate = true;
                                 });
-                            } else if (stateUrl === null || stateUrl === 'none') {
-                                if (materialSettings.useFactorColor && m[mapProp]) {
+                            } else if (stateUrl === null || stateUrl === 'none' || (isResetOrUndo && !stateUrl)) {
+                                if (m[mapProp]) {
                                     m[mapProp] = null;
+                                    // Restore original native maps if this mesh had them
+                                    if (mapProp === 'map' && m.userData.originalMap) m.map = m.userData.originalMap;
+                                    if (mapProp === 'normalMap' && m.userData.originalNormalMap) m.normalMap = m.userData.originalNormalMap;
+                                    if (mapProp === 'roughnessMap' && m.userData.originalRoughnessMap) m.roughnessMap = m.userData.originalRoughnessMap;
+                                    if (mapProp === 'metalnessMap' && m.userData.originalMetalnessMap) m.metalnessMap = m.userData.originalMetalnessMap;
+                                    if (mapProp === 'aoMap' && m.userData.originalAoMap) m.aoMap = m.userData.originalAoMap;
                                     m.userData[`is_${mapProp}_removed`] = true;
                                     m.needsUpdate = true;
                                 }
@@ -2257,7 +2310,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     };
 
     if (isFullModel) {
-        if (!materialSettings.useFactorColor) return;
+        if (!materialSettings.useFactorColor && !isResetOrUndo) return;
         meshIndexRef.current.forEach(applyToMeshes);
     } else {
         const targetMeshes = resolveTargetMeshes(selectedMaterial);
@@ -2714,14 +2767,14 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
             // Since UV unwrapping changes geometry attributes (permanent till reload), 
             // we treat it as a state change for the history.
             // We'll push a snapshot of current settings.
-            if (typeof onUpdateMaterialSetting === 'function') {
+            if (onUpdateMaterialSettingRef.current) {
                 // Trigger a dummy update to force a history push if needed, 
                 // but since this is geometry, we just want a checkpoint.
-                onUpdateMaterialSetting('uvUnwrap', Date.now(), false);
+                onUpdateMaterialSettingRef.current('uvUnwrap', Date.now(), false);
             }
         }
     }
-  }, [uvUnwrapTrigger, scene, selectedMaterial, modelName, onUpdateMaterialSetting, resolveTargetMeshes]);
+  }, [uvUnwrapTrigger, scene, selectedMaterial, modelName, resolveTargetMeshes]);
 
 
   return (

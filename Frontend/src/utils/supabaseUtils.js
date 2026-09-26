@@ -75,6 +75,12 @@ export function resolveUploadsPath(path) {
   const isUpload = cleanPath.startsWith('/uploads') || cleanPath.startsWith('uploads/');
   if (!isUpload) return cleanPath;
 
+  // For 3D models and textures, route through backend gateway so local files (files exceeding Supabase limit) load properly
+  if (cleanPath.includes('/3D_Modals/') || cleanPath.includes('/3D_Model/') || cleanPath.includes('/Textures/')) {
+    const cleanRel = cleanPath.replace(/^\/?uploads\/?/, 'uploads/');
+    return `${BACKEND_URL}/${cleanRel}`;
+  }
+
   if (SUPABASE_URL) {
     const key = cleanPath.replace(/^\/?uploads\/?/, '');
     return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${key}`;

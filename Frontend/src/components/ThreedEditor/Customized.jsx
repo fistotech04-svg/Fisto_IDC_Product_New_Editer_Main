@@ -371,38 +371,168 @@ const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, d
 };
 
 const CustomSlider = ({ label, value, onChange, unit = "%", min = 0, max = 100, step = 1 }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
+  const [isFocused, setIsFocused] = useState(false);
+  const [inputText, setInputText] = useState("");
+
+  const numericValue = typeof value === 'number' && !isNaN(value) ? value : (min > 0 ? min : 0);
+
+  // Clean formatted representation when not typing
+  const formatDisplay = (val) => {
+    if (typeof val !== 'number' || isNaN(val)) return "0";
+    const rounded = Math.round(val * 100) / 100;
+    return String(rounded);
+  };
+
+  useEffect(() => {
+    if (!isFocused) {
+      setInputText(formatDisplay(numericValue));
+    }
+  }, [numericValue, isFocused]);
+
+  const handleInputChange = (e) => {
+    const raw = e.target.value;
+    const allowNegative = min < 0;
+    const regex = allowNegative ? /^-?\d*\.?\d*$/ : /^\d*\.?\d*$/;
+
+    if (raw === "" || regex.test(raw)) {
+      setInputText(raw);
+
+      // Live update if valid number within bounds
+      if (raw !== "" && raw !== "-" && raw !== ".") {
+        const parsed = parseFloat(raw);
+        if (!isNaN(parsed) && parsed >= min && parsed <= max) {
+          onChange?.(Math.round(parsed * 100) / 100);
+        }
+      }
+    }
+  };
+
+  const commitValue = () => {
+    setIsFocused(false);
+    if (inputText === "" || inputText === "-" || inputText === ".") {
+      setInputText(formatDisplay(numericValue));
+      return;
+    }
+    const parsed = parseFloat(inputText);
+    if (isNaN(parsed)) {
+      setInputText(formatDisplay(numericValue));
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, parsed));
+    const rounded = Math.round(clamped * 100) / 100;
+    setInputText(String(rounded));
+    onChange?.(rounded);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      commitValue();
+      e.target.blur();
+    } else if (e.key === "Escape") {
+      setIsFocused(false);
+      setInputText(formatDisplay(numericValue));
+      e.target.blur();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const current = parseFloat(inputText) || numericValue;
+      const inc = e.shiftKey ? 1 : (step < 1 ? step : 0.1);
+      const next = Math.min(max, Math.round((current + inc) * 100) / 100);
+      setInputText(String(next));
+      onChange?.(next);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const current = parseFloat(inputText) || numericValue;
+      const dec = e.shiftKey ? 1 : (step < 1 ? step : 0.1);
+      const next = Math.max(min, Math.round((current - dec) * 100) / 100);
+      setInputText(String(next));
+      onChange?.(next);
+    }
+  };
+
+  const percentage = Math.max(0, Math.min(100, ((numericValue - min) / (max - min)) * 100));
+  const sliderStep = step < 1 ? step : 0.1;
+
+  const parsedTemp = parseFloat(inputText);
+  const isOutOfRange = isFocused && inputText !== "" && inputText !== "-" && inputText !== "." && !isNaN(parsedTemp) && (parsedTemp < min || parsedTemp > max);
+
   return (
-    <div className="flex items-center justify-between mb-[1.25vw] last:mb-0 h-[1.75vw] px-[0.5vw]">
-      {label && (
-        <div className="w-[6vw] text-[0.75vw] font-medium text-gray-600 shrink-0 flex items-center justify-between pr-[0.5vw]">
-          {label} <span>:</span>
+    <div className="flex items-center justify-between mb-[1.1vw] last:mb-0 px-[0.5vw] h-[1.75vw]">
+      {label ? (
+        <div className="w-[5.8vw] text-[0.72vw] font-medium text-gray-600 shrink-0 flex items-center justify-between pr-[0.4vw]">
+          <span className="truncate">{label}</span> <span>:</span>
         </div>
-      )}
-      <div className="relative flex-1 h-[0.4vw] bg-gray-100 rounded-full cursor-pointer group touch-none">
+      ) : null}
+      
+      {/* Slider Track */}
+      <div className="relative flex-1 h-[0.38vw] bg-gray-100 rounded-full cursor-pointer group touch-none mx-[0.4vw]">
         {/* Fill */}
         <div
-          className="absolute top-0 left-0 h-full bg-[#5d5efc] rounded-full"
-          style={{ width: `${Math.max(0, Math.min(100, percentage))}%` }}
-        ></div>
+          className="absolute top-0 left-0 h-full bg-[#5d5efc] rounded-full pointer-events-none"
+          style={{ width: `${percentage}%` }}
+        />
         {/* Thumb */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-[0.9vw] h-[0.9vw] bg-[#5d5efc] border-[0.15vw] border-white rounded-full shadow-md hover:scale-110"
-          style={{ left: `${Math.max(0, Math.min(100, percentage))}%`, marginLeft: "-0.45vw" }}
-        ></div>
-        {/* Input Range (Hidden overlay for functionality) */}
+          className="absolute top-1/2 -translate-y-1/2 w-[0.85vw] h-[0.85vw] bg-[#5d5efc] border-[0.15vw] border-white rounded-full shadow-md group-hover:scale-110 pointer-events-none transition-transform"
+          style={{ left: `${percentage}%`, marginLeft: "-0.425vw" }}
+        />
+        {/* Input Range Overlay */}
         <input
           type="range"
           min={min}
           max={max}
-          step={step}
-          value={value ?? 0}
-          onChange={(e) => onChange(Number(e.target.value))}
+          step={sliderStep}
+          value={numericValue}
+          onChange={(e) => {
+            const val = Math.round(Number(e.target.value) * 100) / 100;
+            onChange?.(val);
+          }}
           className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
         />
       </div>
-      <div className="w-[2.5vw] text-right text-[0.62vw] font-medium text-gray-500 tabular-nums">
-        {typeof value === 'number' ? value.toFixed(step < 1 ? 1 : 0) : value} <span className="text-[0.75vw] ml-[0.15vw] text-gray-400">{unit}</span>
+
+      {/* Editable Number Input & Range Limit Display (strictly centered with slider bar) */}
+      <div className="relative flex items-center shrink-0 ml-[0.35vw] w-[2.2vw]">
+        <div 
+          className={`flex items-center justify-end bg-white border ${
+            isOutOfRange 
+              ? 'border-amber-400 ring-1 ring-amber-400/30' 
+              : isFocused 
+              ? 'border-[#5d5efc] ring-1 ring-[#5d5efc]/25' 
+              : 'border-gray-200 hover:border-gray-300'
+          } rounded-[0.25vw] px-[0.15vw] py-[0.06vw] h-[1.22vw] w-full transition-all`}
+          title={`Click to type value (${min} to ${max}${unit ? ' ' + unit : ''})`}
+        >
+          <input
+            type="text"
+            inputMode="decimal"
+            value={isFocused ? inputText : formatDisplay(numericValue)}
+            onFocus={(e) => {
+              setIsFocused(true);
+              setInputText(formatDisplay(numericValue));
+              e.target.select();
+            }}
+            onChange={handleInputChange}
+            onBlur={commitValue}
+            onKeyDown={handleKeyDown}
+            className="w-full bg-transparent text-right text-[0.66vw] font-semibold text-gray-800 outline-none tabular-nums p-0 select-text leading-none"
+            placeholder={String(min)}
+          />
+          {unit && (
+            <span className="text-[0.6vw] font-medium text-gray-400 ml-[0.08vw] select-none shrink-0 leading-none">
+              {unit}
+            </span>
+          )}
+        </div>
+
+        {/* Limit to enter value - positioned below without offsetting input vertical center */}
+        <div 
+          className={`absolute top-full right-0 text-[0.45vw] font-medium tabular-nums leading-none mt-[0.14vw] select-none tracking-tight text-right pointer-events-none ${
+            isOutOfRange ? 'text-amber-500 font-semibold' : 'text-gray-400'
+          }`}
+          title={`Allowed range: ${min} to ${max}`}
+        >
+          {min}–{max}
+        </div>
       </div>
     </div>
   );
@@ -819,7 +949,10 @@ export default function Customized({
     selectedTextureId,
     onSelectTexture,
     savedHdrs = [],
-    onDeleteHdr
+    onDeleteHdr,
+    hasAnimations,
+    isAnimationPlaying,
+    onToggleAnimation
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [activeColorType, setActiveColorType] = useState('color');
@@ -978,7 +1111,7 @@ export default function Customized({
                         title="Base Map"
                         isOpen={openInnerAccordion === "base"}
                         onToggle={() => toggleInnerAccordion("base")}
-                        value={controls.colorIntensity || 100}
+                        value={controls.colorIntensity ?? 100}
                         onChange={(v) => updateControl("colorIntensity", v)}
                         mapType="map"
                         currentMap={controls.maps?.map || currentGalleryTexture?.maps?.map || currentGalleryTexture?.preview}
@@ -1015,7 +1148,7 @@ export default function Customized({
                         title="Normal Map"
                         isOpen={openInnerAccordion === "normal"}
                         onToggle={() => toggleInnerAccordion("normal")}
-                        value={controls.normal}
+                        value={controls.normal ?? 100}
                         onChange={(v) => updateControl("normal", v)}
                         mapType="normalMap"
                         currentMap={controls.maps?.normalMap || controls.maps?.normal}
@@ -1027,7 +1160,7 @@ export default function Customized({
                         title="Metallic Map"
                         isOpen={openInnerAccordion === "metallic"}
                         onToggle={() => toggleInnerAccordion("metallic")}
-                        value={controls.metallic}
+                        value={controls.metallic ?? 0}
                         onChange={(v) => updateControl("metallic", v)}
                         mapType="metalnessMap"
                         currentMap={controls.maps?.metalnessMap || controls.maps?.metallic || controls.maps?.metalness}
@@ -1039,7 +1172,7 @@ export default function Customized({
                         title="Roughness Map"
                         isOpen={openInnerAccordion === "roughness"}
                         onToggle={() => toggleInnerAccordion("roughness")}
-                        value={controls.roughness}
+                        value={controls.roughness ?? 50}
                         onChange={(v) => updateControl("roughness", v)}
                         mapType="roughnessMap"
                         currentMap={controls.maps?.roughnessMap || controls.maps?.roughness}
@@ -1051,7 +1184,7 @@ export default function Customized({
                         title="Displacement Map"
                         isOpen={openInnerAccordion === "bump"}
                         onToggle={() => toggleInnerAccordion("bump")}
-                        value={controls.bump}
+                        value={controls.bump ?? 50}
                         onChange={(v) => updateControl("bump", v)}
                         mapType="displacementMap"
                         currentMap={controls.maps?.displacementMap || controls.maps?.bumpMap || controls.maps?.bump || controls.maps?.displacement}
@@ -1063,7 +1196,7 @@ export default function Customized({
                         title="A/O Map"
                         isOpen={openInnerAccordion === "ao"}
                         onToggle={() => toggleInnerAccordion("ao")}
-                        value={controls.ao || 100}
+                        value={controls.ao ?? 100}
                         onChange={(v) => updateControl("ao", v)}
                         mapType="aoMap"
                         currentMap={controls.maps?.aoMap || controls.maps?.ao}
@@ -1075,7 +1208,7 @@ export default function Customized({
                         title="Emissive Map"
                         isOpen={openInnerAccordion === "emissive"}
                         onToggle={() => toggleInnerAccordion("emissive")}
-                        value={controls.emissiveIntensity || 0}
+                        value={controls.emissiveIntensity ?? 0}
                         onChange={(v) => updateControl("emissiveIntensity", v)}
                         mapType="emissiveMap"
                         currentMap={controls.maps?.emissiveMap || controls.maps?.emissive}
@@ -1112,7 +1245,7 @@ export default function Customized({
                         title="Opacity Map"
                         isOpen={openInnerAccordion === "opacity"}
                         onToggle={() => toggleInnerAccordion("opacity")}
-                        value={controls.alpha || 100}
+                        value={controls.alpha ?? 100}
                         onChange={(v) => updateControl("alpha", v)}
                         mapType="alphaMap"
                         currentMap={controls.maps?.alphaMap || controls.maps?.opacity}
@@ -1131,9 +1264,49 @@ export default function Customized({
                 </p>
                 <CustomSlider
                     label=""
-                    value={controls.alpha}
+                    value={controls.alpha ?? 100}
                     onChange={(v) => updateControl("alpha", v)}
                 />
+
+                {/* Animation On / Off Toggle (Only visible if model has animations) */}
+                {hasAnimations && (
+                    <div className="mt-[1vw] p-[0.75vw] bg-gray-50/80 rounded-[0.6vw] border border-gray-100 flex items-center justify-between transition-all duration-200">
+                        <div className="flex items-center gap-[0.5vw]">
+                            <div className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${
+                                isAnimationPlaying ? "bg-[#5d5efc]/10 text-[#5d5efc]" : "bg-gray-200 text-gray-400"
+                            }`}>
+                                <Icon 
+                                    icon={isAnimationPlaying ? "solar:play-circle-bold" : "solar:pause-circle-bold"} 
+                                    width="1.05vw" 
+                                    height="1.05vw" 
+                                />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[0.75vw] font-semibold text-gray-800 leading-tight">Animation</span>
+                                <span className="text-[0.55vw] text-gray-400 leading-tight">Play or pause 3D model motion</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-[0.5vw]">
+                            <span className={`text-[0.65vw] font-bold uppercase tracking-wider select-none ${
+                                isAnimationPlaying ? "text-[#5d5efc]" : "text-gray-400"
+                            }`}>
+                                {isAnimationPlaying ? "On" : "Off"}
+                            </span>
+                            <div
+                                onClick={() => onToggleAnimation?.(!isAnimationPlaying)}
+                                className={`w-[2.75vw] h-[1.5vw] rounded-full flex items-center px-[0.25vw] cursor-pointer transition-all duration-300 ${
+                                    isAnimationPlaying ? "bg-[#5d5efc]" : "bg-gray-200"
+                                }`}
+                                title={isAnimationPlaying ? "Turn Animation Off" : "Turn Animation On"}
+                            >
+                                <div className={`w-[1vw] h-[1vw] bg-white rounded-full shadow-sm transition-transform duration-300 ${
+                                    isAnimationPlaying ? "translate-x-[1.25vw]" : "translate-x-0"
+                                }`} />
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Texture Placement Section */}
@@ -1143,7 +1316,7 @@ export default function Customized({
                 <div className="space-y-[0.5vw] mt-[0.5vw]">
                     <CustomSlider
                         label="Scale"
-                        value={controls.scale}
+                        value={controls.scale ?? 100}
                         onChange={(v) => updateControl("scale", v)}
                         min={1}
                         max={200}
@@ -1151,7 +1324,7 @@ export default function Customized({
                     />
                     <CustomSlider
                         label="Rotation"
-                        value={controls.rotation}
+                        value={controls.rotation ?? 0}
                         min={-180}
                         max={180}
                         onChange={(v) => updateControl("rotation", v)}
@@ -1159,7 +1332,7 @@ export default function Customized({
                     />
                     <CustomSlider
                         label="Offset (X)"
-                        value={controls.offset?.x || 0}
+                        value={controls.offset?.x ?? 0}
                         onChange={(val) => updateControl('offset', { ...(controls.offset || {x:0,y:0}), x: val })}
                         min={-100}
                         max={100}
@@ -1168,7 +1341,7 @@ export default function Customized({
                     />
                     <CustomSlider
                         label="Offset (Y)"
-                        value={controls.offset?.y || 0}
+                        value={controls.offset?.y ?? 0}
                         onChange={(val) => updateControl('offset', { ...(controls.offset || {x:0,y:0}), y: val })}
                         min={-100}
                         max={100}
@@ -1491,7 +1664,7 @@ export default function Customized({
                 <div className="mt-[0.5vw]">
                     <CustomSlider
                         label="Env Rotation"
-                        value={controls.envRotation || 0}
+                        value={controls.envRotation ?? 0}
                         min={0}
                         max={360}
                         onChange={(v) => updateControl("envRotation", v)}
