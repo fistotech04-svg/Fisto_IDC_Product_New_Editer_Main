@@ -48,8 +48,8 @@ const TopToolbar = ({
 
     return (
         <div className="absolute inset-x-0 left-[1.04vw] z-30 pointer-events-none">
-            {/* Left Section: Materials + Undo/Redo */}
-            <div className="absolute top-[1.04vw] left-0 flex items-start gap-[0.62vw] pointer-events-auto transition-none">
+            {/* Left Section: Materials + Undo/Redo + Animation Toggle */}
+            <div className="absolute top-[1.04vw] left-0 flex items-center gap-[0.62vw] pointer-events-auto transition-none">
                 <MaterialList 
                     isCollapsed={isSidebarCollapsed} 
                     setIsCollapsed={setIsSidebarCollapsed} 
