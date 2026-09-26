@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import PremiumDropdown from './PremiumDropdown';
 import ReplaceMediaModal from '../TemplateEditor/ReplaceMediaModal';
@@ -11,7 +11,34 @@ const SectionHeader = ({ label }) => (
 );
 
 const CustomSlider = ({ value, onChange, min = 0, max = 100, color = "#4D47FF" }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
+  const [localValue, setLocalValue] = useState(value);
+  const lastCallRef = useRef(0);
+  const timeoutRef = useRef(null);
+
+  React.useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const percentage = ((localValue - min) / (max - min)) * 100;
+
+  const handleChange = (e) => {
+    const val = parseInt(e.target.value);
+    setLocalValue(val);
+
+    const now = Date.now();
+    if (now - lastCallRef.current >= 40) {
+      onChange(val);
+      lastCallRef.current = now;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    } else {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        onChange(val);
+        lastCallRef.current = Date.now();
+      }, 40);
+    }
+  };
+
   return (
     <div className="relative flex-1 flex items-center h-[1vw]">
       <style>{`
@@ -21,8 +48,8 @@ const CustomSlider = ({ value, onChange, min = 0, max = 100, color = "#4D47FF" }
       `}</style>
       <input 
         type="range" 
-        min={min} max={max} value={value} 
-        onChange={(e) => onChange(parseInt(e.target.value))}
+        min={min} max={max} value={localValue} 
+        onChange={handleChange}
         className="w-full cursor-pointer custom-sheet-slider"
         style={{ backgroundImage: `linear-gradient(to right, ${color} 0%, ${color} ${percentage}%, #e2e8f0 ${percentage}%, #e2e8f0 100%)` }}
       />
@@ -30,40 +57,50 @@ const CustomSlider = ({ value, onChange, min = 0, max = 100, color = "#4D47FF" }
   );
 };
 
-const PositionPad = ({ onMove }) => (
-  <div className="flex gap-[0.3vw]">
-    <button 
-      onClick={() => onMove('left')} 
-      className="w-[2vw] h-[5.6vw] border border-gray-200 rounded-[0.2vw] flex items-center justify-center hover:bg-gray-50 transition-colors"
-    >
-      <Icon icon="lucide:chevron-left" className="text-gray-500 w-[1vw] h-[1vw]"/>
-    </button>
-    <div className="flex flex-col gap-[0.3vw]">
-       <button 
-         onClick={() => onMove('up')} 
-         className="w-[4vw] h-[1.8vw] border border-gray-200 rounded-[0.2vw] flex items-center justify-center hover:bg-gray-50 transition-colors"
-       >
-         <Icon icon="lucide:chevron-up" className="text-gray-500 w-[1vw] h-[1vw]"/>
-       </button>
-       <div className="w-[4vw] h-[1.4vw] flex items-center justify-center text-[0.55vw] text-gray-400 font-medium">
-         Move
-       </div>
-       <button 
-         onClick={() => onMove('down')} 
-         className="w-[4vw] h-[1.8vw] border border-gray-200 rounded-[0.2vw] flex items-center justify-center hover:bg-gray-50 transition-colors"
-       >
-         <Icon icon="lucide:chevron-down" className="text-gray-500 w-[1vw] h-[1vw]"/>
-       </button>
-    </div>
-    <button 
-      onClick={() => onMove('right')} 
-      className="w-[2vw] h-[5.6vw] border border-gray-200 rounded-[0.2vw] flex items-center justify-center hover:bg-gray-50 transition-colors"
-    >
-      <Icon icon="lucide:chevron-right" className="text-gray-500 w-[1vw] h-[1vw]"/>
-    </button>
-  </div>
-);
+const PositionPad = ({ onMove, onMoveStart, onMoveEnd }) => {
+  const createProps = (dir) => ({
+    onMouseDown: () => onMoveStart(dir),
+    onMouseUp: onMoveEnd,
+    onMouseLeave: onMoveEnd,
+    onTouchStart: () => onMoveStart(dir),
+    onTouchEnd: onMoveEnd,
+    onClick: () => onMove(dir)
+  });
 
+  return (
+    <div className="flex gap-[0.3vw]">
+      <button 
+        {...createProps('left')}
+        className="w-[2vw] h-[5.6vw] border border-gray-200 rounded-[0.2vw] flex items-center justify-center hover:bg-gray-50 transition-colors select-none"
+      >
+        <Icon icon="lucide:chevron-left" className="text-gray-500 w-[1vw] h-[1vw] pointer-events-none"/>
+      </button>
+      <div className="flex flex-col gap-[0.3vw]">
+         <button 
+           {...createProps('up')}
+           className="w-[4vw] h-[1.8vw] border border-gray-200 rounded-[0.2vw] flex items-center justify-center hover:bg-gray-50 transition-colors select-none"
+         >
+           <Icon icon="lucide:chevron-up" className="text-gray-500 w-[1vw] h-[1vw] pointer-events-none"/>
+         </button>
+         <div className="w-[4vw] h-[1.4vw] flex items-center justify-center text-[0.55vw] text-gray-400 font-medium select-none pointer-events-none">
+           Move
+         </div>
+         <button 
+           {...createProps('down')}
+           className="w-[4vw] h-[1.8vw] border border-gray-200 rounded-[0.2vw] flex items-center justify-center hover:bg-gray-50 transition-colors select-none"
+         >
+           <Icon icon="lucide:chevron-down" className="text-gray-500 w-[1vw] h-[1vw] pointer-events-none"/>
+         </button>
+      </div>
+      <button 
+        {...createProps('right')}
+        className="w-[2vw] h-[5.6vw] border border-gray-200 rounded-[0.2vw] flex items-center justify-center hover:bg-gray-50 transition-colors select-none"
+      >
+        <Icon icon="lucide:chevron-right" className="text-gray-500 w-[1vw] h-[1vw] pointer-events-none"/>
+      </button>
+    </div>
+  );
+};
 const generatePageOptions = (total) => {
   if (total <= 0) return ['Page 1'];
   const options = ['Page 1'];
@@ -89,6 +126,40 @@ const SheetCard = ({ sheet, onUpdate, onDelete, pages = [] }) => {
       const url = URL.createObjectURL(file);
       onUpdate({ ...sheet, image: url, imageName: file.name, imageSize: (file.size / (1024 * 1024)).toFixed(1) + 'MB' });
     }
+  };
+
+  const [localOffset, setLocalOffset] = useState({ x: sheet.offsetX || 0, y: sheet.offsetY || 0 });
+  const sheetRef = useRef(sheet);
+  useEffect(() => { sheetRef.current = sheet; }, [sheet]);
+  
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+
+  const intervalRef = useRef(null);
+
+  const stopMove = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  };
+
+  const handleMove = (dir) => {
+    setLocalOffset(prev => {
+      let dx = 0; let dy = 0;
+      const step = 2;
+      if (dir === 'left') dx = -step;
+      if (dir === 'right') dx = step;
+      if (dir === 'up') dy = -step;
+      if (dir === 'down') dy = step;
+      const newOffset = { x: prev.x + dx, y: prev.y + dy };
+      onUpdateRef.current({ ...sheetRef.current, offsetX: newOffset.x, offsetY: newOffset.y });
+      return newOffset;
+    });
+  };
+
+  const startMove = (dir) => {
+    stopMove();
+    handleMove(dir);
+    intervalRef.current = setInterval(() => handleMove(dir), 50);
   };
 
   return (
@@ -186,9 +257,9 @@ const SheetCard = ({ sheet, onUpdate, onDelete, pages = [] }) => {
                    <div>
                      <div className="flex items-center justify-between mb-[0.2vw]">
                        <span className="text-[0.65vw] text-gray-700">Rotate :</span>
-                       <span className="text-[0.65vw] text-gray-700">{sheet.rotate || 90}&deg;</span>
+                       <span className="text-[0.65vw] text-gray-700">{sheet.rotate !== undefined ? sheet.rotate : 0}&deg;</span>
                      </div>
-                     <CustomSlider value={sheet.rotate || 90} onChange={(val) => onUpdate({ ...sheet, rotate: val })} max={360} />
+                     <CustomSlider value={sheet.rotate !== undefined ? sheet.rotate : 0} onChange={(val) => onUpdate({ ...sheet, rotate: val })} max={360} />
                    </div>
                    <div>
                      <div className="flex items-center justify-between mb-[0.2vw]">
@@ -202,7 +273,7 @@ const SheetCard = ({ sheet, onUpdate, onDelete, pages = [] }) => {
                 {/* Position Column */}
                 <div>
                    <div className="text-[0.65vw] text-gray-700 mb-[0.4vw]">Position :</div>
-                   <PositionPad onMove={(dir) => console.log('Move', dir)} />
+                   <PositionPad onMove={handleMove} onMoveStart={startMove} onMoveEnd={stopMove} />
                 </div>
              </div>
            </div>
@@ -216,7 +287,7 @@ export const TransparentSheetSection = ({ bookAppearanceSettings, onUpdateBookAp
   const sheets = bookAppearanceSettings?.transparentSheets || [];
 
   const addSheet = () => {
-    const newSheet = { id: Date.now(), isExpanded: true, scale: 100, rotate: 90, opacity: 100 };
+    const newSheet = { id: Date.now(), isExpanded: true, scale: 100, rotate: 0, opacity: 100 };
     onUpdateBookAppearance({ ...bookAppearanceSettings, transparentSheets: [...sheets, newSheet] });
   };
 

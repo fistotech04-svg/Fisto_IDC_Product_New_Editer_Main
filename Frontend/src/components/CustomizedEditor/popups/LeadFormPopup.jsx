@@ -96,7 +96,8 @@ const LeadFormPopup = ({
                 flipbookName: flipbookName,
                 userEmail: userEmail,
                 leadData: formValues,
-                viewerIp: viewerIp || ''
+                viewerIp: viewerIp || '',
+                leadNotification: leadFormSettings?.leadNotification
             });
             setIsSubmitted(true);
             try {

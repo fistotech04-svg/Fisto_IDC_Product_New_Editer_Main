@@ -995,7 +995,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                 setPageInputValue(String(currentPage + 1));
                                             }
                                         }}
-                                        className={`${!isBigBars ? (isTablet ? 'text-[0.5vw] mx-[0.2vw] px-[0.2vw] py-[0.05vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.4vw] py-[0.1vw]') : (isTablet ? 'text-[0.6vw] mx-[0.3vw] px-[0.3vw] py-[0.05vw]' : 'text-[0.65vw] mx-[0.4vw] px-[0.4vw] py-[0.1vw]')} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner leading-none`}
+                                        className={`${!isBigBars ? (isTablet ? 'text-[0.5vw] mx-[0.2vw] px-[0.1vw] py-[0.05vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.2vw] py-[0.1vw]') : (isTablet ? 'text-[0.6vw] mx-[0.3vw] px-[0.15vw] py-[0.05vw]' : 'text-[0.65vw] mx-[0.4vw] px-[0.2vw] py-[0.1vw]')} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner leading-none`}
                                         style={{
                                             width: `${String(pages.length).length + 1.2}ch`,
                                             color: getLayoutColor('search-text-v1', '#575C9C'),
