@@ -21,7 +21,7 @@ import HotspotPresetPopup from './HotspotPresetPopup';
 import { generateHotspotSVG } from './HotspotCustomizationPopup';
 import { CropController, isElementCropped } from './Crop';
 import { useToast } from '../CustomToast';
-import { checkSpellingAndGrammar, getSpellingSuggestions } from './spellGrammarChecker';
+import { checkSpellingAndGrammar, getSpellingSuggestions, initDictionary, addIgnoredWord } from './spellGrammarChecker';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -612,6 +612,7 @@ const svgGlobalStyles = `
 import CanvasRuler from './CanvasRuler';
 import GuidesOverlay from './GuidesOverlay';
 import TopToolbar from './TopToolbar';
+import ElementsGallery from './ElementsGallery';
 
 const SelectionTooltip = () => null;
 
@@ -714,6 +715,7 @@ const MainEditor = ({
   const [showSelectOptions, setShowSelectOptions] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
+  const [showElementsPopup, setShowElementsPopup] = useState(false);
   const [localTrimView, setLocalTrimView] = useState(isTrimView);
 
   useEffect(() => {
@@ -2824,7 +2826,7 @@ const MainEditor = ({
         if (imgEl && clipPath) {
           const clipShape = clipPath.firstElementChild;
           if (clipShape) {
-            // Sync geometry attributes (NO transform)
+            // Sync geometry attributes (NO transform on clipShape)
             const attrsToSync = ['x', 'y', 'width', 'height', 'cx', 'cy', 'r', 'rx', 'ry', 'd', 'points'];
             attrsToSync.forEach(attr => {
               const val = shapeEl.getAttribute(attr);
@@ -2833,21 +2835,50 @@ const MainEditor = ({
             });
           }
           
-          // Sync Image properties
+          // Sync Image transform to match shape exactly
           const transform = shapeEl.getAttribute('transform');
           if (transform) imgEl.setAttribute('transform', transform);
           else imgEl.removeAttribute('transform');
+
+          // Prevent raw image selection/pullout on canvas
+          imgEl.setAttribute('pointer-events', 'none');
+          imgEl.style.setProperty('pointer-events', 'none', 'important');
+          shapeEl.setAttribute('pointer-events', 'all');
+          shapeEl.style.setProperty('pointer-events', 'all', 'important');
 
           if (typeof shapeEl.getBBox === 'function') {
              try {
                 const bbox = shapeEl.getBBox();
                 if (bbox && bbox.width > 0 && bbox.height > 0) {
-                   imgEl.setAttribute('x', bbox.x);
-                   imgEl.setAttribute('y', bbox.y);
-                   imgEl.setAttribute('width', bbox.width);
-                   imgEl.setAttribute('height', bbox.height);
+                   const scale = parseFloat(shapeEl.getAttribute('data-mask-scale') || '1');
+                   const offsetX = parseFloat(shapeEl.getAttribute('data-mask-offset-x') || '0');
+                   const offsetY = parseFloat(shapeEl.getAttribute('data-mask-offset-y') || '0');
+
+                   const baseW = bbox.width;
+                   const baseH = bbox.height;
+                   const scaledW = baseW * scale;
+                   const scaledH = baseH * scale;
+
+                   const shiftX = (scaledW - baseW) / 2;
+                   const shiftY = (scaledH - baseH) / 2;
+                   const panX = (baseW * offsetX) / 100;
+                   const panY = (baseH * offsetY) / 100;
+
+                   imgEl.setAttribute('x', (bbox.x - shiftX + panX).toFixed(2));
+                   imgEl.setAttribute('y', (bbox.y - shiftY + panY).toFixed(2));
+                   imgEl.setAttribute('width', scaledW.toFixed(2));
+                   imgEl.setAttribute('height', scaledH.toFixed(2));
                 }
              } catch(e) {}
+          }
+
+          const fitMode = shapeEl.getAttribute('data-masked-image-fit') || 'Cover';
+          const preserveMap = { 'Cover': 'xMidYMid slice', 'Contain': 'xMidYMid meet', 'Fill': 'none' };
+          imgEl.setAttribute('preserveAspectRatio', preserveMap[fitMode] || 'xMidYMid slice');
+
+          const maskOpacity = shapeEl.getAttribute('data-masked-image-opacity');
+          if (maskOpacity !== null && maskOpacity !== undefined) {
+            imgEl.setAttribute('opacity', maskOpacity);
           }
         }
       });
@@ -2955,6 +2986,7 @@ const MainEditor = ({
         multiSelectedIdsRef.current = new Set([newId]);
       }
       if (setActiveMainTool) setActiveMainTool('select');
+      setShowElementsPopup(false);
       setTimeout(() => {
         const el = document.getElementById(newId);
         if (el && typeof drawOverlayHighlight === 'function') {
@@ -3310,7 +3342,357 @@ const MainEditor = ({
       insertImageIntoPage(targetPageIndex, mediaUrl, dataType, dropPoint, targetShapeId);
     };
 
+    const handleAddShape = (e) => {
+      const { shape, pageIndex, dropPoint } = e.detail || {};
+      if (!shape) return;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      let svgW = 793, svgH = 1121;
+      const viewBox = svg.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.split(/[ ,]+/).map(parseFloat);
+        if (parts.length === 4) {
+          svgW = parts[2];
+          svgH = parts[3];
+        }
+      } else {
+        const wAttr = parseFloat(svg.getAttribute('width'));
+        const hAttr = parseFloat(svg.getAttribute('height'));
+        if (!isNaN(wAttr) && wAttr > 0) svgW = wAttr;
+        if (!isNaN(hAttr) && hAttr > 0) svgH = hAttr;
+      }
+
+      const centerX = dropPoint ? dropPoint.x : (svgW / 2);
+      const centerY = dropPoint ? dropPoint.y : (svgH / 2);
+
+      const newId = `shape-${Date.now()}`;
+      let elementToInsert;
+
+      if (shape.rawSvgString) {
+        const parsedSvgDoc = parser.parseFromString(shape.rawSvgString, 'image/svg+xml');
+        const parsedSvg = parsedSvgDoc.querySelector('svg');
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.id = newId;
+        g.setAttribute('data-type', 'shape');
+        g.setAttribute('data-name', shape.name || 'Graphic');
+        g.setAttribute('data-shape-type', (shape.name || 'custom').toLowerCase());
+        while (parsedSvg && parsedSvg.firstChild) {
+          g.appendChild(parsedSvg.firstChild);
+        }
+
+        let vbW = shape.width || 120, vbH = shape.height || 120;
+        const targetDim = 90;
+        const scaleFactor = targetDim / Math.max(vbW, vbH, 1);
+        const renderW = vbW * scaleFactor;
+        const renderH = vbH * scaleFactor;
+        const posX = centerX - (renderW / 2);
+        const posY = centerY - (renderH / 2);
+
+        g.setAttribute('transform', `translate(${posX.toFixed(1)}, ${posY.toFixed(1)}) scale(${scaleFactor.toFixed(3)})`);
+        elementToInsert = g;
+      } else {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.id = newId;
+        path.setAttribute('data-type', 'shape');
+        path.setAttribute('data-name', shape.name || 'Shape');
+        path.setAttribute('data-shape-type', (shape.name || 'custom').toLowerCase());
+        path.setAttribute('d', shape.d || shape.path);
+        path.setAttribute('fill', shape.fill || '#d0ccff');
+        path.setAttribute('stroke', '#4338ca');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('data-stroke-position', 'Center');
+        if (shape.fillRule) path.setAttribute('fill-rule', shape.fillRule);
+        if (shape.clipRule) path.setAttribute('clip-rule', shape.clipRule);
+
+        let vbW = 100, vbH = 100;
+        if (shape.viewBox) {
+          const vbParts = shape.viewBox.split(/[ ,]+/).map(parseFloat);
+          if (vbParts.length === 4) {
+            vbW = vbParts[2];
+            vbH = vbParts[3];
+          }
+        } else if (shape.width && shape.height) {
+          vbW = shape.width;
+          vbH = shape.height;
+        }
+
+        const targetDim = 90;
+        const scaleFactor = targetDim / Math.max(vbW, vbH, 1);
+        const renderW = vbW * scaleFactor;
+        const renderH = vbH * scaleFactor;
+        const posX = centerX - (renderW / 2);
+        const posY = centerY - (renderH / 2);
+
+        path.setAttribute('transform', `translate(${posX.toFixed(1)}, ${posY.toFixed(1)}) scale(${scaleFactor.toFixed(3)})`);
+        elementToInsert = path;
+      }
+
+      const targetContainer = svg.querySelector('[data-type="frame"]') || svg.querySelector('[data-name="Overlay"]') || svg;
+      targetContainer.appendChild(elementToInsert);
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+
+      if (typeof setSingleSelection === 'function') {
+        setSingleSelection(newId);
+      } else {
+        if (setSelectedLayerId) setSelectedLayerId(newId);
+        selectedLayerIdRef.current = newId;
+        if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
+        multiSelectedIdsRef.current = new Set([newId]);
+      }
+      if (setActiveMainTool) setActiveMainTool('select');
+      setTimeout(() => {
+        const el = document.getElementById(newId);
+        if (el && typeof drawOverlayHighlight === 'function') {
+          drawOverlayHighlight(el, 'selected');
+        }
+      }, 50);
+    };
+
+    const handleMaskImageToShape = (e) => {
+      const { shapeId, imageUrl, fitMode = 'Cover', opacity = 1, scale = 1, offsetX = 0, offsetY = 0, pageIndex } = e.detail || {};
+      if (!shapeId || !imageUrl) return;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      const shapeEl = svg.querySelector(`[id="${shapeId}"]`);
+      if (!shapeEl) return;
+
+      if (!shapeEl.hasAttribute('data-original-fill')) {
+        shapeEl.setAttribute('data-original-fill', shapeEl.getAttribute('fill') || '#d0ccff');
+      }
+      shapeEl.setAttribute('data-masked-image-url', imageUrl);
+      shapeEl.setAttribute('data-masked-image-fit', fitMode);
+      shapeEl.setAttribute('data-masked-image-opacity', opacity.toString());
+      shapeEl.setAttribute('data-mask-scale', scale.toString());
+      shapeEl.setAttribute('data-mask-offset-x', offsetX.toString());
+      shapeEl.setAttribute('data-mask-offset-y', offsetY.toString());
+      shapeEl.setAttribute('pointer-events', 'all');
+
+      let defs = svg.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        svg.insertBefore(defs, svg.firstChild);
+      }
+
+      const safeShapeId = shapeId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const clipId = `clip-shape-${safeShapeId}`;
+      let clip = defs.querySelector(`clipPath[id="${clipId}"]`);
+      if (!clip) {
+        clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+        clip.id = clipId;
+        defs.appendChild(clip);
+      } else {
+        clip.innerHTML = '';
+      }
+
+      const cleanClipShape = shapeEl.cloneNode(true);
+      cleanClipShape.removeAttribute('id');
+      cleanClipShape.removeAttribute('fill');
+      cleanClipShape.removeAttribute('stroke');
+      cleanClipShape.removeAttribute('stroke-width');
+      cleanClipShape.removeAttribute('transform');
+      cleanClipShape.removeAttribute('data-masked-image-url');
+      clip.appendChild(cleanClipShape);
+
+      const imageId = `masked-img-${safeShapeId}`;
+      let imageEl = svg.querySelector(`image[id="${imageId}"]`);
+      if (!imageEl) {
+        imageEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+        imageEl.id = imageId;
+        shapeEl.parentNode.insertBefore(imageEl, shapeEl);
+      }
+
+      const liveShape = document.getElementById(shapeId);
+      let bbox = null;
+      if (liveShape && typeof liveShape.getBBox === 'function') {
+        try {
+          bbox = liveShape.getBBox();
+        } catch (err) {}
+      }
+      if (bbox && bbox.width > 0 && bbox.height > 0) {
+        const baseW = bbox.width;
+        const baseH = bbox.height;
+        const scaledW = baseW * scale;
+        const scaledH = baseH * scale;
+        const shiftX = (scaledW - baseW) / 2;
+        const shiftY = (scaledH - baseH) / 2;
+        const panX = (baseW * offsetX) / 100;
+        const panY = (baseH * offsetY) / 100;
+
+        imageEl.setAttribute('x', (bbox.x - shiftX + panX).toFixed(2));
+        imageEl.setAttribute('y', (bbox.y - shiftY + panY).toFixed(2));
+        imageEl.setAttribute('width', scaledW.toFixed(2));
+        imageEl.setAttribute('height', scaledH.toFixed(2));
+      } else {
+        imageEl.setAttribute('x', '0');
+        imageEl.setAttribute('y', '0');
+        imageEl.setAttribute('width', '100%');
+        imageEl.setAttribute('height', '100%');
+      }
+
+      const transform = shapeEl.getAttribute('transform');
+      if (transform) {
+        imageEl.setAttribute('transform', transform);
+      } else {
+        imageEl.removeAttribute('transform');
+      }
+
+      const preserveMap = {
+        'Cover': 'xMidYMid slice',
+        'Contain': 'xMidYMid meet',
+        'Fill': 'none'
+      };
+
+      imageEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl);
+      imageEl.setAttribute('href', imageUrl);
+      imageEl.setAttribute('preserveAspectRatio', preserveMap[fitMode] || 'xMidYMid slice');
+      imageEl.setAttribute('clip-path', `url(#${clipId})`);
+      imageEl.setAttribute('data-is-mask-image', 'true');
+      imageEl.setAttribute('data-target-shape', safeShapeId);
+      imageEl.setAttribute('opacity', opacity.toString());
+      imageEl.setAttribute('pointer-events', 'none');
+
+      shapeEl.setAttribute('fill', 'rgba(0,0,0,0.001)');
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+    };
+
+    const handleRemoveShapeMask = (e) => {
+      const { shapeId, pageIndex } = e.detail || {};
+      if (!shapeId) return;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      const shapeEl = svg.querySelector(`[id="${shapeId}"]`);
+      if (shapeEl) {
+        shapeEl.removeAttribute('data-masked-image-url');
+        shapeEl.removeAttribute('data-masked-image-type');
+        shapeEl.removeAttribute('data-masked-image-fit');
+        shapeEl.removeAttribute('data-masked-image-opacity');
+        shapeEl.removeAttribute('data-mask-scale');
+        shapeEl.removeAttribute('data-mask-offset-x');
+        shapeEl.removeAttribute('data-mask-offset-y');
+        shapeEl.setAttribute('fill', shapeEl.getAttribute('data-original-fill') || '#d0ccff');
+      }
+
+      const safeShapeId = shapeId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const imageEl = svg.querySelector(`image[id="masked-img-${safeShapeId}"]`);
+      if (imageEl) imageEl.remove();
+
+      const defs = svg.querySelector('defs');
+      if (defs) {
+        const clipEl = defs.querySelector(`clipPath[id="clip-shape-${safeShapeId}"]`);
+        if (clipEl) clipEl.remove();
+      }
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+    };
+
+    const handleUpdateShapeMask = (e) => {
+      const { shapeId, fitMode, opacity, scale, offsetX, offsetY, imageUrl, pageIndex } = e.detail || {};
+      if (!shapeId) return;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      const shapeEl = svg.querySelector(`[id="${shapeId}"]`);
+      if (!shapeEl) return;
+
+      const safeShapeId = shapeId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const imageEl = svg.querySelector(`image[id="masked-img-${safeShapeId}"]`);
+
+      if (fitMode) {
+        shapeEl.setAttribute('data-masked-image-fit', fitMode);
+        const preserveMap = { 'Cover': 'xMidYMid slice', 'Contain': 'xMidYMid meet', 'Fill': 'none' };
+        if (imageEl) imageEl.setAttribute('preserveAspectRatio', preserveMap[fitMode] || 'xMidYMid slice');
+      }
+
+      if (opacity !== undefined) {
+        shapeEl.setAttribute('data-masked-image-opacity', opacity.toString());
+        if (imageEl) imageEl.setAttribute('opacity', opacity.toString());
+      }
+
+      if (scale !== undefined) {
+        shapeEl.setAttribute('data-mask-scale', scale.toString());
+      }
+
+      if (offsetX !== undefined) {
+        shapeEl.setAttribute('data-mask-offset-x', offsetX.toString());
+      }
+
+      if (offsetY !== undefined) {
+        shapeEl.setAttribute('data-mask-offset-y', offsetY.toString());
+      }
+
+      // Recalculate dimensions if scale or offsets changed
+      if (scale !== undefined || offsetX !== undefined || offsetY !== undefined) {
+        const s = parseFloat(shapeEl.getAttribute('data-mask-scale') || '1');
+        const ox = parseFloat(shapeEl.getAttribute('data-mask-offset-x') || '0');
+        const oy = parseFloat(shapeEl.getAttribute('data-mask-offset-y') || '0');
+
+        const liveShape = document.getElementById(shapeId);
+        let bbox = null;
+        if (liveShape && typeof liveShape.getBBox === 'function') {
+          try { bbox = liveShape.getBBox(); } catch (err) {}
+        }
+        if (bbox && bbox.width > 0 && bbox.height > 0 && imageEl) {
+          const baseW = bbox.width;
+          const baseH = bbox.height;
+          const scaledW = baseW * s;
+          const scaledH = baseH * s;
+          const shiftX = (scaledW - baseW) / 2;
+          const shiftY = (scaledH - baseH) / 2;
+          const panX = (baseW * ox) / 100;
+          const panY = (baseH * oy) / 100;
+
+          imageEl.setAttribute('x', (bbox.x - shiftX + panX).toFixed(2));
+          imageEl.setAttribute('y', (bbox.y - shiftY + panY).toFixed(2));
+          imageEl.setAttribute('width', scaledW.toFixed(2));
+          imageEl.setAttribute('height', scaledH.toFixed(2));
+        }
+      }
+
+      if (imageUrl) {
+        shapeEl.setAttribute('data-masked-image-url', imageUrl);
+        if (imageEl) {
+          imageEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl);
+          imageEl.setAttribute('href', imageUrl);
+        }
+      }
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+    };
+
     window.addEventListener('add-icon-to-editor', handleAddIcon);
+    window.addEventListener('add-shape-to-editor', handleAddShape);
+    window.addEventListener('mask-image-to-shape', handleMaskImageToShape);
+    window.addEventListener('remove-shape-mask', handleRemoveShapeMask);
+    window.addEventListener('update-shape-mask', handleUpdateShapeMask);
     window.addEventListener('add-hotspot-to-editor', handleAddHotspot);
     window.addEventListener('update-hotspot-style', (e) => {
       const { id, pageIndex, html, presetId, iconSrc, bgColor, iconColor } = e.detail;
@@ -3344,6 +3726,10 @@ const MainEditor = ({
     window.addEventListener('upload-video-to-editor', handleUploadVideo);
     return () => {
       window.removeEventListener('add-icon-to-editor', handleAddIcon);
+      window.removeEventListener('add-shape-to-editor', handleAddShape);
+      window.removeEventListener('mask-image-to-shape', handleMaskImageToShape);
+      window.removeEventListener('remove-shape-mask', handleRemoveShapeMask);
+      window.removeEventListener('update-shape-mask', handleUpdateShapeMask);
       window.removeEventListener('add-hotspot-to-editor', handleAddHotspot);
       window.removeEventListener('add-image-to-editor', handleAddImage);
       window.removeEventListener('upload-video-to-editor', handleUploadVideo);
@@ -7427,6 +7813,13 @@ const MainEditor = ({
         // Prevent targeting inner image of an image group directly, or inner elements of video/gif groups
         if (tagName === 'image' && current.parentNode?.getAttribute('data-is-image-group') === 'true') {
           // Skip the inner image and let it traverse to the parent group
+        } else if (tagName === 'image' && (current.getAttribute('data-is-mask-image') === 'true' || current.id?.startsWith('masked-img-'))) {
+          // Redirect to the target shape
+          const shapeId = current.getAttribute('data-target-shape') || current.id.replace('masked-img-', '');
+          const shapeEl = current.ownerSVGElement?.querySelector(`[id="${shapeId}"]`) || document.getElementById(shapeId);
+          if (shapeEl) {
+            deepestElementWithId = shapeEl;
+          }
         } else if ((tagName === 'foreignobject' || tagName === 'video' || tagName === 'iframe') && current.parentNode?.getAttribute('data-is-video-group') === 'true') {
           // Skip inner foreignobject/video/iframe and let it traverse to the parent video group
         } else if (current.parentNode?.getAttribute('data-is-gif-group') === 'true') {
@@ -11606,7 +11999,39 @@ const MainEditor = ({
     div.addEventListener('touchstart', stopScrollPropagation);
     div.addEventListener('wheel', stopScrollPropagation);
 
-    const handleInput = () => {
+    let overlayRafId = null;
+    const scheduleOverlayUpdate = () => {
+      if (overlayRafId) cancelAnimationFrame(overlayRafId);
+      overlayRafId = requestAnimationFrame(() => {
+        const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
+        const container = foTarget.closest('.page-svg-container');
+        if (container) {
+          const pageIdx = container.getAttribute('data-page-index');
+          const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
+          if (overlay) {
+            const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
+            if (oldSel) oldSel.remove();
+            const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
+            if (oldChildSel) oldChildSel.remove();
+          }
+        }
+        drawOverlayHighlight(foTarget, highlightType);
+        clearOverlayType('hover');
+        clearOverlayType('child-hover');
+
+        // Also redraw parent group's entered overlay to prevent the dashed line from sticking in the middle
+        const parentGroup = foTarget.closest('g');
+        if (parentGroup && parentGroup.getAttribute('data-name') === 'Group') {
+          const overlayNode = document.querySelector(`[id="overlay-poly-entered-${parentGroup.id}"]`);
+          if (overlayNode) {
+            overlayNode.remove();
+            drawOverlayHighlight(parentGroup, 'entered');
+          }
+        }
+      });
+    };
+
+    const handleInput = (syncOverlay = false) => {
       const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
       const sizingMode = foTarget.getAttribute('data-sizing-mode') || 'auto-height';
       const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
@@ -11637,8 +12062,6 @@ const MainEditor = ({
         const foW = parseFloat(foTarget.getAttribute('width')) || 0;
         const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
-        let changed = false;
-
         if (sizingMode === 'auto-width' && Math.abs(contentW - foW) > 2) {
           const widthDiff = contentW - foW;
           const align = window.getComputedStyle(div).textAlign;
@@ -11648,47 +12071,63 @@ const MainEditor = ({
           } else if (align === 'right' || align === 'end') {
             foTarget.setAttribute('x', currentX - widthDiff);
           }
-          changed = true;
         }
 
         if (sizingMode !== 'fixed' && Math.abs(contentH - foH) > 2) {
           foTarget.setAttribute('height', contentH + 4);
-          changed = true;
         }
 
-        // Always ensure the selection overlay highlight precisely encloses the current element
-        const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
-        const container = foTarget.closest('.page-svg-container');
-        if (container) {
-          const pageIdx = container.getAttribute('data-page-index');
-          const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
-          if (overlay) {
-            const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
-            if (oldSel) oldSel.remove();
-            const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
-            if (oldChildSel) oldChildSel.remove();
+        if (syncOverlay) {
+          const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
+          const container = foTarget.closest('.page-svg-container');
+          if (container) {
+            const pageIdx = container.getAttribute('data-page-index');
+            const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
+            if (overlay) {
+              const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
+              if (oldSel) oldSel.remove();
+              const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
+              if (oldChildSel) oldChildSel.remove();
+            }
           }
-        }
-        drawOverlayHighlight(foTarget, highlightType);
-        clearOverlayType('hover');
-        clearOverlayType('child-hover');
-
-        // Also redraw parent group's entered overlay to prevent the dashed line from sticking in the middle
-        const parentGroup = foTarget.closest('g');
-        if (parentGroup && parentGroup.getAttribute('data-name') === 'Group') {
-          const overlayNode = document.querySelector(`[id="overlay-poly-entered-${parentGroup.id}"]`);
-          if (overlayNode) {
-            overlayNode.remove();
-            drawOverlayHighlight(parentGroup, 'entered');
-          }
+          drawOverlayHighlight(foTarget, highlightType);
+          clearOverlayType('hover');
+          clearOverlayType('child-hover');
+        } else {
+          scheduleOverlayUpdate();
         }
       }
     };
-    div.addEventListener('input', handleInput);
+
+    // ── Google Docs-Style Spell & Grammar Checker & Suggestion Popup ──
+    div.setAttribute('spellcheck', 'true');
+
+    let grammarCheckTimer = null;
+    let activeSuggestionPopup = null;
+    let lastIssuesSignature = '';
+
+    const closeSuggestionPopup = () => {
+      if (activeSuggestionPopup) {
+        activeSuggestionPopup.remove();
+        activeSuggestionPopup = null;
+      }
+    };
+
+    const scheduleGrammarCheck = () => {
+      clearTimeout(grammarCheckTimer);
+      grammarCheckTimer = setTimeout(() => {
+        runSpellGrammarCheck();
+      }, 450);
+    };
+
+    div.addEventListener('input', () => {
+      handleInput(false);
+      scheduleGrammarCheck();
+    });
     div.focus();
 
     // Immediately trigger a resize so it precisely shrink-wraps the initial text
-    handleInput();
+    handleInput(true);
 
     // Place cursor at the clicked position using caretRangeFromPoint if coords are available
     // Otherwise fall back to end of text
@@ -11739,44 +12178,48 @@ const MainEditor = ({
     // Use a tiny timeout so the browser has fully rendered the contenteditable before we place the caret
     setTimeout(() => placeCaretAtClick(clientX, clientY), 0);
 
-    // ── Google Docs-Style Spell & Grammar Checker & Suggestion Popup ──
-    div.setAttribute('spellcheck', 'true');
-
-    let grammarCheckTimer = null;
-    let activeSuggestionPopup = null;
-
-    const closeSuggestionPopup = () => {
-      if (activeSuggestionPopup) {
-        activeSuggestionPopup.remove();
-        activeSuggestionPopup = null;
-      }
-    };
-
     const runSpellGrammarCheck = () => {
       if (!isEditingTextRef.current) return;
       if (foTarget.getAttribute('data-grammar-check') === 'false') {
         div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
           m.replaceWith(document.createTextNode(m.textContent || ''));
         });
+        lastIssuesSignature = '';
         return;
       }
       const text = div.innerText || div.textContent || '';
-      if (!text || text.trim().length === 0) return;
-
-      const issues = checkSpellingAndGrammar(text);
-
-      // Save cursor position
-      let selOffset = 0;
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) {
-        const range = sel.getRangeAt(0);
-        const preRange = range.cloneRange();
-        preRange.selectNodeContents(div);
-        preRange.setEnd(range.startContainer, range.startOffset);
-        selOffset = preRange.toString().length;
+      if (!text || text.trim().length === 0) {
+        div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
+          m.replaceWith(document.createTextNode(m.textContent || ''));
+        });
+        div.normalize();
+        lastIssuesSignature = '';
+        return;
       }
 
-      // 1. Unwrap existing mark tags in-place while keeping text intact
+      const issues = checkSpellingAndGrammar(text);
+      const signature = text + '###' + issues.map(i => `${i.type}:${i.startIndex}:${i.endIndex}:${i.word}`).join('|');
+
+      // If text and issues haven't changed, avoid redundant DOM manipulations
+      if (signature === lastIssuesSignature) {
+        return;
+      }
+      lastIssuesSignature = signature;
+
+      // Save cursor position
+      let selOffset = -1;
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && div.contains(sel.anchorNode)) {
+        try {
+          const range = sel.getRangeAt(0);
+          const preRange = range.cloneRange();
+          preRange.selectNodeContents(div);
+          preRange.setEnd(range.startContainer, range.startOffset);
+          selOffset = preRange.toString().length;
+        } catch (e) {}
+      }
+
+      // 1. Unwrap existing mark tags in-place and normalize all text nodes
       const existingMarks = Array.from(div.querySelectorAll('mark.grammar-issue-word'));
       existingMarks.forEach(m => {
         const parent = m.parentNode;
@@ -11784,93 +12227,66 @@ const MainEditor = ({
           parent.insertBefore(m.firstChild, m);
         }
         m.remove();
-        parent.normalize();
       });
+      div.normalize();
 
       if (issues.length === 0) {
-        handleInput();
+        if (selOffset >= 0) {
+          restoreCaretPosition(div, selOffset);
+        }
         return;
       }
 
-      // 2. Wrap matching incorrect words in-place without altering any line breaks or DOM tree
-      const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT, null, false);
-      const textNodes = [];
-      let n;
-      while ((n = walker.nextNode())) {
-        if (n.nodeValue && n.nodeValue.length > 0) {
-          textNodes.push(n);
-        }
-      }
+      // 2. Wrap matching words in reverse order so character offsets in earlier text remain identical
+      const sortedIssues = [...issues].sort((a, b) => b.startIndex - a.startIndex);
+      for (const iss of sortedIssues) {
+        const startPoint = findDomPoint(div, iss.startIndex);
+        const endPoint = findDomPoint(div, iss.endIndex);
 
-      // Track global text offset across text nodes
-      let runningOffset = 0;
-      for (const textNode of textNodes) {
-        const nodeText = textNode.nodeValue;
-        const nodeStart = runningOffset;
-        const nodeEnd = runningOffset + nodeText.length;
-
-        // Find issues that fall strictly within this text node
-        const nodeIssues = issues.filter(iss => iss.startIndex >= nodeStart && iss.endIndex <= nodeEnd)
-          .sort((a, b) => b.startIndex - a.startIndex); // Process backwards so offsets remain valid
-
-        for (const iss of nodeIssues) {
-          const relStart = iss.startIndex - nodeStart;
-          const relEnd = iss.endIndex - nodeStart;
-
-          const word = nodeText.substring(relStart, relEnd);
-          const cls = iss.type === 'spelling' ? 'grammar-issue-word issue-spelling' : 'grammar-issue-word issue-grammar';
-          const suggData = encodeURIComponent(JSON.stringify(iss.suggestions || []));
-          const msg = encodeURIComponent(iss.message || '');
-
+        if (startPoint && endPoint && startPoint.node === endPoint.node) {
           try {
             const range = document.createRange();
-            range.setStart(textNode, relStart);
-            range.setEnd(textNode, relEnd);
+            range.setStart(startPoint.node, startPoint.offset);
+            range.setEnd(endPoint.node, endPoint.offset);
 
             const mark = document.createElement('mark');
-            mark.className = cls;
-            mark.setAttribute('data-word', word);
-            mark.setAttribute('data-suggestions', suggData);
-            mark.setAttribute('data-message', msg);
+            mark.className = iss.type === 'spelling' ? 'grammar-issue-word issue-spelling' : 'grammar-issue-word issue-grammar';
+            mark.setAttribute('data-word', iss.word);
+            mark.setAttribute('data-suggestions', encodeURIComponent(JSON.stringify(iss.suggestions || [])));
+            mark.setAttribute('data-message', encodeURIComponent(iss.message || ''));
             range.surroundContents(mark);
           } catch (e) {}
         }
-
-        runningOffset = nodeEnd;
       }
 
       // Restore caret position
-      restoreCaretPosition(div, selOffset);
-
-      // Re-measure content to ensure text frame and selection boundary precisely enclose all wrapped lines
-      handleInput();
+      if (selOffset >= 0) {
+        restoreCaretPosition(div, selOffset);
+      }
     };
 
-    function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    function findDomPoint(container, charOffset) {
+      try {
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        let curr = 0;
+        while ((node = walker.nextNode())) {
+          const len = node.nodeValue.length;
+          if (curr + len >= charOffset) {
+            return { node, offset: Math.min(Math.max(0, charOffset - curr), len) };
+          }
+          curr += len;
+        }
+      } catch (err) {}
+      return null;
     }
 
     function restoreCaretPosition(container, targetOffset) {
       try {
-        let currentOffset = 0;
-        let targetNode = null;
-        let nodeOffset = 0;
-
-        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        while ((node = walker.nextNode())) {
-          const len = node.nodeValue.length;
-          if (currentOffset + len >= targetOffset) {
-            targetNode = node;
-            nodeOffset = targetOffset - currentOffset;
-            break;
-          }
-          currentOffset += len;
-        }
-
-        if (targetNode) {
+        const pt = findDomPoint(container, targetOffset);
+        if (pt) {
           const newRange = document.createRange();
-          newRange.setStart(targetNode, Math.min(nodeOffset, targetNode.nodeValue.length));
+          newRange.setStart(pt.node, pt.offset);
           newRange.collapse(true);
           const s = window.getSelection();
           if (s) {
@@ -11902,8 +12318,20 @@ const MainEditor = ({
       const rect = markEl.getBoundingClientRect();
       const popup = document.createElement('div');
       popup.className = 'grammar-suggestion-popup';
-      popup.style.top = `${rect.bottom + 6}px`;
-      popup.style.left = `${Math.max(10, Math.min(window.innerWidth - 220, rect.left))}px`;
+
+      // Smart viewport placement: check available space below vs above
+      const estimatedHeight = 180;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      let topPos;
+      if (spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow) {
+        topPos = Math.max(10, rect.top - estimatedHeight - 6);
+      } else {
+        topPos = Math.min(window.innerHeight - estimatedHeight - 10, rect.bottom + 6);
+      }
+      const leftPos = Math.max(12, Math.min(window.innerWidth - 260, rect.left));
+      popup.style.top = `${topPos}px`;
+      popup.style.left = `${leftPos}px`;
 
       let headerText = markEl.classList.contains('issue-grammar') ? 'Grammar' : 'Spelling';
       let html = `<div class="grammar-suggestion-header">
@@ -11911,6 +12339,7 @@ const MainEditor = ({
         <span>${headerText}</span>
       </div>`;
 
+      html += `<div class="grammar-suggestion-popup-body">`;
       if (suggestions.length > 0) {
         suggestions.forEach((sugg, idx) => {
           html += `<div class="grammar-suggestion-item" data-suggestion="${sugg}">
@@ -11921,15 +12350,22 @@ const MainEditor = ({
       } else {
         html += `<div style="padding: 8px 12px; font-size: 12px; color: #5f6368;">No suggestions available</div>`;
       }
+      html += `</div>`;
 
       html += `<div class="grammar-suggestion-footer">
         <button class="grammar-suggestion-ignore" id="docs-btn-ignore">Ignore</button>
-        <span style="font-size: 11px; color: #80868b;">${word}</span>
+        <span style="font-size: 11px; color: #80868b; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${word}</span>
       </div>`;
 
       popup.innerHTML = html;
       document.body.appendChild(popup);
       activeSuggestionPopup = popup;
+
+      // Refine position with actual rendered height
+      const actualHeight = popup.offsetHeight || estimatedHeight;
+      if (spaceBelow < actualHeight + 10 && spaceAbove > spaceBelow) {
+        popup.style.top = `${Math.max(10, rect.top - actualHeight - 6)}px`;
+      }
 
       // Handle suggestion clicks
       popup.querySelectorAll('.grammar-suggestion-item').forEach(item => {
@@ -11942,8 +12378,11 @@ const MainEditor = ({
           } else {
             markEl.replaceWith(document.createTextNode(chosen));
           }
+          div.normalize();
+          lastIssuesSignature = '';
           closeSuggestionPopup();
-          handleInput();
+          handleInput(true);
+          scheduleGrammarCheck();
         });
       });
 
@@ -11953,7 +12392,10 @@ const MainEditor = ({
         ignoreBtn.addEventListener('mousedown', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
+          addIgnoredWord(word);
           markEl.replaceWith(document.createTextNode(word));
+          div.normalize();
+          lastIssuesSignature = '';
           closeSuggestionPopup();
         });
       }
@@ -11970,28 +12412,25 @@ const MainEditor = ({
     };
     div.addEventListener('click', handleTextClick);
 
-    const debounceCheck = () => {
-      clearTimeout(grammarCheckTimer);
-      grammarCheckTimer = setTimeout(() => {
-        runSpellGrammarCheck();
-      }, 700);
-    };
-
-    div.addEventListener('keyup', (e) => {
-      // Don't trigger on arrow navigation keys
+    div.addEventListener('keydown', (e) => {
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
-      if (e.key === ' ' || e.key === 'Enter' || e.key === 'Backspace' || e.key === '.') {
-        debounceCheck();
-      }
+      clearTimeout(grammarCheckTimer);
     });
 
-    // Run initial spell & grammar check after initial text paints
-    setTimeout(runSpellGrammarCheck, 350);
+    // Run initial spell & grammar check after dictionary is loaded & initial text paints
+    initDictionary().then(() => {
+      if (isEditingTextRef.current) {
+        runSpellGrammarCheck();
+      }
+    }).catch(() => {
+      setTimeout(runSpellGrammarCheck, 350);
+    });
 
     const cleanup = () => {
       isEditingTextRef.current = false;
       closeSuggestionPopup();
       clearTimeout(grammarCheckTimer);
+      if (overlayRafId) cancelAnimationFrame(overlayRafId);
 
       // Strip all mark highlight wrappers to ensure completely clean SVG serialization
       div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
@@ -13440,7 +13879,106 @@ const MainEditor = ({
           />
         )}
 
-        {/* Top Group: Selection & Primary Tools - Independent Position */}
+        {/* Top-Left Floating Dock & Add Elements Popup (as shown in reference UI) */}
+        {!isPdfProject && !isPopupEditor && (
+          <div className="absolute left-[1.2vw] top-[1.2vw] z-[999] flex items-start">
+            {/* 4-icon vertical dock */}
+            <div className="bg-white rounded-[0.8vw] border border-gray-200/90 p-[0.35vw] flex flex-col items-center gap-[0.45vw] shadow-md">
+              {/* Button 1: mynaui:component (Add Elements) */}
+              <div className="relative group/docktool flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowElementsPopup(prev => !prev);
+                  }}
+                  className={`w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center transition-all cursor-pointer ${
+                    showElementsPopup
+                      ? 'bg-[#FFF1F0] text-[#FF4D4F] shadow-2xs'
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon icon="mynaui:component" width="1.3vw" height="1.3vw" />
+                </button>
+                {!showElementsPopup && (
+                  <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                    Add Elements
+                  </div>
+                )}
+              </div>
+
+              {/* Button 2: carbon:template (Templates) */}
+              <div className="relative group/docktool flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('open-template-modal'));
+                  }}
+                  className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer"
+                >
+                  <Icon icon="carbon:template" width="1.3vw" height="1.3vw" />
+                </button>
+                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Templates
+                </div>
+              </div>
+
+              {/* Button 3: eva:color-palette-outline (Color Palette / Themes) */}
+              <div className="relative group/docktool flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('open-palette-modal'));
+                  }}
+                  className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer"
+                >
+                  <Icon icon="eva:color-palette-outline" width="1.3vw" height="1.3vw" />
+                </button>
+                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Color Palette
+                </div>
+              </div>
+
+              {/* Button 4: tabler:icons (Icons Gallery) */}
+              <div className="relative group/docktool flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (activeMainTool === 'grid') {
+                      setActiveMainTool('select');
+                    } else {
+                      setActiveMainTool('grid');
+                    }
+                  }}
+                  className={`w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center transition-all cursor-pointer ${
+                    activeMainTool === 'grid'
+                      ? 'bg-gray-900 text-white shadow-xs'
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon icon="tabler:icons" width="1.3vw" height="1.3vw" />
+                </button>
+                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Icons
+                </div>
+              </div>
+            </div>
+
+            {/* Elements Popup */}
+            <ElementsGallery
+              isOpen={showElementsPopup}
+              onClose={() => setShowElementsPopup(false)}
+              onSelect={(shape) => {
+                window.dispatchEvent(new CustomEvent('add-shape-to-editor', {
+                  detail: {
+                    shape: shape,
+                    pageIndex: activePageIndex
+                  }
+                }));
+              }}
+            />
+          </div>
+        )}
+
         {/* Top Group: Selection & Primary Tools - Independent Position */}
         {!isPdfProject && !isPopupEditor && (
           <div className={`absolute right-[1.05vw] top-[6vh] z-50 ${pages[activePageIndex]?.isHidden ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -14000,12 +14538,38 @@ const MainEditor = ({
                 )}
               </div>
 
-              {/* Grid Tool Row */}
+              {/* Elements & Mask Shapes Tool Row */}
+              <div className="flex items-center justify-start gap-[0.3vw] mb-[0.8vh] cursor-pointer relative group/tool">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (activeMainTool === 'elements') {
+                      setActiveMainTool('select');
+                    } else {
+                      setActiveMainTool('elements');
+                    }
+                    closeAllDropdowns();
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'elements' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon icon="fluent:shapes-24-filled" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                </button>
+                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  Elements & Mask Shapes
+                </div>
+              </div>
+
+              {/* Grid / Icons Tool Row */}
               <div className="flex items-center justify-start gap-[0.3vw] cursor-pointer relative group/tool">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveMainTool('grid');
+                    if (activeMainTool === 'grid') {
+                      setActiveMainTool('select');
+                    } else {
+                      setActiveMainTool('grid');
+                    }
                     closeAllDropdowns();
                   }}
                   className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'grid' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
@@ -14014,7 +14578,7 @@ const MainEditor = ({
                 </button>
                 <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
                 <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
-                  Elements & Icons
+                  Icons Gallery
                 </div>
               </div>
             </div>
@@ -14026,7 +14590,7 @@ const MainEditor = ({
           ref={editorContainerRef}
           className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
+            if (e.target === e.currentTarget && (activeMainTool === 'grid' || activeMainTool === 'elements') && typeof setActiveMainTool === 'function') {
               setActiveMainTool('select');
             }
           }}
@@ -14243,7 +14807,16 @@ const MainEditor = ({
 
                                     if (!data) return;
 
-                                    if (data.type === 'hotspot') {
+                                    if (data.type === 'svg-element' || data.type === 'shape') {
+                                       setShowElementsPopup(false);
+                                       window.dispatchEvent(new CustomEvent('add-shape-to-editor', {
+                                         detail: {
+                                           pageIndex: displayIndex,
+                                           shape: data.shape,
+                                           dropPoint
+                                         }
+                                       }));
+                                     } else if (data.type === 'hotspot') {
                                       window.dispatchEvent(new CustomEvent('add-hotspot-to-editor', {
                                         detail: {
                                           pageIndex: displayIndex,

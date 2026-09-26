@@ -169,13 +169,13 @@ const syncGradient = (doc, element, baseAttr) => {
   const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear';
   const stopsJson = element.getAttribute(`${baseAttr}-stops`);
 
-  console.log(`[syncGradient] id=${element.id}, type=${type}, isUrl=${isUrl}, attr=${baseAttr}`);
+  // console.log(`[syncGradient] id=${element.id}, type=${type}, isUrl=${isUrl}, attr=${baseAttr}`);
 
   if (type === 'solid' || type === 'none') return;
 
   // If it's a URL, we should at least propagate it to children even if we can't "sync" it from stops
   if (isUrl && !stopsJson) {
-    console.log(`[syncGradient] Propagating global URL: ${currentValue}`);
+    // console.log(`[syncGradient] Propagating global URL: ${currentValue}`);
     if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
       Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
         child.setAttribute(baseAttr, currentValue);

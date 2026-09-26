@@ -35,6 +35,7 @@ const parseLayersFromSVG = (element) => {
       if (child.classList.contains('svg-drop-shadow-caster')) return false;
       if (child.classList.contains('internal-crop-rect')) return false;
       if (child.classList.contains('internal-crop-pattern')) return false;
+      if (child.getAttribute('data-is-mask-image') === 'true' || child.getAttribute('id')?.startsWith('masked-img-')) return false;
 
       const isEffectNode = Array.from(child.classList).some(cls =>
         cls.includes('-stroke-overlay') ||
@@ -70,6 +71,20 @@ const parseLayersFromSVG = (element) => {
         visible: child.getAttribute('data-hidden') !== 'true',
         locked: child.getAttribute('data-locked') === 'true'
       };
+
+      // If shape has masked image, group it as a nested masked image layer
+      if (child.getAttribute('data-masked-image-url')) {
+        layer.isMaskedShape = true;
+        layer.children = [{
+          id: `masked-img-${id.replace(/[^a-zA-Z0-9-_]/g, '_')}`,
+          name: 'Masked Image',
+          type: 'image',
+          parentId: id,
+          isVirtualImageChild: true,
+          visible: layer.visible,
+          locked: layer.locked
+        }];
+      }
 
       // VIRTUAL EFFECT LAYERS FOR IMAGE/VIDEO/GIF GROUP
       const isGroup = child.getAttribute('data-is-image-group') === 'true' ||

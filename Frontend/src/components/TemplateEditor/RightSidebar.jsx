@@ -8,6 +8,7 @@ import PenToolProperties from './PenToolProperties';
 import ImageEditor from './ImageEditor';
 import TextEditor from './TextEditor';
 import IconGallery from './icons';
+import ElementsGallery from './ElementsGallery';
 import VideoEditor from './VideoEditor';
 import GifEditor from './Gif';
 import AnimationPanel from './AnimationPanel';
@@ -644,7 +645,12 @@ const RightSidebar = ({
     if (page && page.html) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const el = doc.getElementById(selectedLayerId);
+      let el = doc.getElementById(selectedLayerId);
+      if (el && (el.getAttribute('data-is-mask-image') === 'true' || el.id?.startsWith('masked-img-'))) {
+        const targetShapeId = el.getAttribute('data-target-shape') || el.id.replace('masked-img-', '');
+        const shapeEl = doc.getElementById(targetShapeId);
+        if (shapeEl) el = shapeEl;
+      }
 
       const rootId = doc.querySelector('svg > g')?.id;
       const overlayId = doc.querySelector('[data-name="Overlay"]')?.id;
@@ -655,7 +661,7 @@ const RightSidebar = ({
 
         // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
         const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-        const actualEl = editorDoc.getElementById(selectedLayerId);
+        const actualEl = editorDoc.getElementById(el.id || selectedLayerId);
         let measuredFromDom = false;
         if (actualEl && typeof actualEl.getBBox === 'function') {
           try {
@@ -841,7 +847,7 @@ const RightSidebar = ({
       className="bg-white border-l border-[#EEEEEE] flex flex-col overflow-hidden select-none flex-shrink-0 h-[92vh]"
       style={{ width: '24vw' }}
       onMouseDown={() => {
-        if (activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
+        if ((activeMainTool === 'grid' || activeMainTool === 'elements') && typeof setActiveMainTool === 'function') {
           setActiveMainTool('select');
         }
       }}
@@ -857,6 +863,23 @@ const RightSidebar = ({
                 icon: icon
               }
             }));
+          }}
+        />
+      )}
+      {activeMainTool === 'elements' && (
+        <ElementsGallery
+          isOpen={true}
+          onClose={() => setActiveMainTool('select')}
+          onSelect={(shape) => {
+            window.dispatchEvent(new CustomEvent('add-shape-to-editor', {
+              detail: {
+                pageIndex: activePageIndex,
+                shape: shape
+              }
+            }));
+            if (typeof setActiveMainTool === 'function') {
+              setActiveMainTool('select');
+            }
           }}
         />
       )}
@@ -1243,7 +1266,7 @@ const RightSidebar = ({
                 />
               ) : (
                 <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">
-                  {(selectedElementProps || activeMainTool === 'grid') ? (
+                  {(selectedElementProps || activeMainTool === 'grid' || activeMainTool === 'elements') ? (
                     <div className="flex flex-col gap-[1.5vw]">
                       {(selectedElementProps?.isUserGroup || (multiSelectedIds && multiSelectedIds.size > 1)) ? (
                         <GroupProperties

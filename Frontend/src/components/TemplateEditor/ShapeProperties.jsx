@@ -6,7 +6,7 @@ import Color from './Color';
 import CornerRadius from './CornerRadius';
 import Adjustment from './Adjustment';
 import Effect from './Effect';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Upload, Trash2, RefreshCw, Link as LinkIcon, Image as ImageIcon, SlidersHorizontal, Move, ZoomIn, RotateCcw } from 'lucide-react';
 
 const PropertySlider = ({ label, value, onChange, min = 0, max = 100, disabled = false }) => {
   const [localVal, setLocalVal] = useState(value);
@@ -96,6 +96,9 @@ const ShapeProperties = ({
   activeMainTool
 }) => {
   const [openSubSection, setOpenSubSection] = useState('color');
+  const fileInputRef = useRef(null);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [imageUrlText, setImageUrlText] = useState('');
 
   // UI states for Color
   const [activeColorPicker, setActiveColorPicker] = useState(null);
@@ -411,39 +414,372 @@ const ShapeProperties = ({
         </div>
       )}
 
-      {selectedElementProps['data-masked-image-url'] && (
-        <div className="px-[0.2vw] py-[0.5vw]">
-          <button
-            onClick={() => {
-              updateElementAttribute(activePageIndex, selectedLayerId, {
-                'data-masked-image-url': null,
-                'data-masked-image-type': null,
-                'fill': selectedElementProps['data-original-fill'] || '#d0ccff'
-              });
-              try {
-                const safeShapeId = (selectedLayerId || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '_');
-                const imageId = `masked-img-${safeShapeId}`;
-                const clipId = `clip-shape-${safeShapeId}`;
-                
-                const svg = document.getElementById('main-flipbook-editor')?.contentDocument?.querySelector('svg') || document.querySelector('.flipbook-page-container svg');
-                if (svg) {
-                  const imgEl = svg.querySelector(`image[id="${imageId}"]`);
-                  if (imgEl) imgEl.remove();
-                  
-                  const clipEl = svg.querySelector(`clipPath[id="${clipId}"]`);
-                  if (clipEl) clipEl.remove();
-                }
-              } catch (e) {
-                console.error('Error removing masked image elements:', e);
-              }
-            }}
-            className="w-full flex items-center justify-center gap-[0.5vw] py-[0.4vw] text-[0.85vw] font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded border border-red-200 transition-colors"
-          >
-            <Icon icon="lucide:image-minus" width="1.1vw" height="1.1vw" />
-            Remove Image Mask
-          </button>
+      {/* ── Image Masking Section ── */}
+      <div className="border border-gray-200/80 rounded-[0.6vw] p-[0.7vw] bg-white shadow-xs my-[0.5vw]">
+        <div className="flex items-center justify-between pb-[0.4vw] mb-[0.4vw] border-b border-gray-100">
+          <div className="flex items-center gap-[0.4vw]">
+            <div className="w-[1.4vw] h-[1.4vw] rounded-[0.35vw] bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Icon icon="solar:mask-h-bold-duotone" width="0.9vw" height="0.9vw" />
+            </div>
+            <span className="text-[0.75vw] font-bold text-gray-800">Image Mask Frame</span>
+          </div>
+          {selectedElementProps['data-masked-image-url'] && (
+            <span className="px-[0.35vw] py-[0.1vw] bg-green-50 text-green-700 text-[0.6vw] font-bold rounded-full border border-green-200">
+              Active Mask
+            </span>
+          )}
         </div>
-      )}
+
+        {selectedElementProps['data-masked-image-url'] ? (
+          <div className="flex flex-col gap-[0.6vw]">
+            {/* Mask Preview & Quick Actions */}
+            <div className="flex items-center gap-[0.6vw] p-[0.4vw] bg-gray-50/80 rounded-[0.4vw] border border-gray-200/60">
+              <div className="w-[3vw] h-[3vw] rounded-[0.3vw] overflow-hidden bg-white border border-gray-200 flex-shrink-0 flex items-center justify-center">
+                <img
+                  src={selectedElementProps['data-masked-image-url']}
+                  alt="Masked Preview"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[0.68vw] font-semibold text-gray-700 truncate">
+                  Masked Image
+                </div>
+                <div className="text-[0.6vw] text-gray-400 truncate">
+                  Fit: {selectedElementProps['data-masked-image-fit'] || 'Cover'} • {selectedElementProps['data-masked-image-opacity'] !== undefined ? Math.round(parseFloat(selectedElementProps['data-masked-image-opacity']) * 100) : 100}%
+                </div>
+              </div>
+              <div className="flex items-center gap-[0.3vw]">
+                <button
+                  title="Replace Image"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-[0.35vw] rounded hover:bg-gray-200/80 text-gray-600 transition-colors"
+                >
+                  <RefreshCw size="0.8vw" />
+                </button>
+                <button
+                  title="Remove Mask"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('remove-shape-mask', {
+                      detail: {
+                        shapeId: selectedLayerId,
+                        pageIndex: activePageIndex
+                      }
+                    }));
+                  }}
+                  className="p-[0.35vw] rounded hover:bg-red-100 text-red-600 transition-colors"
+                >
+                  <Trash2 size="0.8vw" />
+                </button>
+              </div>
+            </div>
+
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                  const dataUrl = evt.target?.result;
+                  if (dataUrl) {
+                    window.dispatchEvent(new CustomEvent('mask-image-to-shape', {
+                      detail: {
+                        shapeId: selectedLayerId,
+                        imageUrl: dataUrl,
+                        fitMode: selectedElementProps['data-masked-image-fit'] || 'Cover',
+                        opacity: selectedElementProps['data-masked-image-opacity'] !== undefined ? parseFloat(selectedElementProps['data-masked-image-opacity']) : 1,
+                        pageIndex: activePageIndex
+                      }
+                    }));
+                  }
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+
+            {/* Fit Mode Selector */}
+            <div className="flex items-center justify-between gap-[0.4vw]">
+              <span className="text-[0.7vw] font-semibold text-gray-600">Fit Mode:</span>
+              <div className="flex items-center gap-[0.2vw] bg-gray-100 p-[0.15vw] rounded-[0.35vw]">
+                {['Cover', 'Contain', 'Fill'].map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('update-shape-mask', {
+                        detail: {
+                          shapeId: selectedLayerId,
+                          fitMode: mode,
+                          pageIndex: activePageIndex
+                        }
+                      }));
+                    }}
+                    className={`px-[0.5vw] py-[0.2vw] text-[0.65vw] font-semibold rounded-[0.25vw] transition-all cursor-pointer ${
+                      (selectedElementProps['data-masked-image-fit'] || 'Cover') === mode
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Mask Crop & Framing Adjustments (Zoom & Pan) */}
+            <div className="pt-[0.4vw] border-t border-gray-100 flex flex-col gap-[0.4vw]">
+              <div className="flex items-center justify-between">
+                <span className="text-[0.68vw] font-bold text-gray-700 flex items-center gap-[0.3vw]">
+                  <SlidersHorizontal size="0.75vw" className="text-indigo-600" />
+                  Crop & Framing Adjustments
+                </span>
+                <button
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('update-shape-mask', {
+                      detail: {
+                        shapeId: selectedLayerId,
+                        scale: 1,
+                        offsetX: 0,
+                        offsetY: 0,
+                        pageIndex: activePageIndex
+                      }
+                    }));
+                  }}
+                  title="Reset Framing"
+                  className="flex items-center gap-[0.2vw] text-[0.6vw] text-gray-500 hover:text-indigo-600 font-medium cursor-pointer"
+                >
+                  <RotateCcw size="0.65vw" /> Reset
+                </button>
+              </div>
+
+              {/* Zoom / Scale Slider */}
+              <div className="flex items-center justify-between gap-[0.4vw]">
+                <span className="text-[0.65vw] font-medium text-gray-600 flex items-center gap-[0.2vw]">
+                  <ZoomIn size="0.65vw" /> Zoom
+                </span>
+                <div className="flex items-center gap-[0.5vw] flex-1 max-w-[12vw]">
+                  <input
+                    type="range"
+                    min="100"
+                    max="300"
+                    value={Math.round(parseFloat(selectedElementProps['data-mask-scale'] || '1') * 100)}
+                    onChange={(e) => {
+                      const newScale = parseInt(e.target.value) / 100;
+                      window.dispatchEvent(new CustomEvent('update-shape-mask', {
+                        detail: {
+                          shapeId: selectedLayerId,
+                          scale: newScale,
+                          pageIndex: activePageIndex
+                        }
+                      }));
+                    }}
+                    className="w-full accent-indigo-600 h-[0.3vw] bg-gray-200 rounded-lg cursor-pointer"
+                  />
+                  <span className="text-[0.65vw] font-medium text-gray-700 w-[2.2vw] text-right">
+                    {Math.round(parseFloat(selectedElementProps['data-mask-scale'] || '1') * 100)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Horizontal Position (Pan X) */}
+              <div className="flex items-center justify-between gap-[0.4vw]">
+                <span className="text-[0.65vw] font-medium text-gray-600 flex items-center gap-[0.2vw]">
+                  <Move size="0.65vw" /> Pan X
+                </span>
+                <div className="flex items-center gap-[0.5vw] flex-1 max-w-[12vw]">
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    value={Math.round(parseFloat(selectedElementProps['data-mask-offset-x'] || '0'))}
+                    onChange={(e) => {
+                      const newX = parseInt(e.target.value);
+                      window.dispatchEvent(new CustomEvent('update-shape-mask', {
+                        detail: {
+                          shapeId: selectedLayerId,
+                          offsetX: newX,
+                          pageIndex: activePageIndex
+                        }
+                      }));
+                    }}
+                    className="w-full accent-indigo-600 h-[0.3vw] bg-gray-200 rounded-lg cursor-pointer"
+                  />
+                  <span className="text-[0.65vw] font-medium text-gray-700 w-[2.2vw] text-right">
+                    {Math.round(parseFloat(selectedElementProps['data-mask-offset-x'] || '0'))}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Vertical Position (Pan Y) */}
+              <div className="flex items-center justify-between gap-[0.4vw]">
+                <span className="text-[0.65vw] font-medium text-gray-600 flex items-center gap-[0.2vw]">
+                  <Move size="0.65vw" className="rotate-90" /> Pan Y
+                </span>
+                <div className="flex items-center gap-[0.5vw] flex-1 max-w-[12vw]">
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    value={Math.round(parseFloat(selectedElementProps['data-mask-offset-y'] || '0'))}
+                    onChange={(e) => {
+                      const newY = parseInt(e.target.value);
+                      window.dispatchEvent(new CustomEvent('update-shape-mask', {
+                        detail: {
+                          shapeId: selectedLayerId,
+                          offsetY: newY,
+                          pageIndex: activePageIndex
+                        }
+                      }));
+                    }}
+                    className="w-full accent-indigo-600 h-[0.3vw] bg-gray-200 rounded-lg cursor-pointer"
+                  />
+                  <span className="text-[0.65vw] font-medium text-gray-700 w-[2.2vw] text-right">
+                    {Math.round(parseFloat(selectedElementProps['data-mask-offset-y'] || '0'))}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Mask Image Opacity Slider */}
+            <div className="flex items-center justify-between gap-[0.4vw] pt-[0.2vw]">
+              <span className="text-[0.7vw] font-semibold text-gray-600">Mask Opacity:</span>
+              <div className="flex items-center gap-[0.5vw] flex-1 max-w-[12vw]">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={selectedElementProps['data-masked-image-opacity'] !== undefined ? Math.round(parseFloat(selectedElementProps['data-masked-image-opacity']) * 100) : 100}
+                  onChange={(e) => {
+                    const newOp = parseInt(e.target.value);
+                    window.dispatchEvent(new CustomEvent('update-shape-mask', {
+                      detail: {
+                        shapeId: selectedLayerId,
+                        opacity: newOp / 100,
+                        pageIndex: activePageIndex
+                      }
+                    }));
+                  }}
+                  className="w-full accent-indigo-600 h-[0.3vw] bg-gray-200 rounded-lg cursor-pointer"
+                />
+                <span className="text-[0.65vw] font-medium text-gray-700 w-[2.2vw] text-right">
+                  {selectedElementProps['data-masked-image-opacity'] !== undefined ? Math.round(parseFloat(selectedElementProps['data-masked-image-opacity']) * 100) : 100}%
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-[0.5vw]">
+            <p className="text-[0.65vw] text-gray-500 leading-relaxed">
+              Clip and frame any image inside this SVG shape outline.
+            </p>
+
+            <div className="flex items-center gap-[0.4vw]">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-[0.35vw] py-[0.4vw] px-[0.6vw] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[0.72vw] rounded-[0.4vw] border border-indigo-200 transition-colors shadow-2xs cursor-pointer"
+              >
+                <Upload size="0.8vw" />
+                Upload Image
+              </button>
+
+              <button
+                onClick={() => setShowUrlInput(!showUrlInput)}
+                className={`p-[0.4vw] rounded-[0.4vw] border transition-colors cursor-pointer ${
+                  showUrlInput
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+                title="Paste Image URL"
+              >
+                <LinkIcon size="0.85vw" />
+              </button>
+            </div>
+
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                  const dataUrl = evt.target?.result;
+                  if (dataUrl) {
+                    window.dispatchEvent(new CustomEvent('mask-image-to-shape', {
+                      detail: {
+                        shapeId: selectedLayerId,
+                        imageUrl: dataUrl,
+                        fitMode: 'Cover',
+                        opacity: 1,
+                        pageIndex: activePageIndex
+                      }
+                    }));
+                  }
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+
+            {/* Inline URL Input */}
+            {showUrlInput && (
+              <div className="flex items-center gap-[0.3vw] mt-[0.2vw]">
+                <input
+                  type="text"
+                  placeholder="https://example.com/photo.jpg"
+                  value={imageUrlText}
+                  onChange={(e) => setImageUrlText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && imageUrlText.trim()) {
+                      window.dispatchEvent(new CustomEvent('mask-image-to-shape', {
+                        detail: {
+                          shapeId: selectedLayerId,
+                          imageUrl: imageUrlText.trim(),
+                          fitMode: 'Cover',
+                          opacity: 1,
+                          pageIndex: activePageIndex
+                        }
+                      }));
+                      setImageUrlText('');
+                      setShowUrlInput(false);
+                    }
+                  }}
+                  className="flex-1 text-[0.68vw] px-[0.5vw] py-[0.3vw] border border-gray-200 rounded-[0.3vw] focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  disabled={!imageUrlText.trim()}
+                  onClick={() => {
+                    if (imageUrlText.trim()) {
+                      window.dispatchEvent(new CustomEvent('mask-image-to-shape', {
+                        detail: {
+                          shapeId: selectedLayerId,
+                          imageUrl: imageUrlText.trim(),
+                          fitMode: 'Cover',
+                          opacity: 1,
+                          pageIndex: activePageIndex
+                        }
+                      }));
+                      setImageUrlText('');
+                      setShowUrlInput(false);
+                    }
+                  }}
+                  className="px-[0.5vw] py-[0.3vw] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-[0.68vw] font-semibold rounded-[0.3vw] transition-colors cursor-pointer"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <div>
         <Color
