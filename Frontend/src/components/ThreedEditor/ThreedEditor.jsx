@@ -46,17 +46,67 @@ if (GLTFExporter && GLTFExporter.prototype && !GLTFExporter.prototype._isSafeExp
   };
 }
 
-// Controller to ensure environment lighting rotation updates in real-time.
-// Uses a ref to avoid stale closures and always runs in useFrame so that
-// drei's <Environment> re-render cannot override the user-set rotation.
-function SceneEnvironmentController({ envRotation = 0 }) {
+// Patch Three.js background shaders from ShaderChunk to smoothly mingle the HDRI with the studio gray background color (#393939)
+// and apply the user's Reflection slider to the HDRI in real-time.
+const bgPatchGlsl = /* glsl */`
+  // backgroundIntensity encodes opacity (integer: 0..100) and reflection (fractional: 0.0..0.3 -> 0.0..3.0)
+  float bgOpacity = clamp( floor( backgroundIntensity ) / 100.0, 0.0, 1.0 );
+  float bgReflection = max( 0.0, fract( backgroundIntensity ) * 10.0 );
+
+  // Apply Reflection slider to HDRI radiance in the world
+  texColor.rgb *= bgReflection;
+
+  // #393939 in linear sRGB space
+  vec3 studioGray = vec3( 0.039547, 0.039547, 0.039547 );
+  texColor.rgb = mix( studioGray, texColor.rgb, bgOpacity );
+`;
+
+if (THREE.ShaderLib.backgroundCube && THREE.ShaderChunk.backgroundCube_frag) {
+  THREE.ShaderLib.backgroundCube.fragmentShader = THREE.ShaderChunk.backgroundCube_frag.replace(
+    'texColor.rgb *= backgroundIntensity;',
+    bgPatchGlsl
+  );
+}
+
+if (THREE.ShaderLib.background && THREE.ShaderChunk.background_frag) {
+  THREE.ShaderLib.background.fragmentShader = THREE.ShaderChunk.background_frag.replace(
+    'texColor.rgb *= backgroundIntensity;',
+    bgPatchGlsl
+  );
+}
+
+// Safely restores skeleton bones to bind pose without the Three.js Skeleton.pose() root bone multiplication bug
+function safelyRestoreSkeletonBindPose(skeleton) {
+  if (!skeleton || !Array.isArray(skeleton.bones) || !skeleton.boneInverses) return;
+  for (let i = 0; i < skeleton.bones.length; i++) {
+    const bone = skeleton.bones[i];
+    const inv = skeleton.boneInverses[i];
+    if (bone && inv) {
+      bone.matrixWorld.copy(inv).invert();
+    }
+  }
+  for (let i = 0; i < skeleton.bones.length; i++) {
+    const bone = skeleton.bones[i];
+    if (!bone) continue;
+    if (bone.parent) {
+      bone.matrix.copy(bone.parent.matrixWorld).invert().multiply(bone.matrixWorld);
+    } else {
+      bone.matrix.copy(bone.matrixWorld);
+    }
+    bone.matrix.decompose(bone.position, bone.quaternion, bone.scale);
+  }
+}
+
+// Controller to ensure environment lighting, background opacity (mingled with gray color), blur, and rotation
+// update in real-time across every frame so drei re-renders cannot override user settings.
+function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, worldBlur = 0, reflection = 50, isCapturing = false }) {
   const { scene } = useThree();
   const rotRef = useRef(0);
 
   // Keep the ref current every render so useFrame always reads the latest value
   rotRef.current = (envRotation || 0) * (Math.PI / 180);
 
-  // Apply immediately on mount and whenever the value changes
+  // Apply immediately on mount and whenever properties change
   useEffect(() => {
     if (!scene) return;
     const rad = rotRef.current;
@@ -67,12 +117,24 @@ function SceneEnvironmentController({ envRotation = 0 }) {
     }
     if (scene.backgroundRotation) {
       scene.backgroundRotation.set(0, rad, 0);
+    } else {
+      scene.backgroundRotation = new THREE.Euler(0, rad, 0);
+    }
+    // Force background mesh material recompile if background texture was already assigned
+    if (scene.background && scene.background.isTexture) {
+      scene.background.version++;
     }
   }, [scene, envRotation]);
 
-  // Enforce rotation every frame so drei re-renders cannot override it
+  // Enforce rotation, reflection, blur, and opacity every frame so drei re-renders cannot override it
   useFrame(() => {
     if (!scene) return;
+
+    if (isCapturing) {
+      if (scene.background) scene.background = null;
+      return;
+    }
+
     const rad = rotRef.current;
     if (scene.environmentRotation) {
       if (scene.environmentRotation.y !== rad) {
@@ -83,6 +145,27 @@ function SceneEnvironmentController({ envRotation = 0 }) {
     }
     if (scene.backgroundRotation && scene.backgroundRotation.y !== rad) {
       scene.backgroundRotation.set(0, rad, 0);
+    }
+
+    // Dynamic environment reflection intensity from Reflection slider
+    const reflVal = reflection !== undefined ? reflection : 50;
+    const targetEnvIntensity = reflVal <= 50 ? (reflVal / 50) : 1.0 + ((reflVal - 50) / 50) * 2.0;
+    if (scene.environmentIntensity !== undefined && scene.environmentIntensity !== targetEnvIntensity) {
+      scene.environmentIntensity = targetEnvIntensity;
+    }
+
+    // Dynamic background opacity & reflection (mingles smoothly with #393939 gray color and scales HDRI reflection)
+    const targetOpacity = Math.max(0, Math.min(100, Math.round(worldOpacity ?? 0)));
+    // Encode: integer part is opacity (0..100), fractional part is reflection / 10.0 (0.0..0.3)
+    const encodedBgIntensity = targetOpacity + (targetEnvIntensity / 10.0);
+    if (scene.backgroundIntensity !== encodedBgIntensity) {
+      scene.backgroundIntensity = encodedBgIntensity;
+    }
+
+    // Dynamic background blur
+    const targetBlur = Math.max(0, Math.min(1, (worldBlur ?? 0) / 100));
+    if (scene.backgroundBlurriness !== targetBlur) {
+      scene.backgroundBlurriness = targetBlur;
     }
   });
 
@@ -109,12 +192,12 @@ function DirectionalSunLight({ position, specular = 50, softness = 50 }) {
     <directionalLight
       ref={lightRef}
       position={position}
-      intensity={1.5 + (specular ?? 50) / 40}
+      intensity={1.8 + ((specular ?? 50) / 100) * 0.8}
       castShadow
       shadow-bias={-0.0001}
       shadow-normalBias={0.02}
       shadow-radius={shadowSoftRadius}
-      shadow-mapSize={[2048, 2048]}
+      shadow-mapSize={[1024, 1024]}
       shadow-camera-left={-8}
       shadow-camera-right={8}
       shadow-camera-top={8}
@@ -140,6 +223,7 @@ export default function ThreedEditor() {
   } = useOutletContext();
 
   const toast = useToast();
+  const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 
   const [models, setModels] = useState(threedState.models || (threedState.modelUrl ? [{
       id: "default",
@@ -154,6 +238,7 @@ export default function ThreedEditor() {
   const [modelFile, setModelFile] = useState(models.length > 0 ? models[0].file : null); 
   const [modelType, setModelType] = useState(models.length > 0 ? models[0].type : "glb");
   const [autoRotate, setAutoRotate] = useState(false);
+  const [xrayMode, setXrayMode] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(models.length === 0); // If model exists, don't collapse
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
@@ -161,6 +246,19 @@ export default function ThreedEditor() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingModelInfo, setLoadingModelInfo] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isAnimationPlaying, setIsAnimationPlaying] = useState(true);
+  const [modelHasAnimationsMap, setModelHasAnimationsMap] = useState({});
+  const hasAnimations = useMemo(() => {
+    return Object.values(modelHasAnimationsMap).some(Boolean);
+  }, [modelHasAnimationsMap]);
+
+  const handleHasAnimationsChange = useCallback((modelId, hasAnim) => {
+    const boolVal = Boolean(hasAnim);
+    setModelHasAnimationsMap(prev => {
+      if (Boolean(prev[modelId]) === boolVal) return prev;
+      return { ...prev, [modelId]: boolVal };
+    });
+  }, []);
 
   const loadingProgressRef = useRef(0);
   const loadingTimerRef = useRef(null);
@@ -568,7 +666,8 @@ export default function ThreedEditor() {
       deletedMaterials: Array.from(deletedMaterials),
       modelMaterialLists: modelMaterialLists,
       selectedMaterial: selectedMaterial,
-      selectedTexture: selectedTexture
+      selectedTexture: selectedTexture,
+      selectedTextureId: selectedTextureId
   });
 
   const stateRef = useRef({ 
@@ -580,22 +679,151 @@ export default function ThreedEditor() {
       deletedMaterials, 
       modelMaterialLists,
       selectedMaterial,
-      selectedTexture
+      selectedTexture,
+      selectedTextureId
   });
 
-  useEffect(() => {
-      stateRef.current = { 
-          models, 
-          transformValues, 
-          materialSettings, 
-          modelName, 
-          hiddenMaterials, 
-          deletedMaterials, 
-          modelMaterialLists,
-          selectedMaterial,
-          selectedTexture
+  // Keep stateRef immediately updated in body
+  stateRef.current = { 
+      models, 
+      transformValues, 
+      materialSettings, 
+      modelName, 
+      hiddenMaterials, 
+      deletedMaterials, 
+      modelMaterialLists,
+      selectedMaterial,
+      selectedTexture,
+      selectedTextureId
+  };
+
+  const buildSnapshot = useCallback((override = {}) => {
+      const cur = stateRef.current || {};
+      const curMS = override.materialSettings || cur.materialSettings || {};
+      const curTV = override.transformValues || cur.transformValues || {};
+      const curHM = override.hiddenMaterials !== undefined ? override.hiddenMaterials : (cur.hiddenMaterials || []);
+      const curDM = override.deletedMaterials !== undefined ? override.deletedMaterials : (cur.deletedMaterials || []);
+      const curModels = override.models || cur.models || [];
+      const curModelName = override.modelName !== undefined ? override.modelName : (cur.modelName ?? "");
+      const curSelMat = override.selectedMaterial !== undefined ? override.selectedMaterial : cur.selectedMaterial;
+      const curSelTex = override.selectedTexture !== undefined ? override.selectedTexture : cur.selectedTexture;
+      const curSelTexId = override.selectedTextureId !== undefined ? override.selectedTextureId : (curSelTex?.id || cur.selectedTextureId || null);
+      const curMatLists = override.modelMaterialLists || cur.modelMaterialLists || {};
+
+      return {
+          models: Array.isArray(curModels) ? curModels.map(m => ({ ...m })) : [],
+          modelName: curModelName,
+          transformValues: {
+              position: { ...(curTV?.position || { x: 0, y: 0, z: 0 }) },
+              rotation: { ...(curTV?.rotation || { x: 0, y: 0, z: 0 }) },
+              scale: { ...(curTV?.scale || { x: 1, y: 1, z: 1 }) }
+          },
+          materialSettings: {
+              ...curMS,
+              lightPosition: { ...(curMS?.lightPosition || { x: 10, y: 10, z: 10 }) },
+              offset: { ...(curMS?.offset || { x: 0, y: 0 }) },
+              maps: { ...(curMS?.maps || {}) }
+          },
+          hiddenMaterials: Array.from(curHM instanceof Set ? curHM : (curHM || [])),
+          deletedMaterials: Array.from(curDM instanceof Set ? curDM : (curDM || [])),
+          modelMaterialLists: { ...curMatLists },
+          selectedMaterial: curSelMat ? { ...curSelMat } : null,
+          selectedTexture: curSelTex ? { ...curSelTex } : null,
+          selectedTextureId: curSelTexId
       };
-  }, [models, transformValues, materialSettings, modelName, hiddenMaterials, deletedMaterials, modelMaterialLists, selectedMaterial, selectedTexture]);
+  }, []);
+
+  const historyDebounceTimerRef = useRef(null);
+
+  const commitHistoryNow = useCallback((snapshot) => {
+      if (historyDebounceTimerRef.current) {
+          clearTimeout(historyDebounceTimerRef.current);
+          historyDebounceTimerRef.current = null;
+      }
+      const finalState = snapshot || buildSnapshot();
+      pushHistory(finalState);
+  }, [pushHistory, buildSnapshot]);
+
+  const commitHistoryDebounced = useCallback((snapshot, delay = 400) => {
+      if (historyDebounceTimerRef.current) {
+          clearTimeout(historyDebounceTimerRef.current);
+      }
+      historyDebounceTimerRef.current = setTimeout(() => {
+          const finalState = snapshot || buildSnapshot();
+          pushHistory(finalState);
+          historyDebounceTimerRef.current = null;
+      }, delay);
+  }, [pushHistory, buildSnapshot]);
+
+  const applyHistoryState = useCallback((targetState) => {
+      if (!targetState) return;
+
+      if (historyDebounceTimerRef.current) {
+          clearTimeout(historyDebounceTimerRef.current);
+          historyDebounceTimerRef.current = null;
+      }
+
+      if (targetState.models !== undefined) {
+          const isCurrentModelPresent = models.length > 0;
+          const isTargetEmpty = targetState.models.length === 0;
+          if (!isTargetEmpty || !isCurrentModelPresent) {
+              setModels(targetState.models);
+          }
+      }
+      if (targetState.modelMaterialLists !== undefined) {
+          setModelMaterialLists(targetState.modelMaterialLists);
+      }
+      if (targetState.modelName !== undefined && targetState.modelName !== "") {
+          setModelName(targetState.modelName);
+      }
+      if (targetState.transformValues !== undefined) {
+          setTransformValues({
+              position: { ...(targetState.transformValues.position || { x: 0, y: 0, z: 0 }) },
+              rotation: { ...(targetState.transformValues.rotation || { x: 0, y: 0, z: 0 }) },
+              scale: { ...(targetState.transformValues.scale || { x: 1, y: 1, z: 1 }) }
+          });
+      }
+      if (targetState.materialSettings !== undefined) {
+          setMaterialSettings({
+              ...targetState.materialSettings,
+              useFactorColor: true,
+              lastChangedProp: null
+          });
+      }
+      if (targetState.hiddenMaterials !== undefined) {
+          setHiddenMaterials(new Set(targetState.hiddenMaterials));
+      }
+      if (targetState.deletedMaterials !== undefined) {
+          setDeletedMaterials(new Set(targetState.deletedMaterials));
+      }
+      if (targetState.selectedMaterial !== undefined) {
+          setSelectedMaterial(targetState.selectedMaterial);
+      }
+      if (targetState.selectedTexture !== undefined) {
+          setSelectedTexture(targetState.selectedTexture);
+      }
+
+      const tex = targetState.materialSettings?.appliedTexture || targetState.selectedTexture;
+      const texId = targetState.selectedTextureId !== undefined ? targetState.selectedTextureId : (tex?.id || null);
+      setSelectedTextureId(texId);
+
+      // Re-trigger visual synchronizations in 3D canvas
+      setResetKey(prev => prev + 1);
+  }, [models.length, setTransformValues]);
+
+  const handleUndo = useCallback(() => {
+      const prevState = undo();
+      if (prevState) {
+          applyHistoryState(prevState);
+      }
+  }, [undo, applyHistoryState]);
+
+  const handleRedo = useCallback(() => {
+      const nextState = redo();
+      if (nextState) {
+          applyHistoryState(nextState);
+      }
+  }, [redo, applyHistoryState]);
 
   // --- History Management ---
   // --- Initialization & Server Sync ---
@@ -728,6 +956,7 @@ export default function ThreedEditor() {
             materialSettings: {
                 alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 4, rotation: 0,
                 specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+                worldOpacity: 0, worldBlur: 0,
                 color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
                 lightPosition: { x: 10, y: 10, z: 10 }
             }
@@ -795,14 +1024,18 @@ export default function ThreedEditor() {
                       
                       const formData = new FormData();
                       formData.append('emailId', user.emailId);
-                      formData.append('model', blob, `texture_${mapType}_${Date.now()}.png`); // Reusing upload-model endpoint
+                      formData.append('texture', blob, `texture_${mapType}_${Date.now()}.png`);
                       
-                      const uploadRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, formData, {
+                      const uploadRes = await axios.post(`${backendUrl}/api/3d-models/upload-texture`, formData, {
                           headers: { 'Content-Type': 'multipart/form-data' }
                       });
                       
                       if (uploadRes.data && uploadRes.data.url) {
-                          nextMaps[mapType] = `${backendUrl}${uploadRes.data.url}`;
+                          const rawUrl = uploadRes.data.url;
+                          const resolvedTexUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
+                              ? rawUrl
+                              : `${backendUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+                          nextMaps[mapType] = resolvedTexUrl;
                           mapsChanged = true;
                       }
                   } catch (e) {
@@ -830,10 +1063,62 @@ export default function ThreedEditor() {
       const camera = cameraInstanceRef.current;
       const modelGroup = sceneWrapperRef.current;
       
-      if (gl && camera && modelGroup && nextModels.length > 0) {
+      if (gl && camera && nextModels.length > 0) {
           try {
               // ─── CLEAN & SAFE GLB EXPORT ──────────────────────────────────
-              const exportScene = SkeletonUtils.clone(modelGroup);
+              // Export the clean model scene directly, avoiding redundant wrapper groups
+              // and preserving author's original coordinates without viewport normalization artifacts.
+              const resolveLiveScene = (modelId) => {
+                  const raw = modelRefs.current.get(modelId) || (modelId === nextModels[0]?.id ? modelRef.current : null);
+                  if (raw && typeof raw.clone === 'function' && raw.isObject3D) return raw;
+                  if (raw?.scene && typeof raw.scene.clone === 'function' && raw.scene.isObject3D) return raw.scene;
+                  // Fallback: search inside sceneWrapperRef.current for the inner scene primitive
+                  if (sceneWrapperRef.current && sceneWrapperRef.current.children.length > 0) {
+                      for (const child of sceneWrapperRef.current.children) {
+                          if (child.children && child.children.length > 0) {
+                              const inner = child.children[0];
+                              if (inner && typeof inner.clone === 'function' && inner.isObject3D) return inner;
+                          }
+                          if (child && typeof child.clone === 'function' && child.isObject3D) return child;
+                      }
+                  }
+                  return sceneWrapperRef.current;
+              };
+
+              let exportScene;
+              const liveScene = resolveLiveScene(nextModels[0]?.id);
+
+              const hasUserTransform = transformValues && (
+                  (transformValues.position && (Math.abs(transformValues.position.x) > 1e-4 || Math.abs(transformValues.position.y) > 1e-4 || Math.abs(transformValues.position.z) > 1e-4)) ||
+                  (transformValues.rotation && (Math.abs(transformValues.rotation.x) > 1e-4 || Math.abs(transformValues.rotation.y) > 1e-4 || Math.abs(transformValues.rotation.z) > 1e-4)) ||
+                  (transformValues.scale && (Math.abs(transformValues.scale.x - 1) > 1e-4 || Math.abs(transformValues.scale.y - 1) > 1e-4 || Math.abs(transformValues.scale.z - 1) > 1e-4))
+              );
+
+              if (nextModels.length === 1 && liveScene) {
+                  exportScene = SkeletonUtils.clone(liveScene);
+                  // Apply user-level transforms ONLY if the user explicitly moved/rotated/scaled the model in editor
+                  if (hasUserTransform) {
+                      exportScene.position.x += (transformValues.position?.x || 0);
+                      exportScene.position.y += (transformValues.position?.y || 0);
+                      exportScene.position.z += (transformValues.position?.z || 0);
+                      exportScene.rotation.x += (transformValues.rotation?.x || 0);
+                      exportScene.rotation.y += (transformValues.rotation?.y || 0);
+                      exportScene.rotation.z += (transformValues.rotation?.z || 0);
+                      if (transformValues.scale) {
+                          exportScene.scale.x *= (transformValues.scale.x || 1);
+                          exportScene.scale.y *= (transformValues.scale.y || 1);
+                          exportScene.scale.z *= (transformValues.scale.z || 1);
+                      }
+                  }
+              } else {
+                  exportScene = new THREE.Scene();
+                  nextModels.forEach((m) => {
+                      const s = resolveLiveScene(m.id);
+                      if (s) {
+                          exportScene.add(SkeletonUtils.clone(s));
+                      }
+                  });
+              }
 
               // 1. Strip helper tools, gizmos, cameras, lights, and corrupted meshes
               const toRemove = [];
@@ -867,9 +1152,6 @@ export default function ThreedEditor() {
                           delete obj.skeleton;
                           delete obj.bindMatrix;
                           delete obj.bindMatrixInverse;
-                      } else {
-                          obj.skeleton.bones = obj.skeleton.bones.filter(Boolean);
-                          try { obj.skeleton.calculateInverses?.(); } catch (_) {}
                       }
                   }
 
@@ -882,11 +1164,67 @@ export default function ThreedEditor() {
                           mat.transparent = isTrans;
                           mat.depthWrite = !isTrans;
                           mat.alphaTest = 0;
+                          // Detach envMap so environment map reflections are not serialized into the GLB
+                          if (mat.envMap) {
+                              mat.envMap = null;
+                          }
                       });
                   }
               });
 
               toRemove.forEach((obj) => { if (obj.parent) obj.parent.remove(obj); });
+
+              // Restore all hierarchy nodes (bones and animated parent nodes) to their pristine rest/bind pose before export
+              exportScene.traverse((child) => {
+                  if (child.userData?.__bindPos && child.userData?.__bindQuat && child.userData?.__bindScale) {
+                      const p = child.userData.__bindPos;
+                      const q = child.userData.__bindQuat;
+                      const s = child.userData.__bindScale;
+                      child.position.set(p[0], p[1], p[2]);
+                      if (Math.hypot(q[0], q[1], q[2], q[3]) > 0.0001) {
+                          child.quaternion.set(q[0], q[1], q[2], q[3]).normalize();
+                      } else {
+                          child.quaternion.identity();
+                      }
+                      child.scale.set(s[0], s[1], s[2]);
+                      child.updateMatrix();
+                  } else if (child.isBone) {
+                      // Fallback for bones with legacy transform data
+                      if (child.userData?.__bindPos) {
+                          const p = child.userData.__bindPos;
+                          child.position.set(p[0], p[1], p[2]);
+                      }
+                      if (child.userData?.__bindQuat) {
+                          const q = child.userData.__bindQuat;
+                          if (Math.hypot(q[0], q[1], q[2], q[3]) > 0.0001) {
+                              child.quaternion.set(q[0], q[1], q[2], q[3]).normalize();
+                          }
+                      }
+                      if (child.userData?.__bindScale) {
+                          const s = child.userData.__bindScale;
+                          child.scale.set(s[0], s[1], s[2]);
+                      }
+                      if (!child.userData?.__bindQuat && child.userData?.__bindTransform?.quaternion) {
+                          const q = child.userData.__bindTransform.quaternion;
+                          const qx = q.x !== undefined ? q.x : q._x;
+                          const qy = q.y !== undefined ? q.y : q._y;
+                          const qz = q.z !== undefined ? q.z : q._z;
+                          const qw = q.w !== undefined ? q.w : (q._w !== undefined ? q._w : 1);
+                          if (qx !== undefined && !isNaN(qx) && Math.hypot(qx, qy, qz, qw) > 0.0001) {
+                              child.quaternion.set(qx, qy, qz, qw).normalize();
+                          }
+                      }
+                      child.updateMatrix();
+                  }
+              });
+
+              // Clean editor-specific metadata from all nodes in exportScene
+              exportScene.traverse((obj) => {
+                  if (obj.userData) {
+                      delete obj.userData.normalization;
+                      delete obj.userData.originalTransform;
+                  }
+              });
 
               try { exportScene.updateMatrixWorld(true); } catch (_) {}
 
@@ -904,8 +1242,40 @@ export default function ThreedEditor() {
 
                   seenNames.add(key);
                   const cleanClip = c.clone();
-                  cleanClip.tracks = validTracks;
-                  exportAnimations.push(cleanClip);
+                  const resolvableTracks = [];
+
+                  for (const track of validTracks) {
+                      const clonedTrack = track.clone();
+                      const parts = clonedTrack.name.split('.');
+                      const propertyName = parts.pop();
+                      const targetPath = parts.join('.');
+                      
+                      let targetNode = THREE.PropertyBinding.findNode(exportScene, targetPath);
+                      if (!targetNode && targetPath.includes('/')) {
+                          const baseNodeName = targetPath.split('/').pop();
+                          const found = exportScene.getObjectByName(baseNodeName);
+                          if (found) {
+                              clonedTrack.name = `${baseNodeName}.${propertyName}`;
+                              targetNode = found;
+                          }
+                      } else if (!targetNode) {
+                          const found = exportScene.getObjectByName(targetPath);
+                          if (found) {
+                              targetNode = found;
+                          }
+                      }
+                      
+                      // Only keep tracks where the target node actually exists in exportScene!
+                      // If a track points to a nonexistent node, GLTFExporter aborts and drops the ENTIRE clip.
+                      if (targetNode) {
+                          resolvableTracks.push(clonedTrack);
+                      }
+                  }
+
+                  if (resolvableTracks.length > 0) {
+                      cleanClip.tracks = resolvableTracks;
+                      exportAnimations.push(cleanClip);
+                  }
               };
 
               if (exportScene.animations) exportScene.animations.forEach(collectClip);
@@ -919,11 +1289,19 @@ export default function ThreedEditor() {
                   }
               });
 
+              nextModels.forEach((m) => {
+                  if (m?.animations) m.animations.forEach(collectClip);
+                  if (m?.scene?.animations) m.scene.animations.forEach(collectClip);
+              });
+
               // 3. Export combined GLB containing all models
               const exporter = new GLTFExporter();
               const exportOptions = {
                 binary: true, 
                 forceIndices: true, 
+                trs: true,            // CRITICAL: Export clean TRS (translation/rotation/scale) per node instead of matrix so animations play correctly without skewing or inversion
+                onlyVisible: false,   // CRITICAL: Never omit invisible bones/joints, ensuring skin.joints indices never misalign with vertex skinIndex
+                maxTextureSize: 2048,
                 embedImages: true,
                 animations: (exportAnimations && exportAnimations.length > 0) ? exportAnimations : []
               };
@@ -977,15 +1355,17 @@ export default function ThreedEditor() {
                   const baseUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
                       ? rawUrl
                       : `${backendUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+                  const resolvedBaseUrl = resolveUploadsPath(baseUrl);
 
                   const timestamp = Date.now();
-                  const targetGlbUrl = baseUrl.includes('?') 
-                      ? `${baseUrl}&t=${timestamp}` 
-                      : `${baseUrl}?t=${timestamp}`;
+                  const targetGlbUrl = resolvedBaseUrl.includes('?') 
+                      ? `${resolvedBaseUrl}&t=${timestamp}` 
+                      : `${resolvedBaseUrl}?t=${timestamp}`;
 
                   // Clear loader cache so the fresh merged model is loaded
                   try {
                       useGLTF.clear(baseUrl);
+                      useGLTF.clear(resolvedBaseUrl);
                       useGLTF.clear(targetGlbUrl);
                   } catch (e) {}
 
@@ -1016,6 +1396,11 @@ export default function ThreedEditor() {
                   setModelMaterialDataMap({});
                   setModelStatsMap({});
                   setSelectedMaterial({ name: defaultBaseName, parentGroup: defaultBaseName });
+                  setTransformValues({
+                      position: { x: 0, y: 0, z: 0 },
+                      rotation: { x: 0, y: 0, z: 0 },
+                      scale: { x: 1, y: 1, z: 1 }
+                  });
 
                   // Broadcast save to InteractionPanel to bust browser cache
                   try {
@@ -1071,7 +1456,7 @@ export default function ThreedEditor() {
       setManualLoading(false);
       setLoadingText("");
     }
-  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, past, urlModelId, navigate]);
+  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, setTransformValues, past, urlModelId, navigate]);
 
   useEffect(() => {
     if (setSaveHandler) {
@@ -1781,19 +2166,17 @@ export default function ThreedEditor() {
           if (models.length === 0) {
               nextModelName = newModel.name;
               setModelName(nextModelName);
-              resetHistory({
-                  ...stateRef.current,
+              resetHistory(buildSnapshot({
                   models: nextModels,
                   modelName: nextModelName,
                   selectedMaterial: null
-              });
+              }));
           } else {
-              pushHistory({
-                  ...stateRef.current,
+              commitHistoryNow(buildSnapshot({
                   models: nextModels,
                   modelName: nextModelName,
                   selectedMaterial: null // Reset selection on new model to be safe
-              });
+              }));
           }
 
           setIsSidebarCollapsed(false);
@@ -1826,29 +2209,34 @@ export default function ThreedEditor() {
 
   const handleSetModelStats = useCallback((modelId, stats) => {
       setModelStatsMap(prev => {
-          if (JSON.stringify(prev[modelId]) === JSON.stringify(stats)) return prev;
+          if (prev[modelId] === stats) return prev;
+          try {
+              if (JSON.stringify(prev[modelId]) === JSON.stringify(stats)) return prev;
+          } catch (_) {}
           return { ...prev, [modelId]: stats };
       });
   }, []);
 
   const handleSetMaterialList = useCallback((modelId, list, dataMap) => {
       setModelMaterialLists(prev => {
-          if (JSON.stringify(prev[modelId]) === JSON.stringify(list)) return prev;
+          if (prev[modelId] === list) return prev;
+          try {
+              if (JSON.stringify(prev[modelId]) === JSON.stringify(list)) return prev;
+          } catch (_) {}
           const next = { ...prev, [modelId]: list };
-          updateHistory({
-              ...stateRef.current,
+          updateHistory(buildSnapshot({
               modelMaterialLists: next
-          });
+          }));
           return next;
       });
 
       if (dataMap) {
           setModelMaterialDataMap(prev => {
-              if (JSON.stringify(prev[modelId]) === JSON.stringify(dataMap)) return prev;
+              if (prev[modelId] === dataMap) return prev;
               return { ...prev, [modelId]: dataMap };
           });
       }
-  }, [updateHistory]);
+  }, [updateHistory, buildSnapshot]);
 
   // Two-Step Compression Export
   // Step 1: Three.js GLTFExporter -> raw GLB ArrayBuffer (captures all editor material changes)
@@ -1993,25 +2381,38 @@ export default function ThreedEditor() {
         });
 
         // Sanitize animation track names to match nodes in exportRoot
-        const sanitizedExportAnimations = exportAnimations.map(clip => {
+        const sanitizedExportAnimations = [];
+        exportAnimations.forEach(clip => {
             const clonedClip = clip.clone();
-            clonedClip.tracks = clonedClip.tracks.map(track => {
+            const resolvableTracks = [];
+            clonedClip.tracks.forEach(track => {
                 const clonedTrack = track.clone();
                 const parts = clonedTrack.name.split('.');
                 const propertyName = parts.pop();
                 const targetPath = parts.join('.');
                 
-                const targetNode = THREE.PropertyBinding.findNode(exportRoot, targetPath);
+                let targetNode = THREE.PropertyBinding.findNode(exportRoot, targetPath);
                 if (!targetNode && targetPath.includes('/')) {
                     const baseNodeName = targetPath.split('/').pop();
                     const found = exportRoot.getObjectByName(baseNodeName);
                     if (found) {
                         clonedTrack.name = `${baseNodeName}.${propertyName}`;
+                        targetNode = found;
+                    }
+                } else if (!targetNode) {
+                    const found = exportRoot.getObjectByName(targetPath);
+                    if (found) {
+                        targetNode = found;
                     }
                 }
-                return clonedTrack;
+                if (targetNode) {
+                    resolvableTracks.push(clonedTrack);
+                }
             });
-            return clonedClip;
+            if (resolvableTracks.length > 0) {
+                clonedClip.tracks = resolvableTracks;
+                sanitizedExportAnimations.push(clonedClip);
+            }
         });
 
         // Strip any cloned helper tools, cameras, lights, or corrupt meshes
@@ -2046,14 +2447,54 @@ export default function ThreedEditor() {
                     delete obj.skeleton;
                     delete obj.bindMatrix;
                     delete obj.bindMatrixInverse;
-                } else {
-                    obj.skeleton.bones = obj.skeleton.bones.filter(Boolean);
-                    try { obj.skeleton.calculateInverses?.(); } catch (_) {}
                 }
             }
         });
         controlsToRemove.forEach((obj) => {
             if (obj.parent) obj.parent.remove(obj);
+        });
+
+        // Restore all hierarchy nodes (bones and animated parent nodes) to pristine rest/bind pose before export
+        exportRoot.traverse((child) => {
+            if (child.userData?.__bindPos && child.userData?.__bindQuat && child.userData?.__bindScale) {
+                const p = child.userData.__bindPos;
+                const q = child.userData.__bindQuat;
+                const s = child.userData.__bindScale;
+                child.position.set(p[0], p[1], p[2]);
+                if (Math.hypot(q[0], q[1], q[2], q[3]) > 0.0001) {
+                    child.quaternion.set(q[0], q[1], q[2], q[3]).normalize();
+                } else {
+                    child.quaternion.identity();
+                }
+                child.scale.set(s[0], s[1], s[2]);
+                child.updateMatrix();
+            } else if (child.isBone) {
+                if (child.userData?.__bindPos) {
+                    const p = child.userData.__bindPos;
+                    child.position.set(p[0], p[1], p[2]);
+                }
+                if (child.userData?.__bindQuat) {
+                    const q = child.userData.__bindQuat;
+                    if (Math.hypot(q[0], q[1], q[2], q[3]) > 0.0001) {
+                        child.quaternion.set(q[0], q[1], q[2], q[3]).normalize();
+                    }
+                }
+                if (child.userData?.__bindScale) {
+                    const s = child.userData.__bindScale;
+                    child.scale.set(s[0], s[1], s[2]);
+                }
+                if (!child.userData?.__bindQuat && child.userData?.__bindTransform?.quaternion) {
+                    const q = child.userData.__bindTransform.quaternion;
+                    const qx = q.x !== undefined ? q.x : q._x;
+                    const qy = q.y !== undefined ? q.y : q._y;
+                    const qz = q.z !== undefined ? q.z : q._z;
+                    const qw = q.w !== undefined ? q.w : (q._w !== undefined ? q._w : 1);
+                    if (qx !== undefined && !isNaN(qx) && Math.hypot(qx, qy, qz, qw) > 0.0001) {
+                        child.quaternion.set(qx, qy, qz, qw).normalize();
+                    }
+                }
+                child.updateMatrix();
+            }
         });
 
         try {
@@ -2069,6 +2510,8 @@ export default function ThreedEditor() {
             { 
                 binary: true, 
                 forceIndices: true, 
+                trs: true,            // CRITICAL: Export clean TRS (translation/rotation/scale) per node instead of matrix
+                onlyVisible: false,   // CRITICAL: Never omit invisible bones/joints from the skeleton
                 maxTextureSize: qualityTextureSize, 
                 embedImages: embedTextures, 
                 includeCustomExtensions: false,
@@ -2240,13 +2683,11 @@ export default function ThreedEditor() {
 
       setHiddenMaterials(next);
 
-      pushHistory({
-          ...stateRef.current,
+      commitHistoryNow(buildSnapshot({
           hiddenMaterials: Array.from(next),
-          // Ensure we capture the absolute latest settings for this snapshot
           materialSettings: materialSettings 
-      });
-  }, [hiddenMaterials, materialSettings, pushHistory]);
+      }));
+  }, [hiddenMaterials, materialSettings, commitHistoryNow, buildSnapshot]);
 
   // Auto-expand sidebar when a specific material is selected
   useEffect(() => {
@@ -2263,65 +2704,17 @@ export default function ThreedEditor() {
       setDeletedMaterials(next);
 
       // Automatically select full model after deletion without blink
+      const nextSel = modelName ? { name: modelName, parentGroup: modelName, noBlink: true } : null;
       if (modelName) {
-          setSelectedMaterial({ name: modelName, parentGroup: modelName, noBlink: true });
+          setSelectedMaterial(nextSel);
       }
 
-      pushHistory({
-          ...stateRef.current,
+      commitHistoryNow(buildSnapshot({
           deletedMaterials: Array.from(next),
           materialSettings: materialSettings,
-          selectedMaterial: modelName ? { name: modelName, parentGroup: modelName, noBlink: true } : null
-      });
-  }, [deletedMaterials, materialSettings, pushHistory, modelName]);
-
-  const handleUndo = useCallback(() => {
-      const prevState = undo();
-      if (prevState) {
-          const isCurrentModelPresent = models.length > 0;
-          const isPrevStateEmptyModels = prevState.models !== undefined && prevState.models.length === 0;
-
-          if (isPrevStateEmptyModels && isCurrentModelPresent) {
-              // Guard against wiping out active models and materials when undoing back to pre-upload initial state
-          } else {
-              if (prevState.models !== undefined) setModels(prevState.models);
-              if (prevState.modelMaterialLists !== undefined) setModelMaterialLists(prevState.modelMaterialLists);
-              if (prevState.modelName !== undefined && prevState.modelName !== "") setModelName(prevState.modelName);
-          }
-
-          if (prevState.transformValues !== undefined) setTransformValues(prevState.transformValues);
-          if (prevState.materialSettings !== undefined) setMaterialSettings(prevState.materialSettings);
-          if (prevState.hiddenMaterials !== undefined) setHiddenMaterials(new Set(prevState.hiddenMaterials));
-          if (prevState.deletedMaterials !== undefined) setDeletedMaterials(new Set(prevState.deletedMaterials));
-          if (prevState.selectedMaterial !== undefined) setSelectedMaterial(prevState.selectedMaterial);
-          if (prevState.selectedTexture !== undefined) setSelectedTexture(prevState.selectedTexture);
-          
-          const tex = prevState.materialSettings?.appliedTexture || prevState.selectedTexture;
-          setSelectedTextureId(tex?.id || null);
-
-          setResetKey(prev => prev + 1);
-      }
-  }, [undo, models.length]);
-
-  const handleRedo = useCallback(() => {
-      const nextState = redo();
-      if (nextState) {
-          if (nextState.models !== undefined) setModels(nextState.models);
-          if (nextState.transformValues !== undefined) setTransformValues(nextState.transformValues);
-          if (nextState.materialSettings !== undefined) setMaterialSettings(nextState.materialSettings);
-          if (nextState.modelName !== undefined) setModelName(nextState.modelName);
-          if (nextState.hiddenMaterials !== undefined) setHiddenMaterials(new Set(nextState.hiddenMaterials));
-          if (nextState.deletedMaterials !== undefined) setDeletedMaterials(new Set(nextState.deletedMaterials));
-          if (nextState.modelMaterialLists !== undefined) setModelMaterialLists(nextState.modelMaterialLists);
-          if (nextState.selectedMaterial !== undefined) setSelectedMaterial(nextState.selectedMaterial);
-          if (nextState.selectedTexture !== undefined) setSelectedTexture(nextState.selectedTexture);
-
-          const tex = nextState.materialSettings?.appliedTexture || nextState.selectedTexture;
-          setSelectedTextureId(tex?.id || null);
-
-          setResetKey(prev => prev + 1);
-      }
-  }, [redo]);
+          selectedMaterial: nextSel
+      }));
+  }, [deletedMaterials, materialSettings, commitHistoryNow, buildSnapshot, modelName]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -2398,12 +2791,11 @@ export default function ThreedEditor() {
       });
       setModels(nextModels);
 
-      const nextState = {
-        ...stateRef.current,
+      const nextSnapshot = buildSnapshot({
         modelName: newName,
         models: nextModels
-      };
-      pushHistory(nextState);
+      });
+      commitHistoryNow(nextSnapshot);
 
       // ── INTERACTION MODE (opened from 3D Edit in InteractionPanel) ──
       // Only update the display label in DB. Physical file and URL are untouched.
@@ -2421,9 +2813,8 @@ export default function ThreedEditor() {
         // Persist updated session state (name only)
         await axios.post(`${backendUrl}/api/3d-models/save-session`, {
           emailId: user.emailId,
-          state: nextState
+          state: nextSnapshot
         });
-        pushHistory(nextState);
         return;
       }
 
@@ -2447,8 +2838,6 @@ export default function ThreedEditor() {
               
               setModels([...nextModels]);
               if (renameIndex === 0) setModelUrl(updatedUrl);
-              
-              nextState.models = [...nextModels];
 
               // Broadcast rename to parent tab (InteractionPanel) via BroadcastChannel
               try {
@@ -2475,14 +2864,13 @@ export default function ThreedEditor() {
       // Persist updated session state
       await axios.post(`${backendUrl}/api/3d-models/save-session`, {
         emailId: user.emailId,
-        state: nextState
+        state: nextSnapshot
       });
-      pushHistory(nextState);
 
     } catch (error) {
       console.error("Failed to update backend rename:", error);
     }
-  }, [models, modelName, pushHistory, setModelUrl, urlModelId]);
+  }, [models, modelName, commitHistoryNow, buildSnapshot, setModelUrl, urlModelId]);
 
 
   const handleRenameMaterial = useCallback((oldName, newName, mName) => {
@@ -2517,10 +2905,9 @@ export default function ThreedEditor() {
           nextMaterialLists = { ...modelMaterialLists, [model.id]: nextList };
           setModelMaterialLists(nextMaterialLists);
           
-          pushHistory({
-              ...stateRef.current,
+          commitHistoryNow(buildSnapshot({
               modelMaterialLists: nextMaterialLists
-          });
+          }));
       }
 
       if (selectedMaterial && (selectedMaterial.name === oldName)) {
@@ -2529,7 +2916,7 @@ export default function ThreedEditor() {
                return { ...prev, name: newName };
            });
       }
-  }, [models, selectedMaterial, modelMaterialLists, pushHistory]);
+  }, [models, selectedMaterial, modelMaterialLists, commitHistoryNow, buildSnapshot]);
 
   const handleDeleteModel = useCallback((modelId) => {
       const modelToDelete = models.find(m => m.id === modelId);
@@ -2547,35 +2934,30 @@ export default function ThreedEditor() {
       delete nextStatsMap[modelId];
       setModelStatsMap(nextStatsMap);
 
+      setModelHasAnimationsMap(prev => {
+          if (!prev[modelId]) return prev;
+          const next = { ...prev };
+          delete next[modelId];
+          return next;
+      });
+
       if (selectedMaterial && modelToDelete && selectedMaterial.parentGroup === modelToDelete.name) {
           setSelectedMaterial(null);
       }
 
-      pushHistory({
-          ...stateRef.current,
+      commitHistoryNow(buildSnapshot({
           models: nextModels,
           modelMaterialLists: nextMaterialLists
-      });
-  }, [models, selectedMaterial, modelMaterialLists, modelStatsMap, pushHistory]);
-
-  const lastPushTimeRef = useRef(0);
-  const pushHistoryThrottled = useCallback((nextState) => {
-      const now = Date.now();
-      // Throttle rapid updates (like sliders) to 800ms between history entries
-      if (now - lastPushTimeRef.current > 800) {
-          pushHistory(nextState);
-          lastPushTimeRef.current = now;
-      } else {
-          // If we are within the throttle window, we just update the 'current' entry 
-          // via a new 'update' function in useModalHistory (similar to how we handle model loading)
-          updateHistory(nextState);
-      }
-  }, [pushHistory, updateHistory]);
+      }));
+  }, [models, selectedMaterial, modelMaterialLists, modelStatsMap, commitHistoryNow, buildSnapshot]);
 
   const updateMaterialSetting = useCallback((key, val, fromSync = false) => {
     setMaterialSettings((prev) => {
       if (val !== null && typeof val === 'object') {
-          if (JSON.stringify(prev[key]) === JSON.stringify(val)) return prev;
+          if (prev[key] === val) return prev;
+          try {
+              if (JSON.stringify(prev[key]) === JSON.stringify(val)) return prev;
+          } catch (_) {}
       } else if (prev[key] === val) {
           return prev;
       }
@@ -2600,17 +2982,21 @@ export default function ThreedEditor() {
           const materialKeys = [
               'color', 'metallic', 'roughness', 'alpha', 'emissiveIntensity', 
               'emissiveColor', 'normal', 'bump', 'scale', 'rotation', 'offset', 
-              'colorIntensity', 'ao', 'reflection', 'specular'
+              'colorIntensity', 'ao', 'reflection', 'specular', 'worldOpacity', 'worldBlur',
+              'shadow', 'softness', 'envRotation', 'lightPosition'
           ];
           if (materialKeys.includes(key)) {
               next.useFactorColor = true;
               next.lastChangedProp = key;
           }
 
-          pushHistoryThrottled({
-              ...stateRef.current,
-              materialSettings: next
-          });
+          const snapshot = buildSnapshot({ materialSettings: next });
+          const discreteKeys = ['environment', 'appliedTexture'];
+          if (discreteKeys.includes(key)) {
+              commitHistoryNow(snapshot);
+          } else {
+              commitHistoryDebounced(snapshot);
+          }
       } else {
           // When syncing from model to UI, ensure factor override and lastChangedProp are disabled
           next.useFactorColor = false;
@@ -2619,7 +3005,7 @@ export default function ThreedEditor() {
       
       return next;
     });
-  }, [pushHistoryThrottled]);
+  }, [buildSnapshot, commitHistoryNow, commitHistoryDebounced]);
 
   // Memoized handler for syncing from model (GenericModel) to avoid loop
   const handleMaterialSync = useCallback((key, val) => {
@@ -2691,10 +3077,9 @@ export default function ThreedEditor() {
             environment: 'studio', 
             maps: nextMaps 
           };
-          pushHistory({
-            ...stateRef.current,
+          commitHistoryNow(buildSnapshot({
             materialSettings: next
-          });
+          }));
           return next;
         });
         saveToDB('active_hdr_id', null);
@@ -2731,10 +3116,9 @@ export default function ThreedEditor() {
           environment: hdrId, 
           maps: nextMaps 
         };
-        pushHistory({
-          ...stateRef.current,
+        commitHistoryNow(buildSnapshot({
           materialSettings: next
-        });
+        }));
         return next;
       });
       return;
@@ -2743,12 +3127,11 @@ export default function ThreedEditor() {
     if (file === null) {
       setMaterialSettings(prev => {
         const nextMaps = { ...(prev.maps || {}), [mapType]: null };
-        const next = { ...prev, maps: nextMaps, useFactorColor: true };
+        const next = { ...prev, maps: nextMaps, useFactorColor: true, lastChangedProp: 'maps' };
         
-        pushHistory({
-            ...stateRef.current,
+        commitHistoryNow(buildSnapshot({
             materialSettings: next
-        });
+        }));
         
         return next;
       });
@@ -2761,7 +3144,7 @@ export default function ThreedEditor() {
     
     setMaterialSettings(prev => {
         const nextMaps = { ...(prev.maps || {}), [mapType]: url };
-        let next = { ...prev, maps: nextMaps, useFactorColor: true };
+        let next = { ...prev, maps: nextMaps, useFactorColor: true, lastChangedProp: 'maps' };
         
         // Auto-set factors to 100% for maps that are multipliers (Standard Material behavior)
         if (mapType === 'map') next.color = '#ffffff';
@@ -2771,14 +3154,13 @@ export default function ThreedEditor() {
         if (mapType === 'bumpMap') next.bump = 100;
         if (mapType === 'aoMap') next.ao = 100;
 
-        pushHistory({
-            ...stateRef.current,
+        commitHistoryNow(buildSnapshot({
             materialSettings: next
-        });
+        }));
         
         return next;
     });
-  }, [pushHistory]);
+  }, [commitHistoryNow, buildSnapshot]);
 
   const handleScreenshotClick = useCallback(() => {
     setIsScreenshotOpen(true);
@@ -2869,6 +3251,7 @@ export default function ThreedEditor() {
         const nextMaterialSettings = {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
             specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+            worldOpacity: 0, worldBlur: 0,
             color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
             appliedTexture: null,
             maps: {},
@@ -2879,8 +3262,7 @@ export default function ThreedEditor() {
         // Reset material settings for the new model
         setMaterialSettings(nextMaterialSettings);
         
-        pushHistory({
-            ...stateRef.current,
+        commitHistoryNow(buildSnapshot({
             models: nextModels,
             modelName: nextModelName,
             materialSettings: nextMaterialSettings,
@@ -2888,7 +3270,7 @@ export default function ThreedEditor() {
             deletedMaterials: [],
             selectedMaterial: { name: nextModelName, parentGroup: nextModelName },
             modelMaterialLists: {}
-        });
+        }));
 
         setIsSidebarCollapsed(false); 
         startMountingBridgeTicker(loadingProgressRef.current);
@@ -2928,9 +3310,11 @@ export default function ThreedEditor() {
         type: model.type || 'glb'
     });
 
-    const fullUrl = (model.url && (model.url.startsWith('http://') || model.url.startsWith('https://')))
+    const activeBackendUrl = backendUrl || (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+    const rawUrl = (model.url && (model.url.startsWith('http://') || model.url.startsWith('https://')))
       ? model.url
-      : `${backendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`;
+      : `${activeBackendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`;
+    const fullUrl = resolveUploadsPath(rawUrl);
 
     // Clear existing models if we are 'replacing'
     if (models.length > 0) {
@@ -2966,14 +3350,14 @@ export default function ThreedEditor() {
     const nextMaterialSettings = {
         alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
         specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+        worldOpacity: 0, worldBlur: 0,
         color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         appliedTexture: null,
         lightPosition: { x: 10, y: 10, z: 10 }
     };
     setMaterialSettings(nextMaterialSettings);
     
-    pushHistory({
-        ...stateRef.current,
+    commitHistoryNow(buildSnapshot({
         models: nextModels,
         modelName: nextModelName,
         materialSettings: nextMaterialSettings,
@@ -2981,7 +3365,7 @@ export default function ThreedEditor() {
         deletedMaterials: [],
         selectedMaterial: { name: nextModelName, parentGroup: nextModelName },
         modelMaterialLists: {}
-    });
+    }));
 
     setIsSidebarCollapsed(false);
     startMountingBridgeTicker(loadingProgressRef.current);
@@ -3047,6 +3431,8 @@ export default function ThreedEditor() {
     setMaterialList([]);
     setModelMaterialLists({});
     setModelStatsMap({});
+    setModelHasAnimationsMap({});
+    setIsAnimationPlaying(true);
     setSelectedMaterial(null);
     setModelName("");
     setSelectedTexture(null);
@@ -3075,6 +3461,7 @@ export default function ThreedEditor() {
         materialSettings: {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
             specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+            worldOpacity: 0, worldBlur: 0,
             color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
             lightPosition: { x: 10, y: 10, z: 10 }
         }
@@ -3088,6 +3475,7 @@ export default function ThreedEditor() {
         materialSettings: {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
             specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
+            worldOpacity: 0, worldBlur: 0,
             color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
             lightPosition: { x: 10, y: 10, z: 10 }
         },
@@ -3141,11 +3529,9 @@ export default function ThreedEditor() {
     // Trigger scene-wide reset for model parts
     setSceneResetTrigger(prev => prev + 1);
 
-    pushHistory({
-        ...stateRef.current,
-        targetPosition: { x: 0, y: 0, z: 0 },
+    commitHistoryNow(buildSnapshot({
         transformValues: defaultTransform
-    });
+    }));
   };
 
   const handleManualTransformChange = (type, axis, value, isDragging = false) => {
@@ -3165,16 +3551,11 @@ export default function ThreedEditor() {
             [axis]: numVal
         };
         
+        const snapshot = buildSnapshot({ transformValues: next });
         if (isDragging) {
-            updateHistory({
-                ...stateRef.current,
-                transformValues: next
-            });
+            commitHistoryDebounced(snapshot, 300);
         } else {
-            pushHistory({
-                ...stateRef.current,
-                transformValues: next
-            });
+            commitHistoryNow(snapshot);
         }
         
         return next;
@@ -3214,46 +3595,22 @@ export default function ThreedEditor() {
              next.scale = getXYZ(defaults.scale);
         }
         
-        pushHistory({
-            ...stateRef.current,
-            transformValues: next
-        });
+        commitHistoryNow(buildSnapshot({ transformValues: next }));
 
         return next;
     });
   };
   
-  const transformStartSnapshotRef = useRef(null);
-
   const handleTransformStart = useCallback(() => {
-     // Snapshot the exact state before transform drag starts
-     transformStartSnapshotRef.current = {
-         ...stateRef.current,
-         transformValues: {
-             position: { ...(stateRef.current.transformValues?.position || { x: 0, y: 0, z: 0 }) },
-             rotation: { ...(stateRef.current.transformValues?.rotation || { x: 0, y: 0, z: 0 }) },
-             scale: { ...(stateRef.current.transformValues?.scale || { x: 1, y: 1, z: 1 }) }
-         }
-     };
+     if (historyDebounceTimerRef.current) {
+         clearTimeout(historyDebounceTimerRef.current);
+         historyDebounceTimerRef.current = null;
+     }
   }, []);
 
   const handleTransformEnd = useCallback(() => {
-     // If we have a start snapshot, push that first if it's the beginning of a drag
-     if (transformStartSnapshotRef.current) {
-         pushHistory(transformStartSnapshotRef.current);
-         transformStartSnapshotRef.current = null;
-     }
-     
-     // Push the finished transform state
-     pushHistory({
-         ...stateRef.current,
-         transformValues: {
-             position: { ...(stateRef.current.transformValues?.position || { x: 0, y: 0, z: 0 }) },
-             rotation: { ...(stateRef.current.transformValues?.rotation || { x: 0, y: 0, z: 0 }) },
-             scale: { ...(stateRef.current.transformValues?.scale || { x: 1, y: 1, z: 1 }) }
-         }
-     });
-  }, [pushHistory]);
+     commitHistoryNow(buildSnapshot());
+  }, [commitHistoryNow, buildSnapshot]);
 
   const [settings, setSettings] = useState({
     backgroundColor: "#393939", // Blender default dark grey
@@ -3265,7 +3622,7 @@ export default function ThreedEditor() {
 
   // Memoized Handlers to prevent infinite loops in child Effects
   const handleTextureIdentified = useCallback((id) => {
-      setSelectedTextureId(id);
+      setSelectedTextureId(prev => prev === id ? prev : id);
   }, []);
 
    const handleTextureApplied = useCallback(() => {
@@ -3277,8 +3634,9 @@ export default function ThreedEditor() {
        const isReset = !textureData || !textureData.id;
        const isNone = textureData?.id === 'none';
        const newTexture = isReset ? null : { ...textureData, ts: Date.now() };
+       const newTextureId = isReset ? null : textureData.id;
        
-       setSelectedTextureId(isReset ? null : textureData.id);
+       setSelectedTextureId(newTextureId);
        setSelectedTexture(newTexture);
 
        setMaterialSettings(prev => {
@@ -3296,8 +3654,10 @@ export default function ThreedEditor() {
                    displacementMap: null, 
                    aoMap: null,
                    emissiveMap: null,
-                   alphaMap: null
+                   alphaMap: null,
+                   ...(prev.customEnvMap || prev.maps?.envMap ? { envMap: prev.customEnvMap || prev.maps?.envMap } : {})
                };
+               next.lastChangedProp = 'maps';
            } else {
                // Resolve URLs and Map Keys for Uploaded Textures
                let finalMaps = { ...(textureData.maps || {}) };
@@ -3325,27 +3685,32 @@ export default function ThreedEditor() {
                    finalMaps = mapped;
                }
 
-               next.maps = { ...(prev.maps || {}), ...finalMaps };
+               next.maps = { 
+                   ...(prev.maps || {}), 
+                   ...finalMaps,
+                   ...(prev.customEnvMap || prev.maps?.envMap ? { envMap: prev.customEnvMap || prev.maps?.envMap } : {})
+               };
                // Set factors to 100% when applying a full texture set
                next.metallic = 100;
                next.roughness = 100;
                next.normal = 100;
-               next.bump = textureData.isUploaded ? 0 : 0; // Standardize bump for uploads
+               next.bump = 0;
                next.ao = 100;
                next.color = '#ffffff';
                next.scale = 4;
                next.useFactorColor = true;
+               next.lastChangedProp = 'appliedTexture';
            }
 
-           pushHistory({
-               ...stateRef.current,
+           commitHistoryNow(buildSnapshot({
+               materialSettings: next,
                selectedTexture: newTexture,
-               materialSettings: next
-           });
+               selectedTextureId: newTextureId
+           }));
 
            return next;
        });
-   }, [pushHistory]);
+   }, [commitHistoryNow, buildSnapshot]);
 
   const handleSelectMaterial = useCallback((val) => {
       setSelectedTexture(null);
@@ -3657,10 +4022,9 @@ export default function ThreedEditor() {
                               emissiveIntensity: colorData.emissiveIntensity !== undefined ? colorData.emissiveIntensity : 0,
                               useFactorColor: true
                           };
-                          pushHistory({
-                              ...stateRef.current,
+                          commitHistoryNow(buildSnapshot({
                               materialSettings: next
-                          });
+                          }));
                           return next;
                       });
                   } else {
@@ -3707,12 +4071,12 @@ export default function ThreedEditor() {
                     camera={{ position: [0, 1, 5], fov: 45, near: 0.05, far: 1000 }}
                     onPointerDown={handleCanvasPointerDown}
                     onPointerMissed={handlePointerMissed}
-                    dpr={[1, 2]}
+                    dpr={[1, 1.5]}
                     gl={{
                       preserveDrawingBuffer: true,
                       antialias: true,
                       alpha: true,
-                      logarithmicDepthBuffer: true
+                      powerPreference: "high-performance"
                     }}
                     shadows={{ type: THREE.PCFShadowMap }}
                     onCreated={({ gl, camera }) => {
@@ -3724,8 +4088,8 @@ export default function ThreedEditor() {
                       gl.outputColorSpace = THREE.SRGBColorSpace;
                     }}
                   >
-                    {/* Only show background color if NOT capturing for a clean model-only shot */}
-                    {!isCapturing && <color attach="background" args={[settings.backgroundColor]} />}
+                    {/* Capturing mode transparent background check */}
+                    {isCapturing && <color attach="background" args={['transparent']} />}
 
                     {/* Ambient: balanced with shadow slider so high shadow gives rich contrast */}
                     <ambientLight intensity={0.4 + (100 - (materialSettings.shadow ?? 50)) / 250} />
@@ -3757,6 +4121,7 @@ export default function ThreedEditor() {
                         type={model.type}
                         url={model.url}
                         wireframe={settings.wireframe}
+                        xrayMode={xrayMode}
                         setModelStats={(stats) => handleSetModelStats(model.id, stats)}
                         setMaterialList={(list, dataMap) => handleSetMaterialList(model.id, list, dataMap)}
                         selectedMaterial={selectedMaterial}
@@ -3778,6 +4143,8 @@ export default function ThreedEditor() {
                         onTransformChange={handleTransformChange}
                         onModelReady={() => handleModelReady(model.id)}
                         onProgress={(pct, stage) => handleModelProgress(model.id, pct, stage)}
+                        isAnimationPlaying={isAnimationPlaying}
+                        onHasAnimationsChange={(hasAnim) => handleHasAnimationsChange(model.id, hasAnim)}
                     />
                   ))}
                 </group>
@@ -3809,6 +4176,7 @@ export default function ThreedEditor() {
                   args={[30, 15, 0x555566, 0x3a3a4a]}
                   position={[0, 0.001, 0]}
                   renderOrder={-1}
+                  raycast={() => null}
                 >
                   <lineBasicMaterial
                     attach="material"
@@ -3823,7 +4191,7 @@ export default function ThreedEditor() {
               {settings.grid && !isCapturing && (
                 <group position={[0, 0.002, 0]}>
                   {/* X Axis */}
-                  <line>
+                  <line raycast={() => null}>
                     <bufferGeometry attach="geometry">
                       <bufferAttribute
                         attach="attributes-position"
@@ -3835,7 +4203,7 @@ export default function ThreedEditor() {
                     <lineBasicMaterial attach="material" color={0xee4444} transparent opacity={0.55} depthWrite={false} />
                   </line>
                   {/* Z Axis */}
-                  <line>
+                  <line raycast={() => null}>
                     <bufferGeometry attach="geometry">
                       <bufferAttribute
                         attach="attributes-position"
@@ -3858,6 +4226,10 @@ export default function ThreedEditor() {
                   position={[0, 0, 0]} 
                   receiveShadow
                   onClick={(e) => {
+                    // If a model mesh was clicked in front of the ground plane, do not clear selection
+                    if (e.intersections && e.intersections.length > 0 && e.intersections[0].object !== e.object) {
+                      return;
+                    }
                     if (canvasPointerDownPosRef.current) {
                       const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
                       const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
@@ -3883,6 +4255,10 @@ export default function ThreedEditor() {
                     position={[0, -0.01, 0]} 
                     receiveShadow
                     onClick={(e) => {
+                      // If a model mesh was clicked in front of the base plane, do not clear selection
+                      if (e.intersections && e.intersections.length > 0 && e.intersections[0].object !== e.object) {
+                        return;
+                      }
                       if (canvasPointerDownPosRef.current) {
                         const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
                         const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
@@ -3905,8 +4281,8 @@ export default function ThreedEditor() {
                 dampingFactor={0.08}
                 momentumFriction={0.95}
                 rotateSpeed={1.0}
-                minDistance={Math.max(0.8, 1.4 * (transformValues?.scale?.x || 1))}
-                maxDistance={Math.max(30, 25 * (transformValues?.scale?.x || 1))}
+                minDistance={0.5}
+                maxDistance={100}
                 onChange={handleControlsChange}
               />
 
@@ -3932,13 +4308,18 @@ export default function ThreedEditor() {
                               ? null
                               : (materialSettings?.environment || 'studio')
                       }
-                      background={false}
-                      blur={0.5}
-                      environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
+                      background={!isCapturing}
+                      blur={(materialSettings?.worldBlur ?? 0) / 100}
+                      environmentIntensity={(materialSettings?.reflection ?? 50) <= 50 ? ((materialSettings?.reflection ?? 50) / 50) : 1.0 + (((materialSettings?.reflection ?? 50) - 50) / 50) * 2.0}
                   />
-                  {/* SceneEnvironmentController enforces the rotation every frame,
-                      overriding whatever drei's Environment sets on scene.environmentRotation */}
-                  <SceneEnvironmentController envRotation={materialSettings?.envRotation || 0} />
+                  {/* SceneEnvironmentController enforces the rotation, opacity, blur, and reflection intensity every frame */}
+                  <SceneEnvironmentController 
+                      envRotation={materialSettings?.envRotation || 0} 
+                      worldOpacity={materialSettings?.worldOpacity ?? 0}
+                      worldBlur={materialSettings?.worldBlur ?? 0}
+                      reflection={materialSettings?.reflection ?? 50}
+                      isCapturing={isCapturing}
+                  />
               </Suspense>
             </Canvas>
             )}
@@ -3955,6 +4336,8 @@ export default function ThreedEditor() {
               onExport={() => setShowExportModal(true)}
               autoRotate={autoRotate}
               setAutoRotate={setAutoRotate}
+              xrayMode={xrayMode}
+              setXrayMode={setXrayMode}
               isLoading={manualLoading}
               materialSettings={materialSettings}
               onUpdateMaterialSetting={handleMaterialUIUpdate}
@@ -3985,7 +4368,11 @@ export default function ThreedEditor() {
                            customEnvMap: preservedEnvMap,
                            appliedTexture: null
                        };
-                      pushHistory({ ...stateRef.current, materialSettings: next });
+                      commitHistoryNow(buildSnapshot({
+                          materialSettings: next,
+                          selectedTexture: null,
+                          selectedTextureId: null
+                      }));
                       return next;
                   });
                   setResetKey(prev => prev + 1);
@@ -3996,6 +4383,9 @@ export default function ThreedEditor() {
               onSelectTexture={handleSelectTexture}
               savedHdrs={savedHdrs}
               onDeleteHdr={handleDeleteHdr}
+              hasAnimations={hasAnimations}
+              isAnimationPlaying={isAnimationPlaying}
+              onToggleAnimation={setIsAnimationPlaying}
             />
         </div>
       </div>

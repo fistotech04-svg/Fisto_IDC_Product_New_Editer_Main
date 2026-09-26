@@ -9,6 +9,8 @@ export default function RightPanel({
     onExport,
     autoRotate, 
     setAutoRotate, 
+    xrayMode,
+    setXrayMode,
     isLoading, 
     materialSettings, 
     onUpdateMaterialSetting,
@@ -23,7 +25,10 @@ export default function RightPanel({
     selectedTextureId,
     onSelectTexture,
     savedHdrs,
-    onDeleteHdr
+    onDeleteHdr,
+    hasAnimations,
+    isAnimationPlaying,
+    onToggleAnimation
 }) {
   const fileRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -85,19 +90,21 @@ export default function RightPanel({
     <div className="w-full h-full bg-white flex flex-col overflow-hidden border-l border-gray-300">
       {/* TOP CONTROLS BAR (Always Visible) */}
       <div className="p-[1vw] flex items-center justify-between bg-white shrink-0">
-        {/* Auto Rotate Toggle */}
-        <div className="flex items-center gap-[0.75vw]">
-          <div
-            onClick={() => hasModel && setAutoRotate(!autoRotate)}
-            className={`w-[2.75vw] h-[1.5vw] rounded-full flex items-center px-[0.25vw] transition-all duration-300 ${
-              hasModel 
-                ? `cursor-pointer ${autoRotate ? "bg-[#5d5efc]" : "bg-gray-200"}` 
-                : "bg-gray-100 cursor-not-allowed opacity-50"
-            }`}
-          >
-            <div className={`w-[1vw] h-[1vw] bg-white rounded-full shadow-sm transition-transform duration-300 ${autoRotate ? "translate-x-[1.25vw]" : "translate-x-0"}`} />
+        <div className="flex items-center gap-[1vw]">
+          {/* Auto Rotate Toggle */}
+          <div className="flex items-center gap-[0.75vw]">
+            <div
+              onClick={() => hasModel && setAutoRotate(!autoRotate)}
+              className={`w-[2.75vw] h-[1.5vw] rounded-full flex items-center px-[0.25vw] transition-all duration-300 ${
+                hasModel 
+                  ? `cursor-pointer ${autoRotate ? "bg-[#5d5efc]" : "bg-gray-200"}` 
+                  : "bg-gray-100 cursor-not-allowed opacity-50"
+              }`}
+            >
+              <div className={`w-[1vw] h-[1vw] bg-white rounded-full shadow-sm transition-transform duration-300 ${autoRotate ? "translate-x-[1.25vw]" : "translate-x-0"}`} />
+            </div>
+            <span className={`text-[0.75vw] font-semibold ${hasModel ? "text-gray-800" : "text-gray-400"}`}>Auto Rotate</span>
           </div>
-          <span className={`text-[0.75vw] font-semibold ${hasModel ? "text-gray-800" : "text-gray-400"}`}>Auto Rotate</span>
         </div>
 
         {/* Export Button */}
@@ -175,6 +182,26 @@ export default function RightPanel({
           </div>
         ) : (
           <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
+            {/* X-Ray View Toggle Bar */}
+            <div className="px-[1vw] py-[0.6vw] bg-white border-t border-b border-gray-200/70 flex items-center justify-between shrink-0 select-none">
+              <div className="flex items-center gap-[0.55vw]">
+                <div className="w-[1.6vw] h-[1.6vw] rounded-[0.4vw] bg-[#00aaff]/10 flex items-center justify-center text-[#00aaff]">
+                  <Icon icon="solar:scanner-bold-duotone" width="1.05vw" height="1.05vw" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[0.75vw] font-semibold text-gray-800 leading-tight">X-Ray View</span>
+                  <span className="text-[0.55vw] text-gray-400 leading-tight">Translucent inspection</span>
+                </div>
+              </div>
+              <div
+                onClick={() => setXrayMode && setXrayMode(!xrayMode)}
+                className={`w-[2.75vw] h-[1.5vw] rounded-full flex items-center px-[0.25vw] cursor-pointer transition-all duration-300 ${
+                  xrayMode ? "bg-[#00aaff] shadow-sm shadow-[#00aaff]/30" : "bg-gray-200"
+                }`}
+              >
+                <div className={`w-[1vw] h-[1vw] bg-white rounded-full shadow-sm transition-transform duration-300 ${xrayMode ? "translate-x-[1.25vw]" : "translate-x-0"}`} />
+              </div>
+            </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-[1vw] custom-scrollbar">
@@ -192,6 +219,9 @@ export default function RightPanel({
                   onSelectTexture={onSelectTexture}
                   savedHdrs={savedHdrs}
                   onDeleteHdr={onDeleteHdr}
+                  hasAnimations={hasAnimations}
+                  isAnimationPlaying={isAnimationPlaying}
+                  onToggleAnimation={onToggleAnimation}
               />
             </div>
           </div>
