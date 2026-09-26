@@ -1773,19 +1773,62 @@ const getVideoControlsScript = () => `
   </script>
 `;
 
+const sanitizeHtmlForPreview = (rawHtml) => {
+    if (!rawHtml) return '';
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, 'text/html');
+
+        doc.querySelectorAll('iframe').forEach(iframe => {
+            const fo = iframe.closest('foreignObject');
+            const hideControls = (fo && fo.getAttribute('data-show-controls') === 'false') || iframe.getAttribute('data-show-controls') === 'false';
+
+            const currentStyle = iframe.getAttribute('style') || '';
+            if (currentStyle) {
+                const cleanedStyle = currentStyle.replace(/pointer-events\s*:\s*none\s*(?:!important)?\s*;?/gi, '');
+                iframe.setAttribute('style', cleanedStyle + (cleanedStyle.endsWith(';') || !cleanedStyle ? '' : ';') + ' pointer-events: auto !important;');
+            }
+
+            const src = iframe.getAttribute('src') || '';
+            if (hideControls && (src.includes('youtube.com') || src.includes('youtu.be'))) {
+                try {
+                    const url = new URL(src);
+                    url.searchParams.set('controls', '0');
+                    iframe.setAttribute('src', url.toString());
+                } catch (e) {
+                    iframe.setAttribute('src', src.includes('controls=') ? src.replace(/controls=[^&"']+/i, 'controls=0') : `${src}${src.includes('?') ? '&' : '?'}controls=0`);
+                }
+            }
+
+            iframe.setAttribute('allowfullscreen', 'true');
+            const allow = iframe.getAttribute('allow') || '';
+            if (!allow) {
+                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen');
+            } else if (!allow.includes('fullscreen')) {
+                iframe.setAttribute('allow', `${allow}; fullscreen`);
+            }
+        });
+
+        return doc.body.innerHTML || rawHtml;
+    } catch (e) {
+        return rawHtml;
+    }
+};
+
 const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount = 0, singlePage = false) => {
+    const cleanHtml = sanitizeHtmlForPreview(html);
     // Extract and dynamically load Google Fonts found in the SVG
     const fontsToLoad = new Set();
-    if (html) {
+    if (cleanHtml) {
         const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
         const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
         let match;
-        while ((match = cssRegex.exec(html)) !== null) {
+        while ((match = cssRegex.exec(cleanHtml)) !== null) {
             let f = match[1] || match[2];
             if (f) f = f.split(',')[0].replace(/['"]/g, '').trim();
             if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
         }
-        while ((match = attrRegex.exec(html)) !== null) {
+        while ((match = attrRegex.exec(cleanHtml)) !== null) {
             let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
             if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
         }
@@ -1866,6 +1909,38 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
 
                     foreignObject * {
                         clip-path: none !important;
+                    }
+
+                    foreignObject video {
+                        width: 100% !important;
+                        height: 100% !important;
+                        display: block !important;
+                        border: none !important;
+                        outline: none !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-sizing: border-box !important;
+                        pointer-events: auto !important;
+                    }
+
+                    foreignObject iframe {
+                        display: block !important;
+                        border: none !important;
+                        outline: none !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-sizing: border-box !important;
+                        pointer-events: auto !important;
+                        transform-origin: 0 0 !important;
+                    }
+
+                    foreignObject[data-type="video"] {
+                        overflow: hidden !important;
+                        pointer-events: auto !important;
+                    }
+
+                    foreignObject[data-type="video"] * {
+                        pointer-events: auto !important;
                     }
 
                     .flipbook-text-scrollbar::-webkit-scrollbar,
@@ -2046,7 +2121,7 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                 </script>
             </head>
             <body>
-                ${html || ''}
+                ${cleanHtml || ''}
                 ${(function () {
             if (!watermarkSettings?.src) return '';
             const f = watermarkSettings.adjustments || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
