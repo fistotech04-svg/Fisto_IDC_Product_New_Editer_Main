@@ -20,6 +20,65 @@ import { initGifRunner } from '../TemplateEditor/AnimationRunner';
 
 /* ─────────────────────────────── helpers ─────────────────────────────── */
 
+const cleanStaticHtml = (html) => {
+    if (!html) return '';
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        // Remove foreignObjects containing video/iframe from static background so they don't load twice or flash
+        doc.querySelectorAll('foreignObject[data-type="video"], foreignObject video, foreignObject iframe').forEach(el => {
+            const fo = el.tagName?.toLowerCase() === 'foreignobject' ? el : el.closest('foreignObject');
+            if (fo) fo.remove();
+            else el.remove();
+        });
+        return doc.body.innerHTML || html;
+    } catch (e) {
+        return html;
+    }
+};
+
+const sanitizePageHtmlForPreview = (html) => {
+    if (!html) return '';
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        doc.querySelectorAll('iframe').forEach(iframe => {
+            const fo = iframe.closest('foreignObject');
+            const hideControls = (fo && fo.getAttribute('data-show-controls') === 'false') || iframe.getAttribute('data-show-controls') === 'false';
+
+            const currentStyle = iframe.getAttribute('style') || '';
+            if (currentStyle) {
+                const cleanedStyle = currentStyle.replace(/pointer-events\s*:\s*none\s*(?:!important)?\s*;?/gi, '');
+                iframe.setAttribute('style', cleanedStyle + (cleanedStyle.endsWith(';') || !cleanedStyle ? '' : ';') + ' pointer-events: auto !important;');
+            }
+
+            const src = iframe.getAttribute('src') || '';
+            if (hideControls && (src.includes('youtube.com') || src.includes('youtu.be'))) {
+                try {
+                    const url = new URL(src);
+                    url.searchParams.set('controls', '0');
+                    iframe.setAttribute('src', url.toString());
+                } catch (e) {
+                    iframe.setAttribute('src', src.includes('controls=') ? src.replace(/controls=[^&"']+/i, 'controls=0') : `${src}${src.includes('?') ? '&' : '?'}controls=0`);
+                }
+            }
+
+            iframe.setAttribute('allowfullscreen', 'true');
+            const allow = iframe.getAttribute('allow') || '';
+            if (!allow) {
+                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen');
+            } else if (!allow.includes('fullscreen')) {
+                iframe.setAttribute('allow', `${allow}; fullscreen`);
+            }
+        });
+
+        return doc.body.innerHTML || html;
+    } catch (e) {
+        return html;
+    }
+};
+
 const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
 <html>
 <head>
@@ -49,6 +108,37 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
 
   foreignObject * {
     clip-path: none !important;
+  }
+
+  foreignObject video {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    border: none !important;
+    outline: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+  }
+  foreignObject iframe {
+    display: block !important;
+    border: none !important;
+    outline: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    transform-origin: 0 0 !important;
+  }
+
+  foreignObject[data-type="video"] {
+    overflow: hidden !important;
+    pointer-events: auto !important;
+  }
+
+  foreignObject[data-type="video"] * {
+    pointer-events: auto !important;
   }
 
   .flipbook-text-scrollbar::-webkit-scrollbar,
@@ -124,7 +214,7 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
   }
 </style>
 </head>
-<body>${rawHtml || ''}</body>
+<body>${sanitizePageHtmlForPreview(rawHtml || '')}</body>
 </html>`;
 
 const scriptPromises = {};
@@ -369,7 +459,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             <div
                                 className="fbe-static-bg"
                                 style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: page.isTransparentSheet ? 'transparent' : '#fff', borderRadius: 'inherit', pointerEvents: 'none' }}
-                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + (page.html || page.content || '') }}
+                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg * { vector-effect: non-scaling-stroke !important; }</style>` + cleanStaticHtml(page.html || page.content || '') }}
                             />
                             <iframe
                                 title={`Page ${i + 1}`}
@@ -383,6 +473,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                     } catch (err) { console.error("Error init gif runner", err); }
                                 }}
                                 frameBorder="0"
+                                allowFullScreen={true}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                                 style={{ position: 'absolute', inset: 0, border: 'none', outline: 'none', width: '100%', height: '100%', pointerEvents: 'auto', borderRadius: 'inherit', opacity: 0.01, transition: 'opacity 0.3s ease', display: page.isTransparentSheet ? 'none' : 'block' }}
                             />
                         </div>
@@ -571,11 +663,13 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 staticBg.className = 'fbe-static-bg';
                 const bgStyleColor = page.isTransparentSheet ? 'transparent' : '#fff';
                 staticBg.style.cssText = `position:absolute;inset:0;overflow:hidden;background:${bgStyleColor};pointer-events:none;border-radius:inherit;`;
-                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg *:not([data-type="pdf-vector-layer"] *):not([data-type="pdf-vector-layer"]) { vector-effect: non-scaling-stroke !important; } .fbe-static-bg [data-type="pdf-vector-layer"], .fbe-static-bg [data-type="pdf-vector-layer"] * { vector-effect: none !important; }</style>` + (page.html || page.content || '');
+                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; } .fbe-static-bg svg *:not([data-type="pdf-vector-layer"] *):not([data-type="pdf-vector-layer"]) { vector-effect: non-scaling-stroke !important; } .fbe-static-bg [data-type="pdf-vector-layer"], .fbe-static-bg [data-type="pdf-vector-layer"] * { vector-effect: none !important; }</style>` + cleanStaticHtml(page.html || page.content || '');
                 inner.appendChild(staticBg);
 
                 const iframe = document.createElement('iframe');
                 iframe.setAttribute('frameBorder', '0');
+                iframe.setAttribute('allowfullscreen', 'true');
+                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen');
                 iframe.srcdoc = (externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1);
                 // Start visible immediately — static background is already showing the page content
                 // so there's no blank flash. Images load lazily inside the iframe.

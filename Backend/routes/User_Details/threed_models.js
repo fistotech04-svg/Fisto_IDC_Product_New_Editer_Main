@@ -167,6 +167,58 @@ router.get("/converted/:filename", (req, res) => {
   return res.sendFile(filePath);
 });
 
+// @route   POST /api/3d-models/upload-texture
+// @desc    Upload a texture or environment map image (PNG, JPG, WEBP, HDR, etc.) without Assimp conversion
+// @access  Public
+router.post("/upload-texture", (req, res) => {
+  upload.single("texture")(req, res, async (err) => {
+    if (err) {
+      console.error("[Upload-Texture] Multer error:", err);
+      return res.status(400).json({ message: err.message });
+    }
+
+    try {
+      const emailId = req.body.emailId;
+      if (!emailId || !req.file) {
+        return res.status(400).json({ message: "emailId and texture file are required" });
+      }
+
+      const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+      const ext = path.extname(req.file.originalname) || ".png";
+      const cleanBase = path.basename(req.file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "_");
+      const finalFileName = `${cleanBase}_${Date.now()}${ext}`;
+
+      // Upload to Supabase Storage
+      const destinationPath = `${sanitizedEmail}/3D_Modals/Textures/${finalFileName}`;
+      const supabaseUrl = await uploadFileToSupabase(req.file.path, destinationPath);
+
+      let finalUrl = supabaseUrl;
+      if (!finalUrl) {
+        // Fallback to local storage on server
+        const localDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals/Textures`);
+        if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
+        const localPath = path.join(localDir, finalFileName);
+        fs.copyFileSync(req.file.path, localPath);
+        finalUrl = `/uploads/${sanitizedEmail}/3D_Modals/Textures/${finalFileName}`;
+      }
+
+      try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
+
+      res.status(200).json({
+        success: true,
+        url: finalUrl,
+        fileName: finalFileName
+      });
+    } catch (error) {
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      console.error("[Upload-Texture] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+});
+
 // @route   POST /api/3d-models/upload-model
 // @desc    Upload a 3D model to the user's 3D_Modals folder (converts non-GLB to GLB with Assimp)
 // @access  Public
@@ -191,6 +243,32 @@ router.post("/upload-model", (req, res) => {
       }
 
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+      const fileExt = path.extname(req.file.filename).toLowerCase();
+      const isImage = [".png", ".jpg", ".jpeg", ".webp", ".hdr", ".exr", ".svg"].includes(fileExt);
+
+      // If the file is an image/texture rather than a 3D model, upload directly without running Assimp
+      if (isImage) {
+        const destinationPath = `${sanitizedEmail}/3D_Modals/Textures/${req.file.filename}`;
+        const supabaseUrl = await uploadFileToSupabase(req.file.path, destinationPath);
+        let finalTextureUrl = supabaseUrl;
+
+        if (!finalTextureUrl) {
+          const localDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals/Textures`);
+          if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
+          const localPath = path.join(localDir, req.file.filename);
+          fs.copyFileSync(req.file.path, localPath);
+          finalTextureUrl = `/uploads/${sanitizedEmail}/3D_Modals/Textures/${req.file.filename}`;
+        }
+
+        try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
+
+        return res.status(200).json({
+          message: "Texture uploaded successfully",
+          url: finalTextureUrl,
+          name: req.file.filename
+        });
+      }
+
       let fileToUploadPath = req.file.path;
       let finalFilename = req.file.filename;
       let convertedGlbPath = null;
@@ -214,6 +292,12 @@ router.post("/upload-model", (req, res) => {
       const supabaseUrl = await uploadFileToSupabase(fileToUploadPath, destinationPath);
       if (supabaseUrl) {
         relativeUrl = supabaseUrl;
+      } else {
+        // Fallback to local storage if Supabase failed or payload too large
+        const localUploadsDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals`);
+        if (!fs.existsSync(localUploadsDir)) fs.mkdirSync(localUploadsDir, { recursive: true });
+        const localTargetFile = path.join(localUploadsDir, finalFilename);
+        try { fs.copyFileSync(fileToUploadPath, localTargetFile); } catch (e) {}
       }
 
       const stats = fs.statSync(fileToUploadPath);
@@ -393,7 +477,22 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
           // Saving to permanent user 3D_Modals folder in Supabase
           const destinationPath = `${sanitizedEmail}/3D_Modals/${finalFileName}`;
           const supabaseUrl = await uploadFileToSupabase(uploadFilePath, destinationPath);
-          const modelUrl = supabaseUrl || `/uploads/${sanitizedEmail}/3D_Modals/${finalFileName}`;
+          let modelUrl = supabaseUrl;
+
+          if (!modelUrl) {
+            console.warn(`[Chunk Upload] Supabase upload failed (e.g. file size exceeded limit). Saving locally to disk.`);
+            const localUploadsDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals`);
+            if (!fs.existsSync(localUploadsDir)) {
+              fs.mkdirSync(localUploadsDir, { recursive: true });
+            }
+            const localTargetFile = path.join(localUploadsDir, finalFileName);
+            try {
+              fs.copyFileSync(uploadFilePath, localTargetFile);
+              modelUrl = `/uploads/${sanitizedEmail}/3D_Modals/${finalFileName}`;
+            } catch (copyErr) {
+              console.error("[Chunk Upload] Failed to save local fallback copy:", copyErr);
+            }
+          }
 
           // Immediately clean up local temporary directory
           try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}

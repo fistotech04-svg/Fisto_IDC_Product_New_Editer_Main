@@ -61,7 +61,7 @@ const ModelThumbnail = React.memo(({
                         <ambientLight intensity={0.4 + (100 - (materialSettings.shadow ?? 50)) / 250} />
                         <directionalLight
                           position={[sunX, sunY, sunZ]}
-                          intensity={1.5 + (materialSettings.specular ?? 50) / 40}
+                          intensity={1.8 + ((materialSettings.specular ?? 50) / 100) * 0.8}
                           castShadow
                           shadow-bias={-0.0001}
                           shadow-radius={1 + ((materialSettings.softness ?? 50) / 100) * 27}
@@ -501,7 +501,7 @@ export default function Export3DModal({
                                                 <ambientLight intensity={0.4 + (100 - (materialSettings.shadow ?? 50)) / 250} />
                                                 <directionalLight
                                                   position={[sunX, sunY, sunZ]}
-                                                  intensity={1.5 + (materialSettings.specular ?? 50) / 40}
+                                                  intensity={1.8 + ((materialSettings.specular ?? 50) / 100) * 0.8}
                                                   castShadow
                                                   shadow-bias={-0.0001}
                                                   shadow-radius={1 + ((materialSettings.softness ?? 50) / 100) * 27}

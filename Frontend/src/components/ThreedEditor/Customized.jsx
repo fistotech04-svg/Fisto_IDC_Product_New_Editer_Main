@@ -371,38 +371,168 @@ const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, d
 };
 
 const CustomSlider = ({ label, value, onChange, unit = "%", min = 0, max = 100, step = 1 }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
+  const [isFocused, setIsFocused] = useState(false);
+  const [inputText, setInputText] = useState("");
+
+  const numericValue = typeof value === 'number' && !isNaN(value) ? value : (min > 0 ? min : 0);
+
+  // Clean formatted representation when not typing
+  const formatDisplay = (val) => {
+    if (typeof val !== 'number' || isNaN(val)) return "0";
+    const rounded = Math.round(val * 100) / 100;
+    return String(rounded);
+  };
+
+  useEffect(() => {
+    if (!isFocused) {
+      setInputText(formatDisplay(numericValue));
+    }
+  }, [numericValue, isFocused]);
+
+  const handleInputChange = (e) => {
+    const raw = e.target.value;
+    const allowNegative = min < 0;
+    const regex = allowNegative ? /^-?\d*\.?\d*$/ : /^\d*\.?\d*$/;
+
+    if (raw === "" || regex.test(raw)) {
+      setInputText(raw);
+
+      // Live update if valid number within bounds
+      if (raw !== "" && raw !== "-" && raw !== ".") {
+        const parsed = parseFloat(raw);
+        if (!isNaN(parsed) && parsed >= min && parsed <= max) {
+          onChange?.(Math.round(parsed * 100) / 100);
+        }
+      }
+    }
+  };
+
+  const commitValue = () => {
+    setIsFocused(false);
+    if (inputText === "" || inputText === "-" || inputText === ".") {
+      setInputText(formatDisplay(numericValue));
+      return;
+    }
+    const parsed = parseFloat(inputText);
+    if (isNaN(parsed)) {
+      setInputText(formatDisplay(numericValue));
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, parsed));
+    const rounded = Math.round(clamped * 100) / 100;
+    setInputText(String(rounded));
+    onChange?.(rounded);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      commitValue();
+      e.target.blur();
+    } else if (e.key === "Escape") {
+      setIsFocused(false);
+      setInputText(formatDisplay(numericValue));
+      e.target.blur();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const current = parseFloat(inputText) || numericValue;
+      const inc = e.shiftKey ? 1 : (step < 1 ? step : 0.1);
+      const next = Math.min(max, Math.round((current + inc) * 100) / 100);
+      setInputText(String(next));
+      onChange?.(next);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const current = parseFloat(inputText) || numericValue;
+      const dec = e.shiftKey ? 1 : (step < 1 ? step : 0.1);
+      const next = Math.max(min, Math.round((current - dec) * 100) / 100);
+      setInputText(String(next));
+      onChange?.(next);
+    }
+  };
+
+  const percentage = Math.max(0, Math.min(100, ((numericValue - min) / (max - min)) * 100));
+  const sliderStep = step < 1 ? step : 0.1;
+
+  const parsedTemp = parseFloat(inputText);
+  const isOutOfRange = isFocused && inputText !== "" && inputText !== "-" && inputText !== "." && !isNaN(parsedTemp) && (parsedTemp < min || parsedTemp > max);
+
   return (
-    <div className="flex items-center justify-between mb-[1.25vw] last:mb-0 h-[1.75vw] px-[0.5vw]">
-      {label && (
-        <div className="w-[6vw] text-[0.75vw] font-medium text-gray-600 shrink-0 flex items-center justify-between pr-[0.5vw]">
-          {label} <span>:</span>
+    <div className="flex items-center justify-between mb-[1.1vw] last:mb-0 px-[0.5vw] h-[1.75vw]">
+      {label ? (
+        <div className="w-[5.8vw] text-[0.72vw] font-medium text-gray-600 shrink-0 flex items-center justify-between pr-[0.4vw]">
+          <span className="truncate">{label}</span> <span>:</span>
         </div>
-      )}
-      <div className="relative flex-1 h-[0.4vw] bg-gray-100 rounded-full cursor-pointer group touch-none">
+      ) : null}
+      
+      {/* Slider Track */}
+      <div className="relative flex-1 h-[0.38vw] bg-gray-100 rounded-full cursor-pointer group touch-none mx-[0.4vw]">
         {/* Fill */}
         <div
-          className="absolute top-0 left-0 h-full bg-[#5d5efc] rounded-full"
-          style={{ width: `${Math.max(0, Math.min(100, percentage))}%` }}
-        ></div>
+          className="absolute top-0 left-0 h-full bg-[#5d5efc] rounded-full pointer-events-none"
+          style={{ width: `${percentage}%` }}
+        />
         {/* Thumb */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-[0.9vw] h-[0.9vw] bg-[#5d5efc] border-[0.15vw] border-white rounded-full shadow-md hover:scale-110"
-          style={{ left: `${Math.max(0, Math.min(100, percentage))}%`, marginLeft: "-0.45vw" }}
-        ></div>
-        {/* Input Range (Hidden overlay for functionality) */}
+          className="absolute top-1/2 -translate-y-1/2 w-[0.85vw] h-[0.85vw] bg-[#5d5efc] border-[0.15vw] border-white rounded-full shadow-md group-hover:scale-110 pointer-events-none transition-transform"
+          style={{ left: `${percentage}%`, marginLeft: "-0.425vw" }}
+        />
+        {/* Input Range Overlay */}
         <input
           type="range"
           min={min}
           max={max}
-          step={step}
-          value={value ?? 0}
-          onChange={(e) => onChange(Number(e.target.value))}
+          step={sliderStep}
+          value={numericValue}
+          onChange={(e) => {
+            const val = Math.round(Number(e.target.value) * 100) / 100;
+            onChange?.(val);
+          }}
           className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
         />
       </div>
-      <div className="w-[2.5vw] text-right text-[0.62vw] font-medium text-gray-500 tabular-nums">
-        {typeof value === 'number' ? value.toFixed(step < 1 ? 1 : 0) : value} <span className="text-[0.75vw] ml-[0.15vw] text-gray-400">{unit}</span>
+
+      {/* Editable Number Input & Range Limit Display (strictly centered with slider bar) */}
+      <div className="relative flex items-center shrink-0 ml-[0.35vw] w-[2.2vw]">
+        <div 
+          className={`flex items-center justify-end bg-white border ${
+            isOutOfRange 
+              ? 'border-amber-400 ring-1 ring-amber-400/30' 
+              : isFocused 
+              ? 'border-[#5d5efc] ring-1 ring-[#5d5efc]/25' 
+              : 'border-gray-200 hover:border-gray-300'
+          } rounded-[0.25vw] px-[0.15vw] py-[0.06vw] h-[1.22vw] w-full transition-all`}
+          title={`Click to type value (${min} to ${max}${unit ? ' ' + unit : ''})`}
+        >
+          <input
+            type="text"
+            inputMode="decimal"
+            value={isFocused ? inputText : formatDisplay(numericValue)}
+            onFocus={(e) => {
+              setIsFocused(true);
+              setInputText(formatDisplay(numericValue));
+              e.target.select();
+            }}
+            onChange={handleInputChange}
+            onBlur={commitValue}
+            onKeyDown={handleKeyDown}
+            className="w-full bg-transparent text-right text-[0.66vw] font-semibold text-gray-800 outline-none tabular-nums p-0 select-text leading-none"
+            placeholder={String(min)}
+          />
+          {unit && (
+            <span className="text-[0.6vw] font-medium text-gray-400 ml-[0.08vw] select-none shrink-0 leading-none">
+              {unit}
+            </span>
+          )}
+        </div>
+
+        {/* Limit to enter value - positioned below without offsetting input vertical center */}
+        <div 
+          className={`absolute top-full right-0 text-[0.45vw] font-medium tabular-nums leading-none mt-[0.14vw] select-none tracking-tight text-right pointer-events-none ${
+            isOutOfRange ? 'text-amber-500 font-semibold' : 'text-gray-400'
+          }`}
+          title={`Allowed range: ${min} to ${max}`}
+        >
+          {min}–{max}
+        </div>
       </div>
     </div>
   );
@@ -819,7 +949,10 @@ export default function Customized({
     selectedTextureId,
     onSelectTexture,
     savedHdrs = [],
-    onDeleteHdr
+    onDeleteHdr,
+    hasAnimations,
+    isAnimationPlaying,
+    onToggleAnimation
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [activeColorType, setActiveColorType] = useState('color');
@@ -869,19 +1002,35 @@ export default function Customized({
       if (!lightPadRef.current) return;
       
       const rect = lightPadRef.current.getBoundingClientRect();
-      const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
-      const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+      const isTouch = e.type && e.type.startsWith('touch');
+      const clientX = isTouch && e.touches && e.touches.length > 0 ? e.touches[0].clientX : (e.clientX ?? 0);
+      const clientY = isTouch && e.touches && e.touches.length > 0 ? e.touches[0].clientY : (e.clientY ?? 0);
       
-      const offsetX = clientX - rect.left;
-      const offsetY = clientY - rect.top;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const radius = rect.width / 2;
       
-      // Calculate percentages (0 to 100)
-      const perX = (offsetX / rect.width) * 100;
-      const perY = (offsetY / rect.height) * 100;
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
       
-      // Map back to -25 to +25 range (since it uses * 2 to fill 100% space)
-      const newX = (perX - 50) / 2;
-      const newY = (50 - perY) / 2;
+      // Limit sun inside the rounded structure (max radius 78% leaves safe margin so sun icon never moves out)
+      const maxVisualRadius = radius * 0.78;
+      let clampedDx = dx;
+      let clampedDy = dy;
+      
+      if (dist > maxVisualRadius && dist > 0) {
+          clampedDx = (dx / dist) * maxVisualRadius;
+          clampedDy = (dy / dist) * maxVisualRadius;
+      }
+      
+      // Map normalized circular displacement to [-20, 20] coordinate range
+      const MAX_COORD = 20;
+      const normX = clampedDx / maxVisualRadius;
+      const normY = clampedDy / maxVisualRadius;
+      
+      const newX = normX * MAX_COORD;
+      const newY = -normY * MAX_COORD; // Screen up is positive Y
       
       updateControl('lightPosition', { 
           ...(controls.lightPosition || { x: 10, y: 10, z: 10 }), 
@@ -962,7 +1111,7 @@ export default function Customized({
                         title="Base Map"
                         isOpen={openInnerAccordion === "base"}
                         onToggle={() => toggleInnerAccordion("base")}
-                        value={controls.colorIntensity || 100}
+                        value={controls.colorIntensity ?? 100}
                         onChange={(v) => updateControl("colorIntensity", v)}
                         mapType="map"
                         currentMap={controls.maps?.map || currentGalleryTexture?.maps?.map || currentGalleryTexture?.preview}
@@ -999,7 +1148,7 @@ export default function Customized({
                         title="Normal Map"
                         isOpen={openInnerAccordion === "normal"}
                         onToggle={() => toggleInnerAccordion("normal")}
-                        value={controls.normal}
+                        value={controls.normal ?? 100}
                         onChange={(v) => updateControl("normal", v)}
                         mapType="normalMap"
                         currentMap={controls.maps?.normalMap || controls.maps?.normal}
@@ -1011,7 +1160,7 @@ export default function Customized({
                         title="Metallic Map"
                         isOpen={openInnerAccordion === "metallic"}
                         onToggle={() => toggleInnerAccordion("metallic")}
-                        value={controls.metallic}
+                        value={controls.metallic ?? 0}
                         onChange={(v) => updateControl("metallic", v)}
                         mapType="metalnessMap"
                         currentMap={controls.maps?.metalnessMap || controls.maps?.metallic || controls.maps?.metalness}
@@ -1023,7 +1172,7 @@ export default function Customized({
                         title="Roughness Map"
                         isOpen={openInnerAccordion === "roughness"}
                         onToggle={() => toggleInnerAccordion("roughness")}
-                        value={controls.roughness}
+                        value={controls.roughness ?? 50}
                         onChange={(v) => updateControl("roughness", v)}
                         mapType="roughnessMap"
                         currentMap={controls.maps?.roughnessMap || controls.maps?.roughness}
@@ -1035,7 +1184,7 @@ export default function Customized({
                         title="Displacement Map"
                         isOpen={openInnerAccordion === "bump"}
                         onToggle={() => toggleInnerAccordion("bump")}
-                        value={controls.bump}
+                        value={controls.bump ?? 50}
                         onChange={(v) => updateControl("bump", v)}
                         mapType="displacementMap"
                         currentMap={controls.maps?.displacementMap || controls.maps?.bumpMap || controls.maps?.bump || controls.maps?.displacement}
@@ -1047,7 +1196,7 @@ export default function Customized({
                         title="A/O Map"
                         isOpen={openInnerAccordion === "ao"}
                         onToggle={() => toggleInnerAccordion("ao")}
-                        value={controls.ao || 100}
+                        value={controls.ao ?? 100}
                         onChange={(v) => updateControl("ao", v)}
                         mapType="aoMap"
                         currentMap={controls.maps?.aoMap || controls.maps?.ao}
@@ -1059,7 +1208,7 @@ export default function Customized({
                         title="Emissive Map"
                         isOpen={openInnerAccordion === "emissive"}
                         onToggle={() => toggleInnerAccordion("emissive")}
-                        value={controls.emissiveIntensity || 0}
+                        value={controls.emissiveIntensity ?? 0}
                         onChange={(v) => updateControl("emissiveIntensity", v)}
                         mapType="emissiveMap"
                         currentMap={controls.maps?.emissiveMap || controls.maps?.emissive}
@@ -1096,7 +1245,7 @@ export default function Customized({
                         title="Opacity Map"
                         isOpen={openInnerAccordion === "opacity"}
                         onToggle={() => toggleInnerAccordion("opacity")}
-                        value={controls.alpha || 100}
+                        value={controls.alpha ?? 100}
                         onChange={(v) => updateControl("alpha", v)}
                         mapType="alphaMap"
                         currentMap={controls.maps?.alphaMap || controls.maps?.opacity}
@@ -1115,9 +1264,49 @@ export default function Customized({
                 </p>
                 <CustomSlider
                     label=""
-                    value={controls.alpha}
+                    value={controls.alpha ?? 100}
                     onChange={(v) => updateControl("alpha", v)}
                 />
+
+                {/* Animation On / Off Toggle (Only visible if model has animations) */}
+                {hasAnimations && (
+                    <div className="mt-[1vw] p-[0.75vw] bg-gray-50/80 rounded-[0.6vw] border border-gray-100 flex items-center justify-between transition-all duration-200">
+                        <div className="flex items-center gap-[0.5vw]">
+                            <div className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${
+                                isAnimationPlaying ? "bg-[#5d5efc]/10 text-[#5d5efc]" : "bg-gray-200 text-gray-400"
+                            }`}>
+                                <Icon 
+                                    icon={isAnimationPlaying ? "solar:play-circle-bold" : "solar:pause-circle-bold"} 
+                                    width="1.05vw" 
+                                    height="1.05vw" 
+                                />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[0.75vw] font-semibold text-gray-800 leading-tight">Animation</span>
+                                <span className="text-[0.55vw] text-gray-400 leading-tight">Play or pause 3D model motion</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-[0.5vw]">
+                            <span className={`text-[0.65vw] font-bold uppercase tracking-wider select-none ${
+                                isAnimationPlaying ? "text-[#5d5efc]" : "text-gray-400"
+                            }`}>
+                                {isAnimationPlaying ? "On" : "Off"}
+                            </span>
+                            <div
+                                onClick={() => onToggleAnimation?.(!isAnimationPlaying)}
+                                className={`w-[2.75vw] h-[1.5vw] rounded-full flex items-center px-[0.25vw] cursor-pointer transition-all duration-300 ${
+                                    isAnimationPlaying ? "bg-[#5d5efc]" : "bg-gray-200"
+                                }`}
+                                title={isAnimationPlaying ? "Turn Animation Off" : "Turn Animation On"}
+                            >
+                                <div className={`w-[1vw] h-[1vw] bg-white rounded-full shadow-sm transition-transform duration-300 ${
+                                    isAnimationPlaying ? "translate-x-[1.25vw]" : "translate-x-0"
+                                }`} />
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Texture Placement Section */}
@@ -1127,7 +1316,7 @@ export default function Customized({
                 <div className="space-y-[0.5vw] mt-[0.5vw]">
                     <CustomSlider
                         label="Scale"
-                        value={controls.scale}
+                        value={controls.scale ?? 100}
                         onChange={(v) => updateControl("scale", v)}
                         min={1}
                         max={200}
@@ -1135,7 +1324,7 @@ export default function Customized({
                     />
                     <CustomSlider
                         label="Rotation"
-                        value={controls.rotation}
+                        value={controls.rotation ?? 0}
                         min={-180}
                         max={180}
                         onChange={(v) => updateControl("rotation", v)}
@@ -1143,7 +1332,7 @@ export default function Customized({
                     />
                     <CustomSlider
                         label="Offset (X)"
-                        value={controls.offset?.x || 0}
+                        value={controls.offset?.x ?? 0}
                         onChange={(val) => updateControl('offset', { ...(controls.offset || {x:0,y:0}), x: val })}
                         min={-100}
                         max={100}
@@ -1152,7 +1341,7 @@ export default function Customized({
                     />
                     <CustomSlider
                         label="Offset (Y)"
-                        value={controls.offset?.y || 0}
+                        value={controls.offset?.y ?? 0}
                         onChange={(val) => updateControl('offset', { ...(controls.offset || {x:0,y:0}), y: val })}
                         min={-100}
                         max={100}
@@ -1256,76 +1445,144 @@ export default function Customized({
         isOpen={activePanel === "lighting"}
         onToggle={() => handlePanelToggle("lighting")}
       >
-        {/* Visual Preview Box */}
-        <div 
-            ref={lightPadRef}
-            onMouseDown={(e) => {
-                setIsDraggingLight(true);
-                handleLightPadInteraction(e);
-            }}
-            onTouchStart={(e) => {
-                setIsDraggingLight(true);
-                handleLightPadInteraction(e);
-            }}
-            onWheel={handleLightWheel}
-            className={`relative bg-[#f8fafc] h-[9.375vw] rounded-[0.5vw] border border-gray-100 mb-[1.5vw] flex flex-col items-center justify-center shadow-inner overflow-hidden group ${isDraggingLight ? 'cursor-grabbing' : 'cursor-crosshair'}`}
-        >
-            {/* Visual Sun Ray Line from Center (Model) to Sun */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none z-1">
-                <line 
-                    x1="50%" 
-                    y1="50%" 
-                    x2={`${Math.max(6, Math.min(94, 50 + (controls.lightPosition?.x ?? 10) * 2))}%`} 
-                    y2={`${Math.max(6, Math.min(94, 50 - (controls.lightPosition?.y ?? 10) * 2))}%`} 
-                    stroke="#f59e0b" 
-                    strokeWidth="1.5" 
-                    strokeDasharray="4 3"
-                    strokeLinecap="round"
-                    className="opacity-70"
-                />
-            </svg>
+        {(() => {
+          const lightPos = controls.lightPosition || { x: 10, y: 10, z: 10 };
+          const rawPosX = lightPos.x ?? 10;
+          const rawPosY = lightPos.y ?? 10;
+          const MAX_LIGHT_COORD = 20;
+          const coordDist = Math.sqrt(rawPosX * rawPosX + rawPosY * rawPosY);
+          const visualScale = coordDist > MAX_LIGHT_COORD && coordDist > 0 ? MAX_LIGHT_COORD / coordDist : 1;
+          const clampedCoordX = rawPosX * visualScale;
+          const clampedCoordY = rawPosY * visualScale;
+          
+          // Visual boundary radius in percent inside the circular dome
+          // Center is 50%. Max reach is 38% from center (leaves 12% margin so the 1.25vw sun icon stays completely inside)
+          const maxVisualPercent = 38;
+          const sunPercentX = 50 + (clampedCoordX / MAX_LIGHT_COORD) * maxVisualPercent;
+          const sunPercentY = 50 - (clampedCoordY / MAX_LIGHT_COORD) * maxVisualPercent;
 
-            {/* Dynamic Sun Position based on lightPosition */}
-            <div 
-                className={`absolute text-amber-400 drop-shadow-sm pointer-events-none z-2 ${isDraggingLight ? '' : 'transition-all duration-300'}`}
-                style={{
-                  left: `${50 + (controls.lightPosition?.x || 10) * 2}%`,
-                  top: `${50 - (controls.lightPosition?.y || 10) * 2}%`,
-                  transform: 'translate(-50%, -50%)'
-                }}
-            >
-                <Icon icon="heroicons:sun" width="1.25vw" height="1.25vw" />
-            </div>
-            <div className="flex flex-col items-center text-gray-300 group-hover:text-gray-400 transition-colors z-2">
-                <Icon icon="heroicons:cube" width="2.08vw" height="2.08vw" className="stroke-1" />
-                <span className="text-[0.58vw] mt-[0.5vw] font-medium tracking-wide uppercase">Model Preview</span>
-            </div>
-            <div className="absolute inset-0 bg-linear-to-br from-white/60 via-transparent to-indigo-50/10 pointer-events-none"></div>
-        </div>
+          return (
+            <>
+              {/* Rounded Circular Lighting Structure Container */}
+              <div 
+                  className="relative bg-[#f8fafc] rounded-[0.75vw] border border-gray-100/90 py-[0.85vw] px-[0.75vw] mb-[1.5vw] flex flex-col items-center justify-center shadow-inner overflow-hidden"
+                  onMouseDown={(e) => {
+                      setIsDraggingLight(true);
+                      handleLightPadInteraction(e);
+                  }}
+                  onTouchStart={(e) => {
+                      setIsDraggingLight(true);
+                      handleLightPadInteraction(e);
+                  }}
+                  onWheel={handleLightWheel}
+              >
+                  {/* Circular Dome Structure (Strictly locks sun movement inside) */}
+                  <div 
+                      ref={lightPadRef}
+                      className={`relative w-[9.2vw] h-[9.2vw] rounded-full bg-linear-to-b from-white via-[#fcfdff] to-[#f1f5f9] border-2 border-slate-200/90 shadow-[inset_0_2px_8px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] flex flex-col items-center justify-center overflow-hidden select-none transition-shadow ${isDraggingLight ? 'cursor-grabbing shadow-[inset_0_2px_12px_rgba(245,158,11,0.15),0_0_0_2px_rgba(245,158,11,0.35)]' : 'cursor-crosshair hover:border-slate-300'}`}
+                  >
+                      {/* Subtle Crosshair Axes */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-full h-[1px] bg-slate-200/50"></div>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="h-full w-[1px] bg-slate-200/50"></div>
+                      </div>
 
-        <div className="flex justify-center gap-[0.5vw] mb-[2vw]">
-            <NumberStepper 
-                value={Math.round(controls.lightPosition?.x || 10)} 
-                axisLabel="X" 
-                compact 
-                onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, x: val })}
-                step={1}
-            />
-            <NumberStepper 
-                value={Math.round(controls.lightPosition?.y || 10)} 
-                axisLabel="Y" 
-                compact 
-                onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, y: val })}
-                step={1}
-            />
-            <NumberStepper 
-                value={Math.round(controls.lightPosition?.z || 10)} 
-                axisLabel="Z" 
-                compact 
-                onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, z: val })}
-                step={1}
-            />
-        </div>
+                      {/* Outer Orbit Guide Track (defines the boundary where the sun travels) */}
+                      <div 
+                          className="absolute rounded-full border border-dashed border-amber-300/40 pointer-events-none"
+                          style={{ width: `${maxVisualPercent * 2}%`, height: `${maxVisualPercent * 2}%` }}
+                      ></div>
+
+                      {/* Inner Orbit Guide Track */}
+                      <div 
+                          className="absolute rounded-full border border-slate-200/60 pointer-events-none"
+                          style={{ width: '42%', height: '42%' }}
+                      ></div>
+
+                      {/* Cardinal Tick Marks */}
+                      <span className="absolute top-[0.25vw] text-[0.45vw] font-bold text-slate-300 tracking-wider pointer-events-none">N</span>
+                      <span className="absolute bottom-[0.25vw] text-[0.45vw] font-bold text-slate-300 tracking-wider pointer-events-none">S</span>
+                      <span className="absolute left-[0.35vw] text-[0.45vw] font-bold text-slate-300 tracking-wider pointer-events-none">W</span>
+                      <span className="absolute right-[0.35vw] text-[0.45vw] font-bold text-slate-300 tracking-wider pointer-events-none">E</span>
+
+                      {/* Visual Sun Ray Line from Center (Model) to Sun */}
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none z-1">
+                          <line 
+                              x1="50%" 
+                              y1="50%" 
+                              x2={`${sunPercentX}%`} 
+                              y2={`${sunPercentY}%`} 
+                              stroke="#f59e0b" 
+                              strokeWidth="1.5" 
+                              strokeDasharray="4 3"
+                              strokeLinecap="round"
+                              className="opacity-75"
+                          />
+                      </svg>
+
+                      {/* Dynamic Sun Position based on lightPosition (strictly kept inside rounded structure) */}
+                      <div 
+                          className={`absolute text-amber-500 drop-shadow-[0_1px_4px_rgba(245,158,11,0.45)] pointer-events-none z-2 ${isDraggingLight ? '' : 'transition-all duration-200 ease-out'}`}
+                          style={{
+                            left: `${sunPercentX}%`,
+                            top: `${sunPercentY}%`,
+                            transform: 'translate(-50%, -50%)'
+                          }}
+                      >
+                          <div className="relative flex items-center justify-center">
+                              <div className="absolute w-[1.5vw] h-[1.5vw] rounded-full bg-amber-400/20 animate-pulse pointer-events-none"></div>
+                              <Icon icon="heroicons:sun" width="1.25vw" height="1.25vw" className="relative z-1" />
+                          </div>
+                      </div>
+
+                      {/* Center Pivot: Model Preview */}
+                      <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-gray-500 transition-colors z-2 pointer-events-none">
+                          <Icon icon="heroicons:cube" width="1.6vw" height="1.6vw" className="stroke-1 text-slate-400" />
+                          <span className="text-[0.48vw] mt-[0.2vw] font-semibold tracking-wider text-slate-400 uppercase">MODEL</span>
+                      </div>
+                  </div>
+
+                  {/* Hint below dome */}
+                  <div className="mt-[0.5vw] flex items-center gap-[0.35vw] text-[0.55vw] text-slate-400 font-medium select-none pointer-events-none">
+                      <Icon icon="heroicons:cursor-arrow-rays" width="0.7vw" height="0.7vw" className="text-amber-500/70" />
+                      <span>Drag inside circle &bull; Scroll for Z height</span>
+                  </div>
+              </div>
+
+              <div className="flex justify-center gap-[0.5vw] mb-[2vw]">
+                  <NumberStepper 
+                      value={Math.round(controls.lightPosition?.x || 10)} 
+                      axisLabel="X" 
+                      compact 
+                      min={-20}
+                      max={20}
+                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, x: val })}
+                      step={1}
+                  />
+                  <NumberStepper 
+                      value={Math.round(controls.lightPosition?.y || 10)} 
+                      axisLabel="Y" 
+                      compact 
+                      min={-20}
+                      max={20}
+                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, y: val })}
+                      step={1}
+                  />
+                  <NumberStepper 
+                      value={Math.round(controls.lightPosition?.z || 10)} 
+                      axisLabel="Z" 
+                      compact 
+                      min={-50}
+                      max={50}
+                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, z: val })}
+                      step={1}
+                  />
+              </div>
+            </>
+          );
+        })()}
 
         <div className="space-y-[1.5vw]">
             <div>
@@ -1368,7 +1625,7 @@ export default function Customized({
                             <span>Saved Custom HDRs</span>
                             <span className="text-[0.55vw] text-gray-400">{savedHdrs.length} saved locally</span>
                         </div>
-                        <div className="flex flex-wrap gap-[0.35vw] max-h-[6vw] overflow-y-auto custom-scrollbar p-[0.1vw]">
+                        <div className="grid grid-cols-2 gap-[0.35vw] max-h-[6vw] overflow-y-auto custom-scrollbar p-[0.1vw]">
                             {savedHdrs.map(hdr => {
                                 const hdrVal = hdr.id.startsWith('custom_') ? hdr.id : `custom_${hdr.id}`;
                                 const isActive = controls.environment === hdrVal || controls.customEnvMap === hdr.url;
@@ -1376,7 +1633,7 @@ export default function Customized({
                                     <div 
                                         key={hdr.id}
                                         onClick={() => updateControl('environment', hdrVal)}
-                                        className={`group flex items-center gap-[0.3vw] px-[0.5vw] py-[0.25vw] rounded-[0.35vw] border text-[0.62vw] cursor-pointer transition-all ${
+                                        className={`group flex items-center gap-[0.3vw] px-[0.5vw] py-[0.25vw] rounded-[0.35vw] border text-[0.62vw] cursor-pointer transition-all min-w-0 w-full ${
                                             isActive 
                                                 ? 'bg-[#5d5efc]/10 border-[#5d5efc] text-[#5d5efc] font-semibold shadow-xs' 
                                                 : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 hover:border-gray-300'
@@ -1384,7 +1641,7 @@ export default function Customized({
                                         title={hdr.name}
                                     >
                                         <Icon icon="solar:sun-fog-bold" className="w-[0.75vw] h-[0.75vw] shrink-0" />
-                                        <span className="max-w-[7vw] truncate">{hdr.name.replace(/\.[^/.]+$/, "")}</span>
+                                        <span className="truncate flex-1 min-w-0">{hdr.name.replace(/\.[^/.]+$/, "")}</span>
                                         {onDeleteHdr && (
                                             <button
                                                 type="button"
@@ -1392,7 +1649,7 @@ export default function Customized({
                                                     e.stopPropagation();
                                                     onDeleteHdr(hdr.id);
                                                 }}
-                                                className="opacity-0 group-hover:opacity-100 p-[0.1vw] hover:text-red-500 rounded transition-opacity ml-[0.1vw]"
+                                                className="opacity-0 group-hover:opacity-100 p-[0.1vw] hover:text-red-500 rounded transition-opacity ml-auto shrink-0"
                                                 title="Delete saved HDR"
                                             >
                                                 <Icon icon="solar:trash-bin-trash-linear" className="w-[0.65vw] h-[0.65vw]" />
@@ -1407,7 +1664,7 @@ export default function Customized({
                 <div className="mt-[0.5vw]">
                     <CustomSlider
                         label="Env Rotation"
-                        value={controls.envRotation || 0}
+                        value={controls.envRotation ?? 0}
                         min={0}
                         max={360}
                         onChange={(v) => updateControl("envRotation", v)}
@@ -1420,13 +1677,23 @@ export default function Customized({
                     <div className="space-y-[0.25vw]">
                         <CustomSlider
                             label="Specular"
-                            value={controls.specular}
+                            value={controls.specular ?? 50}
                             onChange={(v) => updateControl("specular", v)}
                         />
                         <CustomSlider
                             label="Reflection"
-                            value={controls.reflection}
+                            value={controls.reflection ?? 50}
                             onChange={(v) => updateControl("reflection", v)}
+                        />
+                        <CustomSlider
+                            label="World Opacity"
+                            value={controls.worldOpacity ?? 0}
+                            onChange={(v) => updateControl("worldOpacity", v)}
+                        />
+                        <CustomSlider
+                            label="World Blur"
+                            value={controls.worldBlur ?? 0}
+                            onChange={(v) => updateControl("worldBlur", v)}
                         />
                     </div>
                 </div>
