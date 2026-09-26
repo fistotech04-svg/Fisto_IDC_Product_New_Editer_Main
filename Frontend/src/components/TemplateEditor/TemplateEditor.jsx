@@ -333,11 +333,11 @@ const TemplateEditor = () => {
 
   // Automatically switch to the Properties panel ('select' tool) when an element 
   // is selected while the Uploads panel is active.
-  // useEffect(() => {
-  //   if (selectedLayerId) {
-  //     setActiveMainTool((prev) => prev === 'upload' ? 'select' : prev);
-  //   }
-  // }, [selectedLayerId]);
+  useEffect(() => {
+    if (selectedLayerId) {
+      setActiveMainTool((prev) => prev === 'upload' ? 'select' : prev);
+    }
+  }, [selectedLayerId]);
 
   // 3D Customization States
   const [is3DModalOpen, setIs3DModalOpen] = useState(false);
@@ -3395,8 +3395,12 @@ const TemplateEditor = () => {
       svgRoot.insertBefore(defs, svgRoot.firstChild);
     }
 
-    const filterId = `filter-${element.id}`;
-    let filterEl = defs.querySelector(`[id="${filterId}"]`);
+    const baseFilterId = `filter-${element.id}`;
+    
+    // Cache-busting: Remove any existing filters for this element to force a fresh render
+    Array.from(defs.querySelectorAll(`[id^="${baseFilterId}"]`)).forEach(old => old.remove());
+
+    const filterId = `${baseFilterId}-${Math.random().toString(36).substr(2, 4)}`;
 
     const hasDropShadow = element.getAttribute('data-effect-drop-shadow') === 'true';
     const hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
@@ -3405,50 +3409,204 @@ const TemplateEditor = () => {
     const hasClipContent = hasBlur && element.getAttribute('data-effect-blur-clip') === 'true';
 
     if (!hasDropShadow && !hasInnerShadow && !hasBlur && !hasBackgroundBlur) {
-      if (filterEl) filterEl.remove();
       element.removeAttribute('filter');
       element.style.backdropFilter = '';
       return;
     }
 
-    if (!filterEl) {
-      filterEl = doc.createElementNS("http://www.w3.org/2000/svg", "filter");
-      filterEl.id = filterId;
-      filterEl.setAttribute('x', '-50%');
-      filterEl.setAttribute('y', '-50%');
-      filterEl.setAttribute('width', '200%');
-      filterEl.setAttribute('height', '200%');
-      defs.appendChild(filterEl);
-    }
-
-    // Clear existing primitives
-    while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+    let filterEl = doc.createElementNS("http://www.w3.org/2000/svg", "filter");
+    filterEl.id = filterId;
+    filterEl.setAttribute('x', '-50%');
+    filterEl.setAttribute('y', '-50%');
+    filterEl.setAttribute('width', '200%');
+    filterEl.setAttribute('height', '200%');
+    defs.appendChild(filterEl);
 
     // Helper to get attribute with default
     const getVal = (attr, def) => element.getAttribute(attr) || def;
 
-    // We chain effects by tracking the graphic layer
-    let graphicIn = "SourceGraphic";
+    const isForeignObject = element.tagName.toLowerCase() === 'foreignobject';
 
-    // 1. Inner Shadow
+    if (isForeignObject && !hasInnerShadow && !hasClipContent) {
+      const inner = element.firstElementChild;
+      if (inner) {
+        if (!hasDropShadow && !hasBlur && !hasBackgroundBlur) {
+          inner.style.removeProperty('filter');
+          inner.style.removeProperty('backdrop-filter');
+          inner.style.removeProperty('-webkit-backdrop-filter');
+        } else {
+          let innerCssFilter = '';
+          let outerCssFilter = '';
+
+          if (hasBlur) {
+            const blurVal = getVal('data-effect-blur-value', '0.3');
+            innerCssFilter += `blur(${blurVal}px) `;
+          }
+          if (hasDropShadow) {
+            const color = getVal('data-effect-drop-shadow-color', '#000000');
+            const dx = getVal('data-effect-drop-shadow-x', '2');
+            const dy = getVal('data-effect-drop-shadow-y', '2');
+            const blur = getVal('data-effect-drop-shadow-blur', '4');
+            const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
+
+            const r = parseInt(color.slice(1, 3), 16) || 0;
+            const g = parseInt(color.slice(3, 5), 16) || 0;
+            const b = parseInt(color.slice(5, 7), 16) || 0;
+
+            const dropShadowStr = `drop-shadow(${dx}px ${dy}px ${blur}px rgba(${r},${g},${b},${opacity})) `;
+            if (hasClipContent) {
+              outerCssFilter += dropShadowStr;
+            } else {
+              innerCssFilter += dropShadowStr;
+            }
+          }
+
+          if (innerCssFilter.trim()) {
+            inner.style.setProperty('filter', innerCssFilter.trim(), 'important');
+          } else {
+            inner.style.removeProperty('filter');
+          }
+          if (outerCssFilter.trim()) {
+            element.style.setProperty('filter', outerCssFilter.trim(), 'important');
+          } else {
+            element.style.removeProperty('filter');
+          }
+
+          if (hasClipContent) {
+            const rx = element.getAttribute('rx') || '0';
+            const roundStr = rx !== '0' && rx !== '0px' ? ` round ${parseFloat(rx)}px` : '';
+            inner.style.setProperty('clip-path', `inset(0% 0% 0% 0%${roundStr})`, 'important');
+          } else {
+            inner.style.removeProperty('clip-path');
+          }
+
+          if (hasBackgroundBlur) {
+            const bBlur = getVal('data-effect-background-blur-value', '10');
+            inner.style.setProperty('backdrop-filter', `blur(${bBlur}px)`, 'important');
+            inner.style.setProperty('-webkit-backdrop-filter', `blur(${bBlur}px)`, 'important');
+          } else {
+            inner.style.removeProperty('backdrop-filter');
+            inner.style.removeProperty('-webkit-backdrop-filter');
+          }
+        }
+      }
+
+      element.removeAttribute('filter');
+      if (filterEl) filterEl.remove();
+      return;
+    }
+
+    // We chain effects by tracking the graphic layer
+    let currentIn = "SourceGraphic";
+
+    // 1. Layer Blur (Applied FIRST if Clip Content is ON)
+    if (hasBlur && hasClipContent) {
+      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
+      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
+
+      let blurSource = currentIn;
+
+      if (spreadVal !== 0) {
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spreadVal));
+        morph.setAttribute('in', currentIn);
+        morph.setAttribute('result', 'blur_morph_first');
+        filterEl.appendChild(morph);
+        blurSource = "blur_morph_first";
+      }
+
+      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      blurNode.setAttribute('stdDeviation', blurVal);
+      blurNode.setAttribute('in', blurSource);
+      blurNode.setAttribute('result', 'blur_out_first');
+      filterEl.appendChild(blurNode);
+      currentIn = "blur_out_first";
+    }
+
+    // 2. Clip Content (Clips the blurred SourceGraphic to the original Alpha, restoring crisp stroke if needed)
+    if (hasClipContent) {
+      const bgStrokeWidth = parseFloat(getVal('data-bg-stroke-width', '0'));
+      const textStrokeWidth = parseFloat(getVal('stroke-width', '0'));
+      const strokeErodeRadius = bgStrokeWidth > 0 ? bgStrokeWidth : textStrokeWidth;
+      
+      let insideMask = 'SourceAlpha';
+
+      if (strokeErodeRadius > 0 && isForeignObject) {
+        const borderMorph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        borderMorph.setAttribute('operator', 'erode');
+        borderMorph.setAttribute('radius', strokeErodeRadius);
+        borderMorph.setAttribute('in', 'SourceAlpha');
+        borderMorph.setAttribute('result', 'clip_inside_mask');
+        filterEl.appendChild(borderMorph);
+        insideMask = 'clip_inside_mask';
+      }
+
+      const compClip = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compClip.setAttribute('operator', 'in');
+      compClip.setAttribute('in', currentIn);
+      compClip.setAttribute('in2', insideMask);
+      compClip.setAttribute('result', 'clipped_blur');
+      filterEl.appendChild(compClip);
+      currentIn = 'clipped_blur';
+
+      if (strokeErodeRadius > 0 && isForeignObject) {
+        // Extract crisp stroke from original SourceGraphic
+        const crispStroke = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+        crispStroke.setAttribute('operator', 'out');
+        crispStroke.setAttribute('in', 'SourceGraphic');
+        crispStroke.setAttribute('in2', insideMask);
+        crispStroke.setAttribute('result', 'crisp_stroke');
+        filterEl.appendChild(crispStroke);
+        
+        // Composite crisp stroke over the blurred interior
+        const restoreStroke = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+        restoreStroke.setAttribute('operator', 'over');
+        restoreStroke.setAttribute('in', 'crisp_stroke');
+        restoreStroke.setAttribute('in2', currentIn);
+        restoreStroke.setAttribute('result', 'restored_final');
+        filterEl.appendChild(restoreStroke);
+        currentIn = 'restored_final';
+      }
+    }
+
+    // 3. Inner Shadow (Generated from crisp Alpha, drawn OVER the blurred/clipped content)
     if (hasInnerShadow) {
       const color = getVal('data-effect-inner-shadow-color', '#000000');
       const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '25')) / 100;
-      const dx = getVal('data-effect-inner-shadow-x', '0');
-      const dy = getVal('data-effect-inner-shadow-y', '4');
+      const dx = getVal('data-effect-inner-shadow-x', '2');
+      const dy = getVal('data-effect-inner-shadow-y', '2');
       const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
       const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
+      const bgStrokeWidth = parseFloat(getVal('data-bg-stroke-width', '0'));
+      const textStrokeWidth = parseFloat(getVal('stroke-width', '0'));
+      const strokeErodeRadius = bgStrokeWidth > 0 ? bgStrokeWidth : textStrokeWidth;
 
-      const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
-      morph.setAttribute('radius', Math.abs(spread));
-      morph.setAttribute('in', 'SourceAlpha');
-      morph.setAttribute('result', 'is_morph');
-      filterEl.appendChild(morph);
+      let baseAlpha = 'SourceAlpha';
+      if (strokeErodeRadius > 0 && isForeignObject) {
+        const borderMorph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        borderMorph.setAttribute('operator', 'erode');
+        borderMorph.setAttribute('radius', strokeErodeRadius);
+        borderMorph.setAttribute('in', 'SourceAlpha');
+        borderMorph.setAttribute('result', 'base_alpha');
+        filterEl.appendChild(borderMorph);
+        baseAlpha = 'base_alpha';
+      }
+
+      let isSource = baseAlpha;
+      if (spread !== 0) {
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spread));
+        morph.setAttribute('in', baseAlpha);
+        morph.setAttribute('result', 'is_morph');
+        filterEl.appendChild(morph);
+        isSource = 'is_morph';
+      }
 
       const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
       gauss.setAttribute('stdDeviation', blur);
-      gauss.setAttribute('in', 'is_morph');
+      gauss.setAttribute('in', isSource);
       gauss.setAttribute('result', 'is_blur');
       filterEl.appendChild(gauss);
 
@@ -3461,7 +3619,7 @@ const TemplateEditor = () => {
 
       const compOut = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
       compOut.setAttribute('operator', 'out');
-      compOut.setAttribute('in', 'SourceAlpha');
+      compOut.setAttribute('in', baseAlpha);
       compOut.setAttribute('in2', 'is_offset');
       compOut.setAttribute('result', 'is_inverse');
       filterEl.appendChild(compOut);
@@ -3482,73 +3640,28 @@ const TemplateEditor = () => {
       const compOver = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
       compOver.setAttribute('operator', 'over');
       compOver.setAttribute('in', 'is_final');
-      compOver.setAttribute('in2', graphicIn);
+      compOver.setAttribute('in2', currentIn);
       compOver.setAttribute('result', 'inner_shadow_merged');
       filterEl.appendChild(compOver);
 
-      graphicIn = "inner_shadow_merged";
+      currentIn = "inner_shadow_merged";
     }
 
-    // 2. Layer Blur (applies to Graphic + Inner Shadow)
-    if (hasBlur) {
-      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
-      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
-
-      let blurSource = graphicIn;
-
-      if (spreadVal !== 0) {
-        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
-        morph.setAttribute('radius', Math.abs(spreadVal));
-        morph.setAttribute('in', graphicIn);
-        morph.setAttribute('result', 'blur_morph');
-        filterEl.appendChild(morph);
-        blurSource = "blur_morph";
-      }
-
-      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      blurNode.setAttribute('stdDeviation', blurVal);
-      blurNode.setAttribute('in', blurSource);
-      blurNode.setAttribute('result', 'blur_out');
-      filterEl.appendChild(blurNode);
-      graphicIn = "blur_out";
-    }
-
-    // 3. Clip Content (clips the blurred graphic + inner shadow to SourceAlpha)
-    if (hasClipContent) {
-      const compClip = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
-      compClip.setAttribute('operator', 'in');
-      compClip.setAttribute('in', graphicIn);
-      compClip.setAttribute('in2', 'SourceAlpha');
-      compClip.setAttribute('result', 'clipped_final');
-      filterEl.appendChild(compClip);
-      graphicIn = 'clipped_final';
-    }
-
-    // 4. Drop Shadow (generated from SourceAlpha, placed behind the final graphic)
-    let finalOutput = graphicIn;
-
+    // 4. Drop Shadow (Generated from crisp Alpha, merged UNDER the final result)
     if (hasDropShadow) {
       const color = getVal('data-effect-drop-shadow-color', '#000000');
       const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
-      const dx = getVal('data-effect-drop-shadow-x', '0');
-      const dy = getVal('data-effect-drop-shadow-y', '4');
+      const dx = getVal('data-effect-drop-shadow-x', '2');
+      const dy = getVal('data-effect-drop-shadow-y', '2');
       const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
       const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
 
-      const extractAlpha = doc.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
-      extractAlpha.setAttribute('type', 'matrix');
-      extractAlpha.setAttribute('values', '0 0 0 0 0   0 0 0 0 0   0 0 0 0 0   0 0 0 1 0');
-      extractAlpha.setAttribute('in', graphicIn);
-      extractAlpha.setAttribute('result', 'ds_alpha');
-      filterEl.appendChild(extractAlpha);
-
-      let dsSource = 'ds_alpha';
+      let dsSource = 'SourceAlpha';
       if (spread !== 0) {
         const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
         morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
         morph.setAttribute('radius', Math.abs(spread));
-        morph.setAttribute('in', 'ds_alpha');
+        morph.setAttribute('in', 'SourceAlpha');
         morph.setAttribute('result', 'ds_morph');
         filterEl.appendChild(morph);
         dsSource = 'ds_morph';
@@ -3584,17 +3697,50 @@ const TemplateEditor = () => {
       const nodeShadow = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
       nodeShadow.setAttribute('in', 'ds_final');
       const nodeInput = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
-      nodeInput.setAttribute('in', graphicIn);
-      
+      nodeInput.setAttribute('in', currentIn); // Merge shadow behind the final blurred/clipped content
       merge.appendChild(nodeShadow);
       merge.appendChild(nodeInput);
-      merge.setAttribute('result', 'final_merged');
+      merge.setAttribute('result', 'drop_shadow_merged');
       filterEl.appendChild(merge);
-      
-      finalOutput = 'final_merged';
+      currentIn = "drop_shadow_merged";
     }
 
-    element.setAttribute('filter', `url(#${filterId})`);
+    // 5. Layer Blur (Applied LAST if Clip Content is OFF, so it blurs shadows and strokes too)
+    if (hasBlur && !hasClipContent) {
+      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
+      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
+
+      let blurSource = currentIn;
+
+      if (spreadVal !== 0) {
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spreadVal));
+        morph.setAttribute('in', currentIn);
+        morph.setAttribute('result', 'blur_morph_last');
+        filterEl.appendChild(morph);
+        blurSource = "blur_morph_last";
+      }
+
+      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      blurNode.setAttribute('stdDeviation', blurVal);
+      blurNode.setAttribute('in', blurSource);
+      blurNode.setAttribute('result', 'blur_out_last');
+      filterEl.appendChild(blurNode);
+      currentIn = "blur_out_last";
+    }
+
+    const finalFilterUrl = `url(#${filterId})`;
+    if (isForeignObject) {
+      const inner = element.firstElementChild;
+      if (inner) {
+        inner.style.removeProperty('clip-path');
+        inner.style.setProperty('filter', finalFilterUrl, 'important');
+        element.removeAttribute('filter');
+      }
+    } else {
+      element.setAttribute('filter', finalFilterUrl);
+    }
 
     // Background Blur via Backdrop Filter (CSS style)
     if (hasBackgroundBlur) {

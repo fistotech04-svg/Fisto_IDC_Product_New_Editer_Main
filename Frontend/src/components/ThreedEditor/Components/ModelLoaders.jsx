@@ -37,13 +37,12 @@ function applySafeGLTFPatch(LoaderClass) {
           for (let skinIndex = 0, skinLength = skinDefs.length; skinIndex < skinLength; skinIndex++) {
             const skin = skinDefs[skinIndex];
             if (skin && skin.joints && Array.isArray(skin.joints)) {
-              skin.joints = skin.joints.filter((nodeIdx) => {
+              for (let j = 0; j < skin.joints.length; j++) {
+                const nodeIdx = skin.joints[j];
                 if (typeof nodeIdx === 'number' && nodeDefs[nodeIdx]) {
                   nodeDefs[nodeIdx].isBone = true;
-                  return true;
                 }
-                return false;
-              });
+              }
             }
           }
 
@@ -59,20 +58,7 @@ function applySafeGLTFPatch(LoaderClass) {
       }
 
       return {
-        name: "SafeSkinLoaderPlugin",
-        beforeRoot: () => {
-          try {
-            const json = parser.json;
-            if (json && json.skins && Array.isArray(json.skins)) {
-              const nodeDefs = json.nodes || [];
-              json.skins.forEach((skin) => {
-                if (skin && skin.joints && Array.isArray(skin.joints)) {
-                  skin.joints = skin.joints.filter((j) => typeof j === 'number' && nodeDefs[j] !== undefined);
-                }
-              });
-            }
-          } catch (e) {}
-        }
+        name: "SafeSkinLoaderPlugin"
       };
     });
 
@@ -194,16 +180,24 @@ export const GLBModel = React.forwardRef(({ url, shouldClone, ...props }, ref) =
   const displayScene = useMemo(() => {
     if (!scene) return null;
     const cloned = SkeletonUtils.clone(scene);
-    if (scene.userData?.normalization) {
-      cloned.userData.normalization = { ...scene.userData.normalization };
+    if (cloned.userData?.normalization) {
+      delete cloned.userData.normalization;
     }
     // Prefer useGLTF animations, fall back to scene.animations
     const srcAnimations = (animations && animations.length > 0) ? animations : (scene.animations || []);
     // Deep-clone each AnimationClip so this instance owns its tracks
     cloned.animations = srcAnimations.map(a => a.clone());
     cloned.traverse((child) => {
+      if (!child.userData.__bindPos) {
+        child.userData.__bindPos = [child.position.x, child.position.y, child.position.z];
+        child.userData.__bindQuat = [child.quaternion.x, child.quaternion.y, child.quaternion.z, child.quaternion.w];
+        child.userData.__bindScale = [child.scale.x, child.scale.y, child.scale.z];
+      }
       if (child.isMesh || child.isSkinnedMesh) {
-        child.frustumCulled = false;
+        if (child.geometry && !child.geometry.boundingSphere) {
+          child.geometry.computeBoundingSphere();
+        }
+        child.frustumCulled = !child.isSkinnedMesh;
       }
     });
     console.log(`[GLBModel] Loaded ${cloned.animations.length} animation clip(s) from`, resolvedUrl);
@@ -260,6 +254,11 @@ export const FBXModel = React.forwardRef(({ url, shouldClone, onProgress, ...pro
           : [];
         cloned.animations = clonedAnimations;
         cloned.traverse((child) => {
+          if (!child.userData.__bindPos) {
+            child.userData.__bindPos = [child.position.x, child.position.y, child.position.z];
+            child.userData.__bindQuat = [child.quaternion.x, child.quaternion.y, child.quaternion.z, child.quaternion.w];
+            child.userData.__bindScale = [child.scale.x, child.scale.y, child.scale.z];
+          }
           if (child.isMesh || child.isSkinnedMesh) {
             child.frustumCulled = false;
             if (child.material) {

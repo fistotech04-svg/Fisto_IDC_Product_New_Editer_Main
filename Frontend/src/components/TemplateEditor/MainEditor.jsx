@@ -21,6 +21,7 @@ import HotspotPresetPopup from './HotspotPresetPopup';
 import { generateHotspotSVG } from './HotspotCustomizationPopup';
 import { CropController, isElementCropped } from './Crop';
 import { useToast } from '../CustomToast';
+import { checkSpellingAndGrammar, getSpellingSuggestions } from './spellGrammarChecker';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -60,7 +61,7 @@ export const getVisualBBox = (el) => {
     el.getAttribute('data-type') === 'group' ||
     (el.getAttribute('data-name') || '').toLowerCase() === 'group' ||
     (el.id || '').startsWith('group-')
-  ) && el.getAttribute('data-is-image-group') !== 'true';
+  ) && el.getAttribute('data-is-image-group') !== 'true' && el.getAttribute('data-is-video-group') !== 'true' && el.getAttribute('data-is-gif-group') !== 'true';
 
   const targetCropEl = !isUserGroup ? (
     (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"], [clip-path*="clip-"]') : null) ||
@@ -259,7 +260,7 @@ export const getVisualBBox = (el) => {
   }
 
   const tag = el.tagName?.toLowerCase();
-  if (tag === 'image' || tag === 'rect') {
+  if (tag === 'image' || tag === 'rect' || tag === 'foreignobject') {
     const w = parseFloat(el.getAttribute('width') || '0');
     const h = parseFloat(el.getAttribute('height') || '0');
     if (w > 0 && h > 0) {
@@ -541,8 +542,7 @@ const svgGlobalStyles = `
   }
 
   /* Video & Iframe Scaling Fixes */
-  foreignObject video, 
-  foreignObject iframe {
+  foreignObject video {
     width: 100% !important;
     height: 100% !important;
     display: block !important;
@@ -551,6 +551,24 @@ const svgGlobalStyles = `
     margin: 0 !important;
     padding: 0 !important;
     box-sizing: border-box !important;
+    pointer-events: auto !important;
+  }
+  foreignObject iframe {
+    display: block !important;
+    border: none !important;
+    outline: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    transform-origin: 0 0 !important;
+  }
+  foreignObject[data-type="video"] {
+    overflow: hidden !important;
+    pointer-events: auto !important;
+  }
+  foreignObject[data-type="video"] * {
+    pointer-events: auto !important;
   }
 
   .hide-controls::-webkit-media-controls {
@@ -2760,52 +2778,41 @@ const MainEditor = ({
         // in the user coordinate space of the overlay. Applying it again causes double-transform bugs.
       });
 
-      // Sync iframe scale
+      // Sync video / iframe elements inside foreignObjects
       svg.querySelectorAll('foreignObject iframe').forEach(iframe => {
         const fo = iframe.closest('foreignObject');
         if (fo) {
-          let foW = parseFloat(fo.getAttribute('width') || '0');
-          let foH = parseFloat(fo.getAttribute('height') || '0');
-
-          const parentG = fo.closest('g');
-          if (parentG && parentG.hasAttribute('data-width')) {
-            foW = parseFloat(parentG.getAttribute('data-width'));
-            foH = parseFloat(parentG.getAttribute('data-height'));
-          } else if (fo.getAttribute('width')?.includes('%')) {
-            const bbox = fo.getBoundingClientRect();
-            if (bbox.width > 0) {
-              const svgEl = fo.closest('svg');
-              const ctm = svgEl ? svgEl.getScreenCTM() : null;
-              const scale = ctm ? ctm.a : 1;
-              foW = bbox.width / scale;
-              foH = bbox.height / scale;
-            }
-          }
-
-          let origW = parseFloat(iframe.getAttribute('data-original-width'));
-          let origH = parseFloat(iframe.getAttribute('data-original-height'));
-
-          if (!origW || !origH || iframe.getAttribute('width') === '100%') {
-            origW = 640;
-            origH = 360;
-            iframe.setAttribute('data-original-width', '640');
-            iframe.setAttribute('data-original-height', '360');
-            iframe.setAttribute('width', '640');
-            iframe.setAttribute('height', '360');
-            iframe.style.width = '640px';
-            iframe.style.height = '360px';
-            iframe.style.transformOrigin = '0 0';
-          }
+          const foW = parseFloat(fo.getAttribute('width') || '0');
+          const foH = parseFloat(fo.getAttribute('height') || '0');
+          const origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+          const origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+          iframe.setAttribute('data-original-width', origW.toString());
+          iframe.setAttribute('data-original-height', origH.toString());
+          iframe.setAttribute('width', origW.toString());
+          iframe.setAttribute('height', origH.toString());
+          iframe.style.setProperty('width', origW + 'px', 'important');
+          iframe.style.setProperty('height', origH + 'px', 'important');
+          iframe.style.setProperty('transform-origin', '0 0', 'important');
+          
+          const isInteractive = fo.getAttribute('data-video-interactive') === 'true';
+          iframe.style.setProperty('pointer-events', isInteractive ? 'auto' : 'none', 'important');
+          iframe.style.setProperty('border', 'none', 'important');
+          iframe.style.setProperty('display', 'block', 'important');
 
           if (foW > 0 && foH > 0 && origW > 0 && origH > 0) {
-            iframe.style.setProperty('width', origW + 'px', 'important');
-            iframe.style.setProperty('height', origH + 'px', 'important');
             const scaleX = foW / origW;
             const scaleY = foH / origH;
             iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
-            iframe.style.setProperty('transform-origin', '0 0', 'important');
           }
         }
+      });
+      svg.querySelectorAll('foreignObject video').forEach(video => {
+        const fo = video.closest('foreignObject');
+        const isInteractive = fo ? fo.getAttribute('data-video-interactive') === 'true' : true;
+        video.style.setProperty('width', '100%', 'important');
+        video.style.setProperty('height', '100%', 'important');
+        video.style.setProperty('display', 'block', 'important');
+        video.style.setProperty('pointer-events', isInteractive ? 'auto' : 'none', 'important');
       });
 
       // Sync Image Masks
@@ -3102,7 +3109,7 @@ const MainEditor = ({
         else if (rawUrl.includes('watch?v=')) videoId = rawUrl.split('v=')[1]?.split('&')[0];
         else if (rawUrl.includes('shorts/')) videoId = rawUrl.split('shorts/')[1]?.split('?')[0]?.split('&')[0];
         else if (rawUrl.includes('embed/')) videoId = rawUrl.split('embed/')[1]?.split('?')[0]?.split('&')[0];
-        if (videoId) finalEmbedUrl = `https://www.youtube.com/embed/${videoId}`;
+        if (videoId) finalEmbedUrl = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
       } else if (isVimeo) {
         let videoId = rawUrl.split('vimeo.com/')[1]?.split('?')[0]?.split('/')[0];
         if (videoId && !isNaN(videoId)) finalEmbedUrl = `https://player.vimeo.com/video/${videoId}`;
@@ -3168,18 +3175,19 @@ const MainEditor = ({
         iframe.setAttribute('data-original-height', intrinsicH.toString());
 
         iframe.setAttribute('frameborder', '0');
-        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
         iframe.setAttribute('allowfullscreen', 'true');
 
-        iframe.style.width = intrinsicW + 'px';
-        iframe.style.height = intrinsicH + 'px';
-        iframe.style.border = 'none';
-        iframe.style.display = 'block';
-        iframe.style.transformOrigin = '0 0';
+        iframe.style.setProperty('width', intrinsicW + 'px', 'important');
+        iframe.style.setProperty('height', intrinsicH + 'px', 'important');
+        iframe.style.setProperty('border', 'none', 'important');
+        iframe.style.setProperty('display', 'block', 'important');
+        iframe.style.setProperty('pointer-events', 'auto', 'important');
+        iframe.style.setProperty('transform-origin', '0 0', 'important');
 
         const scaleX = displayWidth / intrinsicW;
         const scaleY = displayHeight / intrinsicH;
-        iframe.style.transform = `scale(${scaleX}, ${scaleY})`;
+        iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
 
         if (originalUrl) iframe.setAttribute('data-original-url', originalUrl);
         fo.appendChild(iframe);
@@ -5206,46 +5214,106 @@ const MainEditor = ({
             handle.style.boxSizing = 'border-box';
             handle.style.zIndex = isLine ? '2147483647' : (isSide ? '999' : '1000');
 
-            if (handle) {
-              if (isSide) {
-                const zoomScale = zoom / 100;
-                const isHorizontal = (name === 'n' || name === 's');
-                const dist = isHorizontal
-                  ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
-                  : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
-                const length = dist;
-                const thickness = 8 / zoomScale; // Increased for better edge hover sensitivity
+            if (isSide) {
+              const zoomScale = zoom / 100;
+              const isHorizontal = (name === 'n' || name === 's');
+              const dist = isHorizontal
+                ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
+                : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
+              const length = dist;
+              const thickness = 8 / zoomScale;
 
-                handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
-                handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
-                handle.style.left = `${p.x}px`;
-                handle.style.top = `${p.y}px`;
-                handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-              } else {
-                const zoomScale = zoom / 100;
-                // Standard corner handle positioning
-                handle.style.width = `${handleSize}px`;
-                handle.style.height = `${handleSize}px`;
+              handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
+              handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
+              handle.style.left = `${p.x}px`;
+              handle.style.top = `${p.y}px`;
+              handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+            } else {
+              const zoomScale = zoom / 100;
+              handle.style.width = `${handleSize}px`;
+              handle.style.height = `${handleSize}px`;
 
-                // Move handles to align L-bars centered over dotted lines
-                let posX = p.x;
-                let posY = p.y;
-                if (useLBrackets) {
-                  const inwardOffset = ((handleSize - barThickness) / 2) / zoomScale;
-                  if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
-                  if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
-                  if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
-                  if (name === 'sw') { posX += inwardOffset; posY -= inwardOffset; }
-                }
-
-                handle.style.left = `${posX}px`;
-                handle.style.top = `${posY}px`;
-                handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 / zoomScale})`;
+              let posX = p.x;
+              let posY = p.y;
+              if (useLBrackets) {
+                const inwardOffset = ((handleSize - barThickness) / 2) / zoomScale;
+                if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
+                if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
+                if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
+                if (name === 'sw') { posX += inwardOffset; posY -= inwardOffset; }
               }
-              handle.style.cursor = getRotatingCursor(name, rotation);
+
+              handle.style.left = `${posX}px`;
+              handle.style.top = `${posY}px`;
+              handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 / zoomScale})`;
             }
+            handle.style.cursor = getRotatingCursor(name, rotation);
           });
         } // Close if (!hideHandles)
+
+        // ── VIDEO CONTROLS / MOVE TOGGLE BADGE ──
+        const isVideoEl = el.getAttribute('data-type') === 'video' || !!el.querySelector('video, iframe');
+        if (isVideoEl && (type === 'selected' || type === 'child-selected') && htmlOverlay) {
+          const isInteractive = el.getAttribute('data-video-interactive') === 'true';
+          const toggleId = `video-mode-toggle-${el.id}`;
+          let toggleBtn = htmlOverlay.querySelector(`[id="${toggleId}"]`);
+          if (!toggleBtn) {
+            toggleBtn = document.createElement('div');
+            toggleBtn.id = toggleId;
+            htmlOverlay.appendChild(toggleBtn);
+          }
+
+          toggleBtn.className = `video-mode-toggle absolute flex items-center gap-1.5 px-3 py-1 rounded-full text-white shadow-lg text-xs font-semibold cursor-pointer select-none transition-all pointer-events-auto ${
+            isInteractive ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
+          }`;
+          toggleBtn.style.zIndex = '2147483647';
+          toggleBtn.style.left = `${mapped[1].x}px`;
+          toggleBtn.style.top = `${mapped[1].y - (28 / zoomScale)}px`;
+          toggleBtn.style.transform = `translate(-100%, 0) scale(${1 / zoomScale})`;
+          toggleBtn.style.transformOrigin = 'bottom right';
+
+          if (isInteractive) {
+            toggleBtn.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span>Controls Active (Click to Move/Scale)</span>
+            `;
+          } else {
+            toggleBtn.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="5 9 2 12 5 15"></polyline>
+                <polyline points="9 5 12 2 15 5"></polyline>
+                <polyline points="15 19 12 22 9 19"></polyline>
+                <polyline points="19 9 22 12 19 15"></polyline>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <line x1="12" y1="2" x2="22" y2="22"></line>
+              </svg>
+              <span>Move / Scale Mode (Click to Play Video)</span>
+            `;
+          }
+
+          const handleToggleAction = (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const newInteractive = el.getAttribute('data-video-interactive') !== 'true';
+            el.setAttribute('data-video-interactive', newInteractive ? 'true' : 'false');
+
+            const iframe = el.querySelector('iframe');
+            if (iframe) {
+              iframe.style.setProperty('pointer-events', newInteractive ? 'auto' : 'none', 'important');
+            }
+            const video = el.querySelector('video');
+            if (video) {
+              video.style.setProperty('pointer-events', newInteractive ? 'auto' : 'none', 'important');
+            }
+            drawOverlayHighlight(el, 'selected');
+          };
+
+          toggleBtn.onpointerdown = handleToggleAction;
+          toggleBtn.onmousedown = handleToggleAction;
+          toggleBtn.onclick = handleToggleAction;
+        }
 
         // ── INTERACTION BADGE (Floating above the top-middle) ──
         if (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') {
@@ -7356,9 +7424,13 @@ const MainEditor = ({
           current.getAttribute('data-type') === 'icon'
         ))
       ) {
-        // Prevent targeting inner image of an image group directly
+        // Prevent targeting inner image of an image group directly, or inner elements of video/gif groups
         if (tagName === 'image' && current.parentNode?.getAttribute('data-is-image-group') === 'true') {
           // Skip the inner image and let it traverse to the parent group
+        } else if ((tagName === 'foreignobject' || tagName === 'video' || tagName === 'iframe') && current.parentNode?.getAttribute('data-is-video-group') === 'true') {
+          // Skip inner foreignobject/video/iframe and let it traverse to the parent video group
+        } else if (current.parentNode?.getAttribute('data-is-gif-group') === 'true') {
+          // Skip inner gif elements and let it traverse to parent gif group
         } else {
           if (!deepestElementWithId) deepestElementWithId = current;
         }
@@ -7369,7 +7441,7 @@ const MainEditor = ({
         current.getAttribute('data-type') === 'group' ||
         (current.getAttribute('data-name') || '').toLowerCase() === 'group' ||
         current.id.startsWith('group-')
-      ) && current.getAttribute('data-is-image-group') !== 'true';
+      ) && current.getAttribute('data-is-image-group') !== 'true' && current.getAttribute('data-is-video-group') !== 'true' && current.getAttribute('data-is-gif-group') !== 'true';
 
       if (isUserGroup && selectedSelectToolRef.current !== 'direct') {
         const frameId = currentFrameIdRef.current;
@@ -7465,6 +7537,16 @@ const MainEditor = ({
             if (!startPoint) {
               safeStopInteraction(event.interaction);
               return;
+            }
+
+            // Check if dragging via video-move-handle
+            const moveHandle = event.target.closest?.('.video-move-handle');
+            if (moveHandle) {
+              const dragTargetId = moveHandle.getAttribute('data-drag-target-id');
+              const targetEl = dragTargetId ? container?.querySelector(`[id="${dragTargetId}"]`) : null;
+              if (targetEl) {
+                target = targetEl;
+              }
             }
 
             // 1. Handle "Selection Priority" - if clicking inside the current selection's box, drag it!
@@ -7621,7 +7703,7 @@ const MainEditor = ({
                     candidate.id.startsWith('group-') ||
                     candidate.getAttribute('data-is-hotspot') === 'true' ||
                     candidate.getAttribute('data-type') === 'hotspot'
-                  ) && candidate.getAttribute('data-is-image-group') !== 'true';
+                  ) && candidate.getAttribute('data-is-image-group') !== 'true' && candidate.getAttribute('data-is-video-group') !== 'true' && candidate.getAttribute('data-is-gif-group') !== 'true';
 
                   if (!isUserGroupCandidate && leafTarget && leafTarget.id && leafTarget.getAttribute('data-name') !== 'Overlay') {
                     candidate = leafTarget;
@@ -8578,7 +8660,9 @@ const MainEditor = ({
                 let adjustedX = finalX;
                 let adjustedY = finalY;
 
-                if (el.tagName?.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+                const isVideoFo = el.getAttribute('data-type') === 'video' || !!el.querySelector('video, iframe');
+
+                if (el.tagName?.toLowerCase() === 'foreignobject' && !isVideoFo && el.firstElementChild) {
                   const isScrollable = el.getAttribute('data-scrollable') === 'true';
                   const div = el.firstElementChild;
 
@@ -8684,14 +8768,27 @@ const MainEditor = ({
                 if (el.tagName.toLowerCase() === 'foreignobject') {
                   const iframe = el.querySelector('iframe');
                   if (iframe) {
-                    let origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
-                    let origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                    const origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+                    const origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                    iframe.setAttribute('data-original-width', origW.toString());
+                    iframe.setAttribute('data-original-height', origH.toString());
+                    iframe.setAttribute('width', origW.toString());
+                    iframe.setAttribute('height', origH.toString());
+                    iframe.style.setProperty('width', origW + 'px', 'important');
+                    iframe.style.setProperty('height', origH + 'px', 'important');
+                    iframe.style.setProperty('transform-origin', '0 0', 'important');
+                    iframe.style.setProperty('pointer-events', 'auto', 'important');
+
                     if (origW > 0 && origH > 0 && adjustedWidth > 0 && adjustedHeight > 0) {
                       const scaleX = adjustedWidth / origW;
                       const scaleY = adjustedHeight / origH;
                       iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
-                      iframe.style.setProperty('transform-origin', '0 0', 'important');
                     }
+                  }
+                  const video = el.querySelector('video');
+                  if (video) {
+                    video.style.setProperty('width', '100%', 'important');
+                    video.style.setProperty('height', '100%', 'important');
                   }
                 }
               } else if (isShape && !isGroup && !isHotspotIconGroup) {
@@ -9067,14 +9164,27 @@ const MainEditor = ({
                         if (tag === 'foreignobject') {
                           const iframe = child.querySelector('iframe');
                           if (iframe) {
-                            let origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
-                            let origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                            const origW = parseFloat(iframe.getAttribute('data-original-width')) || 640;
+                            const origH = parseFloat(iframe.getAttribute('data-original-height')) || 360;
+                            iframe.setAttribute('data-original-width', origW.toString());
+                            iframe.setAttribute('data-original-height', origH.toString());
+                            iframe.setAttribute('width', origW.toString());
+                            iframe.setAttribute('height', origH.toString());
+                            iframe.style.setProperty('width', origW + 'px', 'important');
+                            iframe.style.setProperty('height', origH + 'px', 'important');
+                            iframe.style.setProperty('transform-origin', '0 0', 'important');
+                            iframe.style.setProperty('pointer-events', 'auto', 'important');
+
                             if (origW > 0 && origH > 0 && imgW > 0 && imgH > 0) {
                               const scaleX = imgW / origW;
                               const scaleY = imgH / origH;
                               iframe.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
-                              iframe.style.setProperty('transform-origin', '0 0', 'important');
                             }
+                          }
+                          const video = child.querySelector('video');
+                          if (video) {
+                            video.style.setProperty('width', '100%', 'important');
+                            video.style.setProperty('height', '100%', 'important');
                           }
                         }
 
@@ -11546,34 +11656,31 @@ const MainEditor = ({
           changed = true;
         }
 
-        if (changed) {
-          const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
-          setTimeout(() => {
-            const container = foTarget.closest('.page-svg-container');
-            if (container) {
-              const pageIdx = container.getAttribute('data-page-index');
-              const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
-              if (overlay) {
-                const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
-                if (oldSel) oldSel.remove();
-                const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
-                if (oldChildSel) oldChildSel.remove();
-              }
-            }
-            drawOverlayHighlight(foTarget, highlightType);
-            clearOverlayType('hover');
-            clearOverlayType('child-hover');
+        // Always ensure the selection overlay highlight precisely encloses the current element
+        const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
+        const container = foTarget.closest('.page-svg-container');
+        if (container) {
+          const pageIdx = container.getAttribute('data-page-index');
+          const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
+          if (overlay) {
+            const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
+            if (oldSel) oldSel.remove();
+            const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
+            if (oldChildSel) oldChildSel.remove();
+          }
+        }
+        drawOverlayHighlight(foTarget, highlightType);
+        clearOverlayType('hover');
+        clearOverlayType('child-hover');
 
-            // Also redraw parent group's entered overlay to prevent the dashed line from sticking in the middle
-            const parentGroup = foTarget.closest('g');
-            if (parentGroup && parentGroup.getAttribute('data-name') === 'Group') {
-              const overlayNode = document.querySelector(`[id="overlay-poly-entered-${parentGroup.id}"]`);
-              if (overlayNode) {
-                overlayNode.remove();
-                drawOverlayHighlight(parentGroup, 'entered');
-              }
-            }
-          }, 0);
+        // Also redraw parent group's entered overlay to prevent the dashed line from sticking in the middle
+        const parentGroup = foTarget.closest('g');
+        if (parentGroup && parentGroup.getAttribute('data-name') === 'Group') {
+          const overlayNode = document.querySelector(`[id="overlay-poly-entered-${parentGroup.id}"]`);
+          if (overlayNode) {
+            overlayNode.remove();
+            drawOverlayHighlight(parentGroup, 'entered');
+          }
         }
       }
     };
@@ -11632,8 +11739,265 @@ const MainEditor = ({
     // Use a tiny timeout so the browser has fully rendered the contenteditable before we place the caret
     setTimeout(() => placeCaretAtClick(clientX, clientY), 0);
 
+    // ── Google Docs-Style Spell & Grammar Checker & Suggestion Popup ──
+    div.setAttribute('spellcheck', 'true');
+
+    let grammarCheckTimer = null;
+    let activeSuggestionPopup = null;
+
+    const closeSuggestionPopup = () => {
+      if (activeSuggestionPopup) {
+        activeSuggestionPopup.remove();
+        activeSuggestionPopup = null;
+      }
+    };
+
+    const runSpellGrammarCheck = () => {
+      if (!isEditingTextRef.current) return;
+      if (foTarget.getAttribute('data-grammar-check') === 'false') {
+        div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
+          m.replaceWith(document.createTextNode(m.textContent || ''));
+        });
+        return;
+      }
+      const text = div.innerText || div.textContent || '';
+      if (!text || text.trim().length === 0) return;
+
+      const issues = checkSpellingAndGrammar(text);
+
+      // Save cursor position
+      let selOffset = 0;
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        const preRange = range.cloneRange();
+        preRange.selectNodeContents(div);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        selOffset = preRange.toString().length;
+      }
+
+      // 1. Unwrap existing mark tags in-place while keeping text intact
+      const existingMarks = Array.from(div.querySelectorAll('mark.grammar-issue-word'));
+      existingMarks.forEach(m => {
+        const parent = m.parentNode;
+        while (m.firstChild) {
+          parent.insertBefore(m.firstChild, m);
+        }
+        m.remove();
+        parent.normalize();
+      });
+
+      if (issues.length === 0) {
+        handleInput();
+        return;
+      }
+
+      // 2. Wrap matching incorrect words in-place without altering any line breaks or DOM tree
+      const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT, null, false);
+      const textNodes = [];
+      let n;
+      while ((n = walker.nextNode())) {
+        if (n.nodeValue && n.nodeValue.length > 0) {
+          textNodes.push(n);
+        }
+      }
+
+      // Track global text offset across text nodes
+      let runningOffset = 0;
+      for (const textNode of textNodes) {
+        const nodeText = textNode.nodeValue;
+        const nodeStart = runningOffset;
+        const nodeEnd = runningOffset + nodeText.length;
+
+        // Find issues that fall strictly within this text node
+        const nodeIssues = issues.filter(iss => iss.startIndex >= nodeStart && iss.endIndex <= nodeEnd)
+          .sort((a, b) => b.startIndex - a.startIndex); // Process backwards so offsets remain valid
+
+        for (const iss of nodeIssues) {
+          const relStart = iss.startIndex - nodeStart;
+          const relEnd = iss.endIndex - nodeStart;
+
+          const word = nodeText.substring(relStart, relEnd);
+          const cls = iss.type === 'spelling' ? 'grammar-issue-word issue-spelling' : 'grammar-issue-word issue-grammar';
+          const suggData = encodeURIComponent(JSON.stringify(iss.suggestions || []));
+          const msg = encodeURIComponent(iss.message || '');
+
+          try {
+            const range = document.createRange();
+            range.setStart(textNode, relStart);
+            range.setEnd(textNode, relEnd);
+
+            const mark = document.createElement('mark');
+            mark.className = cls;
+            mark.setAttribute('data-word', word);
+            mark.setAttribute('data-suggestions', suggData);
+            mark.setAttribute('data-message', msg);
+            range.surroundContents(mark);
+          } catch (e) {}
+        }
+
+        runningOffset = nodeEnd;
+      }
+
+      // Restore caret position
+      restoreCaretPosition(div, selOffset);
+
+      // Re-measure content to ensure text frame and selection boundary precisely enclose all wrapped lines
+      handleInput();
+    };
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function restoreCaretPosition(container, targetOffset) {
+      try {
+        let currentOffset = 0;
+        let targetNode = null;
+        let nodeOffset = 0;
+
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while ((node = walker.nextNode())) {
+          const len = node.nodeValue.length;
+          if (currentOffset + len >= targetOffset) {
+            targetNode = node;
+            nodeOffset = targetOffset - currentOffset;
+            break;
+          }
+          currentOffset += len;
+        }
+
+        if (targetNode) {
+          const newRange = document.createRange();
+          newRange.setStart(targetNode, Math.min(nodeOffset, targetNode.nodeValue.length));
+          newRange.collapse(true);
+          const s = window.getSelection();
+          if (s) {
+            s.removeAllRanges();
+            s.addRange(newRange);
+          }
+        }
+      } catch (err) {}
+    }
+
+    const showSuggestionPopup = (markEl, clientX, clientY) => {
+      closeSuggestionPopup();
+
+      const word = markEl.getAttribute('data-word') || markEl.textContent;
+      let suggestions = [];
+      try {
+        suggestions = JSON.parse(decodeURIComponent(markEl.getAttribute('data-suggestions') || '[]'));
+      } catch (e) {}
+
+      if (suggestions.length === 0) {
+        suggestions = getSpellingSuggestions(word);
+      }
+
+      let message = '';
+      try {
+        message = decodeURIComponent(markEl.getAttribute('data-message') || '');
+      } catch (e) {}
+
+      const rect = markEl.getBoundingClientRect();
+      const popup = document.createElement('div');
+      popup.className = 'grammar-suggestion-popup';
+      popup.style.top = `${rect.bottom + 6}px`;
+      popup.style.left = `${Math.max(10, Math.min(window.innerWidth - 220, rect.left))}px`;
+
+      let headerText = markEl.classList.contains('issue-grammar') ? 'Grammar' : 'Spelling';
+      let html = `<div class="grammar-suggestion-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${markEl.classList.contains('issue-grammar') ? '#1a73e8' : '#ea4335'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span>${headerText}</span>
+      </div>`;
+
+      if (suggestions.length > 0) {
+        suggestions.forEach((sugg, idx) => {
+          html += `<div class="grammar-suggestion-item" data-suggestion="${sugg}">
+            <span>${sugg}</span>
+            <span class="suggestion-action-label">${idx === 0 ? 'Accept' : ''}</span>
+          </div>`;
+        });
+      } else {
+        html += `<div style="padding: 8px 12px; font-size: 12px; color: #5f6368;">No suggestions available</div>`;
+      }
+
+      html += `<div class="grammar-suggestion-footer">
+        <button class="grammar-suggestion-ignore" id="docs-btn-ignore">Ignore</button>
+        <span style="font-size: 11px; color: #80868b;">${word}</span>
+      </div>`;
+
+      popup.innerHTML = html;
+      document.body.appendChild(popup);
+      activeSuggestionPopup = popup;
+
+      // Handle suggestion clicks
+      popup.querySelectorAll('.grammar-suggestion-item').forEach(item => {
+        item.addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const chosen = item.getAttribute('data-suggestion');
+          if (chosen === '(Delete word)') {
+            markEl.remove();
+          } else {
+            markEl.replaceWith(document.createTextNode(chosen));
+          }
+          closeSuggestionPopup();
+          handleInput();
+        });
+      });
+
+      // Handle ignore
+      const ignoreBtn = popup.querySelector('#docs-btn-ignore');
+      if (ignoreBtn) {
+        ignoreBtn.addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          markEl.replaceWith(document.createTextNode(word));
+          closeSuggestionPopup();
+        });
+      }
+    };
+
+    const handleTextClick = (e) => {
+      const mark = e.target.closest('mark.grammar-issue-word');
+      if (mark) {
+        e.stopPropagation();
+        showSuggestionPopup(mark, e.clientX, e.clientY);
+      } else {
+        closeSuggestionPopup();
+      }
+    };
+    div.addEventListener('click', handleTextClick);
+
+    const debounceCheck = () => {
+      clearTimeout(grammarCheckTimer);
+      grammarCheckTimer = setTimeout(() => {
+        runSpellGrammarCheck();
+      }, 700);
+    };
+
+    div.addEventListener('keyup', (e) => {
+      // Don't trigger on arrow navigation keys
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'Backspace' || e.key === '.') {
+        debounceCheck();
+      }
+    });
+
+    // Run initial spell & grammar check after initial text paints
+    setTimeout(runSpellGrammarCheck, 350);
+
     const cleanup = () => {
       isEditingTextRef.current = false;
+      closeSuggestionPopup();
+      clearTimeout(grammarCheckTimer);
+
+      // Strip all mark highlight wrappers to ensure completely clean SVG serialization
+      div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
+        m.replaceWith(document.createTextNode(m.textContent || ''));
+      });
+
       foTarget.removeAttribute('data-editing');
       div.removeAttribute('contenteditable');
       div.style.outline = 'none';
@@ -11644,6 +12008,7 @@ const MainEditor = ({
       div.classList.remove('text-edit-box');
       div.removeEventListener('blur', handleBlur);
       div.removeEventListener('keydown', handleKeyDown);
+      div.removeEventListener('click', handleTextClick);
       div.removeEventListener('mousedown', stopScrollPropagation);
       div.removeEventListener('pointerdown', stopScrollPropagation);
       div.removeEventListener('touchstart', stopScrollPropagation);
@@ -11672,7 +12037,8 @@ const MainEditor = ({
         activeEl.closest('[data-panel]') ||
         activeEl.closest('.z-50') ||
         activeEl.closest('.text-editor-panel') ||
-        activeEl.closest('.color-picker')
+        activeEl.closest('.color-picker') ||
+        activeEl.closest('.grammar-suggestion-popup')
       );
 
       if (window.__isInteractingWithSidebar || isSidebarTarget) {
@@ -11681,6 +12047,11 @@ const MainEditor = ({
 
       suppressClickRef.current = true;
       setTimeout(() => { suppressClickRef.current = false; }, 200);
+
+      // Strip grammar marks before saving and sizing
+      div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
+        m.replaceWith(document.createTextNode(m.textContent || ''));
+      });
 
       const finalContent = div.innerText || '';
 
@@ -11779,6 +12150,7 @@ const MainEditor = ({
       e.stopPropagation();
       if (e.key === 'Escape') {
         e.preventDefault();
+        closeSuggestionPopup();
         div.blur();
       } else if (e.key === 'Enter' && !e.shiftKey) {
         const sel = window.getSelection();
@@ -12511,7 +12883,7 @@ const MainEditor = ({
       return;
     }
 
-    const isText = ['text', 'tspan', 'foreignobject'].includes(target.tagName.toLowerCase());
+    const isText = (['text', 'tspan'].includes(target.tagName.toLowerCase()) || target.tagName.toLowerCase() === 'foreignobject') && target.getAttribute('data-type') !== 'video' && !target.querySelector('video, iframe');
     if (isText && target.id) {
       if (activeTopTool !== 'interaction' && activeTopTool !== 'animation') {
         enterTextEditMode(target, e.clientX, e.clientY);

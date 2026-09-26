@@ -91,10 +91,17 @@ app.use(
 app.use(express.json({ limit: "500mb" }));
 app.use(bodyParser.urlencoded({ limit: "500mb", extended: true }));
 
-// Serve /uploads by redirecting directly to Supabase Storage CDN (zero memory usage on Render)
+// Serve /uploads: check local storage first (handles files too large for Supabase or offline storage), then fallback/redirect to Supabase CDN
 app.use("/uploads", (req, res) => {
   const relPath = req.path;
 
+  // 1. Check if the file exists on local disk
+  const localFilePath = path.join(__dirname, "uploads", relPath.replace(/^\/+/, ""));
+  if (fs.existsSync(localFilePath) && !fs.statSync(localFilePath).isDirectory()) {
+    return res.sendFile(localFilePath);
+  }
+
+  // 2. Otherwise redirect to Supabase Storage CDN
   try {
     const publicUrl = getSupabasePublicUrl(relPath);
     if (publicUrl) {
@@ -105,7 +112,7 @@ app.use("/uploads", (req, res) => {
     console.warn("[Supabase /uploads Redirect Error]:", err);
   }
 
-  console.warn(`[/uploads] File not found in Supabase: ${relPath}`);
+  console.warn(`[/uploads] File not found in local storage or Supabase: ${relPath}`);
   return res.status(404).json({ message: "File not found in storage" });
 });
 

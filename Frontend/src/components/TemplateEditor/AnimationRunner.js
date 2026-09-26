@@ -359,25 +359,138 @@ export const initAnimationRunner = function(doc) {
   handleTrigger();
 };
 
+const getWebPDuration = (arrayBuffer) => {
+  const data = new DataView(arrayBuffer);
+  if (data.byteLength < 12) return 0;
+  const riff = String.fromCharCode(data.getUint8(0), data.getUint8(1), data.getUint8(2), data.getUint8(3));
+  const webp = String.fromCharCode(data.getUint8(8), data.getUint8(9), data.getUint8(10), data.getUint8(11));
+  if (riff !== 'RIFF' || webp !== 'WEBP') return 0;
+
+  let offset = 12;
+  let totalDuration = 0;
+  while (offset < data.byteLength) {
+    if (offset + 8 > data.byteLength) break;
+    const chunkId = String.fromCharCode(data.getUint8(offset), data.getUint8(offset+1), data.getUint8(offset+2), data.getUint8(offset+3));
+    const chunkSize = data.getUint32(offset + 4, true);
+    
+    if (chunkId === 'ANMF') {
+      if (offset + 8 + 15 <= data.byteLength) {
+        const durationBytes = [data.getUint8(offset + 8 + 12), data.getUint8(offset + 8 + 13), data.getUint8(offset + 8 + 14)];
+        const duration = durationBytes[0] | (durationBytes[1] << 8) | (durationBytes[2] << 16);
+        totalDuration += duration;
+      }
+    }
+    offset += 8 + chunkSize + (chunkSize % 2 !== 0 ? 1 : 0);
+  }
+  return totalDuration;
+};
+
+const patchAnimationLoops = (base64Data, maxLoops) => {
+  if (base64Data.startsWith('data:image/webp;base64,')) {
+    const b64 = base64Data.split(',')[1];
+    const binStr = atob(b64);
+    const uint8 = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) uint8[i] = binStr.charCodeAt(i);
+    
+    const data = new DataView(uint8.buffer);
+    if (data.byteLength < 12) return base64Data;
+    const riff = String.fromCharCode(uint8[0], uint8[1], uint8[2], uint8[3]);
+    const webp = String.fromCharCode(uint8[8], uint8[9], uint8[10], uint8[11]);
+    if (riff !== 'RIFF' || webp !== 'WEBP') return base64Data;
+  
+    let offset = 12;
+    while (offset < uint8.length) {
+      if (offset + 8 > uint8.length) break;
+      const chunkId = String.fromCharCode(uint8[offset], uint8[offset+1], uint8[offset+2], uint8[offset+3]);
+      const chunkSize = data.getUint32(offset + 4, true);
+      
+      if (chunkId === 'ANIM' && chunkSize >= 6) {
+        const repeats = maxLoops === Infinity ? 0 : Math.max(0, maxLoops);
+        uint8[offset + 12] = repeats & 0xFF;
+        uint8[offset + 13] = (repeats >> 8) & 0xFF;
+        
+        let binary = '';
+        for (let k = 0; k < uint8.length; k++) binary += String.fromCharCode(uint8[k]);
+        return 'data:image/webp;base64,' + btoa(binary);
+      }
+      offset += 8 + chunkSize + (chunkSize % 2 !== 0 ? 1 : 0);
+    }
+    return base64Data;
+  }
+
+  if (!base64Data.startsWith('data:image/gif;base64,')) return base64Data;
+  const b64 = base64Data.split(',')[1];
+  const binStr = atob(b64);
+  const uint8 = new Uint8Array(binStr.length);
+  for (let i = 0; i < binStr.length; i++) uint8[i] = binStr.charCodeAt(i);
+  
+  const netscape = [0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30]; // "NETSCAPE2.0"
+  for (let i = 0; i < uint8.length - 19; i++) {
+    let match = true;
+    for (let j = 0; j < netscape.length; j++) {
+      if (uint8[i + j] !== netscape[j]) { match = false; break; }
+    }
+    if (match && uint8[i-3] === 0x21 && (uint8[i-2] === 0xFF || uint8[i-2] === 0xFE) && uint8[i-1] === 0x0B) {
+      if (uint8[i+11] === 0x03 && uint8[i+12] === 0x01) {
+        if (maxLoops === 1) {
+          uint8[i-2] = 0xFE; // Convert Application Extension to Comment Extension (browser will ignore loop instruction)
+        } else {
+          uint8[i-2] = 0xFF; // Restore Application Extension if it was previously patched
+          const repeats = maxLoops === Infinity ? 0 : Math.max(0, maxLoops - 1);
+          uint8[i+13] = repeats & 0xFF; // LSB
+          uint8[i+14] = (repeats >> 8) & 0xFF; // MSB
+        }
+        
+        let binary = '';
+        for (let k = 0; k < uint8.byteLength; k++) binary += String.fromCharCode(uint8[k]);
+        return 'data:image/gif;base64,' + btoa(binary);
+      }
+    }
+  }
+  return base64Data;
+};
+
 export const initGifRunner = function(doc) {
+  const images = doc.querySelectorAll('image, img');
   const gifElements = doc.querySelectorAll('[data-loop-count]');
+  // console.log("[initGifRunner] Checking document:", doc.location?.href);
+  // console.log("[initGifRunner] Total images found:", images.length);
+  // console.log("[initGifRunner] Found GIF elements with data-loop-count:", gifElements.length);
+  
+  if (gifElements.length === 0 && images.length > 0) {
+      // console.log("[initGifRunner] Images found, but none have data-loop-count. First image HTML:", images[0].outerHTML);
+  }
   
   gifElements.forEach(el => {
     const playWhile = el.getAttribute('data-play-gif-while');
     const loopCount = el.getAttribute('data-loop-count');
     const customLoop = parseInt(el.getAttribute('data-custom-loop-count')) || 1;
-    
+    // console.log("[initGifRunner] Checking GIF element:", { loopCount, customLoop, playWhile });
+
     // Find the actual image element
     const img = el.tagName.toLowerCase() === 'image' || el.tagName.toLowerCase() === 'img' ? el : el.querySelector('image, img');
-    if (!img) return;
+    if (!img) {
+      // console.log("[initGifRunner] No img/image tag found inside element");
+      return;
+    }
 
     const originalSrc = img.getAttribute('data-original-src') || img.getAttribute('href') || img.src || img.getAttribute('xlink:href');
-    if (!originalSrc || !originalSrc.toLowerCase().includes('.gif')) return;
+    if (!originalSrc || (!originalSrc.toLowerCase().includes('.gif') && !originalSrc.toLowerCase().startsWith('data:image/gif') && !originalSrc.toLowerCase().includes('.webp') && !originalSrc.toLowerCase().startsWith('data:image/webp'))) {
+      // console.log("[initGifRunner] Src is not a GIF/WebP or is empty:", originalSrc);
+      return;
+    }
 
     // Save the original src so we can restart it later
     if (!img.hasAttribute('data-original-src')) {
       img.setAttribute('data-original-src', originalSrc);
     }
+
+    // Handle precise loop counts
+    let maxLoops = Infinity;
+    if (loopCount === 'Once') maxLoops = 1;
+    else if (loopCount === 'Twice') maxLoops = 2;
+    else if (loopCount === 'Thrice') maxLoops = 3;
+    else if (loopCount === 'Custom') maxLoops = customLoop;
 
     const freezeGif = () => {
       const canvas = document.createElement('canvas');
@@ -402,19 +515,37 @@ export const initGifRunner = function(doc) {
           console.warn("Could not freeze GIF due to CORS", e);
         }
       };
-      const separator = originalSrc.includes('?') ? '&' : '?';
-      tempImg.src = `${originalSrc}${separator}cb=${Date.now()}`;
+      if (originalSrc.startsWith('data:')) {
+        tempImg.src = originalSrc;
+      } else {
+        const separator = originalSrc.includes('?') ? '&' : '?';
+        tempImg.src = `${originalSrc}${separator}cb=${Date.now()}`;
+      }
     };
 
     const playGif = () => {
       // Reload gif to restart animation from frame 1
-      const separator = originalSrc.includes('?') ? '&' : '?';
-      const freshSrc = `${originalSrc}${separator}t=${Date.now()}`;
+      let freshSrc = originalSrc;
+      if (originalSrc.startsWith('data:')) {
+        // Natively patch the GIF/WebP binary so the browser perfectly controls the loop!
+        freshSrc = patchAnimationLoops(originalSrc, maxLoops);
+      } else {
+        const separator = originalSrc.includes('?') ? '&' : '?';
+        freshSrc = `${originalSrc}${separator}t=${Date.now()}`;
+      }
       
       if (img.tagName.toLowerCase() === 'image') {
+        if (originalSrc.startsWith('data:')) {
+           img.setAttribute('href', '');
+           void img.offsetWidth; // force reflow
+        }
         img.setAttribute('href', freshSrc);
         try { img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", freshSrc); } catch(e){}
       } else {
+        if (originalSrc.startsWith('data:')) {
+           img.src = '';
+           void img.offsetWidth; // force reflow
+        }
         img.src = freshSrc;
       }
     };
@@ -435,6 +566,7 @@ export const initGifRunner = function(doc) {
           } else {
             playGif();
             el.__isPlaying = true;
+            el.__gifStartTime = Date.now();
           }
         });
         el.__gifBound = true;
@@ -447,7 +579,10 @@ export const initGifRunner = function(doc) {
     } else {
       // Autoplay while on page
       if (!el.__gifBound || isNewSetting) {
-        playGif();
+        if (maxLoops === Infinity || maxLoops === 0 || originalSrc.startsWith('data:')) {
+            playGif();
+            el.__gifStartTime = Date.now();
+        }
         el.__isPlaying = true;
         el.__gifBound = true;
       }
@@ -455,43 +590,99 @@ export const initGifRunner = function(doc) {
 
     el.__lastLoopSetting = currentLoopSetting;
 
-    // Handle precise loop counts with gifuct-js
-    let maxLoops = Infinity;
-    if (loopCount === 'Once') maxLoops = 1;
-    else if (loopCount === 'Twice') maxLoops = 2;
-    else if (loopCount === 'Thrice') maxLoops = 3;
-    else if (loopCount === 'Custom') maxLoops = customLoop;
-
     if (maxLoops !== Infinity && maxLoops > 0) {
+      if (originalSrc.startsWith('data:')) {
+          // Base64 GIFs are now handled natively by the browser via binary patching in playGif.
+          // No need for gifuct-js parsing or manual timeouts!
+          return;
+      }
       if (isNewSetting || !el.__hasGifTimeoutSetup) {
-        import('gifuct-js').then(({ parseGIF, decompressFrames }) => {
+        let fetchUrl = originalSrc;
+        if (!originalSrc.startsWith('data:')) {
           const separator = originalSrc.includes('?') ? '&' : '?';
-          fetch(`${originalSrc}${separator}cb=${Date.now()}`)
-            .then(resp => resp.arrayBuffer())
-            .then(buff => {
-              const gif = parseGIF(buff);
-              const frames = decompressFrames(gif, true);
-              const totalDuration = frames.reduce((sum, frame) => sum + (frame.delay || 100), 0);
-              
+          fetchUrl = `${originalSrc}${separator}cb=${Date.now()}`;
+        }
+        fetch(fetchUrl)
+          .then(resp => resp.arrayBuffer())
+          .then(buff => {
+            const dataView = new DataView(buff);
+            let isWebp = false;
+            if (dataView.byteLength >= 12) {
+              const riff = String.fromCharCode(dataView.getUint8(0), dataView.getUint8(1), dataView.getUint8(2), dataView.getUint8(3));
+              const webp = String.fromCharCode(dataView.getUint8(8), dataView.getUint8(9), dataView.getUint8(10), dataView.getUint8(11));
+              if (riff === 'RIFF' && webp === 'WEBP') isWebp = true;
+            }
+            
+            const finishSetup = (totalDuration, lastFrameDelay) => {
+              // DEBUG OVERLAY: Show the gif count on screen
+              let overlay = el.parentNode ? el.parentNode.querySelector('.debug-gif-overlay') : null;
+              if (el.parentNode && !overlay) {
+                  overlay = document.createElement('div');
+                  overlay.className = 'debug-gif-overlay';
+                  overlay.style.position = 'absolute';
+                  overlay.style.top = '0px';
+                  overlay.style.left = '0px';
+                  overlay.style.background = 'rgba(255, 0, 0, 0.8)';
+                  overlay.style.color = 'white';
+                  overlay.style.padding = '4px 8px';
+                  overlay.style.zIndex = '9999';
+                  overlay.style.fontSize = '12px';
+                  overlay.style.fontWeight = 'bold';
+                  overlay.style.pointerEvents = 'none';
+                  overlay.style.borderRadius = '0 0 5px 0';
+                  el.parentNode.appendChild(overlay);
+              }
+              if (overlay) {
+                  overlay.innerText = `Target Loops: ${maxLoops} | Time: ${totalDuration * maxLoops}ms`;
+              }
+
               // Sync start time by re-triggering the GIF exactly now
               if (playWhile !== 'Manual (Click to play)') {
                  playGif();
+                 el.__gifStartTime = Date.now();
                  el.__isPlaying = true;
                  
                  if (el.__gifTimeout) clearTimeout(el.__gifTimeout);
+                 
+                 // Target the exact midpoint of the last frame's display time
+                 const freezeTime = (totalDuration * maxLoops) - (lastFrameDelay / 2);
+                 const elapsed = el.__gifStartTime ? (Date.now() - el.__gifStartTime) : 0;
+                 const remainingTime = Math.max(0, freezeTime - elapsed);
+                 
                  el.__gifTimeout = setTimeout(() => {
                    if (el.__isPlaying !== false) {
                       freezeGif();
                       el.__isPlaying = false;
+                      if (overlay) overlay.innerText += " (FROZEN)";
                    }
-                 }, totalDuration * maxLoops);
+                 }, remainingTime);
                  el.__hasGifTimeoutSetup = true;
               }
-            })
-            .catch(err => console.error("Error parsing GIF for loop count", err));
-        }).catch(err => {
-          console.warn("gifuct-js not installed. Run 'npm install gifuct-js' for exact loop counts.", err);
-        });
+            };
+
+            if (isWebp) {
+              const totalDuration = getWebPDuration(buff);
+              if (totalDuration > 0) {
+                 // For WebP, assume last frame delay is around 100ms for midpoint calculation
+                 finishSetup(totalDuration, 100);
+              }
+            } else {
+              import('gifuct-js').then(({ parseGIF, decompressFrames }) => {
+                const gif = parseGIF(buff);
+                const frames = decompressFrames(gif, true);
+                const totalDuration = frames.reduce((sum, frame) => {
+                  const delay = (!frame.delay || frame.delay <= 20) ? 100 : frame.delay;
+                  return sum + delay;
+                }, 0);
+                const lastFrame = frames[frames.length - 1];
+                const lastFrameDelay = (!lastFrame.delay || lastFrame.delay <= 20) ? 100 : lastFrame.delay;
+                finishSetup(totalDuration, lastFrameDelay);
+              }).catch(err => {
+                console.warn("gifuct-js not installed. Run 'npm install gifuct-js' for exact loop counts.", err);
+              });
+            }
+          })
+          .catch(err => console.error("Error parsing Animation for loop count", err));
       }
     } else {
        if (playWhile !== 'Manual (Click to play)') {

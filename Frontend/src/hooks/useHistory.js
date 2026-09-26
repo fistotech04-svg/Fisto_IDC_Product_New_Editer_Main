@@ -16,8 +16,14 @@ const useHistory = () => {
   const commitHistory = useCallback(() => {
     if (historyRef.current.isPerforming || !pendingStateRef.current) return;
     
-    const { undoStack } = historyRef.current;
-    const jsonString = JSON.stringify(pendingStateRef.current);
+    let jsonString;
+    try {
+      jsonString = JSON.stringify(pendingStateRef.current);
+    } catch (e) {
+      console.warn("Failed to serialize history state:", e);
+      pendingStateRef.current = null;
+      return;
+    }
     
     const lastState = undoStack[undoStack.length - 1];
     if (lastState !== jsonString) {
@@ -52,7 +58,11 @@ const useHistory = () => {
 
     // If it's the first state ever, commit it immediately
     if (historyRef.current.undoStack.length === 0) {
-      historyRef.current.undoStack.push(JSON.stringify(state));
+      try {
+        historyRef.current.undoStack.push(JSON.stringify(state));
+      } catch (e) {
+        console.warn("Failed to serialize history initial state:", e);
+      }
       setCanUndo(false);
       return;
     }
