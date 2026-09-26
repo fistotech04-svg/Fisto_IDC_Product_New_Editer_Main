@@ -2109,6 +2109,8 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                         
                         document.addEventListener('wheel', (e) => {
                             try {
+                                const isScrollable = e.target.closest('[data-scrollable="true"], .flipbook-text-scrollbar, .flipbook-text-outer, .flipbook-text-viewport');
+                                if (isScrollable) return;
                                 window.parent.postMessage({
                                     type: 'IFRAME_WHEEL',
                                     deltaY: e.deltaY,
@@ -2154,7 +2156,7 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                 case 'Bottom Right':
                 default: positionStyle = `bottom: ${offset}; right: ${offset};`; break;
             }
-            
+
             if (watermarkSettings.position === 'Center') {
                 positionStyle += ` transform: translate(calc(-50% + ${posX}%), calc(-50% + ${posY}%));`;
             } else {
@@ -2162,7 +2164,7 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
             }
 
             const objectFit = watermarkSettings.type === 'Fill' ? 'cover' : watermarkSettings.type === 'Stretch' ? 'fill' : 'contain';
-            
+
             const scale = (watermarkSettings.scale ?? 100) / 100;
             const rotate = watermarkSettings.rotate ?? 0;
 
@@ -2823,12 +2825,12 @@ const PreviewArea = React.memo(({
 
     const bookAppearanceSettings = React.useMemo(() => {
         const rawApp = incomingBookAppearanceSettings || incomingSettings?.bookAppearanceSettings || incomingSettings?.BookAppearance || incomingSettings?.appearance || currentBook?.Customized_Settings?.BookAppearance || {};
-        
+
         let validSpeed = rawApp.flipSpeed || 'Fast';
         if (validSpeed === 'medium') {
-           validSpeed = 'Fast';
+            validSpeed = 'Fast';
         } else if (validSpeed === 'Slow' && !rawApp.speedChanged) {
-           validSpeed = 'Fast';
+            validSpeed = 'Fast';
         }
 
         return {
@@ -3084,11 +3086,31 @@ const PreviewArea = React.memo(({
 
     const isMobileLandscape = isMobile && isLandscape;
 
+    // Prevent flipbook page turn when scrolling inside scrollable text boxes
+    useEffect(() => {
+        const handleWheel = (e) => {
+            const isScrollable = e.target.closest('[data-scrollable="true"], .flipbook-text-scrollbar, .flipbook-text-outer, .flipbook-text-viewport');
+            if (isScrollable) {
+                e.stopImmediatePropagation();
+                e.stopPropagation();
+            }
+        };
+        const opts = { capture: true, passive: false };
+        window.addEventListener('wheel', handleWheel, opts);
+        window.addEventListener('mousewheel', handleWheel, opts);
+        window.addEventListener('DOMMouseScroll', handleWheel, opts);
+        return () => {
+            window.removeEventListener('wheel', handleWheel, opts);
+            window.removeEventListener('mousewheel', handleWheel, opts);
+            window.removeEventListener('DOMMouseScroll', handleWheel, opts);
+        };
+    }, []);
+
     // Listen for clicks outside the flipbook to trigger interaction blinks
     useEffect(() => {
         const handleGlobalClick = (e) => {
             const target = e.target;
-            
+
             // Do not blink if clicking outside the preview area (e.g., left sidebar)
             if (containerRef.current && !containerRef.current.contains(target)) {
                 return;
@@ -3439,10 +3461,10 @@ const PreviewArea = React.memo(({
     const augmentedPages = useMemo(() => {
         if (!pages || pages.length === 0) return [];
         const basePages = pages.filter(p => !p.isHidden);
-        
+
         const transparentSheets = bookAppearanceSettings?.transparentSheets || [];
         if (!transparentSheets.length) return basePages;
-        
+
         let finalPages = [];
         let logicalIndexCounter = 0;
         basePages.forEach((page, index) => {
@@ -3452,13 +3474,15 @@ const PreviewArea = React.memo(({
                 const sheetPage1 = transparentSheets.find(s => s.page === 'Page 1');
                 if (sheetPage1) {
                     const sImgScale = sheetPage1.scale !== undefined ? sheetPage1.scale / 100 : 1;
-                    const sImgRotate = sheetPage1.rotate || 90;
+                    const sImgRotate = sheetPage1.rotate !== undefined ? sheetPage1.rotate : 0;
                     const sImgOpacity = sheetPage1.opacity !== undefined ? sheetPage1.opacity / 100 : 1;
-                    const sheet1HtmlFront = sheetPage1.image 
-                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                    const sOffsetX = sheetPage1.offsetX || 0;
+                    const sOffsetY = sheetPage1.offsetY || 0;
+                    const sheet1HtmlFront = sheetPage1.image
+                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:${sImgOpacity};transform:translate(${sOffsetX}%, ${sOffsetY}%) scale(${sImgScale}) rotate(${sImgRotate}deg);"><div style="width:80%;height:80%;background-image:url('${sheetPage1.image}');background-size:contain;background-position:center;background-repeat:no-repeat;"></div></div>`
                         : '';
-                    const sheet1HtmlBack = sheetPage1.image 
-                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                    const sheet1HtmlBack = sheetPage1.image
+                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:${sImgOpacity};transform:translate(${-sOffsetX}%, ${sOffsetY}%) scale(${sImgScale}) rotate(${sImgRotate}deg) scaleX(-1);"><div style="width:80%;height:80%;background-image:url('${sheetPage1.image}');background-size:contain;background-position:center;background-repeat:no-repeat;"></div></div>`
                         : '';
                     finalPages.push({
                         id: `ts-${sheetPage1.id}-front`,
@@ -3481,19 +3505,21 @@ const PreviewArea = React.memo(({
 
             finalPages.push({ ...page, isTransparentSheet: false, logicalPageIndex: logicalIndexCounter });
             logicalIndexCounter++;
-            
+
             // "Page 2-3" means after Page 2 (index 1), before Page 3 (index 2)
             // Based on standard flipbooks, sheet between 2-3 is added after index 1.
             const sheetForThisGap = transparentSheets.find(s => s.page === `Page ${index + 1}-${index + 2}`);
             if (sheetForThisGap) {
                 const sImgScale = sheetForThisGap.scale !== undefined ? sheetForThisGap.scale / 100 : 1;
-                const sImgRotate = sheetForThisGap.rotate || 90;
+                const sImgRotate = sheetForThisGap.rotate !== undefined ? sheetForThisGap.rotate : 0;
                 const sImgOpacity = sheetForThisGap.opacity !== undefined ? sheetForThisGap.opacity / 100 : 1;
-                const sheetHtmlFront = sheetForThisGap.image 
-                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                const sOffsetX = sheetForThisGap.offsetX || 0;
+                const sOffsetY = sheetForThisGap.offsetY || 0;
+                const sheetHtmlFront = sheetForThisGap.image
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:${sImgOpacity};transform:translate(${sOffsetX}%, ${sOffsetY}%) scale(${sImgScale}) rotate(${sImgRotate}deg);"><div style="width:80%;height:80%;background-image:url('${sheetForThisGap.image}');background-size:contain;background-position:center;background-repeat:no-repeat;"></div></div>`
                     : '';
-                const sheetHtmlBack = sheetForThisGap.image 
-                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                const sheetHtmlBack = sheetForThisGap.image
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:${sImgOpacity};transform:translate(${-sOffsetX}%, ${sOffsetY}%) scale(${sImgScale}) rotate(${sImgRotate}deg) scaleX(-1);"><div style="width:80%;height:80%;background-image:url('${sheetForThisGap.image}');background-size:contain;background-position:center;background-repeat:no-repeat;"></div></div>`
                     : '';
                 // Insert Front of transparent sheet
                 finalPages.push({
@@ -4162,6 +4188,7 @@ const PreviewArea = React.memo(({
             } : {};
 
             return {
+                backgroundColor: backgroundSettings?.color || '#DADBE8',
                 backgroundImage: `url(${backgroundSettings.image})`,
                 backgroundSize: (bgCrop && bgCrop.inset) ? '100% 100%' : (fitMap[backgroundSettings.fit] || 'cover'),
                 backgroundPosition: 'center',
@@ -4271,10 +4298,10 @@ const PreviewArea = React.memo(({
     }, [currentPage, pages.length]);
 
     const watermarkSettingsRef = useRef(watermarkSettings);
-    
+
     useEffect(() => {
         watermarkSettingsRef.current = watermarkSettings;
-        
+
         // Dynamically update the watermark in all iframes to prevent flickering
         const iframes = document.querySelectorAll('iframe');
         iframes.forEach(iframe => {
@@ -4282,16 +4309,16 @@ const PreviewArea = React.memo(({
                 if (!iframe.contentDocument) return;
                 const container = iframe.contentDocument.getElementById('flipbook-watermark-container');
                 const img = iframe.contentDocument.getElementById('flipbook-watermark-img');
-                
+
                 if (container && img) {
                     const ws = watermarkSettings;
                     const opacity = (ws?.opacity ?? 100) / 100;
-                    
+
                     let positionStyle = "";
                     const offset = '4%';
                     const posX = ws?.positionX ?? 0;
                     const posY = ws?.positionY ?? 0;
-        
+
                     switch (ws?.position) {
                         case 'Top Left': positionStyle = `top: ${offset}; left: ${offset}; bottom: auto; right: auto;`; break;
                         case 'Top Right': positionStyle = `top: ${offset}; right: ${offset}; bottom: auto; left: auto;`; break;
@@ -4300,19 +4327,19 @@ const PreviewArea = React.memo(({
                         case 'Bottom Right':
                         default: positionStyle = `bottom: ${offset}; right: ${offset}; top: auto; left: auto;`; break;
                     }
-                    
+
                     if (ws?.position === 'Center') {
                         container.style.transform = `translate(calc(-50% + ${posX}%), calc(-50% + ${posY}%))`;
                     } else {
                         container.style.transform = `translate(${posX}%, ${posY}%)`;
                     }
-                    
+
                     container.style.cssText += positionStyle;
                     container.style.opacity = opacity;
-                    
+
                     const scale = (ws?.scale ?? 100) / 100;
                     const rotate = ws?.rotate ?? 0;
-                    
+
                     const f = ws?.adjustments || {};
                     const exposure = f.exposure || 0;
                     const contrast = f.contrast || 0;
@@ -4332,7 +4359,7 @@ const PreviewArea = React.memo(({
                     img.style.transform = `scale(${scale}) rotate(${rotate}deg)`;
                     img.style.filter = filterStr;
                 }
-            } catch (e) {}
+            } catch (e) { }
         });
     }, [watermarkSettings]);
 
@@ -6329,42 +6356,43 @@ const PreviewArea = React.memo(({
                                             ease: [0.16, 1, 0.3, 1] // smooth easeOut
                                         }}
                                         className="relative pointer-events-auto flex items-center justify-center"
-                                    style={{
-                                        width: (() => {
-                                            if (!activePopupInteraction?.html) return '800px';
-                                            const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
-                                            if (match) {
-                                                const w = parseFloat(match[3]);
-                                                return w ? `${w}px` : '800px';
-                                            }
-                                            return '800px';
-                                        })(),
-                                        maxWidth: '90%',
-                                        maxHeight: '90%',
-                                        aspectRatio: (() => {
-                                            if (!activePopupInteraction?.html) return '4/3';
-                                            const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
-                                            if (match) {
-                                                const w = parseFloat(match[3]);
-                                                const h = parseFloat(match[4]);
-                                                if (w && h) return `${w}/${h}`;
-                                            }
-                                            return '4/3';
-                                        })(),
-                                    }}
-                                    onClick={e => e.stopPropagation()}
-                                >
-                                    <button
-                                        onClick={() => setActivePopupInteraction(null)}
-                                        className="absolute top-[0.5vw] right-[4vw] md:top-1.5 md:right-[5.5vw] z-[100001] bg-white rounded-full p-[0.6vw] md:p-2 shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
-
+                                        style={{
+                                            width: (() => {
+                                                if (!activePopupInteraction?.html) return '800px';
+                                                const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+                                                if (match) {
+                                                    const w = parseFloat(match[3]);
+                                                    return w ? `${w}px` : '800px';
+                                                }
+                                                return '800px';
+                                            })(),
+                                            maxWidth: '90%',
+                                            maxHeight: '90%',
+                                            aspectRatio: (() => {
+                                                if (!activePopupInteraction?.html) return '4/3';
+                                                const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+                                                if (match) {
+                                                    const w = parseFloat(match[3]);
+                                                    const h = parseFloat(match[4]);
+                                                    if (w && h) return `${w}/${h}`;
+                                                }
+                                                return '4/3';
+                                            })(),
+                                        }}
+                                        onClick={e => e.stopPropagation()}
                                     >
-                                        <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
-                                    </button>
-                                    <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
+                                        <button
+                                            onClick={() => setActivePopupInteraction(null)}
+                                            className="absolute top-[0.5vw] right-[4vw] md:top-1.5 md:right-[5.5vw] z-[100001] bg-white rounded-full p-[0.6vw] md:p-2 shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
+
+                                        >
+                                            <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
+                                        </button>
+                                        <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
+                                    </motion.div>
                                 </motion.div>
-                            </motion.div>
-                        ); })()}
+                            );
+                        })()}
                         {activeSlideshowInteraction && (
                             <motion.div
                                 initial={{ opacity: 0 }}

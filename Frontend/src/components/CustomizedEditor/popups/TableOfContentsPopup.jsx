@@ -284,36 +284,37 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                     style={{
                         top: addTextBelowIcons ? '0.7vh' : '1.2vh',
                         left: tocLeft !== null ? `${tocLeft}px` : (addTextBelowIcons ? `calc(50% - ${isSidebarOpen ? '24.8vw' : '29.4vw'})` : `calc(50% - ${isSidebarOpen ? '25vw' : '29.3vw'})`),
-                        filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))',
+                        filter: 'drop-shadow(0 0.5vw 1.5vw rgba(0,0,0,0.15))',
                         transform: tocLeft !== null ? 'translateX(-85%) scale(0.85)' : 'scale(0.85)',
                         transformOrigin: tocLeft !== null ? '85% top' : 'top left'
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className={`relative w-[13vw] min-h-[15vw] h-fit max-h-[80vh] flex flex-col group`}>
+                    <div className={`relative w-[13vw] h-[21.4vw] max-h-[80vh] flex flex-col group`}>
                         {/* New SVG Shape Background */}
-                        <div className="absolute inset-0 z-0 pointer-events-none">
-                            <svg width="100%" height="100%" viewBox="0 0 250 600" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                        <div className="absolute inset-0 z-0 pointer-events-none drop-shadow-sm">
+                            <svg width="100%" height="100%" viewBox="0 0 213 350" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
                                 <defs>
-                                    <clipPath id="toc-shape-clip" clipPathUnits="objectBoundingBox">
+                                    <clipPath id="toc-shape-clip-layout8" clipPathUnits="objectBoundingBox">
                                         <path
-                                            transform="scale(0.004, 0.00166667)"
-                                            d="M0 130C0 118.95 8.95 110 20 110H155C170 110 175 95 175 75V35C175 15 190 0 210 0C230 0 250 15 250 35V110V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V130Z"
+                                            transform="scale(0.00469483, 0.002857)"
+                                            d="M0 87C0 75.9543 8.95431 67 20 67H213V330C213 341.046 204.046 350 193 350H20C8.9543 350 0 341.046 0 330V87Z"
+                                        />
+                                        <path
+                                            transform="scale(0.00469483, 0.002857)"
+                                            d="M146.818 33.0909C146.818 14.8153 161.633 0 179.909 0C198.185 0 213 14.8153 213 33.0909V67H122C140.752 67 146.818 52.7213 146.818 41.7377V33.0909Z"
                                         />
                                     </clipPath>
                                 </defs>
-                                <path
-                                    d="M0 130C0 118.95 8.95 110 20 110H155C170 110 175 95 175 75V35C175 15 190 0 210 0C230 0 250 15 250 35V110V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V130Z"
-                                    fill={getLayoutColor('toc-bg', '#575C9C')}
-                                    fillOpacity={getLayoutOpacity('toc-bg', '0.6')}
-                                />
+                                <path d="M0 87C0 75.9543 8.95431 67 20 67H213V330C213 341.046 204.046 350 193 350H20C8.9543 350 0 341.046 0 330V87Z" fill={getLayoutColor('toc-bg', '#575C9C')} fillOpacity={getLayoutOpacity('toc-bg', '0.6')} />
+                                <path d="M146.818 33.0909C146.818 14.8153 161.633 0 179.909 0C198.185 0 213 14.8153 213 33.0909V67H122C140.752 67 146.818 52.7213 146.818 41.7377V33.0909Z" fill={getLayoutColor('toc-bg', '#575C9C')} fillOpacity={getLayoutOpacity('toc-bg', '0.6')} />
                             </svg>
                         </div>
 
                         {/* Content Layer with Body Background and Styling */}
                         <div
-                            className="relative z-10 flex flex-col flex-1 pt-[6vw] px-[1vw] pb-[2.5vw] backdrop-blur-md"
-                            style={{ clipPath: 'url(#toc-shape-clip)', WebkitClipPath: 'url(#toc-shape-clip)' }}
+                            className="relative z-10 flex flex-col flex-1 min-h-0 pt-[6vw] px-[1vw] pb-[2.5vw] backdrop-blur-md"
+                            style={{ clipPath: 'url(#toc-shape-clip-layout8)', WebkitClipPath: 'url(#toc-shape-clip-layout8)' }}
                         >
                             {/* Search Bar - Compact */}
                             {addSearch && (
@@ -336,8 +337,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 
                             {/* TOC List */}
                             <div
-                                className="flex flex-col gap-[0.6vw] overflow-y-auto custom-scrollbar pr-[0.4vw]"
-                                style={{ scrollbarWidth: 'none' }}
+                                className="flex-1 min-h-0 flex flex-col gap-[0.6vw] overflow-y-auto custom-scrollbar pr-[0.4vw]"
                             >
                                 {filteredContent.map((heading, hIdx) => {
                                     const sectionId = heading.id || heading.title;
@@ -351,22 +351,21 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                 onClick={() => {
                                                     if (onNavigate) { speakText(heading.title); onNavigate(heading.page - 1); }
                                                 }}
-                                                className="rounded-full px-[1vw] py-[0.35vw] flex items-center justify-between cursor-pointer hover:bg-white/30 active:scale-[0.98] transition-all shadow-md group border border-white/10"
-                                                style={{ backgroundColor: 'rgba(255, 255, 255, 0.25)' }}
+                                                className="flex items-center justify-between px-[1vw] py-[0.5vw] bg-white rounded-full cursor-pointer group shadow-sm transition-transform active:scale-95"
                                             >
                                                 <div className="flex items-center gap-[0.5vw] truncate">
-                                                    <span className="text-[0.88vw] font-bold tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: getLayoutOpacity('toc-text', '1') }}>
+                                                    <span className="text-[0.88vw] font-medium tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-bg', '#575C9C') }}>
                                                         {heading.title}
                                                     </span>
                                                 </div>
-                                                <span className="text-[0.85vw] font-bold tabular-nums transition-colors" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: `calc(${getLayoutOpacity('toc-text', '1')} * 0.9)` }}>
+                                                <span className="text-[0.85vw] font-medium tabular-nums transition-colors whitespace-nowrap shrink-0" style={{ color: getLayoutColor('toc-bg', '#575C9C') }}>
                                                     {heading.page < 10 ? `0${heading.page}` : heading.page}
                                                 </span>
                                             </div>
 
-                                            {/* Subheadings - Always visible in Layout 9 */}
+                                            {/* Subheadings */}
                                             {hasSubItems && (
-                                                <div className="flex flex-col gap-[0.25vw] pl-[0.5vw] animate-in slide-in-from-top-2 duration-300">
+                                                <div className="flex flex-col gap-[0.35vw] animate-in slide-in-from-top-2 duration-300">
                                                     {heading.subheadings.map((sub, sIdx) => (
                                                         <div
                                                             key={sub.id || sIdx}
@@ -374,13 +373,12 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                                 e.stopPropagation();
                                                                 if (onNavigate) { speakText(sub.title); onNavigate(sub.page - 1); }
                                                             }}
-                                                            className="rounded-full px-[0.8vw] py-[0.3vw] flex items-center justify-between cursor-pointer hover:bg-white/20 active:scale-[0.98] transition-all shadow-sm ml-auto w-[85%] border border-white/10"
-                                                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)' }}
+                                                            className="flex items-center justify-between px-[1vw] py-[0.4vw] ml-auto w-[85%] bg-white rounded-full cursor-pointer group shadow-sm transition-transform active:scale-95"
                                                         >
-                                                            <span className="text-[0.78vw] font-semibold tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: `calc(${getLayoutOpacity('toc-text', '1')} * 0.9)` }}>
+                                                            <span className="text-[0.78vw] font-medium tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-bg', '#575C9C') }}>
                                                                 {sub.title}
                                                             </span>
-                                                            <span className="text-[0.75vw] font-bold tabular-nums transition-colors" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: `calc(${getLayoutOpacity('toc-text', '1')} * 0.8)` }}>
+                                                            <span className="text-[0.75vw] font-medium tabular-nums transition-colors whitespace-nowrap shrink-0" style={{ color: getLayoutColor('toc-bg', '#575C9C') }}>
                                                                 {sub.page < 10 ? `0${sub.page}` : sub.page}
                                                             </span>
                                                         </div>
@@ -972,9 +970,9 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
     if (isLayout1) {
         return (
             <>
-                <div className="absolute inset-0 z-[1000] pointer-events-auto" onClick={onClose} />
+                <div className="absolute inset-0 z-[1005] pointer-events-auto" onClick={onClose} />
                 <div
-                    className={`absolute ${isMobile ? 'top-[175px] right-[15px]' : isTablet ? 'bottom-[60px] left-[15px]' : 'bottom-[8vh] left-[1vw]'} z-[1001] pointer-events-auto`}
+                    className={`absolute ${isMobile ? 'top-[175px] right-[15px]' : isTablet ? 'bottom-[60px] left-[15px]' : 'bottom-[8vh] left-[1vw]'} z-[1006] pointer-events-auto`}
                 >
                     <div
                         className={`${isMobile ? 'rounded-2xl w-[235px]' : isTablet ? 'rounded-[8px] w-[170px]' : 'rounded-[0.7vw] w-[13vw]'} shadow-2xl overflow-hidden relative backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200`}
@@ -1265,5 +1263,6 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 };
 
 export default TableOfContentsPopup;
+
 
 

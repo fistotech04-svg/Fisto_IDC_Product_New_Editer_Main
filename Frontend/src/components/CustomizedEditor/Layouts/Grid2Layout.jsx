@@ -999,7 +999,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         setPageInputValue(String(currentPage + 1));
                                     }
                                 }}
-                                className={`${isMobileLandscape ? 'text-[0.45vw] mx-[0.2vw] px-[0.2vw] py-[0.05vw]' : isTablet ? 'text-[0.55vw] mx-[0.3vw] px-[0.3vw] py-[0.05vw]' : 'text-[0.75vw] mx-[0.4vw] px-[0.4vw] py-[0.1vw]'} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner`}
+                                className={`${isMobileLandscape ? 'text-[0.45vw] mx-[0.2vw] px-[0.1vw] py-[0.05vw]' : isTablet ? 'text-[0.55vw] mx-[0.3vw] px-[0.15vw] py-[0.05vw]' : 'text-[0.75vw] mx-[0.4vw] px-[0.2vw] py-[0.1vw]'} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner`}
                                 style={{
                                     color: getLayoutColor('toolbar-bg', '#575C9C'),
                                     backgroundColor: getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1),

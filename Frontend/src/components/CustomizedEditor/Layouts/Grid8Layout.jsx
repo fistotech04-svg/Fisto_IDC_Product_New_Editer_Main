@@ -688,7 +688,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
 
                         {/* Search / Zoom controls */}
                         {(settings?.viewing?.zoom ?? true) && (
-                            <div className={`flex items-center rounded-full px-[0.2vw] ${isSidebarOpen ? 'gap-[0.1vw]' : 'gap-[0.2vw]'} ${isSidebarOpen ? (isTablet ? 'h-[1.7vw]' : 'h-[1.85vw]') : (isTablet ? 'h-[2.1vw]' : 'h-[2.3vw]')}`} style={{ backgroundColor: `${primaryColor}33`, border: `1px solid ${getLayoutColor('toolbar-bg', primaryColor)}20` }}>
+                            <div className={`flex items-center rounded-full px-[0.2vw] ${isSidebarOpen ? 'gap-[0.1vw]' : 'gap-[0.2vw]'} ${isSidebarOpen ? (isTablet ? 'h-[1.7vw]' : 'h-[1.85vw]') : (isTablet ? 'h-[2.1vw]' : 'h-[2.3vw]')}`} style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), border: `1px solid ${getLayoutColor('toolbar-bg', primaryColor)}20` }}>
                                 <div className="group relative flex items-center justify-center h-full">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); zoomOut(); }}
@@ -715,7 +715,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         <div className="absolute bottom-[100%] left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-b-[0.35vw] border-l-[0.35vw] border-r-[0.35vw]" style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}></div>
                                     </div>
                                 </div>
-                                <span className={`${isSidebarOpen ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold ${isSidebarOpen ? 'min-w-[2vw]' : 'min-w-[2.5vw]'} text-center`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
+                                <span className={`${isSidebarOpen ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold ${isSidebarOpen ? 'min-w-[2vw]' : 'min-w-[2.5vw]'} text-center`} style={{ color: getLayoutColor('toolbar-bg', primaryColor) }}>
                                     {Math.round((dimWidth / initialWidth) * 100)}%
                                 </span>
                                 <div className="group relative flex items-center justify-center h-full">
@@ -890,30 +890,38 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         <div
                             key="thumb-panel"
                             id="layout8-thumb-panel"
-                            className="absolute w-max max-w-[56.5vw] z-[45] pointer-events-auto"
+                            className="absolute w-[44vw] h-[10.5vw] z-[45] pointer-events-auto flex flex-col"
                             style={{
                                 top: addTextBelowIcons
                                     ? (isFullscreen ? (isTablet ? 'calc(4.2vh + 0.5vw)' : 'calc(4.8vh + 0.5vw)') : (isTablet ? 'calc(5.6vh + 0.5vw)' : 'calc(6.2vh + 0.5vw)'))
                                     : (isFullscreen ? (isTablet ? 'calc(4.2vh + 0.7vw)' : 'calc(4.8vh + 0.7vw)') : (isTablet ? 'calc(5.6vh + 0.7vw)' : 'calc(6.2vh + 0.7vw)')),
+                                marginTop: '-3.6vw',
                                 left: popupPositions['thumbnails'] ? `${popupPositions['thumbnails']}px` : '50%',
-                                transform: `translateX(-30%)`
+                                transform: `translateX(-46.2%)`
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {/* Connector Tab for Thumbnail Icon - Exact geometry from Rectangle 7411.svg */}
-                            <div className="absolute bottom-[98%] w-[5.2vw] h-[3.4vw] z-0" style={{ left: '30%', transform: 'translateX(-50%)' }}>
-                                <svg width="100%" height="100%" viewBox="0 0 113 67" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path
-                                        d="M24.8182 33.0909C24.8182 14.8153 39.6335 0 57.9091 0C76.1847 0 91 14.8153 91 33.0909V41.7377C91.0109 60.2573 94.967 66.6391 113 67H0C18.7515 67 24.8182 52.7213 24.8182 41.7377V33.0909Z"
-                                        fill={getLayoutColor('dropdown-bg', primaryColor)}
-                                        fillOpacity="0.8"
-                                    />
+                            {/* SVG Background Layer */}
+                            <div className="absolute inset-0 z-0 pointer-events-none">
+                                <svg width="100%" height="100%" viewBox="0 0 780 178" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                                    <defs>
+                                        <clipPath id="thumb-shape-clip" clipPathUnits="objectBoundingBox">
+                                            <path transform="scale(0.00128205, 0.00561798)" d="M0 87C0 75.9543 8.95431 67 20 67H760C771.046 67 780 75.9543 780 87V158C780 169.046 771.046 178 760 178H20C8.9543 178 0 169.046 0 158V87Z" />
+                                            <path transform="scale(0.00128205, 0.00561798)" d="M328.818 33.0909C328.818 14.8153 343.633 0 361.909 0C380.185 0 395 14.8153 395 33.0909V41.7377C395.011 60.2573 398.967 66.6391 417 67H304C322.752 67 328.818 52.7213 328.818 41.7377V33.0909Z" />
+                                        </clipPath>
+                                    </defs>
+                                    <path d="M0 87C0 75.9543 8.95431 67 20 67H760C771.046 67 780 75.9543 780 87V158C780 169.046 771.046 178 760 178H20C8.9543 178 0 169.046 0 158V87Z" fill={getLayoutColor('dropdown-bg', primaryColor)} fillOpacity="0.8"/>
+                                    <path d="M328.818 33.0909C328.818 14.8153 343.633 0 361.909 0C380.185 0 395 14.8153 395 33.0909V41.7377C395.011 60.2573 398.967 66.6391 417 67H304C322.752 67 328.818 52.7213 328.818 41.7377V33.0909Z" fill={getLayoutColor('dropdown-bg', primaryColor)} fillOpacity="0.8"/>
                                 </svg>
                             </div>
 
+                            {/* Content Layer */}
                             <div
-                                className={`w-full ${isTablet ? 'h-[10vh]' : 'h-[12vh]'} rounded-[1vw] flex items-center relative px-[1vw] shadow-2xl backdrop-blur-md`}
-                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', primaryColor, 0.8) }}
+                                className="relative z-10 w-full h-full flex items-center pt-[3.8vw] pb-[0.2vw] px-[1.5vw] backdrop-blur-md"
+                                style={{ 
+                                    clipPath: 'url(#thumb-shape-clip)', 
+                                    WebkitClipPath: 'url(#thumb-shape-clip)' 
+                                }}
                             >
                                 {/* Left Arrow */}
                                 {Math.ceil(pages.length / 2) > 6 && (
@@ -1124,8 +1132,27 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         setPageInputValue(String(currentPage + 1));
                                     }
                                 }}
-                                className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} font-medium tracking-wide bg-transparent border-none outline-none text-center ml-[0.3vw]`}
-                                style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF'), width: `${String(pages.length).length + 1}ch` }}
+                                className={`${isTablet ? 'text-[0.75vw] mx-[0.3vw] px-[0.15vw] py-[0.1vw]' : 'text-[0.85vw] mx-[0.4vw] px-[0.2vw] py-[0.15vw]'} font-medium tracking-wide rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
+                                style={{
+                                    color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                    width: `${String(pages.length).length + 1.2}ch`,
+                                    backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') + '33',
+                                    border: `1px solid ${getLayoutColor('toolbar-text-main', '#FFFFFF')}59`
+                                }}
+                                onFocus={(e) => {
+                                    e.target.style.backgroundColor = getLayoutColor('toolbar-text-main', '#FFFFFF') + '4D';
+                                    e.target.style.borderColor = getLayoutColor('toolbar-text-main', '#FFFFFF') + '99';
+                                }}
+                                onMouseOver={(e) => {
+                                    if(document.activeElement !== e.target) {
+                                        e.target.style.backgroundColor = getLayoutColor('toolbar-text-main', '#FFFFFF') + '40';
+                                    }
+                                }}
+                                onMouseOut={(e) => {
+                                    if(document.activeElement !== e.target) {
+                                        e.target.style.backgroundColor = getLayoutColor('toolbar-text-main', '#FFFFFF') + '33';
+                                    }
+                                }}
                             />
                             <span className={`text-[0.75vw] lg:text-[0.85vw] font-medium tracking-wide`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
                                 / {totalPages}
