@@ -1730,7 +1730,7 @@ const BackgroundSection = ({
                         <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-black flex-shrink-0 border border-gray-200">
                           <video
                             src={backgroundSettings.video}
-                            className="w-full h-full object-cover"
+                            className={`w-full h-full ${backgroundSettings.fit === 'Fit' ? 'object-contain' : backgroundSettings.fit === 'Stretch' ? 'object-fill' : 'object-cover'}`}
                             muted
                             loop
                             autoPlay

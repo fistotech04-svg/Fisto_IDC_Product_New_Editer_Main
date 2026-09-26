@@ -1947,7 +1947,23 @@ const MainEditor = ({
           if (dlBtn) dlBtn.style.display = showDownloadButton ? '' : 'none';
           if (progC) progC.style.display = showProgressBar ? '' : 'none';
 
+          let spacer = bar.querySelector('.custom-spacer');
+          if (!spacer && !showProgressBar) {
+            spacer = document.createElement('div');
+            spacer.className = 'custom-spacer';
+            Object.assign(spacer.style, { flexGrow: '1' });
+            if (timeW && timeW.parentElement) {
+              timeW.parentElement.insertBefore(spacer, timeW);
+            }
+          }
+          if (spacer) spacer.style.display = showProgressBar ? 'none' : 'block';
+
           const showControls = video.getAttribute('data-show-controls') !== 'false';
+          if (timeW) {
+            timeW.style.display = showControls ? '' : 'none';
+            timeW.style.marginLeft = '1em';
+          }
+
           bar.style.display = (showControls || showPlayPause || showFullscreenButton || showDownloadButton) ? 'flex' : 'none';
         }
 
@@ -2001,16 +2017,42 @@ const MainEditor = ({
             background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 75%, rgba(0,0,0,0.8) 100%)',
           });
 
-          // Establish a base font-size linked to width for proportional scaling
-          const ro = new ResizeObserver(entries => {
-            for (let entry of entries) {
-              const w = entry.contentRect.width || entry.target.offsetWidth;
-              if (w > 0) {
-                bar.style.fontSize = (w * 0.01) + 'px'; // 1% of width = 1em
-              }
+          // Establish a base font-size linked to width and adjust bounds for object-fit
+          const updateBarPosition = () => {
+            if (!bar) return;
+            if (bar.closest && bar.closest('#temp-fs-wrapper')) {
+              bar.style.top = '0px';
+              bar.style.bottom = '0px';
+              bar.style.left = '0px';
+              bar.style.right = '0px';
+              return;
             }
-          });
-          ro.observe(bar);
+            let w = 500, h = 500;
+            const fo = mountPoint.tagName && mountPoint.tagName.toLowerCase() === 'foreignobject' ? mountPoint : null;
+            if (fo) {
+              w = fo.width?.baseVal?.value || parseFloat(fo.getAttribute('width') || fo.style?.width || '500');
+              h = fo.height?.baseVal?.value || parseFloat(fo.getAttribute('height') || fo.style?.height || '500');
+            } else {
+              w = mountPoint.offsetWidth || mountPoint.clientWidth || 500;
+              h = mountPoint.offsetHeight || mountPoint.clientHeight || 500;
+            }
+            if (w > 0 && h > 0) {
+              const vw = video.videoWidth;
+              const vh = video.videoHeight;
+              let actualW = w;
+
+              bar.style.top = '0px';
+              bar.style.bottom = '0px';
+              bar.style.left = '0px';
+              bar.style.right = '0px';
+
+              bar.style.fontSize = (actualW * 0.01) + 'px';
+            }
+          };
+          const ro = new ResizeObserver(() => updateBarPosition());
+          ro.observe(mountPoint);
+          video.addEventListener('loadedmetadata', updateBarPosition);
+          updateBarPosition();
 
           // Top Right: Volume
           const topContainer = document.createElement('div');
@@ -2036,8 +2078,8 @@ const MainEditor = ({
             opacity: '0.8',
           });
 
-          const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
-          const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+          const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+          const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
 
           const updateVolumeIcon = () => {
             volumeBtn.innerHTML = (video.muted || video.volume === 0) ? VOL_OFF_SVG : VOL_ON_SVG;
@@ -2073,8 +2115,8 @@ const MainEditor = ({
             boxSizing: 'border-box'
           });
 
-          const REWIND_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>`;
-          const FORWARD_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>`;
+          const REWIND_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>`;
+          const FORWARD_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>`;
 
           const rewindBtn = document.createElement('button');
           rewindBtn.className = 'custom-rewind-btn';
@@ -2208,6 +2250,10 @@ const MainEditor = ({
           });
           progContainer.appendChild(progFill);
 
+          const spacer = document.createElement('div');
+          spacer.className = 'custom-spacer';
+          Object.assign(spacer.style, { flexGrow: '1', display: 'none' });
+
 
           const formatTime = (sec) => {
             if (isNaN(sec)) return "00:00";
@@ -2247,7 +2293,7 @@ const MainEditor = ({
             if (setSelectedLayerId) setSelectedLayerId(layerId);
           };
 
-          const REPEAT_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>`;
+          const REPEAT_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>`;
           const repeatBtn = document.createElement('button');
           repeatBtn.className = 'custom-repeat-btn';
           Object.assign(repeatBtn.style, {
@@ -2267,9 +2313,9 @@ const MainEditor = ({
             }
           };
 
-          const FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
-          const EXIT_FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>`;
-          const DOWNLOAD_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+          const FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
+          const EXIT_FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>`;
+          const DOWNLOAD_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
 
           const dlBtn = document.createElement('button');
           dlBtn.className = 'custom-download-btn';
@@ -2355,41 +2401,46 @@ const MainEditor = ({
 
           fsBtn.onclick = (e) => {
             e.stopPropagation();
-            if (!document.fullscreenElement) {
-              const fsWrapper = document.createElement('div');
-              fsWrapper.id = 'temp-fs-wrapper';
-              Object.assign(fsWrapper.style, {
-                position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh',
-                background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center'
-              });
-
-              const vPlaceholder = document.createComment('video-placeholder');
-              const bPlaceholder = document.createComment('bar-placeholder');
-
-              video.parentElement.insertBefore(vPlaceholder, video);
-              bar.parentElement.insertBefore(bPlaceholder, bar);
-
-              const wasPlaying = !video.paused;
-
-              fsWrapper.appendChild(video);
-              fsWrapper.appendChild(bar);
-              document.body.appendChild(fsWrapper);
-
-              fsWrapper._vPlaceholder = vPlaceholder;
-              fsWrapper._bPlaceholder = bPlaceholder;
-
-              const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
-              if (reqFs) {
-                reqFs.call(fsWrapper).then(() => {
-                  if (wasPlaying) video.play().catch(() => { });
-                }).catch(err => {
-                  console.error(err);
-                  if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
-                  if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
-                  vPlaceholder.remove();
-                  bPlaceholder.remove();
-                  fsWrapper.remove();
+            if (!document.fullscreenElement || (document.fullscreenElement.id !== 'temp-fs-wrapper' && document.fullscreenElement.tagName !== 'VIDEO')) {
+              const docFs = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+              if (docFs) {
+                const fsWrapper = document.createElement('div');
+                fsWrapper.id = 'temp-fs-wrapper';
+                Object.assign(fsWrapper.style, {
+                  position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh',
+                  background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center'
                 });
+
+                const vPlaceholder = document.createComment('video-placeholder');
+                const bPlaceholder = document.createComment('bar-placeholder');
+
+                video.parentElement.insertBefore(vPlaceholder, video);
+                bar.parentElement.insertBefore(bPlaceholder, bar);
+
+                const wasPlaying = !video.paused;
+
+                fsWrapper.appendChild(video);
+                fsWrapper.appendChild(bar);
+                document.body.appendChild(fsWrapper);
+
+                fsWrapper._vPlaceholder = vPlaceholder;
+                fsWrapper._bPlaceholder = bPlaceholder;
+
+                const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
+                if (reqFs) {
+                  reqFs.call(fsWrapper).then(() => {
+                    if (wasPlaying) video.play().catch(() => { });
+                  }).catch(err => {
+                    console.error(err);
+                    if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
+                    if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
+                    vPlaceholder.remove();
+                    bPlaceholder.remove();
+                    fsWrapper.remove();
+                  });
+                }
+              } else if (video.webkitEnterFullscreen) {
+                video.webkitEnterFullscreen();
               }
             } else {
               if (document.exitFullscreen) document.exitFullscreen();
@@ -2398,7 +2449,7 @@ const MainEditor = ({
           };
 
           const handleFsChange = () => {
-            const isFs = !!document.fullscreenElement;
+            const isFs = !!document.fullscreenElement && (document.fullscreenElement.id === 'temp-fs-wrapper' || document.fullscreenElement.tagName === 'VIDEO');
             fsBtn.innerHTML = isFs ? EXIT_FS_SVG : FS_SVG;
             if (!isFs) {
               const fsWrapper = document.getElementById('temp-fs-wrapper');
@@ -2427,6 +2478,7 @@ const MainEditor = ({
 
           bottomContainer.appendChild(playBtn);
           bottomContainer.appendChild(progContainer);
+          bottomContainer.appendChild(spacer);
           bottomContainer.appendChild(timeWrapper);
           bottomContainer.appendChild(repeatBtn);
           bottomContainer.appendChild(dlBtn);
@@ -2496,7 +2548,7 @@ const MainEditor = ({
         const layerId = bar.id.replace('custom-ctrl-', '');
         // Escape ID properly or use a broad query
         try {
-          const video = document.getElementById(layerId)?.querySelector('video') || document.querySelector(`[id="${layerId}"] video`);
+          const video = bar._video || document.getElementById(layerId)?.querySelector('video') || document.querySelector(`[id="${layerId}"] video`);
           if (!video || !document.body.contains(video)) {
             if (bar._cleanup) bar._cleanup();
             bar.remove();
@@ -2617,7 +2669,7 @@ const MainEditor = ({
     if (editorDoc && editorDoc.body) {
       try {
         observer.observe(editorDoc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width', 'id'] });
-      } catch (e) {}
+      } catch (e) { }
     }
 
     return () => {
@@ -2825,22 +2877,22 @@ const MainEditor = ({
               else clipShape.removeAttribute(attr);
             });
           }
-          
+
           // Sync Image properties
           const transform = shapeEl.getAttribute('transform');
           if (transform) imgEl.setAttribute('transform', transform);
           else imgEl.removeAttribute('transform');
 
           if (typeof shapeEl.getBBox === 'function') {
-             try {
-                const bbox = shapeEl.getBBox();
-                if (bbox && bbox.width > 0 && bbox.height > 0) {
-                   imgEl.setAttribute('x', bbox.x);
-                   imgEl.setAttribute('y', bbox.y);
-                   imgEl.setAttribute('width', bbox.width);
-                   imgEl.setAttribute('height', bbox.height);
-                }
-             } catch(e) {}
+            try {
+              const bbox = shapeEl.getBBox();
+              if (bbox && bbox.width > 0 && bbox.height > 0) {
+                imgEl.setAttribute('x', bbox.x);
+                imgEl.setAttribute('y', bbox.y);
+                imgEl.setAttribute('width', bbox.width);
+                imgEl.setAttribute('height', bbox.height);
+              }
+            } catch (e) { }
           }
         }
       });
@@ -6636,10 +6688,10 @@ const MainEditor = ({
               imageEl.setAttribute('y', bbox.y);
               imageEl.setAttribute('width', bbox.width);
               imageEl.setAttribute('height', bbox.height);
-              
+
               // We must also apply the shape's transform to the image, BUT if we do, the clipPath (which has the transform)
               // would be double-transformed. So we must NOT put the transform on the clipShape!
-              
+
               // Actually, wait, let's reset the clip path content:
               clip.innerHTML = '';
               const cleanClipShape = shapeEl.cloneNode(true);
@@ -6649,7 +6701,7 @@ const MainEditor = ({
               cleanClipShape.removeAttribute('stroke-width');
               cleanClipShape.removeAttribute('transform'); // REMOVE transform from clip path
               clip.appendChild(cleanClipShape);
-              
+
               // Apply the shape's transform to the image
               const transform = shapeEl.getAttribute('transform');
               if (transform) {
@@ -8086,13 +8138,13 @@ const MainEditor = ({
                 try {
                   const c = canvasSvg.querySelector(`[id="${CSS.escape(id)}"]`);
                   if (c) return c;
-                } catch (_) {}
+                } catch (_) { }
               }
               if (pageContainer) {
                 try {
                   const c = pageContainer.querySelector(`[id="${CSS.escape(id)}"]`);
                   if (c) return c;
-                } catch (_) {}
+                } catch (_) { }
               }
               return document.getElementById(id);
             };
@@ -8896,8 +8948,8 @@ const MainEditor = ({
                       const ptCorner = new DOMPoint(finalX + finalWidth, finalY + finalHeight).matrixTransform(matrix);
                       const newTx = Math.min(ptOrigin.x, ptCorner.x);
                       const newTy = Math.min(ptOrigin.y, ptCorner.y);
-                      const newW  = Math.abs(ptCorner.x - ptOrigin.x);
-                      const newH  = Math.abs(ptCorner.y - ptOrigin.y);
+                      const newW = Math.abs(ptCorner.x - ptOrigin.x);
+                      const newH = Math.abs(ptCorner.y - ptOrigin.y);
                       // Derive scale from inner content size (48×48 canonical size)
                       const innerSize = (state.bbox && state.bbox.width > 0) ? state.bbox.width : 48;
                       const newSx = newW / innerSize;
@@ -13937,7 +13989,7 @@ const MainEditor = ({
                                 <span className="text-gray-500 text-[0.85vw] mt-[0.5vw]">It will not be shown in the flipbook.</span>
                               </div>
                             )}
-                            
+
                             {!pages[displayIndex]?.isHidden && (
                               <>
                                 {/* Selection Overlay (Overlay rotated element perfectly) */}

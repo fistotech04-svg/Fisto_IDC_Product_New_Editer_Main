@@ -1709,6 +1709,28 @@ const VideoEditor = ({
     }
 
     if (!target) {
+      const imgTarget = liveElement.tagName.toLowerCase() === "image" ? liveElement : liveElement.querySelector("image");
+      if (imgTarget) {
+        const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+        fo.setAttribute('x', imgTarget.getAttribute('x') || 0);
+        fo.setAttribute('y', imgTarget.getAttribute('y') || 0);
+        fo.setAttribute('width', imgTarget.getAttribute('width') || 100);
+        fo.setAttribute('height', imgTarget.getAttribute('height') || 100);
+        fo.id = imgTarget.id;
+        fo.setAttribute('data-name', 'Video');
+        const newVideo = document.createElement('video');
+        newVideo.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+        newVideo.style.width = '100%';
+        newVideo.style.height = '100%';
+        newVideo.style.objectFit = 'contain';
+        newVideo.controls = true;
+        fo.appendChild(newVideo);
+        imgTarget.replaceWith(fo);
+        target = newVideo;
+      }
+    }
+
+    if (!target) {
       console.error("No video/iframe target found for upload");
       return;
     }
@@ -1928,6 +1950,28 @@ const VideoEditor = ({
       target = liveElement;
     } else {
       target = liveElement.querySelector("video, iframe");
+    }
+
+    if (!target) {
+      const imgTarget = liveElement.tagName.toLowerCase() === "image" ? liveElement : liveElement.querySelector("image");
+      if (imgTarget) {
+        const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+        fo.setAttribute('x', imgTarget.getAttribute('x') || 0);
+        fo.setAttribute('y', imgTarget.getAttribute('y') || 0);
+        fo.setAttribute('width', imgTarget.getAttribute('width') || 100);
+        fo.setAttribute('height', imgTarget.getAttribute('height') || 100);
+        fo.id = imgTarget.id;
+        fo.setAttribute('data-name', 'Video');
+        const newVideo = document.createElement('video');
+        newVideo.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+        newVideo.style.width = '100%';
+        newVideo.style.height = '100%';
+        newVideo.style.objectFit = 'contain';
+        newVideo.controls = true;
+        fo.appendChild(newVideo);
+        imgTarget.replaceWith(fo);
+        target = newVideo;
+      }
     }
 
     if (!target) return;

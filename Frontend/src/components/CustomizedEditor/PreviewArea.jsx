@@ -1213,7 +1213,21 @@ const getInteractionScript = (pageNumber) => `
                 if (e.data.type === 'PAGE_TURNED' || e.data.type === 'BLINK_INTERACTIONS') {
                     if (e.data.type === 'PAGE_TURNED') {
                         const visiblePages = e.data.visiblePages || [];
-                        if (!visiblePages.includes(window._pageNumber)) return;
+                        const isVisible = visiblePages.includes(window._pageNumber);
+                        window._pageIsVisible = isVisible;
+                        
+                        document.querySelectorAll('video').forEach(video => {
+                            const playVideoWhile = video.getAttribute('data-play-video-while');
+                            if (isVisible) {
+                                if (playVideoWhile === "Auto Play While on Page" || playVideoWhile === "Auto Play on Page Open") {
+                                    video.play().catch(()=>{});
+                                }
+                            } else {
+                                video.pause();
+                            }
+                        });
+
+                        if (!isVisible) return;
                     }
                     const interactionEls = document.querySelectorAll('[data-interaction]');
                     interactionEls.forEach(el => {
@@ -1359,10 +1373,15 @@ const getVideoControlsScript = () => `
               }
 
               const playVideoWhile = video.getAttribute('data-play-video-while');
-              if (video._prevPlayVideoWhile !== playVideoWhile) {
+              if (video._prevPlayVideoWhile !== playVideoWhile || video._prevIsVisible !== window._pageIsVisible) {
                   video._prevPlayVideoWhile = playVideoWhile;
+                  video._prevIsVisible = window._pageIsVisible;
                   if (playVideoWhile === "Auto Play While on Page" || playVideoWhile === "Auto Play on Page Open") {
-                      video.play().catch(()=>{});
+                      if (window._pageIsVisible === undefined || window._pageIsVisible) {
+                          video.play().catch(()=>{});
+                      } else {
+                          video.pause();
+                      }
                   } else if (playVideoWhile === "Click to Play" || playVideoWhile === "Manual (Click to Play)") {
                       video.pause();
                   }
@@ -1392,6 +1411,7 @@ const getVideoControlsScript = () => `
             const fsBtn = bar.querySelector('.custom-fs-btn');
             const dlBtn = bar.querySelector('.custom-download-btn');
             const progC = bar.querySelector('.custom-prog-container');
+            const timeW = bar.querySelector('.custom-time-wrapper');
 
             const showPlayPause = video.getAttribute('data-show-play-pause') !== 'false';
             const showSkipButton = video.getAttribute('data-show-skip-button') !== 'false';
@@ -1410,7 +1430,23 @@ const getVideoControlsScript = () => `
             if (dlBtn) dlBtn.style.display = showDownloadButton ? '' : 'none';
             if (progC) progC.style.display = showProgressBar ? '' : 'none';
             
+            let spacer = bar.querySelector('.custom-spacer');
+            if (!spacer && !showProgressBar) {
+                spacer = document.createElement('div');
+                spacer.className = 'custom-spacer';
+                Object.assign(spacer.style, { flexGrow: '1' });
+                if (timeW && timeW.parentElement) {
+                    timeW.parentElement.insertBefore(spacer, timeW);
+                }
+            }
+            if (spacer) spacer.style.display = showProgressBar ? 'none' : 'block';
+            
             const showControls = video.getAttribute('data-show-controls') !== 'false';
+            if (timeW) {
+                timeW.style.display = showControls ? '' : 'none';
+                timeW.style.marginLeft = '1em';
+            }
+            
             bar.style.display = (showControls || showPlayPause || showFullscreenButton || showDownloadButton) ? 'flex' : 'none';
           }
 
@@ -1450,14 +1486,12 @@ const getVideoControlsScript = () => `
 
             // Calculate base width in SVG user units
             let baseW = 500; // safe fallback
-            if (fo && fo.width && fo.width.baseVal) {
-               baseW = fo.width.baseVal.value;
-            } else if (fo && fo.hasAttribute('width')) {
-               baseW = parseFloat(fo.getAttribute('width'));
+            if (fo) {
+               baseW = (fo.width && fo.width.baseVal && fo.width.baseVal.value > 0) 
+                 ? fo.width.baseVal.value 
+                 : parseFloat(fo.getAttribute('width') || fo.style?.width || '500');
             } else if (video.hasAttribute('width')) {
                baseW = parseFloat(video.getAttribute('width'));
-            } else if (fo && fo.style && fo.style.width && fo.style.width.endsWith('px')) {
-               baseW = parseFloat(fo.style.width);
             }
             
             if (baseW > 0) {
@@ -1663,37 +1697,42 @@ const getVideoControlsScript = () => `
 
             fsBtn.onclick = (e) => {
               e.stopPropagation();
-              if (!document.fullscreenElement) {
-                const fsWrapper = document.createElement('div');
-                fsWrapper.id = 'temp-fs-wrapper';
-                Object.assign(fsWrapper.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center' });
+              if (!document.fullscreenElement || (document.fullscreenElement.id !== 'temp-fs-wrapper' && document.fullscreenElement.tagName !== 'VIDEO')) {
+                const docFs = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+                if (docFs) {
+                  const fsWrapper = document.createElement('div');
+                  fsWrapper.id = 'temp-fs-wrapper';
+                  Object.assign(fsWrapper.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center' });
 
-                const vPlaceholder = document.createComment('video-placeholder');
-                const bPlaceholder = document.createComment('bar-placeholder');
+                  const vPlaceholder = document.createComment('video-placeholder');
+                  const bPlaceholder = document.createComment('bar-placeholder');
 
-                video.parentElement.insertBefore(vPlaceholder, video);
-                bar.parentElement.insertBefore(bPlaceholder, bar);
+                  video.parentElement.insertBefore(vPlaceholder, video);
+                  bar.parentElement.insertBefore(bPlaceholder, bar);
 
-                const wasPlaying = !video.paused;
+                  const wasPlaying = !video.paused;
 
-                fsWrapper.appendChild(video);
-                fsWrapper.appendChild(bar);
-                document.body.appendChild(fsWrapper);
+                  fsWrapper.appendChild(video);
+                  fsWrapper.appendChild(bar);
+                  document.body.appendChild(fsWrapper);
 
-                fsWrapper._vPlaceholder = vPlaceholder;
-                fsWrapper._bPlaceholder = bPlaceholder;
+                  fsWrapper._vPlaceholder = vPlaceholder;
+                  fsWrapper._bPlaceholder = bPlaceholder;
 
-                const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
-                if (reqFs) {
-                  reqFs.call(fsWrapper).then(() => {
-                    if (wasPlaying) video.play().catch(() => {});
-                  }).catch(err => {
-                    if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
-                    if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
-                    vPlaceholder.remove();
-                    bPlaceholder.remove();
-                    fsWrapper.remove();
-                  });
+                  const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
+                  if (reqFs) {
+                    reqFs.call(fsWrapper).then(() => {
+                      if (wasPlaying) video.play().catch(() => {});
+                    }).catch(err => {
+                      if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
+                      if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
+                      vPlaceholder.remove();
+                      bPlaceholder.remove();
+                      fsWrapper.remove();
+                    });
+                  }
+                } else if (video.webkitEnterFullscreen) {
+                  video.webkitEnterFullscreen();
                 }
               } else {
                 if (document.exitFullscreen) document.exitFullscreen();
@@ -1702,7 +1741,7 @@ const getVideoControlsScript = () => `
             };
 
             const handleFsChange = () => {
-              const isFs = !!document.fullscreenElement;
+              const isFs = !!document.fullscreenElement && (document.fullscreenElement.id === 'temp-fs-wrapper' || document.fullscreenElement.tagName === 'VIDEO');
               fsBtn.innerHTML = isFs ? EXIT_FS_SVG : FS_SVG;
               if (!isFs) {
                 const fsWrapper = document.getElementById('temp-fs-wrapper');
@@ -1722,9 +1761,14 @@ const getVideoControlsScript = () => `
             document.addEventListener('webkitfullscreenchange', handleFsChange);
 
             const disableFullScreen = video.getAttribute('data-disable-fullscreen') === 'true';
+            
+            const spacer = document.createElement('div');
+            spacer.className = 'custom-spacer';
+            Object.assign(spacer.style, { flexGrow: '1', display: 'none' });
 
             bottomContainer.appendChild(playBtn);
             bottomContainer.appendChild(progContainer);
+            bottomContainer.appendChild(spacer);
             bottomContainer.appendChild(timeWrapper);
             bottomContainer.appendChild(repeatBtn);
             bottomContainer.appendChild(dlBtn);
@@ -1758,6 +1802,7 @@ const getVideoControlsScript = () => `
           try {
             const video = document.getElementById(layerId)?.querySelector('video') || document.querySelector(\`[id="\${layerId}"] video\`);
             if (!video || !document.body.contains(video)) {
+              if (document.getElementById('temp-fs-wrapper')?.contains(bar)) return;
               if (bar._cleanup) bar._cleanup();
               bar.remove();
             }
@@ -1986,6 +2031,8 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                 ${getInteractionScript(pageNumber)}
                 ${getVideoControlsScript()}
                 <script>
+                    window._pageNumber = ${pageNumber};
+                    window._pageIsVisible = ${singlePage ? 'true' : 'undefined'};
                     (function() {
                         const isRightPage = ${pageNumber} % 2 !== 0;
                         const handleMove = (e) => {
@@ -2079,7 +2126,7 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                 case 'Bottom Right':
                 default: positionStyle = `bottom: ${offset}; right: ${offset};`; break;
             }
-            
+
             if (watermarkSettings.position === 'Center') {
                 positionStyle += ` transform: translate(calc(-50% + ${posX}%), calc(-50% + ${posY}%));`;
             } else {
@@ -2087,7 +2134,7 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
             }
 
             const objectFit = watermarkSettings.type === 'Fill' ? 'cover' : watermarkSettings.type === 'Stretch' ? 'fill' : 'contain';
-            
+
             const scale = (watermarkSettings.scale ?? 100) / 100;
             const rotate = watermarkSettings.rotate ?? 0;
 
@@ -2748,12 +2795,12 @@ const PreviewArea = React.memo(({
 
     const bookAppearanceSettings = React.useMemo(() => {
         const rawApp = incomingBookAppearanceSettings || incomingSettings?.bookAppearanceSettings || incomingSettings?.BookAppearance || incomingSettings?.appearance || currentBook?.Customized_Settings?.BookAppearance || {};
-        
+
         let validSpeed = rawApp.flipSpeed || 'Fast';
         if (validSpeed === 'medium') {
-           validSpeed = 'Fast';
+            validSpeed = 'Fast';
         } else if (validSpeed === 'Slow' && !rawApp.speedChanged) {
-           validSpeed = 'Fast';
+            validSpeed = 'Fast';
         }
 
         return {
@@ -3013,7 +3060,7 @@ const PreviewArea = React.memo(({
     useEffect(() => {
         const handleGlobalClick = (e) => {
             const target = e.target;
-            
+
             // Do not blink if clicking outside the preview area (e.g., left sidebar)
             if (containerRef.current && !containerRef.current.contains(target)) {
                 return;
@@ -3364,10 +3411,10 @@ const PreviewArea = React.memo(({
     const augmentedPages = useMemo(() => {
         if (!pages || pages.length === 0) return [];
         const basePages = pages.filter(p => !p.isHidden);
-        
+
         const transparentSheets = bookAppearanceSettings?.transparentSheets || [];
         if (!transparentSheets.length) return basePages;
-        
+
         let finalPages = [];
         let logicalIndexCounter = 0;
         basePages.forEach((page, index) => {
@@ -3379,11 +3426,11 @@ const PreviewArea = React.memo(({
                     const sImgScale = sheetPage1.scale !== undefined ? sheetPage1.scale / 100 : 1;
                     const sImgRotate = sheetPage1.rotate || 90;
                     const sImgOpacity = sheetPage1.opacity !== undefined ? sheetPage1.opacity / 100 : 1;
-                    const sheet1HtmlFront = sheetPage1.image 
-                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                    const sheet1HtmlFront = sheetPage1.image
+                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>`
                         : '';
-                    const sheet1HtmlBack = sheetPage1.image 
-                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                    const sheet1HtmlBack = sheetPage1.image
+                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>`
                         : '';
                     finalPages.push({
                         id: `ts-${sheetPage1.id}-front`,
@@ -3406,7 +3453,7 @@ const PreviewArea = React.memo(({
 
             finalPages.push({ ...page, isTransparentSheet: false, logicalPageIndex: logicalIndexCounter });
             logicalIndexCounter++;
-            
+
             // "Page 2-3" means after Page 2 (index 1), before Page 3 (index 2)
             // Based on standard flipbooks, sheet between 2-3 is added after index 1.
             const sheetForThisGap = transparentSheets.find(s => s.page === `Page ${index + 1}-${index + 2}`);
@@ -3414,11 +3461,11 @@ const PreviewArea = React.memo(({
                 const sImgScale = sheetForThisGap.scale !== undefined ? sheetForThisGap.scale / 100 : 1;
                 const sImgRotate = sheetForThisGap.rotate || 90;
                 const sImgOpacity = sheetForThisGap.opacity !== undefined ? sheetForThisGap.opacity / 100 : 1;
-                const sheetHtmlFront = sheetForThisGap.image 
-                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                const sheetHtmlFront = sheetForThisGap.image
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>`
                     : '';
-                const sheetHtmlBack = sheetForThisGap.image 
-                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>` 
+                const sheetHtmlBack = sheetForThisGap.image
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>`
                     : '';
                 // Insert Front of transparent sheet
                 finalPages.push({
@@ -4196,10 +4243,10 @@ const PreviewArea = React.memo(({
     }, [currentPage, pages.length]);
 
     const watermarkSettingsRef = useRef(watermarkSettings);
-    
+
     useEffect(() => {
         watermarkSettingsRef.current = watermarkSettings;
-        
+
         // Dynamically update the watermark in all iframes to prevent flickering
         const iframes = document.querySelectorAll('iframe');
         iframes.forEach(iframe => {
@@ -4207,16 +4254,16 @@ const PreviewArea = React.memo(({
                 if (!iframe.contentDocument) return;
                 const container = iframe.contentDocument.getElementById('flipbook-watermark-container');
                 const img = iframe.contentDocument.getElementById('flipbook-watermark-img');
-                
+
                 if (container && img) {
                     const ws = watermarkSettings;
                     const opacity = (ws?.opacity ?? 100) / 100;
-                    
+
                     let positionStyle = "";
                     const offset = '4%';
                     const posX = ws?.positionX ?? 0;
                     const posY = ws?.positionY ?? 0;
-        
+
                     switch (ws?.position) {
                         case 'Top Left': positionStyle = `top: ${offset}; left: ${offset}; bottom: auto; right: auto;`; break;
                         case 'Top Right': positionStyle = `top: ${offset}; right: ${offset}; bottom: auto; left: auto;`; break;
@@ -4225,19 +4272,19 @@ const PreviewArea = React.memo(({
                         case 'Bottom Right':
                         default: positionStyle = `bottom: ${offset}; right: ${offset}; top: auto; left: auto;`; break;
                     }
-                    
+
                     if (ws?.position === 'Center') {
                         container.style.transform = `translate(calc(-50% + ${posX}%), calc(-50% + ${posY}%))`;
                     } else {
                         container.style.transform = `translate(${posX}%, ${posY}%)`;
                     }
-                    
+
                     container.style.cssText += positionStyle;
                     container.style.opacity = opacity;
-                    
+
                     const scale = (ws?.scale ?? 100) / 100;
                     const rotate = ws?.rotate ?? 0;
-                    
+
                     const f = ws?.adjustments || {};
                     const exposure = f.exposure || 0;
                     const contrast = f.contrast || 0;
@@ -4257,7 +4304,7 @@ const PreviewArea = React.memo(({
                     img.style.transform = `scale(${scale}) rotate(${rotate}deg)`;
                     img.style.filter = filterStr;
                 }
-            } catch (e) {}
+            } catch (e) { }
         });
     }, [watermarkSettings]);
 
@@ -4741,26 +4788,31 @@ const PreviewArea = React.memo(({
                     fsBtn.onclick = (e) => {
                         e.stopPropagation();
                         if (!document.fullscreenElement) {
-                            const fsWrapper = document.createElement('div');
-                            fsWrapper.id = 'temp-fs-wrapper';
-                            Object.assign(fsWrapper.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center' });
-                            const vPlaceholder = document.createComment('video-placeholder');
-                            const bPlaceholder = document.createComment('bar-placeholder');
-                            video.parentElement.insertBefore(vPlaceholder, video);
-                            bar.parentElement.insertBefore(bPlaceholder, bar);
-                            const wasPlaying = !video.paused;
-                            fsWrapper.appendChild(video);
-                            fsWrapper.appendChild(bar);
-                            document.body.appendChild(fsWrapper);
-                            fsWrapper._vPlaceholder = vPlaceholder;
-                            fsWrapper._bPlaceholder = bPlaceholder;
-                            const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
-                            if (reqFs) {
-                                reqFs.call(fsWrapper).then(() => { if (wasPlaying) video.play().catch(() => { }); }).catch(err => {
-                                    if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
-                                    if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
-                                    vPlaceholder.remove(); bPlaceholder.remove(); fsWrapper.remove();
-                                });
+                            const docFs = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+                            if (docFs) {
+                                const fsWrapper = document.createElement('div');
+                                fsWrapper.id = 'temp-fs-wrapper';
+                                Object.assign(fsWrapper.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center' });
+                                const vPlaceholder = document.createComment('video-placeholder');
+                                const bPlaceholder = document.createComment('bar-placeholder');
+                                video.parentElement.insertBefore(vPlaceholder, video);
+                                bar.parentElement.insertBefore(bPlaceholder, bar);
+                                const wasPlaying = !video.paused;
+                                fsWrapper.appendChild(video);
+                                fsWrapper.appendChild(bar);
+                                document.body.appendChild(fsWrapper);
+                                fsWrapper._vPlaceholder = vPlaceholder;
+                                fsWrapper._bPlaceholder = bPlaceholder;
+                                const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
+                                if (reqFs) {
+                                    reqFs.call(fsWrapper).then(() => { if (wasPlaying) video.play().catch(() => { }); }).catch(err => {
+                                        if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
+                                        if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
+                                        vPlaceholder.remove(); bPlaceholder.remove(); fsWrapper.remove();
+                                    });
+                                }
+                            } else if (video.webkitEnterFullscreen) {
+                                video.webkitEnterFullscreen();
                             }
                         } else {
                             if (document.exitFullscreen) document.exitFullscreen();
@@ -6254,42 +6306,43 @@ const PreviewArea = React.memo(({
                                             ease: [0.16, 1, 0.3, 1] // smooth easeOut
                                         }}
                                         className="relative pointer-events-auto flex items-center justify-center"
-                                    style={{
-                                        width: (() => {
-                                            if (!activePopupInteraction?.html) return '800px';
-                                            const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
-                                            if (match) {
-                                                const w = parseFloat(match[3]);
-                                                return w ? `${w}px` : '800px';
-                                            }
-                                            return '800px';
-                                        })(),
-                                        maxWidth: '90%',
-                                        maxHeight: '90%',
-                                        aspectRatio: (() => {
-                                            if (!activePopupInteraction?.html) return '4/3';
-                                            const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
-                                            if (match) {
-                                                const w = parseFloat(match[3]);
-                                                const h = parseFloat(match[4]);
-                                                if (w && h) return `${w}/${h}`;
-                                            }
-                                            return '4/3';
-                                        })(),
-                                    }}
-                                    onClick={e => e.stopPropagation()}
-                                >
-                                    <button
-                                        onClick={() => setActivePopupInteraction(null)}
-                                        className="absolute top-[0.5vw] right-[4vw] md:top-1.5 md:right-[5.5vw] z-[100001] bg-white rounded-full p-[0.6vw] md:p-2 shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
-
+                                        style={{
+                                            width: (() => {
+                                                if (!activePopupInteraction?.html) return '800px';
+                                                const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+                                                if (match) {
+                                                    const w = parseFloat(match[3]);
+                                                    return w ? `${w}px` : '800px';
+                                                }
+                                                return '800px';
+                                            })(),
+                                            maxWidth: '90%',
+                                            maxHeight: '90%',
+                                            aspectRatio: (() => {
+                                                if (!activePopupInteraction?.html) return '4/3';
+                                                const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+                                                if (match) {
+                                                    const w = parseFloat(match[3]);
+                                                    const h = parseFloat(match[4]);
+                                                    if (w && h) return `${w}/${h}`;
+                                                }
+                                                return '4/3';
+                                            })(),
+                                        }}
+                                        onClick={e => e.stopPropagation()}
                                     >
-                                        <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
-                                    </button>
-                                    <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
+                                        <button
+                                            onClick={() => setActivePopupInteraction(null)}
+                                            className="absolute top-[0.5vw] right-[4vw] md:top-1.5 md:right-[5.5vw] z-[100001] bg-white rounded-full p-[0.6vw] md:p-2 shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
+
+                                        >
+                                            <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
+                                        </button>
+                                        <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
+                                    </motion.div>
                                 </motion.div>
-                            </motion.div>
-                        ); })()}
+                            );
+                        })()}
                         {activeSlideshowInteraction && (
                             <motion.div
                                 initial={{ opacity: 0 }}

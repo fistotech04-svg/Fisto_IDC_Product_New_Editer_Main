@@ -196,10 +196,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
     useEffect(() => {
         if (!pages || pages.length === 0) return;
-        
+
         const getNextSolidPage = (startIndex, direction) => {
             let idx = startIndex;
-            while(idx >= 0 && idx < pages.length) {
+            while (idx >= 0 && idx < pages.length) {
                 if (!pages[idx].isTransparentSheet && !pages[idx].isPad) {
                     return { page: pages[idx], index: idx };
                 }
@@ -210,10 +210,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
         let leftInfo = null;
         let rightInfo = null;
-        
+
         let leftIdx = singlePage ? null : (currentPage % 2 !== 0 ? currentPage : currentPage - 1);
         let rightIdx = singlePage ? currentPage : (currentPage % 2 === 0 ? currentPage : currentPage + 1);
-        
+
         if (leftIdx !== null && leftIdx >= 0 && pages[leftIdx]?.isTransparentSheet) {
             leftInfo = getNextSolidPage(leftIdx - 1, -1);
             if (leftInfo) {
@@ -228,7 +228,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 rightInfo.blurPx = (blurPercent / 100) * 20;
             }
         }
-        
+
         setCloneUnderlay({ left: leftInfo, right: rightInfo });
     }, [currentPage, pages, singlePage]);
 
@@ -262,18 +262,18 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
             const wrapper = document.querySelector('.fbe-wrapper');
             if (!wrapper) return;
-            
+
             // Focus the active pages based on the logical page index
             const p1 = logicalPage + 1;
             const p2 = logicalPage + 2;
             const iframes = wrapper.querySelectorAll(`iframe[title="Page ${p1}"], iframe[title="Page ${p2}"]`);
-            
+
             for (let i = 0; i < iframes.length; i++) {
                 const iframe = iframes[i];
                 iframe.focus();
                 if (iframe.contentWindow) iframe.contentWindow.focus();
             }
-        } catch (err) {}
+        } catch (err) { }
     }, []);
 
     // The broken IFRAME_MOUSEMOVE listener was removed because it was blasting turn.js with invalid coordinates.
@@ -321,21 +321,21 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
         let startX = 0;
         let startY = 0;
-        
+
         const isLastPage = (i === augmentedPages.length - 1 || (i === augmentedPages.length - 2 && augmentedPages[i + 1]?.isPad));
         const directionClass = i % 2 === 0 ? 'right' : 'left';
 
         let sheetStyles = {};
         if (page.isTransparentSheet) {
-             sheetStyles = {
-                 backgroundColor: 'rgba(236, 236, 236, 0.4)',
-                 transform: 'translateZ(0)'
-             };
+            sheetStyles = {
+                backgroundColor: 'rgba(236, 236, 236, 0.4)',
+                transform: 'translateZ(0)'
+            };
         } else {
-             sheetStyles = {
-                 backgroundColor: page.isPad ? 'transparent' : '#fff',
-                 opacity: pageOpacity
-             };
+            sheetStyles = {
+                backgroundColor: page.isPad ? 'transparent' : '#fff',
+                opacity: pageOpacity
+            };
         }
 
         return (
@@ -374,13 +374,13 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             <iframe
                                 title={`Page ${i + 1}`}
                                 srcDoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
-                                onLoad={(e) => { 
-                                    e.target.style.opacity = 1; 
+                                onLoad={(e) => {
+                                    e.target.style.opacity = 1;
                                     try {
                                         if (e.target.contentDocument) {
                                             initGifRunner(e.target.contentDocument);
                                         }
-                                    } catch(err) { console.error("Error init gif runner", err); }
+                                    } catch (err) { console.error("Error init gif runner", err); }
                                 }}
                                 frameBorder="0"
                                 style={{ position: 'absolute', inset: 0, border: 'none', outline: 'none', width: '100%', height: '100%', pointerEvents: 'auto', borderRadius: 'inherit', opacity: 0.01, transition: 'opacity 0.3s ease', display: page.isTransparentSheet ? 'none' : 'block' }}
@@ -585,7 +585,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                         if (iframe.contentDocument) {
                             initGifRunner(iframe.contentDocument);
                         }
-                    } catch(err) { console.error("Error init gif runner", err); }
+                    } catch (err) { console.error("Error init gif runner", err); }
                 };
                 inner.appendChild(iframe);
 
@@ -662,11 +662,11 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     setCurrentPage(logical);
                     // Use the ref so we always call the latest onFlip from PreviewArea
                     if (onFlipRef.current) onFlipRef.current({ data: logical });
-                    
+
                     // Remove dragging class to restore iframe pointer events after programmatic flip
                     if (bookEl.current) bookEl.current.classList.remove('fbe-is-dragging');
                     document.querySelectorAll('.fbe-is-dragging').forEach(el => el.classList.remove('fbe-is-dragging'));
-                    
+
                     refocusActiveIframe(logical);
                 },
             },
@@ -696,7 +696,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     const flipNextFn = useCallback(() => {
         // Force blur the navigation button so the iframe can receive interactions natively
         if (document.activeElement) document.activeElement.blur();
-        
+
         // Block auto-turning past the last page if the pages count is odd
         if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2) {
             return;
@@ -858,7 +858,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     const offset = window._fbeDragOffset || { x: 0, y: 0 };
                     const cx = (e.data.screenX || 0) - offset.x;
                     const cy = (e.data.screenY || 0) - offset.y;
-                    
+
                     $(document).trigger(createJqEvent('mousemove', { originalClientX: cx, originalClientY: cy }));
                     $(document).trigger(createJqEvent('touchmove', { originalClientX: cx, originalClientY: cy }));
                 }
@@ -868,7 +868,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     const offset = window._fbeDragOffset || { x: 0, y: 0 };
                     const cx = (e.data.screenX || 0) - offset.x;
                     const cy = (e.data.screenY || 0) - offset.y;
-                    
+
                     $(document).trigger(createJqEvent('mouseup', { originalClientX: cx, originalClientY: cy }));
                     $(document).trigger(createJqEvent('touchend', { originalClientX: cx, originalClientY: cy }));
                 }
@@ -899,7 +899,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     pointer-events: none !important;
                 }
             `}</style>
-            
+
             {/* Loading indicator */}
             {!ready && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f7f7', color: '#999', fontSize: '13px', zIndex: 10 }}>
@@ -909,7 +909,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
             {/* ── CLONE UNDERLAY for Transparent Sheets ── */}
             <div className="fbe-clone-underlay" style={{
-                position: 'absolute', zIndex: showingTurnJs ? 2 : 90, 
+                position: 'absolute', zIndex: showingTurnJs ? 2 : 90,
                 display: 'flex', pointerEvents: 'none',
                 width: singlePage ? width : width * 2, height,
                 visibility: (showingTurnJs || showingReactFlip) ? 'visible' : 'hidden',
@@ -917,24 +917,24 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 transform: (showingReactFlip && hardCoverZoom) ? `scale(${hardCoverZoom.scale})` : 'none',
                 transformOrigin: '0 0'
             }}>
-                <div style={{flex: 1, position: 'relative', overflow: 'hidden'}}>
+                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                     {cloneUnderlay.left && (
-                        <iframe 
+                        <iframe
                             title={`Clone Left`}
                             frameBorder="0"
                             srcDoc={(externalBuildPageDoc || buildPageDoc)(cloneUnderlay.left.page.html || cloneUnderlay.left.page.content || '', cloneUnderlay.left.index + 1)}
-                            style={{position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', background: '#fff', filter: `blur(${cloneUnderlay.left.blurPx}px)`}} 
+                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', background: '#fff', filter: `blur(${cloneUnderlay.left.blurPx}px)` }}
                         />
                     )}
                 </div>
                 {!singlePage && (
-                    <div style={{flex: 1, position: 'relative', overflow: 'hidden'}}>
+                    <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                         {cloneUnderlay.right && (
-                            <iframe 
+                            <iframe
                                 title={`Clone Right`}
                                 frameBorder="0"
                                 srcDoc={(externalBuildPageDoc || buildPageDoc)(cloneUnderlay.right.page.html || cloneUnderlay.right.page.content || '', cloneUnderlay.right.index + 1)}
-                                style={{position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', background: '#fff', filter: `blur(${cloneUnderlay.right.blurPx}px)`}} 
+                                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', background: '#fff', filter: `blur(${cloneUnderlay.right.blurPx}px)` }}
                             />
                         )}
                     </div>
@@ -1032,12 +1032,12 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                 const logical = e.data;
                                 setCurrentPage(logical);
                                 if (onFlipRef.current) onFlipRef.current({ data: logical });
-                                
+
                                 // Remove dragging class to restore iframe pointer events
                                 const wrapper = document.querySelector('.fbe-react-wrapper');
                                 if (wrapper) wrapper.classList.remove('fbe-is-dragging');
                                 document.querySelectorAll('.fbe-is-dragging').forEach(el => el.classList.remove('fbe-is-dragging'));
-                                
+
                                 refocusActiveIframe(logical);
                             }}
                         >
