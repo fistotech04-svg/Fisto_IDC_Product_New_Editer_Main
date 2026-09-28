@@ -1423,11 +1423,14 @@ const TextEditor = ({
 
       const parser = new DOMParser();
       // Replace any variation of <br> (with or without attributes/slashes) and any closing </br> with a clean <br/>
-      // and replace invalid XML entity &nbsp; with &#160;
+      // replace invalid XML entity &nbsp; with &#160;
+      // remove control characters that cause Invalid Bytes XML errors
       const cleanHtml = page.html
         .replace(/<\s*br[^>]*>(?:<\/\s*br\s*>)?/gi, '<br/>')
         .replace(/<\/\s*br\s*>/gi, '')
-        .replace(/&nbsp;/gi, '&#160;');
+        .replace(/&nbsp;/gi, '&#160;')
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+
       let doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
 
       // Auto-recover if the React state was permanently corrupted by a previous crash
@@ -1437,6 +1440,24 @@ const TextEditor = ({
         if (svgEl) {
           // Extract the valid SVG portion and re-parse it to cure the state
           doc = parser.parseFromString(svgEl.outerHTML, 'image/svg+xml');
+        }
+      }
+
+      if (doc.querySelector('parsererror')) {
+        // Fallback to fault-tolerant HTML parser to strip invalid tags (e.g. from browser extensions)
+        const htmlDoc = parser.parseFromString(cleanHtml, 'text/html');
+        const svgEl = htmlDoc.querySelector('svg');
+        if (svgEl && !svgEl.querySelector('parsererror')) {
+          let recoveredXml = new XMLSerializer().serializeToString(svgEl);
+          // Restore camelCase attributes that the HTML parser lowered
+          recoveredXml = recoveredXml.replace(/\bviewbox\s*=/gi, 'viewBox=')
+                                     .replace(/\bpreserveaspectratio\s*=/gi, 'preserveAspectRatio=')
+                                     .replace(/\bclippathunits\s*=/gi, 'clipPathUnits=')
+                                     .replace(/\bgradientunits\s*=/gi, 'gradientUnits=')
+                                     .replace(/\bpatternunits\s*=/gi, 'patternUnits=')
+                                     .replace(/\btextlength\s*=/gi, 'textLength=')
+                                     .replace(/\blengthadjust\s*=/gi, 'lengthAdjust=');
+          doc = parser.parseFromString(recoveredXml, 'image/svg+xml');
         }
       }
 
@@ -2091,11 +2112,28 @@ const TextEditor = ({
                 const page = { ...next[pageIdx2] };
                 if (!page.html) return prev;
                 const parser = new DOMParser();
-                const cleanHtml = page.html
+                let cleanHtml = page.html
                   .replace(/<\s*br[^>]*>(?:<\/\s*br\s*>)?/gi, '<br/>')
                   .replace(/<\/\s*br\s*>/gi, '')
-                  .replace(/&nbsp;/gi, '&#160;');
-                const doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
+                  .replace(/&nbsp;/gi, '&#160;')
+                  .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+                let doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
+
+                if (doc.querySelector('parsererror')) {
+                  const htmlDoc = parser.parseFromString(cleanHtml, 'text/html');
+                  const svgEl = htmlDoc.querySelector('svg');
+                  if (svgEl && !svgEl.querySelector('parsererror')) {
+                    let recoveredXml = new XMLSerializer().serializeToString(svgEl);
+                    recoveredXml = recoveredXml.replace(/\bviewbox\s*=/gi, 'viewBox=')
+                                               .replace(/\bpreserveaspectratio\s*=/gi, 'preserveAspectRatio=')
+                                               .replace(/\bclippathunits\s*=/gi, 'clipPathUnits=')
+                                               .replace(/\bgradientunits\s*=/gi, 'gradientUnits=')
+                                               .replace(/\bpatternunits\s*=/gi, 'patternUnits=')
+                                               .replace(/\btextlength\s*=/gi, 'textLength=')
+                                               .replace(/\blengthadjust\s*=/gi, 'lengthAdjust=');
+                    doc = parser.parseFromString(recoveredXml, 'image/svg+xml');
+                  }
+                }
 
                 if (doc.querySelector('parsererror')) {
                   console.error('XML parsing failed in line height update, aborting.');

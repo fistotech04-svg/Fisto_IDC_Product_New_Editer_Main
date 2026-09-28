@@ -961,8 +961,17 @@ const GifEditor = ({
                 const extraBlur = effectSettings['Blur'].blur;
                 blurStep = `<feGaussianBlur in="shadow" stdDeviation="${extraBlur}" result="shadow"/>`;
               }
+              let dsSource = 'SourceAlpha';
+              let spreadMorph = '';
+              const spreadVal = effSet.spread || 0;
+              if (spreadVal !== 0) {
+                const op = spreadVal >= 0 ? 'dilate' : 'erode';
+                spreadMorph = `<feMorphology operator="${op}" radius="${Math.abs(spreadVal)}" in="SourceAlpha" result="ds_morph"/>`;
+                dsSource = 'ds_morph';
+              }
               svgFilt.innerHTML = `
-                <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
+                ${spreadMorph}
+                <feGaussianBlur in="${dsSource}" stdDeviation="${totalBlur}" result="blur"/>
                 <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
                 <feFlood flood-color="${effSet.color}" flood-opacity="${effSet.opacity / 100}"/>
                 <feComposite in2="offsetBlur" operator="in" result="shadow"/>
@@ -1542,12 +1551,27 @@ const GifEditor = ({
 
             while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
 
+            let isSource = 'SourceAlpha';
+            const spreadVal = ds.spread || 0;
+            if (spreadVal !== 0) {
+              const feMorph = document.createElementNS('http://www.w3.org/2000/svg', 'feMorphology');
+              feMorph.setAttribute('operator', spreadVal >= 0 ? 'erode' : 'dilate');
+              feMorph.setAttribute('radius', Math.abs(spreadVal));
+              feMorph.setAttribute('in', 'SourceAlpha');
+              feMorph.setAttribute('result', 'is_morph');
+              filterEl.appendChild(feMorph);
+              isSource = 'is_morph';
+            }
+
             const feOffset = document.createElementNS('http://www.w3.org/2000/svg', 'feOffset');
             feOffset.setAttribute('dx', ds.x || 0);
             feOffset.setAttribute('dy', ds.y || 0);
+            feOffset.setAttribute('in', isSource);
+            feOffset.setAttribute('result', 'offset');
 
             const feBlur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
             feBlur.setAttribute('stdDeviation', (ds.blur || 0) / 2);
+            feBlur.setAttribute('in', 'offset');
             feBlur.setAttribute('result', 'offset-blur');
 
             const feComp1 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
@@ -1739,6 +1763,7 @@ const GifEditor = ({
         liveElement.setAttribute('data-effect-drop-shadow-x', effectSettings['Drop Shadow'].x.toString());
         liveElement.setAttribute('data-effect-drop-shadow-y', effectSettings['Drop Shadow'].y.toString());
         liveElement.setAttribute('data-effect-drop-shadow-blur', effectSettings['Drop Shadow'].blur.toString());
+        liveElement.setAttribute('data-effect-drop-shadow-spread', (effectSettings['Drop Shadow'].spread || 0).toString());
       }
 
       liveElement.setAttribute('data-effect-inner-shadow', activeEffects.includes('Inner Shadow') ? 'true' : 'false');
@@ -1748,6 +1773,7 @@ const GifEditor = ({
         liveElement.setAttribute('data-effect-inner-shadow-x', effectSettings['Inner Shadow'].x.toString());
         liveElement.setAttribute('data-effect-inner-shadow-y', effectSettings['Inner Shadow'].y.toString());
         liveElement.setAttribute('data-effect-inner-shadow-blur', effectSettings['Inner Shadow'].blur.toString());
+        liveElement.setAttribute('data-effect-inner-shadow-spread', (effectSettings['Inner Shadow'].spread || 0).toString());
       }
 
       // --- STRICT LAYER REORDERING FOR GIF GROUPS ---

@@ -3402,11 +3402,26 @@ const TemplateEditor = () => {
 
     const filterId = `${baseFilterId}-${Math.random().toString(36).substr(2, 4)}`;
 
-    const hasDropShadow = element.getAttribute('data-effect-drop-shadow') === 'true';
-    const hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
-    const hasBlur = element.getAttribute('data-effect-blur') === 'true';
-    const hasBackgroundBlur = element.getAttribute('data-effect-background-blur') === 'true';
-    const hasClipContent = hasBlur && element.getAttribute('data-effect-blur-clip') === 'true';
+    let hasDropShadow = element.getAttribute('data-effect-drop-shadow') === 'true';
+    let hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
+    let hasBlur = element.getAttribute('data-effect-blur') === 'true';
+    let hasBackgroundBlur = element.getAttribute('data-effect-background-blur') === 'true';
+    let hasClipContent = hasBlur && element.getAttribute('data-effect-blur-clip') === 'true';
+
+    // Prevent duplicate filters: Image, Gif, and Video components render their own SVG filters/casters.
+    const isSelfHandled = element.getAttribute('data-is-gif-group') === 'true' ||
+                          element.getAttribute('data-is-image-group') === 'true' ||
+                          element.getAttribute('data-type') === 'video' ||
+                          element.getAttribute('data-type') === 'image' ||
+                          element.tagName.toLowerCase() === 'image' ||
+                          !!element.querySelector('.svg-drop-shadow-caster');
+
+    if (isSelfHandled) {
+      hasDropShadow = false;
+      hasInnerShadow = false;
+      hasBlur = false;
+      hasClipContent = false;
+    }
 
     if (!hasDropShadow && !hasInnerShadow && !hasBlur && !hasBackgroundBlur) {
       element.removeAttribute('filter');
