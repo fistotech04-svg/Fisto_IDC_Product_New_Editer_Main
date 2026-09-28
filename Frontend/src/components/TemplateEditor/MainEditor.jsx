@@ -1203,8 +1203,17 @@ const MainEditor = ({
   useEffect(() => {
     const renderOverlays = () => {
       const slideshows = document.querySelectorAll('[data-is-slideshow="true"]');
+      if (slideshows.length === 0) {
+        const existingOverlays = document.querySelectorAll('.global-ss-overlay');
+        if (existingOverlays.length > 0) {
+          existingOverlays.forEach(o => {
+            if (o._cleanupHover) o._cleanupHover();
+            o.remove();
+          });
+        }
+        return;
+      }
       slideshows.forEach(el => {
-        // Skip if selected (SlideshowProperties handles it)
         if (el._slideshowManual) {
           const existing = el._globalSsOverlay;
           if (existing) {
@@ -1464,7 +1473,7 @@ const MainEditor = ({
       });
     };
 
-    const interval = setInterval(renderOverlays, 200);
+    const interval = setInterval(renderOverlays, 1000);
 
     const handleForceAdvance = (e) => {
       const { el, nextIndex } = e.detail;
@@ -1836,6 +1845,16 @@ const MainEditor = ({
       });
 
       const videos = document.querySelectorAll('.page-svg-container video');
+      if (videos.length === 0) {
+        const orphanCtrls = document.querySelectorAll('[id^="custom-ctrl-"]');
+        if (orphanCtrls.length > 0) {
+          orphanCtrls.forEach(bar => {
+            if (bar._cleanup) bar._cleanup();
+            bar.remove();
+          });
+        }
+        return;
+      }
       videos.forEach(video => {
         const fo = video.closest('foreignObject');
         const liveEl = fo ? (fo.closest('[id]') || fo) : (video.closest('[id]') || video);
@@ -1983,22 +2002,6 @@ const MainEditor = ({
               mountPoint._prevPointerEvents = mountPoint.style.pointerEvents || '';
             }
             mountPoint.style.pointerEvents = 'none';
-          }
-
-          if (!window._videoHoverTrackerAdded) {
-            window._videoHoverTrackerAdded = true;
-            window.addEventListener('pointermove', (e) => {
-              document.querySelectorAll('.custom-video-overlay').forEach(b => {
-                const rect = b.getBoundingClientRect();
-                const isInside = e.clientX >= rect.left && e.clientX <= rect.right &&
-                  e.clientY >= rect.top && e.clientY <= rect.bottom;
-                if (isInside) {
-                  b.classList.add('video-is-hovered');
-                } else {
-                  b.classList.remove('video-is-hovered');
-                }
-              });
-            });
           }
 
           bar = document.createElement('div');
@@ -2528,7 +2531,7 @@ const MainEditor = ({
       });
     };
 
-    intervalId = setInterval(renderVideoControls, 500);
+    intervalId = setInterval(renderVideoControls, 1200);
     return () => clearInterval(intervalId);
   }, [setSelectedLayerId]);
 
@@ -2600,17 +2603,6 @@ const MainEditor = ({
       }
       if (styleTag.textContent !== cssRules) {
         styleTag.textContent = cssRules;
-        setTimeout(() => {
-          els.forEach(el => {
-            const innerDiv = el.querySelector('.flipbook-text-scrollbar');
-            if (innerDiv) {
-              const currentOverflow = innerDiv.style.overflowY;
-              innerDiv.style.overflowY = 'hidden';
-              void innerDiv.offsetHeight;
-              innerDiv.style.overflowY = currentOverflow || 'auto';
-            }
-          });
-        }, 10);
       }
       if (editorDoc) {
         let iframeStyleTag = editorDoc.getElementById('global-scrollbar-styles');
@@ -2625,20 +2617,21 @@ const MainEditor = ({
       }
     };
 
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutations) => {
+      // Only run if any mutation added/removed relevant nodes or attributes
+      const hasRelevantMutation = mutations.some(m => 
+        (m.type === 'attributes') ||
+        (m.type === 'childList' && Array.from(m.addedNodes).some(n => n.nodeType === 1 && (n.hasAttribute?.('data-scrollbar-color') || n.hasAttribute?.('data-bg-fill') || n.querySelector?.('[data-scrollbar-color], [data-bg-fill]'))))
+      );
+      if (!hasRelevantMutation) return;
+
       cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(updateScrollbarStyles);
     });
 
     updateScrollbarStyles();
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width', 'id'] });
-
-    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument;
-    if (editorDoc && editorDoc.body) {
-      try {
-        observer.observe(editorDoc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width', 'id'] });
-      } catch (e) {}
-    }
+    const canvasWrapper = document.querySelector('.main-editor-canvas-wrapper') || document.body;
+    observer.observe(canvasWrapper, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width'] });
 
     return () => {
       observer.disconnect();
@@ -2897,8 +2890,13 @@ const MainEditor = ({
       });
     };
 
-    const interval = setInterval(syncOverlays, 100);
-    return () => clearInterval(interval);
+    syncOverlays();
+    window.addEventListener('update-element-props', syncOverlays);
+    window.addEventListener('rebind-selection-overlay', syncOverlays);
+    return () => {
+      window.removeEventListener('update-element-props', syncOverlays);
+      window.removeEventListener('rebind-selection-overlay', syncOverlays);
+    };
   }, [activePageIndex]);
 
   // Handle external asset insertion events
@@ -5925,30 +5923,6 @@ const MainEditor = ({
     return () => window.removeEventListener('rebind-selection-overlay', handleRebindSelection);
   }, [selectedLayerId]);
 
-  // ── Automatically restore/redraw selection overlay on page/selection changes ──
-  useEffect(() => {
-    if (!selectedLayerId && (!multiSelectedIds || multiSelectedIds.size === 0)) return;
-
-    const timer = setTimeout(() => {
-      if (selectedLayerId) {
-        const el = document.getElementById(selectedLayerId);
-        if (el && typeof drawOverlayHighlight === 'function') {
-          drawOverlayHighlight(el, 'selected');
-        }
-      }
-      if (multiSelectedIds && multiSelectedIds.size > 1) {
-        multiSelectedIds.forEach(id => {
-          const el = document.getElementById(id);
-          if (el && typeof drawOverlayHighlight === 'function') {
-            drawOverlayHighlight(el, 'multi-child-selected');
-          }
-        });
-      }
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, [pages, selectedLayerId, multiSelectedIds]);
-
   // ── Listen for interaction badge icon update events ───────────────────────
   useEffect(() => {
     const handleBadgeUpdate = (e) => {
@@ -8327,7 +8301,14 @@ const MainEditor = ({
                 const nextMatrix = translation.multiply(item.initialMatrix);
                 item.element.setAttribute('transform', matrixToTransform(nextMatrix));
               }
-              drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+              if (!dragState.rafPending) {
+                dragState.rafPending = true;
+                requestAnimationFrame(() => {
+                  if (!dragState) return;
+                  dragState.rafPending = false;
+                  drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+                });
+              }
             } else {
               // Single element drag freely across canvas
               const target = dragState.element;
@@ -8340,8 +8321,16 @@ const MainEditor = ({
               const translation = new DOMMatrix().translate(dx, dy);
               const nextMatrix = translation.multiply(dragState.initialMatrix);
               target.setAttribute('transform', matrixToTransform(nextMatrix));
-              // dynamically update the outline while dragging
-              drawOverlayHighlight(target, currentFrameIdRef.current && target.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+              
+              // dynamically update the outline while dragging via requestAnimationFrame throttle
+              if (!dragState.rafPending) {
+                dragState.rafPending = true;
+                requestAnimationFrame(() => {
+                  if (!dragState) return;
+                  dragState.rafPending = false;
+                  drawOverlayHighlight(target, currentFrameIdRef.current && target.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+                });
+              }
             }
 
             if (isAltPressedCurrent && drawMeasurementOverlayRef.current) {
@@ -8354,7 +8343,14 @@ const MainEditor = ({
               if (!targetForMeasurement) {
                 targetForMeasurement = (dragState.element.parentElement && dragState.element.parentElement.closest('[data-type="frame"]')) || dragState.svgElement.querySelector('[data-type="background"]');
               }
-              drawMeasurementOverlayRef.current(targetForMeasurement, event.clientX, event.clientY, true);
+              if (!dragState.measRafPending) {
+                dragState.measRafPending = true;
+                requestAnimationFrame(() => {
+                  if (!dragState) return;
+                  dragState.measRafPending = false;
+                  drawMeasurementOverlayRef.current(targetForMeasurement, event.clientX, event.clientY, true);
+                });
+              }
             } else if (document.querySelector('.measurement-overlay-group')) {
               document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
             }
@@ -8364,6 +8360,20 @@ const MainEditor = ({
           end(event) {
             const dragState = event.interaction.dragState;
             if (!dragState) return;
+
+            if (dragState.rafPending) {
+              dragState.rafPending = false;
+            }
+            if (dragState.measRafPending) {
+              dragState.measRafPending = false;
+            }
+
+            // Immediately redraw final crisp overlay position
+            if (dragState.multiDragItems) {
+              drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+            } else if (dragState.element) {
+              drawOverlayHighlight(dragState.element, currentFrameIdRef.current && dragState.element.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+            }
 
             if (!dragState.thresholdMet) {
               delete event.interaction.dragState;
@@ -8384,13 +8394,7 @@ const MainEditor = ({
                 suppressClickRef.current = false;
               }, 50);
 
-              const svgEl = dragState.svgElement;
-              const pageIndex = dragState.pageIndex;
               delete event.interaction.dragState;
-
-              if (updatePageHtmlRef.current && svgEl) {
-                updatePageHtmlRef.current(pageIndex, svgEl.outerHTML);
-              }
             };
 
             const constrainElement = (el, onComplete) => {
@@ -12178,6 +12182,119 @@ const MainEditor = ({
     // Use a tiny timeout so the browser has fully rendered the contenteditable before we place the caret
     setTimeout(() => placeCaretAtClick(clientX, clientY), 0);
 
+    // ── Precise DOM Character-to-Node Mapping System for Spell & Grammar Checker ──
+    const buildDomCharMap = (container) => {
+      const charMap = [];
+      let fullText = '';
+
+      const walk = (node) => {
+        if (!node) return;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const val = node.nodeValue || '';
+          if (val.length > 0) {
+            charMap.push({
+              type: 'text',
+              node: node,
+              start: fullText.length,
+              end: fullText.length + val.length,
+              len: val.length
+            });
+            fullText += val;
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const tag = node.tagName.toLowerCase();
+          if (tag === 'br') {
+            charMap.push({
+              type: 'break',
+              node: node,
+              start: fullText.length,
+              end: fullText.length + 1,
+              len: 1
+            });
+            fullText += '\n';
+          } else {
+            const isBlock = ['div', 'p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'tr'].includes(tag);
+            if (isBlock && fullText.length > 0 && !fullText.endsWith('\n')) {
+              charMap.push({
+                type: 'virtual-break',
+                node: node,
+                start: fullText.length,
+                end: fullText.length + 1,
+                len: 1
+              });
+              fullText += '\n';
+            }
+            for (let child = node.firstChild; child; child = child.nextSibling) {
+              walk(child);
+            }
+          }
+        }
+      };
+
+      walk(container);
+      return { fullText, charMap };
+    };
+
+    const findDomPointFromMap = (charMap, targetOffset) => {
+      for (const entry of charMap) {
+        if (entry.type === 'text') {
+          if (targetOffset >= entry.start && targetOffset <= entry.end) {
+            const offsetInNode = Math.min(Math.max(0, targetOffset - entry.start), entry.len);
+            return { node: entry.node, offset: offsetInNode };
+          }
+        }
+      }
+      for (let i = charMap.length - 1; i >= 0; i--) {
+        if (charMap[i].type === 'text') {
+          return { node: charMap[i].node, offset: charMap[i].len };
+        }
+      }
+      return null;
+    };
+
+    const getCaretOffsetInContainer = (container, charMap) => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !container.contains(sel.anchorNode)) return -1;
+      try {
+        const anchorNode = sel.anchorNode;
+        const anchorOffset = sel.anchorOffset;
+
+        for (const entry of charMap) {
+          if (entry.node === anchorNode) {
+            return entry.start + Math.min(anchorOffset, entry.len);
+          }
+        }
+        if (anchorNode.nodeType === Node.ELEMENT_NODE) {
+          const child = anchorNode.childNodes[anchorOffset];
+          if (child) {
+            for (const entry of charMap) {
+              if (entry.node === child) {
+                return entry.start;
+              }
+            }
+          }
+        }
+      } catch (e) {}
+      return -1;
+    };
+
+    const restoreCaretPositionFromMap = (charMap, targetOffset) => {
+      if (targetOffset < 0) return;
+      try {
+        const pt = findDomPointFromMap(charMap, targetOffset);
+        if (pt) {
+          const range = document.createRange();
+          range.setStart(pt.node, pt.offset);
+          range.collapse(true);
+          const s = window.getSelection();
+          if (s) {
+            s.removeAllRanges();
+            s.addRange(range);
+          }
+        }
+      } catch (err) {}
+    };
+
     const runSpellGrammarCheck = () => {
       if (!isEditingTextRef.current) return;
       if (foTarget.getAttribute('data-grammar-check') === 'false') {
@@ -12187,37 +12304,10 @@ const MainEditor = ({
         lastIssuesSignature = '';
         return;
       }
-      const text = div.innerText || div.textContent || '';
-      if (!text || text.trim().length === 0) {
-        div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
-          m.replaceWith(document.createTextNode(m.textContent || ''));
-        });
-        div.normalize();
-        lastIssuesSignature = '';
-        return;
-      }
 
-      const issues = checkSpellingAndGrammar(text);
-      const signature = text + '###' + issues.map(i => `${i.type}:${i.startIndex}:${i.endIndex}:${i.word}`).join('|');
-
-      // If text and issues haven't changed, avoid redundant DOM manipulations
-      if (signature === lastIssuesSignature) {
-        return;
-      }
-      lastIssuesSignature = signature;
-
-      // Save cursor position
-      let selOffset = -1;
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0 && div.contains(sel.anchorNode)) {
-        try {
-          const range = sel.getRangeAt(0);
-          const preRange = range.cloneRange();
-          preRange.selectNodeContents(div);
-          preRange.setEnd(range.startContainer, range.startOffset);
-          selOffset = preRange.toString().length;
-        } catch (e) {}
-      }
+      // Capture initial caret offset before touching DOM
+      const preMap = buildDomCharMap(div);
+      const selOffset = getCaretOffsetInContainer(div, preMap.charMap);
 
       // 1. Unwrap existing mark tags in-place and normalize all text nodes
       const existingMarks = Array.from(div.querySelectorAll('mark.grammar-issue-word'));
@@ -12230,20 +12320,35 @@ const MainEditor = ({
       });
       div.normalize();
 
-      if (issues.length === 0) {
+      // Extract accurate, layout-independent text from clean text nodes
+      const { fullText: text, charMap } = buildDomCharMap(div);
+
+      if (!text || text.trim().length === 0) {
+        lastIssuesSignature = '';
         if (selOffset >= 0) {
-          restoreCaretPosition(div, selOffset);
+          restoreCaretPositionFromMap(charMap, selOffset);
         }
         return;
       }
 
-      // 2. Wrap matching words in reverse order so character offsets in earlier text remain identical
+      const issues = checkSpellingAndGrammar(text);
+      const signature = text + '###' + issues.map(i => `${i.type}:${i.startIndex}:${i.endIndex}:${i.word}`).join('|');
+
+      if (issues.length === 0) {
+        lastIssuesSignature = signature;
+        if (selOffset >= 0) {
+          restoreCaretPositionFromMap(charMap, selOffset);
+        }
+        return;
+      }
+
+      // 2. Wrap matching words in reverse order so text character offsets remain perfectly aligned
       const sortedIssues = [...issues].sort((a, b) => b.startIndex - a.startIndex);
       for (const iss of sortedIssues) {
-        const startPoint = findDomPoint(div, iss.startIndex);
-        const endPoint = findDomPoint(div, iss.endIndex);
+        const startPoint = findDomPointFromMap(charMap, iss.startIndex);
+        const endPoint = findDomPointFromMap(charMap, iss.endIndex);
 
-        if (startPoint && endPoint && startPoint.node === endPoint.node) {
+        if (startPoint && endPoint) {
           try {
             const range = document.createRange();
             range.setStart(startPoint.node, startPoint.offset);
@@ -12254,48 +12359,26 @@ const MainEditor = ({
             mark.setAttribute('data-word', iss.word);
             mark.setAttribute('data-suggestions', encodeURIComponent(JSON.stringify(iss.suggestions || [])));
             mark.setAttribute('data-message', encodeURIComponent(iss.message || ''));
-            range.surroundContents(mark);
+
+            if (startPoint.node === endPoint.node) {
+              range.surroundContents(mark);
+            } else {
+              const fragment = range.extractContents();
+              mark.appendChild(fragment);
+              range.insertNode(mark);
+            }
           } catch (e) {}
         }
       }
 
-      // Restore caret position
+      lastIssuesSignature = signature;
+
+      // Restore caret position using the freshly rendered DOM
       if (selOffset >= 0) {
-        restoreCaretPosition(div, selOffset);
+        const postMap = buildDomCharMap(div);
+        restoreCaretPositionFromMap(postMap.charMap, selOffset);
       }
     };
-
-    function findDomPoint(container, charOffset) {
-      try {
-        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        let curr = 0;
-        while ((node = walker.nextNode())) {
-          const len = node.nodeValue.length;
-          if (curr + len >= charOffset) {
-            return { node, offset: Math.min(Math.max(0, charOffset - curr), len) };
-          }
-          curr += len;
-        }
-      } catch (err) {}
-      return null;
-    }
-
-    function restoreCaretPosition(container, targetOffset) {
-      try {
-        const pt = findDomPoint(container, targetOffset);
-        if (pt) {
-          const newRange = document.createRange();
-          newRange.setStart(pt.node, pt.offset);
-          newRange.collapse(true);
-          const s = window.getSelection();
-          if (s) {
-            s.removeAllRanges();
-            s.addRange(newRange);
-          }
-        }
-      } catch (err) {}
-    }
 
     const showSuggestionPopup = (markEl, clientX, clientY) => {
       closeSuggestionPopup();
@@ -12376,7 +12459,18 @@ const MainEditor = ({
           if (chosen === '(Delete word)') {
             markEl.remove();
           } else {
-            markEl.replaceWith(document.createTextNode(chosen));
+            const repNode = document.createTextNode(chosen);
+            markEl.replaceWith(repNode);
+            try {
+              const range = document.createRange();
+              range.setStart(repNode, repNode.nodeValue.length);
+              range.collapse(true);
+              const sel = window.getSelection();
+              if (sel) {
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+            } catch (e) {}
           }
           div.normalize();
           lastIssuesSignature = '';

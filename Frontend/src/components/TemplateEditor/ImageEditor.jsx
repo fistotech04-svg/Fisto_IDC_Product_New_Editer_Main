@@ -707,19 +707,16 @@ const ImageEditor = ({
       if (isUpdatingDOM.current) return;
       const relevantMutation = mutations.some(m => m.type === 'attributes' && (
         m.attributeName === 'src' || m.attributeName === 'href' ||
-        m.attributeName === 'opacity' || m.attributeName === 'style' ||
+        m.attributeName === 'opacity' ||
         m.attributeName === 'data-slideshow' ||
-        m.attributeName === 'data-fill-color' || m.attributeName === 'data-stroke-color' || m.attributeName === 'data-stroke-width' || m.attributeName === 'data-stroke-dasharray' || m.attributeName === 'stroke-dasharray' ||
-        m.attributeName === 'width' || m.attributeName === 'height' ||
-        m.attributeName === 'x' || m.attributeName === 'y'
+        m.attributeName === 'data-fill-color' || m.attributeName === 'data-stroke-color' || m.attributeName === 'data-stroke-width' || m.attributeName === 'data-stroke-dasharray' || m.attributeName === 'stroke-dasharray'
       ));
       if (relevantMutation) {
         syncStateFromDOM();
-        if (applyVisualsRef.current) applyVisualsRef.current();
       }
     });
     observerRef.current = observer;
-    observer.observe(selectedElement, { attributes: true, subtree: true, attributeFilter: ['style', 'src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width', 'data-stroke-dasharray', 'stroke-dasharray', 'data-object-fit', 'width', 'height', 'x', 'y'] });
+    observer.observe(selectedElement, { attributes: true, subtree: true, attributeFilter: ['src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width', 'data-stroke-dasharray', 'stroke-dasharray', 'data-object-fit'] });
     syncStateFromDOM(true); // Force sync on mount/element change
     return () => {
       observer.disconnect();

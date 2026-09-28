@@ -29,66 +29,75 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
   const [isEditing, setIsEditing] = useState(false);
   const [liveVal, setLiveVal] = useState(null);
 
-  useEffect(() => {
+  const calculateDimension = React.useCallback(() => {
     if (!targetId || readOnly) {
       setLiveVal(null);
       return;
     }
-
-    let frameId;
-    const poll = () => {
-      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-      const el = editorDoc.getElementById(targetId);
-      if (el && typeof el.getBBox === 'function') {
-        try {
-          let bbox;
-          if (el.getAttribute('data-is-hotspot') === 'true') {
-            bbox = { x: 0, y: 0, width: 52, height: 52 };
-          } else {
-            bbox = getVisualBBox(el);
-          }
-          let rawVal = 0;
-          let m = [1, 0, 0, 1, 0, 0];
-          const transform = el.getAttribute('transform');
-          if (transform) {
-            try {
-              const domM = new DOMMatrix(transform);
-              m = [domM.a, domM.b, domM.c, domM.d, domM.e, domM.f];
-            } catch (_) {
-              if (transform.includes('matrix')) {
-                const match = transform.match(/matrix\(([^)]+)\)/);
-                if (match) {
-                  const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-                  if (parsedM.length === 6) m = parsedM;
-                }
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    const el = editorDoc.getElementById(targetId);
+    if (el && typeof el.getBBox === 'function') {
+      try {
+        let bbox;
+        if (el.getAttribute('data-is-hotspot') === 'true') {
+          bbox = { x: 0, y: 0, width: 52, height: 52 };
+        } else {
+          bbox = getVisualBBox(el);
+        }
+        let rawVal = 0;
+        let m = [1, 0, 0, 1, 0, 0];
+        const transform = el.getAttribute('transform');
+        if (transform) {
+          try {
+            const domM = new DOMMatrix(transform);
+            m = [domM.a, domM.b, domM.c, domM.d, domM.e, domM.f];
+          } catch (_) {
+            if (transform.includes('matrix')) {
+              const match = transform.match(/matrix\(([^)]+)\)/);
+              if (match) {
+                const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+                if (parsedM.length === 6) m = parsedM;
               }
             }
           }
+        }
 
-          if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
-          else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
-          else if (targetAttr === 'x') rawVal = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
-          else if (targetAttr === 'y') rawVal = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
+        if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
+        else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
+        else if (targetAttr === 'x') rawVal = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
+        else if (targetAttr === 'y') rawVal = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
 
-          if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
-            const r = parseFloat(el.getAttribute('r')) || 0;
-            if (targetAttr === 'width' || targetAttr === 'height') rawVal = r * 2;
-            else if (targetAttr === 'x') rawVal = (parseFloat(el.getAttribute('cx')) || 0) - r;
-            else if (targetAttr === 'y') rawVal = (parseFloat(el.getAttribute('cy')) || 0) - r;
-          }
+        if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
+          const r = parseFloat(el.getAttribute('r')) || 0;
+          if (targetAttr === 'width' || targetAttr === 'height') rawVal = r * 2;
+          else if (targetAttr === 'x') rawVal = (parseFloat(el.getAttribute('cx')) || 0) - r;
+          else if (targetAttr === 'y') rawVal = (parseFloat(el.getAttribute('cy')) || 0) - r;
+        }
 
-          const finalLiveVal = Number(rawVal.toFixed(1)).toString();
-
-          setLiveVal((prev) => (prev !== finalLiveVal ? finalLiveVal : prev));
-        } catch (e) { }
-      } else {
-        setLiveVal(null);
-      }
-      frameId = requestAnimationFrame(poll);
-    };
-    poll();
-    return () => cancelAnimationFrame(frameId);
+        const finalLiveVal = Number(rawVal.toFixed(1)).toString();
+        setLiveVal((prev) => (prev !== finalLiveVal ? finalLiveVal : prev));
+      } catch (e) { }
+    } else {
+      setLiveVal(null);
+    }
   }, [targetId, targetAttr, readOnly]);
+
+  useEffect(() => {
+    calculateDimension();
+
+    // Event-driven dimension updates on drag/resize completion and property changes
+    // (Prevents continuous React re-renders of the sidebar while actively dragging on canvas)
+    const handleUpdate = () => calculateDimension();
+    window.addEventListener('rebind-selection-overlay', handleUpdate);
+    window.addEventListener('update-element-props', handleUpdate);
+    window.addEventListener('resize', handleUpdate);
+
+    return () => {
+      window.removeEventListener('rebind-selection-overlay', handleUpdate);
+      window.removeEventListener('update-element-props', handleUpdate);
+      window.removeEventListener('resize', handleUpdate);
+    };
+  }, [calculateDimension, value]);
 
   const displayValue = isEditing ? localVal : (liveVal !== null ? liveVal : value);
 
@@ -641,49 +650,64 @@ const RightSidebar = ({
 
   const selectedElementProps = (() => {
     if (!selectedLayerId) return null;
-    const page = pages[activePageIndex];
-    if (page && page.html) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      let el = doc.getElementById(selectedLayerId);
-      if (el && (el.getAttribute('data-is-mask-image') === 'true' || el.id?.startsWith('masked-img-'))) {
-        const targetShapeId = el.getAttribute('data-target-shape') || el.id.replace('masked-img-', '');
-        const shapeEl = doc.getElementById(targetShapeId);
-        if (shapeEl) el = shapeEl;
+
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    let actualEl = editorDoc.getElementById(selectedLayerId);
+
+    // If element is not yet in live DOM, fall back to parsing SVG XML
+    let doc = editorDoc;
+    let el = actualEl;
+
+    if (!el) {
+      const page = pages[activePageIndex];
+      if (page && page.html) {
+        try {
+          const parser = new DOMParser();
+          doc = parser.parseFromString(page.html, 'image/svg+xml');
+          el = doc.getElementById(selectedLayerId);
+        } catch (e) {}
       }
+    }
 
-      const rootId = doc.querySelector('svg > g')?.id;
-      const overlayId = doc.querySelector('[data-name="Overlay"]')?.id;
-      const isPageSelected = !selectedLayerId || selectedLayerId === rootId || selectedLayerId === overlayId;
+    if (!el) return null;
 
-      if (el && !isPageSelected) {
-        let w = '0', h = '0', x = '0', y = '0', r = '0';
+    if (el && (el.getAttribute('data-is-mask-image') === 'true' || el.id?.startsWith('masked-img-'))) {
+      const targetShapeId = el.getAttribute('data-target-shape') || el.id.replace('masked-img-', '');
+      const shapeEl = doc.getElementById(targetShapeId);
+      if (shapeEl) el = shapeEl;
+    }
 
-        // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
-        const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-        const actualEl = editorDoc.getElementById(el.id || selectedLayerId);
-        let measuredFromDom = false;
-        if (actualEl && typeof actualEl.getBBox === 'function') {
-          try {
-            const bbox = getVisualBBox(actualEl);
-            let m = [1, 0, 0, 1, 0, 0];
-            const transform = actualEl.getAttribute('transform');
-            if (transform && transform.includes('matrix')) {
-              const match = transform.match(/matrix\(([^)]+)\)/);
-              if (match) {
-                const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-                if (parsedM.length === 6) m = parsedM;
-              }
+    const rootId = doc.querySelector('svg > g')?.id;
+    const overlayId = doc.querySelector('[data-name="Overlay"]')?.id;
+    const isPageSelected = !selectedLayerId || selectedLayerId === rootId || selectedLayerId === overlayId;
+
+    if (el && !isPageSelected) {
+      let w = '0', h = '0', x = '0', y = '0', r = '0';
+
+      // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
+      let measuredFromDom = false;
+      const liveTarget = actualEl || el;
+      if (liveTarget && typeof liveTarget.getBBox === 'function') {
+        try {
+          const bbox = getVisualBBox(liveTarget);
+          let m = [1, 0, 0, 1, 0, 0];
+          const transform = liveTarget.getAttribute('transform');
+          if (transform && transform.includes('matrix')) {
+            const match = transform.match(/matrix\(([^)]+)\)/);
+            if (match) {
+              const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+              if (parsedM.length === 6) m = parsedM;
             }
-            w = (bbox.width * Math.abs(m[0])).toString();
-            h = (bbox.height * Math.abs(m[3])).toString();
-            x = (bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4]).toString();
-            y = (bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5]).toString();
-            measuredFromDom = true;
-          } catch (e) {
-            console.warn("Failed to get BBox for element", e);
           }
+          w = (bbox.width * Math.abs(m[0])).toString();
+          h = (bbox.height * Math.abs(m[3])).toString();
+          x = (bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4]).toString();
+          y = (bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5]).toString();
+          measuredFromDom = true;
+        } catch (e) {
+          console.warn("Failed to get BBox for element", e);
         }
+      }
 
         // --- FALLBACK / OVERRIDE: Tags that have preferred source of truth ---
         if (!measuredFromDom || (parseFloat(w) === 0 && parseFloat(h) === 0)) {
@@ -836,7 +860,6 @@ const RightSidebar = ({
 
         return props;
       }
-    }
     return null;
   })();
 

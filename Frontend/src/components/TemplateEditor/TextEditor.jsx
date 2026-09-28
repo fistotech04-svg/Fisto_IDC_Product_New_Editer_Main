@@ -771,10 +771,17 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
   const [showDetailedPicker, setShowDetailedPicker] = useState(false);
   const [colorsOnPage, setColorsOnPage] = useState([]);
 
+  // Ref to prevent write-back loop when syncing state from selectedElementProps
+  const isSyncingFromPropsRef = useRef(false);
+  const prevSelectedIdRef = useRef(selectedLayerId);
+
   // Debounce ref to prevent excessive calls to updateElementAttributeLocal
   const updateTimeoutRef = useRef(null);
 
   useEffect(() => {
+    isSyncingFromPropsRef.current = true;
+    prevSelectedIdRef.current = selectedLayerId;
+
     setBackgroundColor({
       fill: selectedElementProps?.fill || '#000000',
       fillOpacity: parseFloat(selectedElementProps?.opacity || 1) * 100,
@@ -824,114 +831,122 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     });
   }, [selectedLayerId, activePageIndex]);
 
-  // Handle updates back to TextEditor
-  useEffect(() => {
-    if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
-    updateTimeoutRef.current = setTimeout(() => {
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill', backgroundColor.fill);
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'opacity', (backgroundColor.fillOpacity / 100).toString());
-      if (backgroundColor.fillType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-type', backgroundColor.fillType);
-      if (backgroundColor.fillGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-gradient-type', backgroundColor.fillGradientType);
-      if (backgroundColor.fillStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-stops', backgroundColor.fillStops);
-      if (backgroundColor.fillAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-angle', backgroundColor.fillAngle.toString());
-      if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
-      if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
+  // Explicit change handlers - only update DOM and page state when user actually interacts!
+  const handleBackgroundColorChange = (updater) => {
+    setBackgroundColor(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      
+      if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = setTimeout(() => {
+        if (!selectedLayerId) return;
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill', next.fill);
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'opacity', (next.fillOpacity / 100).toString());
+        if (next.fillType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-type', next.fillType);
+        if (next.fillGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-gradient-type', next.fillGradientType);
+        if (next.fillStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-stops', next.fillStops);
+        if (next.fillAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-angle', next.fillAngle.toString());
+        if (next.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', next.fillRadius.toString());
 
-      if (backgroundColor.scrollBarColor !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollbar-color', backgroundColor.scrollBarColor);
+        if (next.scrollBarColor !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollbar-color', next.scrollBarColor);
 
-      if (backgroundColor.bgFill !== undefined) {
-        if (backgroundColor.bgFill && backgroundColor.bgFill !== 'transparent' && backgroundColor.bgFill !== 'none' && backgroundColor.bgFill !== '#') {
-          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', backgroundColor.bgFill);
-          if (backgroundColor.bgFillOpacity !== undefined) {
-            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill-opacity', (backgroundColor.bgFillOpacity / 100).toString());
+        if (next.bgFill !== undefined) {
+          if (next.bgFill && next.bgFill !== 'transparent' && next.bgFill !== 'none' && next.bgFill !== '#') {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', next.bgFill);
+            if (next.bgFillOpacity !== undefined) {
+              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill-opacity', (next.bgFillOpacity / 100).toString());
+            }
+          } else {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', 'none');
           }
-        } else {
-          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-fill', 'none');
         }
-      }
 
-      if (backgroundColor.bgStroke !== undefined) {
-        if (backgroundColor.bgStroke && backgroundColor.bgStroke !== 'none' && backgroundColor.bgStroke !== 'transparent' && backgroundColor.bgStroke !== '#') {
-          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', backgroundColor.bgStroke);
-          if (backgroundColor.bgStrokeOpacity !== undefined) {
-            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-opacity', (backgroundColor.bgStrokeOpacity / 100).toString());
+        if (next.bgStroke !== undefined) {
+          if (next.bgStroke && next.bgStroke !== 'none' && next.bgStroke !== 'transparent' && next.bgStroke !== '#') {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', next.bgStroke);
+            if (next.bgStrokeOpacity !== undefined) {
+              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-opacity', (next.bgStrokeOpacity / 100).toString());
+            }
+            if (next.bgStrokeWidth !== undefined) {
+              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-width', next.bgStrokeWidth.toString());
+            }
+            if (next.bgStrokePosition !== undefined) {
+              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-position', next.bgStrokePosition);
+            }
+          } else {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', 'none');
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-width', '0');
           }
-          if (backgroundColor.bgStrokeWidth !== undefined) {
-            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-width', backgroundColor.bgStrokeWidth.toString());
-          }
-          if (backgroundColor.bgStrokePosition !== undefined) {
-            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-position', backgroundColor.bgStrokePosition);
-          }
-        } else {
-          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke', 'none');
-          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bg-stroke-width', '0');
         }
-      }
 
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.stroke);
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeWidth', backgroundColor.strokeWeight.toString());
-      if (backgroundColor.strokeType === 'gradient' || backgroundColor.strokeStops) {
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'gradient');
-        if (backgroundColor.strokeGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-gradient-type', backgroundColor.strokeGradientType);
-        if (backgroundColor.strokeStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-stops', backgroundColor.strokeStops);
-        if (backgroundColor.strokeAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-angle', backgroundColor.strokeAngle.toString());
-        if (backgroundColor.strokeRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-radius', backgroundColor.strokeRadius.toString());
-      } else if (backgroundColor.stroke !== 'none' && !backgroundColor.stroke.includes('url(#')) {
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'solid');
-      }
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', next.stroke);
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-opacity', (next.strokeOpacity / 100).toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeWidth', next.strokeWeight.toString());
+        if (next.strokeType === 'gradient' || next.strokeStops) {
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'gradient');
+          if (next.strokeGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-gradient-type', next.strokeGradientType);
+          if (next.strokeStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-stops', next.strokeStops);
+          if (next.strokeAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-angle', next.strokeAngle.toString());
+          if (next.strokeRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-radius', next.strokeRadius.toString());
+        } else if (next.stroke !== 'none' && !next.stroke.includes('url(#')) {
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'solid');
+        }
 
-      const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? (backgroundColor.strokeDasharrayValue || `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`) : 'none';
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeDasharray', dashVal);
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-stroke-position', backgroundColor.strokePosition || 'Center');
+        const dashVal = next.strokeDashStyle === 'Dashed' ? (next.strokeDasharrayValue || `${next.strokeDashLength || 10},${next.strokeDashGap || 10}`) : 'none';
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeDasharray', dashVal);
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-stroke-position', next.strokePosition || 'Center');
 
-      const linecap = backgroundColor.strokeLinecap || 'butt';
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeLinecap', linecap);
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeLinejoin', linecap === 'round' ? 'round' : 'miter');
+        const linecap = next.strokeLinecap || 'butt';
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeLinecap', linecap);
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeLinejoin', linecap === 'round' ? 'round' : 'miter');
+      }, 50);
 
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-tl', radius.tl.toString());
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-tr', radius.tr.toString());
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bl', radius.bl.toString());
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-br', radius.br.toString());
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-corner-linked', isRadiusLinked.toString());
+      return next;
+    });
+  };
 
-      const maxRadius = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'rx', maxRadius.toString());
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'ry', maxRadius.toString());
-
-      const hasDS = activeEffects.includes('Drop Shadow');
-      const hasIS = activeEffects.includes('Inner Shadow');
-      const hasBlur = activeEffects.includes('Blur');
-
+  const handleActiveEffectsChange = (updater) => {
+    setActiveEffects(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (!selectedLayerId) return next;
+      const hasDS = next.includes('Drop Shadow');
+      const hasIS = next.includes('Inner Shadow');
+      const hasBlur = next.includes('Blur');
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow', hasDS.toString());
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow', hasIS.toString());
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur', hasBlur.toString());
-
-      if (hasDS) {
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-color', effectSettings['Drop Shadow'].color);
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-opacity', effectSettings['Drop Shadow'].opacity.toString());
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-x', effectSettings['Drop Shadow'].x.toString());
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-y', effectSettings['Drop Shadow'].y.toString());
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-blur', effectSettings['Drop Shadow'].blur.toString());
-      }
-      if (hasIS) {
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-color', effectSettings['Inner Shadow'].color);
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-opacity', effectSettings['Inner Shadow'].opacity.toString());
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-x', effectSettings['Inner Shadow'].x.toString());
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-y', effectSettings['Inner Shadow'].y.toString());
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-blur', effectSettings['Inner Shadow'].blur.toString());
-      }
-      if (hasBlur) {
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur-value', effectSettings['Blur'].blur.toString());
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur-clip', effectSettings['Blur'].clipContent ? 'true' : 'false');
-      }
-
       const element = document.getElementById(selectedLayerId);
-      if (element) {
-        syncTextEffect(document, element);
+      if (element) syncTextEffect(document, element);
+      return next;
+    });
+  };
+
+  const handleEffectSettingsChange = (updater) => {
+    setEffectSettings(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (!selectedLayerId) return next;
+      if (activeEffects.includes('Drop Shadow') && next['Drop Shadow']) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-color', next['Drop Shadow'].color);
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-opacity', next['Drop Shadow'].opacity.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-x', next['Drop Shadow'].x.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-y', next['Drop Shadow'].y.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-blur', next['Drop Shadow'].blur.toString());
       }
-    }, 50);
-  }, [backgroundColor, radius, isRadiusLinked, activeEffects, effectSettings, activePageIndex, selectedLayerId]);
+      if (activeEffects.includes('Inner Shadow') && next['Inner Shadow']) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-color', next['Inner Shadow'].color);
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-opacity', next['Inner Shadow'].opacity.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-x', next['Inner Shadow'].x.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-y', next['Inner Shadow'].y.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-blur', next['Inner Shadow'].blur.toString());
+      }
+      if (activeEffects.includes('Blur') && next['Blur']) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur-value', next['Blur'].blur.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur-clip', next['Blur'].clipContent ? 'true' : 'false');
+      }
+      const element = document.getElementById(selectedLayerId);
+      if (element) syncTextEffect(document, element);
+      return next;
+    });
+  };
 
   return (
     <div className="flex flex-col gap-[0.4vw]">
@@ -939,7 +954,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         openSubSection={openSubSection}
         setOpenSubSection={setOpenSubSection}
         backgroundColor={backgroundColor}
-        setBackgroundColor={setBackgroundColor}
+        setBackgroundColor={handleBackgroundColorChange}
         activeColorPicker={activeColorPicker}
         setActiveColorPicker={setActiveColorPicker}
         showStrokeSettings={showStrokeSettings}
@@ -965,9 +980,9 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         openSubSection={openSubSection}
         setOpenSubSection={setOpenSubSection}
         activeEffects={activeEffects}
-        setActiveEffects={setActiveEffects}
+        setActiveEffects={handleActiveEffectsChange}
         effectSettings={effectSettings}
-        setEffectSettings={setEffectSettings}
+        setEffectSettings={handleEffectSettingsChange}
         activeColorPicker={activeColorPicker}
         setActiveColorPicker={setActiveColorPicker}
         showDetailedPicker={showDetailedPicker}
@@ -2649,30 +2664,35 @@ const TextEditor = ({
     // 2. Observer for DOM changes (like when MainEditor finishes editing and swaps fo for text)
     const el = document.getElementById(selectedLayerId);
     let observer = null;
+    let syncRafId = null;
     if (el) {
       observer = new MutationObserver((mutations) => {
         if (el.getAttribute('data-editing') === 'true') return;
-        // Optimization: only sync if relevant nodes changed
-        syncFromCanvas();
+        // Check if any mutation is relevant (ignore defs or filter changes)
+        const hasDirectMutation = mutations.some(m => m.target === el || el.contains(m.target));
+        if (!hasDirectMutation) return;
+
+        if (syncRafId) cancelAnimationFrame(syncRafId);
+        syncRafId = requestAnimationFrame(() => {
+          syncFromCanvas();
+        });
       });
 
-      // Observe the element itself and its parent (for sibling overlays)
+      // Observe only the element itself and its subtree (NOT parentNode)
       observer.observe(el, {
         attributes: true,
-        attributeFilter: ['data-sizing-mode'],
+        attributeFilter: ['data-sizing-mode', 'style', 'transform'],
         characterData: true,
         childList: true,
         subtree: true
       });
-      if (el.parentNode) {
-        observer.observe(el.parentNode, { childList: true, subtree: true });
-      }
     }
 
     return () => {
+      if (syncRafId) cancelAnimationFrame(syncRafId);
       observer?.disconnect();
     };
-  }, [selectedLayerId, selectedElement, getDeepContent, getDeepStyle]);
+  }, [selectedLayerId, getDeepContent, getDeepStyle]);
 
   const handleTextSelection = useCallback(() => {
     if (!textareaRef.current || !selectedElement) return;

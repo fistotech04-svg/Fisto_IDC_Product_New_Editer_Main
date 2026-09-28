@@ -1738,24 +1738,31 @@ const TemplateEditor = () => {
           return;
         }
         saveFlipbook(false, popupEditContext ? popupEditContext.backup.pages : pages); // false = auto save
-      }, 2500);
+      }, 6000);
     }
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
   }, [pages, isAutoSaveEnabled, hasUnsavedChanges, isLoading, isSaving, popupEditContext]);
 
-  // Sync state to IndexedDB for Customized Editor
+  // Sync state to IndexedDB for Customized Editor (Debounced to prevent periodic main-thread freezes)
+  const dbSyncTimerRef = useRef(null);
   useEffect(() => {
     if (pages.length > 0 && !isLoading) {
-      saveToDB('editor_autosave', {
-        v_id: v_id,
-        pages: popupEditContext ? popupEditContext.backup.pages : pages,
-        activePageIndex: popupEditContext ? popupEditContext.backup.activePageIndex : activePageIndex,
-        pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
-        timestamp: Date.now()
-      });
+      if (dbSyncTimerRef.current) clearTimeout(dbSyncTimerRef.current);
+      dbSyncTimerRef.current = setTimeout(() => {
+        saveToDB('editor_autosave', {
+          v_id: v_id,
+          pages: popupEditContext ? popupEditContext.backup.pages : pages,
+          activePageIndex: popupEditContext ? popupEditContext.backup.activePageIndex : activePageIndex,
+          pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+          timestamp: Date.now()
+        });
+      }, 3000);
     }
+    return () => {
+      if (dbSyncTimerRef.current) clearTimeout(dbSyncTimerRef.current);
+    };
   }, [pages, activePageIndex, isLoading, currentBook, location.state, v_id, popupEditContext]);
 
   useEffect(() => {
@@ -2140,7 +2147,8 @@ const TemplateEditor = () => {
 
   // ── FIGMA-STYLE: Unified Page Selection & Frame Sync ──────────────────────────
   useEffect(() => {
-    if (pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return;
+    const currentPages = pagesRef.current;
+    if (!currentPages || currentPages.length === 0 || activePageIndex < 0 || activePageIndex >= currentPages.length) return;
 
     // Track spread transitions to avoid unnecessary selection resets
     const lastSpreadStart = (lastPageIndexRef.current > 0) ? (lastPageIndexRef.current % 2 === 1 ? lastPageIndexRef.current : lastPageIndexRef.current - 1) : 0;
@@ -2150,48 +2158,42 @@ const TemplateEditor = () => {
     const hasSwitchedSpread = lastSpreadStart !== currentSpreadStart;
     lastPageIndexRef.current = activePageIndex;
 
-    // A: Double Page Spread Logic (Can be on odd OR even index if it's a middle spread)
+    // Only reset selection if we genuinely switched to a different page or spread
+    if (!hasSwitchedPage && !hasSwitchedSpread) return;
+
+    // A: Double Page Spread Logic
     const isSpread = isDoublePage && activePageIndex > 0 && (
-      (activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length) ||
+      (activePageIndex % 2 === 1 && activePageIndex + 1 < currentPages.length) ||
       (activePageIndex % 2 === 0 && activePageIndex - 1 > 0)
     );
-
 
     if (isSpread) {
       const leftIdx = activePageIndex % 2 === 1 ? activePageIndex : activePageIndex - 1;
       const rightIdx = activePageIndex % 2 === 1 ? activePageIndex + 1 : activePageIndex;
 
-      const page1 = pages[leftIdx];
-      const page2 = pages[rightIdx];
+      const page1 = currentPages[leftIdx];
+      const page2 = currentPages[rightIdx];
 
       if (page1?.layers?.[0] && page2?.layers?.[0]) {
         const root1 = page1.layers[0].id;
         const root2 = page2.layers[0].id;
-        // The active page root — determines which frame context is "entered"
         const activeRoot = activePageIndex === leftIdx ? root1 : root2;
 
-        // On any page switch: always clear old selection and reset to roots.
-        // Set currentFrameId to the active page root so the first single click
-        // can immediately select child elements without needing to enter the frame first.
-        if (hasSwitchedPage || hasSwitchedSpread || !selectedLayerId) {
-          setMultiSelectedIds(new Set([activeRoot]));
-          setSelectedLayerId(activeRoot);
-          setCurrentFrameId(activeRoot);
-        }
+        setMultiSelectedIds(new Set([activeRoot]));
+        setSelectedLayerId(activeRoot);
+        setCurrentFrameId(activeRoot);
       }
     } else {
-      // B: Single Page Logic (Cover, Last Page, or Standard Single View)
-      const page = pages[activePageIndex];
+      // B: Single Page Logic
+      const page = currentPages[activePageIndex];
       if (page?.layers?.[0]) {
         const rootId = page.layers[0].id;
-        if (hasSwitchedPage || !selectedLayerId) {
-          setMultiSelectedIds(new Set([rootId]));
-          setSelectedLayerId(rootId);
-          setCurrentFrameId(rootId);
-        }
+        setMultiSelectedIds(new Set([rootId]));
+        setSelectedLayerId(rootId);
+        setCurrentFrameId(rootId);
       }
     }
-  }, [activePageIndex, isDoublePage, pages, selectedLayerId]);
+  }, [activePageIndex, isDoublePage]);
 
   // ── Always fallback to selecting active page root folder if selection becomes null ──
   useEffect(() => {
@@ -2204,19 +2206,19 @@ const TemplateEditor = () => {
   }, [selectedLayerId, activePageIndex, pages]);
 
   // ── NEW: Spread Alignment Snapping ───────────────────────────────────────────
-  // UPDATED: Only snap if we are in double-page mode AND current logic requires it for initial navigation.
-  // We allow clicking the right-side page to set the active index to even (right page).
   useEffect(() => {
     if (!isDoublePage) return;
-    // If we were on single page view and switched to double, we might need a jump.
   }, [isDoublePage]);
-
 
   const isUndoRedoActiveRef = useRef(false);
   const prevSelectedLayerIdRef = useRef(selectedLayerId);
   const prevMultiSelectedIdsRef = useRef(multiSelectedIds);
 
-  // Push element selection and deselection actions into Undo/Redo history
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  // Sync selection state into top history snapshot in-place (0ms latency, zero re-render cascade)
   useEffect(() => {
     if (isUndoRedoActiveRef.current) {
       isUndoRedoActiveRef.current = false;
@@ -2225,15 +2227,18 @@ const TemplateEditor = () => {
       return;
     }
 
-    const prevMultiStr = Array.from(prevMultiSelectedIdsRef.current || []).sort().join(',');
-    const currMultiStr = Array.from(multiSelectedIds || []).sort().join(',');
+    prevSelectedLayerIdRef.current = selectedLayerId;
+    prevMultiSelectedIdsRef.current = multiSelectedIds;
 
-    if (prevSelectedLayerIdRef.current !== selectedLayerId || prevMultiStr !== currMultiStr) {
-      saveToHistory(pages, selectedLayerId, activePageIndex, multiSelectedIds);
-      prevSelectedLayerIdRef.current = selectedLayerId;
-      prevMultiSelectedIdsRef.current = multiSelectedIds;
+    if (historyRef.current && historyRef.current.length > 0) {
+      const last = historyRef.current[historyRef.current.length - 1];
+      if (last && !Array.isArray(last)) {
+        last.selectedLayerId = selectedLayerId;
+        last.activePageIndex = activePageIndex;
+        last.multiSelectedIds = Array.from(multiSelectedIds || []);
+      }
     }
-  }, [selectedLayerId, multiSelectedIds]);
+  }, [selectedLayerId, multiSelectedIds, activePageIndex]);
 
   const saveToHistory = (
     customPages = pages,
@@ -5521,26 +5526,42 @@ const TemplateEditor = () => {
     }
   }, [isPasswordProtected, v_id, currentBook?.share?.shareId]);
 
-  const isPdfProject = pages.some(p => p.html && (p.html.includes('data-name="PDF Background"') || p.html.includes('data-type="pdf-vector-layer"') || p.html.includes('Document Shield')));
+  const isPdfProject = React.useMemo(() => {
+    return pages.some(p => p.html && (p.html.includes('data-name="PDF Background"') || p.html.includes('data-type="pdf-vector-layer"') || p.html.includes('Document Shield')));
+  }, [pages]);
 
-  const selectedElementInteraction = (() => {
+  const selectedElementInteraction = React.useMemo(() => {
     if (!selectedLayerId || pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return null;
+    
+    // Fast path: Query live DOM first (0ms overhead)
+    const liveEl = document.getElementById(selectedLayerId);
+    if (liveEl) {
+      return {
+        id: selectedLayerId,
+        tagName: liveEl.tagName,
+        'data-interaction': liveEl.getAttribute('data-interaction'),
+        'data-tooltip-settings': liveEl.getAttribute('data-tooltip-settings')
+      };
+    }
+
     const page = pages[activePageIndex];
     if (page && page.html) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const el = doc.getElementById(selectedLayerId);
-      if (el) {
-        return {
-          id: selectedLayerId,
-          tagName: el.tagName,
-          'data-interaction': el.getAttribute('data-interaction'),
-          'data-tooltip-settings': el.getAttribute('data-tooltip-settings')
-        };
-      }
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(page.html, 'image/svg+xml');
+        const el = doc.getElementById(selectedLayerId);
+        if (el) {
+          return {
+            id: selectedLayerId,
+            tagName: el.tagName,
+            'data-interaction': el.getAttribute('data-interaction'),
+            'data-tooltip-settings': el.getAttribute('data-tooltip-settings')
+          };
+        }
+      } catch (e) {}
     }
     return null;
-  })();
+  }, [selectedLayerId, activePageIndex, pages]);
 
   return (
     <div onContextMenu={(e) => e.preventDefault()} className="flex h-[92vh] w-full bg-white overflow-hidden relative">
