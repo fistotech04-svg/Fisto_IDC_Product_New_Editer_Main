@@ -191,7 +191,7 @@ const CustomizedEditor = () => {
 
   const [backgroundSettings, setBackgroundSettings] = useState(() => {
     const bg = currentBook?.Customized_Settings?.Background || currentBook?.settings?.Background || location.state?.backgroundSettings || location.state?.background;
-    if (bg && typeof bg === 'object') return bg;
+    if (bg && typeof bg === 'object') return { ...bg, applyDynamicColor: bg.applyDynamicColor ?? true };
     return {
       color: '#DADBE8',
       style: 'Solid',
@@ -200,7 +200,8 @@ const CustomizedEditor = () => {
       fit: 'Cover',
       opacity: 100,
       animation: 'None',
-      reactBitType: null
+      reactBitType: null,
+      applyDynamicColor: true
     };
   });
 
@@ -245,20 +246,63 @@ const CustomizedEditor = () => {
     style: backgroundSettings.style,
     image: backgroundSettings.image,
     video: backgroundSettings.video,
-    reactBitType: backgroundSettings.reactBitType
+    reactBitType: backgroundSettings.reactBitType,
+    applyDynamicColor: backgroundSettings.applyDynamicColor
   });
 
   useEffect(() => {
-    const { style, image, video, media, reactBitType } = backgroundSettings;
+    const { style, image, video, media, reactBitType, applyDynamicColor } = backgroundSettings;
+    const isDynamicEnabled = applyDynamicColor !== false;
     const activeImage = image || media;
     const activeVideo = video || media || image;
     const prev = prevBackgroundRef.current;
 
-    // Only trigger if the background source actually changed
+    // Only trigger if the background source actually changed or the toggle changed
     const sourceChanged = (style !== prev.style) || (image !== prev.image) || (video !== prev.video) || (reactBitType !== prev.reactBitType);
+    const toggleChanged = (isDynamicEnabled !== prev.applyDynamicColor);
 
-    if (sourceChanged) {
-      prevBackgroundRef.current = { style, image, video, reactBitType };
+    if (sourceChanged || toggleChanged) {
+      prevBackgroundRef.current = { style, image, video, reactBitType, applyDynamicColor: isDynamicEnabled };
+
+      const isThemeActive = style === 'ReactBits' || style === 'Image' || style === 'Video' || style === 'Media';
+
+      if (!isDynamicEnabled || !isThemeActive) {
+        setLayoutColors(prevColors => {
+          const updated = { ...prevColors };
+          for (let i = 1; i <= 9; i++) {
+            updated[i] = [...(LAYOUT_DEFAULT_COLORS[i] || [])];
+          }
+          delete updated.toolbarColor;
+          delete updated.popupColor;
+          if (v_id) {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+              try {
+                const user = JSON.parse(storedUser);
+                const userEmail = user?.emailId || user?.email;
+                if (userEmail) {
+                  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                  axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+                    emailId: userEmail,
+                    v_id: v_id,
+                    folderName: folder || 'Recent Book',
+                    bookName: bookNameRef.current || bookName,
+                    Background: backgroundSettings,
+                    Layouts: {
+                      layoutStyle: layoutSettings,
+                      layoutColors: updated
+                    }
+                  }).catch(err => console.warn("Reset layout colors DB save warning:", err));
+                }
+              } catch (e) {
+                console.error("Error saving reset layout colors to DB", e);
+              }
+            }
+          }
+          return updated;
+        });
+        return;
+      }
 
       const applyExtractedColors = async () => {
         let extracted = null;
@@ -353,7 +397,7 @@ const CustomizedEditor = () => {
 
       applyExtractedColors();
     }
-  }, [backgroundSettings.style, backgroundSettings.image, backgroundSettings.video, backgroundSettings.reactBitType]);
+  }, [backgroundSettings.style, backgroundSettings.image, backgroundSettings.video, backgroundSettings.reactBitType, backgroundSettings.applyDynamicColor]);
 
   const defaultToc = {
     addSearch: true,
