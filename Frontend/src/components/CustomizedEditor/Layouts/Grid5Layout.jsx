@@ -772,7 +772,7 @@ const Grid5Layout = ({
                                     setPageInputValue(String(currentPage + 1));
                                 }
                             }}
-                            className={`${isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.78vw] mx-[0.4vw] px-[0.4vw] py-[0.15vw]'} font-bold rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
+                            className={`${isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.15vw] py-[0.1vw]' : 'text-[0.78vw] mx-[0.4vw] px-[0.2vw] py-[0.15vw]'} font-bold rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
                             style={{
                                 width: `${String(pages.length).length + 1.2}ch`,
                                 color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),

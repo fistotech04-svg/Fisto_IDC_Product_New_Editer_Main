@@ -885,6 +885,75 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             </div>
           </div>
 
+          {/* Lead Notification */}
+          <div className="space-y-[1vw]">
+            <div className="flex items-center gap-[0.5vw]">
+              <div className="flex items-center gap-[0.4vw] pb-[0.5vw]">
+                <Icon icon="fluent:mail-alert-32-filled" className="w-[1.2vw] h-[1.2vw] text-black" />
+                <h3 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap">Lead Notification</h3>
+              </div>
+              <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+            </div>
+            <p className="text-[0.6vw] text-gray-500 font-medium -mt-[1vw]">Notify selected recipients when a new lead is submitted.</p>
+
+            <div className="space-y-[1vw]">
+              <div className="flex flex-col gap-[0.4vw]">
+                <label className="text-[0.7vw] font-medium text-gray-900">Primary recipient</label>
+                <input
+                  type="text"
+                  value={settings.leadNotification?.primaryRecipient || ''}
+                  onChange={(e) => updateNested('leadNotification', 'primaryRecipient', e.target.value)}
+                  className="w-full border border-gray-200 rounded-[0.4vw] p-[0.6vw] text-[0.7vw] text-gray-600 focus:outline-none focus:border-indigo-500 bg-white shadow-sm"
+                  placeholder="admin@fisto.com"
+                />
+              </div>
+
+              <div className="flex flex-col gap-[0.4vw]">
+                <label className="text-[0.7vw] font-medium text-gray-900">Additional recipients (Max 2)</label>
+                <div className="space-y-[0.5vw]">
+                  {(settings.leadNotification?.additionalRecipients || []).map((recipient, idx) => (
+                    <div key={idx} className="flex items-center border border-gray-200 rounded-[0.4vw] bg-white shadow-sm focus-within:border-indigo-500 transition-colors h-[2vw]">
+                      <input
+                        type="text"
+                        value={recipient}
+                        onChange={(e) => {
+                          const newRecipients = [...(settings.leadNotification?.additionalRecipients || [])];
+                          newRecipients[idx] = e.target.value;
+                          updateNested('leadNotification', 'additionalRecipients', newRecipients);
+                        }}
+                        className="flex-1 px-[0.6vw] py-[0.4vw] text-[0.7vw] text-gray-600 outline-none bg-transparent"
+                        placeholder={idx === 0 ? "marketing@fisto.com" : "sales@fisto.com"}
+                      />
+                      <div className="h-[60%] w-[1px] bg-gray-200"></div>
+                      <button
+                        onClick={() => {
+                          const newRecipients = (settings.leadNotification?.additionalRecipients || []).filter((_, i) => i !== idx);
+                          updateNested('leadNotification', 'additionalRecipients', newRecipients);
+                        }}
+                        className="px-[0.6vw] text-red-500 hover:text-red-700"
+                      >
+                        <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+                      </button>
+                    </div>
+                  ))}
+                  
+                  {(!settings.leadNotification?.additionalRecipients || settings.leadNotification.additionalRecipients.length < 2) && (
+                    <button
+                      onClick={() => {
+                        const newRecipients = [...(settings.leadNotification?.additionalRecipients || []), ''];
+                        updateNested('leadNotification', 'additionalRecipients', newRecipients);
+                      }}
+                      className="w-full flex items-center justify-center gap-[0.4vw] py-[0.5vw] bg-[#F7F7F7] border border-gray-200 rounded-[0.4vw] text-gray-500 hover:bg-gray-200 transition-colors shadow-sm"
+                    >
+                      <Plus size="0.8vw" />
+                      <span className="text-[0.75vw] font-medium">Add another recipient</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Other Customization Options */}
           <div className="space-y-[0.5vw]">
             <div className="flex items-center gap-[0.3vw]">
@@ -960,18 +1029,18 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             className="absolute top-0 left-full w-[100vw] h-[100vh] z-[100]"
             onClick={() => setIsAddFieldPopupOpen(false)}
           />
-          <div className="absolute top-[40%] right-0 translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-[1vw] w-[17vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col transition-all">
+          <div className="absolute top-[40%] right-0 translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-[1vw] w-[19vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col transition-all">
             
             {/* Header Tabs */}
             <div className="flex bg-[#E5E5E5] w-full">
               <button 
                 onClick={() => setActivePopupTab('templates')}
-                className={`flex-1 py-[0.9vw] text-[1vw] transition-colors border-b ${activePopupTab === 'templates' ? 'text-black bg-white border-black border-b-[0.15vw] font-semibold' : 'text-gray-500 hover:text-gray-700 border-[#D1D1D1] font-medium'}`}>
+                className={`flex-1 py-[0.9vw] text-[0.85vw] transition-colors border-b ${activePopupTab === 'templates' ? 'text-black bg-white border-black border-b-[0.15vw] font-semibold' : 'text-gray-500 hover:text-gray-700 border-[#D1D1D1] font-medium'}`}>
                 Quick Templates
               </button>
               <button 
                 onClick={() => setActivePopupTab('custom')}
-                className={`flex-1 py-[0.9vw] text-[1vw] transition-colors border-b ${activePopupTab === 'custom' ? 'text-black bg-white border-black border-b-[0.15vw] font-semibold' : 'text-gray-500 hover:text-gray-700 border-[#D1D1D1] font-medium'}`}>
+                className={`flex-1 py-[0.9vw] text-[0.85vw] transition-colors border-b ${activePopupTab === 'custom' ? 'text-black bg-white border-black border-b-[0.15vw] font-semibold' : 'text-gray-500 hover:text-gray-700 border-[#D1D1D1] font-medium'}`}>
                 Custom Fields
               </button>
             </div>

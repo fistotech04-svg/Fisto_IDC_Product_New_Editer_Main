@@ -404,7 +404,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
       <div className="h-[8vh] flex items-center justify-between px-[1vw] border-b border-gray-100">
         <div className="flex items-center gap-[0.5vw]">
           <Icon icon="lucide:menu" className="w-[1vw] h-[1vw] text-gray-700 font-semibold" />
-          <span className="text-[1vw] font-semibold text-gray-900">Menu Bar</span>
+          <span className="text-[1vw] font-semibold text-gray-900">Layout Settings</span>
         </div>
         <button onClick={onBack} className="text-gray-600 hover:text-gray-900">
           <Icon icon="ic:round-arrow-back" className="w-[1.25vw] h-[1.25vw]" />

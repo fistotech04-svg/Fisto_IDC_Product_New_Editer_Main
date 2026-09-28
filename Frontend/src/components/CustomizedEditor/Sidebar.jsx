@@ -385,7 +385,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
         <SidebarItem
           id="section-menubar"
           icon="mingcute:menu-fill"
-          label="Menu Bar"
+          label="Layout Settings"
           isActive={activeSubView === 'menubar'}
           onClick={() => setActiveSubView('menubar')}
           hasDropdown={false}

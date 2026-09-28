@@ -2156,6 +2156,8 @@ const getIframeContent = (html, pageNumber, watermarkSettings = null, pagesCount
                         
                         document.addEventListener('wheel', (e) => {
                             try {
+                                const isScrollable = e.target.closest('[data-scrollable="true"], .flipbook-text-scrollbar, .flipbook-text-outer, .flipbook-text-viewport');
+                                if (isScrollable) return;
                                 window.parent.postMessage({
                                     type: 'IFRAME_WHEEL',
                                     deltaY: e.deltaY,
@@ -3131,6 +3133,26 @@ const PreviewArea = React.memo(({
 
     const isMobileLandscape = isMobile && isLandscape;
 
+    // Prevent flipbook page turn when scrolling inside scrollable text boxes
+    useEffect(() => {
+        const handleWheel = (e) => {
+            const isScrollable = e.target.closest('[data-scrollable="true"], .flipbook-text-scrollbar, .flipbook-text-outer, .flipbook-text-viewport');
+            if (isScrollable) {
+                e.stopImmediatePropagation();
+                e.stopPropagation();
+            }
+        };
+        const opts = { capture: true, passive: false };
+        window.addEventListener('wheel', handleWheel, opts);
+        window.addEventListener('mousewheel', handleWheel, opts);
+        window.addEventListener('DOMMouseScroll', handleWheel, opts);
+        return () => {
+            window.removeEventListener('wheel', handleWheel, opts);
+            window.removeEventListener('mousewheel', handleWheel, opts);
+            window.removeEventListener('DOMMouseScroll', handleWheel, opts);
+        };
+    }, []);
+
     // Listen for clicks outside the flipbook to trigger interaction blinks
     useEffect(() => {
         const handleGlobalClick = (e) => {
@@ -3499,13 +3521,15 @@ const PreviewArea = React.memo(({
                 const sheetPage1 = transparentSheets.find(s => s.page === 'Page 1');
                 if (sheetPage1) {
                     const sImgScale = sheetPage1.scale !== undefined ? sheetPage1.scale / 100 : 1;
-                    const sImgRotate = sheetPage1.rotate || 90;
+                    const sImgRotate = sheetPage1.rotate !== undefined ? sheetPage1.rotate : 0;
                     const sImgOpacity = sheetPage1.opacity !== undefined ? sheetPage1.opacity / 100 : 1;
+                    const sOffsetX = sheetPage1.offsetX || 0;
+                    const sOffsetY = sheetPage1.offsetY || 0;
                     const sheet1HtmlFront = sheetPage1.image
-                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>`
+                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:${sImgOpacity};transform:translate(${sOffsetX}%, ${sOffsetY}%) scale(${sImgScale}) rotate(${sImgRotate}deg);"><div style="width:80%;height:80%;background-image:url('${sheetPage1.image}');background-size:contain;background-position:center;background-repeat:no-repeat;"></div></div>`
                         : '';
                     const sheet1HtmlBack = sheetPage1.image
-                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetPage1.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>`
+                        ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:${sImgOpacity};transform:translate(${-sOffsetX}%, ${sOffsetY}%) scale(${sImgScale}) rotate(${sImgRotate}deg) scaleX(-1);"><div style="width:80%;height:80%;background-image:url('${sheetPage1.image}');background-size:contain;background-position:center;background-repeat:no-repeat;"></div></div>`
                         : '';
                     finalPages.push({
                         id: `ts-${sheetPage1.id}-front`,
@@ -3534,13 +3558,15 @@ const PreviewArea = React.memo(({
             const sheetForThisGap = transparentSheets.find(s => s.page === `Page ${index + 1}-${index + 2}`);
             if (sheetForThisGap) {
                 const sImgScale = sheetForThisGap.scale !== undefined ? sheetForThisGap.scale / 100 : 1;
-                const sImgRotate = sheetForThisGap.rotate || 90;
+                const sImgRotate = sheetForThisGap.rotate !== undefined ? sheetForThisGap.rotate : 0;
                 const sImgOpacity = sheetForThisGap.opacity !== undefined ? sheetForThisGap.opacity / 100 : 1;
+                const sOffsetX = sheetForThisGap.offsetX || 0;
+                const sOffsetY = sheetForThisGap.offsetY || 0;
                 const sheetHtmlFront = sheetForThisGap.image
-                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>`
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:${sImgOpacity};transform:translate(${sOffsetX}%, ${sOffsetY}%) scale(${sImgScale}) rotate(${sImgRotate}deg);"><div style="width:80%;height:80%;background-image:url('${sheetForThisGap.image}');background-size:contain;background-position:center;background-repeat:no-repeat;"></div></div>`
                     : '';
                 const sheetHtmlBack = sheetForThisGap.image
-                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;transform:scaleX(-1);"><img src="${sheetForThisGap.image}" style="max-width:80%;max-height:80%;object-fit:contain;pointer-events:none;opacity:${sImgOpacity};transform:scale(${sImgScale}) rotate(${sImgRotate}deg);"/></div>`
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:${sImgOpacity};transform:translate(${-sOffsetX}%, ${sOffsetY}%) scale(${sImgScale}) rotate(${sImgRotate}deg) scaleX(-1);"><div style="width:80%;height:80%;background-image:url('${sheetForThisGap.image}');background-size:contain;background-position:center;background-repeat:no-repeat;"></div></div>`
                     : '';
                 // Insert Front of transparent sheet
                 finalPages.push({
@@ -4209,6 +4235,7 @@ const PreviewArea = React.memo(({
             } : {};
 
             return {
+                backgroundColor: backgroundSettings?.color || '#DADBE8',
                 backgroundImage: `url(${backgroundSettings.image})`,
                 backgroundSize: (bgCrop && bgCrop.inset) ? '100% 100%' : (fitMap[backgroundSettings.fit] || 'cover'),
                 backgroundPosition: 'center',

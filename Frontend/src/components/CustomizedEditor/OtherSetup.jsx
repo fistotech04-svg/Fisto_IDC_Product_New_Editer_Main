@@ -863,9 +863,8 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
-                      setActiveSlideIndex(i);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                      fileInputRef.current?.click();
+                      setLibraryTargetIndex(i);
+                      setShowLibrary(true);
                     }}
                     className="flex flex-col items-center justify-center gap-[0.375vw] opacity-30 group-hover/card:opacity-70 transition-all duration-300 w-full h-full"
                   >
@@ -899,16 +898,9 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                       <div className="flex items-center gap-[0.4vw]">
                         <button
                           onClick={() => {
-                            if (slideshowImages[i]) {
-                              setLibraryTargetIndex(i);
-                              setShowLibrary(true);
-                              setOpenContextMenu(null);
-                            } else {
-                              setActiveSlideIndex(i);
-                              if (fileInputRef.current) fileInputRef.current.value = '';
-                              fileInputRef.current?.click();
-                              setOpenContextMenu(null);
-                            }
+                            setLibraryTargetIndex(i);
+                            setShowLibrary(true);
+                            setOpenContextMenu(null);
                           }}
                           className="flex-1 px-[0.3vw] py-[0.35vw] text-[0.7vw] font-medium text-gray-600 bg-[#f9fafb] border border-gray-200 rounded-[0.3vw] hover:bg-gray-100 transition-colors"
                         >
