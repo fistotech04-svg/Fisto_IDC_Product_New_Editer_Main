@@ -123,98 +123,98 @@ const parseLayersFromSVG = (element) => {
  * Integrates the various sub-components into a single editor interface.
  */
 const syncGradient = (doc, element, baseAttr) => {
-    const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
-    const currentValue = element.getAttribute(baseAttr);
-    const isUrl = currentValue && currentValue.startsWith('url(#');
-    const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear', 'radial', 'angular', or 'diamond'
-    const stopsJson = element.getAttribute(`${baseAttr}-stops`);
+  const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
+  const currentValue = element.getAttribute(baseAttr);
+  const isUrl = currentValue && currentValue.startsWith('url(#');
+  const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear', 'radial', 'angular', or 'diamond'
+  const stopsJson = element.getAttribute(`${baseAttr}-stops`);
 
-    if (type === 'solid' || type === 'none') {
-      return;
+  if (type === 'solid' || type === 'none') {
+    return;
+  }
+  if (!type && !isUrl) return;
+  if (!stopsJson) return;
+
+  let stops = [];
+  try { stops = JSON.parse(stopsJson); } catch (e) { return; }
+
+  const svgRoot = element.closest ? element.closest('svg') : null || doc.querySelector('svg');
+  if (!svgRoot) return; // Prevent crash if no SVG found in document
+
+  let defs = svgRoot.querySelector('defs');
+  if (!defs) {
+    defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+    svgRoot.insertBefore(defs, svgRoot.firstChild);
+  }
+
+  if (!element.id) {
+    element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+  const gradId = `grad-${element.id}-${baseAttr}`;
+  let gradEl = defs.querySelector(`[id="${gradId}"]`);
+
+  const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
+
+  if (gradEl && gradEl.tagName.toLowerCase() !== `${svgGradType}gradient`.toLowerCase()) {
+    gradEl.remove();
+    gradEl = null;
+  }
+
+  if (!gradEl) {
+    gradEl = doc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
+    gradEl.id = gradId;
+    defs.appendChild(gradEl);
+  }
+
+  if (svgGradType === 'linear') {
+    let angleStr = element.getAttribute(`${baseAttr}-angle`);
+    if (!angleStr && currentValue) {
+      const match = currentValue.match(/(\d+)deg/);
+      if (match) angleStr = match[1];
     }
-    if (!type && !isUrl) return;
-    if (!stopsJson) return;
+    const angleDeg = parseFloat(angleStr || '0');
+    const theta = (angleDeg - 90) * (Math.PI / 180);
+    const length = Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta));
+    const x1 = 50 - (Math.cos(theta) * length * 50);
+    const y1 = 50 - (Math.sin(theta) * length * 50);
+    const x2 = 50 + (Math.cos(theta) * length * 50);
+    const y2 = 50 + (Math.sin(theta) * length * 50);
 
-    let stops = [];
-    try { stops = JSON.parse(stopsJson); } catch (e) { return; }
-
-    const svgRoot = element.closest ? element.closest('svg') : null || doc.querySelector('svg');
-    if (!svgRoot) return; // Prevent crash if no SVG found in document
-
-    let defs = svgRoot.querySelector('defs');
-    if (!defs) {
-      defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
-      svgRoot.insertBefore(defs, svgRoot.firstChild);
+    gradEl.setAttribute('x1', `${x1}%`);
+    gradEl.setAttribute('y1', `${y1}%`);
+    gradEl.setAttribute('x2', `${x2}%`);
+    gradEl.setAttribute('y2', `${y2}%`);
+  } else {
+    let radiusStr = element.getAttribute(`${baseAttr}-radius`);
+    if (!radiusStr && currentValue) {
+      const maxPctMatch = [...currentValue.matchAll(/([\d.]+)%/g)].map(m => parseFloat(m[1]));
+      if (maxPctMatch.length > 0) radiusStr = Math.max(...maxPctMatch).toString();
     }
+    const radius = parseFloat(radiusStr || '100');
 
-    if (!element.id) {
-      element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
-    }
-    const gradId = `grad-${element.id}-${baseAttr}`;
-    let gradEl = defs.querySelector(`[id="${gradId}"]`);
+    gradEl.setAttribute('cx', '50%');
+    gradEl.setAttribute('cy', '50%');
+    gradEl.setAttribute('r', `${50 * (radius / 100)}%`);
+  }
 
-    const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
+  while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
+  stops.forEach(s => {
+    const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
+    stop.setAttribute('offset', `${s.offset}%`);
+    stop.setAttribute('stop-color', s.color);
+    stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
+    gradEl.appendChild(stop);
+  });
 
-    if (gradEl && gradEl.tagName.toLowerCase() !== `${svgGradType}gradient`.toLowerCase()) {
-      gradEl.remove();
-      gradEl = null;
-    }
+  element.setAttribute(baseAttr, `url(#${gradId})`);
 
-    if (!gradEl) {
-      gradEl = doc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
-      gradEl.id = gradId;
-      defs.appendChild(gradEl);
-    }
-
-    if (svgGradType === 'linear') {
-      let angleStr = element.getAttribute(`${baseAttr}-angle`);
-      if (!angleStr && currentValue) {
-         const match = currentValue.match(/(\d+)deg/);
-         if (match) angleStr = match[1];
-      }
-      const angleDeg = parseFloat(angleStr || '0');
-      const theta = (angleDeg - 90) * (Math.PI / 180);
-      const length = Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta));
-      const x1 = 50 - (Math.cos(theta) * length * 50);
-      const y1 = 50 - (Math.sin(theta) * length * 50);
-      const x2 = 50 + (Math.cos(theta) * length * 50);
-      const y2 = 50 + (Math.sin(theta) * length * 50);
-
-      gradEl.setAttribute('x1', `${x1}%`);
-      gradEl.setAttribute('y1', `${y1}%`);
-      gradEl.setAttribute('x2', `${x2}%`);
-      gradEl.setAttribute('y2', `${y2}%`);
-    } else {
-      let radiusStr = element.getAttribute(`${baseAttr}-radius`);
-      if (!radiusStr && currentValue) {
-        const maxPctMatch = [...currentValue.matchAll(/([\d.]+)%/g)].map(m => parseFloat(m[1]));
-        if (maxPctMatch.length > 0) radiusStr = Math.max(...maxPctMatch).toString();
-      }
-      const radius = parseFloat(radiusStr || '100');
-      
-      gradEl.setAttribute('cx', '50%');
-      gradEl.setAttribute('cy', '50%');
-      gradEl.setAttribute('r', `${50 * (radius / 100)}%`);
-    }
-
-    while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
-    stops.forEach(s => {
-      const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
-      stop.setAttribute('offset', `${s.offset}%`);
-      stop.setAttribute('stop-color', s.color);
-      stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
-      gradEl.appendChild(stop);
+  if (element.tagName.toLowerCase() === 'g') {
+    Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
+      child.removeAttribute(baseAttr);
+      if (child.style) child.style.removeProperty(baseAttr);
     });
-
-    element.setAttribute(baseAttr, `url(#${gradId})`);
-
-    if (element.tagName.toLowerCase() === 'g') {
-      Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
-        child.removeAttribute(baseAttr);
-        if (child.style) child.style.removeProperty(baseAttr);
-      });
-    }
-  };
+  }
+};
 
 const TemplateEditor = () => {
   const { folder, v_id } = useParams();
@@ -659,7 +659,7 @@ const TemplateEditor = () => {
         if (activeContainer && el.id) {
           try {
             liveEl = activeContainer.querySelector(`[id="${CSS.escape(el.id)}"]`);
-          } catch (e) {}
+          } catch (e) { }
         }
         const targetEl = liveEl || el;
 
@@ -784,7 +784,7 @@ const TemplateEditor = () => {
             try {
               const parsed = JSON.parse(val);
               if (Array.isArray(parsed) && parsed.length > 0) hasImages = true;
-            } catch (e) {}
+            } catch (e) { }
           }
           if (!hasImages) {
             return {
@@ -975,7 +975,7 @@ const TemplateEditor = () => {
             let existingConfig = {};
             const confStr = el.getAttribute('data-interaction-config');
             if (confStr) {
-              try { existingConfig = JSON.parse(confStr); } catch (e) {}
+              try { existingConfig = JSON.parse(confStr); } catch (e) { }
             }
             let modelName = '3D Model';
             try {
@@ -983,7 +983,7 @@ const TemplateEditor = () => {
               if (parsedVal.displayName || parsedVal.name) {
                 modelName = parsedVal.displayName || parsedVal.name;
               }
-            } catch (e) {}
+            } catch (e) { }
 
             const defaultConfig = {
               shadowStrength: 35,
@@ -1228,7 +1228,7 @@ const TemplateEditor = () => {
                         liveEl.setAttribute('data-interaction-value', newHtmlVal);
                       }
                     }
-                  } catch (e) {}
+                  } catch (e) { }
                 }
               }
             } catch (jsonErr) {
@@ -1632,7 +1632,7 @@ const TemplateEditor = () => {
   }, [setSaveHandler]);
 
   const handleClearAllPages = useCallback(() => {
-    setPages(prevPages => 
+    setPages(prevPages =>
       prevPages.map((p, i) => {
         const name = p.name || `Page ${i + 1}`;
         const { html, layers } = createDefaultPageData(name, currentBook?.width, currentBook?.height);
@@ -2534,12 +2534,12 @@ const TemplateEditor = () => {
       const updated = [...prev];
       const newHiddenState = !updated[index].isHidden;
       updated[index] = { ...updated[index], isHidden: newHiddenState };
-      
+
       if (newHiddenState && index === activePageIndex) {
         setSelectedLayerId(null);
         setMultiSelectedIds(new Set());
       }
-      
+
       return updated;
     });
     setHasUnsavedChanges(true);
@@ -2636,8 +2636,8 @@ const TemplateEditor = () => {
     if (!file) return;
 
     const isDoc = file.type === 'application/pdf' ||
-                  file.name.toLowerCase().endsWith('.pdf') ||
-                  isOfficeDocument(file.name);
+      file.name.toLowerCase().endsWith('.pdf') ||
+      isOfficeDocument(file.name);
 
     if (!isDoc) {
       setAlertState({
@@ -2796,7 +2796,7 @@ const TemplateEditor = () => {
       console.error("Error replacing file:", error);
       const rawMsg = error.response?.data?.message || error.message || "";
       const isCorrupt = error.response?.data?.isCorrupted ||
-                        /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error/i.test(rawMsg);
+        /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error/i.test(rawMsg);
       const userMessage = isCorrupt
         ? (rawMsg.includes("is corrupted") || rawMsg.includes("corrupted, unreadable") ? rawMsg : `Your ${docLabel} "${file.name}" is corrupted, unreadable, or password-protected. Please check the file and try again.`)
         : (rawMsg || `Failed to replace page with ${docLabel}. Please try again.`);
@@ -2818,8 +2818,8 @@ const TemplateEditor = () => {
 
     // Check if it's a PDF, Word, or PowerPoint file
     const isDoc = file.type === 'application/pdf' ||
-                  file.name.toLowerCase().endsWith('.pdf') ||
-                  isOfficeDocument(file.name);
+      file.name.toLowerCase().endsWith('.pdf') ||
+      isOfficeDocument(file.name);
 
     if (!isDoc) {
       setAlertState({
@@ -3026,7 +3026,7 @@ const TemplateEditor = () => {
       console.error("Document upload error:", error);
       const rawMsg = error.response?.data?.message || error.message || "";
       const isCorrupt = error.response?.data?.isCorrupted ||
-                        /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error/i.test(rawMsg);
+        /corrupt|cannot be read|not be loaded|damaged|password|format error|failed to parse|invalid pdf|syntax error/i.test(rawMsg);
       const userMessage = isCorrupt
         ? (rawMsg.includes("is corrupted") || rawMsg.includes("corrupted, unreadable") ? rawMsg : `Your ${docLabel} "${file.name}" is corrupted, unreadable, or password-protected. Please check the file and try again.`)
         : (rawMsg || `Failed to process ${docLabel}. Please ensure the file is valid and try again.`);
@@ -3396,7 +3396,7 @@ const TemplateEditor = () => {
     }
 
     const baseFilterId = `filter-${element.id}`;
-    
+
     // Cache-busting: Remove any existing filters for this element to force a fresh render
     Array.from(defs.querySelectorAll(`[id^="${baseFilterId}"]`)).forEach(old => old.remove());
 
@@ -3416,10 +3416,10 @@ const TemplateEditor = () => {
 
     let filterEl = doc.createElementNS("http://www.w3.org/2000/svg", "filter");
     filterEl.id = filterId;
-    filterEl.setAttribute('x', '-50%');
-    filterEl.setAttribute('y', '-50%');
-    filterEl.setAttribute('width', '200%');
-    filterEl.setAttribute('height', '200%');
+    filterEl.setAttribute('x', '-200%');
+    filterEl.setAttribute('y', '-200%');
+    filterEl.setAttribute('width', '500%');
+    filterEl.setAttribute('height', '500%');
     defs.appendChild(filterEl);
 
     // Helper to get attribute with default
@@ -3517,7 +3517,7 @@ const TemplateEditor = () => {
       }
 
       const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      blurNode.setAttribute('stdDeviation', blurVal);
+      blurNode.setAttribute('stdDeviation', blurVal / 3);
       blurNode.setAttribute('in', blurSource);
       blurNode.setAttribute('result', 'blur_out_first');
       filterEl.appendChild(blurNode);
@@ -3529,7 +3529,7 @@ const TemplateEditor = () => {
       const bgStrokeWidth = parseFloat(getVal('data-bg-stroke-width', '0'));
       const textStrokeWidth = parseFloat(getVal('stroke-width', '0'));
       const strokeErodeRadius = bgStrokeWidth > 0 ? bgStrokeWidth : textStrokeWidth;
-      
+
       let insideMask = 'SourceAlpha';
 
       if (strokeErodeRadius > 0 && isForeignObject) {
@@ -3558,7 +3558,7 @@ const TemplateEditor = () => {
         crispStroke.setAttribute('in2', insideMask);
         crispStroke.setAttribute('result', 'crisp_stroke');
         filterEl.appendChild(crispStroke);
-        
+
         // Composite crisp stroke over the blurred interior
         const restoreStroke = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
         restoreStroke.setAttribute('operator', 'over');
@@ -3576,7 +3576,7 @@ const TemplateEditor = () => {
       const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '25')) / 100;
       const dx = getVal('data-effect-inner-shadow-x', '2');
       const dy = getVal('data-effect-inner-shadow-y', '2');
-      const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
+      const blur = parseFloat(getVal('data-effect-inner-shadow-blur', element.tagName.toLowerCase() === 'text' ? '4' : '0'));
       const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
       const bgStrokeWidth = parseFloat(getVal('data-bg-stroke-width', '0'));
       const textStrokeWidth = parseFloat(getVal('stroke-width', '0'));
@@ -3596,7 +3596,7 @@ const TemplateEditor = () => {
       let isSource = baseAlpha;
       if (spread !== 0) {
         const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-        morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('operator', spread >= 0 ? 'erode' : 'dilate');
         morph.setAttribute('radius', Math.abs(spread));
         morph.setAttribute('in', baseAlpha);
         morph.setAttribute('result', 'is_morph');
@@ -3605,7 +3605,7 @@ const TemplateEditor = () => {
       }
 
       const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      gauss.setAttribute('stdDeviation', blur);
+      gauss.setAttribute('stdDeviation', blur / 3);
       gauss.setAttribute('in', isSource);
       gauss.setAttribute('result', 'is_blur');
       filterEl.appendChild(gauss);
@@ -3653,7 +3653,7 @@ const TemplateEditor = () => {
       const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
       const dx = getVal('data-effect-drop-shadow-x', '2');
       const dy = getVal('data-effect-drop-shadow-y', '2');
-      const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
+      const blur = parseFloat(getVal('data-effect-drop-shadow-blur', element.tagName.toLowerCase() === 'text' ? '4' : '0'));
       const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
 
       let dsSource = 'SourceAlpha';
@@ -3668,7 +3668,7 @@ const TemplateEditor = () => {
       }
 
       const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      gauss.setAttribute('stdDeviation', blur);
+      gauss.setAttribute('stdDeviation', blur / 3);
       gauss.setAttribute('in', dsSource);
       gauss.setAttribute('result', 'ds_blur');
       filterEl.appendChild(gauss);
@@ -3723,7 +3723,7 @@ const TemplateEditor = () => {
       }
 
       const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      blurNode.setAttribute('stdDeviation', blurVal);
+      blurNode.setAttribute('stdDeviation', blurVal / 3);
       blurNode.setAttribute('in', blurSource);
       blurNode.setAttribute('result', 'blur_out_last');
       filterEl.appendChild(blurNode);
@@ -5489,10 +5489,10 @@ const TemplateEditor = () => {
   });
 
   const accessMode = (
-    currentBook?.share?.access || 
-    currentBook?.share?.type || 
-    currentBook?.settings?.Visibility?.access || 
-    currentBook?.settings?.Visibility?.type || 
+    currentBook?.share?.access ||
+    currentBook?.share?.type ||
+    currentBook?.settings?.Visibility?.access ||
+    currentBook?.settings?.Visibility?.type ||
     ''
   ).toLowerCase().trim();
 
@@ -5558,256 +5558,256 @@ const TemplateEditor = () => {
         className="flex h-full w-full overflow-hidden relative"
       >
         <div className={`flex flex-1 min-w-0 overflow-hidden transition-all duration-300 ${is3DModalOpen ? 'blur-md pointer-events-none' : ''}`}>
-        <Layer
-          pages={pages}
-          activePageIndex={activePageIndex}
-          setActivePageIndex={setActivePageIndex}
-          isDoublePage={isDoublePage}
-          insertPageAfter={insertPageAfter}
-          duplicatePage={duplicatePage}
-          renamePage={renamePage}
-          renameLayer={renameLayer}
-          deletePage={deletePage}
-          movePageUp={movePageUp}
-          movePageDown={movePageDown}
-          movePageToFirst={movePageToFirst}
-          movePageToLast={movePageToLast}
-          movePage={movePage}
-          clearPage={clearPage}
-          togglePageVisibility={togglePageVisibility}
-          onOpenTemplateModal={handleOpenTemplateModal}
-          toggleLayerVisibility={toggleLayerVisibility}
-          toggleLayerLock={toggleLayerLock}
-          bringLayerToFront={bringLayerToFront}
-          sendLayerToBack={sendLayerToBack}
-          moveLayerForward={moveLayerForward}
-          moveLayerBackward={moveLayerBackward}
-          reorderLayer={reorderLayer}
-          deleteLayer={deleteLayer}
-          copyLayer={copyLayer}
-          cutLayer={cutLayer}
-          pasteLayer={pasteLayer}
-          duplicateLayer={duplicateLayer}
-          selectedLayerId={selectedLayerId}
-          setSelectedLayerId={setSelectedLayerId}
-          multiSelectedIds={multiSelectedIds}
-          setMultiSelectedIds={setMultiSelectedIds}
-          currentFrameId={currentFrameId}
-          setCurrentFrameId={setCurrentFrameId}
-          clipboard={clipboard}
-          currentBook={currentBook}
-          setCurrentBook={setCurrentBook}
-          onSave={saveFlipbook}
-          onAddFile={handleAddFileClick}
-          onReplaceFile={handleReplaceFileClick}
-          isPopupEditor={!!popupEditContext}
-          isExportModalOpen={isExportModalOpen}
-        />
+          <Layer
+            pages={pages}
+            activePageIndex={activePageIndex}
+            setActivePageIndex={setActivePageIndex}
+            isDoublePage={isDoublePage}
+            insertPageAfter={insertPageAfter}
+            duplicatePage={duplicatePage}
+            renamePage={renamePage}
+            renameLayer={renameLayer}
+            deletePage={deletePage}
+            movePageUp={movePageUp}
+            movePageDown={movePageDown}
+            movePageToFirst={movePageToFirst}
+            movePageToLast={movePageToLast}
+            movePage={movePage}
+            clearPage={clearPage}
+            togglePageVisibility={togglePageVisibility}
+            onOpenTemplateModal={handleOpenTemplateModal}
+            toggleLayerVisibility={toggleLayerVisibility}
+            toggleLayerLock={toggleLayerLock}
+            bringLayerToFront={bringLayerToFront}
+            sendLayerToBack={sendLayerToBack}
+            moveLayerForward={moveLayerForward}
+            moveLayerBackward={moveLayerBackward}
+            reorderLayer={reorderLayer}
+            deleteLayer={deleteLayer}
+            copyLayer={copyLayer}
+            cutLayer={cutLayer}
+            pasteLayer={pasteLayer}
+            duplicateLayer={duplicateLayer}
+            selectedLayerId={selectedLayerId}
+            setSelectedLayerId={setSelectedLayerId}
+            multiSelectedIds={multiSelectedIds}
+            setMultiSelectedIds={setMultiSelectedIds}
+            currentFrameId={currentFrameId}
+            setCurrentFrameId={setCurrentFrameId}
+            clipboard={clipboard}
+            currentBook={currentBook}
+            setCurrentBook={setCurrentBook}
+            onSave={saveFlipbook}
+            onAddFile={handleAddFileClick}
+            onReplaceFile={handleReplaceFileClick}
+            isPopupEditor={!!popupEditContext}
+            isExportModalOpen={isExportModalOpen}
+          />
 
-        <MainEditor
-          isPdfProject={isPdfProject}
+          <MainEditor
+            isPdfProject={isPdfProject}
+            isRulerEnabled={isRulerEnabled}
+            isTrimView={isTrimView}
+            pages={pages}
+            activePageIndex={activePageIndex}
+            setActivePageIndex={setActivePageIndex}
+            insertPageAfter={insertPageAfter}
+            duplicatePage={duplicatePage}
+            clearPage={clearPage}
+            deletePage={deletePage}
+            onOpenTemplateModal={handleOpenTemplateModal}
+            onAddFile={handleAddFileClick}
+            selectedLayerId={selectedLayerId}
+            setSelectedLayerId={setSelectedLayerId}
+            updatePageHtml={updatePageHtml}
+            multiSelectedIds={multiSelectedIds}
+            setMultiSelectedIds={setMultiSelectedIds}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={history.length > 0}
+            canRedo={redoStack.length > 0}
+            currentFrameId={currentFrameId}
+            setCurrentFrameId={setCurrentFrameId}
+            activeMainTool={activeMainTool}
+            setActiveMainTool={setActiveMainTool}
+            activeTopTool={activeTopTool}
+            setActiveTopTool={(tool) => {
+              setActiveTopTool(tool);
+              if (tool !== 'editor') {
+                setActiveMainTool('select');
+              }
+            }}
+            onSave={saveFlipbook}
+            isPopupEditor={!!popupEditContext}
+            flipbookDimensions={popupEditContext ? (popupEditContext.dimensions || { width: 800, height: 600 }) : getFlipbookDimensions()}
+          />
+          {(activeTopTool === 'interaction' || (isPdfProject && activeTopTool === 'editor' && activeMainTool !== 'upload')) && selectedElementInteraction?.['data-interaction'] === 'tooltip' && (
+            <TooltipCustomization
+              selectedElementProps={selectedElementInteraction}
+              activePageIndex={activePageIndex}
+              selectedLayerId={selectedLayerId}
+              updateElementAttribute={updateElementAttribute}
+            />
+          )}
+        </div>
+
+        {/* Dark Overlay for blurred content */}
+        {is3DModalOpen && (
+          <div className="absolute top-0 left-0 bottom-0 right-[24vw] z-[90] bg-black/60 pointer-events-none transition-all duration-300"></div>
+        )}
+
+        {/* 3D Preview Modal (rendered in place of main editor when active) */}
+        {is3DModalOpen && (
+          <div className="absolute top-0 left-0 bottom-0 right-[24vw] z-[100] flex p-[2vw]">
+            <Model3DPreviewModal
+              isOpen={is3DModalOpen}
+              dataUrl={preview3DDataUrl}
+              shadowStrength={shadowStrength}
+              shadowSoftness={shadowSoftness}
+              autoRotate={autoRotate}
+              autoRotateSpeed={autoRotateSpeed}
+              lockMaxZoom={lockMaxZoom}
+              maxZoom={maxZoom}
+              bgType={bgType}
+              bgColor={bgColor}
+              customBg={customBg}
+              enableAR={enableAR}
+              setBgColor={setBgColor}
+              qrText={qrText} qrColor={qrColor} qrBgType={qrBgType} qrBgColor={qrBgColor} qrLevel={qrLevel} qrDotType={qrDotType} qrCornerSquareType={qrCornerSquareType} qrCornerDotType={qrCornerDotType} qrLogo={qrLogo}
+              topText={topText} bottomText={bottomText} vId={current3DVId}
+            />
+          </div>
+        )}
+
+        <RightSidebar
+          isDoublePage={isDoublePage}
+          setIsDoublePage={setIsDoublePage}
           isRulerEnabled={isRulerEnabled}
-          isTrimView={isTrimView}
-          pages={pages}
-          activePageIndex={activePageIndex}
-          setActivePageIndex={setActivePageIndex}
-          insertPageAfter={insertPageAfter}
-          duplicatePage={duplicatePage}
-          clearPage={clearPage}
-          deletePage={deletePage}
-          onOpenTemplateModal={handleOpenTemplateModal}
-          onAddFile={handleAddFileClick}
-          selectedLayerId={selectedLayerId}
-          setSelectedLayerId={setSelectedLayerId}
-          updatePageHtml={updatePageHtml}
-          multiSelectedIds={multiSelectedIds}
-          setMultiSelectedIds={setMultiSelectedIds}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={history.length > 0}
-          canRedo={redoStack.length > 0}
-          currentFrameId={currentFrameId}
-          setCurrentFrameId={setCurrentFrameId}
+          setIsRulerEnabled={setIsRulerEnabled}
           activeMainTool={activeMainTool}
           setActiveMainTool={setActiveMainTool}
           activeTopTool={activeTopTool}
-          setActiveTopTool={(tool) => {
-            setActiveTopTool(tool);
-            if (tool !== 'editor') {
-              setActiveMainTool('select');
-            }
-          }}
-          onSave={saveFlipbook}
+          activePageIndex={activePageIndex}
+          pages={pages}
+          setPages={setPages}
+          updatePageBackground={updatePageBackground}
+          selectedLayerId={selectedLayerId}
+          setSelectedLayerId={setSelectedLayerId}
+          multiSelectedIds={multiSelectedIds}
+          setMultiSelectedIds={setMultiSelectedIds}
+          updateElementAttribute={updateElementAttribute}
+          deleteLayer={deleteLayer}
+          onPreview={() => setShowPreview(true)}
+          flipbookDimensions={getFlipbookDimensions()}
           isPopupEditor={!!popupEditContext}
-          flipbookDimensions={popupEditContext ? (popupEditContext.dimensions || { width: 800, height: 600 }) : getFlipbookDimensions()}
+          onCustomizePopup={onCustomizePopup}
+          onApplyPopupChanges={handleApplyPopupChanges}
+          preview3DDataUrl={preview3DDataUrl}
+          onCancelPopupChanges={handleCancelPopupChanges}
+          is3DModalOpen={is3DModalOpen}
+          setIs3DModalOpen={setIs3DModalOpen}
+          setCurrent3DItem={setCurrent3DItem}
+          shadowStrength={shadowStrength}
+          setShadowStrength={setShadowStrength}
+          shadowSoftness={shadowSoftness}
+          setShadowSoftness={setShadowSoftness}
+          autoRotate={autoRotate}
+          setAutoRotate={setAutoRotate}
+          autoRotateSpeed={autoRotateSpeed}
+          setAutoRotateSpeed={setAutoRotateSpeed}
+          lockMaxZoom={lockMaxZoom}
+          setLockMaxZoom={setLockMaxZoom}
+          maxZoom={maxZoom}
+          setMaxZoom={setMaxZoom}
+          bgType={bgType}
+          setBgType={setBgType}
+          bgColor={bgColor}
+          setBgColor={setBgColor}
+          customBg={customBg}
+          setCustomBg={setCustomBg}
+          enableAR={enableAR}
+          setEnableAR={setEnableAR}
+          qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
+          topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
+          current3DVId={current3DVId}
+          v_id={v_id || currentBook?.v_id}
+          flipbookVId={v_id || currentBook?.v_id}
+          folderName={Array.isArray(currentBook?.folderName) ? currentBook.folderName.find(f => f !== 'Recent Book' && f !== 'All Books') || currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'My_Flipbooks')}
+          flipbookName={currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook'}
         />
-        {(activeTopTool === 'interaction' || (isPdfProject && activeTopTool === 'editor' && activeMainTool !== 'upload')) && selectedElementInteraction?.['data-interaction'] === 'tooltip' && (
-          <TooltipCustomization
-            selectedElementProps={selectedElementInteraction}
+
+        {showTemplateModal && (
+          <TemplateModal
+            showTemplateModal={showTemplateModal}
+            setShowTemplateModal={setShowTemplateModal}
+            clearCanvas={() => clearPage(templateTargetIndex !== null ? templateTargetIndex : activePageIndex)}
+            loadTemplate={loadTemplate}
+            pages={pages}
             activePageIndex={activePageIndex}
-            selectedLayerId={selectedLayerId}
-            updateElementAttribute={updateElementAttribute}
+            templateTargetIndex={templateTargetIndex}
+            currentBook={currentBook}
+            flipbookDimensions={getFlipbookDimensions()}
+            onAddTemplatePages={handleAddTemplatePages}
           />
         )}
-      </div>
 
-      {/* Dark Overlay for blurred content */}
-      {is3DModalOpen && (
-        <div className="absolute top-0 left-0 bottom-0 right-[24vw] z-[90] bg-black/60 pointer-events-none transition-all duration-300"></div>
-      )}
-
-      {/* 3D Preview Modal (rendered in place of main editor when active) */}
-      {is3DModalOpen && (
-        <div className="absolute top-0 left-0 bottom-0 right-[24vw] z-[100] flex p-[2vw]">
-          <Model3DPreviewModal
-            isOpen={is3DModalOpen}
-            dataUrl={preview3DDataUrl}
-            shadowStrength={shadowStrength}
-            shadowSoftness={shadowSoftness}
-            autoRotate={autoRotate}
-            autoRotateSpeed={autoRotateSpeed}
-            lockMaxZoom={lockMaxZoom}
-            maxZoom={maxZoom}
-            bgType={bgType}
-            bgColor={bgColor}
-            customBg={customBg}
-            enableAR={enableAR}
-            setBgColor={setBgColor}
-            qrText={qrText} qrColor={qrColor} qrBgType={qrBgType} qrBgColor={qrBgColor} qrLevel={qrLevel} qrDotType={qrDotType} qrCornerSquareType={qrCornerSquareType} qrCornerDotType={qrCornerDotType} qrLogo={qrLogo}
-            topText={topText} bottomText={bottomText} vId={current3DVId}
+        {showPreview && (
+          <FlipbookPreview
+            pages={pages.filter(p => !p.isHidden).map(p => ({ ...p, content: p.html || '' }))}
+            pageName={currentBook?.flipbookName || 'Preview'}
+            onClose={() => setShowPreview(false)}
+            isMobile={false}
+            isDoublePage={isDoublePage}
+            targetPage={0}
+            settings={{}}
           />
-        </div>
-      )}
+        )}
 
-      <RightSidebar
-        isDoublePage={isDoublePage}
-        setIsDoublePage={setIsDoublePage}
-        isRulerEnabled={isRulerEnabled}
-        setIsRulerEnabled={setIsRulerEnabled}
-        activeMainTool={activeMainTool}
-        setActiveMainTool={setActiveMainTool}
-        activeTopTool={activeTopTool}
-        activePageIndex={activePageIndex}
-        pages={pages}
-        setPages={setPages}
-        updatePageBackground={updatePageBackground}
-        selectedLayerId={selectedLayerId}
-        setSelectedLayerId={setSelectedLayerId}
-        multiSelectedIds={multiSelectedIds}
-        setMultiSelectedIds={setMultiSelectedIds}
-        updateElementAttribute={updateElementAttribute}
-        deleteLayer={deleteLayer}
-        onPreview={() => setShowPreview(true)}
-        flipbookDimensions={getFlipbookDimensions()}
-        isPopupEditor={!!popupEditContext}
-        onCustomizePopup={onCustomizePopup}
-        onApplyPopupChanges={handleApplyPopupChanges}
-        preview3DDataUrl={preview3DDataUrl}
-        onCancelPopupChanges={handleCancelPopupChanges}
-        is3DModalOpen={is3DModalOpen}
-        setIs3DModalOpen={setIs3DModalOpen}
-        setCurrent3DItem={setCurrent3DItem}
-        shadowStrength={shadowStrength}
-        setShadowStrength={setShadowStrength}
-        shadowSoftness={shadowSoftness}
-        setShadowSoftness={setShadowSoftness}
-        autoRotate={autoRotate}
-        setAutoRotate={setAutoRotate}
-        autoRotateSpeed={autoRotateSpeed}
-        setAutoRotateSpeed={setAutoRotateSpeed}
-        lockMaxZoom={lockMaxZoom}
-        setLockMaxZoom={setLockMaxZoom}
-        maxZoom={maxZoom}
-        setMaxZoom={setMaxZoom}
-        bgType={bgType}
-        setBgType={setBgType}
-        bgColor={bgColor}
-        setBgColor={setBgColor}
-        customBg={customBg}
-        setCustomBg={setCustomBg}
-        enableAR={enableAR}
-        setEnableAR={setEnableAR}
-        qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
-        topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
-        current3DVId={current3DVId}
-        v_id={v_id || currentBook?.v_id}
-        flipbookVId={v_id || currentBook?.v_id}
-        folderName={Array.isArray(currentBook?.folderName) ? currentBook.folderName.find(f => f !== 'Recent Book' && f !== 'All Books') || currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'My_Flipbooks')}
-        flipbookName={currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook'}
-      />
-
-      {showTemplateModal && (
-        <TemplateModal
-          showTemplateModal={showTemplateModal}
-          setShowTemplateModal={setShowTemplateModal}
-          clearCanvas={() => clearPage(templateTargetIndex !== null ? templateTargetIndex : activePageIndex)}
-          loadTemplate={loadTemplate}
-          pages={pages}
-          activePageIndex={activePageIndex}
-          templateTargetIndex={templateTargetIndex}
-          currentBook={currentBook}
-          flipbookDimensions={getFlipbookDimensions()}
-          onAddTemplatePages={handleAddTemplatePages}
+        {/* Hidden File Input for PDF / Office Document Upload */}
+        <input
+          type="file"
+          ref={pdfInputRef}
+          style={{ display: 'none' }}
+          accept=".pdf,.ppt,.pptx,.doc,.docx"
+          onChange={handlePdfFileSelect}
         />
-      )}
 
-      {showPreview && (
-        <FlipbookPreview
-          pages={pages.filter(p => !p.isHidden).map(p => ({ ...p, content: p.html || '' }))}
-          pageName={currentBook?.flipbookName || 'Preview'}
-          onClose={() => setShowPreview(false)}
-          isMobile={false}
-          isDoublePage={isDoublePage}
-          targetPage={0}
-          settings={{}}
+        {/* Hidden File Input for PDF / Office Document Replace */}
+        <input
+          type="file"
+          ref={replacePdfInputRef}
+          style={{ display: 'none' }}
+          accept=".pdf,.ppt,.pptx,.doc,.docx"
+          onChange={handleReplaceFileSelect}
         />
-      )}
 
-      {/* Hidden File Input for PDF / Office Document Upload */}
-      <input
-        type="file"
-        ref={pdfInputRef}
-        style={{ display: 'none' }}
-        accept=".pdf,.ppt,.pptx,.doc,.docx"
-        onChange={handlePdfFileSelect}
-      />
+        {/* PDF Processing Overlay */}
+        <PdfProcessingLoader progress={pdfProcessing} onCancel={() => setPdfProcessing(null)} />
 
-      {/* Hidden File Input for PDF / Office Document Replace */}
-      <input
-        type="file"
-        ref={replacePdfInputRef}
-        style={{ display: 'none' }}
-        accept=".pdf,.ppt,.pptx,.doc,.docx"
-        onChange={handleReplaceFileSelect}
-      />
-
-      {/* PDF Processing Overlay */}
-      <PdfProcessingLoader progress={pdfProcessing} onCancel={() => setPdfProcessing(null)} />
-
-      <AlertModal
-        isOpen={alertState.isOpen}
-        title={alertState.title}
-        message={alertState.message}
-        type={alertState.type}
-        onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
-      />
-
-      {/* Change Popup Template Modal */}
-      {showPopupTemplateChange && popupEditContext && (
-        <PopupTemplateSelection
-          isOpen={showPopupTemplateChange}
-          onClose={() => setShowPopupTemplateChange(false)}
-          onSelect={(templateId) => {
-            onCustomizePopup(templateId, popupEditContext.elementId, popupEditContext.pageIndex);
-            setShowPopupTemplateChange(false);
-          }}
-          onCustomize={(templateId) => {
-            onCustomizePopup(templateId, popupEditContext.elementId, popupEditContext.pageIndex);
-            setShowPopupTemplateChange(false);
-          }}
-          selectedTemplateId={popupEditContext.templateId}
+        <AlertModal
+          isOpen={alertState.isOpen}
+          title={alertState.title}
+          message={alertState.message}
+          type={alertState.type}
+          onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
         />
-      )}
+
+        {/* Change Popup Template Modal */}
+        {showPopupTemplateChange && popupEditContext && (
+          <PopupTemplateSelection
+            isOpen={showPopupTemplateChange}
+            onClose={() => setShowPopupTemplateChange(false)}
+            onSelect={(templateId) => {
+              onCustomizePopup(templateId, popupEditContext.elementId, popupEditContext.pageIndex);
+              setShowPopupTemplateChange(false);
+            }}
+            onCustomize={(templateId) => {
+              onCustomizePopup(templateId, popupEditContext.elementId, popupEditContext.pageIndex);
+              setShowPopupTemplateChange(false);
+            }}
+            selectedTemplateId={popupEditContext.templateId}
+          />
+        )}
 
       </motion.div>
     </div>

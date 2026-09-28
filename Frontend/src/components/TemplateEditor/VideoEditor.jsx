@@ -148,7 +148,7 @@ const VideoEditor = ({
   const [endTime, setEndTime] = useState("08:52:21");
   const [playbackSpeed, setPlaybackSpeed] = useState("1.0x");
   const [resumeBehavior, setResumeBehavior] = useState("Resume from Last Position");
-  const [playVideoWhile, setPlayVideoWhile] = useState("Auto Play on Page Open");
+  const [playVideoWhile, setPlayVideoWhile] = useState("Manual (Click to Play)");
   const [defaultVolume, setDefaultVolume] = useState(80);
   const [disableFullScreen, setDisableFullScreen] = useState(false);
 
@@ -2438,8 +2438,10 @@ const VideoEditor = ({
         </div>
       </div>
 
-      {/* Cover Image Upload Options */}
-      <div className="space-y-[1.2vw]">
+      {!(previewSrc && (previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be"))) && (
+        <>
+          {/* Cover Image Upload Options */}
+          <div className="space-y-[1.2vw]">
         <div className="flex items-center gap-[0.5vw]">
           <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Cover Image Upload Options</span>
           <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
@@ -2510,6 +2512,8 @@ const VideoEditor = ({
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* Default Playback Settings / Settings */}
       <div className="space-y-[1.2vw]">
@@ -2626,7 +2630,7 @@ const VideoEditor = ({
         </div>
       )}
 
-      <div className="space-y-[0.60vw] px-[0.3vw]">
+      <div className="space-y-[0.60vw] mt-[1vw] px-[0.3vw]">
         <Color
           openSubSection={openSubSection}
           setOpenSubSection={setOpenSubSection}
