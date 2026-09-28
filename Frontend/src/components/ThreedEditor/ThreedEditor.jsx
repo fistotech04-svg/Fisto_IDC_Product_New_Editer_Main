@@ -486,6 +486,8 @@ export default function ThreedEditor() {
   const glInstanceRef = useRef(null);
   const cameraInstanceRef = useRef(null);
   const originalTransformRef = useRef(null);
+  const meshTransformsRef = useRef({});
+  const [meshTransformsState, setMeshTransformsState] = useState({});
   const lastUpdateRef = useRef(0);
 
   // Target Position State
@@ -510,6 +512,7 @@ export default function ThreedEditor() {
   }, []);
 
   const [modelMaterialLists, setModelMaterialLists] = useState({});
+  const modelMaterialListsRef = useRef({});
   const [modelMaterialDataMap, setModelMaterialDataMap] = useState({});
   const sceneWrapperRef = useRef(null);
   const [materialList, setMaterialList] = useState(threedState.materialList || []);
@@ -560,6 +563,8 @@ export default function ThreedEditor() {
 
   // Transform Tools State
   const [transformMode, setTransformMode] = useState(null); // 'translate', 'rotate', 'scale', null
+  const transformModeRef = useRef(transformMode);
+  transformModeRef.current = transformMode;
   const [transformValues, setRawTransformValues] = useState(() => sanitizeTransformValues(threedState.transformValues));
 
   const setTransformValues = useCallback((valOrFn) => {
@@ -656,7 +661,9 @@ export default function ThreedEditor() {
     canUndo, 
     canRedo,
     resetHistory,
-    update: updateHistory
+    update: updateHistory,
+    historyRef,
+    indexRef
   } = useModalHistory({
       models: models,
       transformValues: transformValues,
@@ -667,7 +674,8 @@ export default function ThreedEditor() {
       modelMaterialLists: modelMaterialLists,
       selectedMaterial: selectedMaterial,
       selectedTexture: selectedTexture,
-      selectedTextureId: selectedTextureId
+      selectedTextureId: selectedTextureId,
+      meshTransforms: meshTransformsRef.current || {}
   });
 
   const stateRef = useRef({ 
@@ -680,7 +688,8 @@ export default function ThreedEditor() {
       modelMaterialLists,
       selectedMaterial,
       selectedTexture,
-      selectedTextureId
+      selectedTextureId,
+      meshTransforms: meshTransformsRef.current
   });
 
   // Keep stateRef immediately updated in body
@@ -691,10 +700,11 @@ export default function ThreedEditor() {
       modelName, 
       hiddenMaterials, 
       deletedMaterials, 
-      modelMaterialLists,
+      modelMaterialLists: (modelMaterialLists && Object.keys(modelMaterialLists).length > 0) ? modelMaterialLists : modelMaterialListsRef.current,
       selectedMaterial,
       selectedTexture,
-      selectedTextureId
+      selectedTextureId,
+      meshTransforms: meshTransformsRef.current
   };
 
   const buildSnapshot = useCallback((override = {}) => {
@@ -708,7 +718,12 @@ export default function ThreedEditor() {
       const curSelMat = override.selectedMaterial !== undefined ? override.selectedMaterial : cur.selectedMaterial;
       const curSelTex = override.selectedTexture !== undefined ? override.selectedTexture : cur.selectedTexture;
       const curSelTexId = override.selectedTextureId !== undefined ? override.selectedTextureId : (curSelTex?.id || cur.selectedTextureId || null);
-      const curMatLists = override.modelMaterialLists || cur.modelMaterialLists || {};
+      const curMatLists = (override.modelMaterialLists && Object.keys(override.modelMaterialLists).length > 0)
+          ? override.modelMaterialLists
+          : (cur.modelMaterialLists && Object.keys(cur.modelMaterialLists).length > 0
+              ? cur.modelMaterialLists
+              : (modelMaterialListsRef.current && Object.keys(modelMaterialListsRef.current).length > 0 ? modelMaterialListsRef.current : {}));
+      const curMeshTransforms = override.meshTransforms !== undefined ? override.meshTransforms : (cur.meshTransforms || meshTransformsRef.current || {});
 
       return {
           models: Array.isArray(curModels) ? curModels.map(m => ({ ...m })) : [],
@@ -729,11 +744,13 @@ export default function ThreedEditor() {
           modelMaterialLists: { ...curMatLists },
           selectedMaterial: curSelMat ? { ...curSelMat } : null,
           selectedTexture: curSelTex ? { ...curSelTex } : null,
-          selectedTextureId: curSelTexId
+          selectedTextureId: curSelTexId,
+          meshTransforms: JSON.parse(JSON.stringify(curMeshTransforms || {}))
       };
   }, []);
 
   const historyDebounceTimerRef = useRef(null);
+  const isRestoringHistoryRef = useRef(false);
 
   const commitHistoryNow = useCallback((snapshot) => {
       if (historyDebounceTimerRef.current) {
@@ -758,6 +775,8 @@ export default function ThreedEditor() {
   const applyHistoryState = useCallback((targetState) => {
       if (!targetState) return;
 
+      isRestoringHistoryRef.current = true;
+
       if (historyDebounceTimerRef.current) {
           clearTimeout(historyDebounceTimerRef.current);
           historyDebounceTimerRef.current = null;
@@ -770,8 +789,9 @@ export default function ThreedEditor() {
               setModels(targetState.models);
           }
       }
-      if (targetState.modelMaterialLists !== undefined) {
+      if (targetState.modelMaterialLists !== undefined && Object.keys(targetState.modelMaterialLists).length > 0) {
           setModelMaterialLists(targetState.modelMaterialLists);
+          modelMaterialListsRef.current = targetState.modelMaterialLists;
       }
       if (targetState.modelName !== undefined && targetState.modelName !== "") {
           setModelName(targetState.modelName);
@@ -786,8 +806,8 @@ export default function ThreedEditor() {
       if (targetState.materialSettings !== undefined) {
           setMaterialSettings({
               ...targetState.materialSettings,
-              useFactorColor: true,
-              lastChangedProp: null
+              useFactorColor: !!targetState.materialSettings.useFactorColor,
+              lastChangedProp: targetState.materialSettings.lastChangedProp || null
           });
       }
       if (targetState.hiddenMaterials !== undefined) {
@@ -802,23 +822,54 @@ export default function ThreedEditor() {
       if (targetState.selectedTexture !== undefined) {
           setSelectedTexture(targetState.selectedTexture);
       }
+      if (targetState.meshTransforms !== undefined) {
+          const nextTransforms = targetState.meshTransforms ? { ...targetState.meshTransforms } : {};
+          meshTransformsRef.current = nextTransforms;
+          setMeshTransformsState(nextTransforms);
+      }
 
       const tex = targetState.materialSettings?.appliedTexture || targetState.selectedTexture;
       const texId = targetState.selectedTextureId !== undefined ? targetState.selectedTextureId : (tex?.id || null);
       setSelectedTextureId(texId);
+
+      // Keep stateRef immediately updated so rapid sequential undos never use stale data
+      stateRef.current = {
+          ...stateRef.current,
+          models: targetState.models !== undefined ? targetState.models : stateRef.current.models,
+          modelName: targetState.modelName !== undefined ? targetState.modelName : stateRef.current.modelName,
+          transformValues: targetState.transformValues !== undefined ? targetState.transformValues : stateRef.current.transformValues,
+          materialSettings: targetState.materialSettings !== undefined ? targetState.materialSettings : stateRef.current.materialSettings,
+          selectedMaterial: targetState.selectedMaterial !== undefined ? targetState.selectedMaterial : stateRef.current.selectedMaterial,
+          meshTransforms: targetState.meshTransforms !== undefined ? targetState.meshTransforms : stateRef.current.meshTransforms,
+          hiddenMaterials: targetState.hiddenMaterials !== undefined ? targetState.hiddenMaterials : stateRef.current.hiddenMaterials,
+          deletedMaterials: targetState.deletedMaterials !== undefined ? targetState.deletedMaterials : stateRef.current.deletedMaterials,
+      };
 
       // Re-trigger visual synchronizations in 3D canvas
       setResetKey(prev => prev + 1);
   }, [models.length, setTransformValues]);
 
   const handleUndo = useCallback(() => {
+      if (historyDebounceTimerRef.current) {
+          clearTimeout(historyDebounceTimerRef.current);
+          historyDebounceTimerRef.current = null;
+          const curState = historyRef.current[indexRef.current];
+          if (curState) {
+              applyHistoryState(curState);
+              return;
+          }
+      }
       const prevState = undo();
       if (prevState) {
           applyHistoryState(prevState);
       }
-  }, [undo, applyHistoryState]);
+  }, [undo, applyHistoryState, historyRef, indexRef]);
 
   const handleRedo = useCallback(() => {
+      if (historyDebounceTimerRef.current) {
+          clearTimeout(historyDebounceTimerRef.current);
+          historyDebounceTimerRef.current = null;
+      }
       const nextState = redo();
       if (nextState) {
           applyHistoryState(nextState);
@@ -2224,6 +2275,7 @@ export default function ThreedEditor() {
               if (JSON.stringify(prev[modelId]) === JSON.stringify(list)) return prev;
           } catch (_) {}
           const next = { ...prev, [modelId]: list };
+          modelMaterialListsRef.current = next;
           updateHistory(buildSnapshot({
               modelMaterialLists: next
           }));
@@ -3526,11 +3578,15 @@ export default function ThreedEditor() {
     };
     setTransformValues(defaultTransform);
 
+    meshTransformsRef.current = {};
+    setMeshTransformsState({});
+
     // Trigger scene-wide reset for model parts
     setSceneResetTrigger(prev => prev + 1);
 
     commitHistoryNow(buildSnapshot({
-        transformValues: defaultTransform
+        transformValues: defaultTransform,
+        meshTransforms: {}
     }));
   };
 
@@ -3550,8 +3606,30 @@ export default function ThreedEditor() {
             ...prev[type],
             [axis]: numVal
         };
+
+        let nextMeshTransforms = meshTransformsRef.current ? { ...meshTransformsRef.current } : {};
+        const isChildSelection = selectedMaterial && selectedMaterial.name !== modelName && selectedMaterial.name !== 'Scene';
+        if (isChildSelection) {
+            const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid;
+            if (targetUuid) {
+                const prevMTransform = nextMeshTransforms[targetUuid] || {
+                    position: { ...(next.position || { x: 0, y: 0, z: 0 }) },
+                    rotation: { ...(next.rotation || { x: 0, y: 0, z: 0 }) },
+                    scale: { ...(next.scale || { x: 1, y: 1, z: 1 }) }
+                };
+                nextMeshTransforms[targetUuid] = {
+                    ...prevMTransform,
+                    [type]: {
+                        ...prevMTransform[type],
+                        [axis]: numVal
+                    }
+                };
+                meshTransformsRef.current = nextMeshTransforms;
+                setMeshTransformsState(nextMeshTransforms);
+            }
+        }
         
-        const snapshot = buildSnapshot({ transformValues: next });
+        const snapshot = buildSnapshot({ transformValues: next, meshTransforms: nextMeshTransforms });
         if (isDragging) {
             commitHistoryDebounced(snapshot, 300);
         } else {
@@ -3605,11 +3683,31 @@ export default function ThreedEditor() {
      if (historyDebounceTimerRef.current) {
          clearTimeout(historyDebounceTimerRef.current);
          historyDebounceTimerRef.current = null;
+         commitHistoryNow();
      }
-  }, []);
+     if (controlsRef.current) {
+         controlsRef.current.enabled = false;
+     }
+  }, [commitHistoryNow]);
 
-  const handleTransformEnd = useCallback(() => {
-     commitHistoryNow(buildSnapshot());
+  const handleTransformEnd = useCallback((finalMeshTransforms) => {
+     if (controlsRef.current) {
+         controlsRef.current.enabled = true;
+     }
+     try {
+         let nextTransforms = { ...meshTransformsRef.current };
+         if (finalMeshTransforms && typeof finalMeshTransforms === 'object') {
+             nextTransforms = {
+                 ...nextTransforms,
+                 ...finalMeshTransforms
+             };
+             meshTransformsRef.current = nextTransforms;
+             setMeshTransformsState(nextTransforms);
+         }
+         commitHistoryNow(buildSnapshot({ meshTransforms: nextTransforms }));
+     } catch (err) {
+         console.warn("[ThreedEditor] Error during transform end history snapshot:", err);
+     }
   }, [commitHistoryNow, buildSnapshot]);
 
   const [settings, setSettings] = useState({
@@ -3773,6 +3871,12 @@ export default function ThreedEditor() {
           return { ...target, uuid: target.uuid || target.meshUuid || null, meshUuid: target.meshUuid || target.uuid || null, ts: Date.now() };
       });
 
+      // If user is actively using 3D transform tools, selecting a mesh is strictly for 3D transformation
+      // Do NOT overwrite material settings or texture placement
+      if (transformModeRef.current || target.isTransformSelect) {
+          return;
+      }
+
       // Clear property specific maps first to prevent bleeding, then check for defaults
       setMaterialSettings(prev => {
           const preservedEnvMap = prev.customEnvMap || prev.maps?.envMap || null;
@@ -3810,18 +3914,42 @@ export default function ThreedEditor() {
                           if (v) cleanMaps[k] = v;
                       }
                   }
+                  // Merge freshMaps (extracted live at click time) over cached maps.
+                  // freshMaps have real thumbnail DataURLs so they override any stale 'existing' sentinels.
+                  if (target.freshMaps && typeof target.freshMaps === 'object') {
+                      for (const [k, v] of Object.entries(target.freshMaps)) {
+                          if (v && v !== 'existing') cleanMaps[k] = v;
+                      }
+                  }
                   return {
                       ...next,
                       color: defaultData.color || next.color,
                       metallic: defaultData.metallic !== undefined ? defaultData.metallic : next.metallic,
                       roughness: defaultData.roughness !== undefined ? defaultData.roughness : next.roughness,
                       alpha: defaultData.opacity !== undefined ? defaultData.opacity : next.alpha,
-                      scale: defaultData.scale !== undefined ? defaultData.scale : next.scale,
+                      scale: prev.scale !== undefined ? prev.scale : (defaultData.scale !== undefined ? defaultData.scale : next.scale),
                       maps: { ...cleanMaps, ...(preservedEnvMap ? { envMap: preservedEnvMap } : {}) },
                       customEnvMap: preservedEnvMap,
                       useFactorColor: false,
                       lastChangedProp: null
                   };
+              }
+
+              // No cached defaultData found, but we may still have freshMaps from the click
+              if (target.freshMaps && typeof target.freshMaps === 'object') {
+                  const freshClean = {};
+                  for (const [k, v] of Object.entries(target.freshMaps)) {
+                      if (v && v !== 'existing') freshClean[k] = v;
+                  }
+                  if (Object.keys(freshClean).length > 0) {
+                      return {
+                          ...next,
+                          maps: { ...freshClean, ...(preservedEnvMap ? { envMap: preservedEnvMap } : {}) },
+                          customEnvMap: preservedEnvMap,
+                          useFactorColor: false,
+                          lastChangedProp: null
+                      };
+                  }
               }
           }
           
@@ -3834,6 +3962,10 @@ export default function ThreedEditor() {
   // This prevents the settings from one material (or a freshly synced baseline)
   // from being pushed back to the model before the user has actually touched a slider.
   useEffect(() => {
+    if (isRestoringHistoryRef.current) {
+        isRestoringHistoryRef.current = false;
+        return;
+    }
     setMaterialSettings(prev => ({
         ...prev,
         useFactorColor: false,
@@ -4129,6 +4261,7 @@ export default function ThreedEditor() {
                         modelName={model.name}
                         transformMode={transformMode}
                         transformValues={transformValues}
+                        meshTransforms={meshTransformsState}
                         materialSettings={materialSettings}
                         hiddenMaterials={new Set([...hiddenMaterials, ...deletedMaterials])}
                         onUpdateMaterialSetting={handleMaterialSync}
@@ -4403,6 +4536,7 @@ export default function ThreedEditor() {
                   isOpen={showModelGalleryModal}
                   onClose={() => setShowModelGalleryModal(false)}
                   onSelectModel={handleSelectGalleryModel}
+                  loadedModels={models}
               />
           )}
 
