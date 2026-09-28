@@ -18,14 +18,14 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
             const useMaleVoice = settings?.useMaleVoice || settings?.tocSettings?.useMaleVoice;
-            
+
             const playVoice = () => {
                 const voices = window.speechSynthesis.getVoices();
                 let preferredVoice;
                 if (useMaleVoice) {
-                    preferredVoice = voices.find(voice => 
-                        voice.name.includes('David') || 
-                        voice.name.includes('Daniel') || 
+                    preferredVoice = voices.find(voice =>
+                        voice.name.includes('David') ||
+                        voice.name.includes('Daniel') ||
                         voice.name.includes('Alex') ||
                         voice.name.includes('Mark') ||
                         voice.name.includes('George') ||
@@ -33,18 +33,18 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                         voice.name.includes('Male')
                     );
                     if (!preferredVoice) {
-                        preferredVoice = voices.find(voice => 
-                            !voice.name.toLowerCase().includes('zira') && 
-                            !voice.name.toLowerCase().includes('samantha') && 
+                        preferredVoice = voices.find(voice =>
+                            !voice.name.toLowerCase().includes('zira') &&
+                            !voice.name.toLowerCase().includes('samantha') &&
                             !voice.name.toLowerCase().includes('susan') &&
                             !voice.name.toLowerCase().includes('hazel') &&
                             !voice.name.toLowerCase().includes('female')
                         );
                     }
                 } else {
-                    preferredVoice = voices.find(voice => 
-                        voice.name.includes('Google') || 
-                        voice.name.includes('Samantha') || 
+                    preferredVoice = voices.find(voice =>
+                        voice.name.includes('Google') ||
+                        voice.name.includes('Samantha') ||
                         voice.name.includes('Zira') ||
                         voice.name.includes('Female')
                     );
@@ -54,8 +54,8 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                     utterance.voice = preferredVoice;
                 }
 
-                utterance.rate = 0.85; 
-                utterance.pitch = useMaleVoice ? 0.9 : 1.15; 
+                utterance.rate = 0.85;
+                utterance.pitch = useMaleVoice ? 0.9 : 1.15;
 
                 window.speechSynthesis.speak(utterance);
             };
@@ -82,7 +82,7 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
     const isLayout3 = variant === 'layout3';
     const isLayout4 = variant === 'layout4';
     const isLayout5 = variant === 'layout5';
-        const isLayout6 = variant === 'layout6';
+    const isLayout6 = variant === 'layout6';
     const isLayout7 = variant === 'layout7';
     const isLayout8 = variant === 'layout8';
 

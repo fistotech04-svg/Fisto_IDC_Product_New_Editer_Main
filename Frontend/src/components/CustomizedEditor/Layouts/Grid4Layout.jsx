@@ -1106,7 +1106,7 @@ const Grid4Layout = ({
                             style={{
                                 color: getLayoutColor('toolbar-icon', '#FFFFFF'),
                                 backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.15'),
-                                left: `max(2vw, calc(50% + ${localOffset}px ${currentPage === 0 ? '' : `- ${dimWidth}px`} - ${(currentPage === 0 || (currentPage >= pages.length - 1 && currentPage % 2 === 0)) ? ('8vw') : ('3vw')}))`
+                                left: `max(2vw, calc(50% + ${localOffset}px ${currentPage === 0 ? '' : `- ${dimWidth}px`} - 3vw))`
                             }}
                             onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
                         >
@@ -1119,7 +1119,7 @@ const Grid4Layout = ({
                             style={{
                                 color: getLayoutColor('toolbar-icon', '#FFFFFF'),
                                 backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.15'),
-                                right: `max(2vw, calc(50% - ${localOffset}px - ${(currentPage >= pages.length - 1 && currentPage % 2 === 0) ? 0 : dimWidth}px - ${(currentPage === 0 || (currentPage >= pages.length - 1 && currentPage % 2 === 0)) ? ('8vw') : ('3vw')}))`
+                                right: `max(2vw, calc(50% - ${localOffset}px - ${(currentPage >= pages.length - 1 && pages.length % 2 === 0) ? 0 : dimWidth}px - 3vw))`
                             }}
                             onClick={() => bookRef.current?.pageFlip()?.flipNext()}
                         >
@@ -1164,7 +1164,7 @@ const Grid4Layout = ({
                                         setPageInputValue(String(currentPage + 1));
                                     }
                                 }}
-                                className={`${!isBigBars ? 'text-[0.6vw] mx-[0.3vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.85vw] mx-[0.4vw] px-[0.4vw] py-[0.15vw]'} font-medium rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
+                                className={`${!isBigBars ? 'text-[0.6vw] mx-[0.3vw] px-[0.15vw] py-[0.1vw]' : 'text-[0.85vw] mx-[0.4vw] px-[0.2vw] py-[0.15vw]'} font-medium rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
                                 style={{
                                     width: `${String(pages.length).length + 1.2}ch`,
                                     color: getLayoutColor('search-text-v1', '#575C9C'),

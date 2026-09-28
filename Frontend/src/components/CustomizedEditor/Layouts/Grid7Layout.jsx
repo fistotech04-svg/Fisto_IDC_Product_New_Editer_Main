@@ -819,7 +819,7 @@ const Grid7Layout = ({
                                 setPageInputValue(String(currentPage + 1));
                             }
                         }}
-                        className={`${isTablet ? 'text-[0.7vw] mx-[0.3vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.4vw] py-[0.15vw]'} font-medium rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
+                        className={`${isTablet ? 'text-[0.7vw] mx-[0.3vw] px-[0.15vw] py-[0.1vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.2vw] py-[0.15vw]'} font-medium rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
                         style={{
                             color: getLayoutColor('page-number-text', getLayoutColor('toolbar-text-main', '#FFFFFF')), 
                             width: `${String(pages.length).length + 1.2}ch`,

@@ -499,7 +499,13 @@ const VideoEditor = ({
         try {
           const urlObj = new URL(target.src);
           setAutoplay(urlObj.searchParams.get("autoplay") === "1");
-          setControls(urlObj.searchParams.get("controls") !== "0"); // Default is true unless explicitly 0
+          const urlControls = urlObj.searchParams.get("controls");
+          const dataControls = target.getAttribute('data-show-controls') || liveElement.getAttribute('data-show-controls');
+          if (dataControls !== null && dataControls !== undefined) {
+            setControls(dataControls !== "false");
+          } else {
+            setControls(urlControls !== "0"); // Default is true unless explicitly 0
+          }
           setLoop(urlObj.searchParams.get("loop") === "1");
           setMuted(urlObj.searchParams.get("mute") === "1");
         } catch (e) {}
@@ -659,7 +665,7 @@ const VideoEditor = ({
     isUpdatingDOM.current = true;
     try {
       // Dimensions are managed natively by the editor drag-resize logic
-      if (container) {
+      if (container && target.tagName !== "IFRAME") {
         target.setAttribute('width', '100%');
         target.setAttribute('height', '100%');
         target.style.width = '100%';
@@ -1513,6 +1519,12 @@ const VideoEditor = ({
         // Controls Size
         target.setAttribute('data-controls-size', controlsSize);
       } else if (target.tagName === "IFRAME") {
+        target.setAttribute('data-show-controls', controls ? 'true' : 'false');
+        if (container) {
+          container.setAttribute('data-show-controls', controls ? 'true' : 'false');
+        }
+        liveElement.setAttribute('data-show-controls', controls ? 'true' : 'false');
+
         try {
           let urlObj = new URL(target.src);
           let changed = false;
@@ -1586,7 +1598,6 @@ const VideoEditor = ({
         }
       }
 
-      // --- Video Formatting ---
       const innerGroup = liveElement.querySelector('.video-inner-content');
       if (innerGroup) {
         innerGroup.style.removeProperty('width');
@@ -1597,14 +1608,31 @@ const VideoEditor = ({
         innerGroup.style.removeProperty('overflow');
       }
 
-      target.style.removeProperty('width');
-      target.style.removeProperty('height');
-      target.style.removeProperty('max-width');
-      target.style.removeProperty('max-height');
+      const isIframe = target.tagName === "IFRAME";
+      if (!isIframe) {
+        target.style.removeProperty('width');
+        target.style.removeProperty('height');
+        target.style.removeProperty('max-width');
+        target.style.removeProperty('max-height');
 
-      target.style.removeProperty('transform');
-      target.style.removeProperty('transform-origin');
-      target.removeAttribute('transform');
+        target.style.removeProperty('transform');
+        target.style.removeProperty('transform-origin');
+        target.removeAttribute('transform');
+      } else {
+        // Ensure iframe stays scaled to match its foreignObject container dimensions
+        const foW = parseFloat(container?.getAttribute('width') || liveElement.getAttribute('width') || 0);
+        const foH = parseFloat(container?.getAttribute('height') || liveElement.getAttribute('height') || 0);
+        const origW = parseFloat(target.getAttribute('data-original-width') || target.getAttribute('width') || 640);
+        const origH = parseFloat(target.getAttribute('data-original-height') || target.getAttribute('height') || 360);
+        if (foW > 0 && foH > 0 && origW > 0 && origH > 0) {
+          const scaleX = foW / origW;
+          const scaleY = foH / origH;
+          target.style.setProperty('width', origW + 'px', 'important');
+          target.style.setProperty('height', origH + 'px', 'important');
+          target.style.setProperty('transform-origin', '0 0', 'important');
+          target.style.setProperty('transform', `scale(${scaleX}, ${scaleY})`, 'important');
+        }
+      }
       liveElement.removeAttribute('clip-path');
       liveElement.removeAttribute('data-crop-orig-w');
       liveElement.removeAttribute('data-crop-orig-h');

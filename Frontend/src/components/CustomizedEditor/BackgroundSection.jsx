@@ -526,46 +526,12 @@ const BackgroundSection = ({
   }, [backgroundSettings.style, backgroundSettings.reactBitType]);
 
   useEffect(() => {
-    if (!selectedTheme) return;
-
-    // Guard: Only update if the style or theme type is actually different
-    if (backgroundSettings?.style === 'ReactBits' && backgroundSettings?.reactBitType === selectedTheme) return;
-
-    const updates = {
-      ...backgroundSettings,
-      style: 'ReactBits',
-      reactBitType: selectedTheme,
-      color: '#000000'
-    };
-    // Improved state saving: capture a snapshot of current settings if we're not already in a theme
-    if (backgroundSettings.style !== 'ReactBits') {
-      updates.savedNonThemeSettings = {
-        style: backgroundSettings.style,
-        color: backgroundSettings.color,
-        gradient: backgroundSettings.gradient,
-        gradientType: backgroundSettings.gradientType,
-        gradientStops: backgroundSettings.gradientStops,
-        gradientAngle: backgroundSettings.gradientAngle,
-        gradientRadius: backgroundSettings.gradientRadius,
-        image: backgroundSettings.image,
-        fit: backgroundSettings.fit,
-        adjustments: backgroundSettings.adjustments,
-        cropData: backgroundSettings.cropData,
-        opacity: backgroundSettings.opacity
-      };
-
-      // Maintain backward compatibility for UI elements that specifically rely on savedSolidColor
-      if (backgroundSettings.style === 'Solid' || backgroundSettings.color) {
-        updates.savedSolidColor = backgroundSettings.color;
-      }
-    } else if (backgroundSettings.savedNonThemeSettings) {
-      // Preserve existing saved settings if we're just switching between themes
-      updates.savedNonThemeSettings = backgroundSettings.savedNonThemeSettings;
-      updates.savedSolidColor = backgroundSettings.savedSolidColor;
+    if (backgroundSettings?.reactBitType) {
+      setSelectedTheme(backgroundSettings.reactBitType);
+    } else {
+      setSelectedTheme(null);
     }
-
-    onUpdateBackground(updates);
-  }, [selectedTheme, backgroundSettings.style, backgroundSettings.reactBitType]);
+  }, [backgroundSettings.reactBitType]);
 
   const [editingGradientStopIndex, setEditingGradientStopIndex] = useState(null);
   const [pendingNewStopOffset, setPendingNewStopOffset] = useState(null);
@@ -704,8 +670,7 @@ const BackgroundSection = ({
     }
     const newSettings = {
       ...backgroundSettings,
-      style: targetStyle,
-      reactBitType: null
+      style: targetStyle
     };
     onUpdateBackground(newSettings);
     saveBackgroundToDB(newSettings);
@@ -717,8 +682,7 @@ const BackgroundSection = ({
     if (backgroundSettings.style !== targetStyle) {
       const newSettings = {
         ...backgroundSettings,
-        style: targetStyle,
-        reactBitType: null
+        style: targetStyle
       };
       onUpdateBackground(newSettings);
       saveBackgroundToDB(newSettings);
@@ -846,7 +810,6 @@ const BackgroundSection = ({
   };
 
   const setBgStyle = (style) => {
-    setSelectedTheme(null);
     if (style === 'Gradient' && backgroundSettings.gradientStops) {
       const gradient = generateGradientString(
         backgroundSettings.gradientType || 'Linear',
@@ -854,20 +817,19 @@ const BackgroundSection = ({
         backgroundSettings.gradientAngle || 0,
         backgroundSettings.gradientRadius || 100
       );
-      onUpdateBackground({ ...backgroundSettings, style, gradient, reactBitType: null });
+      onUpdateBackground({ ...backgroundSettings, style, gradient });
     } else if (style === 'Solid' && backgroundSettings.savedSolidColor) {
-      onUpdateBackground({ ...backgroundSettings, style, color: backgroundSettings.savedSolidColor, reactBitType: null });
+      onUpdateBackground({ ...backgroundSettings, style, color: backgroundSettings.savedSolidColor });
     } else if (style === 'Media') {
       const targetStyle = mediaSubTab === 'Video' ? 'Video' : 'Image';
-      onUpdateBackground({ ...backgroundSettings, style: targetStyle, reactBitType: null });
+      onUpdateBackground({ ...backgroundSettings, style: targetStyle });
     } else {
-      onUpdateBackground({ ...backgroundSettings, style, reactBitType: null });
+      onUpdateBackground({ ...backgroundSettings, style });
     }
   };
 
   const handleColorSelect = (color) => {
-    setSelectedTheme(null);
-    onUpdateBackground({ ...backgroundSettings, style: 'Solid', color, reactBitType: null });
+    onUpdateBackground({ ...backgroundSettings, style: 'Solid', color });
   };
 
   const handleAdjustmentChange = (key, value) => {
@@ -882,7 +844,37 @@ const BackgroundSection = ({
 
   const handleAnimatedThemeSelect = React.useCallback((name) => {
     setSelectedTheme(name);
-  }, []);
+    const updates = {
+      ...settingsRef.current,
+      style: 'ReactBits',
+      reactBitType: name,
+      color: '#000000'
+    };
+    if (settingsRef.current.style !== 'ReactBits') {
+      updates.savedNonThemeSettings = {
+        style: settingsRef.current.style,
+        color: settingsRef.current.color,
+        gradient: settingsRef.current.gradient,
+        gradientType: settingsRef.current.gradientType,
+        gradientStops: settingsRef.current.gradientStops,
+        gradientAngle: settingsRef.current.gradientAngle,
+        gradientRadius: settingsRef.current.gradientRadius,
+        image: settingsRef.current.image,
+        fit: settingsRef.current.fit,
+        adjustments: settingsRef.current.adjustments,
+        cropData: settingsRef.current.cropData,
+        opacity: settingsRef.current.opacity
+      };
+
+      if (settingsRef.current.style === 'Solid' || settingsRef.current.color) {
+        updates.savedSolidColor = settingsRef.current.color;
+      }
+    } else if (settingsRef.current.savedNonThemeSettings) {
+      updates.savedNonThemeSettings = settingsRef.current.savedNonThemeSettings;
+      updates.savedSolidColor = settingsRef.current.savedSolidColor;
+    }
+    onUpdateBackground(updates);
+  }, [onUpdateBackground]);
 
   const handleVideoThemeSelect = React.useCallback(async (vdo) => {
     setSelectedTheme(null);
@@ -917,7 +909,6 @@ const BackgroundSection = ({
       style: 'Video',
       video: finalVideoUrl,
       fit: 'Fill',
-      reactBitType: null,
       color: '#000000'
     };
     onUpdateBackground(newBgSettings);
@@ -957,8 +948,7 @@ const BackgroundSection = ({
       ...settingsRef.current,
       style: 'Image',
       image: finalImageUrl,
-      fit: 'Fill',
-      reactBitType: null
+      fit: 'Fill'
     };
 
     onUpdateBackground(newBgSettings);
@@ -1094,7 +1084,88 @@ const BackgroundSection = ({
           {['Background', 'Themes', 'Animations'].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                const prevTab = activeTab;
+                setActiveTab(tab);
+                
+                if (prevTab === tab) return;
+
+                const updates = { ...settingsRef.current };
+
+                // 1. Save state of the tab we are leaving
+                if (prevTab === 'Background') {
+                  updates.savedBackgroundTabSettings = {
+                    style: updates.style,
+                    color: updates.color,
+                    gradient: updates.gradient,
+                    gradientType: updates.gradientType,
+                    gradientStops: updates.gradientStops,
+                    gradientAngle: updates.gradientAngle,
+                    gradientRadius: updates.gradientRadius,
+                    image: updates.image,
+                    fit: updates.fit,
+                    adjustments: updates.adjustments,
+                    cropData: updates.cropData,
+                    opacity: updates.opacity,
+                    video: updates.video,
+                    savedSolidColor: updates.savedSolidColor,
+                    savedNonThemeSettings: updates.savedNonThemeSettings
+                  };
+                } else if (prevTab === 'Themes') {
+                  updates.savedThemesTabSettings = {
+                    style: updates.style,
+                    color: updates.color,
+                    gradient: updates.gradient,
+                    reactBitType: updates.reactBitType,
+                    image: updates.image,
+                    video: updates.video,
+                    fit: updates.fit
+                  };
+                } else if (prevTab === 'Animations') {
+                  updates.savedAnimation = updates.animation;
+                }
+
+                // 2. Restore state of the tab we are entering
+                if (tab === 'Themes') {
+                  updates.animation = 'None'; // Hide animation
+                  if (updates.savedThemesTabSettings) {
+                    Object.assign(updates, updates.savedThemesTabSettings);
+                  } else {
+                    if (selectedTheme) {
+                      updates.style = 'ReactBits';
+                      updates.reactBitType = selectedTheme;
+                      updates.color = '#000000';
+                      updates.gradient = '';
+                    } else {
+                      updates.style = 'Solid';
+                      updates.color = 'transparent';
+                      updates.reactBitType = null;
+                      updates.gradient = '';
+                    }
+                  }
+                } else if (tab === 'Background') {
+                  updates.animation = 'None'; // Hide animation
+                  if (updates.savedBackgroundTabSettings) {
+                    Object.assign(updates, updates.savedBackgroundTabSettings);
+                  } else if (updates.savedNonThemeSettings) {
+                    Object.assign(updates, updates.savedNonThemeSettings);
+                  } else if (updates.savedSolidColor) {
+                    updates.style = 'Solid';
+                    updates.color = updates.savedSolidColor;
+                  }
+                } else if (tab === 'Animations') {
+                  // Hide base background and themes, show only the animation overlay
+                  updates.style = 'Solid';
+                  updates.color = 'transparent';
+                  updates.reactBitType = null;
+                  updates.gradient = '';
+                  updates.image = '';
+                  updates.video = '';
+                  updates.animation = updates.savedAnimation || 'None';
+                }
+
+                onUpdateBackground(updates);
+              }}
               className={`pb-[1vw] pt-[0.5vw] mb-[-0.15vw] mt-[0.5vw] text-[0.85vw] font-medium transition-all border-b-[0.15vw] flex-1 ${activeTab === tab
                   ? 'text-gray-900 border-gray-900'
                   : 'text-gray-400 border-transparent hover:text-gray-600'
@@ -1854,6 +1925,30 @@ const BackgroundSection = ({
                 </div>
               </div>
 
+              {/* Dynamic Color Toggle */}
+              <div className="flex items-center justify-between gap-[1vw] py-[0.5vw] mt-[0.2vw] mb-[0.2vw]">
+                <span className="text-[0.75vw] text-gray-600 font-normal leading-snug">
+                  Automatically match layout colors to the selected theme.
+                </span>
+                <div className="flex-shrink-0 flex justify-end">
+                  <div
+                    onClick={() => {
+                      const currentVal = backgroundSettings.applyDynamicColor ?? true;
+                      onUpdateBackground({ ...backgroundSettings, applyDynamicColor: !currentVal });
+                    }}
+                    className={`w-[2.2vw] h-[1.2vw] flex items-center rounded-full p-[0.1vw] cursor-pointer transition-colors duration-300 ${
+                      (backgroundSettings.applyDynamicColor ?? true) ? 'bg-[#4D47FF]' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`bg-white w-[1vw] h-[1vw] rounded-full shadow-md transform transition-transform duration-300 ${
+                        (backgroundSettings.applyDynamicColor ?? true) ? 'translate-x-[1vw]' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Collapsible Adjustment Section */}
               <div className="flex flex-col mt-[0.5vw]">
                 <div
@@ -1948,27 +2043,41 @@ const BackgroundSection = ({
               })}
             </div>
 
+            {/* Dynamic Color Toggle in Themes tab */}
+            <div className="flex items-center justify-between gap-[1vw] py-[0.2vw] mb-[0.6vw] px-1">
+              <span className="text-[0.75vw] text-gray-600 font-normal leading-snug">
+                Automatically match layout colors to the selected theme.
+              </span>
+              <div className="flex-shrink-0 flex justify-end">
+                <div
+                  onClick={() => {
+                    const currentVal = backgroundSettings.applyDynamicColor ?? true;
+                    onUpdateBackground({ ...backgroundSettings, applyDynamicColor: !currentVal });
+                  }}
+                  className={`w-[2.2vw] h-[1.2vw] flex items-center rounded-full p-[0.1vw] cursor-pointer transition-colors duration-300 ${
+                    (backgroundSettings.applyDynamicColor ?? true) ? 'bg-[#4D47FF]' : 'bg-gray-300'
+                  }`}
+                >
+                  <div
+                    className={`bg-white w-[1vw] h-[1vw] rounded-full shadow-md transform transition-transform duration-300 ${
+                      (backgroundSettings.applyDynamicColor ?? true) ? 'translate-x-[1vw]' : 'translate-x-0'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className={`flex flex-col gap-[1vw] px-1 pb-2 ${themeType !== 'Animated Themes' ? 'hidden' : ''}`}>
               <div className="grid grid-cols-3 gap-2">
                 <div
                   onClick={() => {
                     setSelectedTheme(null);
-                    if (!backgroundSettings.savedNonThemeSettings) {
-                      onUpdateBackground({
-                        ...backgroundSettings,
-                        style: 'Solid',
-                        reactBitType: null,
-                        color: backgroundSettings.savedSolidColor || backgroundSettings.color || '#ffffff'
-                      });
-                    } else {
-                      const updates = { ...backgroundSettings, reactBitType: null };
-                      // Always restore the previous background settings if they were saved, 
-                      // allowing it to show through behind the animation overlay.
-                      if (backgroundSettings.savedNonThemeSettings) {
-                        Object.assign(updates, backgroundSettings.savedNonThemeSettings);
-                      }
-                      onUpdateBackground(updates);
-                    }
+                    onUpdateBackground({
+                      ...backgroundSettings,
+                      style: 'Solid',
+                      reactBitType: null,
+                      color: 'transparent'
+                    });
                   }}
                   className="group cursor-pointer flex flex-col gap-[1vw]"
                 >
@@ -2010,12 +2119,7 @@ const BackgroundSection = ({
           {/* None Option */}
           <div
             onClick={() => {
-              const updates = { ...backgroundSettings, animation: 'None' };
-              // Only restore background if we're not currently in a ReactBits theme
-              if (backgroundSettings.style !== 'ReactBits' && backgroundSettings.savedNonThemeSettings) {
-                Object.assign(updates, backgroundSettings.savedNonThemeSettings);
-              }
-              onUpdateBackground(updates);
+              onUpdateBackground({ ...backgroundSettings, animation: 'None' });
             }}
             className="group cursor-pointer flex flex-col gap-2"
           >

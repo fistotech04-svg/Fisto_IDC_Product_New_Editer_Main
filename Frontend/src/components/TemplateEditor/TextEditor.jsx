@@ -3099,6 +3099,31 @@ const TextEditor = ({
             <div className={`w-[0.9vw] h-[0.9vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
           </button>
         </div>
+
+        {/* Grammar & Spell Check Feature */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-[0.4vw]">
+            <span className="text-[0.8vw] font-semibold text-gray-900">Grammar & Spell Check</span>
+            <span className="text-[0.6vw] px-[0.35vw] py-[0.1vw] bg-indigo-50 text-indigo-600 rounded font-medium">Auto</span>
+          </div>
+          <div className="flex-1 mx-[1vw] border-b border-dashed border-gray-300"></div>
+          <button
+            onClick={() => {
+              const target = selectedElement?.tagName?.toLowerCase() === 'foreignobject' ? selectedElement : selectedElement?.closest('foreignObject');
+              const current = target?.getAttribute('data-grammar-check') !== 'false';
+              const nextVal = !current;
+              if (selectedLayerId) {
+                updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-grammar-check', nextVal.toString());
+              }
+              if (target) {
+                target.setAttribute('data-grammar-check', nextVal.toString());
+              }
+            }}
+            className={`w-[2.3vw] h-[1.2vw] rounded-full p-[0.15vw] transition-colors duration-200 ${selectedElement?.getAttribute('data-grammar-check') !== 'false' ? 'bg-indigo-600' : 'bg-gray-300'}`}
+          >
+            <div className={`w-[0.9vw] h-[0.9vw] bg-white rounded-full transition-transform duration-200 ${selectedElement?.getAttribute('data-grammar-check') !== 'false' ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
+          </button>
+        </div>
       </div>
 
       {/* Accordions */}
