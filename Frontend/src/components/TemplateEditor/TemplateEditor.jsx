@@ -20,6 +20,7 @@ import { checkIsAnimatedWebp } from './editorUtils';
 import pageCacheManager from './PageCacheManager';
 import { formatTemplateSvgToPageSvg } from '../../utils/editorUtils';
 import { useToast } from '../CustomToast';
+import EditorSkeletonLoader from './EditorSkeletonLoader';
 
 
 /**
@@ -30,7 +31,7 @@ const parseLayersFromSVG = (element) => {
   return Array.from(element.children)
     .filter(child => {
       if (['defs', 'metadata', 'style', 'title', 'desc', 'parsererror'].includes(child.tagName.toLowerCase())) return false;
-      if (child.getAttribute('data-name') === 'Overlay' || child.getAttribute('data-name') === 'Document Shield' || child.getAttribute('data-type') === 'shield') return false;
+      if (child.getAttribute('data-name') === 'Overlay' || child.getAttribute('data-name') === 'Document Shield' || child.getAttribute('data-type') === 'shield' || child.getAttribute('data-name') === 'Page Background Image' || child.getAttribute('data-type') === 'page-background-image' || child.getAttribute('id')?.startsWith('page-bg-img-') || child.getAttribute('data-name') === 'Page Border' || child.getAttribute('data-type') === 'page-border' || child.getAttribute('id')?.startsWith('page-border-')) return false;
       if (child.getAttribute('style')?.includes('display:none') || child.getAttribute('style')?.includes('display: none')) return false;
       if (child.classList.contains('svg-drop-shadow-caster')) return false;
       if (child.classList.contains('internal-crop-rect')) return false;
@@ -2299,6 +2300,21 @@ const TemplateEditor = () => {
     prevSelectedLayerIdRef.current = targetLayerId;
     prevMultiSelectedIdsRef.current = targetMultiIds;
 
+    // Fast-sync pageCacheManager for all pages in targetPages to prevent stale cache lookups
+    if (Array.isArray(targetPages)) {
+      targetPages.forEach((p) => {
+        if (p && p.id && p.html) {
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(p.html, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            const layers = svgEl ? parseLayersFromSVG(svgEl) : (p.layers || []);
+            pageCacheManager.setCachedLayers(p.id, p.html, layers);
+          } catch (_) {}
+        }
+      });
+    }
+
     setPages(targetPages);
     if (targetPageIndex !== undefined && targetPageIndex !== null && targetPageIndex >= 0) {
       setActivePageIndex(targetPageIndex);
@@ -2323,6 +2339,9 @@ const TemplateEditor = () => {
       rebind();
       setTimeout(rebind, 30);
       setTimeout(rebind, 100);
+      setTimeout(() => {
+        isUndoRedoActiveRef.current = false;
+      }, 150);
     });
   };
 
@@ -2350,6 +2369,21 @@ const TemplateEditor = () => {
     prevSelectedLayerIdRef.current = targetLayerId;
     prevMultiSelectedIdsRef.current = targetMultiIds;
 
+    // Fast-sync pageCacheManager for all pages in targetPages to prevent stale cache lookups
+    if (Array.isArray(targetPages)) {
+      targetPages.forEach((p) => {
+        if (p && p.id && p.html) {
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(p.html, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            const layers = svgEl ? parseLayersFromSVG(svgEl) : (p.layers || []);
+            pageCacheManager.setCachedLayers(p.id, p.html, layers);
+          } catch (_) {}
+        }
+      });
+    }
+
     setPages(targetPages);
     if (targetPageIndex !== undefined && targetPageIndex !== null && targetPageIndex >= 0) {
       setActivePageIndex(targetPageIndex);
@@ -2374,6 +2408,9 @@ const TemplateEditor = () => {
       rebind();
       setTimeout(rebind, 30);
       setTimeout(rebind, 100);
+      setTimeout(() => {
+        isUndoRedoActiveRef.current = false;
+      }, 150);
     });
   };
 
@@ -4030,6 +4067,86 @@ const TemplateEditor = () => {
           syncFilters(doc, element);
         }
 
+        // --- PAGE BORDER SYNC (Ensures stroke is visible on top of background image & accurately aligned) ---
+        if (element.getAttribute('data-name') === 'Overlay' || elementId === 'Overlay') {
+          const sColor = element.getAttribute('stroke');
+          const sWidth = parseFloat(element.getAttribute('stroke-width') || '0');
+          const sDash = element.getAttribute('stroke-dasharray');
+          const sOpacity = element.getAttribute('stroke-opacity');
+          const sJoin = element.getAttribute('stroke-linejoin') || 'round';
+          const sPos = element.getAttribute('data-stroke-position') || 'Inside';
+
+          let pageBorder = doc.querySelector('[data-name="Page Border"]') || doc.getElementById(`page-border-${pageIndex}`);
+
+          if (!sColor || sColor === 'none' || sWidth <= 0) {
+            if (pageBorder) pageBorder.remove();
+          } else {
+            const svgEl = doc.querySelector('svg');
+            let baseW = parseFloat(svgEl?.getAttribute('width') || element.getAttribute('width') || '794');
+            let baseH = parseFloat(svgEl?.getAttribute('height') || element.getAttribute('height') || '1123');
+            if (svgEl?.getAttribute('viewBox')) {
+              const vbParts = svgEl.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
+              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
+                baseW = vbParts[2];
+                baseH = vbParts[3];
+              }
+            }
+
+            if (!pageBorder) {
+              pageBorder = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              pageBorder.setAttribute('id', `page-border-${pageIndex}`);
+              pageBorder.setAttribute('data-name', 'Page Border');
+              pageBorder.setAttribute('data-type', 'page-border');
+              pageBorder.setAttribute('style', 'pointer-events: none;');
+              pageBorder.setAttribute('pointer-events', 'none');
+            }
+
+            // Always ensure pageBorder is placed after the background image and overlay
+            const bgImg = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
+            const insertAfterNode = bgImg || element;
+            if (insertAfterNode && insertAfterNode.parentNode) {
+              if (insertAfterNode.nextSibling !== pageBorder) {
+                insertAfterNode.parentNode.insertBefore(pageBorder, insertAfterNode.nextSibling);
+              }
+            }
+
+            // Calculate geometry for Inside / Center / Outside
+            if (sPos === 'Inside') {
+              pageBorder.setAttribute('x', (sWidth / 2).toString());
+              pageBorder.setAttribute('y', (sWidth / 2).toString());
+              pageBorder.setAttribute('width', Math.max(0, baseW - sWidth).toString());
+              pageBorder.setAttribute('height', Math.max(0, baseH - sWidth).toString());
+            } else if (sPos === 'Outside') {
+              pageBorder.setAttribute('x', (-sWidth / 2).toString());
+              pageBorder.setAttribute('y', (-sWidth / 2).toString());
+              pageBorder.setAttribute('width', (baseW + sWidth).toString());
+              pageBorder.setAttribute('height', (baseH + sWidth).toString());
+            } else {
+              // Center
+              pageBorder.setAttribute('x', '0');
+              pageBorder.setAttribute('y', '0');
+              pageBorder.setAttribute('width', baseW.toString());
+              pageBorder.setAttribute('height', baseH.toString());
+            }
+
+            pageBorder.setAttribute('fill', 'none');
+            pageBorder.setAttribute('stroke', sColor);
+            pageBorder.setAttribute('stroke-width', sWidth.toString());
+            pageBorder.setAttribute('stroke-linejoin', sJoin);
+            pageBorder.setAttribute('shape-rendering', 'geometricPrecision');
+            if (sOpacity !== null && sOpacity !== undefined) {
+              pageBorder.setAttribute('stroke-opacity', sOpacity);
+            } else {
+              pageBorder.removeAttribute('stroke-opacity');
+            }
+            if (sDash && sDash !== 'none') {
+              pageBorder.setAttribute('stroke-dasharray', sDash);
+            } else {
+              pageBorder.removeAttribute('stroke-dasharray');
+            }
+          }
+        }
+
         const serializer = new XMLSerializer();
         updated[pageIndex] = { ...page, html: serializer.serializeToString(doc.documentElement) };
       }
@@ -5578,11 +5695,10 @@ const TemplateEditor = () => {
             key="editor-loader"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="absolute inset-0 z-[9999] flex flex-col items-center justify-center bg-white h-full w-full gap-3"
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            className="absolute inset-0 z-[9999]"
           >
-            <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
-            <span className="text-[0.85vw] font-semibold text-gray-600 tracking-wide">Loading Editor...</span>
+            <EditorSkeletonLoader />
           </motion.div>
         )}
       </AnimatePresence>

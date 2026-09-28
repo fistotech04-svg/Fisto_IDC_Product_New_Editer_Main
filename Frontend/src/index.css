@@ -594,3 +594,9 @@ video.hide-controls:hover::-webkit-media-controls {
   color: #202124;
 }
 
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+

@@ -131,7 +131,7 @@ const ImageEditor = ({
   const [imageFileSize, setImageFileSize] = useState('');
 
   useEffect(() => {
-    if (!previewSrc) {
+    if (!previewSrc || previewSrc.startsWith('data:video/') || previewSrc.endsWith('.mp4') || previewSrc.endsWith('.webm') || previewSrc.includes('youtube.com') || previewSrc.includes('youtu.be')) {
       setImageResolution('');
       setImageFileSize('');
       return;

@@ -107,6 +107,11 @@ export const getVisualBBox = (el) => {
         bboxH = parseFloat(targetForOrig.getAttribute('data-crop-orig-h') || '0');
         bboxX = parseFloat(targetForOrig.getAttribute('data-crop-orig-x') || '0');
         bboxY = parseFloat(targetForOrig.getAttribute('data-crop-orig-y') || '0');
+      } else if (targetForOrig.hasAttribute('width') && targetForOrig.hasAttribute('height')) {
+        bboxW = parseFloat(targetForOrig.getAttribute('width') || '0');
+        bboxH = parseFloat(targetForOrig.getAttribute('height') || '0');
+        bboxX = parseFloat(targetForOrig.getAttribute('x') || '0');
+        bboxY = parseFloat(targetForOrig.getAttribute('y') || '0');
       } else {
         try {
           const bbox = el.getBBox();
@@ -541,7 +546,7 @@ const svgGlobalStyles = `
     transition: all 0.1s ease;
   }
 
-  /* Video & Iframe Scaling Fixes */
+  /* Video & Iframe Scaling Fixes & Hardware Acceleration */
   foreignObject video {
     width: 100% !important;
     height: 100% !important;
@@ -552,6 +557,9 @@ const svgGlobalStyles = `
     padding: 0 !important;
     box-sizing: border-box !important;
     pointer-events: auto !important;
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
   }
   foreignObject iframe {
     display: block !important;
@@ -562,13 +570,39 @@ const svgGlobalStyles = `
     box-sizing: border-box !important;
     pointer-events: auto !important;
     transform-origin: 0 0 !important;
+    transform: translateZ(0);
+    will-change: transform;
   }
   foreignObject[data-type="video"] {
     overflow: hidden !important;
     pointer-events: auto !important;
+    transform: translateZ(0);
+    will-change: transform;
   }
   foreignObject[data-type="video"] * {
     pointer-events: auto !important;
+  }
+
+  /* Image performance optimization for high quality images */
+  .page-svg-container svg image {
+    image-rendering: auto;
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* GPU acceleration and pointer shielding during active element drag */
+  .page-svg-container svg [data-dragging="true"],
+  .page-svg-container svg [data-dragging="true"] * {
+    will-change: transform !important;
+    pointer-events: none !important;
+  }
+
+  /* Global pointer shielding for iframes/videos when dragging or resizing */
+  body.canvas-dragging-active iframe,
+  body.canvas-dragging-active video,
+  body.resizing-active iframe,
+  body.resizing-active video {
+    pointer-events: none !important;
   }
 
   .hide-controls::-webkit-media-controls {
@@ -658,6 +692,13 @@ const syncDOM = (oldNode, newNode) => {
       if (oldNode.getAttribute(name) !== val) {
         oldNode.setAttribute(name, val);
       }
+    }
+  }
+
+  // Clear transient inline styles added during dragging/resizing if newNode doesn't have them
+  if (oldNode.style && newNode.style) {
+    if (!newNode.hasAttribute('style')) {
+      oldNode.removeAttribute('style');
     }
   }
 
@@ -791,6 +832,8 @@ const MainEditor = ({
   const wasRecentlyPanningRef = useRef(false); // ← tracks recent Space pan to suppress spurious clicks
   const isAltPressedRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0, target: null });
+  const hoverRafRef = useRef(null);
+  const lastHoverTargetRef = useRef(null);
   const drawMeasurementOverlayRef = useRef(null);
   const activeMainToolRef = useRef(activeMainTool);
   const activeTopToolRef = useRef(activeTopTool);
@@ -2893,9 +2936,19 @@ const MainEditor = ({
     syncOverlays();
     window.addEventListener('update-element-props', syncOverlays);
     window.addEventListener('rebind-selection-overlay', syncOverlays);
+
+    const handleWorkspaceColor = (e) => {
+      const color = e.detail?.color;
+      if (color && editorContainerRef.current) {
+        editorContainerRef.current.style.backgroundColor = color;
+      }
+    };
+    window.addEventListener('canvas-workspace-color-change', handleWorkspaceColor);
+
     return () => {
       window.removeEventListener('update-element-props', syncOverlays);
       window.removeEventListener('rebind-selection-overlay', syncOverlays);
+      window.removeEventListener('canvas-workspace-color-change', handleWorkspaceColor);
     };
   }, [activePageIndex]);
 
@@ -5012,11 +5065,17 @@ const MainEditor = ({
         return;
       }
     }
-    // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame
+    // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame / Page Background Image
     const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
       el.getAttribute('data-type') === 'background' ||
       el.getAttribute('data-type') === 'frame' ||
-      el.getAttribute('data-locked') === 'true';
+      el.getAttribute('data-locked') === 'true' ||
+      el.getAttribute('data-name') === 'Page Background Image' ||
+      el.getAttribute('data-type') === 'page-background-image' ||
+      el.id?.startsWith('page-bg-img-') ||
+      el.getAttribute('data-name') === 'Page Border' ||
+      el.getAttribute('data-type') === 'page-border' ||
+      el.id?.startsWith('page-border-');
 
 
     // Skip if this text element is currently in text-edit mode (we still want to draw the polygon, but skip handles later)
@@ -5914,10 +5973,12 @@ const MainEditor = ({
       const { layerId } = e.detail || {};
       const targetId = layerId || selectedLayerId;
       if (!targetId) return;
-      const el = document.getElementById(targetId);
-      if (el && typeof drawOverlayHighlight === 'function') {
-        drawOverlayHighlight(el, 'selected');
-      }
+      requestAnimationFrame(() => {
+        const el = document.getElementById(targetId);
+        if (el && typeof drawOverlayHighlight === 'function') {
+          drawOverlayHighlight(el, 'selected');
+        }
+      });
     };
     window.addEventListener('rebind-selection-overlay', handleRebindSelection);
     return () => window.removeEventListener('rebind-selection-overlay', handleRebindSelection);
@@ -7563,7 +7624,13 @@ const MainEditor = ({
       el.tagName.toLowerCase() !== 'style' &&
       el.tagName.toLowerCase() !== 'defs' &&
       el.getAttribute('data-hidden') !== 'true' &&
-      el.getAttribute('data-locked') !== 'true'
+      el.getAttribute('data-locked') !== 'true' &&
+      el.getAttribute('data-name') !== 'Page Background Image' &&
+      el.getAttribute('data-type') !== 'page-background-image' &&
+      !el.id.startsWith('page-bg-img-') &&
+      el.getAttribute('data-name') !== 'Page Border' &&
+      el.getAttribute('data-type') !== 'page-border' &&
+      !el.id.startsWith('page-border-')
     );
   };
 
@@ -7763,6 +7830,10 @@ const MainEditor = ({
         current.getAttribute('data-name') !== 'Overlay' &&
         current.getAttribute('data-name') !== 'Document Shield' &&
         current.getAttribute('data-type') !== 'shield' &&
+        current.getAttribute('data-name') !== 'Page Background Image' &&
+        current.getAttribute('data-type') !== 'page-background-image' &&
+        current.getAttribute('data-name') !== 'Page Border' &&
+        current.getAttribute('data-type') !== 'page-border' &&
         !['svg', 'defs', 'clippath', 'lineargradient', 'radialgradient', 'pattern', 'filter', 'style', 'metadata'].includes(tagName)
       ) {
         current.id = `${tagName}-${Math.random().toString(36).substr(2, 9)}`;
@@ -7776,6 +7847,12 @@ const MainEditor = ({
         current.getAttribute('data-name') !== 'Overlay' &&
         current.getAttribute('data-name') !== 'Document Shield' &&
         current.getAttribute('data-type') !== 'shield' &&
+        current.getAttribute('data-name') !== 'Page Background Image' &&
+        current.getAttribute('data-type') !== 'page-background-image' &&
+        !current.id.startsWith('page-bg-img-') &&
+        current.getAttribute('data-name') !== 'Page Border' &&
+        current.getAttribute('data-type') !== 'page-border' &&
+        !current.id.startsWith('page-border-') &&
         (!isConvertedFlipbook || (
           current.getAttribute('data-is-hotspot') === 'true' ||
           current.getAttribute('data-type') === 'hotspot' ||
@@ -7958,12 +8035,18 @@ const MainEditor = ({
               }
             }
 
-            // If background (SVG, Overlay, or Document Shield), stop drag completely
+            // If background (SVG, Overlay, Page Background Image, Page Border, or Document Shield), stop drag completely
             if (
               target === svgElement ||
               target.getAttribute('data-name') === 'Overlay' ||
               target.getAttribute('data-name') === 'Document Shield' ||
-              target.getAttribute('data-type') === 'shield'
+              target.getAttribute('data-type') === 'shield' ||
+              target.getAttribute('data-name') === 'Page Background Image' ||
+              target.getAttribute('data-type') === 'page-background-image' ||
+              target.id?.startsWith('page-bg-img-') ||
+              target.getAttribute('data-name') === 'Page Border' ||
+              target.getAttribute('data-type') === 'page-border' ||
+              target.id?.startsWith('page-border-')
             ) {
               safeStopInteraction(event.interaction);
               return;
@@ -8089,7 +8172,13 @@ const MainEditor = ({
             if (!elementToDrag ||
               elementToDrag.getAttribute('data-hidden') === 'true' ||
               elementToDrag.getAttribute('data-locked') === 'true' ||
-              elementToDrag.getAttribute('data-name') === 'Overlay') {
+              elementToDrag.getAttribute('data-name') === 'Overlay' ||
+              elementToDrag.getAttribute('data-name') === 'Page Background Image' ||
+              elementToDrag.getAttribute('data-type') === 'page-background-image' ||
+              elementToDrag.id?.startsWith('page-bg-img-') ||
+              elementToDrag.getAttribute('data-name') === 'Page Border' ||
+              elementToDrag.getAttribute('data-type') === 'page-border' ||
+              elementToDrag.id?.startsWith('page-border-')) {
               safeStopInteraction(event.interaction);
               return;
             }
@@ -8125,15 +8214,15 @@ const MainEditor = ({
             const multiIds = multiSelectedIdsRef.current;
             const multiDragItems = [];
 
-            const getLocalPoint = (svgElement, targetNode, clientX, clientY) => {
+            const getLocalPoint = (svgElement, targetNode, clientX, clientY, cachedInverseCtm = null) => {
               if (!svgElement || !targetNode) return null;
               const pt = svgElement.createSVGPoint();
               pt.x = clientX;
               pt.y = clientY;
               try {
-                const ctm = targetNode.getScreenCTM();
-                if (!ctm) return null;
-                return pt.matrixTransform(ctm.inverse());
+                const inv = cachedInverseCtm || targetNode.getScreenCTM()?.inverse();
+                if (!inv) return null;
+                return pt.matrixTransform(inv);
               } catch (e) {
                 return null;
               }
@@ -8146,20 +8235,25 @@ const MainEditor = ({
                   if (el && el !== svgElement &&
                     el.getAttribute('data-hidden') !== 'true' &&
                     el.getAttribute('data-locked') !== 'true') {
+                    const parentInverseCtm = el.parentNode?.getScreenCTM()?.inverse();
                     multiDragItems.push({
                       element: el,
+                      parentInverseCtm,
                       initialMatrix: getElementMatrix(el),
-                      startPointLocal: getLocalPoint(svgElement, el.parentNode, event.clientX, event.clientY)
+                      startPointLocal: getLocalPoint(svgElement, el.parentNode, event.clientX, event.clientY, parentInverseCtm)
                     });
                   }
                 }
               }
             }
 
+            const elementParentInverseCtm = elementToDrag.parentNode?.getScreenCTM()?.inverse();
+
             event.interaction.dragState = {
               element: elementToDrag,
+              parentInverseCtm: elementParentInverseCtm,
               startPoint: startPoint,
-              startPointLocal: getLocalPoint(svgElement, elementToDrag.parentNode, event.clientX, event.clientY),
+              startPointLocal: getLocalPoint(svgElement, elementToDrag.parentNode, event.clientX, event.clientY, elementParentInverseCtm),
               initialMatrix: getElementMatrix(elementToDrag),
               svgElement: svgElement,
               pageIndex: activePageIndex,
@@ -8182,26 +8276,32 @@ const MainEditor = ({
             }
             if (dragState.element && !dragState.element.isConnected) {
               const liveEl = liveSvg?.querySelector(`[id="${CSS.escape(dragState.element.id)}"]`) || document.getElementById(dragState.element.id);
-              if (liveEl) dragState.element = liveEl;
+              if (liveEl) {
+                dragState.element = liveEl;
+                dragState.parentInverseCtm = liveEl.parentNode?.getScreenCTM()?.inverse();
+              }
             }
             if (dragState.multiDragItems) {
               for (const item of dragState.multiDragItems) {
                 if (!item.element.isConnected) {
                   const liveEl = liveSvg?.querySelector(`[id="${CSS.escape(item.element.id)}"]`) || document.getElementById(item.element.id);
-                  if (liveEl) item.element = liveEl;
+                  if (liveEl) {
+                    item.element = liveEl;
+                    item.parentInverseCtm = liveEl.parentNode?.getScreenCTM()?.inverse();
+                  }
                 }
               }
             }
 
-            const getLocalPoint = (svgElement, targetNode, clientX, clientY) => {
+            const getLocalPoint = (svgElement, targetNode, clientX, clientY, cachedInverseCtm = null) => {
               if (!svgElement || !targetNode) return null;
               const pt = svgElement.createSVGPoint();
               pt.x = clientX;
               pt.y = clientY;
               try {
-                const ctm = targetNode.getScreenCTM();
-                if (!ctm) return null;
-                return pt.matrixTransform(ctm.inverse());
+                const inv = cachedInverseCtm || targetNode.getScreenCTM()?.inverse();
+                if (!inv) return null;
+                return pt.matrixTransform(inv);
               } catch (e) {
                 return null;
               }
@@ -8219,12 +8319,18 @@ const MainEditor = ({
 
               // Threshold crossed!
               dragState.thresholdMet = true;
+              document.body.classList.add('canvas-dragging-active');
+
+              // Hide handles & badges during drag for extreme smoothness
+              document.querySelectorAll('.resize-handle').forEach(h => { h.style.display = 'none'; });
+              document.querySelectorAll('[id^="interaction-badge-"]').forEach(b => { b.style.display = 'none'; });
+              document.querySelectorAll('[id^="video-mode-toggle-"]').forEach(v => { v.style.display = 'none'; });
 
               // Prevent jumping by resetting start points to current mouse pos
-              dragState.startPointLocal = getLocalPoint(dragState.svgElement, dragState.element.parentNode, event.clientX, event.clientY);
+              dragState.startPointLocal = getLocalPoint(dragState.svgElement, dragState.element.parentNode, event.clientX, event.clientY, dragState.parentInverseCtm);
               if (dragState.multiDragItems) {
                 for (const item of dragState.multiDragItems) {
-                  item.startPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
+                  item.startPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY, item.parentInverseCtm);
                   item.element.setAttribute('data-dragging', 'true');
                 }
               } else {
@@ -8291,7 +8397,7 @@ const MainEditor = ({
             if (dragState.multiDragItems) {
               // Move ALL multi-selected elements freely across canvas
               for (const item of dragState.multiDragItems) {
-                const currentPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
+                const currentPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY, item.parentInverseCtm);
                 if (!currentPointLocal || !item.startPointLocal) continue;
 
                 let dx = currentPointLocal.x - item.startPointLocal.x;
@@ -8312,7 +8418,7 @@ const MainEditor = ({
             } else {
               // Single element drag freely across canvas
               const target = dragState.element;
-              const currentPointLocal = getLocalPoint(dragState.svgElement, target.parentNode, event.clientX, event.clientY);
+              const currentPointLocal = getLocalPoint(dragState.svgElement, target.parentNode, event.clientX, event.clientY, dragState.parentInverseCtm);
               if (!currentPointLocal || !dragState.startPointLocal) return;
 
               let dx = currentPointLocal.x - dragState.startPointLocal.x;
@@ -8321,9 +8427,18 @@ const MainEditor = ({
               const translation = new DOMMatrix().translate(dx, dy);
               const nextMatrix = translation.multiply(dragState.initialMatrix);
               target.setAttribute('transform', matrixToTransform(nextMatrix));
-              
-              // dynamically update the outline while dragging via requestAnimationFrame throttle
-              if (!dragState.rafPending) {
+
+              // Fast-path overlay transform: move existing SVG overlay polygon directly without full layout reflow
+              const pageContainer = target.closest('.page-svg-container');
+              const overlaySvg = pageContainer?.querySelector(`[id^="highlight-overlay-"]:not([id^="highlight-overlay-html-"])`);
+              const selPoly = overlaySvg?.querySelector(`[id="overlay-poly-selected-${target.id}"], [id="overlay-poly-child-selected-${target.id}"]`);
+              if (selPoly) {
+                // Calculate overlay translation delta from initial drag position
+                const zoomScale = zoom / 100;
+                const overlayDx = (event.clientX - dragState.initialClientX) / zoomScale;
+                const overlayDy = (event.clientY - dragState.initialClientY) / zoomScale;
+                selPoly.setAttribute('transform', `translate(${overlayDx} ${overlayDy})`);
+              } else if (!dragState.rafPending) {
                 dragState.rafPending = true;
                 requestAnimationFrame(() => {
                   if (!dragState) return;
@@ -8358,6 +8473,7 @@ const MainEditor = ({
             suppressClickRef.current = true;
           },
           end(event) {
+            document.body.classList.remove('canvas-dragging-active');
             const dragState = event.interaction.dragState;
             if (!dragState) return;
 
@@ -8821,6 +8937,9 @@ const MainEditor = ({
 
             const initialObjectFit = el.getAttribute('data-object-fit') || 'Fit';
 
+            const parentCtmForInv = el.parentNode ? el.parentNode.getScreenCTM() : svg?.getScreenCTM();
+            const parentInverseCtm = parentCtmForInv ? parentCtmForInv.inverse() : null;
+
             event.interaction.resizeState = {
               el,
               dir,
@@ -8830,12 +8949,14 @@ const MainEditor = ({
               localAnchor,
               startPoint,
               svg,
+              parentInverseCtm,
               childrenData,
               isImageGroupResize,
               initialImgState,
               initialCrop,
               initialObjectFit,
               cropInitialized: false,
+              rafPending: false,
               cursor: currentCursor // Store for reinforcement
             };
           },
@@ -8854,12 +8975,12 @@ const MainEditor = ({
 
             const { el, bbox, worldAnchor, matrix, dir } = state;
 
-            const parentCTM = el.parentNode ? el.parentNode.getScreenCTM() : state.svg.getScreenCTM();
-            if (!parentCTM) return;
+            const invCtm = state.parentInverseCtm || (el.parentNode ? el.parentNode.getScreenCTM()?.inverse() : state.svg.getScreenCTM()?.inverse());
+            if (!invCtm) return;
             const pt = state.svg.createSVGPoint();
             pt.x = event.clientX;
             pt.y = event.clientY;
-            const currentPoint = pt.matrixTransform(parentCTM.inverse());
+            const currentPoint = pt.matrixTransform(invCtm);
 
             if (dir === 'linestart' || dir === 'lineend') {
               const invMatrix = matrix.inverse();
@@ -10019,7 +10140,6 @@ const MainEditor = ({
               if (state.childrenData) {
                 state.childrenData.forEach(c => {
                   syncOverlay(c.child);
-                  drawOverlayHighlight(c.child, 'multi-child-selected');
                 });
               }
 
@@ -10046,10 +10166,30 @@ const MainEditor = ({
                 const selHtmlOverlay = pageIdx != null ? document.getElementById(`highlight-overlay-html-${pageIdx}`) : null;
                 syncMultiSelectionBox(firstChildEl.ownerSVGElement, selOverlay, selHtmlOverlay, newOverallBBox);
               }
+
+              if (!state.rafPending) {
+                state.rafPending = true;
+                requestAnimationFrame(() => {
+                  if (!state) return;
+                  state.rafPending = false;
+                  if (state.childrenData) {
+                    state.childrenData.forEach(c => {
+                      drawOverlayHighlight(c.child, 'multi-child-selected');
+                    });
+                  }
+                });
+              }
             } else {
               syncOverlay(el);
-              const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
-              drawOverlayHighlight(el, highlightType);
+              if (!state.rafPending) {
+                state.rafPending = true;
+                requestAnimationFrame(() => {
+                  if (!state) return;
+                  state.rafPending = false;
+                  const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
+                  drawOverlayHighlight(el, highlightType);
+                });
+              }
             }
           },
           end(event) {
@@ -10060,6 +10200,21 @@ const MainEditor = ({
 
             const state = event.interaction.resizeState;
             if (state) {
+              if (state.rafPending) {
+                state.rafPending = false;
+              }
+              // Immediately redraw final crisp overlay position
+              if (state.el.tagName === 'multi') {
+                if (state.childrenData) {
+                  state.childrenData.forEach(c => {
+                    drawOverlayHighlight(c.child, 'multi-child-selected');
+                  });
+                }
+              } else {
+                const highlightType = (currentFrameIdRef.current && state.el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
+                drawOverlayHighlight(state.el, highlightType);
+              }
+
               if (state.childrenData) {
                 const textChild = state.childrenData.find(c => c.child.tagName?.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
                 if (textChild) {
@@ -11254,101 +11409,104 @@ const MainEditor = ({
     const svg = container.querySelector('svg');
     if (!svg) return;
 
-    // Clear all hover states
-    svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
-    svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
-    clearOverlayType('hover');
-    clearOverlayType('child-hover');
+    if (hoverRafRef.current) return;
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    const targetElement = e.target;
 
-    // ── Converted Flipbook Mode (PDF, DOC, PPT): Only hover user-added Frames or Hotspots ──
-    if (isConvertedFlipbook) {
+    hoverRafRef.current = requestAnimationFrame(() => {
+      hoverRafRef.current = null;
+      if (document.querySelector('[data-dragging="true"]')) return;
+
       let hoverTarget = null;
-      let curr = e.target;
-      while (curr && curr !== svg) {
-        if (curr.getAttribute) {
-          const isHotspot = curr.getAttribute('data-is-hotspot') === 'true' || curr.getAttribute('data-type') === 'hotspot';
-          const isFreeFrame = curr.getAttribute('data-name') === 'Free Frame';
-          const isShape = curr.getAttribute('data-type') === 'shape';
-          const isIcon = curr.getAttribute('data-type') === 'icon';
-          const isShield = curr.getAttribute('data-name') === 'Document Shield' || curr.getAttribute('data-type') === 'shield';
-          if (isShield) {
-            hoverTarget = null;
-            break;
-          }
-          if (isHotspot || isFreeFrame || isShape || isIcon) {
-            hoverTarget = curr;
-            break;
-          }
-        }
-        curr = curr.parentElement || curr.parentNode;
-      }
+      let hoverType = 'hover';
 
-      if (hoverTarget && hoverTarget.id && selectedLayerIdRef.current !== hoverTarget.id) {
-        hoverTarget.setAttribute('data-hovered', 'true');
-        drawOverlayHighlight(hoverTarget, 'hover');
-      }
-      return;
-    }
-
-    // ── Direct selection mode: hover the deepest element with an ID ──────────
-    if (selectedSelectTool === 'direct') {
-      const target = getDraggableElement(e.target, svg);
-      if (target && target.id && target.tagName.toLowerCase() !== 'svg') {
-        if (!multiSelectedIdsRef.current.has(target.id) && selectedLayerIdRef.current !== target.id) {
-          target.setAttribute('data-hovered', 'true');
-          drawOverlayHighlight(target, 'child-hover');
-        }
-        return;
-      }
-    }
-
-    const effectiveFrameId = currentFrameIdRef.current;
-
-    if (effectiveFrameId) {
-      // ── Inside a frame: hover its direct children ──
-      const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
-      if (frameEl) {
-        const children = getDirectChildFrames(frameEl);
-        for (let i = children.length - 1; i >= 0; i--) {
-          if (hitTest(children[i], e.clientX, e.clientY)) {
-            // Only hover if not already selected
-            if (!multiSelectedIdsRef.current.has(children[i].id) && selectedLayerIdRef.current !== children[i].id) {
-              children[i].setAttribute('data-child-hovered', 'true');
-              drawOverlayHighlight(children[i], 'child-hover');
+      // ── Converted Flipbook Mode (PDF, DOC, PPT): Only hover user-added Frames or Hotspots ──
+      if (isConvertedFlipbook) {
+        let curr = targetElement;
+        while (curr && curr !== svg) {
+          if (curr.getAttribute) {
+            const isHotspot = curr.getAttribute('data-is-hotspot') === 'true' || curr.getAttribute('data-type') === 'hotspot';
+            const isFreeFrame = curr.getAttribute('data-name') === 'Free Frame';
+            const isShape = curr.getAttribute('data-type') === 'shape';
+            const isIcon = curr.getAttribute('data-type') === 'icon';
+            const isShield = curr.getAttribute('data-name') === 'Document Shield' || curr.getAttribute('data-type') === 'shield';
+            if (isShield) {
+              hoverTarget = null;
+              break;
             }
-            return;
+            if (isHotspot || isFreeFrame || isShape || isIcon) {
+              hoverTarget = curr;
+              break;
+            }
+          }
+          curr = curr.parentElement || curr.parentNode;
+        }
+      } else if (selectedSelectTool === 'direct') {
+        const target = getDraggableElement(targetElement, svg);
+        if (target && target.id && target.tagName.toLowerCase() !== 'svg') {
+          if (!multiSelectedIdsRef.current.has(target.id) && selectedLayerIdRef.current !== target.id) {
+            hoverTarget = target;
+            hoverType = 'child-hover';
           }
         }
-
-        // Falling outside current frame context: highlight top-level elements
-        if (!hitTest(frameEl, e.clientX, e.clientY)) {
+      } else {
+        const effectiveFrameId = currentFrameIdRef.current;
+        if (effectiveFrameId) {
+          const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
+          if (frameEl) {
+            const children = getDirectChildFrames(frameEl);
+            for (let i = children.length - 1; i >= 0; i--) {
+              if (hitTest(children[i], clientX, clientY)) {
+                if (!multiSelectedIdsRef.current.has(children[i].id) && selectedLayerIdRef.current !== children[i].id) {
+                  hoverTarget = children[i];
+                  hoverType = 'child-hover';
+                }
+                break;
+              }
+            }
+            if (!hoverTarget && !hitTest(frameEl, clientX, clientY)) {
+              const topLevelEls = getTopLevelFrames(svg);
+              for (let i = topLevelEls.length - 1; i >= 0; i--) {
+                if (hitTest(topLevelEls[i], clientX, clientY)) {
+                  if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
+                    hoverTarget = topLevelEls[i];
+                    hoverType = 'hover';
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        } else {
           const topLevelEls = getTopLevelFrames(svg);
           for (let i = topLevelEls.length - 1; i >= 0; i--) {
-            if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-              // Only hover if not already selected
+            if (hitTest(topLevelEls[i], clientX, clientY)) {
               if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
-                topLevelEls[i].setAttribute('data-hovered', 'true');
-                drawOverlayHighlight(topLevelEls[i], 'hover');
+                hoverTarget = topLevelEls[i];
+                hoverType = 'hover';
               }
-              return;
+              break;
             }
           }
         }
       }
-    } else {
-      // ── Top-level: hover top-level frames ──
-      const topLevelEls = getTopLevelFrames(svg);
-      for (let i = topLevelEls.length - 1; i >= 0; i--) {
-        if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-          // Only hover if not already selected
-          if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
-            topLevelEls[i].setAttribute('data-hovered', 'true');
-            drawOverlayHighlight(topLevelEls[i], 'hover');
-          }
-          return;
-        }
+
+      // Avoid DOM operations if target hasn't changed
+      if (lastHoverTargetRef.current === hoverTarget) return;
+      lastHoverTargetRef.current = hoverTarget;
+
+      // Clear all previous hover states
+      svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
+      svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+      clearOverlayType('hover');
+      clearOverlayType('child-hover');
+
+      if (hoverTarget && hoverTarget.id && selectedLayerIdRef.current !== hoverTarget.id && !multiSelectedIdsRef.current.has(hoverTarget.id)) {
+        hoverTarget.setAttribute(hoverType === 'child-hover' ? 'data-child-hovered' : 'data-hovered', 'true');
+        drawOverlayHighlight(hoverTarget, hoverType);
       }
-    }
+    });
   };
 
   // ── MARQUEE SELECTION LOGIC (Optimized) ──
@@ -13129,6 +13287,12 @@ const MainEditor = ({
           const normalElements = Array.from(frameEl.children).filter(el =>
             el.id && el.getAttribute('data-type') !== 'frame' &&
             el.getAttribute('data-name') !== 'Overlay' &&
+            el.getAttribute('data-name') !== 'Page Background Image' &&
+            el.getAttribute('data-type') !== 'page-background-image' &&
+            !el.id.startsWith('page-bg-img-') &&
+            el.getAttribute('data-name') !== 'Page Border' &&
+            el.getAttribute('data-type') !== 'page-border' &&
+            !el.id.startsWith('page-border-') &&
             el.getAttribute('data-hidden') !== 'true' &&
             el.getAttribute('data-locked') !== 'true'
           );
@@ -13272,6 +13436,12 @@ const MainEditor = ({
       const normalEls = Array.from(hitFrame.children).filter(el =>
         el.id && el.getAttribute('data-type') !== 'frame' &&
         el.getAttribute('data-name') !== 'Overlay' &&
+        el.getAttribute('data-name') !== 'Page Background Image' &&
+        el.getAttribute('data-type') !== 'page-background-image' &&
+        !el.id.startsWith('page-bg-img-') &&
+        el.getAttribute('data-name') !== 'Page Border' &&
+        el.getAttribute('data-type') !== 'page-border' &&
+        !el.id.startsWith('page-border-') &&
         el.getAttribute('data-hidden') !== 'true' &&
         el.getAttribute('data-locked') !== 'true'
       );
@@ -14751,32 +14921,10 @@ const MainEditor = ({
                                       el.__lastHtml = newHtml;
                                       el.__lastPageIndex = displayIndex;
                                     } else if (el.__lastHtml !== newHtml) {
-                                      // Fast path: When switching between different pages, direct innerHTML swap is 100x faster than recursive syncDOM!
-                                      if (el.__lastPageIndex !== displayIndex) {
-                                        el.innerHTML = newHtml;
-                                        el.__lastPageIndex = displayIndex;
-                                        el.__lastHtml = newHtml;
-                                      } else {
-                                        const parser = new DOMParser();
-                                        const doc = parser.parseFromString(newHtml, 'text/html');
-                                        const newChildren = Array.from(doc.body.childNodes);
-
-                                        const oldChildren = Array.from(el.childNodes);
-                                        const maxLength = Math.max(oldChildren.length, newChildren.length);
-
-                                        for (let i = 0; i < maxLength; i++) {
-                                          if (!oldChildren[i]) {
-                                            el.appendChild(newChildren[i].cloneNode(true));
-                                          } else if (!newChildren[i]) {
-                                            el.removeChild(oldChildren[i]);
-                                          } else {
-                                            syncDOM(oldChildren[i], newChildren[i]);
-                                          }
-                                        }
-
-                                        el.__lastHtml = newHtml;
-                                        el.__lastPageIndex = displayIndex;
-                                      }
+                                      // Clean fast swap when full markup changed (e.g. Undo/Redo, page switch, or new template)
+                                      el.innerHTML = newHtml;
+                                      el.__lastPageIndex = displayIndex;
+                                      el.__lastHtml = newHtml;
                                     }
                                   }
                                 }}
