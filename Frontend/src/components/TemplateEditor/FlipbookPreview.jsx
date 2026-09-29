@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import PreviewArea from '../CustomizedEditor/PreviewArea';
 import { LAYOUT_DEFAULT_COLORS } from '../CustomizedEditor/Layout';
@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getFromDB } from '../../utils/dbUtils';
 import useDeviceDetection from '../../hooks/useDeviceDetection';
+import { ensurePageBackgroundImage } from './editorUtils';
 
 
 const AttachedCurve = ({ position }) => {
@@ -126,7 +127,15 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
       setSettingsLoaded(true);
     }
   }, [localSettings, isLoadingParent]);
-  // 3D model states moved to PreviewArea
+  // Ensure background images in all pages are synced and restored with correct fit and opacity
+  const processedPages = useMemo(() => {
+    if (!pages || !Array.isArray(pages)) return pages;
+    return pages.map(p => {
+      const html = p.html || p.content || '';
+      if (!html || !html.includes('data-bg-image=')) return p;
+      return { ...p, html: ensurePageBackgroundImage(html) };
+    });
+  }, [pages]);
 
   useEffect(() => {
     // Clear any previously played animations in this session so they replay when preview is opened
@@ -547,7 +556,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
 
       <PreviewArea
         bookName={pageName || bookName}
-        pages={pages}
+        pages={processedPages}
         targetPage={targetPage}
         logoSettings={localSettings?.logo || localSettings?.logoSettings || localSettings?.Branding?.logoSettings}
         watermarkSettings={localSettings?.watermark || localSettings?.watermarkSettings || localSettings?.Branding?.watermarkSettings}

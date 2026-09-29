@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Icon } from '@iconify/react';
 import FlipbookPreview from '../components/TemplateEditor/FlipbookPreview';
 import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
+import { ensurePageBackgroundImage } from '../components/TemplateEditor/editorUtils';
 
 const PreviewPage = () => {
   const [data, setData] = useState(null);
@@ -59,6 +60,7 @@ const PreviewPage = () => {
             if (html.includes('nullassets/') && bUrl) html = html.split('nullassets/').join(`${bUrl}assets/`);
             if (html.includes('./assets/') && bUrl) html = html.split('./assets/').join(`${bUrl}assets/`);
             html = rewriteHtmlUploadsToSupabase(html);
+            html = ensurePageBackgroundImage(html);
             return { ...p, html };
           });
 
@@ -120,7 +122,14 @@ const PreviewPage = () => {
 
   if (!data) {
     return (
-      <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0, backgroundColor: '#ffffff' }} />
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#2D2F33] text-white select-none">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-[#4A3AFF] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-base font-medium tracking-wide text-slate-200">
+            Please wait...
+          </p>
+        </div>
+      </div>
     );
   }
 
