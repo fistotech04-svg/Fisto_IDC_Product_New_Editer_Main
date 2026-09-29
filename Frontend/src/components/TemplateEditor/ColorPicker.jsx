@@ -75,6 +75,17 @@ export const solidPalette = [
   '#FFFF00', '#008000', '#0000FF', '#8A2BE2', '#800080', '#C71585'
 ];
 
+export const formatColorForDisplay = (c) => {
+  if (!c || c === 'none' || c === 'transparent' || c === '#') return 'NONE';
+  if (c.toLowerCase().startsWith('rgb')) {
+    const match = c.match(/\d+/g);
+    if (match && match.length >= 3) {
+      return rgbToHex(parseInt(match[0]), parseInt(match[1]), parseInt(match[2])).toUpperCase();
+    }
+  }
+  return c.toUpperCase();
+};
+
 export const parseGradient = (gradientStr) => {
   if (!gradientStr || typeof gradientStr !== 'string' || !gradientStr.includes('gradient')) {
     return null;
@@ -158,7 +169,7 @@ export const parseGradient = (gradientStr) => {
 
 const hexToHsv = (hex) => {
   if (!hex || hex === "transparent" || hex.includes("gradient")) return { h: 0, s: 0, v: 100 };
-  let color = hex.toString();
+  let color = formatColorForDisplay(hex.toString());
   if (!color.startsWith("#")) return { h: 0, s: 0, v: 100 };
   color = color.substring(1);
   if (color.length === 3)
@@ -664,7 +675,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                   <span className="text-gray-700 text-[0.75vw] font-medium">#</span>
                   <input
                     type="text"
-                    value={(color || "#FFFFFF").replace("#", "").toUpperCase()}
+                    value={formatColorForDisplay(color || "#FFFFFF").replace("#", "")}
                     onChange={(e) => {
                       let val = e.target.value;
                       if (!val.startsWith('#')) val = '#' + val;
@@ -807,7 +818,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                         <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center px-[0.5vw] justify-between bg-white hover:border-black transition-colors min-w-0">
                           <input
                             type="text"
-                            value={(!color || color === 'none' || color === 'transparent' || color === '#') ? 'NONE' : color.toUpperCase()}
+                            value={formatColorForDisplay(color)}
                             onChange={(e) => onChange(e.target.value)}
                             className="flex-1 min-w-0 text-[0.75vw] font-medium text-gray-700 font-mono text-uppercase bg-transparent outline-none tracking-wide"
                           />
@@ -1039,7 +1050,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                         >
                           <input
                             type="text"
-                            value={stop.color.toUpperCase()}
+                            value={formatColorForDisplay(stop.color)}
                             onChange={(e) => {
                               let val = e.target.value;
                               if (val && !val.startsWith('#')) val = '#' + val;
@@ -1210,7 +1221,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                           <input
                             type="text"
                             ref={hexInputRef}
-                            value={(editingStopIndex !== null ? gradientStops[editingStopIndex].color : color)?.replace("#", "").toUpperCase() || ""}
+                            value={formatColorForDisplay(editingStopIndex !== null ? gradientStops[editingStopIndex].color : color).replace("#", "")}
                             onChange={(e) => {
                               let val = e.target.value;
                               if (!val.startsWith('#')) val = '#' + val;

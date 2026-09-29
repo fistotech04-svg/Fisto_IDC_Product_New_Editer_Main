@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { createPortal } from 'react-dom';
-import ColorPicker, { parseGradient } from './ColorPicker';
+import ColorPicker, { parseGradient, formatColorForDisplay } from './ColorPicker';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, X, Pipette } from 'lucide-react';
 
@@ -215,6 +215,9 @@ const Color = ({
     strokeLinecap: 'butt'
   });
   const [internalActiveColorPicker, setInternalActiveColorPicker] = useState(null);
+  const [activeMixedColorToReplace, setActiveMixedColorToReplace] = useState(null);
+  const activeMixedColorRef = useRef(activeMixedColorToReplace);
+  useEffect(() => { activeMixedColorRef.current = activeMixedColorToReplace; }, [activeMixedColorToReplace]);
 
   const backgroundColor = standaloneMode ? internalBackgroundColor : externalBackgroundColor;
   const setBackgroundColor = standaloneMode ? setInternalBackgroundColor : setExternalBackgroundColor;
@@ -657,8 +660,17 @@ const Color = ({
     'data-stroke-position': backgroundColor?.strokePosition || 'Center',
   };
 
-  const handleUpdate = (page, layer, attr, value) => {
-    if (attr === 'fill' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fill: value }));
+  const handleUpdate = (page, layer, attr, value, oldColorToReplace = null) => {
+    if (attr === 'fill' && setBackgroundColor) {
+      if (oldColorToReplace) {
+        setBackgroundColor(p => {
+          const newMixed = p.mixedColors ? p.mixedColors.map(c => c.replace(/\s+/g, '') === oldColorToReplace.replace(/\s+/g, '') ? value : c) : [];
+          return { ...p, colorToReplace: oldColorToReplace, replaceWith: value, mixedColors: Array.from(new Set(newMixed)) };
+        });
+      } else {
+        setBackgroundColor(p => ({ ...p, fill: value, colorToReplace: null }));
+      }
+    }
     if (attr === 'fill-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillType: value }));
     if (attr === 'fill-gradient-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillGradientType: value }));
     if (attr === 'fill-stops' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillStops: value }));
@@ -730,8 +742,8 @@ const Color = ({
     }
   };
 
-  const updateAttr = (attribute, value) => {
-    handleUpdate(undefined, undefined, attribute, value);
+  const updateAttr = (attribute, value, oldColorToReplace = null) => {
+    handleUpdate(undefined, undefined, attribute, value, oldColorToReplace);
   };
 
   const handleScrub = (e, initialVal, updateFn, sensitivity = 5) => {
@@ -807,7 +819,7 @@ const Color = ({
                   <div className="flex-grow flex items-center border-[0.1vw] border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
                     <input
                       type="text"
-                      value={(backgroundColor?.bgFill === 'none' || backgroundColor?.bgFill === 'transparent' || !backgroundColor?.bgFill) ? '#' : backgroundColor?.bgFill?.toUpperCase()}
+                      value={(backgroundColor?.bgFill === 'none' || backgroundColor?.bgFill === 'transparent' || !backgroundColor?.bgFill) ? '#' : formatColorForDisplay(backgroundColor?.bgFill)}
                       onChange={(e) => {
                         const val = e.target.value;
                         if (val === '' || val === '#') {
@@ -875,7 +887,7 @@ const Color = ({
                   <div className="flex-grow flex items-center border-[0.1vw] border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
                     <input
                       type="text"
-                      value={(backgroundColor?.bgStroke === 'none' || backgroundColor?.bgStroke === 'transparent' || !backgroundColor?.bgStroke) ? '#' : backgroundColor?.bgStroke?.toUpperCase()}
+                      value={(backgroundColor?.bgStroke === 'none' || backgroundColor?.bgStroke === 'transparent' || !backgroundColor?.bgStroke) ? '#' : formatColorForDisplay(backgroundColor?.bgStroke)}
                       onChange={(e) => {
                         const val = e.target.value;
                         if (val === '' || val === '#') {
@@ -1133,7 +1145,7 @@ const Color = ({
         </div>
       )}
       {!hideFill && (
-        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
+        <div className={`bg-white border border-gray-200 rounded-[0.75vw] shadow-sm ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'overflow-visible' : 'overflow-hidden'}`}>
           <div
             onClick={() => setOpenSubSection(openSubSection === 'color' || openSubSection === 'fillColor' ? null : 'fillColor')}
             className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
@@ -1145,26 +1157,72 @@ const Color = ({
           </div>
 
           <div className={`grid transition-all duration-300 ease-in-out ${(openSubSection === 'color' || openSubSection === 'fillColor') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-            <div className="overflow-hidden">
+            <div className={(openSubSection === 'color' || openSubSection === 'fillColor') ? 'overflow-visible' : 'overflow-hidden'}>
               <div className="p-[1vw] pt-[0.75vw] flex items-center justify-between gap-[0.5vw]">
                 {/* Swatch */}
                 <div
-                  className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center cursor-pointer"
-                  onClick={() => setActiveColorPicker(activeColorPicker === 'fill' ? null : 'fill')}
+                  className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-visible flex items-center justify-center cursor-pointer group"
+                  onClick={() => {
+                    setActiveMixedColorToReplace(null);
+                    setActiveColorPicker(activeColorPicker === 'fill' ? null : 'fill');
+                  }}
                 >
-                  <div
-                    className="w-full h-full border border-gray-200"
-                    style={{
-                      background: (pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || pseudoProps.fill === '#' || !pseudoProps.fill)
-                        ? 'white'
-                        : (pseudoProps.fill.toString().toLowerCase().includes('url(#')
-                          ? (pseudoProps && pseudoProps[`fill-stops`]
-                            ? `linear-gradient(to right, ${JSON.parse(pseudoProps[`fill-stops`]).map(s => s.color).join(', ')})`
-                            : '#ccc')
-                          : pseudoProps.fill)
-                    }}
-                  />
-                  {(pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || pseudoProps.fill === '#' || !pseudoProps.fill) && (
+                  {pseudoProps.fill === 'mixed' ? (
+                    <>
+                      <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        {backgroundColor.mixedColors && backgroundColor.mixedColors.length > 0 ? (
+                          backgroundColor.mixedColors.slice(0, 3).map((mc, idx) => (
+                            <rect 
+                              key={idx} 
+                              x={3 + idx * 3} 
+                              y={3 + idx * 3} 
+                              width="12" 
+                              height="12" 
+                              fill={mc} 
+                              stroke="white" 
+                              strokeWidth="0.5" 
+                            />
+                          ))
+                        ) : (
+                          <>
+                            <rect x="3" y="3" width="12" height="12" fill="#800080" stroke="white" strokeWidth="0.5" />
+                            <rect x="6" y="6" width="12" height="12" fill="#FFFF00" stroke="white" strokeWidth="0.5" />
+                            <rect x="9" y="9" width="12" height="12" fill="#FF0000" stroke="white" strokeWidth="0.5" />
+                          </>
+                        )}
+                      </svg>
+                      {backgroundColor.mixedColors && backgroundColor.mixedColors.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-[0.5vw] flex gap-[0.4vw] z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-auto">
+                          {backgroundColor.mixedColors.map((mc, idx) => (
+                            <div 
+                              key={idx}
+                              className="w-[1.5vw] h-[1.5vw] rounded-[0.2vw] border border-gray-200 shadow-sm cursor-pointer hover:scale-110 transition-transform flex-shrink-0"
+                              style={{ background: mc }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMixedColorToReplace(mc);
+                                setActiveColorPicker('fill');
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div
+                      className="w-full h-full border border-gray-200"
+                      style={{
+                        background: (pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || pseudoProps.fill === '#' || !pseudoProps.fill)
+                          ? 'white'
+                          : (pseudoProps.fill.toString().toLowerCase().includes('url(#')
+                            ? (pseudoProps && pseudoProps[`fill-stops`]
+                              ? `linear-gradient(to right, ${JSON.parse(pseudoProps[`fill-stops`]).map(s => s.color).join(', ')})`
+                              : '#ccc')
+                            : pseudoProps.fill)
+                      }}
+                    />
+                  )}
+                  {(pseudoProps.fill !== 'mixed' && (pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || pseudoProps.fill === '#' || !pseudoProps.fill)) && (
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
                   )}
                 </div>
@@ -1173,18 +1231,20 @@ const Color = ({
                 <div className="flex-grow flex items-center border-[0.1vw] border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
                   <input
                     type="text"
-                    value={(pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || !pseudoProps.fill) ? '#' : pseudoProps.fill?.toUpperCase()}
+                    value={pseudoProps.fill === 'mixed' ? 'Mixed' : ((pseudoProps.fill === 'none' || pseudoProps.fill === 'transparent' || !pseudoProps.fill) ? '#' : formatColorForDisplay(pseudoProps.fill))}
                     onChange={(e) => {
+                      if (pseudoProps.fill === 'mixed') return;
                       const val = e.target.value;
                       if (val === '' || val === '#') {
-                        updateAttr('fill', 'none');
+                        updateAttr('fill', 'none', activeMixedColorToReplace);
                       } else {
                         const finalVal = val.startsWith('#') ? val : '#' + val;
-                        updateAttr('fill', finalVal);
+                        updateAttr('fill', finalVal, activeMixedColorToReplace);
                       }
                     }}
                     className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw] tracking-tight"
                     maxLength={7}
+                    readOnly={pseudoProps.fill === 'mixed'}
                   />
                   <div
                     className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
@@ -1214,7 +1274,7 @@ const Color = ({
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
+      <div className={`bg-white border border-gray-200 rounded-[0.75vw] shadow-sm ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'overflow-visible' : 'overflow-hidden'}`}>
         <div
           onClick={() => setOpenSubSection(openSubSection === 'color' || openSubSection === 'strokeColor' ? null : 'strokeColor')}
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
@@ -1241,29 +1301,75 @@ const Color = ({
         </div>
 
         <div className={`grid transition-all duration-300 ease-in-out ${(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-          <div className="overflow-hidden">
+          <div className={(openSubSection === 'color' || openSubSection === 'strokeColor') ? 'overflow-visible' : 'overflow-hidden'}>
             <div className="p-[1vw] pt-[0.75vw] flex flex-col gap-[0.75vw]">
 
               {/* Row 1: Color Picker */}
               <div className="flex items-center justify-between gap-[0.5vw]">
                 {/* Swatch */}
                 <div
-                  className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center cursor-pointer"
-                  onClick={() => setActiveColorPicker(activeColorPicker === 'stroke' ? null : 'stroke')}
+                  className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 flex-shrink-0 relative overflow-visible flex items-center justify-center cursor-pointer group"
+                  onClick={() => {
+                    setActiveMixedColorToReplace(null);
+                    setActiveColorPicker(activeColorPicker === 'stroke' ? null : 'stroke');
+                  }}
                 >
-                  <div
-                    className="w-full h-full border border-gray-200"
-                    style={{
-                      background: (pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || pseudoProps.stroke === '#' || !pseudoProps.stroke)
-                        ? 'white'
-                        : (pseudoProps.stroke.toString().toLowerCase().includes('url(#')
-                          ? (pseudoProps && pseudoProps[`stroke-stops`]
-                            ? `linear-gradient(to right, ${JSON.parse(pseudoProps[`stroke-stops`]).map(s => s.color).join(', ')})`
-                            : '#ccc')
-                          : pseudoProps.stroke)
-                    }}
-                  />
-                  {(pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || pseudoProps.stroke === '#' || !pseudoProps.stroke) && (
+                  {pseudoProps.stroke === 'mixed' ? (
+                    <>
+                      <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        {backgroundColor.mixedStrokeColors && backgroundColor.mixedStrokeColors.length > 0 ? (
+                          backgroundColor.mixedStrokeColors.slice(0, 3).map((mc, idx) => (
+                            <rect 
+                              key={idx} 
+                              x={3 + idx * 3} 
+                              y={3 + idx * 3} 
+                              width="12" 
+                              height="12" 
+                              fill={mc} 
+                              stroke="white" 
+                              strokeWidth="0.5" 
+                            />
+                          ))
+                        ) : (
+                          <>
+                            <rect x="3" y="3" width="12" height="12" fill="#800080" stroke="white" strokeWidth="0.5" />
+                            <rect x="6" y="6" width="12" height="12" fill="#FFFF00" stroke="white" strokeWidth="0.5" />
+                            <rect x="9" y="9" width="12" height="12" fill="#FF0000" stroke="white" strokeWidth="0.5" />
+                          </>
+                        )}
+                      </svg>
+                      {backgroundColor.mixedStrokeColors && backgroundColor.mixedStrokeColors.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-[0.5vw] flex gap-[0.4vw] z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-auto">
+                          {backgroundColor.mixedStrokeColors.map((mc, idx) => (
+                            <div 
+                              key={idx}
+                              className="w-[1.5vw] h-[1.5vw] rounded-[0.2vw] border border-gray-200 shadow-sm cursor-pointer hover:scale-110 transition-transform flex-shrink-0"
+                              style={{ background: mc }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMixedColorToReplace(mc);
+                                setActiveColorPicker('stroke');
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div
+                      className="w-full h-full border border-gray-200"
+                      style={{
+                        background: (pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || pseudoProps.stroke === '#' || !pseudoProps.stroke)
+                          ? 'white'
+                          : (pseudoProps.stroke.toString().toLowerCase().includes('url(#')
+                            ? (pseudoProps && pseudoProps[`stroke-stops`]
+                              ? `linear-gradient(to right, ${JSON.parse(pseudoProps[`stroke-stops`]).map(s => s.color).join(', ')})`
+                              : '#ccc')
+                            : pseudoProps.stroke)
+                      }}
+                    />
+                  )}
+                  {(pseudoProps.stroke !== 'mixed' && (pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || pseudoProps.stroke === '#' || !pseudoProps.stroke)) && (
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
                   )}
                 </div>
@@ -1272,8 +1378,9 @@ const Color = ({
                 <div className="flex-grow flex items-center border-[0.1vw] border-gray-200 rounded-[0.5vw] overflow-hidden h-[2vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
                   <input
                     type="text"
-                    value={(pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || !pseudoProps.stroke) ? '#' : pseudoProps.stroke?.toUpperCase()}
+                    value={pseudoProps.stroke === 'mixed' ? 'Mixed' : ((pseudoProps.stroke === 'none' || pseudoProps.stroke === 'transparent' || !pseudoProps.stroke) ? '#' : formatColorForDisplay(pseudoProps.stroke))}
                     onChange={(e) => {
+                      if (pseudoProps.stroke === 'mixed') return;
                       const val = e.target.value;
                       if (val === '' || val === '#') {
                         updateAttr('stroke', 'none');
@@ -1284,6 +1391,7 @@ const Color = ({
                     }}
                     className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw] tracking-tight"
                     maxLength={7}
+                    readOnly={pseudoProps.stroke === 'mixed'}
                   />
                   <div
                     className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
@@ -1553,7 +1661,16 @@ const Color = ({
                   return backgroundColor?.bgStroke || 'transparent';
                 }
                 const type = pseudoProps[`${activeColorPicker}-type`] || 'solid';
-                const currentVal = pseudoProps[activeColorPicker] || '#000000';
+                let currentVal = pseudoProps[activeColorPicker] || '#000000';
+                if (currentVal === 'mixed') {
+                  currentVal = activeMixedColorToReplace || backgroundColor?.mixedColors?.[0] || '#000000';
+                  if (currentVal.startsWith('rgb')) {
+                    const rgb = currentVal.match(/\d+/g);
+                    if (rgb && rgb.length >= 3) {
+                      currentVal = '#' + rgb.slice(0, 3).map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+                    }
+                  }
+                }
                 const stopsJson = pseudoProps[`${activeColorPicker}-stops`];
                 if (type === 'gradient' || currentVal.toLowerCase().includes('url(#')) {
                   const stops = stopsJson ? JSON.parse(stopsJson) : defaultStops;
@@ -1565,7 +1682,7 @@ const Color = ({
                     parseInt(pseudoProps[`${activeColorPicker}-radius`] || '100')
                   );
                 }
-                return pseudoProps[activeColorPicker] || '#000000';
+                return currentVal;
               })()}
               disableGradient={activeColorPicker === 'stroke' || activeColorPicker === 'bg-stroke' || activeColorPicker === 'scrollbar'}
               onChange={(newVal, isDragging = false) => {
@@ -1594,23 +1711,86 @@ const Color = ({
                     }))));
                     updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
                     updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
-                    updateAttr(activeColorPicker, newVal);
+                    const currentTargetColor = (activeColorPicker === 'fill' || activeColorPicker === 'stroke') ? activeMixedColorRef.current : null;
+                    updateAttr(activeColorPicker, newVal, currentTargetColor);
+                    if ((activeColorPicker === 'fill' || activeColorPicker === 'stroke') && currentTargetColor) {
+                      setActiveMixedColorToReplace(newVal);
+                      activeMixedColorRef.current = newVal;
+                    }
                   }
                 } else {
                   if (setBackgroundColor) {
+                    let rgbVal = newVal;
+                    if (newVal.startsWith('#')) {
+                      let c = newVal.replace('#', '');
+                      if (c.length === 3) c = c.split('').map(x => x + x).join('');
+                      if (c.length === 6 || c.length === 8) {
+                        const num = parseInt(c.substring(0, 6), 16);
+                        rgbVal = `rgb(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255})`;
+                      }
+                    }
+                    const currentTargetColor = (activeColorPicker === 'fill' || activeColorPicker === 'stroke') ? activeMixedColorRef.current : null;
+
+                    const normalize = (c) => {
+                      if (!c) return '';
+                      const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                      return m ? `rgb(${m[1]},${m[2]},${m[3]})` : c.replace(/\s+/g, '');
+                    };
+
                     setBackgroundColor(p => {
                       if (activeColorPicker === 'fill') {
-                        return { ...p, fill: newVal, fillType: 'solid' };
+                        if (currentTargetColor) {
+                          const newMixed = p.mixedColors ? p.mixedColors.map(c => normalize(c) === normalize(currentTargetColor) ? rgbVal : c) : [];
+                          return { ...p, colorToReplace: currentTargetColor, replaceWith: rgbVal, fillType: 'solid', mixedColors: Array.from(new Set(newMixed)) };
+                        }
+                        return { ...p, fill: newVal, fillType: 'solid', colorToReplace: null };
                       } else if (activeColorPicker === 'stroke') {
+                        if (currentTargetColor) {
+                          const newMixed = p.mixedStrokeColors ? p.mixedStrokeColors.map(c => normalize(c) === normalize(currentTargetColor) ? rgbVal : c) : [];
+                          return { ...p, strokeColorToReplace: currentTargetColor, strokeReplaceWith: rgbVal, strokeType: 'solid', mixedStrokeColors: Array.from(new Set(newMixed)) };
+                        }
                         return {
                           ...p,
                           stroke: newVal,
                           strokeType: 'solid',
+                          strokeColorToReplace: null,
                           strokeWeight: (p.strokeWeight === 0 && newVal !== 'transparent' && newVal !== 'none') ? 1 : p.strokeWeight
                         };
                       }
                       return p;
                     });
+                    
+                    if ((activeColorPicker === 'fill' || activeColorPicker === 'stroke') && currentTargetColor) {
+                      setActiveMixedColorToReplace(rgbVal);
+                      activeMixedColorRef.current = rgbVal;
+
+                      // Synchronous DOM update for text recoloring during rapid drags
+                      if (isText) {
+                        const el = selectedElement || (selectedElementProps?.id ? document.getElementById(selectedElementProps.id) : null);
+                        if (el && el.firstElementChild) {
+                          const walker = document.createTreeWalker(el.firstElementChild, NodeFilter.SHOW_TEXT, null, false);
+                          let node;
+                          
+                          while ((node = walker.nextNode())) {
+                            if (node.nodeValue.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+                              const parent = node.parentElement;
+                              if (parent) {
+                                const compColor = window.getComputedStyle(parent).color;
+                                if (normalize(compColor) === normalize(currentTargetColor)) {
+                                  parent.style.setProperty('color', rgbVal, 'important');
+                                }
+                              }
+                            }
+                          }
+                          // Dispatch event so the rest of the editor syncs up on drag end
+                          if (!isDragging && typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('editor-text-selection-styled', {
+                              detail: { attribute: 'fill', value: rgbVal }
+                            }));
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }}
@@ -1649,7 +1829,10 @@ const Color = ({
                 }
                 if (onUpdate) onUpdate({ shouldRefresh: true });
               }}
-              onClose={() => setActiveColorPicker(null)}
+              onClose={() => {
+                setActiveColorPicker(null);
+                setActiveMixedColorToReplace(null);
+              }}
               colorsOnPage={colorsOnPage}
             />
           </div>

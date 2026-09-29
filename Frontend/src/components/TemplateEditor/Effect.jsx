@@ -392,8 +392,8 @@ const Effect = ({
                     { id: 'x', label: 'X Axis :', default: 2 },
                     { id: 'y', label: 'Y Axis :', default: 2 },
                     { id: 'blur', label: 'Blur % :', default: 1, min: 0 },
-                    { id: 'spread', label: 'Spread :', default: 0 }
-                  ].map((row) => {
+                    !(props.isText) ? { id: 'spread', label: 'Spread :', default: 0 } : null
+                  ].filter(Boolean).map((row) => {
                     let currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
                     let displayVal = currentVal;
 

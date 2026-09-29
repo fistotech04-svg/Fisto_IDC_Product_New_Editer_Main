@@ -475,22 +475,102 @@ export const applyStyleToActiveTextSelection = (elementId, attribute, value) => 
     fontWeight: 'font-weight',
     fontStyle: 'font-style',
     textDecoration: 'text-decoration',
-    textTransform: 'text-transform'
+    textTransform: 'text-transform',
+    stroke: '-webkit-text-stroke-color',
+    'stroke-opacity': '-webkit-text-stroke-color',
+    strokeWidth: '-webkit-text-stroke-width'
   };
 
-  const cssProp = cssPropMap[attribute];
+  let cssProp = cssPropMap[attribute];
+  if (attribute.startsWith('data-effect-drop-shadow')) {
+    cssProp = 'text-shadow';
+  }
+
   if (!cssProp) return false;
+
+  const getVal = (attr, defVal) => {
+    if (attribute === attr) return value;
+    
+    let activeSpan = null;
+    if (range) {
+      let node = range.commonAncestorContainer;
+      if (node.nodeType === 3) node = node.parentNode;
+      if (node && node.tagName && node.tagName.toLowerCase() === 'span') {
+        activeSpan = node;
+      }
+    }
+    if (activeSpan && activeSpan.hasAttribute(attr)) {
+      return activeSpan.getAttribute(attr);
+    }
+    
+    return fo.getAttribute(attr) || defVal;
+  };
+
+  const getStrokeColorWithOpacity = (color, opacityStr) => {
+    if (color === 'none' || color === 'transparent' || !color) return 'transparent';
+    if (color.startsWith('#')) {
+      let c = color.replace('#', '');
+      if (c.length === 3) c = c.split('').map(x => x + x).join('');
+      if (c.length === 6) {
+        const num = parseInt(c, 16);
+        if (!isNaN(num)) {
+          const r = (num >> 16) & 255;
+          const g = (num >> 8) & 255;
+          const b = num & 255;
+          const op = parseFloat(opacityStr !== undefined && opacityStr !== null ? opacityStr : 1);
+          return `rgba(${r}, ${g}, ${b}, ${isNaN(op) ? 1 : op})`;
+        }
+      }
+    }
+    return color;
+  };
 
   let finalVal = value;
   if (attribute === 'fontSize' && typeof finalVal === 'number') {
     finalVal = `${finalVal}px`;
   } else if (attribute === 'fontFamily' && typeof finalVal === 'string' && !finalVal.includes("'") && !finalVal.includes('"')) {
     finalVal = `'${finalVal}'`;
+  } else if (attribute === 'stroke' || attribute === 'stroke-opacity') {
+    const s = getVal('stroke', 'none');
+    const op = getVal('stroke-opacity', '1');
+    finalVal = getStrokeColorWithOpacity(s, op);
+  } else if (attribute === 'strokeWidth' || attribute === 'stroke-width') {
+    finalVal = `${value}px`;
+  } else if (attribute.startsWith('data-effect-drop-shadow')) {
+    const hasDropShadow = getVal('data-effect-drop-shadow', 'false') === 'true';
+    if (!hasDropShadow) {
+      finalVal = 'none';
+    } else {
+      const color = getVal('data-effect-drop-shadow-color', '#000000');
+      const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
+      const dx = getVal('data-effect-drop-shadow-x', '2');
+      const dy = getVal('data-effect-drop-shadow-y', '2');
+      const blur = getVal('data-effect-drop-shadow-blur', '4');
+
+      let r = 0, g = 0, b = 0;
+      if (color.startsWith('#')) {
+        let c = color.replace('#', '');
+        if (c.length === 3) c = c.split('').map(x => x + x).join('');
+        const num = parseInt(c, 16);
+        if (!isNaN(num)) {
+          r = (num >> 16) & 255;
+          g = (num >> 8) & 255;
+          b = num & 255;
+        }
+      }
+      finalVal = `${dx}px ${dy}px ${blur}px rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
   }
 
   try {
     const span = document.createElement('span');
     span.style.setProperty(cssProp, finalVal, 'important');
+
+    const attrsToKeep = ['stroke', 'stroke-opacity', 'strokeWidth', 'stroke-width', 'data-effect-drop-shadow', 'data-effect-drop-shadow-color', 'data-effect-drop-shadow-opacity', 'data-effect-drop-shadow-x', 'data-effect-drop-shadow-y', 'data-effect-drop-shadow-blur'];
+    attrsToKeep.forEach(attr => {
+      const v = getVal(attr, '');
+      if (v !== '') span.setAttribute(attr, v);
+    });
 
     const contents = range.extractContents();
     
@@ -503,6 +583,12 @@ export const applyStyleToActiveTextSelection = (elementId, attribute, value) => 
         // Also remove camelCase version just in case
         const camelProp = cssProp.replace(/-([a-z])/g, g => g[1].toUpperCase());
         el.style.removeProperty(camelProp);
+        
+        // Unwrap empty span
+        if (el.style.length === 0 && el.tagName.toLowerCase() === 'span') {
+          while(el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+          el.parentNode.removeChild(el);
+        }
       }
     });
 

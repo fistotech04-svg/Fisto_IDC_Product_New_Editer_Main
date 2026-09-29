@@ -706,6 +706,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
 
   const [backgroundColor, setBackgroundColor] = useState({
     fill: selectedElementProps?.fill || '#000000',
+    mixedColors: selectedElementProps?.mixedColors || [],
     fillOpacity: parseFloat(selectedElementProps?.opacity || 1) * 100,
     fillType: selectedElementProps?.['fill-type'] || 'solid',
     fillGradientType: selectedElementProps?.['fill-gradient-type'] || 'linear',
@@ -773,10 +774,47 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
 
   // Debounce ref to prevent excessive calls to updateElementAttributeLocal
   const updateTimeoutRef = useRef(null);
+  const isProgrammaticUpdate = useRef(0);
 
   useEffect(() => {
+    let computedMixedColors = selectedElementProps?.mixedColors || [];
+    let computedMixedStrokeColors = selectedElementProps?.mixedStrokeColors || [];
+    
+    if (selectedLayerId) {
+      const el = document.getElementById(selectedLayerId);
+      if (el && el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+        const fillColors = new Set();
+        const strokeColors = new Set();
+        const walker = document.createTreeWalker(el.firstElementChild, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while ((node = walker.nextNode())) {
+          if (node.nodeValue.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+            const parent = node.parentElement;
+            if (parent) {
+              const compStyle = window.getComputedStyle(parent);
+              const fc = parent.style.color || compStyle.color;
+              if (fc) fillColors.add(fc.replace(/\s+/g, ''));
+
+              let sc = parent.style.webkitTextStrokeColor || compStyle.webkitTextStrokeColor || parent.style.stroke || compStyle.stroke;
+              if (sc && sc !== 'transparent' && sc !== 'none' && sc !== 'rgba(0, 0, 0, 0)') {
+                strokeColors.add(sc.replace(/\s+/g, ''));
+              }
+            }
+          }
+        }
+        if (fillColors.size > 1) computedMixedColors = Array.from(fillColors);
+        if (strokeColors.size > 1) computedMixedStrokeColors = Array.from(strokeColors);
+      }
+    }
+
+    const initialFill = (computedMixedColors.length > 1) ? 'mixed' : (selectedElementProps?.fill || '#000000');
+    const initialStroke = (computedMixedStrokeColors.length > 1) ? 'mixed' : (selectedElementProps?.stroke || 'none');
+
+    isProgrammaticUpdate.current = Date.now();
+
     setBackgroundColor({
-      fill: selectedElementProps?.fill || '#000000',
+      fill: initialFill,
+      mixedColors: computedMixedColors,
       fillOpacity: parseFloat(selectedElementProps?.opacity || 1) * 100,
       fillType: selectedElementProps?.['fill-type'] || 'solid',
       fillGradientType: selectedElementProps?.['fill-gradient-type'] || 'linear',
@@ -790,7 +828,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       bgStrokeOpacity: parseFloat(selectedElementProps?.['data-bg-stroke-opacity'] !== undefined ? selectedElementProps['data-bg-stroke-opacity'] : 1) * 100,
       bgStrokeWidth: parseFloat(selectedElementProps?.['data-bg-stroke-width'] !== undefined ? selectedElementProps['data-bg-stroke-width'] : 0),
       bgStrokePosition: selectedElementProps?.['data-bg-stroke-position'] || 'Center',
-      stroke: selectedElementProps?.stroke || 'none',
+      stroke: initialStroke,
+      mixedStrokeColors: computedMixedStrokeColors,
       strokeOpacity: parseFloat(selectedElementProps?.['stroke-opacity'] !== undefined ? selectedElementProps['stroke-opacity'] : 1) * 100,
       strokeDashStyle: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
       strokeWeight: parseFloat(selectedElementProps?.strokeWidth || 0),
@@ -824,11 +863,153 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     });
   }, [selectedLayerId, activePageIndex]);
 
+  // Listen for text selection styling and selection changes to update color picker
+  useEffect(() => {
+    const handleTextStyled = (e) => {
+      if (e.detail.elementId === selectedLayerId && e.detail.attribute === 'fill') {
+        const el = document.getElementById(selectedLayerId);
+        let updatedMixedColors = [];
+        if (el && el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+          const colors = new Set();
+          const walker = document.createTreeWalker(el.firstElementChild, NodeFilter.SHOW_TEXT, null, false);
+          let node;
+          while ((node = walker.nextNode())) {
+            if (node.nodeValue.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+              const parent = node.parentElement;
+              if (parent) {
+                const c = window.getComputedStyle(parent).color;
+                if (c) colors.add(c.replace(/\s+/g, ''));
+              }
+            }
+          }
+          if (colors.size > 1) updatedMixedColors = Array.from(colors);
+        }
+        setBackgroundColor(prev => {
+          if (prev.fill === 'mixed' && JSON.stringify(prev.mixedColors) === JSON.stringify(updatedMixedColors)) return prev;
+          isProgrammaticUpdate.current = Date.now();
+          return { ...prev, fill: 'mixed', mixedColors: updatedMixedColors };
+        });
+      }
+    };
+
+    const handleSelectionChange = () => {
+      if (!selectedLayerId) return;
+      const el = document.getElementById(selectedLayerId);
+      if (!el || el.tagName.toLowerCase() !== 'foreignobject' || !el.firstElementChild) return;
+
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        // Fall back to main element colors if selection is lost? No, just keep current.
+        return;
+      }
+      
+      const r = sel.getRangeAt(0);
+      if (!el.firstElementChild.contains(r.commonAncestorContainer)) return;
+
+      const colors = new Set();
+      const strokeColors = new Set();
+      const walker = document.createTreeWalker(
+        r.commonAncestorContainer,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+      );
+
+      const addColor = (node) => {
+        if (node.nodeValue.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+          const parent = node.parentElement;
+          if (parent) {
+            let c = parent.style.color;
+            if (!c) c = window.getComputedStyle(parent).color;
+            if (c) colors.add(c.replace(/\s+/g, ''));
+
+            let sc = parent.style.webkitTextStrokeColor || window.getComputedStyle(parent).webkitTextStrokeColor || parent.style.stroke || window.getComputedStyle(parent).stroke;
+            if (sc && sc !== 'transparent' && sc !== 'none' && sc !== 'rgba(0, 0, 0, 0)') {
+              strokeColors.add(sc.replace(/\s+/g, ''));
+            }
+          }
+        }
+      };
+
+      if (r.commonAncestorContainer.nodeType === 3) {
+        const selectedText = r.commonAncestorContainer.nodeValue.substring(r.startOffset, r.endOffset);
+        if (selectedText.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+          addColor(r.commonAncestorContainer);
+        }
+      } else {
+        let node;
+        while ((node = walker.nextNode())) {
+          if (r.intersectsNode(node)) {
+            addColor(node);
+          }
+        }
+      }
+
+      const colorArr = Array.from(colors);
+      let newFill;
+      let newMixed = [];
+      if (colorArr.length > 1) {
+        newFill = 'mixed';
+        newMixed = colorArr;
+      } else if (colorArr.length === 1) {
+        newFill = colorArr[0];
+      }
+
+      const strokeArr = Array.from(strokeColors);
+      let newStroke;
+      let newMixedStroke = [];
+      if (strokeArr.length > 1) {
+        newStroke = 'mixed';
+        newMixedStroke = strokeArr;
+      } else if (strokeArr.length === 1) {
+        newStroke = strokeArr[0];
+      }
+
+      if (!newFill && !newStroke) return;
+
+      setBackgroundColor(prev => {
+        let update = false;
+        let newState = { ...prev };
+        
+        if (newFill && (prev.fill !== newFill || JSON.stringify(prev.mixedColors) !== JSON.stringify(newMixed))) {
+          update = true;
+          newState.fill = newFill;
+          newState.mixedColors = newMixed;
+        }
+        
+        if (newStroke !== undefined && (prev.stroke !== newStroke || JSON.stringify(prev.mixedStrokeColors) !== JSON.stringify(newMixedStroke))) {
+          update = true;
+          newState.stroke = newStroke;
+          newState.mixedStrokeColors = newMixedStroke;
+        }
+        
+        if (!update) return prev;
+        
+        isProgrammaticUpdate.current = Date.now();
+        return newState;
+      });
+    };
+
+    window.addEventListener('editor-text-selection-styled', handleTextStyled);
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      window.removeEventListener('editor-text-selection-styled', handleTextStyled);
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [selectedLayerId]);
+
   // Handle updates back to TextEditor
   useEffect(() => {
+    if (Date.now() - isProgrammaticUpdate.current < 100) {
+      return;
+    }
     if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
     updateTimeoutRef.current = setTimeout(() => {
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill', backgroundColor.fill);
+      if (backgroundColor.colorToReplace && backgroundColor.replaceWith) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill', backgroundColor.replaceWith, false, backgroundColor.colorToReplace);
+      } else if (backgroundColor.fill && backgroundColor.fill !== 'mixed') {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill', backgroundColor.fill);
+      }
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'opacity', (backgroundColor.fillOpacity / 100).toString());
       if (backgroundColor.fillType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-type', backgroundColor.fillType);
       if (backgroundColor.fillGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-gradient-type', backgroundColor.fillGradientType);
@@ -868,7 +1049,11 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         }
       }
 
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.stroke);
+      if (backgroundColor.strokeColorToReplace && backgroundColor.strokeReplaceWith) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.strokeReplaceWith, false, backgroundColor.strokeColorToReplace);
+      } else if (backgroundColor.stroke && backgroundColor.stroke !== 'mixed') {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.stroke);
+      }
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeWidth', backgroundColor.strokeWeight.toString());
       if (backgroundColor.strokeType === 'gradient' || backgroundColor.strokeStops) {
@@ -960,6 +1145,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         isText={true}
         sizingMode={sizingMode}
         isScrollable={isScrollable}
+        selectedElement={typeof document !== 'undefined' ? document.getElementById(selectedLayerId) : null}
+        selectedElementProps={{ id: selectedLayerId }}
       />
       <Effect
         openSubSection={openSubSection}
@@ -972,6 +1159,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         setActiveColorPicker={setActiveColorPicker}
         showDetailedPicker={showDetailedPicker}
         setShowDetailedPicker={setShowDetailedPicker}
+        isText={true}
       />
     </div>
   );
@@ -1017,6 +1205,7 @@ const TextEditor = ({
   // Typing debounce refs — prevents canvas re-render on every keystroke
   const isTypingRef = useRef(false);
   const typingTimerRef = useRef(null);
+  const cachedColorsRef = useRef({ html: '', colors: [] });
 
   // Refs
   const [activePanel, setActivePanel] = useState(null);
@@ -1086,6 +1275,22 @@ const TextEditor = ({
     }
   }, [selectedElement, selectedLayerId]);
 
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      if (!selectedLayerId) return;
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+        const r = sel.getRangeAt(0);
+        const el = document.getElementById(selectedLayerId);
+        if (el && el.contains(r.commonAncestorContainer)) {
+          setSelectionRange({ start: r.startOffset, end: r.endOffset, time: Date.now() });
+        }
+      }
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [selectedLayerId]);
+
   const selectedElementProps = useMemo(() => {
     if (!selectedLayerId || !pages[activePageIndex]) return null;
 
@@ -1096,10 +1301,123 @@ const TextEditor = ({
     let fillStyle = el.getAttribute('fill') || '#000000';
     let strokeStyle = el.getAttribute('stroke') || 'none';
     let strokeWidthStr = el.getAttribute('stroke-width') || el.getAttribute('strokeWidth') || el.getAttribute('strokewidth') || '0';
+    let mixedColorsList = [];
 
     if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
       const comp = window.getComputedStyle(el.firstElementChild);
-      if (!el.hasAttribute('fill')) fillStyle = comp.color || fillStyle;
+      if (!el.hasAttribute('fill')) {
+        fillStyle = comp.color || fillStyle;
+      }
+      
+      // Detect if text contains multiple colors
+      try {
+        let activeRange = null;
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+          const r = sel.getRangeAt(0);
+          if (el.firstElementChild.contains(r.commonAncestorContainer)) {
+            activeRange = r;
+          }
+        }
+        if (!activeRange && window.__savedTextSelection && window.__savedTextSelection.elementId === selectedLayerId) {
+          const savedRange = window.__savedTextSelection.range;
+          if (savedRange && !savedRange.collapsed && el.firstElementChild.contains(savedRange.commonAncestorContainer)) {
+            activeRange = savedRange;
+          }
+        }
+
+        const innerHTML = el.firstElementChild.innerHTML;
+        if (activeRange) {
+          const colors = new Set();
+          const walker = document.createTreeWalker(
+            activeRange.commonAncestorContainer,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+          );
+          
+          const addColor = (node) => {
+            if (node.nodeValue.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+              const parent = node.parentElement;
+              if (parent) {
+                let c = parent.style.color;
+                if (!c) c = window.getComputedStyle(parent).color;
+                if (c) colors.add(c.replace(/\s+/g, ''));
+              }
+            }
+          };
+
+          if (activeRange.commonAncestorContainer.nodeType === 3) {
+            const selectedText = activeRange.commonAncestorContainer.nodeValue.substring(activeRange.startOffset, activeRange.endOffset);
+            if (selectedText.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+              const parent = activeRange.commonAncestorContainer.parentElement;
+              if (parent) {
+                let c = parent.style.color;
+                if (!c) c = window.getComputedStyle(parent).color;
+                if (c) colors.add(c.replace(/\s+/g, ''));
+              }
+            }
+          } else {
+            let node;
+            while ((node = walker.nextNode())) {
+              if (activeRange.intersectsNode(node)) {
+                addColor(node);
+              }
+            }
+          }
+          
+          const colorArr = Array.from(colors);
+          if (colorArr.length > 1) {
+            fillStyle = 'mixed';
+            mixedColorsList = colorArr;
+          } else if (colorArr.length === 1) {
+            fillStyle = colorArr[0];
+          }
+        } else if (cachedColorsRef.current.html === innerHTML) {
+          const cachedColors = cachedColorsRef.current.colors;
+          if (cachedColors.length > 1) {
+            fillStyle = 'mixed';
+            mixedColorsList = cachedColors;
+          } else if (cachedColors.length === 1) {
+            fillStyle = cachedColors[0];
+          }
+        } else {
+          const colors = new Set();
+          const walker = document.createTreeWalker(
+            el.firstElementChild,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+          );
+          
+          let node;
+          while ((node = walker.nextNode())) {
+            // Ignore whitespace, non-breaking spaces (\xA0), and zero-width characters
+            if (node.nodeValue.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+              const parent = node.parentElement;
+              if (parent) {
+                let c = parent.style.color;
+                if (!c) {
+                  c = window.getComputedStyle(parent).color;
+                }
+                if (c) colors.add(c.replace(/\s+/g, ''));
+              }
+            }
+          }
+          
+          const colorArr = Array.from(colors);
+          cachedColorsRef.current = { html: innerHTML, colors: colorArr };
+          
+          if (colorArr.length > 1) {
+            fillStyle = 'mixed';
+            mixedColorsList = colorArr;
+          } else if (colorArr.length === 1) {
+            fillStyle = colorArr[0];
+          }
+        }
+      } catch (e) {
+        console.error('Error detecting multiple colors', e);
+      }
       if (!el.hasAttribute('stroke') && comp.webkitTextStrokeColor) strokeStyle = comp.webkitTextStrokeColor;
       if (!el.hasAttribute('stroke-width') && !el.hasAttribute('strokeWidth') && comp.webkitTextStrokeWidth) {
         strokeWidthStr = parseFloat(comp.webkitTextStrokeWidth).toString();
@@ -1113,6 +1431,7 @@ const TextEditor = ({
       id: selectedLayerId,
       tagName: el.tagName.toLowerCase(),
       fill: fillStyle,
+      mixedColors: mixedColorsList,
       stroke: strokeStyle,
       strokeWidth: strokeWidthStr,
       strokeDasharray: el.getAttribute('stroke-dasharray') || 'none',
@@ -1134,13 +1453,14 @@ const TextEditor = ({
     });
 
     return props;
-  }, [selectedLayerId, pages, activePageIndex]);
+  }, [selectedLayerId, pages, activePageIndex, selectionRange]);
 
-  const updateElementAttributeLocal = (pageIdx, elId, attribute, value, skipLiveUpdate = false) => {
+  const updateElementAttributeLocal = (pageIdx, elId, attribute, value, skipLiveUpdate = false, oldColorToReplace = null) => {
     // Immediate Live Feedback for DOM and Overlay
     const liveEl = document.getElementById(elId);
     const styleProp = STYLE_MAP[attribute];
     const finalVal = (attribute === 'fontSize' || attribute === 'letterSpacing') && !value?.toString().includes('px') && !value?.toString().includes('em') ? `${value}px` : value;
+    let selectionApplied = false;
 
     if (liveEl) {
       const liveTag = liveEl.tagName.toLowerCase();
@@ -1185,28 +1505,88 @@ const TextEditor = ({
         }
       }
 
-      if (styleProp || attribute === 'data-stroke-position') {
+      if (styleProp || attribute === 'data-stroke-position' || attribute.startsWith('data-effect-drop-shadow')) {
         if (liveTag === 'foreignobject') {
-          if (liveEl.firstElementChild && styleProp) {
+          if (oldColorToReplace && (attribute === 'fill' || attribute === 'stroke') && liveEl.firstElementChild) {
+             const walker = document.createTreeWalker(liveEl.firstElementChild, NodeFilter.SHOW_TEXT, null, false);
+             let node;
+             const elementsToChange = new Set();
+             while ((node = walker.nextNode())) {
+                if (node.nodeValue.replace(/[\s\xA0\u200B-\u200D\uFEFF]/g, '') !== '') {
+                   const parent = node.parentElement;
+                   if (parent) {
+                      let compColor = '';
+                      if (attribute === 'fill') {
+                        compColor = parent.style.color || window.getComputedStyle(parent).color;
+                      } else {
+                        compColor = parent.style.webkitTextStrokeColor || window.getComputedStyle(parent).webkitTextStrokeColor || parent.style.stroke || window.getComputedStyle(parent).stroke;
+                      }
+                      
+                      const normalizeColor = (c) => {
+                        if (!c) return '';
+                        const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                        if (m) {
+                          const r = parseInt(m[1]).toString(16).padStart(2, '0');
+                          const g = parseInt(m[2]).toString(16).padStart(2, '0');
+                          const b = parseInt(m[3]).toString(16).padStart(2, '0');
+                          return `#${r}${g}${b}`.toLowerCase();
+                        }
+                        if (c.startsWith('#') && c.length === 4) {
+                          return `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`.toLowerCase();
+                        }
+                        return c.toLowerCase().replace(/\s+/g, '');
+                      };
+                      
+                      if (compColor && compColor !== 'transparent' && compColor !== 'none' && compColor !== 'rgba(0, 0, 0, 0)') {
+                        if (normalizeColor(compColor) === normalizeColor(oldColorToReplace)) {
+                           elementsToChange.add(parent);
+                        }
+                      }
+                   }
+                }
+             }
+             elementsToChange.forEach(parentEl => {
+                if (attribute === 'fill') {
+                  parentEl.style.setProperty('color', finalVal, 'important');
+                } else {
+                  parentEl.style.setProperty('-webkit-text-stroke-color', finalVal, 'important');
+                  parentEl.style.setProperty('stroke', finalVal, 'important');
+                }
+             });
+             selectionApplied = true;
+          } else if (liveEl.firstElementChild && (styleProp || attribute.startsWith('data-effect-drop-shadow'))) {
             let applyVal = finalVal;
             if (styleProp === 'fontFamily' && typeof applyVal === 'string' && !applyVal.includes("'") && !applyVal.includes('"')) {
               applyVal = `'${applyVal}'`;
             }
-            const isCharacterProp = ['fill', 'color', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textDecoration', 'textTransform'].includes(attribute);
-            let selectionApplied = false;
+            const isCharacterProp = ['fill', 'color', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textDecoration', 'textTransform', 'stroke', 'strokeWidth', 'stroke-opacity', 'stroke-width'].includes(attribute) || attribute.startsWith('data-effect-drop-shadow');
             if (isCharacterProp) {
               selectionApplied = applyStyleToActiveTextSelection(elId, attribute, value);
             }
 
-            if (!selectionApplied) {
+            if (!selectionApplied && styleProp) {
               if (styleProp === 'stroke' || styleProp === 'stroke-opacity') {
-                const s = styleProp === 'stroke' ? finalVal : (liveEl.getAttribute('stroke') || 'none');
-                const op = styleProp === 'stroke-opacity' ? finalVal : (liveEl.getAttribute('stroke-opacity') || '1');
-                const applyColor = getStrokeColorWithOpacity(s, op);
-                liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', applyColor, 'important');
-                Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', applyColor, 'important'));
                 if (styleProp === 'stroke') liveEl.setAttribute('stroke', finalVal);
                 else liveEl.setAttribute('stroke-opacity', finalVal);
+
+                const op = styleProp === 'stroke-opacity' ? finalVal : (liveEl.getAttribute('stroke-opacity') || '1');
+
+                if (styleProp === 'stroke') {
+                  const applyColor = getStrokeColorWithOpacity(finalVal, op);
+                  liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', applyColor, 'important');
+                  Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', applyColor, 'important'));
+                } else {
+                  // For stroke-opacity alone, preserve individual children's base colors
+                  const updateChildOpacity = (el) => {
+                    const currentC = el.style.webkitTextStrokeColor || window.getComputedStyle(el).webkitTextStrokeColor || liveEl.getAttribute('stroke') || 'none';
+                    if (currentC && currentC !== 'none' && currentC !== 'transparent') {
+                      const applyColor = getStrokeColorWithOpacity(currentC, op);
+                      el.style.setProperty('-webkit-text-stroke-color', applyColor, 'important');
+                    }
+                  };
+                  updateChildOpacity(liveEl.firstElementChild);
+                  Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(updateChildOpacity);
+                }
               } else if (styleProp === 'strokeWidth') {
                 liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
                 Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important'));
@@ -1330,7 +1710,7 @@ const TextEditor = ({
       }
 
       // Update active editing overlay
-      if (styleProp) {
+      if (styleProp && !selectionApplied) {
         const svgRoot = liveEl.ownerSVGElement || liveEl.closest('svg');
         const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
         if (overlay) {
@@ -1413,6 +1793,10 @@ const TextEditor = ({
           }
         }
       }
+    }
+
+    if (selectionApplied && styleProp === 'fill') {
+      window.dispatchEvent(new CustomEvent('editor-text-selection-styled', { detail: { elementId: elId, attribute } }));
     }
 
     // Functional State Update (State of Truth)
@@ -1867,7 +2251,7 @@ const TextEditor = ({
                 element.firstElementChild.style.setProperty('-webkit-text-stroke-color', getStrokeColorWithOpacity(s, op), 'important');
               } else if (styleProp === 'strokeWidth') {
                 element.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${value}px`, 'important');
-              } else {
+              } else if (!selectionApplied) {
                 const cssPropName = finalProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
                 element.firstElementChild.style.setProperty(cssPropName, value, 'important');
 
@@ -1887,7 +2271,9 @@ const TextEditor = ({
               applyScrollStyles(element.firstElementChild);
             }
             const attrName = SVG_ATTR_MAP[attribute] || attribute;
-            element.setAttribute(attrName, value);
+            if (!selectionApplied) {
+              element.setAttribute(attrName, value);
+            }
 
             if (liveEl) {
               if (liveEl.firstElementChild) {
@@ -1897,7 +2283,7 @@ const TextEditor = ({
                   liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', getStrokeColorWithOpacity(s, op), 'important');
                 } else if (styleProp === 'strokeWidth') {
                   liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${value}px`, 'important');
-                } else {
+                } else if (!selectionApplied) {
                   const cssPropName = finalProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
                   liveEl.firstElementChild.style.setProperty(cssPropName, value, 'important');
 
@@ -1984,17 +2370,19 @@ const TextEditor = ({
             }
           }
         } else {
-          element.setAttribute(attribute, value);
-          if (attribute && attribute.startsWith('data-bg-')) {
-            if (element.firstElementChild) {
-              element.firstElementChild.style.setProperty('--' + attribute.substring(5), value, 'important');
+          if (!selectionApplied || !attribute.startsWith('data-effect-drop-shadow')) {
+            element.setAttribute(attribute, value);
+            if (attribute && attribute.startsWith('data-bg-')) {
+              if (element.firstElementChild) {
+                element.firstElementChild.style.setProperty('--' + attribute.substring(5), value, 'important');
+              }
             }
-          }
-          if (attribute === 'data-scrollbar-color') {
-            // Virtual DOM only needs the attribute; MainEditor observer handles the style
-          }
-          if (liveEl) {
-            liveEl.setAttribute(attribute, value);
+            if (attribute === 'data-scrollbar-color') {
+              // Virtual DOM only needs the attribute; MainEditor observer handles the style
+            }
+            if (liveEl) {
+              liveEl.setAttribute(attribute, value);
+            }
           }
 
           // Handle scrollable updates for virtual doc
