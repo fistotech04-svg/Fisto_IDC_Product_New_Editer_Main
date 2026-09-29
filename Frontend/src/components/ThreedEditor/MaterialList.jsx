@@ -67,11 +67,16 @@ const buildObjectTree = (rawMaterials, fallbackModelName = "Model") => {
         if (isGroup) {
             const descendantMats = new Set();
             const descendantMeshNames = new Set();
+            const descendantUuids = new Set();
             const collectDescendants = (n) => {
                 if (!n) return;
                 if (n.isMesh) {
                     if (n.name) descendantMeshNames.add(n.name);
-                    if (n.meshUuid) descendantMeshNames.add(n.meshUuid);
+                    if (n.meshUuid) {
+                        descendantMeshNames.add(n.meshUuid);
+                        descendantUuids.add(n.meshUuid);
+                    }
+                    if (n.uuid) descendantUuids.add(n.uuid);
                     if (n.material) descendantMats.add(n.material);
                 }
                 if (Array.isArray(n.children)) n.children.forEach(collectDescendants);
@@ -86,6 +91,7 @@ const buildObjectTree = (rawMaterials, fallbackModelName = "Model") => {
                 isModel: Boolean(node.isModel),
                 materials: Array.from(descendantMats),
                 meshNames: Array.from(descendantMeshNames),
+                uuids: Array.from(descendantUuids),
                 children: formattedChildren,
                 parentGroup: toSafeString(parentGroup, fallbackModelName)
             };
@@ -462,6 +468,7 @@ const TreeItem = ({
                             isModel: Boolean(node.isModel),
                             materials: node.materials || [],
                             meshNames: node.meshNames || [],
+                            uuids: node.uuids || [],
                             parentGroup: node.parentGroup || modelName,
                             isShift: e.shiftKey
                         });
@@ -822,25 +829,13 @@ export default function MaterialList({
 
     // Delete node (mesh or model)
     const handleDeleteNode = (node) => {
+        if (!node) return;
         if (node.isModel && node.id && onDeleteModel) {
             onDeleteModel(node.id);
             return;
         }
         if (onDeleteMaterial) {
-            if (node.isMesh) {
-                if (node.name) onDeleteMaterial(node.name);
-                if (node.material && node.material !== node.name) onDeleteMaterial(node.material);
-            } else if (node.isGroup) {
-                const deleteRec = (item) => {
-                    if (!item) return;
-                    if (item.isMesh) {
-                        if (item.name) onDeleteMaterial(item.name);
-                        if (item.material && item.material !== item.name) onDeleteMaterial(item.material);
-                    }
-                    if (Array.isArray(item.children)) item.children.forEach(deleteRec);
-                };
-                deleteRec(node);
-            }
+            onDeleteMaterial(node);
         }
     };
 

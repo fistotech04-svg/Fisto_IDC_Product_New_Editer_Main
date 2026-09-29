@@ -9,12 +9,7 @@ import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/examples/jsm/postprocessing/OutlinePass.js";
-import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 
 // Global cache and shared loader to prevent redundant network requests and decoding
@@ -260,12 +255,17 @@ const ensurePhysicalMaterial = (mat) => {
   return mat;
 };
 
-// --- Blender-style Selection Highlight using OutlinePass with Dedicated Lightweight Proxy Scene ---
-// Renders an authentic post-process silhouette outline matching Blender's selection highlight.
-// Uses a dedicated proxy scene containing ONLY the selected mesh(es) to completely eliminate
-// full-scene hierarchy traversals and depth draw calls, ensuring silky smooth 60 FPS on any model.
+// --- Authentic Blender-style Silhouette Outline with 100% Native Lighting Preservation ---
+// Native WebGL forward render ensures lighting, shadows, and HDRI reflections are 100% constant,
+// while OutlinePass draws the authentic 2D silhouette outline directly on top of the canvas.
 function MeshSelectionHighlight({ target }) {
   const { gl, scene, camera, size } = useThree();
+
+  const targetSignature = useMemo(() => {
+    if (!target) return '';
+    const rawList = Array.isArray(target) ? target : [target];
+    return rawList.map(m => m?.uuid || '').sort().join(',');
+  }, [target]);
 
   // Collect all unique meshes belonging to the target
   const meshes = useMemo(() => {
@@ -293,11 +293,9 @@ function MeshSelectionHighlight({ target }) {
       }
     });
     return result;
-  }, [target]);
+  }, [targetSignature]);
 
-  // Create dedicated proxy scene containing ONLY the selected mesh(es).
-  // This isolates OutlinePass from the rest of the 3D model, dropping CPU time
-  // from ~30ms to <0.05ms per frame on complex models.
+  // Dedicated lightweight proxy scene containing ONLY the selected mesh(es)
   const selectionData = useMemo(() => {
     if (meshes.length === 0) return null;
     const selScene = new THREE.Scene();
@@ -331,32 +329,15 @@ function MeshSelectionHighlight({ target }) {
     };
   }, [meshes]);
 
-  const composerRef = useRef(null);
   const outlinePassRef = useRef(null);
-  const fxaaPassRef = useRef(null);
 
   useEffect(() => {
-    if (!gl || !scene || !camera || !selectionData) return;
+    if (!gl || !selectionData) return;
 
-    // Smooth DPR clamped to 1.5 to maintain retina sharpness with 44% less GPU overhead
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = Math.floor(size.width * dpr);
     const height = Math.floor(size.height * dpr);
 
-    // High-performance render target
-    const renderTarget = new THREE.WebGLRenderTarget(width, height, {
-      type: THREE.HalfFloatType,
-    });
-
-    const composer = new EffectComposer(gl, renderTarget);
-    composer.setPixelRatio(dpr);
-    composer.setSize(size.width, size.height);
-
-    // 1. Beauty pass renders the full scene
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    // 2. OutlinePass operates on the isolated lightweight selectionScene
     const outlinePass = new OutlinePass(
       new THREE.Vector2(width, height),
       selectionData.selScene,
@@ -366,68 +347,81 @@ function MeshSelectionHighlight({ target }) {
     outlinePass.downSampleRatio = 1;
     const outlineColor = new THREE.Color("#ec5137");
     outlinePass.visibleEdgeColor.copy(outlineColor);
-    outlinePass.hiddenEdgeColor.copy(outlineColor);
-    outlinePass.edgeThickness = 1.8; // Smooth 1.8px thickness
-    outlinePass.edgeStrength = 4.0;
+    outlinePass.hiddenEdgeColor.set(0, 0, 0); // No hidden edge ghosting through solid geometry
+    outlinePass.edgeThickness = 1.8;
+    outlinePass.edgeStrength = 5.0;
     outlinePass.edgeGlow = 0.0;
     outlinePass.selectedObjects = selectionData.proxyObjects;
-    composer.addPass(outlinePass);
+    outlinePass.renderToScreen = false;
 
-    // 3. Output pass for color management
-    const outputPass = new OutputPass();
-    composer.addPass(outputPass);
+    // Use alpha blending to overlay outline directly onto native canvas
+    if (outlinePass.overlayMaterial) {
+      outlinePass.overlayMaterial.blending = THREE.CustomBlending;
+      outlinePass.overlayMaterial.blendSrc = THREE.SrcAlphaFactor;
+      outlinePass.overlayMaterial.blendDst = THREE.OneMinusSrcAlphaFactor;
+      outlinePass.overlayMaterial.toneMapped = false;
+      outlinePass.overlayMaterial.fragmentShader = `
+        varying vec2 vUv;
+        uniform sampler2D maskTexture;
+        uniform sampler2D edgeTexture1;
+        uniform sampler2D edgeTexture2;
+        uniform float edgeStrength;
+        uniform float edgeGlow;
 
-    // 4. FXAA pass for anti-aliasing
-    const fxaaPass = new ShaderPass(FXAAShader);
-    fxaaPass.uniforms['resolution'].value.set(1 / width, 1 / height);
-    composer.addPass(fxaaPass);
+        void main() {
+          vec4 edgeValue1 = texture2D(edgeTexture1, vUv);
+          vec4 edgeValue2 = texture2D(edgeTexture2, vUv);
+          vec4 maskColor = texture2D(maskTexture, vUv);
+          vec4 edgeValue = edgeValue1 + edgeValue2 * edgeGlow;
+          vec4 finalColor = edgeStrength * maskColor.r * edgeValue;
+          
+          float maxChannel = max(finalColor.r, max(finalColor.g, finalColor.b));
+          float alpha = clamp(maxChannel, 0.0, 1.0);
+          vec3 rgb = maxChannel > 0.001 ? (finalColor.rgb / maxChannel) : vec3(0.925, 0.318, 0.216);
+          
+          gl_FragColor = vec4(rgb, alpha);
+        }
+      `;
+      outlinePass.overlayMaterial.needsUpdate = true;
+    }
 
-    composerRef.current = composer;
     outlinePassRef.current = outlinePass;
-    fxaaPassRef.current = fxaaPass;
 
     return () => {
       try {
-        composer.dispose();
+        outlinePass.dispose();
       } catch (_) {}
-      composerRef.current = null;
       outlinePassRef.current = null;
-      fxaaPassRef.current = null;
     };
-  }, [gl, scene, camera, selectionData]);
+  }, [gl, camera, selectionData]);
 
-  // Keep composer and passes in sync with canvas resize and DPI
+  // Keep resolution updated on resize
   useEffect(() => {
-    if (composerRef.current && outlinePassRef.current) {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    if (outlinePassRef.current) {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = Math.floor(size.width * dpr);
       const height = Math.floor(size.height * dpr);
-
-      composerRef.current.setPixelRatio(dpr);
-      composerRef.current.setSize(size.width, size.height);
       outlinePassRef.current.setSize(width, height);
       outlinePassRef.current.resolution.set(width, height);
-      outlinePassRef.current.downSampleRatio = 1;
-
-      if (fxaaPassRef.current) {
-        fxaaPassRef.current.uniforms['resolution'].value.set(1 / width, 1 / height);
-      }
     }
-  }, [size.width, size.height, gl]);
+  }, [size.width, size.height]);
 
-  // Delegate render loop to post-processing composer while object is selected
-  useFrame((_, delta) => {
-    if (composerRef.current && selectionData && selectionData.proxies.length > 0) {
-      // Sync proxy transforms to source meshes in real time (follows gizmos & animations)
-      const proxies = selectionData.proxies;
-      for (let i = 0; i < proxies.length; i++) {
-        const { proxy, source } = proxies[i];
+  // Render Loop: Native forward render + direct silhouette overlay
+  useFrame((state, delta) => {
+    // 1. Native Three.js scene render: 100% identical lighting, exposure, tone mapping & HDRI reflection!
+    state.gl.render(state.scene, state.camera);
+
+    // 2. Direct silhouette outline overlay on top of canvas (zero effect on scene lights)
+    if (outlinePassRef.current && selectionData && selectionData.proxies.length > 0) {
+      for (let i = 0; i < selectionData.proxies.length; i++) {
+        const { proxy, source } = selectionData.proxies[i];
         if (source && proxy) {
           proxy.matrixWorld.copy(source.matrixWorld);
           proxy.visible = source.visible !== false;
         }
       }
-      composerRef.current.render(delta);
+
+      outlinePassRef.current.render(state.gl, null, null, delta, false);
     }
   }, 1);
 
@@ -436,7 +430,7 @@ function MeshSelectionHighlight({ target }) {
 
 const SelectionBoundingBox = MeshSelectionHighlight;
 
-const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, meshTransforms, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange }, ref) => {
+const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, deletedMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, meshTransforms, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange }, ref) => {
   const [position, setPosition] = useState(() => [0, 0, 0]);
   const [scale, setScale] = useState(() => 1);
   const groupRef = React.useRef(null);
@@ -633,8 +627,21 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                       mat.userData.originalBumpMap = mat.bumpMap;
                       mat.userData.originalDisplacementMap = mat.displacementMap;
                       const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${mat.name || ''}`);
-                      if (isLikelyCutout && (!mat.alphaTest || mat.alphaTest === 0) && !mat.transparent) {
-                          mat.alphaTest = 0.5;
+                      const hasAlphaMap = Boolean(mat.alphaMap);
+                      const hasCutout = (mat.alphaTest !== undefined && mat.alphaTest > 0) || isLikelyCutout;
+                      const isExplicitlyPartialOpacity = (mat.opacity !== undefined && mat.opacity < 0.999);
+                      
+                      // Sanitize transparency: GLTFLoader/FBXLoader often falsely mark materials as transparent=true
+                      // based on alphaMode BLEND or 32-bit PNG alpha channels even when 100% opaque.
+                      // Solid models must have transparent=false and depthWrite=true to prevent merging & transparent glitching!
+                      const isTrulyTransparent = isExplicitlyPartialOpacity || hasAlphaMap;
+                      mat.transparent = isTrulyTransparent;
+                      mat.depthWrite = true;
+
+                      if (hasCutout) {
+                          mat.alphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : 0.5;
+                          mat.transparent = false; // Discard alpha test with transparent=false eliminates alpha sorting artifacts
+                          mat.depthWrite = true;
                       }
 
                       if (mat.color) {
@@ -650,8 +657,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                       mat.userData.originalSpecularIntensity = mat.specularIntensity !== undefined ? mat.specularIntensity : 1.0;
                       mat.userData.originalEnvMapIntensity = mat.envMapIntensity !== undefined ? mat.envMapIntensity : 1.0;
                       mat.userData.originalAlphaTest = mat.alphaTest !== undefined ? mat.alphaTest : (isLikelyCutout ? 0.5 : 0);
-                      mat.userData.originalTransparent = Boolean(mat.transparent);
-                      mat.userData.originalDepthWrite = mat.depthWrite !== undefined ? mat.depthWrite : true;
+                      mat.userData.originalTransparent = isTrulyTransparent;
+                      mat.userData.originalDepthWrite = true;
                       mat.userData.originalSide = mat.side !== undefined ? mat.side : THREE.DoubleSide;
                   }
 
@@ -661,8 +668,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                       mat.userData.originalAlphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : (isLikelyCutout ? 0.5 : 0);
                       if (isLikelyCutout && (!mat.alphaTest || mat.alphaTest === 0)) mat.alphaTest = 0.5;
                   }
-                  if (mat.userData.originalTransparent === undefined) mat.userData.originalTransparent = Boolean(mat.transparent);
-                  if (mat.userData.originalDepthWrite === undefined) mat.userData.originalDepthWrite = mat.depthWrite !== undefined ? mat.depthWrite : true;
+                  if (mat.userData.originalTransparent === undefined) {
+                      mat.userData.originalTransparent = (mat.opacity !== undefined && mat.opacity < 0.999) || Boolean(mat.alphaMap);
+                  }
+                  if (mat.userData.originalDepthWrite === undefined) mat.userData.originalDepthWrite = true;
                   if (mat.userData.originalSide === undefined) mat.userData.originalSide = mat.side !== undefined ? mat.side : THREE.DoubleSide;
 
                   if (includeTextures === false) {
@@ -693,22 +702,30 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
     const list = (related && related.length > 0) ? related : [target];
     const box = new THREE.Box3();
+    let hasValidMesh = false;
     list.forEach(m => {
-      if (m && (m.isMesh || m.isSkinnedMesh)) {
+      if (m && (m.isMesh || m.isSkinnedMesh) && m.visible !== false) {
         m.updateMatrixWorld(true);
         box.expandByObject(m);
+        hasValidMesh = true;
       }
     });
 
     const worldCenter = new THREE.Vector3();
-    if (!box.isEmpty() && isFinite(box.min.x)) {
+    if (hasValidMesh && !box.isEmpty() && isFinite(box.min.x)) {
       box.getCenter(worldCenter);
-    } else {
+    } else if (typeof target.getWorldPosition === 'function') {
       target.getWorldPosition(worldCenter);
+    } else if (target.position) {
+      worldCenter.copy(target.position);
     }
 
     pivot.position.copy(worldCenter);
-    pivot.rotation.set(0, 0, 0);
+    if (list.length === 1 && target && target.quaternion) {
+      pivot.quaternion.copy(target.quaternion);
+    } else {
+      pivot.rotation.set(0, 0, 0);
+    }
     pivot.scale.set(1, 1, 1);
     pivot.updateMatrix();
     pivot.updateMatrixWorld(true);
@@ -716,9 +733,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const pivotWorldInverse = new THREE.Matrix4().copy(pivot.matrixWorld).invert();
     const offsets = new Map();
     list.forEach(mesh => {
-      mesh.updateMatrixWorld(true);
-      const rel = new THREE.Matrix4().multiplyMatrices(pivotWorldInverse, mesh.matrixWorld);
-      offsets.set(mesh.uuid, rel);
+      if (mesh && mesh.uuid) {
+        mesh.updateMatrixWorld(true);
+        const rel = new THREE.Matrix4().multiplyMatrices(pivotWorldInverse, mesh.matrixWorld);
+        offsets.set(mesh.uuid, rel);
+      }
     });
     pivotOffsetsRef.current = offsets;
   }, []);
@@ -726,52 +745,173 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   // Mesh Index for fast material lookups - avoids expensive scene.traverse calls
   const meshIndexRef = React.useRef(new Map()); // Map<MaterialName, Mesh[]>
 
+  // Helper to ensure a mesh has its own unique, cloned material instance if its material is shared with other meshes.
+  // This guarantees that changing color, textures, or material properties on a selected mesh will NEVER bleed into other meshes!
+  const ensureMeshUniqueMaterial = useCallback((mesh, allowedSharedSet = null) => {
+      if (!mesh || !mesh.material || !scene) return;
+      const currentMat = mesh.material;
+      const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
+      let didClone = false;
+      const newMats = mats.map(m => {
+          if (!m) return m;
+          let isShared = false;
+          scene.traverse(c => {
+              if (isShared) return;
+              if (c.isMesh && c !== mesh && c.material) {
+                  // If allowedSharedSet is provided (e.g. all selected meshes), meshes within the set can share,
+                  // but if shared with an unselected mesh outside, it must clone!
+                  if (allowedSharedSet && allowedSharedSet.has(c)) return;
+                  const cm = Array.isArray(c.material) ? c.material : [c.material];
+                  if (cm.some(mat => mat === m || (mat.uuid && mat.uuid === m.uuid))) {
+                      isShared = true;
+                  }
+              }
+          });
+          if (isShared) {
+              const cloned = m.clone();
+              cloned.name = `${m.name || 'Material'}_${mesh.name || mesh.uuid.slice(0, 4)}`;
+              cloned.userData = { ...m.userData };
+              if (m.userData.originalColor && typeof m.userData.originalColor.clone === 'function') {
+                  cloned.userData.originalColor = m.userData.originalColor.clone();
+              }
+              didClone = true;
+              if (meshIndexRef.current) {
+                  meshIndexRef.current.set(cloned.name, [mesh]);
+              }
+              return cloned;
+          }
+          return m;
+      });
+      if (didClone) {
+          mesh.material = Array.isArray(currentMat) ? newMats : newMats[0];
+          mesh.material.needsUpdate = true;
+      }
+  }, [scene]);
+
   // Helper to resolve all 3D meshes targeted by the current selection
   const resolveTargetMeshes = useCallback((selMat) => {
       if (!selMat || !scene) return [];
 
-      const isFullModel = !selMat || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene";
+      const isMeshDeleted = (child) => {
+          if (!deletedMaterials || deletedMaterials.size === 0) return false;
+          if (child.uuid && deletedMaterials.has(child.uuid)) return true;
+          const m = child.userData?.__preXrayMaterial || child.material;
+          const mats = Array.isArray(m) ? m : [m];
+          return mats.some(mat => mat?.name && deletedMaterials.has(mat.name));
+      };
+
+      const isFullModel = !selMat || selMat.isAll || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene" || selMat.name === "All Meshes";
       if (isFullModel) {
           const all = [];
           scene.traverse(child => {
-              if (child.isMesh && child.material) all.push(child);
+              if (child.isMesh && (child.material || child.userData?.__preXrayMaterial) && child.visible !== false && !isMeshDeleted(child)) {
+                  all.push(child);
+              }
           });
           return all;
       }
 
-      if (selMat.isGroup && Array.isArray(selMat.materials)) {
-          const result = new Set();
-          selMat.materials.forEach(mName => {
-              if (meshIndexRef.current.has(mName)) {
-                  meshIndexRef.current.get(mName).forEach(c => result.add(c));
+      // 1. Group / Multi-Selection
+      if (selMat.isGroup || selMat.isMultiSelect || Array.isArray(selMat.items) || Array.isArray(selMat.uuids)) {
+          const rawUuids = Array.isArray(selMat.uuids) ? selMat.uuids : 
+                           (Array.isArray(selMat.items) ? selMat.items.map(it => it?.uuid || it?.meshUuid).filter(Boolean) : []);
+          
+          if (rawUuids.length > 0) {
+              const uuidSet = new Set(rawUuids);
+              const result = new Set();
+              rawUuids.forEach(u => {
+                  if (meshIndexRef.current.has(u)) {
+                      meshIndexRef.current.get(u).forEach(c => {
+                          if (!isMeshDeleted(c)) result.add(c);
+                      });
+                  }
+              });
+              if (result.size < uuidSet.size) {
+                  scene.traverse(child => {
+                      if (child.isMesh && uuidSet.has(child.uuid) && !isMeshDeleted(child)) {
+                          result.add(child);
+                      }
+                  });
               }
-          });
-          return Array.from(result);
+              if (result.size > 0) return Array.from(result);
+          }
+
+          // Fallback for group defined by material names (e.g. material folder)
+          if (Array.isArray(selMat.materials) && selMat.materials.length > 0) {
+              const result = new Set();
+              selMat.materials.forEach(mName => {
+                  if (meshIndexRef.current.has(mName)) {
+                      meshIndexRef.current.get(mName).forEach(c => {
+                          if (!isMeshDeleted(c)) result.add(c);
+                      });
+                  }
+              });
+              if (result.size > 0) return Array.from(result);
+
+              const matSet = new Set(selMat.materials);
+              scene.traverse(child => {
+                  if (child.isMesh && (child.material || child.userData?.__preXrayMaterial) && child.visible !== false && !isMeshDeleted(child)) {
+                      const m = child.userData?.__preXrayMaterial || child.material;
+                      const mats = Array.isArray(m) ? m : [m];
+                      if (
+                          matSet.has(child.uuid) ||
+                          matSet.has(child.name) ||
+                          mats.some(mat => mat && matSet.has(mat.name))
+                      ) {
+                          result.add(child);
+                      }
+                  }
+              });
+              if (result.size > 0) return Array.from(result);
+          }
       }
 
       const targetUuid = selMat.uuid || selMat.meshUuid;
-      const targetMat = selMat.material;
+      const targetMat = typeof selMat.material === 'string' ? selMat.material : selMat.material?.name;
       const targetName = selMat.meshName || selMat.name;
 
-      if (targetUuid && meshIndexRef.current.has(targetUuid)) {
-          return meshIndexRef.current.get(targetUuid);
+      // 1. Single mesh selection: Strictly resolve by targetUuid if available
+      if (targetUuid && !selMat.isGroup && !selMat.isAll) {
+          if (meshIndexRef.current.has(targetUuid)) {
+              const list = meshIndexRef.current.get(targetUuid).filter(c => !isMeshDeleted(c));
+              if (list.length > 0) return list;
+          }
+          const exactMatch = [];
+          scene.traverse(child => {
+              if (child.isMesh && child.uuid === targetUuid && !isMeshDeleted(child)) {
+                  exactMatch.push(child);
+              }
+          });
+          if (exactMatch.length > 0) return exactMatch;
       }
-      if (targetName && meshIndexRef.current.has(targetName)) {
-          return meshIndexRef.current.get(targetName);
+
+      // 2. Fallback when targetUuid is not available (e.g. legacy selection)
+      if (selMat.isMesh) {
+          // It's a single mesh: return AT MOST ONE matching mesh by name, never a list of sibling meshes!
+          if (targetName && meshIndexRef.current.has(targetName)) {
+              const list = meshIndexRef.current.get(targetName).filter(c => !isMeshDeleted(c));
+              if (list.length > 0) return [list[0]];
+          }
+          let singleFound = null;
+          scene.traverse(child => {
+              if (singleFound) return;
+              if (child.isMesh && child.name === targetName && !isMeshDeleted(child)) {
+                  singleFound = child;
+              }
+          });
+          if (singleFound) return [singleFound];
       }
+
+      // 3. Material-level selection (e.g. selecting an entire shared material)
       if (targetMat && meshIndexRef.current.has(targetMat)) {
-          return meshIndexRef.current.get(targetMat);
+          return meshIndexRef.current.get(targetMat).filter(c => !isMeshDeleted(c));
       }
 
       const matches = [];
       scene.traverse(child => {
-          if (child.isMesh && (child.material || child.userData?.__preXrayMaterial)) {
+          if (child.isMesh && (child.material || child.userData?.__preXrayMaterial) && !isMeshDeleted(child)) {
               const activeMat = child.userData?.__preXrayMaterial || child.material;
-              if (targetUuid && child.uuid === targetUuid) {
-                  matches.push(child);
-              } else if (targetName && child.name === targetName) {
-                  matches.push(child);
-              } else if (targetMat) {
+              if (targetMat) {
                   const mats = Array.isArray(activeMat) ? activeMat : [activeMat];
                   if (mats.some(m => m && m.name === targetMat)) {
                       matches.push(child);
@@ -780,7 +920,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           }
       });
       return matches;
-  }, [scene, modelName]);
+  }, [scene, modelName, deletedMaterials]);
 
   // Helper to resolve the primary THREE.Material targeted by the current selection
   const resolveTargetMaterial = useCallback((selMat) => {
@@ -791,9 +931,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           return null;
       }
 
-      const targetUuid = selMat.uuid || selMat.meshUuid;
-      const targetMat = selMat.material;
-      const targetName = selMat.meshName || selMat.name;
+      const targetUuid = selMat.uuid || selMat.meshUuid || 
+                         (Array.isArray(selMat.uuids) && selMat.uuids[0]) || 
+                         (Array.isArray(selMat.items) && (selMat.items[0]?.uuid || selMat.items[0]?.meshUuid));
+      const targetMat = typeof selMat.material === 'string' ? selMat.material : (selMat.material?.name || (Array.isArray(selMat.materials) ? selMat.materials[0] : null));
+      const targetName = selMat.meshName || selMat.name || (Array.isArray(selMat.meshNames) ? selMat.meshNames[0] : null);
 
       if (targetUuid) {
           let found = null;
@@ -845,47 +987,30 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   }, [scene, modelName]);
 
   // Memoized user-specified X-Ray Material (Optimized for instant 60 FPS performance)
+  // envMapIntensity: 0 and roughness: 1.0 prevent HDRI reflections from glaring on X-ray surfaces
   const xrayMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
     color: 0x00aaff,       // X-ray color
     transparent: true,
     opacity: 0.25,
-    roughness: 0.1,
+    roughness: 1.0,
     metalness: 0.0,
+    envMapIntensity: 0.0,
     depthWrite: false,
     side: THREE.DoubleSide
   }), []);
 
-  // X-Ray View: efficiently sets xrayMaterial on targeted meshes without redundant recompilations or scene churn
+  // X-Ray View: efficiently sets xrayMaterial on meshes without redundant recompilations or scene churn
   useEffect(() => {
     if (!scene) return;
 
     if (xrayMode) {
-      // Determine if a specific mesh or group is selected
-      const isFullModel = !selectedMaterial || 
-                          (modelName && (selectedMaterial.name === modelName || selectedMaterial === modelName)) || 
-                          selectedMaterial.name === "Scene" || 
-                          selectedMaterial === "Scene";
-      
-      const targetMeshes = isFullModel ? null : resolveTargetMeshes(selectedMaterial);
-      const targetSet = (targetMeshes && targetMeshes.length > 0) ? new Set(targetMeshes) : null;
-
       scene.traverse((child) => {
         if ((child.isMesh || child.isSkinnedMesh) && (child.material || child.userData?.__preXrayMaterial)) {
-          const shouldBeXray = !targetSet || targetSet.has(child);
-
-          if (shouldBeXray) {
-            if (child.material !== xrayMaterial) {
-              if (!child.userData.__preXrayMaterial) {
-                child.userData.__preXrayMaterial = child.material;
-              }
-              child.material = xrayMaterial;
+          if (child.material !== xrayMaterial) {
+            if (!child.userData.__preXrayMaterial) {
+              child.userData.__preXrayMaterial = child.material;
             }
-          } else {
-            // Restore original material if it was previously in X-Ray
-            if (child.userData?.__preXrayMaterial) {
-              child.material = child.userData.__preXrayMaterial;
-              delete child.userData.__preXrayMaterial;
-            }
+            child.material = xrayMaterial;
           }
         }
       });
@@ -898,7 +1023,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         }
       });
     }
-  }, [scene, xrayMode, xrayMaterial, selectedMaterial, modelName, resolveTargetMeshes]);
+  }, [scene, xrayMode, xrayMaterial]);
 
   // Clean restoration on unmount
   useEffect(() => {
@@ -1674,22 +1799,30 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
                     // Ensure original transparency/depth write data is captured before modifying
                     const isLikelyCutoutM = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${m.name || ''}`);
-                    if (m.userData.originalAlphaTest === undefined) {
-                        m.userData.originalAlphaTest = (m.alphaTest !== undefined && m.alphaTest > 0) ? m.alphaTest : (isLikelyCutoutM ? 0.5 : 0);
-                    }
-                    if (isLikelyCutoutM && (!m.alphaTest || m.alphaTest === 0)) {
-                        m.alphaTest = 0.5;
-                        m.userData.originalAlphaTest = 0.5;
-                    }
-                    if (m.userData.originalTransparent === undefined) m.userData.originalTransparent = Boolean(m.transparent);
-                    if (m.userData.originalDepthWrite === undefined) m.userData.originalDepthWrite = m.depthWrite !== undefined ? m.depthWrite : true;
-                    if (m.userData.originalSide === undefined) m.userData.originalSide = m.side !== undefined ? m.side : THREE.DoubleSide;
+                    const hasAlphaMapM = Boolean(m.alphaMap);
+                    const hasCutoutM = (m.alphaTest !== undefined && m.alphaTest > 0) || isLikelyCutoutM;
+                    const isExplicitlyPartialOpacityM = (m.opacity !== undefined && m.opacity < 0.999);
+                    const isTrulyTransparentM = isExplicitlyPartialOpacityM || hasAlphaMapM;
 
-                    // Ensure both sides are visible and depth write is appropriate
-                    m.side = THREE.DoubleSide;
-                    if (!m.transparent) {
+                    m.transparent = isTrulyTransparentM;
+                    m.depthWrite = true;
+
+                    if (hasCutoutM) {
+                        m.alphaTest = (m.alphaTest !== undefined && m.alphaTest > 0) ? m.alphaTest : 0.5;
+                        m.transparent = false;
                         m.depthWrite = true;
                     }
+
+                    if (m.userData.originalAlphaTest === undefined) {
+                        m.userData.originalAlphaTest = m.alphaTest || 0;
+                    }
+                    if (m.userData.originalTransparent === undefined) m.userData.originalTransparent = isTrulyTransparentM;
+                    if (m.userData.originalDepthWrite === undefined) m.userData.originalDepthWrite = true;
+                    if (m.userData.originalSide === undefined) m.userData.originalSide = m.side !== undefined ? m.side : THREE.DoubleSide;
+
+                    // Ensure both sides are visible and depth write is always enabled to prevent hollow/merging artifacts
+                    m.side = THREE.DoubleSide;
+                    m.depthWrite = true;
 
                     // Ensure original data is stored for visibility/UI logic
                     if (!m.userData.originalColor && m.color) {
@@ -2138,25 +2271,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     // (useFactorColor === true). When undoing or resetting back to uncolored state, restore original properties!
     if (!materialSettings.useFactorColor) {
         if (isResetOrUndo) {
+            const targetedMeshes = resolveTargetMeshes(selMat);
+            const targetMeshSet = new Set(targetedMeshes);
+
             scene.traverse((child) => {
                 if (child.isMesh && child.material) {
+                    const isTargetChild = isFullModel ? true : targetMeshSet.has(child);
+                    if (!isTargetChild) return;
+
                     const materials = Array.isArray(child.material) ? child.material : [child.material];
                     materials.forEach(m => {
-                        let isMatch = false;
-                        if (selMat && !isFullModel) {
-                            if (selMat.isGroup && Array.isArray(selMat.materials)) {
-                                isMatch = selMat.materials.includes(m.name);
-                            } else {
-                                const targetUuid = selMat.uuid || selMat.meshUuid;
-                                if (targetUuid) {
-                                    isMatch = child.uuid === targetUuid;
-                                } else {
-                                    isMatch = m.name === targetMatName || child.name === targetMatName || (selMat.material && selMat.material === m.name);
-                                }
-                            }
-                        } else if (isFullModel) {
-                            isMatch = true;
-                        }
+                        let isMatch = true;
 
                         if (isMatch) {
                             // 1. RESTORE ALL ORIGINAL GLTF MAPS (only if valid Three.js Texture)
@@ -2287,7 +2412,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const emissiveColor = materialSettings.emissiveColor || '#000000';
     const emissiveIntensity = (materialSettings.emissiveIntensity ?? 0) / 100;
     
-    const rawScale = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 100;
+    const rawScale = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 50;
     const safeScale = Math.max(1, Math.min(1000, isNaN(rawScale) ? 100 : rawScale));
     const texScaleX = 100 / safeScale;
     const texScaleY = 100 / safeScale;
@@ -2298,8 +2423,28 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const galleryTexture = materialSettings.appliedTexture;
     const isGalleryTexture = !!galleryTexture;
 
+    const targetedMeshes = resolveTargetMeshes(selMat);
+    const targetMeshSet = new Set(targetedMeshes);
+
     scene.traverse((child) => {
         if (child.isMesh && child.material) {
+            const isLightingProp = changedProp === 'specular' || changedProp === 'reflection';
+            let isTargetChild = false;
+            if (isLightingProp) {
+                isTargetChild = true;
+            } else if (selMat && !isFullModel) {
+                isTargetChild = targetMeshSet.has(child);
+            } else if (isFullModel) {
+                isTargetChild = !!materialSettings.useFactorColor;
+            }
+
+            if (!isTargetChild) return;
+
+            // Isolate materials from unselected meshes so only selected meshes are modified!
+            if (!isFullModel && !isLightingProp) {
+                ensureMeshUniqueMaterial(child, targetMeshSet);
+            }
+
             if (Array.isArray(child.material)) {
                 child.material = child.material.map(ensurePhysicalMaterial);
             } else {
@@ -2307,26 +2452,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
             }
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             materials.forEach(m => {
-                const isLightingProp = changedProp === 'specular' || changedProp === 'reflection';
-                let isMatch = false;
-                if (isLightingProp) {
-                     // Specular and Reflection in "Lighting Controls" are scene/model-wide lighting controls
-                     isMatch = true;
-                } else if (selMat && !isFullModel) {
-                     if (selMat.isGroup && Array.isArray(selMat.materials)) {
-                          isMatch = selMat.materials.includes(m.name);
-                     } else {
-                          const targetUuid = selMat.uuid || selMat.meshUuid;
-                          if (targetUuid) {
-                              isMatch = child.uuid === targetUuid;
-                          } else {
-                              isMatch = m.name === targetMatName || child.name === targetMatName || (selMat.material && selMat.material === m.name);
-                          }
-                     }
-                } else if (isFullModel) {
-                     // In Full Model mode, apply overrides only if user moved a slider or on reset/undo
-                     isMatch = !!materialSettings.useFactorColor;
-                }
+                let isMatch = true;
 
                 if (isMatch) {
                     // Apply ONLY the specific property that the user changed, or all on preset/reset/undo
@@ -2413,15 +2539,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     // 3. Opacity & Transparency
                     const isCutoutMatActive = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${m.name || ''}`);
                     if (changedProp === 'alpha') {
-                        const isTransparent = alpha < 0.999 || !!m.alphaMap || (m.userData.originalTransparent ?? false);
+                        const isTransparent = alpha < 0.999 || !!m.alphaMap;
                         m.transparent = isTransparent;
                         m.opacity = alpha;
-                        m.depthWrite = m.userData.originalDepthWrite !== undefined 
-                            ? m.userData.originalDepthWrite 
-                            : !isTransparent;
+                        m.depthWrite = true; // Always write depth so objects do not glitch through each other
                         m.alphaTest = (m.userData.originalAlphaTest !== undefined && m.userData.originalAlphaTest > 0)
                             ? m.userData.originalAlphaTest 
                             : (m.alphaMap || isCutoutMatActive ? 0.5 : 0);
+                        if (m.alphaTest > 0 && alpha >= 0.999 && !m.alphaMap) {
+                            m.transparent = false;
+                        }
                     } else if (applyAll) {
                         // On preset/undo/reset, restore original alpha parameters rather than forcing alphaTest = 0!
                         if (m.userData.originalAlphaTest !== undefined && m.userData.originalAlphaTest > 0) {
@@ -2433,10 +2560,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                         }
                         if (m.userData.originalTransparent !== undefined) {
                             m.transparent = m.userData.originalTransparent;
+                        } else {
+                            m.transparent = (m.opacity < 0.999) || Boolean(m.alphaMap);
                         }
-                        if (m.userData.originalDepthWrite !== undefined) {
-                            m.depthWrite = m.userData.originalDepthWrite;
-                        }
+                        m.depthWrite = true;
                         if (m.userData.originalOpacity !== undefined) {
                             m.opacity = m.userData.originalOpacity;
                         }
@@ -2588,31 +2715,23 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
     if (isNone) return;
 
-    const rawScaleC = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 100;
+    const rawScaleC = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 50;
     const safeScaleC = Math.max(1, Math.min(1000, isNaN(rawScaleC) ? 100 : rawScaleC));
     const texScaleX = 100 / safeScaleC;
     const texScaleY = 100 / safeScaleC;
 
+    const targetedMeshes = resolveTargetMeshes(selectedMaterial);
+    const targetMeshSet = new Set(targetedMeshes);
+
     const applyToMeshes = (meshes) => {
         meshes.forEach(child => {
             if (child.isMesh && child.material) {
+                if (!isFullModel) {
+                    ensureMeshUniqueMaterial(child, targetMeshSet);
+                }
                 const materials = Array.isArray(child.material) ? child.material : [child.material];
                 materials.forEach(m => {
-                    let isMatch = false;
-                    if (selectedMaterial && !isFullModel) {
-                         if (selectedMaterial.isGroup && Array.isArray(selectedMaterial.materials)) {
-                             isMatch = selectedMaterial.materials.includes(m.name);
-                         } else {
-                             const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid;
-                             if (targetUuid) {
-                                 isMatch = child.uuid === targetUuid;
-                             } else {
-                                 isMatch = m.name === targetMatName || child.name === targetMatName || (selectedMaterial.material && selectedMaterial.material === m.name);
-                             }
-                         }
-                    } else if (isFullModel) {
-                         isMatch = materialSettings.useFactorColor || isResetOrUndo;
-                    }
+                    let isMatch = isFullModel ? (materialSettings.useFactorColor || isResetOrUndo) : targetMeshSet.has(child);
 
                     if (isMatch) {
                         const syncMap = (mapProp, stateUrl, isColor = false) => {
@@ -2680,26 +2799,40 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     }
   }, [scene, materialSettings?.maps, materialSettings?.appliedTexture, selectedMaterial, modelName, resetKey, resolveTargetMeshes]);
 
-  // C. Handle overall visibility
+  // C. Handle overall visibility & deletion
   useEffect(() => {
     if (!scene) return;
     
     scene.traverse((child) => {
         if (child.isMesh && child.material) {
+            const childMatNames = Array.isArray(child.material) 
+                ? child.material.map(m => m?.name).filter(Boolean)
+                : [child.material?.name].filter(Boolean);
+
+            const isDeleted = deletedMaterials && (
+                (child.uuid && deletedMaterials.has(child.uuid)) || 
+                childMatNames.some(mName => deletedMaterials.has(mName))
+            );
+
+            if (isDeleted) {
+                child.visible = false;
+                child.raycast = () => {};
+                return;
+            }
+
+            // Restore raycast when visible / not deleted
+            delete child.raycast;
+
             let isHidden = false;
             if (hiddenMaterials) {
-                const childMatNames = Array.isArray(child.material) 
-                    ? child.material.map(m => m?.name).filter(Boolean)
-                    : [child.material?.name].filter(Boolean);
-
                 isHidden = (child.uuid && hiddenMaterials.has(child.uuid)) || 
                            (child.name && hiddenMaterials.has(child.name)) || 
-                           (!child.name && childMatNames.some(mName => hiddenMaterials.has(mName)));
+                           childMatNames.some(mName => hiddenMaterials.has(mName));
             }
             child.visible = !isHidden;
         }
     });
-  }, [scene, hiddenMaterials]);
+  }, [scene, hiddenMaterials, deletedMaterials]);
 
   const prevTransformTargetRef = React.useRef(null);
   const lastTransformResetKeyRef = React.useRef(resetKey);
@@ -2768,23 +2901,23 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     }
   }, [meshTransforms, resetKey, scene, transformTarget, modelGroup, updatePivotToTarget, onTransformChange, selectedMaterial]);
 
-  // 4. Determine Transform Target (Runs BEFORE transform sync)
+  // 4. Determine Transform Target & Pivot (Runs whenever selection, transformMode, or scene changes)
   useEffect(() => {
     if (!scene) return;
 
     const targetName = selectedMaterial ? selectedMaterial.name : null;
-    const targetUuid = selectedMaterial ? selectedMaterial.uuid : null;
+    const isAll = selectedMaterial ? selectedMaterial.isAll : false;
     const isGroup = selectedMaterial ? selectedMaterial.isGroup : false;
     
-    if (!targetName || targetName === "Scene") {
+    if (!selectedMaterial || !targetName || targetName === "Scene") {
         setTransformTarget(null);
         relatedMeshesRef.current = [];
         followerOffsetsRef.current.clear();
         return;
     }
 
-    // Default to Full Model (modelGroup) if Model Name selected
-    if (targetName === modelName) {
+    // Default to Full Model (modelGroup) ONLY if pure model name clicked in list without isAll and not a multi-selection
+    if (targetName === modelName && !isAll && !isGroup) {
         relatedMeshesRef.current = [];
         followerOffsetsRef.current.clear();
 
@@ -2818,137 +2951,48 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         return;
     }
 
-    // Priority 0: Group Selection (Handle both physical Scene groups and UI-only Material groups)
-    if (isGroup) {
-        let physicalGroup = null;
-        scene.traverse((child) => {
-            if (physicalGroup) return;
-            if (child.isGroup && child.name === targetName) {
-                physicalGroup = child;
-            }
-        });
-        
-        if (physicalGroup) {
-            setTransformTarget(physicalGroup);
-            updatePivotToTarget(physicalGroup);
-            return; 
-        }
+    // Priority: Resolve all meshes targeted by the current selection (Group, All Meshes, Multi-selection, or Single Mesh)
+    const targetedMeshes = resolveTargetMeshes(selectedMaterial);
 
-        const groupMats = selectedMaterial.materials || [];
-        if (groupMats.length > 0) {
-            const allMatches = [];
-            scene.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    const m = child.material;
-                    const mats = Array.isArray(m) ? m : [m];
-                    if (mats.some(mat => groupMats.includes(mat.name))) {
-                        allMatches.push(child);
-                    }
-                }
+    if (targetedMeshes && targetedMeshes.length > 0) {
+        const leader = targetedMeshes[0];
+        setTransformTarget(leader);
+        relatedMeshesRef.current = targetedMeshes;
+        updatePivotToTarget(leader, targetedMeshes);
+
+        if (targetedMeshes.length > 1) {
+            leader.updateMatrixWorld(true);
+            const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
+            
+            const offsets = new Map();
+            targetedMeshes.forEach(mesh => {
+                if (mesh === leader) return;
+                mesh.updateMatrixWorld(true);
+                const relativeMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
+                offsets.set(mesh.uuid, relativeMatrix);
             });
-
-            if (allMatches.length > 0) {
-                const leader = allMatches[0];
-                setTransformTarget(leader);
-                relatedMeshesRef.current = allMatches;
-                updatePivotToTarget(leader, allMatches);
-
-                if (allMatches.length > 1) {
-                    leader.updateMatrixWorld(true);
-                    const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
-                    
-                    const offsets = new Map();
-                    allMatches.forEach(mesh => {
-                        if (mesh === leader) return;
-                        mesh.updateMatrixWorld(true);
-                        const relativeMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
-                        offsets.set(mesh.uuid, relativeMatrix);
-                    });
-                    followerOffsetsRef.current = offsets;
-                } else {
-                    followerOffsetsRef.current = new Map();
-                }
-
-                return;
-            }
+            followerOffsetsRef.current = offsets;
+        } else {
+            followerOffsetsRef.current.clear();
         }
+
+        if (typeof onTransformChange === 'function') {
+            const pivot = pivotRef.current;
+            onTransformChange({
+                position: pivot ? pivot.position : leader.position,
+                rotation: pivot ? pivot.rotation : leader.rotation,
+                scale: pivot ? pivot.scale : leader.scale,
+                meshUuid: leader.uuid,
+                meshName: selectedMaterial?.name || leader.name
+            });
+        }
+        return;
     }
 
-    // Otherwise, try to find the mesh with the selected material
-    let foundMesh = null;
-
-    // Priority 1: UUID Match
-    if (targetUuid) {
-        scene.traverse((child) => {
-            if (foundMesh) return;
-            if (child.uuid === targetUuid) {
-                foundMesh = child;
-            }
-        });
-    }
-
-    // Priority 2: Name Match
-    if (!foundMesh) {
-        scene.traverse((child) => {
-            if (foundMesh) return;
-            if (child.isMesh && child.material) {
-                 const m = child.material;
-                 if (Array.isArray(m)) {
-                     if (m.some(mat => mat.name === targetName)) foundMesh = child;
-                 } else {
-                     if (m.name === targetName) foundMesh = child;
-                 }
-            }
-        });
-    }
-
-    // Multi-Mesh Identification
-    const allMatches = [];
-    if (foundMesh && !isGroup && targetName !== modelName) {
-        scene.traverse((child) => {
-            if (child.isMesh && child.material) {
-                const m = child.material;
-                let hasMatch = false;
-                if (Array.isArray(m)) {
-                    hasMatch = m.some(mat => mat.name === targetName);
-                } else {
-                    hasMatch = m.name === targetName;
-                }
-                if (hasMatch) allMatches.push(child);
-            }
-        });
-    }
-    relatedMeshesRef.current = allMatches;
-
-    if (allMatches.length > 1) {
-        const leader = foundMesh;
-        leader.updateMatrixWorld(true);
-        const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
-        
-        const offsets = new Map();
-        allMatches.forEach(mesh => {
-            if (mesh === leader) return;
-            mesh.updateMatrixWorld(true);
-            const relative = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
-            offsets.set(mesh.uuid, relative);
-        });
-        followerOffsetsRef.current = offsets;
-    } else {
-        followerOffsetsRef.current.clear();
-    }
-
-    setTransformTarget(foundMesh);
-    if (foundMesh && foundMesh !== modelGroup) {
-        updatePivotToTarget(foundMesh, allMatches);
-    }
-    if (foundMesh && typeof onTransformChange === 'function') {
-        onTransformChange({
-            position: foundMesh.position,
-            rotation: foundMesh.rotation,
-            scale: foundMesh.scale
-        });
-    }
-  }, [scene, selectedMaterial, modelName, onTransformChange, modelGroup, updatePivotToTarget]);
+    setTransformTarget(null);
+    relatedMeshesRef.current = [];
+    followerOffsetsRef.current.clear();
+  }, [scene, selectedMaterial, transformMode, modelName, onTransformChange, modelGroup, updatePivotToTarget, resolveTargetMeshes]);
 
   // 4.5. Sync transformValues (from UI / Undo) → the currently ACTIVE transform target only.
   useEffect(() => {
@@ -3189,7 +3233,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
          <primitive object={pivotRef.current} />
          {transformMode && transformTarget && (
               <TransformControls 
-                 key={transformTarget === modelGroup ? 'modelGroup' : (transformTarget.uuid || 'pivot')}
+                 key={`gizmo_${transformMode}_${selectedMaterial?.isAll ? 'all' : (selectedMaterial?.name || 'sel')}_${relatedMeshesRef.current.length}_${transformTarget === modelGroup ? 'mg' : (transformTarget?.uuid || 'pv')}`}
                  object={transformTarget === modelGroup ? modelGroup : pivotRef.current} 
                  mode={transformMode} 
                  size={0.8} 
@@ -3250,10 +3294,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                          }
 
                          if (typeof onTransformChange === 'function' && transformTarget) {
+                             const pivot = pivotRef.current;
                              onTransformChange({
-                                 position: transformTarget.position,
-                                 rotation: transformTarget.rotation,
-                                 scale: transformTarget.scale,
+                                 position: pivot ? pivot.position : transformTarget.position,
+                                 rotation: pivot ? pivot.rotation : transformTarget.rotation,
+                                 scale: pivot ? pivot.scale : transformTarget.scale,
                                  meshUuid: transformTarget.uuid,
                                  meshName: transformTarget.name || selectedMaterial?.name
                              });
@@ -3388,12 +3433,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
             />
         </group>
 
-        {/* Clean silhouette outline for selected mesh */}
+        {/* Clean silhouette outline for all selected mesh(es) */}
         {(() => {
-          if (!selectedMaterial || selectedMaterial.name === modelName || selectedMaterial.name === 'Scene') return null;
-          const target = transformTarget || resolveTargetMeshes(selectedMaterial);
+          if (!selectedMaterial || selectedMaterial.name === 'Scene') return null;
+          const target = resolveTargetMeshes(selectedMaterial);
           if (!target || (Array.isArray(target) && target.length === 0)) return null;
-          return <MeshSelectionHighlight target={target} />;
+          const targetKey = Array.isArray(target) ? target.map(m => m.uuid).join('_') : (target.uuid || 'sel');
+          return <MeshSelectionHighlight key={targetKey} target={target} />;
         })()}
     </>
   );

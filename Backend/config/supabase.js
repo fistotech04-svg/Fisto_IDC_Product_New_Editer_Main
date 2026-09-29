@@ -319,6 +319,7 @@ export const ensureUserFoldersInSupabase = async (sanitizedEmail) => {
       "Videos",
       "gifs",
       "3D_Modals",
+      "3D_Models",
       "3D_Screenshot",
       "Texture",
       "Profile",

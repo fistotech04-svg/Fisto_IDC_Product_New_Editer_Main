@@ -787,6 +787,7 @@ router.post("/save", async (req, res) => {
             asset.url.toLowerCase().includes(`/${sanitizedEmail}/images/`) ||
             asset.url.toLowerCase().includes(`/${sanitizedEmail}/videos/`) ||
             asset.url.toLowerCase().includes(`/${sanitizedEmail}/gifs/`) ||
+            asset.url.toLowerCase().includes(`/${sanitizedEmail}/3d_models/`) ||
             asset.url.toLowerCase().includes(`/${sanitizedEmail}/3d_modals/`) ||
             asset.url.toLowerCase().includes(`/${sanitizedEmail}/texture/`) ||
             asset.url.toLowerCase().includes(`/${sanitizedEmail}/profile/`) ||
@@ -794,6 +795,7 @@ router.post("/save", async (req, res) => {
             asset.url.toLowerCase().includes('/images/') ||
             asset.url.toLowerCase().includes('/videos/') ||
             asset.url.toLowerCase().includes('/gifs/') ||
+            asset.url.toLowerCase().includes('/3d_models/') ||
             asset.url.toLowerCase().includes('/3d_modals/')
           ))
         );
@@ -863,7 +865,9 @@ router.post("/save", async (req, res) => {
 
         for (const model of all3DModels) {
           const isGalleryModel = model.url && (
+            model.url.toLowerCase().includes('/3d_models/') ||
             model.url.toLowerCase().includes('/3d_modals/') ||
+            model.url.toLowerCase().includes(`/${sanitizedEmail}/3d_models/`) ||
             model.url.toLowerCase().includes(`/${sanitizedEmail}/3d_modals/`)
           );
 
@@ -4990,7 +4994,7 @@ router.get("/get-gallery-assets", async (req, res) => {
           $or: [
             { folderName: "Gallery" },
             { isGallery: true },
-            { url: { $regex: `\/uploads\/${escapedEmail}\/(?:Images|Videos|gifs|3D_Modals|Image|video|gif)\/` } }
+            { url: { $regex: `\/uploads\/${escapedEmail}\/(?:Images|Videos|gifs|3D_Models|3D_Modals|Image|video|gif)\/` } }
           ]
         }
       ]
@@ -5006,11 +5010,11 @@ router.get("/get-gallery-assets", async (req, res) => {
         if (!detectedType) {
           if (asset.url.includes('/Videos/') || asset.url.includes('/video/')) detectedType = 'video';
           else if (asset.url.includes('/gifs/') || asset.url.includes('/gif/')) detectedType = 'gif';
-          else if (asset.url.includes('/3D_Model/') || asset.url.includes('/3D_Modals/')) detectedType = '3d';
+          else if (asset.url.includes('/3D_Model/') || asset.url.includes('/3D_Models/') || asset.url.includes('/3D_Modals/')) detectedType = '3d';
           else detectedType = 'image';
         } else if (detectedType === 'images') detectedType = 'image';
         else if (detectedType === 'videos') detectedType = 'video';
-        else if (detectedType === '3d_model' || detectedType === '3d_modals') detectedType = '3d';
+        else if (detectedType === '3d_model' || detectedType === '3d_models' || detectedType === '3d_modals') detectedType = '3d';
 
         if (!requestedType || detectedType === requestedType || (requestedType === 'image' && detectedType === 'image') || (requestedType === '3d' && detectedType === '3d')) {
           assetsMap.set(asset.fileName, {
@@ -5030,7 +5034,7 @@ router.get("/get-gallery-assets", async (req, res) => {
       image: [`${sanitizedEmail}/Images`, `${sanitizedEmail}/Image`],
       video: [`${sanitizedEmail}/Videos`, `${sanitizedEmail}/video`],
       gif: [`${sanitizedEmail}/gifs`, `${sanitizedEmail}/gif`],
-      '3d': [`${sanitizedEmail}/3D_Modals`, `${sanitizedEmail}/3D_Model`]
+      '3d': [`${sanitizedEmail}/3D_Models`, `${sanitizedEmail}/3D_Modals`, `${sanitizedEmail}/3D_Model`]
     };
 
     const targetTypes = requestedType ? [requestedType] : ['image', 'video', 'gif', '3d'];
@@ -5198,6 +5202,7 @@ const deleteAssetHandler = async (req, res) => {
       if (fileName) {
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/${assetType}/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/3D_Model/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/3D_Models/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/3D_Modals/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/3d_model/${fileName}`);
         candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/Image/${fileName}`);
