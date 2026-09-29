@@ -308,6 +308,8 @@ export const parseLayersFromSVG = (element) => {
       if (child.classList.contains('internal-crop-rect')) return false;
       if (child.classList.contains('internal-crop-pattern')) return false;
 
+      if (child.getAttribute('data-is-mask-image') === 'true' || child.getAttribute('id')?.startsWith('masked-img-')) return false;
+
       const isEffectNode = Array.from(child.classList).some(cls =>
         cls.includes('-stroke-overlay') ||
         cls.includes('-inner-shadow') ||
@@ -343,6 +345,20 @@ export const parseLayersFromSVG = (element) => {
         visible: child.getAttribute('data-hidden') !== 'true',
         locked: child.getAttribute('data-locked') === 'true'
       };
+
+      // If shape has masked image, group it as a nested masked image layer
+      if (child.getAttribute('data-masked-image-url')) {
+        layer.isMaskedShape = true;
+        layer.children = [{
+          id: `masked-img-${id.replace(/[^a-zA-Z0-9-_]/g, '_')}`,
+          name: 'Masked Image',
+          type: 'image',
+          parentId: id,
+          isVirtualImageChild: true,
+          visible: layer.visible,
+          locked: layer.locked
+        }];
+      }
 
       // VIRTUAL EFFECT LAYERS FOR IMAGE/VIDEO/GIF GROUP
       const isGroup = child.getAttribute('data-is-image-group') === 'true' ||
@@ -527,5 +543,133 @@ export const applyStyleToActiveTextSelection = (elementId, attribute, value) => 
     console.error('[applyStyleToActiveTextSelection] Error applying inline selection style:', err);
     return false;
   }
+};
+
+/**
+ * Ensures that <image data-name="Page Background Image"> exists and is in sync
+ * with overlay data-bg-image attributes in the SVG markup.
+ * Used across Editor, Preview, and Share View.
+ */
+export const ensurePageBackgroundImage = (svgMarkup) => {
+  if (!svgMarkup || typeof svgMarkup !== 'string' || !svgMarkup.includes('data-bg-image=')) {
+    return svgMarkup;
+  }
+  try {
+    let safeXml = svgMarkup;
+    if (!safeXml.includes('xmlns:xlink=')) {
+      safeXml = safeXml.replace('<svg ', '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ');
+    }
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(safeXml, 'image/svg+xml');
+    const svg = doc.querySelector('svg');
+    const ov = doc.querySelector('[data-bg-image]') || doc.querySelector('[data-name="Overlay"]') || doc.querySelector('[data-type="background"]') || doc.querySelector('rect');
+    const bgUrl = ov?.getAttribute('data-bg-image');
+    let imgNode = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
+
+    if (svg && bgUrl) {
+      const getCleanNameFromUrl = (urlStr) => {
+        if (!urlStr) return 'Background Image.jpg';
+        try {
+          const cleanPath = urlStr.split('?')[0].split('#')[0];
+          const lastPart = cleanPath.substring(cleanPath.lastIndexOf('/') + 1);
+          if (lastPart) {
+            const decoded = decodeURIComponent(lastPart);
+            const cleanName = decoded.replace(/^[0-9a-fA-F-]+_/, '').replace(/^\d{10,}_/, '');
+            return cleanName || decoded;
+          }
+        } catch (e) {}
+        return 'Background Image.jpg';
+      };
+
+      let name = ov.getAttribute('data-bg-image-name') || imgNode?.getAttribute('data-filename') || '';
+      if (!name || name === 'Background Image.jpg') {
+        name = getCleanNameFromUrl(bgUrl);
+      }
+      let dim = ov.getAttribute('data-bg-image-dim') || imgNode?.getAttribute('data-dimensions') || '';
+      if (dim === '1920 X 1080 • 24MB') dim = '';
+      const fit = ov.getAttribute('data-bg-fit') || ov.getAttribute('data-fix-type') || (imgNode?.getAttribute('data-fix-type')) || 'Fit';
+      let op = '1';
+      if (ov.getAttribute('data-bg-opacity')) {
+        op = (parseFloat(ov.getAttribute('data-bg-opacity')) / 100).toString();
+      } else if (ov.getAttribute('opacity')) {
+        op = ov.getAttribute('opacity');
+        ov.setAttribute('data-bg-opacity', Math.round(parseFloat(op) * 100).toString());
+        ov.removeAttribute('opacity');
+      } else if (imgNode?.getAttribute('opacity')) {
+        op = imgNode.getAttribute('opacity');
+      }
+      const aspect = fit === 'Fit' ? 'xMidYMid meet' : (fit === 'Fill' ? 'xMidYMid slice' : 'none');
+
+      const ovW = parseFloat(ov.getAttribute('width') || '');
+      const ovH = parseFloat(ov.getAttribute('height') || '');
+      const svgW = parseFloat(svg.getAttribute('width') || '');
+      const svgH = parseFloat(svg.getAttribute('height') || '');
+      let baseW = (!isNaN(ovW) && ovW > 0) ? ovW : ((!isNaN(svgW) && svgW > 0) ? svgW : 794);
+      let baseH = (!isNaN(ovH) && ovH > 0) ? ovH : ((!isNaN(svgH) && svgH > 0) ? svgH : 1123);
+      if (svg.getAttribute('viewBox')) {
+        const vbParts = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
+        if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3]) && vbParts[2] > 0 && vbParts[3] > 0) {
+          baseW = vbParts[2];
+          baseH = vbParts[3];
+        }
+      }
+
+      if (!imgNode) {
+        imgNode = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
+        imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
+        imgNode.setAttribute('data-name', 'Page Background Image');
+        imgNode.setAttribute('data-type', 'page-background-image');
+        imgNode.setAttribute('x', '0');
+        imgNode.setAttribute('y', '0');
+        imgNode.setAttribute('width', baseW.toString());
+        imgNode.setAttribute('height', baseH.toString());
+        imgNode.setAttribute('style', 'pointer-events: none;');
+        imgNode.setAttribute('href', bgUrl);
+        imgNode.setAttribute('xlink:href', bgUrl);
+        imgNode.setAttribute('data-filename', name);
+        imgNode.setAttribute('data-dimensions', dim);
+        imgNode.setAttribute('data-fix-type', fit);
+        imgNode.setAttribute('opacity', op);
+        imgNode.setAttribute('preserveAspectRatio', aspect);
+
+        const borderNode = doc.querySelector('[data-name="Page Border"]');
+        if (borderNode) {
+          borderNode.parentNode.insertBefore(imgNode, borderNode);
+        } else if (ov && ov.nextSibling) {
+          ov.parentNode.insertBefore(imgNode, ov.nextSibling);
+        } else if (ov) {
+          ov.parentNode.appendChild(imgNode);
+        } else {
+          svg.insertBefore(imgNode, svg.firstChild);
+        }
+        return new XMLSerializer().serializeToString(doc);
+      } else {
+        let modified = false;
+        if (imgNode.getAttribute('preserveAspectRatio') !== aspect) {
+          imgNode.setAttribute('preserveAspectRatio', aspect);
+          modified = true;
+        }
+        if (imgNode.getAttribute('data-fix-type') !== fit) {
+          imgNode.setAttribute('data-fix-type', fit);
+          modified = true;
+        }
+        if (op && imgNode.getAttribute('opacity') !== op) {
+          imgNode.setAttribute('opacity', op);
+          modified = true;
+        }
+        if (!imgNode.getAttribute('href') && bgUrl) {
+          imgNode.setAttribute('href', bgUrl);
+          imgNode.setAttribute('xlink:href', bgUrl);
+          modified = true;
+        }
+        if (modified) {
+          return new XMLSerializer().serializeToString(doc);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[ensurePageBackgroundImage] Error:', err);
+  }
+  return svgMarkup;
 };
 

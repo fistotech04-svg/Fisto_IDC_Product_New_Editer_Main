@@ -25,12 +25,13 @@ const useHistory = () => {
       return;
     }
     
+    const { undoStack } = historyRef.current;
     const lastState = undoStack[undoStack.length - 1];
     if (lastState !== jsonString) {
       undoStack.push(jsonString);
       historyRef.current.redoStack = [];
       
-      if (undoStack.length > 50) {
+      if (undoStack.length > 30) {
         undoStack.shift();
       }
       

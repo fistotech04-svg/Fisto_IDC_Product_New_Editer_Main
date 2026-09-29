@@ -134,3 +134,14 @@ Located in [MainEditor.jsx](file:///d:/Sham/Flipibook/Frontend/src/components/Te
    - Always ensure `xmlns="http://www.w3.org/2000/svg"` is set on `foreignObject` and `xmlns="http://www.w3.org/1999/xhtml"` is set on child `<div>`, `<iframe>`, or `<video>`.
 3. **Keep `interact.js` Coordinates in Local SVG Space:**
    - Always use `getLocalPoint(svgElement, target.parentNode, clientX, clientY)` to avoid coordinate misalignment when zoomed/panned.
+
+---
+
+## 7. AI Agent Execution & Speed Rules (Strictly Enforced)
+
+1. **NEVER run `npm run build` / production bundling:**
+   - The Vite dev server is already running with hot module replacement (`npm run dev`). Running `npm run build` bundles 3,900+ modules and takes minutes, causing unwanted delays. Never execute `npm run build` unless explicitly asked by the user.
+2. **Direct, Fast & Targeted Edits:**
+   - Target the exact line ranges directly. Avoid unnecessary exploratory view loops across large files.
+   - Keep tool calls minimal and responses immediate.
+
