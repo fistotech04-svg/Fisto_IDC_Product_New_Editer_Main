@@ -2508,12 +2508,50 @@ const MainEditor = ({
           bar.appendChild(centerContainer);
           bar.appendChild(bottomContainer);
 
-          mountPoint.appendChild(bar);
+          // To ensure controls render ON TOP of the SVG stroke overlay,
+          // we place the controls in a separate foreignObject sibling.
+          const liveEl = video.closest('g[id]') || video.closest('svg');
+          const fo = video.closest('foreignObject');
+          let ctrlFO = null;
+          
+          if (liveEl && fo) {
+            ctrlFO = liveEl.querySelector(`foreignObject.video-ctrl-fo[data-for="${layerId}"]`);
+            if (!ctrlFO) {
+              ctrlFO = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+              ctrlFO.classList.add('video-ctrl-fo');
+              ctrlFO.setAttribute('data-for', layerId);
+              ctrlFO.style.pointerEvents = 'none';
+              // Ensure it's always appended at the end of liveEl so it sits on top of stroke overlays
+              liveEl.appendChild(ctrlFO);
+            }
+            ctrlFO.appendChild(bar);
+
+            const syncCtrlFO = () => {
+              if (fo && ctrlFO) {
+                ctrlFO.setAttribute('x', fo.getAttribute('x') || '0');
+                ctrlFO.setAttribute('y', fo.getAttribute('y') || '0');
+                ctrlFO.setAttribute('width', fo.getAttribute('width') || '100%');
+                ctrlFO.setAttribute('height', fo.getAttribute('height') || '100%');
+                ctrlFO.setAttribute('transform', fo.getAttribute('transform') || '');
+                ctrlFO.style.transform = fo.style.transform;
+                ctrlFO.style.translate = fo.style.translate;
+                ctrlFO.style.scale = fo.style.scale;
+                ctrlFO.style.rotate = fo.style.rotate;
+              }
+            };
+            syncCtrlFO();
+            const obsFO = new MutationObserver(syncCtrlFO);
+            obsFO.observe(fo, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            bar._obsFO = obsFO;
+          } else {
+            mountPoint.appendChild(bar);
+          }
 
           bar._cleanup = () => {
             document.removeEventListener('fullscreenchange', handleFsChange);
             document.removeEventListener('webkitfullscreenchange', handleFsChange);
             if (ro) ro.disconnect();
+            if (bar._obsFO) bar._obsFO.disconnect();
             video.removeEventListener('play', onPlay);
             video.removeEventListener('pause', onPause);
             video.removeEventListener('timeupdate', onTimeUpdate);
@@ -2523,6 +2561,9 @@ const MainEditor = ({
             if (mountPoint.style && mountPoint._prevPointerEvents !== undefined) {
               mountPoint.style.pointerEvents = mountPoint._prevPointerEvents;
               delete mountPoint._prevPointerEvents;
+            }
+            if (ctrlFO && ctrlFO.parentNode) {
+              ctrlFO.remove();
             }
           };
         }
