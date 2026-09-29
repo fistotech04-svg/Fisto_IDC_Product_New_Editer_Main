@@ -505,6 +505,15 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
             existing = await ThreedModel.findOne({ userEmail: emailId, name: finalFileName });
           }
 
+          let parsedHotspots = null;
+          if (req.body.hotspots) {
+            try {
+              parsedHotspots = typeof req.body.hotspots === 'string' ? JSON.parse(req.body.hotspots) : req.body.hotspots;
+            } catch (e) {
+              parsedHotspots = null;
+            }
+          }
+
           let savedModel;
           if (!existing) {
               const newModel = new ThreedModel({
@@ -512,7 +521,8 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
                   name: finalFileName,
                   url: modelUrl,
                   type: type,
-                  size: sizeStr
+                  size: sizeStr,
+                  hotspots: Array.isArray(parsedHotspots) ? parsedHotspots : []
               });
               await newModel.save();
               savedModel = newModel;
@@ -521,8 +531,23 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
               existing.url = modelUrl;
               existing.type = type;
               existing.size = sizeStr;
+              if (Array.isArray(parsedHotspots)) {
+                existing.hotspots = parsedHotspots;
+              }
               await existing.save();
               savedModel = existing;
+          }
+
+          // Also sync to InteractionThreedModel if it exists
+          if (modelId) {
+            const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId, userEmail: emailId });
+            if (interactionModel) {
+              interactionModel.url = modelUrl;
+              if (Array.isArray(parsedHotspots)) {
+                interactionModel.hotspots = parsedHotspots;
+              }
+              await interactionModel.save();
+            }
           }
 
           res.status(200).json({
@@ -530,7 +555,8 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
               message: "Model uploaded and saved successfully",
               url: savedModel.url,
               name: finalFileName,
-              modelId: savedModel.modelId
+              modelId: savedModel.modelId,
+              hotspots: savedModel.hotspots || []
           });
         } catch (mergeErr) {
           try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
@@ -581,6 +607,7 @@ router.get("/get-models", async (req, res) => {
         thumbnailUrl: m.thumbnailUrl,
         size: m.size,
         type: m.type,
+        hotspots: m.hotspots || [],
         uploadedAt: m.createdAt
     }));
 
@@ -784,6 +811,37 @@ router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
   }
 });
 
+// @route   POST /api/3d-models/save-hotspots
+// @desc    Directly update/save hotspots for a 3D model
+// @access  Public
+router.post("/save-hotspots", async (req, res) => {
+  try {
+    const { modelId, emailId, hotspots } = req.body;
+    if (!modelId) {
+      return res.status(400).json({ message: "Model ID is required" });
+    }
+    const cleanHotspots = Array.isArray(hotspots) ? hotspots : [];
+    
+    let updated = false;
+    let model = await ThreedModel.findOne({ modelId });
+    if (model) {
+      model.hotspots = cleanHotspots;
+      await model.save();
+      updated = true;
+    }
+    let interactionModel = await InteractionThreedModel.findOne({ v_id: modelId });
+    if (interactionModel) {
+      interactionModel.hotspots = cleanHotspots;
+      await interactionModel.save();
+      updated = true;
+    }
+    res.status(200).json({ success: true, message: "Hotspots saved successfully", count: cleanHotspots.length, updated });
+  } catch (err) {
+    console.error("Save hotspots error:", err);
+    res.status(500).json({ message: "Server error saving hotspots" });
+  }
+});
+
 // @route   GET /api/3d-models/get-model/:modelId
 // @desc    Get a single 3D model's metadata by ID
 // @access  Public
@@ -792,28 +850,32 @@ router.get("/get-model/:modelId", async (req, res) => {
     const { modelId } = req.params;
     let model = await ThreedModel.findOne({ modelId });
     
-    if (!model) {
-      const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId });
-      if (interactionModel) {
-        const sanitizedEmail = interactionModel.userEmail.replace(/[@.]/g, "_");
-        const absoluteUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
-
-        model = {
-          modelId: interactionModel.v_id,
-          name: interactionModel.displayName || interactionModel.fileName,
-          displayName: interactionModel.displayName || null,
-          fileName: interactionModel.fileName,
-          url: absoluteUrl,
-          size: interactionModel.size,
-          type: interactionModel.type
-        };
-      }
+    if (model) {
+      return res.json({
+        ...model.toObject(),
+        hotspots: model.hotspots || []
+      });
     }
 
-    if (!model) {
-      return res.status(404).json({ message: "Model not found" });
+    const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId });
+    if (interactionModel) {
+      const sanitizedEmail = interactionModel.userEmail.replace(/[@.]/g, "_");
+      const absoluteUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
+
+      const resModel = {
+        modelId: interactionModel.v_id,
+        name: interactionModel.displayName || interactionModel.fileName,
+        displayName: interactionModel.displayName || null,
+        fileName: interactionModel.fileName,
+        url: absoluteUrl,
+        size: interactionModel.size,
+        type: interactionModel.type,
+        hotspots: interactionModel.hotspots || []
+      };
+      return res.json(resModel);
     }
-    res.json(model);
+
+    return res.status(404).json({ message: "Model not found" });
   } catch (error) {
     console.error("Error fetching model by ID:", error);
     res.status(500).json({ message: "Server error" });
