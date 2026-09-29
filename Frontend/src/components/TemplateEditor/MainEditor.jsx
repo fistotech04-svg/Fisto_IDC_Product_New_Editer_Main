@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
 import { DotRenderer } from '../CustomizedEditor/popups/DotStylesPopup';
-import { checkIsAnimatedWebp } from './editorUtils';
+import { checkIsAnimatedWebp, ensurePageBackgroundImage } from './editorUtils';
 import FlipBookEngine from '../CustomizedEditor/FlipBookEngine';
 import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
@@ -18,10 +18,13 @@ import {
 } from './penToolEngine';
 
 import HotspotPresetPopup from './HotspotPresetPopup';
+import IconGallery from './icons';
+import ElementsGallery from './ElementsGallery';
 import { generateHotspotSVG } from './HotspotCustomizationPopup';
 import { CropController, isElementCropped } from './Crop';
 import { useToast } from '../CustomToast';
-import { checkSpellingAndGrammar, getSpellingSuggestions } from './spellGrammarChecker';
+import { checkSpellingAndGrammar, getSpellingSuggestions, initDictionary, addIgnoredWord } from './spellGrammarChecker';
+import { rewriteHtmlUploadsToSupabase } from '../../utils/supabaseUtils';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -107,6 +110,11 @@ export const getVisualBBox = (el) => {
         bboxH = parseFloat(targetForOrig.getAttribute('data-crop-orig-h') || '0');
         bboxX = parseFloat(targetForOrig.getAttribute('data-crop-orig-x') || '0');
         bboxY = parseFloat(targetForOrig.getAttribute('data-crop-orig-y') || '0');
+      } else if (targetForOrig.hasAttribute('width') && targetForOrig.hasAttribute('height')) {
+        bboxW = parseFloat(targetForOrig.getAttribute('width') || '0');
+        bboxH = parseFloat(targetForOrig.getAttribute('height') || '0');
+        bboxX = parseFloat(targetForOrig.getAttribute('x') || '0');
+        bboxY = parseFloat(targetForOrig.getAttribute('y') || '0');
       } else {
         try {
           const bbox = el.getBBox();
@@ -541,7 +549,7 @@ const svgGlobalStyles = `
     transition: all 0.1s ease;
   }
 
-  /* Video & Iframe Scaling Fixes */
+  /* Video & Iframe Scaling Fixes & Hardware Acceleration */
   foreignObject video {
     width: 100% !important;
     height: 100% !important;
@@ -552,6 +560,9 @@ const svgGlobalStyles = `
     padding: 0 !important;
     box-sizing: border-box !important;
     pointer-events: auto !important;
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
   }
   foreignObject iframe {
     display: block !important;
@@ -562,13 +573,39 @@ const svgGlobalStyles = `
     box-sizing: border-box !important;
     pointer-events: auto !important;
     transform-origin: 0 0 !important;
+    transform: translateZ(0);
+    will-change: transform;
   }
   foreignObject[data-type="video"] {
     overflow: hidden !important;
     pointer-events: auto !important;
+    transform: translateZ(0);
+    will-change: transform;
   }
   foreignObject[data-type="video"] * {
     pointer-events: auto !important;
+  }
+
+  /* Image performance optimization for high quality images */
+  .page-svg-container svg image {
+    image-rendering: auto;
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* GPU acceleration and pointer shielding during active element drag */
+  .page-svg-container svg [data-dragging="true"],
+  .page-svg-container svg [data-dragging="true"] * {
+    will-change: transform !important;
+    pointer-events: none !important;
+  }
+
+  /* Global pointer shielding for iframes/videos when dragging or resizing */
+  body.canvas-dragging-active iframe,
+  body.canvas-dragging-active video,
+  body.resizing-active iframe,
+  body.resizing-active video {
+    pointer-events: none !important;
   }
 
   .hide-controls::-webkit-media-controls {
@@ -612,6 +649,7 @@ const svgGlobalStyles = `
 import CanvasRuler from './CanvasRuler';
 import GuidesOverlay from './GuidesOverlay';
 import TopToolbar from './TopToolbar';
+
 
 const SelectionTooltip = () => null;
 
@@ -657,6 +695,13 @@ const syncDOM = (oldNode, newNode) => {
       if (oldNode.getAttribute(name) !== val) {
         oldNode.setAttribute(name, val);
       }
+    }
+  }
+
+  // Clear transient inline styles added during dragging/resizing if newNode doesn't have them
+  if (oldNode.style && newNode.style) {
+    if (!newNode.hasAttribute('style')) {
+      oldNode.removeAttribute('style');
     }
   }
 
@@ -714,6 +759,7 @@ const MainEditor = ({
   const [showSelectOptions, setShowSelectOptions] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
+  const [showElementsPopup, setShowElementsPopup] = useState(false);
   const [localTrimView, setLocalTrimView] = useState(isTrimView);
 
   useEffect(() => {
@@ -789,6 +835,8 @@ const MainEditor = ({
   const wasRecentlyPanningRef = useRef(false); // ← tracks recent Space pan to suppress spurious clicks
   const isAltPressedRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0, target: null });
+  const hoverRafRef = useRef(null);
+  const lastHoverTargetRef = useRef(null);
   const drawMeasurementOverlayRef = useRef(null);
   const activeMainToolRef = useRef(activeMainTool);
   const activeTopToolRef = useRef(activeTopTool);
@@ -1023,6 +1071,9 @@ const MainEditor = ({
     }
     clean = clean.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
 
+    // Rewrite uploads paths to full Supabase CDN URLs if needed
+    clean = rewriteHtmlUploadsToSupabase(clean);
+
     // Ensure invisible Document Shield exists above PDF Background in converted document pages
     if ((isConvertedFlipbook || clean.includes('PDF Background') || clean.includes('pdf-vector-layer')) && !clean.includes('data-name="Document Shield"')) {
       const bgStartMatch = clean.match(/<g\b[^>]*data-(?:name="PDF Background"|type="pdf-vector-layer")[^>]*>/i);
@@ -1057,8 +1108,15 @@ const MainEditor = ({
       }
     }
 
+    // Ensure Page Background Image exists and its preserveAspectRatio / data-fix-type is properly synced
+    clean = ensurePageBackgroundImage(clean);
+
+
     if (isEditingTextRef.current && lastRenderedHtmlRef.current[index]) {
-      return lastRenderedHtmlRef.current[index];
+      const cached = lastRenderedHtmlRef.current[index];
+      if (!clean.includes('Page Background Image') || cached.includes('Page Background Image')) {
+        return cached;
+      }
     }
     lastRenderedHtmlRef.current[index] = clean;
     return clean;
@@ -1201,8 +1259,17 @@ const MainEditor = ({
   useEffect(() => {
     const renderOverlays = () => {
       const slideshows = document.querySelectorAll('[data-is-slideshow="true"]');
+      if (slideshows.length === 0) {
+        const existingOverlays = document.querySelectorAll('.global-ss-overlay');
+        if (existingOverlays.length > 0) {
+          existingOverlays.forEach(o => {
+            if (o._cleanupHover) o._cleanupHover();
+            o.remove();
+          });
+        }
+        return;
+      }
       slideshows.forEach(el => {
-        // Skip if selected (SlideshowProperties handles it)
         if (el._slideshowManual) {
           const existing = el._globalSsOverlay;
           if (existing) {
@@ -1462,7 +1529,7 @@ const MainEditor = ({
       });
     };
 
-    const interval = setInterval(renderOverlays, 200);
+    const interval = setInterval(renderOverlays, 1000);
 
     const handleForceAdvance = (e) => {
       const { el, nextIndex } = e.detail;
@@ -1834,6 +1901,16 @@ const MainEditor = ({
       });
 
       const videos = document.querySelectorAll('.page-svg-container video');
+      if (videos.length === 0) {
+        const orphanCtrls = document.querySelectorAll('[id^="custom-ctrl-"]');
+        if (orphanCtrls.length > 0) {
+          orphanCtrls.forEach(bar => {
+            if (bar._cleanup) bar._cleanup();
+            bar.remove();
+          });
+        }
+        return;
+      }
       videos.forEach(video => {
         const fo = video.closest('foreignObject');
         const liveEl = fo ? (fo.closest('[id]') || fo) : (video.closest('[id]') || video);
@@ -1981,22 +2058,6 @@ const MainEditor = ({
               mountPoint._prevPointerEvents = mountPoint.style.pointerEvents || '';
             }
             mountPoint.style.pointerEvents = 'none';
-          }
-
-          if (!window._videoHoverTrackerAdded) {
-            window._videoHoverTrackerAdded = true;
-            window.addEventListener('pointermove', (e) => {
-              document.querySelectorAll('.custom-video-overlay').forEach(b => {
-                const rect = b.getBoundingClientRect();
-                const isInside = e.clientX >= rect.left && e.clientX <= rect.right &&
-                  e.clientY >= rect.top && e.clientY <= rect.bottom;
-                if (isInside) {
-                  b.classList.add('video-is-hovered');
-                } else {
-                  b.classList.remove('video-is-hovered');
-                }
-              });
-            });
           }
 
           bar = document.createElement('div');
@@ -2526,7 +2587,7 @@ const MainEditor = ({
       });
     };
 
-    intervalId = setInterval(renderVideoControls, 500);
+    intervalId = setInterval(renderVideoControls, 1200);
     return () => clearInterval(intervalId);
   }, [setSelectedLayerId]);
 
@@ -2598,17 +2659,6 @@ const MainEditor = ({
       }
       if (styleTag.textContent !== cssRules) {
         styleTag.textContent = cssRules;
-        setTimeout(() => {
-          els.forEach(el => {
-            const innerDiv = el.querySelector('.flipbook-text-scrollbar');
-            if (innerDiv) {
-              const currentOverflow = innerDiv.style.overflowY;
-              innerDiv.style.overflowY = 'hidden';
-              void innerDiv.offsetHeight;
-              innerDiv.style.overflowY = currentOverflow || 'auto';
-            }
-          });
-        }, 10);
       }
       if (editorDoc) {
         let iframeStyleTag = editorDoc.getElementById('global-scrollbar-styles');
@@ -2623,20 +2673,21 @@ const MainEditor = ({
       }
     };
 
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutations) => {
+      // Only run if any mutation added/removed relevant nodes or attributes
+      const hasRelevantMutation = mutations.some(m => 
+        (m.type === 'attributes') ||
+        (m.type === 'childList' && Array.from(m.addedNodes).some(n => n.nodeType === 1 && (n.hasAttribute?.('data-scrollbar-color') || n.hasAttribute?.('data-bg-fill') || n.querySelector?.('[data-scrollbar-color], [data-bg-fill]'))))
+      );
+      if (!hasRelevantMutation) return;
+
       cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(updateScrollbarStyles);
     });
 
     updateScrollbarStyles();
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width', 'id'] });
-
-    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument;
-    if (editorDoc && editorDoc.body) {
-      try {
-        observer.observe(editorDoc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width', 'id'] });
-      } catch (e) {}
-    }
+    const canvasWrapper = document.querySelector('.main-editor-canvas-wrapper') || document.body;
+    observer.observe(canvasWrapper, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scrollbar-color', 'data-bg-fill', 'data-bg-fill-opacity', 'data-bg-stroke', 'data-bg-stroke-opacity', 'data-bg-stroke-width'] });
 
     return () => {
       observer.disconnect();
@@ -2824,7 +2875,7 @@ const MainEditor = ({
         if (imgEl && clipPath) {
           const clipShape = clipPath.firstElementChild;
           if (clipShape) {
-            // Sync geometry attributes (NO transform)
+            // Sync geometry attributes (NO transform on clipShape)
             const attrsToSync = ['x', 'y', 'width', 'height', 'cx', 'cy', 'r', 'rx', 'ry', 'd', 'points'];
             attrsToSync.forEach(attr => {
               const val = shapeEl.getAttribute(attr);
@@ -2833,21 +2884,50 @@ const MainEditor = ({
             });
           }
           
-          // Sync Image properties
+          // Sync Image transform to match shape exactly
           const transform = shapeEl.getAttribute('transform');
           if (transform) imgEl.setAttribute('transform', transform);
           else imgEl.removeAttribute('transform');
+
+          // Prevent raw image selection/pullout on canvas
+          imgEl.setAttribute('pointer-events', 'none');
+          imgEl.style.setProperty('pointer-events', 'none', 'important');
+          shapeEl.setAttribute('pointer-events', 'all');
+          shapeEl.style.setProperty('pointer-events', 'all', 'important');
 
           if (typeof shapeEl.getBBox === 'function') {
              try {
                 const bbox = shapeEl.getBBox();
                 if (bbox && bbox.width > 0 && bbox.height > 0) {
-                   imgEl.setAttribute('x', bbox.x);
-                   imgEl.setAttribute('y', bbox.y);
-                   imgEl.setAttribute('width', bbox.width);
-                   imgEl.setAttribute('height', bbox.height);
+                   const scale = parseFloat(shapeEl.getAttribute('data-mask-scale') || '1');
+                   const offsetX = parseFloat(shapeEl.getAttribute('data-mask-offset-x') || '0');
+                   const offsetY = parseFloat(shapeEl.getAttribute('data-mask-offset-y') || '0');
+
+                   const baseW = bbox.width;
+                   const baseH = bbox.height;
+                   const scaledW = baseW * scale;
+                   const scaledH = baseH * scale;
+
+                   const shiftX = (scaledW - baseW) / 2;
+                   const shiftY = (scaledH - baseH) / 2;
+                   const panX = (baseW * offsetX) / 100;
+                   const panY = (baseH * offsetY) / 100;
+
+                   imgEl.setAttribute('x', (bbox.x - shiftX + panX).toFixed(2));
+                   imgEl.setAttribute('y', (bbox.y - shiftY + panY).toFixed(2));
+                   imgEl.setAttribute('width', scaledW.toFixed(2));
+                   imgEl.setAttribute('height', scaledH.toFixed(2));
                 }
              } catch(e) {}
+          }
+
+          const fitMode = shapeEl.getAttribute('data-masked-image-fit') || 'Cover';
+          const preserveMap = { 'Cover': 'xMidYMid slice', 'Contain': 'xMidYMid meet', 'Fill': 'none' };
+          imgEl.setAttribute('preserveAspectRatio', preserveMap[fitMode] || 'xMidYMid slice');
+
+          const maskOpacity = shapeEl.getAttribute('data-masked-image-opacity');
+          if (maskOpacity !== null && maskOpacity !== undefined) {
+            imgEl.setAttribute('opacity', maskOpacity);
           }
         }
       });
@@ -2866,8 +2946,32 @@ const MainEditor = ({
       });
     };
 
-    const interval = setInterval(syncOverlays, 100);
-    return () => clearInterval(interval);
+    syncOverlays();
+    window.addEventListener('update-element-props', syncOverlays);
+    window.addEventListener('rebind-selection-overlay', syncOverlays);
+
+    const handleWorkspaceColor = (e) => {
+      const color = e.detail?.color;
+      const targetColor = (!color || color === 'none' || color === 'transparent') ? '#FBFBFB' : color;
+      if (editorContainerRef.current) {
+        editorContainerRef.current.style.backgroundColor = targetColor;
+      }
+      const outerWorkspace = document.getElementById('main-editor-workspace-outer');
+      if (outerWorkspace) {
+        outerWorkspace.style.backgroundColor = targetColor;
+      }
+      const innerWorkspace = document.getElementById('main-editor-workspace-inner');
+      if (innerWorkspace) {
+        innerWorkspace.style.backgroundColor = 'transparent';
+      }
+    };
+    window.addEventListener('canvas-workspace-color-change', handleWorkspaceColor);
+
+    return () => {
+      window.removeEventListener('update-element-props', syncOverlays);
+      window.removeEventListener('rebind-selection-overlay', syncOverlays);
+      window.removeEventListener('canvas-workspace-color-change', handleWorkspaceColor);
+    };
   }, [activePageIndex]);
 
   // Handle external asset insertion events
@@ -2955,6 +3059,7 @@ const MainEditor = ({
         multiSelectedIdsRef.current = new Set([newId]);
       }
       if (setActiveMainTool) setActiveMainTool('select');
+      setShowElementsPopup(false);
       setTimeout(() => {
         const el = document.getElementById(newId);
         if (el && typeof drawOverlayHighlight === 'function') {
@@ -3310,7 +3415,357 @@ const MainEditor = ({
       insertImageIntoPage(targetPageIndex, mediaUrl, dataType, dropPoint, targetShapeId);
     };
 
+    const handleAddShape = (e) => {
+      const { shape, pageIndex, dropPoint } = e.detail || {};
+      if (!shape) return;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      let svgW = 793, svgH = 1121;
+      const viewBox = svg.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.split(/[ ,]+/).map(parseFloat);
+        if (parts.length === 4) {
+          svgW = parts[2];
+          svgH = parts[3];
+        }
+      } else {
+        const wAttr = parseFloat(svg.getAttribute('width'));
+        const hAttr = parseFloat(svg.getAttribute('height'));
+        if (!isNaN(wAttr) && wAttr > 0) svgW = wAttr;
+        if (!isNaN(hAttr) && hAttr > 0) svgH = hAttr;
+      }
+
+      const centerX = dropPoint ? dropPoint.x : (svgW / 2);
+      const centerY = dropPoint ? dropPoint.y : (svgH / 2);
+
+      const newId = `shape-${Date.now()}`;
+      let elementToInsert;
+
+      if (shape.rawSvgString) {
+        const parsedSvgDoc = parser.parseFromString(shape.rawSvgString, 'image/svg+xml');
+        const parsedSvg = parsedSvgDoc.querySelector('svg');
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.id = newId;
+        g.setAttribute('data-type', 'shape');
+        g.setAttribute('data-name', shape.name || 'Graphic');
+        g.setAttribute('data-shape-type', (shape.name || 'custom').toLowerCase());
+        while (parsedSvg && parsedSvg.firstChild) {
+          g.appendChild(parsedSvg.firstChild);
+        }
+
+        let vbW = shape.width || 120, vbH = shape.height || 120;
+        const targetDim = 90;
+        const scaleFactor = targetDim / Math.max(vbW, vbH, 1);
+        const renderW = vbW * scaleFactor;
+        const renderH = vbH * scaleFactor;
+        const posX = centerX - (renderW / 2);
+        const posY = centerY - (renderH / 2);
+
+        g.setAttribute('transform', `translate(${posX.toFixed(1)}, ${posY.toFixed(1)}) scale(${scaleFactor.toFixed(3)})`);
+        elementToInsert = g;
+      } else {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.id = newId;
+        path.setAttribute('data-type', 'shape');
+        path.setAttribute('data-name', shape.name || 'Shape');
+        path.setAttribute('data-shape-type', (shape.name || 'custom').toLowerCase());
+        path.setAttribute('d', shape.d || shape.path);
+        path.setAttribute('fill', shape.fill || '#d0ccff');
+        path.setAttribute('stroke', '#4338ca');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('data-stroke-position', 'Center');
+        if (shape.fillRule) path.setAttribute('fill-rule', shape.fillRule);
+        if (shape.clipRule) path.setAttribute('clip-rule', shape.clipRule);
+
+        let vbW = 100, vbH = 100;
+        if (shape.viewBox) {
+          const vbParts = shape.viewBox.split(/[ ,]+/).map(parseFloat);
+          if (vbParts.length === 4) {
+            vbW = vbParts[2];
+            vbH = vbParts[3];
+          }
+        } else if (shape.width && shape.height) {
+          vbW = shape.width;
+          vbH = shape.height;
+        }
+
+        const targetDim = 90;
+        const scaleFactor = targetDim / Math.max(vbW, vbH, 1);
+        const renderW = vbW * scaleFactor;
+        const renderH = vbH * scaleFactor;
+        const posX = centerX - (renderW / 2);
+        const posY = centerY - (renderH / 2);
+
+        path.setAttribute('transform', `translate(${posX.toFixed(1)}, ${posY.toFixed(1)}) scale(${scaleFactor.toFixed(3)})`);
+        elementToInsert = path;
+      }
+
+      const targetContainer = svg.querySelector('[data-type="frame"]') || svg.querySelector('[data-name="Overlay"]') || svg;
+      targetContainer.appendChild(elementToInsert);
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+
+      if (typeof setSingleSelection === 'function') {
+        setSingleSelection(newId);
+      } else {
+        if (setSelectedLayerId) setSelectedLayerId(newId);
+        selectedLayerIdRef.current = newId;
+        if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
+        multiSelectedIdsRef.current = new Set([newId]);
+      }
+      if (setActiveMainTool) setActiveMainTool('select');
+      setTimeout(() => {
+        const el = document.getElementById(newId);
+        if (el && typeof drawOverlayHighlight === 'function') {
+          drawOverlayHighlight(el, 'selected');
+        }
+      }, 50);
+    };
+
+    const handleMaskImageToShape = (e) => {
+      const { shapeId, imageUrl, fitMode = 'Cover', opacity = 1, scale = 1, offsetX = 0, offsetY = 0, pageIndex } = e.detail || {};
+      if (!shapeId || !imageUrl) return;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      const shapeEl = svg.querySelector(`[id="${shapeId}"]`);
+      if (!shapeEl) return;
+
+      if (!shapeEl.hasAttribute('data-original-fill')) {
+        shapeEl.setAttribute('data-original-fill', shapeEl.getAttribute('fill') || '#d0ccff');
+      }
+      shapeEl.setAttribute('data-masked-image-url', imageUrl);
+      shapeEl.setAttribute('data-masked-image-fit', fitMode);
+      shapeEl.setAttribute('data-masked-image-opacity', opacity.toString());
+      shapeEl.setAttribute('data-mask-scale', scale.toString());
+      shapeEl.setAttribute('data-mask-offset-x', offsetX.toString());
+      shapeEl.setAttribute('data-mask-offset-y', offsetY.toString());
+      shapeEl.setAttribute('pointer-events', 'all');
+
+      let defs = svg.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        svg.insertBefore(defs, svg.firstChild);
+      }
+
+      const safeShapeId = shapeId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const clipId = `clip-shape-${safeShapeId}`;
+      let clip = defs.querySelector(`clipPath[id="${clipId}"]`);
+      if (!clip) {
+        clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+        clip.id = clipId;
+        defs.appendChild(clip);
+      } else {
+        clip.innerHTML = '';
+      }
+
+      const cleanClipShape = shapeEl.cloneNode(true);
+      cleanClipShape.removeAttribute('id');
+      cleanClipShape.removeAttribute('fill');
+      cleanClipShape.removeAttribute('stroke');
+      cleanClipShape.removeAttribute('stroke-width');
+      cleanClipShape.removeAttribute('transform');
+      cleanClipShape.removeAttribute('data-masked-image-url');
+      clip.appendChild(cleanClipShape);
+
+      const imageId = `masked-img-${safeShapeId}`;
+      let imageEl = svg.querySelector(`image[id="${imageId}"]`);
+      if (!imageEl) {
+        imageEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+        imageEl.id = imageId;
+        shapeEl.parentNode.insertBefore(imageEl, shapeEl);
+      }
+
+      const liveShape = document.getElementById(shapeId);
+      let bbox = null;
+      if (liveShape && typeof liveShape.getBBox === 'function') {
+        try {
+          bbox = liveShape.getBBox();
+        } catch (err) {}
+      }
+      if (bbox && bbox.width > 0 && bbox.height > 0) {
+        const baseW = bbox.width;
+        const baseH = bbox.height;
+        const scaledW = baseW * scale;
+        const scaledH = baseH * scale;
+        const shiftX = (scaledW - baseW) / 2;
+        const shiftY = (scaledH - baseH) / 2;
+        const panX = (baseW * offsetX) / 100;
+        const panY = (baseH * offsetY) / 100;
+
+        imageEl.setAttribute('x', (bbox.x - shiftX + panX).toFixed(2));
+        imageEl.setAttribute('y', (bbox.y - shiftY + panY).toFixed(2));
+        imageEl.setAttribute('width', scaledW.toFixed(2));
+        imageEl.setAttribute('height', scaledH.toFixed(2));
+      } else {
+        imageEl.setAttribute('x', '0');
+        imageEl.setAttribute('y', '0');
+        imageEl.setAttribute('width', '100%');
+        imageEl.setAttribute('height', '100%');
+      }
+
+      const transform = shapeEl.getAttribute('transform');
+      if (transform) {
+        imageEl.setAttribute('transform', transform);
+      } else {
+        imageEl.removeAttribute('transform');
+      }
+
+      const preserveMap = {
+        'Cover': 'xMidYMid slice',
+        'Contain': 'xMidYMid meet',
+        'Fill': 'none'
+      };
+
+      imageEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl);
+      imageEl.setAttribute('href', imageUrl);
+      imageEl.setAttribute('preserveAspectRatio', preserveMap[fitMode] || 'xMidYMid slice');
+      imageEl.setAttribute('clip-path', `url(#${clipId})`);
+      imageEl.setAttribute('data-is-mask-image', 'true');
+      imageEl.setAttribute('data-target-shape', safeShapeId);
+      imageEl.setAttribute('opacity', opacity.toString());
+      imageEl.setAttribute('pointer-events', 'none');
+
+      shapeEl.setAttribute('fill', 'rgba(0,0,0,0.001)');
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+    };
+
+    const handleRemoveShapeMask = (e) => {
+      const { shapeId, pageIndex } = e.detail || {};
+      if (!shapeId) return;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      const shapeEl = svg.querySelector(`[id="${shapeId}"]`);
+      if (shapeEl) {
+        shapeEl.removeAttribute('data-masked-image-url');
+        shapeEl.removeAttribute('data-masked-image-type');
+        shapeEl.removeAttribute('data-masked-image-fit');
+        shapeEl.removeAttribute('data-masked-image-opacity');
+        shapeEl.removeAttribute('data-mask-scale');
+        shapeEl.removeAttribute('data-mask-offset-x');
+        shapeEl.removeAttribute('data-mask-offset-y');
+        shapeEl.setAttribute('fill', shapeEl.getAttribute('data-original-fill') || '#d0ccff');
+      }
+
+      const safeShapeId = shapeId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const imageEl = svg.querySelector(`image[id="masked-img-${safeShapeId}"]`);
+      if (imageEl) imageEl.remove();
+
+      const defs = svg.querySelector('defs');
+      if (defs) {
+        const clipEl = defs.querySelector(`clipPath[id="clip-shape-${safeShapeId}"]`);
+        if (clipEl) clipEl.remove();
+      }
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+    };
+
+    const handleUpdateShapeMask = (e) => {
+      const { shapeId, fitMode, opacity, scale, offsetX, offsetY, imageUrl, pageIndex } = e.detail || {};
+      if (!shapeId) return;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      const shapeEl = svg.querySelector(`[id="${shapeId}"]`);
+      if (!shapeEl) return;
+
+      const safeShapeId = shapeId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const imageEl = svg.querySelector(`image[id="masked-img-${safeShapeId}"]`);
+
+      if (fitMode) {
+        shapeEl.setAttribute('data-masked-image-fit', fitMode);
+        const preserveMap = { 'Cover': 'xMidYMid slice', 'Contain': 'xMidYMid meet', 'Fill': 'none' };
+        if (imageEl) imageEl.setAttribute('preserveAspectRatio', preserveMap[fitMode] || 'xMidYMid slice');
+      }
+
+      if (opacity !== undefined) {
+        shapeEl.setAttribute('data-masked-image-opacity', opacity.toString());
+        if (imageEl) imageEl.setAttribute('opacity', opacity.toString());
+      }
+
+      if (scale !== undefined) {
+        shapeEl.setAttribute('data-mask-scale', scale.toString());
+      }
+
+      if (offsetX !== undefined) {
+        shapeEl.setAttribute('data-mask-offset-x', offsetX.toString());
+      }
+
+      if (offsetY !== undefined) {
+        shapeEl.setAttribute('data-mask-offset-y', offsetY.toString());
+      }
+
+      // Recalculate dimensions if scale or offsets changed
+      if (scale !== undefined || offsetX !== undefined || offsetY !== undefined) {
+        const s = parseFloat(shapeEl.getAttribute('data-mask-scale') || '1');
+        const ox = parseFloat(shapeEl.getAttribute('data-mask-offset-x') || '0');
+        const oy = parseFloat(shapeEl.getAttribute('data-mask-offset-y') || '0');
+
+        const liveShape = document.getElementById(shapeId);
+        let bbox = null;
+        if (liveShape && typeof liveShape.getBBox === 'function') {
+          try { bbox = liveShape.getBBox(); } catch (err) {}
+        }
+        if (bbox && bbox.width > 0 && bbox.height > 0 && imageEl) {
+          const baseW = bbox.width;
+          const baseH = bbox.height;
+          const scaledW = baseW * s;
+          const scaledH = baseH * s;
+          const shiftX = (scaledW - baseW) / 2;
+          const shiftY = (scaledH - baseH) / 2;
+          const panX = (baseW * ox) / 100;
+          const panY = (baseH * oy) / 100;
+
+          imageEl.setAttribute('x', (bbox.x - shiftX + panX).toFixed(2));
+          imageEl.setAttribute('y', (bbox.y - shiftY + panY).toFixed(2));
+          imageEl.setAttribute('width', scaledW.toFixed(2));
+          imageEl.setAttribute('height', scaledH.toFixed(2));
+        }
+      }
+
+      if (imageUrl) {
+        shapeEl.setAttribute('data-masked-image-url', imageUrl);
+        if (imageEl) {
+          imageEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl);
+          imageEl.setAttribute('href', imageUrl);
+        }
+      }
+
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+    };
+
     window.addEventListener('add-icon-to-editor', handleAddIcon);
+    window.addEventListener('add-shape-to-editor', handleAddShape);
+    window.addEventListener('mask-image-to-shape', handleMaskImageToShape);
+    window.addEventListener('remove-shape-mask', handleRemoveShapeMask);
+    window.addEventListener('update-shape-mask', handleUpdateShapeMask);
     window.addEventListener('add-hotspot-to-editor', handleAddHotspot);
     window.addEventListener('update-hotspot-style', (e) => {
       const { id, pageIndex, html, presetId, iconSrc, bgColor, iconColor } = e.detail;
@@ -3344,6 +3799,10 @@ const MainEditor = ({
     window.addEventListener('upload-video-to-editor', handleUploadVideo);
     return () => {
       window.removeEventListener('add-icon-to-editor', handleAddIcon);
+      window.removeEventListener('add-shape-to-editor', handleAddShape);
+      window.removeEventListener('mask-image-to-shape', handleMaskImageToShape);
+      window.removeEventListener('remove-shape-mask', handleRemoveShapeMask);
+      window.removeEventListener('update-shape-mask', handleUpdateShapeMask);
       window.removeEventListener('add-hotspot-to-editor', handleAddHotspot);
       window.removeEventListener('add-image-to-editor', handleAddImage);
       window.removeEventListener('upload-video-to-editor', handleUploadVideo);
@@ -4628,11 +5087,17 @@ const MainEditor = ({
         return;
       }
     }
-    // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame
+    // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame / Page Background Image
     const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
       el.getAttribute('data-type') === 'background' ||
       el.getAttribute('data-type') === 'frame' ||
-      el.getAttribute('data-locked') === 'true';
+      el.getAttribute('data-locked') === 'true' ||
+      el.getAttribute('data-name') === 'Page Background Image' ||
+      el.getAttribute('data-type') === 'page-background-image' ||
+      el.id?.startsWith('page-bg-img-') ||
+      el.getAttribute('data-name') === 'Page Border' ||
+      el.getAttribute('data-type') === 'page-border' ||
+      el.id?.startsWith('page-border-');
 
 
     // Skip if this text element is currently in text-edit mode (we still want to draw the polygon, but skip handles later)
@@ -5530,38 +5995,16 @@ const MainEditor = ({
       const { layerId } = e.detail || {};
       const targetId = layerId || selectedLayerId;
       if (!targetId) return;
-      const el = document.getElementById(targetId);
-      if (el && typeof drawOverlayHighlight === 'function') {
-        drawOverlayHighlight(el, 'selected');
-      }
+      requestAnimationFrame(() => {
+        const el = document.getElementById(targetId);
+        if (el && typeof drawOverlayHighlight === 'function') {
+          drawOverlayHighlight(el, 'selected');
+        }
+      });
     };
     window.addEventListener('rebind-selection-overlay', handleRebindSelection);
     return () => window.removeEventListener('rebind-selection-overlay', handleRebindSelection);
   }, [selectedLayerId]);
-
-  // ── Automatically restore/redraw selection overlay on page/selection changes ──
-  useEffect(() => {
-    if (!selectedLayerId && (!multiSelectedIds || multiSelectedIds.size === 0)) return;
-
-    const timer = setTimeout(() => {
-      if (selectedLayerId) {
-        const el = document.getElementById(selectedLayerId);
-        if (el && typeof drawOverlayHighlight === 'function') {
-          drawOverlayHighlight(el, 'selected');
-        }
-      }
-      if (multiSelectedIds && multiSelectedIds.size > 1) {
-        multiSelectedIds.forEach(id => {
-          const el = document.getElementById(id);
-          if (el && typeof drawOverlayHighlight === 'function') {
-            drawOverlayHighlight(el, 'multi-child-selected');
-          }
-        });
-      }
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, [pages, selectedLayerId, multiSelectedIds]);
 
   // ── Listen for interaction badge icon update events ───────────────────────
   useEffect(() => {
@@ -7203,7 +7646,13 @@ const MainEditor = ({
       el.tagName.toLowerCase() !== 'style' &&
       el.tagName.toLowerCase() !== 'defs' &&
       el.getAttribute('data-hidden') !== 'true' &&
-      el.getAttribute('data-locked') !== 'true'
+      el.getAttribute('data-locked') !== 'true' &&
+      el.getAttribute('data-name') !== 'Page Background Image' &&
+      el.getAttribute('data-type') !== 'page-background-image' &&
+      !el.id.startsWith('page-bg-img-') &&
+      el.getAttribute('data-name') !== 'Page Border' &&
+      el.getAttribute('data-type') !== 'page-border' &&
+      !el.id.startsWith('page-border-')
     );
   };
 
@@ -7226,7 +7675,14 @@ const MainEditor = ({
       child.tagName.toLowerCase() !== 'defs' &&
       child.getAttribute('data-hidden') !== 'true' &&
       child.getAttribute('data-locked') !== 'true' &&
-      child.getAttribute('data-name') !== 'Overlay'
+      child.getAttribute('data-name') !== 'Overlay' &&
+      child.getAttribute('data-type') !== 'background' &&
+      child.getAttribute('data-name') !== 'Page Background Image' &&
+      child.getAttribute('data-type') !== 'page-background-image' &&
+      !child.id.startsWith('page-bg-img-') &&
+      child.getAttribute('data-name') !== 'Page Border' &&
+      child.getAttribute('data-type') !== 'page-border' &&
+      !child.id.startsWith('page-border-')
     );
   };
 
@@ -7403,6 +7859,10 @@ const MainEditor = ({
         current.getAttribute('data-name') !== 'Overlay' &&
         current.getAttribute('data-name') !== 'Document Shield' &&
         current.getAttribute('data-type') !== 'shield' &&
+        current.getAttribute('data-name') !== 'Page Background Image' &&
+        current.getAttribute('data-type') !== 'page-background-image' &&
+        current.getAttribute('data-name') !== 'Page Border' &&
+        current.getAttribute('data-type') !== 'page-border' &&
         !['svg', 'defs', 'clippath', 'lineargradient', 'radialgradient', 'pattern', 'filter', 'style', 'metadata'].includes(tagName)
       ) {
         current.id = `${tagName}-${Math.random().toString(36).substr(2, 9)}`;
@@ -7416,6 +7876,12 @@ const MainEditor = ({
         current.getAttribute('data-name') !== 'Overlay' &&
         current.getAttribute('data-name') !== 'Document Shield' &&
         current.getAttribute('data-type') !== 'shield' &&
+        current.getAttribute('data-name') !== 'Page Background Image' &&
+        current.getAttribute('data-type') !== 'page-background-image' &&
+        !current.id.startsWith('page-bg-img-') &&
+        current.getAttribute('data-name') !== 'Page Border' &&
+        current.getAttribute('data-type') !== 'page-border' &&
+        !current.id.startsWith('page-border-') &&
         (!isConvertedFlipbook || (
           current.getAttribute('data-is-hotspot') === 'true' ||
           current.getAttribute('data-type') === 'hotspot' ||
@@ -7427,6 +7893,13 @@ const MainEditor = ({
         // Prevent targeting inner image of an image group directly, or inner elements of video/gif groups
         if (tagName === 'image' && current.parentNode?.getAttribute('data-is-image-group') === 'true') {
           // Skip the inner image and let it traverse to the parent group
+        } else if (tagName === 'image' && (current.getAttribute('data-is-mask-image') === 'true' || current.id?.startsWith('masked-img-'))) {
+          // Redirect to the target shape
+          const shapeId = current.getAttribute('data-target-shape') || current.id.replace('masked-img-', '');
+          const shapeEl = current.ownerSVGElement?.querySelector(`[id="${shapeId}"]`) || document.getElementById(shapeId);
+          if (shapeEl) {
+            deepestElementWithId = shapeEl;
+          }
         } else if ((tagName === 'foreignobject' || tagName === 'video' || tagName === 'iframe') && current.parentNode?.getAttribute('data-is-video-group') === 'true') {
           // Skip inner foreignobject/video/iframe and let it traverse to the parent video group
         } else if (current.parentNode?.getAttribute('data-is-gif-group') === 'true') {
@@ -7591,12 +8064,18 @@ const MainEditor = ({
               }
             }
 
-            // If background (SVG, Overlay, or Document Shield), stop drag completely
+            // If background (SVG, Overlay, Page Background Image, Page Border, or Document Shield), stop drag completely
             if (
               target === svgElement ||
               target.getAttribute('data-name') === 'Overlay' ||
               target.getAttribute('data-name') === 'Document Shield' ||
-              target.getAttribute('data-type') === 'shield'
+              target.getAttribute('data-type') === 'shield' ||
+              target.getAttribute('data-name') === 'Page Background Image' ||
+              target.getAttribute('data-type') === 'page-background-image' ||
+              target.id?.startsWith('page-bg-img-') ||
+              target.getAttribute('data-name') === 'Page Border' ||
+              target.getAttribute('data-type') === 'page-border' ||
+              target.id?.startsWith('page-border-')
             ) {
               safeStopInteraction(event.interaction);
               return;
@@ -7722,7 +8201,13 @@ const MainEditor = ({
             if (!elementToDrag ||
               elementToDrag.getAttribute('data-hidden') === 'true' ||
               elementToDrag.getAttribute('data-locked') === 'true' ||
-              elementToDrag.getAttribute('data-name') === 'Overlay') {
+              elementToDrag.getAttribute('data-name') === 'Overlay' ||
+              elementToDrag.getAttribute('data-name') === 'Page Background Image' ||
+              elementToDrag.getAttribute('data-type') === 'page-background-image' ||
+              elementToDrag.id?.startsWith('page-bg-img-') ||
+              elementToDrag.getAttribute('data-name') === 'Page Border' ||
+              elementToDrag.getAttribute('data-type') === 'page-border' ||
+              elementToDrag.id?.startsWith('page-border-')) {
               safeStopInteraction(event.interaction);
               return;
             }
@@ -7758,15 +8243,15 @@ const MainEditor = ({
             const multiIds = multiSelectedIdsRef.current;
             const multiDragItems = [];
 
-            const getLocalPoint = (svgElement, targetNode, clientX, clientY) => {
+            const getLocalPoint = (svgElement, targetNode, clientX, clientY, cachedInverseCtm = null) => {
               if (!svgElement || !targetNode) return null;
               const pt = svgElement.createSVGPoint();
               pt.x = clientX;
               pt.y = clientY;
               try {
-                const ctm = targetNode.getScreenCTM();
-                if (!ctm) return null;
-                return pt.matrixTransform(ctm.inverse());
+                const inv = cachedInverseCtm || targetNode.getScreenCTM()?.inverse();
+                if (!inv) return null;
+                return pt.matrixTransform(inv);
               } catch (e) {
                 return null;
               }
@@ -7778,21 +8263,33 @@ const MainEditor = ({
                   const el = container?.querySelector(`[id="${id}"]`);
                   if (el && el !== svgElement &&
                     el.getAttribute('data-hidden') !== 'true' &&
-                    el.getAttribute('data-locked') !== 'true') {
+                    el.getAttribute('data-locked') !== 'true' &&
+                    el.getAttribute('data-name') !== 'Overlay' &&
+                    el.getAttribute('data-name') !== 'Page Border' &&
+                    el.getAttribute('data-type') !== 'page-border' &&
+                    !el.id?.startsWith('page-border-') &&
+                    el.getAttribute('data-name') !== 'Page Background Image' &&
+                    el.getAttribute('data-type') !== 'page-background-image' &&
+                    !el.id?.startsWith('page-bg-img-')) {
+                    const parentInverseCtm = el.parentNode?.getScreenCTM()?.inverse();
                     multiDragItems.push({
                       element: el,
+                      parentInverseCtm,
                       initialMatrix: getElementMatrix(el),
-                      startPointLocal: getLocalPoint(svgElement, el.parentNode, event.clientX, event.clientY)
+                      startPointLocal: getLocalPoint(svgElement, el.parentNode, event.clientX, event.clientY, parentInverseCtm)
                     });
                   }
                 }
               }
             }
 
+            const elementParentInverseCtm = elementToDrag.parentNode?.getScreenCTM()?.inverse();
+
             event.interaction.dragState = {
               element: elementToDrag,
+              parentInverseCtm: elementParentInverseCtm,
               startPoint: startPoint,
-              startPointLocal: getLocalPoint(svgElement, elementToDrag.parentNode, event.clientX, event.clientY),
+              startPointLocal: getLocalPoint(svgElement, elementToDrag.parentNode, event.clientX, event.clientY, elementParentInverseCtm),
               initialMatrix: getElementMatrix(elementToDrag),
               svgElement: svgElement,
               pageIndex: activePageIndex,
@@ -7815,26 +8312,32 @@ const MainEditor = ({
             }
             if (dragState.element && !dragState.element.isConnected) {
               const liveEl = liveSvg?.querySelector(`[id="${CSS.escape(dragState.element.id)}"]`) || document.getElementById(dragState.element.id);
-              if (liveEl) dragState.element = liveEl;
+              if (liveEl) {
+                dragState.element = liveEl;
+                dragState.parentInverseCtm = liveEl.parentNode?.getScreenCTM()?.inverse();
+              }
             }
             if (dragState.multiDragItems) {
               for (const item of dragState.multiDragItems) {
                 if (!item.element.isConnected) {
                   const liveEl = liveSvg?.querySelector(`[id="${CSS.escape(item.element.id)}"]`) || document.getElementById(item.element.id);
-                  if (liveEl) item.element = liveEl;
+                  if (liveEl) {
+                    item.element = liveEl;
+                    item.parentInverseCtm = liveEl.parentNode?.getScreenCTM()?.inverse();
+                  }
                 }
               }
             }
 
-            const getLocalPoint = (svgElement, targetNode, clientX, clientY) => {
+            const getLocalPoint = (svgElement, targetNode, clientX, clientY, cachedInverseCtm = null) => {
               if (!svgElement || !targetNode) return null;
               const pt = svgElement.createSVGPoint();
               pt.x = clientX;
               pt.y = clientY;
               try {
-                const ctm = targetNode.getScreenCTM();
-                if (!ctm) return null;
-                return pt.matrixTransform(ctm.inverse());
+                const inv = cachedInverseCtm || targetNode.getScreenCTM()?.inverse();
+                if (!inv) return null;
+                return pt.matrixTransform(inv);
               } catch (e) {
                 return null;
               }
@@ -7852,12 +8355,18 @@ const MainEditor = ({
 
               // Threshold crossed!
               dragState.thresholdMet = true;
+              document.body.classList.add('canvas-dragging-active');
+
+              // Hide handles & badges during drag for extreme smoothness
+              document.querySelectorAll('.resize-handle').forEach(h => { h.style.display = 'none'; });
+              document.querySelectorAll('[id^="interaction-badge-"]').forEach(b => { b.style.display = 'none'; });
+              document.querySelectorAll('[id^="video-mode-toggle-"]').forEach(v => { v.style.display = 'none'; });
 
               // Prevent jumping by resetting start points to current mouse pos
-              dragState.startPointLocal = getLocalPoint(dragState.svgElement, dragState.element.parentNode, event.clientX, event.clientY);
+              dragState.startPointLocal = getLocalPoint(dragState.svgElement, dragState.element.parentNode, event.clientX, event.clientY, dragState.parentInverseCtm);
               if (dragState.multiDragItems) {
                 for (const item of dragState.multiDragItems) {
-                  item.startPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
+                  item.startPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY, item.parentInverseCtm);
                   item.element.setAttribute('data-dragging', 'true');
                 }
               } else {
@@ -7924,7 +8433,7 @@ const MainEditor = ({
             if (dragState.multiDragItems) {
               // Move ALL multi-selected elements freely across canvas
               for (const item of dragState.multiDragItems) {
-                const currentPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
+                const currentPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY, item.parentInverseCtm);
                 if (!currentPointLocal || !item.startPointLocal) continue;
 
                 let dx = currentPointLocal.x - item.startPointLocal.x;
@@ -7934,11 +8443,18 @@ const MainEditor = ({
                 const nextMatrix = translation.multiply(item.initialMatrix);
                 item.element.setAttribute('transform', matrixToTransform(nextMatrix));
               }
-              drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+              if (!dragState.rafPending) {
+                dragState.rafPending = true;
+                requestAnimationFrame(() => {
+                  if (!dragState) return;
+                  dragState.rafPending = false;
+                  drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+                });
+              }
             } else {
               // Single element drag freely across canvas
               const target = dragState.element;
-              const currentPointLocal = getLocalPoint(dragState.svgElement, target.parentNode, event.clientX, event.clientY);
+              const currentPointLocal = getLocalPoint(dragState.svgElement, target.parentNode, event.clientX, event.clientY, dragState.parentInverseCtm);
               if (!currentPointLocal || !dragState.startPointLocal) return;
 
               let dx = currentPointLocal.x - dragState.startPointLocal.x;
@@ -7947,8 +8463,25 @@ const MainEditor = ({
               const translation = new DOMMatrix().translate(dx, dy);
               const nextMatrix = translation.multiply(dragState.initialMatrix);
               target.setAttribute('transform', matrixToTransform(nextMatrix));
-              // dynamically update the outline while dragging
-              drawOverlayHighlight(target, currentFrameIdRef.current && target.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+
+              // Fast-path overlay transform: move existing SVG overlay polygon directly without full layout reflow
+              const pageContainer = target.closest('.page-svg-container');
+              const overlaySvg = pageContainer?.querySelector(`[id^="highlight-overlay-"]:not([id^="highlight-overlay-html-"])`);
+              const selPoly = overlaySvg?.querySelector(`[id="overlay-poly-selected-${target.id}"], [id="overlay-poly-child-selected-${target.id}"]`);
+              if (selPoly) {
+                // Calculate overlay translation delta from initial drag position
+                const zoomScale = zoom / 100;
+                const overlayDx = (event.clientX - dragState.initialClientX) / zoomScale;
+                const overlayDy = (event.clientY - dragState.initialClientY) / zoomScale;
+                selPoly.setAttribute('transform', `translate(${overlayDx} ${overlayDy})`);
+              } else if (!dragState.rafPending) {
+                dragState.rafPending = true;
+                requestAnimationFrame(() => {
+                  if (!dragState) return;
+                  dragState.rafPending = false;
+                  drawOverlayHighlight(target, currentFrameIdRef.current && target.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+                });
+              }
             }
 
             if (isAltPressedCurrent && drawMeasurementOverlayRef.current) {
@@ -7961,7 +8494,14 @@ const MainEditor = ({
               if (!targetForMeasurement) {
                 targetForMeasurement = (dragState.element.parentElement && dragState.element.parentElement.closest('[data-type="frame"]')) || dragState.svgElement.querySelector('[data-type="background"]');
               }
-              drawMeasurementOverlayRef.current(targetForMeasurement, event.clientX, event.clientY, true);
+              if (!dragState.measRafPending) {
+                dragState.measRafPending = true;
+                requestAnimationFrame(() => {
+                  if (!dragState) return;
+                  dragState.measRafPending = false;
+                  drawMeasurementOverlayRef.current(targetForMeasurement, event.clientX, event.clientY, true);
+                });
+              }
             } else if (document.querySelector('.measurement-overlay-group')) {
               document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
             }
@@ -7969,8 +8509,23 @@ const MainEditor = ({
             suppressClickRef.current = true;
           },
           end(event) {
+            document.body.classList.remove('canvas-dragging-active');
             const dragState = event.interaction.dragState;
             if (!dragState) return;
+
+            if (dragState.rafPending) {
+              dragState.rafPending = false;
+            }
+            if (dragState.measRafPending) {
+              dragState.measRafPending = false;
+            }
+
+            // Immediately redraw final crisp overlay position
+            if (dragState.multiDragItems) {
+              drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+            } else if (dragState.element) {
+              drawOverlayHighlight(dragState.element, currentFrameIdRef.current && dragState.element.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+            }
 
             if (!dragState.thresholdMet) {
               delete event.interaction.dragState;
@@ -7991,13 +8546,7 @@ const MainEditor = ({
                 suppressClickRef.current = false;
               }, 50);
 
-              const svgEl = dragState.svgElement;
-              const pageIndex = dragState.pageIndex;
               delete event.interaction.dragState;
-
-              if (updatePageHtmlRef.current && svgEl) {
-                updatePageHtmlRef.current(pageIndex, svgEl.outerHTML);
-              }
             };
 
             const constrainElement = (el, onComplete) => {
@@ -8424,6 +8973,9 @@ const MainEditor = ({
 
             const initialObjectFit = el.getAttribute('data-object-fit') || 'Fit';
 
+            const parentCtmForInv = el.parentNode ? el.parentNode.getScreenCTM() : svg?.getScreenCTM();
+            const parentInverseCtm = parentCtmForInv ? parentCtmForInv.inverse() : null;
+
             event.interaction.resizeState = {
               el,
               dir,
@@ -8433,12 +8985,14 @@ const MainEditor = ({
               localAnchor,
               startPoint,
               svg,
+              parentInverseCtm,
               childrenData,
               isImageGroupResize,
               initialImgState,
               initialCrop,
               initialObjectFit,
               cropInitialized: false,
+              rafPending: false,
               cursor: currentCursor // Store for reinforcement
             };
           },
@@ -8457,12 +9011,12 @@ const MainEditor = ({
 
             const { el, bbox, worldAnchor, matrix, dir } = state;
 
-            const parentCTM = el.parentNode ? el.parentNode.getScreenCTM() : state.svg.getScreenCTM();
-            if (!parentCTM) return;
+            const invCtm = state.parentInverseCtm || (el.parentNode ? el.parentNode.getScreenCTM()?.inverse() : state.svg.getScreenCTM()?.inverse());
+            if (!invCtm) return;
             const pt = state.svg.createSVGPoint();
             pt.x = event.clientX;
             pt.y = event.clientY;
-            const currentPoint = pt.matrixTransform(parentCTM.inverse());
+            const currentPoint = pt.matrixTransform(invCtm);
 
             if (dir === 'linestart' || dir === 'lineend') {
               const invMatrix = matrix.inverse();
@@ -9622,7 +10176,6 @@ const MainEditor = ({
               if (state.childrenData) {
                 state.childrenData.forEach(c => {
                   syncOverlay(c.child);
-                  drawOverlayHighlight(c.child, 'multi-child-selected');
                 });
               }
 
@@ -9649,10 +10202,30 @@ const MainEditor = ({
                 const selHtmlOverlay = pageIdx != null ? document.getElementById(`highlight-overlay-html-${pageIdx}`) : null;
                 syncMultiSelectionBox(firstChildEl.ownerSVGElement, selOverlay, selHtmlOverlay, newOverallBBox);
               }
+
+              if (!state.rafPending) {
+                state.rafPending = true;
+                requestAnimationFrame(() => {
+                  if (!state) return;
+                  state.rafPending = false;
+                  if (state.childrenData) {
+                    state.childrenData.forEach(c => {
+                      drawOverlayHighlight(c.child, 'multi-child-selected');
+                    });
+                  }
+                });
+              }
             } else {
               syncOverlay(el);
-              const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
-              drawOverlayHighlight(el, highlightType);
+              if (!state.rafPending) {
+                state.rafPending = true;
+                requestAnimationFrame(() => {
+                  if (!state) return;
+                  state.rafPending = false;
+                  const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
+                  drawOverlayHighlight(el, highlightType);
+                });
+              }
             }
           },
           end(event) {
@@ -9663,6 +10236,21 @@ const MainEditor = ({
 
             const state = event.interaction.resizeState;
             if (state) {
+              if (state.rafPending) {
+                state.rafPending = false;
+              }
+              // Immediately redraw final crisp overlay position
+              if (state.el.tagName === 'multi') {
+                if (state.childrenData) {
+                  state.childrenData.forEach(c => {
+                    drawOverlayHighlight(c.child, 'multi-child-selected');
+                  });
+                }
+              } else {
+                const highlightType = (currentFrameIdRef.current && state.el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
+                drawOverlayHighlight(state.el, highlightType);
+              }
+
               if (state.childrenData) {
                 const textChild = state.childrenData.find(c => c.child.tagName?.toLowerCase() === 'text' || c.child.getAttribute('data-type') === 'text');
                 if (textChild) {
@@ -10478,6 +11066,8 @@ const MainEditor = ({
         const isBasePage = topFrames.some(f => f.id === el.id);
         const isPdfBg = el.getAttribute('data-name')?.includes('PDF Background') || el.getAttribute('data-type') === 'pdf-vector-layer';
         const isShield = el.getAttribute('data-name') === 'Document Shield' || el.getAttribute('data-type') === 'shield';
+        const isPageBorder = el.getAttribute('data-name') === 'Page Border' || el.getAttribute('data-type') === 'page-border' || el.id?.startsWith('page-border-');
+        const isPageBgImg = el.getAttribute('data-name') === 'Page Background Image' || el.getAttribute('data-type') === 'page-background-image' || el.id?.startsWith('page-bg-img-');
         if (isConvertedFlipbook) {
           const isHotspot = el.getAttribute('data-is-hotspot') === 'true' || el.getAttribute('data-type') === 'hotspot';
           const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
@@ -10485,7 +11075,7 @@ const MainEditor = ({
           const isIcon = el.getAttribute('data-type') === 'icon';
           return isHotspot || isFreeFrame || isShape || isIcon;
         }
-        return !isOverlay && !isBasePage && !isPdfBg && !isShield;
+        return !isOverlay && !isBasePage && !isPdfBg && !isShield && !isPageBorder && !isPageBgImg;
       });
 
       marqueeCandidatesRef.current = marqueeCandidates.map(el => ({
@@ -10857,101 +11447,104 @@ const MainEditor = ({
     const svg = container.querySelector('svg');
     if (!svg) return;
 
-    // Clear all hover states
-    svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
-    svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
-    clearOverlayType('hover');
-    clearOverlayType('child-hover');
+    if (hoverRafRef.current) return;
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    const targetElement = e.target;
 
-    // ── Converted Flipbook Mode (PDF, DOC, PPT): Only hover user-added Frames or Hotspots ──
-    if (isConvertedFlipbook) {
+    hoverRafRef.current = requestAnimationFrame(() => {
+      hoverRafRef.current = null;
+      if (document.querySelector('[data-dragging="true"]')) return;
+
       let hoverTarget = null;
-      let curr = e.target;
-      while (curr && curr !== svg) {
-        if (curr.getAttribute) {
-          const isHotspot = curr.getAttribute('data-is-hotspot') === 'true' || curr.getAttribute('data-type') === 'hotspot';
-          const isFreeFrame = curr.getAttribute('data-name') === 'Free Frame';
-          const isShape = curr.getAttribute('data-type') === 'shape';
-          const isIcon = curr.getAttribute('data-type') === 'icon';
-          const isShield = curr.getAttribute('data-name') === 'Document Shield' || curr.getAttribute('data-type') === 'shield';
-          if (isShield) {
-            hoverTarget = null;
-            break;
-          }
-          if (isHotspot || isFreeFrame || isShape || isIcon) {
-            hoverTarget = curr;
-            break;
-          }
-        }
-        curr = curr.parentElement || curr.parentNode;
-      }
+      let hoverType = 'hover';
 
-      if (hoverTarget && hoverTarget.id && selectedLayerIdRef.current !== hoverTarget.id) {
-        hoverTarget.setAttribute('data-hovered', 'true');
-        drawOverlayHighlight(hoverTarget, 'hover');
-      }
-      return;
-    }
-
-    // ── Direct selection mode: hover the deepest element with an ID ──────────
-    if (selectedSelectTool === 'direct') {
-      const target = getDraggableElement(e.target, svg);
-      if (target && target.id && target.tagName.toLowerCase() !== 'svg') {
-        if (!multiSelectedIdsRef.current.has(target.id) && selectedLayerIdRef.current !== target.id) {
-          target.setAttribute('data-hovered', 'true');
-          drawOverlayHighlight(target, 'child-hover');
-        }
-        return;
-      }
-    }
-
-    const effectiveFrameId = currentFrameIdRef.current;
-
-    if (effectiveFrameId) {
-      // ── Inside a frame: hover its direct children ──
-      const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
-      if (frameEl) {
-        const children = getDirectChildFrames(frameEl);
-        for (let i = children.length - 1; i >= 0; i--) {
-          if (hitTest(children[i], e.clientX, e.clientY)) {
-            // Only hover if not already selected
-            if (!multiSelectedIdsRef.current.has(children[i].id) && selectedLayerIdRef.current !== children[i].id) {
-              children[i].setAttribute('data-child-hovered', 'true');
-              drawOverlayHighlight(children[i], 'child-hover');
+      // ── Converted Flipbook Mode (PDF, DOC, PPT): Only hover user-added Frames or Hotspots ──
+      if (isConvertedFlipbook) {
+        let curr = targetElement;
+        while (curr && curr !== svg) {
+          if (curr.getAttribute) {
+            const isHotspot = curr.getAttribute('data-is-hotspot') === 'true' || curr.getAttribute('data-type') === 'hotspot';
+            const isFreeFrame = curr.getAttribute('data-name') === 'Free Frame';
+            const isShape = curr.getAttribute('data-type') === 'shape';
+            const isIcon = curr.getAttribute('data-type') === 'icon';
+            const isShield = curr.getAttribute('data-name') === 'Document Shield' || curr.getAttribute('data-type') === 'shield';
+            if (isShield) {
+              hoverTarget = null;
+              break;
             }
-            return;
+            if (isHotspot || isFreeFrame || isShape || isIcon) {
+              hoverTarget = curr;
+              break;
+            }
+          }
+          curr = curr.parentElement || curr.parentNode;
+        }
+      } else if (selectedSelectTool === 'direct') {
+        const target = getDraggableElement(targetElement, svg);
+        if (target && target.id && target.tagName.toLowerCase() !== 'svg') {
+          if (!multiSelectedIdsRef.current.has(target.id) && selectedLayerIdRef.current !== target.id) {
+            hoverTarget = target;
+            hoverType = 'child-hover';
           }
         }
-
-        // Falling outside current frame context: highlight top-level elements
-        if (!hitTest(frameEl, e.clientX, e.clientY)) {
+      } else {
+        const effectiveFrameId = currentFrameIdRef.current;
+        if (effectiveFrameId) {
+          const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
+          if (frameEl) {
+            const children = getDirectChildFrames(frameEl);
+            for (let i = children.length - 1; i >= 0; i--) {
+              if (hitTest(children[i], clientX, clientY)) {
+                if (!multiSelectedIdsRef.current.has(children[i].id) && selectedLayerIdRef.current !== children[i].id) {
+                  hoverTarget = children[i];
+                  hoverType = 'child-hover';
+                }
+                break;
+              }
+            }
+            if (!hoverTarget && !hitTest(frameEl, clientX, clientY)) {
+              const topLevelEls = getTopLevelFrames(svg);
+              for (let i = topLevelEls.length - 1; i >= 0; i--) {
+                if (hitTest(topLevelEls[i], clientX, clientY)) {
+                  if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
+                    hoverTarget = topLevelEls[i];
+                    hoverType = 'hover';
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        } else {
           const topLevelEls = getTopLevelFrames(svg);
           for (let i = topLevelEls.length - 1; i >= 0; i--) {
-            if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-              // Only hover if not already selected
+            if (hitTest(topLevelEls[i], clientX, clientY)) {
               if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
-                topLevelEls[i].setAttribute('data-hovered', 'true');
-                drawOverlayHighlight(topLevelEls[i], 'hover');
+                hoverTarget = topLevelEls[i];
+                hoverType = 'hover';
               }
-              return;
+              break;
             }
           }
         }
       }
-    } else {
-      // ── Top-level: hover top-level frames ──
-      const topLevelEls = getTopLevelFrames(svg);
-      for (let i = topLevelEls.length - 1; i >= 0; i--) {
-        if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-          // Only hover if not already selected
-          if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
-            topLevelEls[i].setAttribute('data-hovered', 'true');
-            drawOverlayHighlight(topLevelEls[i], 'hover');
-          }
-          return;
-        }
+
+      // Avoid DOM operations if target hasn't changed
+      if (lastHoverTargetRef.current === hoverTarget) return;
+      lastHoverTargetRef.current = hoverTarget;
+
+      // Clear all previous hover states
+      svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
+      svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+      clearOverlayType('hover');
+      clearOverlayType('child-hover');
+
+      if (hoverTarget && hoverTarget.id && selectedLayerIdRef.current !== hoverTarget.id && !multiSelectedIdsRef.current.has(hoverTarget.id)) {
+        hoverTarget.setAttribute(hoverType === 'child-hover' ? 'data-child-hovered' : 'data-hovered', 'true');
+        drawOverlayHighlight(hoverTarget, hoverType);
       }
-    }
+    });
   };
 
   // ── MARQUEE SELECTION LOGIC (Optimized) ──
@@ -11606,7 +12199,39 @@ const MainEditor = ({
     div.addEventListener('touchstart', stopScrollPropagation);
     div.addEventListener('wheel', stopScrollPropagation);
 
-    const handleInput = () => {
+    let overlayRafId = null;
+    const scheduleOverlayUpdate = () => {
+      if (overlayRafId) cancelAnimationFrame(overlayRafId);
+      overlayRafId = requestAnimationFrame(() => {
+        const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
+        const container = foTarget.closest('.page-svg-container');
+        if (container) {
+          const pageIdx = container.getAttribute('data-page-index');
+          const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
+          if (overlay) {
+            const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
+            if (oldSel) oldSel.remove();
+            const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
+            if (oldChildSel) oldChildSel.remove();
+          }
+        }
+        drawOverlayHighlight(foTarget, highlightType);
+        clearOverlayType('hover');
+        clearOverlayType('child-hover');
+
+        // Also redraw parent group's entered overlay to prevent the dashed line from sticking in the middle
+        const parentGroup = foTarget.closest('g');
+        if (parentGroup && parentGroup.getAttribute('data-name') === 'Group') {
+          const overlayNode = document.querySelector(`[id="overlay-poly-entered-${parentGroup.id}"]`);
+          if (overlayNode) {
+            overlayNode.remove();
+            drawOverlayHighlight(parentGroup, 'entered');
+          }
+        }
+      });
+    };
+
+    const handleInput = (syncOverlay = false) => {
       const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
       const sizingMode = foTarget.getAttribute('data-sizing-mode') || 'auto-height';
       const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
@@ -11637,8 +12262,6 @@ const MainEditor = ({
         const foW = parseFloat(foTarget.getAttribute('width')) || 0;
         const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
-        let changed = false;
-
         if (sizingMode === 'auto-width' && Math.abs(contentW - foW) > 2) {
           const widthDiff = contentW - foW;
           const align = window.getComputedStyle(div).textAlign;
@@ -11648,47 +12271,63 @@ const MainEditor = ({
           } else if (align === 'right' || align === 'end') {
             foTarget.setAttribute('x', currentX - widthDiff);
           }
-          changed = true;
         }
 
         if (sizingMode !== 'fixed' && Math.abs(contentH - foH) > 2) {
           foTarget.setAttribute('height', contentH + 4);
-          changed = true;
         }
 
-        // Always ensure the selection overlay highlight precisely encloses the current element
-        const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
-        const container = foTarget.closest('.page-svg-container');
-        if (container) {
-          const pageIdx = container.getAttribute('data-page-index');
-          const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
-          if (overlay) {
-            const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
-            if (oldSel) oldSel.remove();
-            const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
-            if (oldChildSel) oldChildSel.remove();
+        if (syncOverlay) {
+          const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
+          const container = foTarget.closest('.page-svg-container');
+          if (container) {
+            const pageIdx = container.getAttribute('data-page-index');
+            const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
+            if (overlay) {
+              const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
+              if (oldSel) oldSel.remove();
+              const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
+              if (oldChildSel) oldChildSel.remove();
+            }
           }
-        }
-        drawOverlayHighlight(foTarget, highlightType);
-        clearOverlayType('hover');
-        clearOverlayType('child-hover');
-
-        // Also redraw parent group's entered overlay to prevent the dashed line from sticking in the middle
-        const parentGroup = foTarget.closest('g');
-        if (parentGroup && parentGroup.getAttribute('data-name') === 'Group') {
-          const overlayNode = document.querySelector(`[id="overlay-poly-entered-${parentGroup.id}"]`);
-          if (overlayNode) {
-            overlayNode.remove();
-            drawOverlayHighlight(parentGroup, 'entered');
-          }
+          drawOverlayHighlight(foTarget, highlightType);
+          clearOverlayType('hover');
+          clearOverlayType('child-hover');
+        } else {
+          scheduleOverlayUpdate();
         }
       }
     };
-    div.addEventListener('input', handleInput);
+
+    // ── Google Docs-Style Spell & Grammar Checker & Suggestion Popup ──
+    div.setAttribute('spellcheck', 'true');
+
+    let grammarCheckTimer = null;
+    let activeSuggestionPopup = null;
+    let lastIssuesSignature = '';
+
+    const closeSuggestionPopup = () => {
+      if (activeSuggestionPopup) {
+        activeSuggestionPopup.remove();
+        activeSuggestionPopup = null;
+      }
+    };
+
+    const scheduleGrammarCheck = () => {
+      clearTimeout(grammarCheckTimer);
+      grammarCheckTimer = setTimeout(() => {
+        runSpellGrammarCheck();
+      }, 450);
+    };
+
+    div.addEventListener('input', () => {
+      handleInput(false);
+      scheduleGrammarCheck();
+    });
     div.focus();
 
     // Immediately trigger a resize so it precisely shrink-wraps the initial text
-    handleInput();
+    handleInput(true);
 
     // Place cursor at the clicked position using caretRangeFromPoint if coords are available
     // Otherwise fall back to end of text
@@ -11739,17 +12378,117 @@ const MainEditor = ({
     // Use a tiny timeout so the browser has fully rendered the contenteditable before we place the caret
     setTimeout(() => placeCaretAtClick(clientX, clientY), 0);
 
-    // ── Google Docs-Style Spell & Grammar Checker & Suggestion Popup ──
-    div.setAttribute('spellcheck', 'true');
+    // ── Precise DOM Character-to-Node Mapping System for Spell & Grammar Checker ──
+    const buildDomCharMap = (container) => {
+      const charMap = [];
+      let fullText = '';
 
-    let grammarCheckTimer = null;
-    let activeSuggestionPopup = null;
+      const walk = (node) => {
+        if (!node) return;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const val = node.nodeValue || '';
+          if (val.length > 0) {
+            charMap.push({
+              type: 'text',
+              node: node,
+              start: fullText.length,
+              end: fullText.length + val.length,
+              len: val.length
+            });
+            fullText += val;
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const tag = node.tagName.toLowerCase();
+          if (tag === 'br') {
+            charMap.push({
+              type: 'break',
+              node: node,
+              start: fullText.length,
+              end: fullText.length + 1,
+              len: 1
+            });
+            fullText += '\n';
+          } else {
+            const isBlock = ['div', 'p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'tr'].includes(tag);
+            if (isBlock && fullText.length > 0 && !fullText.endsWith('\n')) {
+              charMap.push({
+                type: 'virtual-break',
+                node: node,
+                start: fullText.length,
+                end: fullText.length + 1,
+                len: 1
+              });
+              fullText += '\n';
+            }
+            for (let child = node.firstChild; child; child = child.nextSibling) {
+              walk(child);
+            }
+          }
+        }
+      };
 
-    const closeSuggestionPopup = () => {
-      if (activeSuggestionPopup) {
-        activeSuggestionPopup.remove();
-        activeSuggestionPopup = null;
+      walk(container);
+      return { fullText, charMap };
+    };
+
+    const findDomPointFromMap = (charMap, targetOffset) => {
+      for (const entry of charMap) {
+        if (entry.type === 'text') {
+          if (targetOffset >= entry.start && targetOffset <= entry.end) {
+            const offsetInNode = Math.min(Math.max(0, targetOffset - entry.start), entry.len);
+            return { node: entry.node, offset: offsetInNode };
+          }
+        }
       }
+      for (let i = charMap.length - 1; i >= 0; i--) {
+        if (charMap[i].type === 'text') {
+          return { node: charMap[i].node, offset: charMap[i].len };
+        }
+      }
+      return null;
+    };
+
+    const getCaretOffsetInContainer = (container, charMap) => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !container.contains(sel.anchorNode)) return -1;
+      try {
+        const anchorNode = sel.anchorNode;
+        const anchorOffset = sel.anchorOffset;
+
+        for (const entry of charMap) {
+          if (entry.node === anchorNode) {
+            return entry.start + Math.min(anchorOffset, entry.len);
+          }
+        }
+        if (anchorNode.nodeType === Node.ELEMENT_NODE) {
+          const child = anchorNode.childNodes[anchorOffset];
+          if (child) {
+            for (const entry of charMap) {
+              if (entry.node === child) {
+                return entry.start;
+              }
+            }
+          }
+        }
+      } catch (e) {}
+      return -1;
+    };
+
+    const restoreCaretPositionFromMap = (charMap, targetOffset) => {
+      if (targetOffset < 0) return;
+      try {
+        const pt = findDomPointFromMap(charMap, targetOffset);
+        if (pt) {
+          const range = document.createRange();
+          range.setStart(pt.node, pt.offset);
+          range.collapse(true);
+          const s = window.getSelection();
+          if (s) {
+            s.removeAllRanges();
+            s.addRange(range);
+          }
+        }
+      } catch (err) {}
     };
 
     const runSpellGrammarCheck = () => {
@@ -11758,25 +12497,15 @@ const MainEditor = ({
         div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
           m.replaceWith(document.createTextNode(m.textContent || ''));
         });
+        lastIssuesSignature = '';
         return;
       }
-      const text = div.innerText || div.textContent || '';
-      if (!text || text.trim().length === 0) return;
 
-      const issues = checkSpellingAndGrammar(text);
+      // Capture initial caret offset before touching DOM
+      const preMap = buildDomCharMap(div);
+      const selOffset = getCaretOffsetInContainer(div, preMap.charMap);
 
-      // Save cursor position
-      let selOffset = 0;
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) {
-        const range = sel.getRangeAt(0);
-        const preRange = range.cloneRange();
-        preRange.selectNodeContents(div);
-        preRange.setEnd(range.startContainer, range.startOffset);
-        selOffset = preRange.toString().length;
-      }
-
-      // 1. Unwrap existing mark tags in-place while keeping text intact
+      // 1. Unwrap existing mark tags in-place and normalize all text nodes
       const existingMarks = Array.from(div.querySelectorAll('mark.grammar-issue-word'));
       existingMarks.forEach(m => {
         const parent = m.parentNode;
@@ -11784,102 +12513,68 @@ const MainEditor = ({
           parent.insertBefore(m.firstChild, m);
         }
         m.remove();
-        parent.normalize();
       });
+      div.normalize();
 
-      if (issues.length === 0) {
-        handleInput();
+      // Extract accurate, layout-independent text from clean text nodes
+      const { fullText: text, charMap } = buildDomCharMap(div);
+
+      if (!text || text.trim().length === 0) {
+        lastIssuesSignature = '';
+        if (selOffset >= 0) {
+          restoreCaretPositionFromMap(charMap, selOffset);
+        }
         return;
       }
 
-      // 2. Wrap matching incorrect words in-place without altering any line breaks or DOM tree
-      const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT, null, false);
-      const textNodes = [];
-      let n;
-      while ((n = walker.nextNode())) {
-        if (n.nodeValue && n.nodeValue.length > 0) {
-          textNodes.push(n);
+      const issues = checkSpellingAndGrammar(text);
+      const signature = text + '###' + issues.map(i => `${i.type}:${i.startIndex}:${i.endIndex}:${i.word}`).join('|');
+
+      if (issues.length === 0) {
+        lastIssuesSignature = signature;
+        if (selOffset >= 0) {
+          restoreCaretPositionFromMap(charMap, selOffset);
         }
+        return;
       }
 
-      // Track global text offset across text nodes
-      let runningOffset = 0;
-      for (const textNode of textNodes) {
-        const nodeText = textNode.nodeValue;
-        const nodeStart = runningOffset;
-        const nodeEnd = runningOffset + nodeText.length;
+      // 2. Wrap matching words in reverse order so text character offsets remain perfectly aligned
+      const sortedIssues = [...issues].sort((a, b) => b.startIndex - a.startIndex);
+      for (const iss of sortedIssues) {
+        const startPoint = findDomPointFromMap(charMap, iss.startIndex);
+        const endPoint = findDomPointFromMap(charMap, iss.endIndex);
 
-        // Find issues that fall strictly within this text node
-        const nodeIssues = issues.filter(iss => iss.startIndex >= nodeStart && iss.endIndex <= nodeEnd)
-          .sort((a, b) => b.startIndex - a.startIndex); // Process backwards so offsets remain valid
-
-        for (const iss of nodeIssues) {
-          const relStart = iss.startIndex - nodeStart;
-          const relEnd = iss.endIndex - nodeStart;
-
-          const word = nodeText.substring(relStart, relEnd);
-          const cls = iss.type === 'spelling' ? 'grammar-issue-word issue-spelling' : 'grammar-issue-word issue-grammar';
-          const suggData = encodeURIComponent(JSON.stringify(iss.suggestions || []));
-          const msg = encodeURIComponent(iss.message || '');
-
+        if (startPoint && endPoint) {
           try {
             const range = document.createRange();
-            range.setStart(textNode, relStart);
-            range.setEnd(textNode, relEnd);
+            range.setStart(startPoint.node, startPoint.offset);
+            range.setEnd(endPoint.node, endPoint.offset);
 
             const mark = document.createElement('mark');
-            mark.className = cls;
-            mark.setAttribute('data-word', word);
-            mark.setAttribute('data-suggestions', suggData);
-            mark.setAttribute('data-message', msg);
-            range.surroundContents(mark);
+            mark.className = iss.type === 'spelling' ? 'grammar-issue-word issue-spelling' : 'grammar-issue-word issue-grammar';
+            mark.setAttribute('data-word', iss.word);
+            mark.setAttribute('data-suggestions', encodeURIComponent(JSON.stringify(iss.suggestions || [])));
+            mark.setAttribute('data-message', encodeURIComponent(iss.message || ''));
+
+            if (startPoint.node === endPoint.node) {
+              range.surroundContents(mark);
+            } else {
+              const fragment = range.extractContents();
+              mark.appendChild(fragment);
+              range.insertNode(mark);
+            }
           } catch (e) {}
         }
-
-        runningOffset = nodeEnd;
       }
 
-      // Restore caret position
-      restoreCaretPosition(div, selOffset);
+      lastIssuesSignature = signature;
 
-      // Re-measure content to ensure text frame and selection boundary precisely enclose all wrapped lines
-      handleInput();
+      // Restore caret position using the freshly rendered DOM
+      if (selOffset >= 0) {
+        const postMap = buildDomCharMap(div);
+        restoreCaretPositionFromMap(postMap.charMap, selOffset);
+      }
     };
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
-
-    function restoreCaretPosition(container, targetOffset) {
-      try {
-        let currentOffset = 0;
-        let targetNode = null;
-        let nodeOffset = 0;
-
-        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        while ((node = walker.nextNode())) {
-          const len = node.nodeValue.length;
-          if (currentOffset + len >= targetOffset) {
-            targetNode = node;
-            nodeOffset = targetOffset - currentOffset;
-            break;
-          }
-          currentOffset += len;
-        }
-
-        if (targetNode) {
-          const newRange = document.createRange();
-          newRange.setStart(targetNode, Math.min(nodeOffset, targetNode.nodeValue.length));
-          newRange.collapse(true);
-          const s = window.getSelection();
-          if (s) {
-            s.removeAllRanges();
-            s.addRange(newRange);
-          }
-        }
-      } catch (err) {}
-    }
 
     const showSuggestionPopup = (markEl, clientX, clientY) => {
       closeSuggestionPopup();
@@ -11902,8 +12597,20 @@ const MainEditor = ({
       const rect = markEl.getBoundingClientRect();
       const popup = document.createElement('div');
       popup.className = 'grammar-suggestion-popup';
-      popup.style.top = `${rect.bottom + 6}px`;
-      popup.style.left = `${Math.max(10, Math.min(window.innerWidth - 220, rect.left))}px`;
+
+      // Smart viewport placement: check available space below vs above
+      const estimatedHeight = 180;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      let topPos;
+      if (spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow) {
+        topPos = Math.max(10, rect.top - estimatedHeight - 6);
+      } else {
+        topPos = Math.min(window.innerHeight - estimatedHeight - 10, rect.bottom + 6);
+      }
+      const leftPos = Math.max(12, Math.min(window.innerWidth - 260, rect.left));
+      popup.style.top = `${topPos}px`;
+      popup.style.left = `${leftPos}px`;
 
       let headerText = markEl.classList.contains('issue-grammar') ? 'Grammar' : 'Spelling';
       let html = `<div class="grammar-suggestion-header">
@@ -11911,6 +12618,7 @@ const MainEditor = ({
         <span>${headerText}</span>
       </div>`;
 
+      html += `<div class="grammar-suggestion-popup-body">`;
       if (suggestions.length > 0) {
         suggestions.forEach((sugg, idx) => {
           html += `<div class="grammar-suggestion-item" data-suggestion="${sugg}">
@@ -11921,15 +12629,22 @@ const MainEditor = ({
       } else {
         html += `<div style="padding: 8px 12px; font-size: 12px; color: #5f6368;">No suggestions available</div>`;
       }
+      html += `</div>`;
 
       html += `<div class="grammar-suggestion-footer">
         <button class="grammar-suggestion-ignore" id="docs-btn-ignore">Ignore</button>
-        <span style="font-size: 11px; color: #80868b;">${word}</span>
+        <span style="font-size: 11px; color: #80868b; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${word}</span>
       </div>`;
 
       popup.innerHTML = html;
       document.body.appendChild(popup);
       activeSuggestionPopup = popup;
+
+      // Refine position with actual rendered height
+      const actualHeight = popup.offsetHeight || estimatedHeight;
+      if (spaceBelow < actualHeight + 10 && spaceAbove > spaceBelow) {
+        popup.style.top = `${Math.max(10, rect.top - actualHeight - 6)}px`;
+      }
 
       // Handle suggestion clicks
       popup.querySelectorAll('.grammar-suggestion-item').forEach(item => {
@@ -11940,10 +12655,24 @@ const MainEditor = ({
           if (chosen === '(Delete word)') {
             markEl.remove();
           } else {
-            markEl.replaceWith(document.createTextNode(chosen));
+            const repNode = document.createTextNode(chosen);
+            markEl.replaceWith(repNode);
+            try {
+              const range = document.createRange();
+              range.setStart(repNode, repNode.nodeValue.length);
+              range.collapse(true);
+              const sel = window.getSelection();
+              if (sel) {
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+            } catch (e) {}
           }
+          div.normalize();
+          lastIssuesSignature = '';
           closeSuggestionPopup();
-          handleInput();
+          handleInput(true);
+          scheduleGrammarCheck();
         });
       });
 
@@ -11953,7 +12682,10 @@ const MainEditor = ({
         ignoreBtn.addEventListener('mousedown', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
+          addIgnoredWord(word);
           markEl.replaceWith(document.createTextNode(word));
+          div.normalize();
+          lastIssuesSignature = '';
           closeSuggestionPopup();
         });
       }
@@ -11970,28 +12702,25 @@ const MainEditor = ({
     };
     div.addEventListener('click', handleTextClick);
 
-    const debounceCheck = () => {
-      clearTimeout(grammarCheckTimer);
-      grammarCheckTimer = setTimeout(() => {
-        runSpellGrammarCheck();
-      }, 700);
-    };
-
-    div.addEventListener('keyup', (e) => {
-      // Don't trigger on arrow navigation keys
+    div.addEventListener('keydown', (e) => {
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
-      if (e.key === ' ' || e.key === 'Enter' || e.key === 'Backspace' || e.key === '.') {
-        debounceCheck();
-      }
+      clearTimeout(grammarCheckTimer);
     });
 
-    // Run initial spell & grammar check after initial text paints
-    setTimeout(runSpellGrammarCheck, 350);
+    // Run initial spell & grammar check after dictionary is loaded & initial text paints
+    initDictionary().then(() => {
+      if (isEditingTextRef.current) {
+        runSpellGrammarCheck();
+      }
+    }).catch(() => {
+      setTimeout(runSpellGrammarCheck, 350);
+    });
 
     const cleanup = () => {
       isEditingTextRef.current = false;
       closeSuggestionPopup();
       clearTimeout(grammarCheckTimer);
+      if (overlayRafId) cancelAnimationFrame(overlayRafId);
 
       // Strip all mark highlight wrappers to ensure completely clean SVG serialization
       div.querySelectorAll('mark.grammar-issue-word').forEach(m => {
@@ -12596,6 +13325,12 @@ const MainEditor = ({
           const normalElements = Array.from(frameEl.children).filter(el =>
             el.id && el.getAttribute('data-type') !== 'frame' &&
             el.getAttribute('data-name') !== 'Overlay' &&
+            el.getAttribute('data-name') !== 'Page Background Image' &&
+            el.getAttribute('data-type') !== 'page-background-image' &&
+            !el.id.startsWith('page-bg-img-') &&
+            el.getAttribute('data-name') !== 'Page Border' &&
+            el.getAttribute('data-type') !== 'page-border' &&
+            !el.id.startsWith('page-border-') &&
             el.getAttribute('data-hidden') !== 'true' &&
             el.getAttribute('data-locked') !== 'true'
           );
@@ -12739,6 +13474,12 @@ const MainEditor = ({
       const normalEls = Array.from(hitFrame.children).filter(el =>
         el.id && el.getAttribute('data-type') !== 'frame' &&
         el.getAttribute('data-name') !== 'Overlay' &&
+        el.getAttribute('data-name') !== 'Page Background Image' &&
+        el.getAttribute('data-type') !== 'page-background-image' &&
+        !el.id.startsWith('page-bg-img-') &&
+        el.getAttribute('data-name') !== 'Page Border' &&
+        el.getAttribute('data-type') !== 'page-border' &&
+        !el.id.startsWith('page-border-') &&
         el.getAttribute('data-hidden') !== 'true' &&
         el.getAttribute('data-locked') !== 'true'
       );
@@ -13283,8 +14024,9 @@ const MainEditor = ({
         })()}
       />
       <div
+        id="main-editor-workspace-outer"
         ref={editorContainerRef}
-        className={`flex-1 relative flex items-center justify-center  overflow-hidden ${isPopupEditor ? 'bg-transparent' : 'bg-[#FBFBFB]'}`}
+        className={`flex-1 relative flex items-center justify-center overflow-hidden ${isPopupEditor ? 'bg-transparent' : 'bg-[#FBFBFB]'}`}
         style={{ cursor: isSpaceDown ? (isPanningRef.current ? 'grabbing' : 'grab') : 'default' }}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -13440,7 +14182,146 @@ const MainEditor = ({
           />
         )}
 
-        {/* Top Group: Selection & Primary Tools - Independent Position */}
+        {/* Top-Left Floating Dock & Add Elements Popup (as shown in reference UI) */}
+        {!isPdfProject && !isPopupEditor && (
+          <div className="absolute left-[1.2vw] top-[1.2vw] z-[999] flex items-start">
+            {/* 4-icon vertical dock */}
+            <div className="bg-white rounded-[0.8vw] border border-gray-200/90 p-[0.35vw] flex flex-col items-center gap-[0.45vw] shadow-md">
+              {/* Button 1: mynaui:component (Add Elements) */}
+              <div className="relative group/docktool flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!showElementsPopup) {
+                      if (activeMainTool === 'grid') {
+                        setActiveMainTool('select');
+                      }
+                      setShowElementsPopup(true);
+                    } else {
+                      setShowElementsPopup(false);
+                    }
+                  }}
+                  className={`w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center transition-all cursor-pointer ${
+                    showElementsPopup
+                      ? 'bg-[#FFF1F0] text-[#FF4D4F] shadow-2xs'
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon icon="mynaui:component" width="1.3vw" height="1.3vw" />
+                </button>
+                {!showElementsPopup && (
+                  <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-[10000]">
+                    Add Elements
+                  </div>
+                )}
+              </div>
+
+              {/* Button 2: carbon:template (Templates) */}
+              <div className="relative group/docktool flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowElementsPopup(false);
+                    if (activeMainTool === 'grid') {
+                      setActiveMainTool('select');
+                    }
+                    window.dispatchEvent(new CustomEvent('open-template-modal'));
+                  }}
+                  className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer"
+                >
+                  <Icon icon="carbon:template" width="1.3vw" height="1.3vw" />
+                </button>
+                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-[10000]">
+                  Templates
+                </div>
+              </div>
+
+              {/* Button 3: eva:color-palette-outline (Color Palette / Themes) */}
+              <div className="relative group/docktool flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowElementsPopup(false);
+                    if (activeMainTool === 'grid') {
+                      setActiveMainTool('select');
+                    }
+                    window.dispatchEvent(new CustomEvent('open-palette-modal'));
+                  }}
+                  className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer"
+                >
+                  <Icon icon="eva:color-palette-outline" width="1.3vw" height="1.3vw" />
+                </button>
+                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-[10000]">
+                  Color Palette
+                </div>
+              </div>
+
+              {/* Button 4: tabler:icons (Icons Gallery) */}
+              <div className="relative group/docktool flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (activeMainTool === 'grid') {
+                      setActiveMainTool('select');
+                    } else {
+                      setShowElementsPopup(false);
+                      setActiveMainTool('grid');
+                    }
+                  }}
+                  className={`w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center transition-all cursor-pointer ${
+                    activeMainTool === 'grid'
+                      ? 'bg-gray-900 text-white shadow-xs'
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon icon="tabler:icons" width="1.3vw" height="1.3vw" />
+                </button>
+                {activeMainTool !== 'grid' && (
+                  <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-[10000]">
+                    Icons
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Elements Popup */}
+            <ElementsGallery
+              isOpen={showElementsPopup}
+              onClose={() => setShowElementsPopup(false)}
+              onSelect={(shape) => {
+                window.dispatchEvent(new CustomEvent('add-shape-to-editor', {
+                  detail: {
+                    shape: shape,
+                    pageIndex: activePageIndex
+                  }
+                }));
+              }}
+            />
+
+            {/* Icons Popup (Positioned to start top aligned with 4th button) */}
+            <IconGallery
+              isOpen={activeMainTool === 'grid'}
+              onClose={() => setActiveMainTool('select')}
+              className="absolute z-[9999] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100/80 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+              style={{
+                width: '19vw',
+                height: '27.5vw',
+                maxHeight: 'calc(100vh - 12vw)',
+                left: 'calc(100% + 0.6vw)',
+                top: 'calc(0.35vw + 3 * (2.2vw + 0.45vw))'
+              }}
+              onSelect={(icon) => {
+                window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                  detail: {
+                    pageIndex: activePageIndex,
+                    icon: icon
+                  }
+                }));
+              }}
+            />
+          </div>
+        )}
+
         {/* Top Group: Selection & Primary Tools - Independent Position */}
         {!isPdfProject && !isPopupEditor && (
           <div className={`absolute right-[1.05vw] top-[6vh] z-50 ${pages[activePageIndex]?.isHidden ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -13999,34 +14880,16 @@ const MainEditor = ({
                   </div>
                 )}
               </div>
-
-              {/* Grid Tool Row */}
-              <div className="flex items-center justify-start gap-[0.3vw] cursor-pointer relative group/tool">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveMainTool('grid');
-                    closeAllDropdowns();
-                  }}
-                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'grid' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-                >
-                  <Icon icon="tabler:icons" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-                </button>
-                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
-                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
-                  Elements & Icons
-                </div>
-              </div>
             </div>
           </div>
         )}
 
         {/* Canvas Area container */}
         <div
-          ref={editorContainerRef}
-          className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
+          id="main-editor-workspace-inner"
+          className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-transparent'}`}
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
+            if (e.target === e.currentTarget && (activeMainTool === 'grid' || activeMainTool === 'elements') && typeof setActiveMainTool === 'function') {
               setActiveMainTool('select');
             }
           }}
@@ -14073,7 +14936,8 @@ const MainEditor = ({
                         const isTypeActive = activeMainTool === 'type';
 
                         const pageHtml = pages[displayIndex]?.html;
-                        const isPageEmpty = !pages[displayIndex]?.isHidden && (!pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0)));
+                        const hasBgImage = Boolean(pageHtml && (pageHtml.includes('Page Background Image') || pageHtml.includes('data-bg-image') || pageHtml.includes('page-bg-img-')));
+                        const isPageEmpty = !pages[displayIndex]?.isHidden && !hasBgImage && (!pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0)));
 
                         return (
                           <div
@@ -14088,37 +14952,21 @@ const MainEditor = ({
                                 ref={(el) => {
                                   if (el) {
                                     const newHtml = getHtmlToRender(displayIndex, pages[displayIndex]?.html);
+                                    const isPageSwitched = el.__lastPageIndex !== displayIndex;
+                                    const isBgMissingInDom = newHtml && newHtml.includes('Page Background Image') && !el.innerHTML.includes('Page Background Image');
+
                                     if (window.__skipCanvasUpdateForPage === displayIndex) {
                                       window.__skipCanvasUpdateForPage = -1;
+                                      if (isPageSwitched || isBgMissingInDom || !el.innerHTML) {
+                                        el.innerHTML = newHtml;
+                                      }
                                       el.__lastHtml = newHtml;
                                       el.__lastPageIndex = displayIndex;
-                                    } else if (el.__lastHtml !== newHtml) {
-                                      // Fast path: When switching between different pages, direct innerHTML swap is 100x faster than recursive syncDOM!
-                                      if (el.__lastPageIndex !== displayIndex) {
-                                        el.innerHTML = newHtml;
-                                        el.__lastPageIndex = displayIndex;
-                                        el.__lastHtml = newHtml;
-                                      } else {
-                                        const parser = new DOMParser();
-                                        const doc = parser.parseFromString(newHtml, 'text/html');
-                                        const newChildren = Array.from(doc.body.childNodes);
-
-                                        const oldChildren = Array.from(el.childNodes);
-                                        const maxLength = Math.max(oldChildren.length, newChildren.length);
-
-                                        for (let i = 0; i < maxLength; i++) {
-                                          if (!oldChildren[i]) {
-                                            el.appendChild(newChildren[i].cloneNode(true));
-                                          } else if (!newChildren[i]) {
-                                            el.removeChild(oldChildren[i]);
-                                          } else {
-                                            syncDOM(oldChildren[i], newChildren[i]);
-                                          }
-                                        }
-
-                                        el.__lastHtml = newHtml;
-                                        el.__lastPageIndex = displayIndex;
-                                      }
+                                    } else if (el.__lastHtml !== newHtml || isPageSwitched || isBgMissingInDom) {
+                                      // Clean fast swap when full markup changed (e.g. Undo/Redo, page switch, or new template)
+                                      el.innerHTML = newHtml;
+                                      el.__lastPageIndex = displayIndex;
+                                      el.__lastHtml = newHtml;
                                     }
                                   }
                                 }}
@@ -14243,7 +15091,16 @@ const MainEditor = ({
 
                                     if (!data) return;
 
-                                    if (data.type === 'hotspot') {
+                                    if (data.type === 'svg-element' || data.type === 'shape') {
+                                       setShowElementsPopup(false);
+                                       window.dispatchEvent(new CustomEvent('add-shape-to-editor', {
+                                         detail: {
+                                           pageIndex: displayIndex,
+                                           shape: data.shape,
+                                           dropPoint
+                                         }
+                                       }));
+                                     } else if (data.type === 'hotspot') {
                                       window.dispatchEvent(new CustomEvent('add-hotspot-to-editor', {
                                         detail: {
                                           pageIndex: displayIndex,
