@@ -18,10 +18,13 @@ import {
 } from './penToolEngine';
 
 import HotspotPresetPopup from './HotspotPresetPopup';
+import IconGallery from './icons';
+import ElementsGallery from './ElementsGallery';
 import { generateHotspotSVG } from './HotspotCustomizationPopup';
 import { CropController, isElementCropped } from './Crop';
 import { useToast } from '../CustomToast';
 import { checkSpellingAndGrammar, getSpellingSuggestions, initDictionary, addIgnoredWord } from './spellGrammarChecker';
+import { rewriteHtmlUploadsToSupabase } from '../../utils/supabaseUtils';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const PEN_CURSOR = `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 4l7 2.5L8 14 4 4z' fill='white' stroke='black' stroke-width='1.1'/%3E%3Cpath d='M8 14l-1.5 5' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 14l-1.5 5' stroke='black' stroke-width='.8'/%3E%3C/svg%3E") 4 4, crosshair`;
@@ -646,7 +649,7 @@ const svgGlobalStyles = `
 import CanvasRuler from './CanvasRuler';
 import GuidesOverlay from './GuidesOverlay';
 import TopToolbar from './TopToolbar';
-import ElementsGallery from './ElementsGallery';
+
 
 const SelectionTooltip = () => null;
 
@@ -1068,6 +1071,9 @@ const MainEditor = ({
     }
     clean = clean.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
 
+    // Rewrite uploads paths to full Supabase CDN URLs if needed
+    clean = rewriteHtmlUploadsToSupabase(clean);
+
     // Ensure invisible Document Shield exists above PDF Background in converted document pages
     if ((isConvertedFlipbook || clean.includes('PDF Background') || clean.includes('pdf-vector-layer')) && !clean.includes('data-name="Document Shield"')) {
       const bgStartMatch = clean.match(/<g\b[^>]*data-(?:name="PDF Background"|type="pdf-vector-layer")[^>]*>/i);
@@ -1102,8 +1108,133 @@ const MainEditor = ({
       }
     }
 
+    // Ensure Page Background Image exists and its preserveAspectRatio / data-fix-type is properly synced
+    if (clean.includes('data-bg-image=')) {
+      try {
+        let safeXml = clean;
+        if (!safeXml.includes('xmlns:xlink=')) {
+          safeXml = safeXml.replace('<svg ', '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ');
+        }
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(safeXml, 'image/svg+xml');
+        const svg = doc.querySelector('svg');
+        const ov = doc.querySelector('[data-bg-image]') || doc.querySelector('[data-name="Overlay"]') || doc.querySelector('[data-type="background"]') || doc.querySelector('rect');
+        const bgUrl = ov?.getAttribute('data-bg-image');
+        let imgNode = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
+
+        if (svg && bgUrl) {
+          const getCleanNameFromUrl = (urlStr) => {
+            if (!urlStr) return 'Background Image.jpg';
+            try {
+              const cleanPath = urlStr.split('?')[0].split('#')[0];
+              const lastPart = cleanPath.substring(cleanPath.lastIndexOf('/') + 1);
+              if (lastPart) {
+                const decoded = decodeURIComponent(lastPart);
+                const cleanName = decoded.replace(/^[0-9a-fA-F-]+_/, '').replace(/^\d{10,}_/, '');
+                return cleanName || decoded;
+              }
+            } catch (e) {}
+            return 'Background Image.jpg';
+          };
+
+          let name = ov.getAttribute('data-bg-image-name') || imgNode?.getAttribute('data-filename') || '';
+          if (!name || name === 'Background Image.jpg') {
+            name = getCleanNameFromUrl(bgUrl);
+          }
+          let dim = ov.getAttribute('data-bg-image-dim') || imgNode?.getAttribute('data-dimensions') || '';
+          if (dim === '1920 X 1080 • 24MB') dim = '';
+          const fit = ov.getAttribute('data-bg-fit') || ov.getAttribute('data-fix-type') || (imgNode?.getAttribute('data-fix-type')) || 'Fit';
+          let op = '1';
+          if (ov.getAttribute('data-bg-opacity')) {
+            op = (parseFloat(ov.getAttribute('data-bg-opacity')) / 100).toString();
+          } else if (ov.getAttribute('opacity')) {
+            op = ov.getAttribute('opacity');
+            // Store it as data-bg-opacity so both SVG rect and image are preserved correctly
+            ov.setAttribute('data-bg-opacity', Math.round(parseFloat(op) * 100).toString());
+            ov.removeAttribute('opacity'); // Remove from <rect> so overlay white fill stays solid behind image
+          } else if (imgNode?.getAttribute('opacity')) {
+            op = imgNode.getAttribute('opacity');
+          }
+          const aspect = fit === 'Fit' ? 'xMidYMid meet' : (fit === 'Fill' ? 'xMidYMid slice' : 'none');
+
+          const ovW = parseFloat(ov.getAttribute('width') || '');
+          const ovH = parseFloat(ov.getAttribute('height') || '');
+          const svgW = parseFloat(svg.getAttribute('width') || '');
+          const svgH = parseFloat(svg.getAttribute('height') || '');
+          let baseW = (!isNaN(ovW) && ovW > 0) ? ovW : ((!isNaN(svgW) && svgW > 0) ? svgW : 794);
+          let baseH = (!isNaN(ovH) && ovH > 0) ? ovH : ((!isNaN(svgH) && svgH > 0) ? svgH : 1123);
+          if (svg.getAttribute('viewBox')) {
+            const vbParts = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
+            if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3]) && vbParts[2] > 0 && vbParts[3] > 0) {
+              baseW = vbParts[2];
+              baseH = vbParts[3];
+            }
+          }
+
+          if (!imgNode) {
+            imgNode = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
+            imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
+            imgNode.setAttribute('data-name', 'Page Background Image');
+            imgNode.setAttribute('data-type', 'page-background-image');
+            imgNode.setAttribute('x', '0');
+            imgNode.setAttribute('y', '0');
+            imgNode.setAttribute('width', baseW.toString());
+            imgNode.setAttribute('height', baseH.toString());
+            imgNode.setAttribute('style', 'pointer-events: none;');
+            imgNode.setAttribute('href', bgUrl);
+            imgNode.setAttribute('xlink:href', bgUrl);
+            imgNode.setAttribute('data-filename', name);
+            imgNode.setAttribute('data-dimensions', dim);
+            imgNode.setAttribute('data-fix-type', fit);
+            imgNode.setAttribute('opacity', op);
+            imgNode.setAttribute('preserveAspectRatio', aspect);
+
+            const borderNode = doc.querySelector('[data-name="Page Border"]');
+            if (borderNode) {
+              borderNode.parentNode.insertBefore(imgNode, borderNode);
+            } else if (ov && ov.nextSibling) {
+              ov.parentNode.insertBefore(imgNode, ov.nextSibling);
+            } else if (ov) {
+              ov.parentNode.appendChild(imgNode);
+            } else {
+              svg.insertBefore(imgNode, svg.firstChild);
+            }
+            clean = new XMLSerializer().serializeToString(doc);
+          } else {
+            // imgNode exists: ensure fit, preserveAspectRatio, opacity, and href are synchronized
+            let modified = false;
+            if (imgNode.getAttribute('preserveAspectRatio') !== aspect) {
+              imgNode.setAttribute('preserveAspectRatio', aspect);
+              modified = true;
+            }
+            if (imgNode.getAttribute('data-fix-type') !== fit) {
+              imgNode.setAttribute('data-fix-type', fit);
+              modified = true;
+            }
+            if (op && imgNode.getAttribute('opacity') !== op) {
+              imgNode.setAttribute('opacity', op);
+              modified = true;
+            }
+            if (!imgNode.getAttribute('href') && bgUrl) {
+              imgNode.setAttribute('href', bgUrl);
+              imgNode.setAttribute('xlink:href', bgUrl);
+              modified = true;
+            }
+            if (modified) {
+              clean = new XMLSerializer().serializeToString(doc);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[MainEditor] Error checking/restoring background image in getHtmlToRender:', err);
+      }
+    }
+
     if (isEditingTextRef.current && lastRenderedHtmlRef.current[index]) {
-      return lastRenderedHtmlRef.current[index];
+      const cached = lastRenderedHtmlRef.current[index];
+      if (!clean.includes('Page Background Image') || cached.includes('Page Background Image')) {
+        return cached;
+      }
     }
     lastRenderedHtmlRef.current[index] = clean;
     return clean;
@@ -2939,8 +3070,17 @@ const MainEditor = ({
 
     const handleWorkspaceColor = (e) => {
       const color = e.detail?.color;
-      if (color && editorContainerRef.current) {
-        editorContainerRef.current.style.backgroundColor = color;
+      const targetColor = (!color || color === 'none' || color === 'transparent') ? '#FBFBFB' : color;
+      if (editorContainerRef.current) {
+        editorContainerRef.current.style.backgroundColor = targetColor;
+      }
+      const outerWorkspace = document.getElementById('main-editor-workspace-outer');
+      if (outerWorkspace) {
+        outerWorkspace.style.backgroundColor = targetColor;
+      }
+      const innerWorkspace = document.getElementById('main-editor-workspace-inner');
+      if (innerWorkspace) {
+        innerWorkspace.style.backgroundColor = 'transparent';
       }
     };
     window.addEventListener('canvas-workspace-color-change', handleWorkspaceColor);
@@ -7653,7 +7793,14 @@ const MainEditor = ({
       child.tagName.toLowerCase() !== 'defs' &&
       child.getAttribute('data-hidden') !== 'true' &&
       child.getAttribute('data-locked') !== 'true' &&
-      child.getAttribute('data-name') !== 'Overlay'
+      child.getAttribute('data-name') !== 'Overlay' &&
+      child.getAttribute('data-type') !== 'background' &&
+      child.getAttribute('data-name') !== 'Page Background Image' &&
+      child.getAttribute('data-type') !== 'page-background-image' &&
+      !child.id.startsWith('page-bg-img-') &&
+      child.getAttribute('data-name') !== 'Page Border' &&
+      child.getAttribute('data-type') !== 'page-border' &&
+      !child.id.startsWith('page-border-')
     );
   };
 
@@ -8234,7 +8381,14 @@ const MainEditor = ({
                   const el = container?.querySelector(`[id="${id}"]`);
                   if (el && el !== svgElement &&
                     el.getAttribute('data-hidden') !== 'true' &&
-                    el.getAttribute('data-locked') !== 'true') {
+                    el.getAttribute('data-locked') !== 'true' &&
+                    el.getAttribute('data-name') !== 'Overlay' &&
+                    el.getAttribute('data-name') !== 'Page Border' &&
+                    el.getAttribute('data-type') !== 'page-border' &&
+                    !el.id?.startsWith('page-border-') &&
+                    el.getAttribute('data-name') !== 'Page Background Image' &&
+                    el.getAttribute('data-type') !== 'page-background-image' &&
+                    !el.id?.startsWith('page-bg-img-')) {
                     const parentInverseCtm = el.parentNode?.getScreenCTM()?.inverse();
                     multiDragItems.push({
                       element: el,
@@ -11030,6 +11184,8 @@ const MainEditor = ({
         const isBasePage = topFrames.some(f => f.id === el.id);
         const isPdfBg = el.getAttribute('data-name')?.includes('PDF Background') || el.getAttribute('data-type') === 'pdf-vector-layer';
         const isShield = el.getAttribute('data-name') === 'Document Shield' || el.getAttribute('data-type') === 'shield';
+        const isPageBorder = el.getAttribute('data-name') === 'Page Border' || el.getAttribute('data-type') === 'page-border' || el.id?.startsWith('page-border-');
+        const isPageBgImg = el.getAttribute('data-name') === 'Page Background Image' || el.getAttribute('data-type') === 'page-background-image' || el.id?.startsWith('page-bg-img-');
         if (isConvertedFlipbook) {
           const isHotspot = el.getAttribute('data-is-hotspot') === 'true' || el.getAttribute('data-type') === 'hotspot';
           const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
@@ -11037,7 +11193,7 @@ const MainEditor = ({
           const isIcon = el.getAttribute('data-type') === 'icon';
           return isHotspot || isFreeFrame || isShape || isIcon;
         }
-        return !isOverlay && !isBasePage && !isPdfBg && !isShield;
+        return !isOverlay && !isBasePage && !isPdfBg && !isShield && !isPageBorder && !isPageBgImg;
       });
 
       marqueeCandidatesRef.current = marqueeCandidates.map(el => ({
@@ -13986,8 +14142,9 @@ const MainEditor = ({
         })()}
       />
       <div
+        id="main-editor-workspace-outer"
         ref={editorContainerRef}
-        className={`flex-1 relative flex items-center justify-center  overflow-hidden ${isPopupEditor ? 'bg-transparent' : 'bg-[#FBFBFB]'}`}
+        className={`flex-1 relative flex items-center justify-center overflow-hidden ${isPopupEditor ? 'bg-transparent' : 'bg-[#FBFBFB]'}`}
         style={{ cursor: isSpaceDown ? (isPanningRef.current ? 'grabbing' : 'grab') : 'default' }}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -14153,7 +14310,14 @@ const MainEditor = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowElementsPopup(prev => !prev);
+                    if (!showElementsPopup) {
+                      if (activeMainTool === 'grid') {
+                        setActiveMainTool('select');
+                      }
+                      setShowElementsPopup(true);
+                    } else {
+                      setShowElementsPopup(false);
+                    }
                   }}
                   className={`w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center transition-all cursor-pointer ${
                     showElementsPopup
@@ -14164,7 +14328,7 @@ const MainEditor = ({
                   <Icon icon="mynaui:component" width="1.3vw" height="1.3vw" />
                 </button>
                 {!showElementsPopup && (
-                  <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                  <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-[10000]">
                     Add Elements
                   </div>
                 )}
@@ -14175,13 +14339,17 @@ const MainEditor = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    setShowElementsPopup(false);
+                    if (activeMainTool === 'grid') {
+                      setActiveMainTool('select');
+                    }
                     window.dispatchEvent(new CustomEvent('open-template-modal'));
                   }}
                   className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer"
                 >
                   <Icon icon="carbon:template" width="1.3vw" height="1.3vw" />
                 </button>
-                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-[10000]">
                   Templates
                 </div>
               </div>
@@ -14191,13 +14359,17 @@ const MainEditor = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    setShowElementsPopup(false);
+                    if (activeMainTool === 'grid') {
+                      setActiveMainTool('select');
+                    }
                     window.dispatchEvent(new CustomEvent('open-palette-modal'));
                   }}
                   className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer"
                 >
                   <Icon icon="eva:color-palette-outline" width="1.3vw" height="1.3vw" />
                 </button>
-                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-[10000]">
                   Color Palette
                 </div>
               </div>
@@ -14210,6 +14382,7 @@ const MainEditor = ({
                     if (activeMainTool === 'grid') {
                       setActiveMainTool('select');
                     } else {
+                      setShowElementsPopup(false);
                       setActiveMainTool('grid');
                     }
                   }}
@@ -14221,9 +14394,11 @@ const MainEditor = ({
                 >
                   <Icon icon="tabler:icons" width="1.3vw" height="1.3vw" />
                 </button>
-                <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
-                  Icons
-                </div>
+                {activeMainTool !== 'grid' && (
+                  <div className="absolute left-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/docktool:opacity-100 transition-opacity duration-150 pointer-events-none z-[10000]">
+                    Icons
+                  </div>
+                )}
               </div>
             </div>
 
@@ -14236,6 +14411,28 @@ const MainEditor = ({
                   detail: {
                     shape: shape,
                     pageIndex: activePageIndex
+                  }
+                }));
+              }}
+            />
+
+            {/* Icons Popup (Positioned to start top aligned with 4th button) */}
+            <IconGallery
+              isOpen={activeMainTool === 'grid'}
+              onClose={() => setActiveMainTool('select')}
+              className="absolute z-[9999] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100/80 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+              style={{
+                width: '19vw',
+                height: '27.5vw',
+                maxHeight: 'calc(100vh - 12vw)',
+                left: 'calc(100% + 0.6vw)',
+                top: 'calc(0.35vw + 3 * (2.2vw + 0.45vw))'
+              }}
+              onSelect={(icon) => {
+                window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+                  detail: {
+                    pageIndex: activePageIndex,
+                    icon: icon
                   }
                 }));
               }}
@@ -14801,58 +14998,14 @@ const MainEditor = ({
                   </div>
                 )}
               </div>
-
-              {/* Elements & Mask Shapes Tool Row */}
-              <div className="flex items-center justify-start gap-[0.3vw] mb-[0.8vh] cursor-pointer relative group/tool">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (activeMainTool === 'elements') {
-                      setActiveMainTool('select');
-                    } else {
-                      setActiveMainTool('elements');
-                    }
-                    closeAllDropdowns();
-                  }}
-                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'elements' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-                >
-                  <Icon icon="fluent:shapes-24-filled" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-                </button>
-                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
-                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
-                  Elements & Mask Shapes
-                </div>
-              </div>
-
-              {/* Grid / Icons Tool Row */}
-              <div className="flex items-center justify-start gap-[0.3vw] cursor-pointer relative group/tool">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (activeMainTool === 'grid') {
-                      setActiveMainTool('select');
-                    } else {
-                      setActiveMainTool('grid');
-                    }
-                    closeAllDropdowns();
-                  }}
-                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'grid' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-                >
-                  <Icon icon="tabler:icons" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-                </button>
-                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
-                <div className="absolute right-[calc(100%+0.6vw)] top-1/2 -translate-y-1/2 px-[0.6vw] py-[0.3vh] bg-gray-900/90 text-white text-[0.7vw] font-medium rounded-[0.4vw] shadow-md whitespace-nowrap opacity-0 group-hover/tool:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
-                  Icons Gallery
-                </div>
-              </div>
             </div>
           </div>
         )}
 
         {/* Canvas Area container */}
         <div
-          ref={editorContainerRef}
-          className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
+          id="main-editor-workspace-inner"
+          className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-transparent'}`}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && (activeMainTool === 'grid' || activeMainTool === 'elements') && typeof setActiveMainTool === 'function') {
               setActiveMainTool('select');
@@ -14901,7 +15054,8 @@ const MainEditor = ({
                         const isTypeActive = activeMainTool === 'type';
 
                         const pageHtml = pages[displayIndex]?.html;
-                        const isPageEmpty = !pages[displayIndex]?.isHidden && (!pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0)));
+                        const hasBgImage = Boolean(pageHtml && (pageHtml.includes('Page Background Image') || pageHtml.includes('data-bg-image') || pageHtml.includes('page-bg-img-')));
+                        const isPageEmpty = !pages[displayIndex]?.isHidden && !hasBgImage && (!pageHtml || (pages[displayIndex]?.layers?.length === 1 && (!pages[displayIndex].layers[0].children || pages[displayIndex].layers[0].children.length === 0)));
 
                         return (
                           <div
@@ -14916,11 +15070,17 @@ const MainEditor = ({
                                 ref={(el) => {
                                   if (el) {
                                     const newHtml = getHtmlToRender(displayIndex, pages[displayIndex]?.html);
+                                    const isPageSwitched = el.__lastPageIndex !== displayIndex;
+                                    const isBgMissingInDom = newHtml && newHtml.includes('Page Background Image') && !el.innerHTML.includes('Page Background Image');
+
                                     if (window.__skipCanvasUpdateForPage === displayIndex) {
                                       window.__skipCanvasUpdateForPage = -1;
+                                      if (isPageSwitched || isBgMissingInDom || !el.innerHTML) {
+                                        el.innerHTML = newHtml;
+                                      }
                                       el.__lastHtml = newHtml;
                                       el.__lastPageIndex = displayIndex;
-                                    } else if (el.__lastHtml !== newHtml) {
+                                    } else if (el.__lastHtml !== newHtml || isPageSwitched || isBgMissingInDom) {
                                       // Clean fast swap when full markup changed (e.g. Undo/Redo, page switch, or new template)
                                       el.innerHTML = newHtml;
                                       el.__lastPageIndex = displayIndex;

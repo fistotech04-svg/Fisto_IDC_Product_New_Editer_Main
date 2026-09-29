@@ -20,7 +20,9 @@ import ImportViaUrlModal from './ImportViaUrlModal';
 import ReplaceMediaModal from './ReplaceMediaModal';
 import ColorPicker, { parseGradient } from './ColorPicker';
 import MediaGalleryPopup from './MediaGalleryPopup';
+import PagePropertiesPanel from './PagePropertiesPanel';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { createPortal } from 'react-dom';
 import { useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -288,10 +290,6 @@ const RightSidebar = ({
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [isPageBgPickerOpen, setIsPageBgPickerOpen] = useState(false);
   const [isPageBgModalOpen, setIsPageBgModalOpen] = useState(false);
-  const [pageColorAccordionOpen, setPageColorAccordionOpen] = useState(true);
-  const [strokeColorAccordionOpen, setStrokeColorAccordionOpen] = useState(true);
-  const [canvaColorAccordionOpen, setCanvaColorAccordionOpen] = useState(true);
-  const [activePageColorPicker, setActivePageColorPicker] = useState(null); // 'pageColor' | 'strokeColor' | 'canvaColor'
   const [canvaWorkspaceColor, setCanvaWorkspaceColor] = useState('#ffffff');
   const unitRef = useRef(null);
   const [expandedInteraction, setExpandedInteraction] = useState('call-click');
@@ -897,20 +895,6 @@ const RightSidebar = ({
         }
       }}
     >
-      {activeMainTool === 'grid' && (
-        <IconGallery
-          isOpen={true}
-          onClose={() => setActiveMainTool('select')}
-          onSelect={(icon) => {
-            window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
-              detail: {
-                pageIndex: activePageIndex,
-                icon: icon
-              }
-            }));
-          }}
-        />
-      )}
       {activeMainTool === 'elements' && (
         <ElementsGallery
           isOpen={true}
@@ -1569,641 +1553,14 @@ const RightSidebar = ({
                     </div>
                   ) : (
                     /* Page Properties (Default View when canvas root/page is selected) */
-                    (() => {
-                      const page = pages[activePageIndex];
-                      const parser = new DOMParser();
-                      const doc = parser.parseFromString(page?.html || '', 'image/svg+xml');
-                      const overlay = doc.querySelector('[data-name="Overlay"]');
-
-                      // Background Color
-                      const currentBg = overlay?.getAttribute('fill') || '#ffffff';
-                      const fillType = overlay?.getAttribute('fill-type') || 'solid';
-                      const fillOpacity = overlay?.getAttribute('fill-opacity') !== null ? parseFloat(overlay?.getAttribute('fill-opacity')) : 1;
-
-                      let currentBgStr = currentBg;
-                      if (fillType === 'gradient' || currentBg.toLowerCase().includes('url(#')) {
-                        const stopsJson = overlay?.getAttribute('fill-stops');
-                        const stops = stopsJson ? JSON.parse(stopsJson) : [];
-                        const gType = overlay?.getAttribute('fill-gradient-type') || 'linear';
-                        if (stops.length > 0) {
-                          currentBgStr = generateGradientString(
-                            gType.charAt(0).toUpperCase() + gType.slice(1),
-                            stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
-                            parseInt(overlay?.getAttribute('fill-angle') || '0'),
-                            parseInt(overlay?.getAttribute('fill-radius') || '100')
-                          );
-                        }
-                      }
-
-                      // Background Image on page
-                      const bgImageEl = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
-                      const bgImageUrl = bgImageEl?.getAttribute('href') || bgImageEl?.getAttribute('xlink:href') || overlay?.getAttribute('data-bg-image') || '';
-                      const bgImageName = bgImageEl?.getAttribute('data-filename') || overlay?.getAttribute('data-bg-image-name') || 'Background Image.jpg';
-                      const bgImageDim = bgImageEl?.getAttribute('data-dimensions') || overlay?.getAttribute('data-bg-image-dim') || '1920 X 1080 • 24MB';
-                      const bgImageOpacity = bgImageEl?.getAttribute('opacity') !== null ? Math.round(parseFloat(bgImageEl?.getAttribute('opacity') || '1') * 100) : (overlay?.getAttribute('data-bg-opacity') ? parseInt(overlay?.getAttribute('data-bg-opacity')) : 100);
-                      const bgImageFit = bgImageEl?.getAttribute('data-fix-type') || overlay?.getAttribute('data-bg-fit') || 'Fit';
-
-                      // Stroke Properties on Overlay & Page Border
-                      const pageBorder = doc.querySelector('[data-name="Page Border"]') || doc.getElementById(`page-border-${activePageIndex}`);
-                      const strokeColor = pageBorder?.getAttribute('stroke') || overlay?.getAttribute('data-stroke-color') || overlay?.getAttribute('stroke') || 'none';
-                      const strokeOpacity = pageBorder?.getAttribute('stroke-opacity') !== null ? parseFloat(pageBorder?.getAttribute('stroke-opacity')) : (overlay?.getAttribute('stroke-opacity') !== null ? parseFloat(overlay?.getAttribute('stroke-opacity')) : 1);
-                      const strokeWidth = parseFloat(pageBorder?.getAttribute('stroke-width') || overlay?.getAttribute('stroke-width') || '1');
-                      const strokePosition = overlay?.getAttribute('data-stroke-position') || 'Inside';
-                      const strokeDasharray = pageBorder?.getAttribute('stroke-dasharray') || overlay?.getAttribute('stroke-dasharray') || '';
-                      const strokeLineCorner = (pageBorder?.getAttribute('stroke-linejoin') || overlay?.getAttribute('stroke-linejoin')) === 'round' ? 'Rounded' : 'Sharp';
-
-                      const isDotted = strokeDasharray === '2,2' || strokeDasharray === '3,3' || strokeDasharray === '1,2';
-                      const isDashed = Boolean(strokeDasharray && strokeDasharray !== 'none' && !isDotted);
-                      const lineStyle = isDotted ? 'dotted' : (isDashed ? 'dashed' : 'solid');
-
-                      let dashLen = 8;
-                      let dashGap = 4;
-                      if (isDashed) {
-                        const parts = strokeDasharray.split(/[\s,]+/).map(parseFloat);
-                        if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                          dashLen = parts[0];
-                          dashGap = parts[1];
-                        }
-                      }
-
-                      const updateOverlayAttrs = (newAttrs) => {
-                        updateElementAttribute(activePageIndex, 'Overlay', newAttrs);
-                      };
-
-                      const handleUpdatePageBgImage = (updates) => {
-                        const curDoc = parser.parseFromString(page?.html || '', 'image/svg+xml');
-                        const svg = curDoc.querySelector('svg');
-                        if (!svg) return;
-                        let ov = curDoc.querySelector('[data-name="Overlay"]');
-                        let imgNode = curDoc.querySelector('image[data-name="Page Background Image"]');
-                        let borderNode = curDoc.querySelector('[data-name="Page Border"]');
-
-                        if (updates.remove) {
-                          if (imgNode) imgNode.remove();
-                          if (ov) {
-                            ov.removeAttribute('data-bg-image');
-                            ov.removeAttribute('data-bg-image-name');
-                            ov.removeAttribute('data-bg-image-dim');
-                            ov.removeAttribute('data-bg-opacity');
-                            ov.removeAttribute('data-bg-fit');
-                          }
-                        } else {
-                          if (!imgNode) {
-                            imgNode = curDoc.createElementNS('http://www.w3.org/2000/svg', 'image');
-                            imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
-                            imgNode.setAttribute('data-name', 'Page Background Image');
-                            imgNode.setAttribute('data-type', 'page-background-image');
-                            imgNode.setAttribute('x', '0');
-                            imgNode.setAttribute('y', '0');
-                            imgNode.setAttribute('width', '100%');
-                            imgNode.setAttribute('height', '100%');
-                            imgNode.setAttribute('style', 'pointer-events: none;');
-                            if (borderNode) {
-                              borderNode.parentNode.insertBefore(imgNode, borderNode);
-                            } else if (ov && ov.nextSibling) {
-                              ov.parentNode.insertBefore(imgNode, ov.nextSibling);
-                            } else if (ov) {
-                              ov.parentNode.appendChild(imgNode);
-                            } else {
-                              svg.insertBefore(imgNode, svg.firstChild);
-                            }
-                          }
-
-                          if (updates.url !== undefined) {
-                            imgNode.setAttribute('href', updates.url);
-                            imgNode.setAttribute('xlink:href', updates.url);
-                            if (ov) ov.setAttribute('data-bg-image', updates.url);
-                          }
-                          if (updates.name !== undefined) {
-                            imgNode.setAttribute('data-filename', updates.name);
-                            if (ov) ov.setAttribute('data-bg-image-name', updates.name);
-                          }
-                          if (updates.dim !== undefined) {
-                            imgNode.setAttribute('data-dimensions', updates.dim);
-                            if (ov) ov.setAttribute('data-bg-image-dim', updates.dim);
-                          }
-                          if (updates.opacity !== undefined) {
-                            imgNode.setAttribute('opacity', (updates.opacity / 100).toString());
-                            if (ov) ov.setAttribute('data-bg-opacity', updates.opacity.toString());
-                          }
-                          if (updates.fit !== undefined) {
-                            const fitVal = updates.fit;
-                            imgNode.setAttribute('data-fix-type', fitVal);
-                            if (ov) ov.setAttribute('data-bg-fit', fitVal);
-                            if (fitVal === 'Fit') {
-                              imgNode.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-                            } else if (fitVal === 'Fill') {
-                              imgNode.setAttribute('preserveAspectRatio', 'xMidYMid slice');
-                            } else {
-                              imgNode.setAttribute('preserveAspectRatio', 'none');
-                            }
-                          }
-                        }
-
-                        const serializer = new XMLSerializer();
-                        const newHtml = serializer.serializeToString(curDoc);
-                        updateElementAttribute(activePageIndex, 'Overlay', '__dom_sync__', newHtml);
-                      };
-
-                      return (
-                        <div className="flex flex-col gap-[2.5vh]">
-                          {/* ================= PAGE PROPERTIES SECTION ================= */}
-                          <div className="flex flex-col gap-[1.2vh]">
-                            <div className="flex items-center gap-[0.75vw]">
-                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">
-                                Page Properties
-                              </span>
-                              <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
-                            </div>
-
-                            {/* Background Image Upload / Preview Box */}
-                            {!bgImageUrl ? (
-                              /* Empty State: + Add File dashed container */
-                              <div
-                                onClick={() => setIsPageBgModalOpen(true)}
-                                className="w-full border-2 border-dashed border-gray-300 rounded-[0.75vw] bg-[#F9FAFB] hover:bg-white hover:border-[#6366F1] transition-all p-[1.4vw] flex items-center justify-center cursor-pointer group shadow-2xs"
-                              >
-                                <div className="flex items-center gap-[0.5vw] text-gray-500 group-hover:text-[#6366F1] font-medium text-[0.85vw]">
-                                  <Plus size="1vw" strokeWidth={2.2} />
-                                  <span>Add File</span>
-                                </div>
-                              </div>
-                            ) : (
-                              /* Active State: Image Fix Type + Preview Card + Opacity Slider */
-                              <div className="flex flex-col gap-[1.2vh]">
-                                {/* Image fix type dropdown */}
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[0.8vw] font-medium text-gray-700">Image fix type :</span>
-                                  <div className="relative">
-                                    <select
-                                      value={bgImageFit}
-                                      onChange={(e) => handleUpdatePageBgImage({ fit: e.target.value })}
-                                      className="appearance-none bg-white border border-gray-200 rounded-[0.5vw] px-[0.8vw] py-[0.4vw] pr-[1.8vw] text-[0.78vw] font-medium text-gray-800 outline-none hover:border-gray-400 cursor-pointer shadow-2xs"
-                                    >
-                                      <option value="Fit">Fit</option>
-                                      <option value="Fill">Fill</option>
-                                      <option value="Stretch">Stretch</option>
-                                    </select>
-                                    <ChevronDown size="0.8vw" className="absolute right-[0.5vw] top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                  </div>
-                                </div>
-
-                                {/* Image Preview Card */}
-                                <div className="bg-white border border-gray-200 rounded-[0.75vw] p-[0.6vw] flex items-center gap-[0.75vw] shadow-2xs">
-                                  <div className="w-[3.8vw] h-[2.8vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
-                                    <img src={bgImageUrl} alt="Page Background" className="w-full h-full object-cover" />
-                                  </div>
-                                  <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                    <span className="text-[0.78vw] font-medium text-gray-900 truncate leading-snug">
-                                      {bgImageName}
-                                    </span>
-                                    <span className="text-[0.65vw] text-gray-400 truncate mb-[0.3vh]">
-                                      {bgImageDim}
-                                    </span>
-                                    <div className="flex items-center gap-[0.4vw]">
-                                      <button
-                                        onClick={() => setIsPageBgModalOpen(true)}
-                                        className="text-[0.7vw] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 px-[0.6vw] py-[0.2vh] rounded-[0.35vw] transition-colors shadow-2xs"
-                                      >
-                                        Replace Image
-                                      </button>
-                                      <button
-                                        onClick={() => handleUpdatePageBgImage({ remove: true })}
-                                        className="p-[0.3vw] text-gray-400 hover:text-red-500 rounded-[0.3vw] hover:bg-red-50 transition-colors"
-                                        title="Delete Background Image"
-                                      >
-                                        <Trash2 size="0.85vw" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Opacity Slider */}
-                                <div className="flex items-center justify-between gap-[0.8vw]">
-                                  <span className="text-[0.8vw] font-medium text-gray-700 whitespace-nowrap">Opacity :</span>
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    value={bgImageOpacity}
-                                    onChange={(e) => handleUpdatePageBgImage({ opacity: parseInt(e.target.value) })}
-                                    className="flex-1 accent-[#4F46E5] h-[0.3vw] bg-gray-200 rounded-lg cursor-pointer"
-                                  />
-                                  <span className="text-[0.75vw] font-medium text-gray-800 bg-gray-100 px-[0.5vw] py-[0.2vh] rounded-[0.35vw] min-w-[2.2vw] text-center border border-gray-200 shadow-2xs">
-                                    {bgImageOpacity} %
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* ================= PAGE COLOR ACCORDION ================= */}
-                          <div className="bg-white rounded-[0.8vw] border border-gray-200 shadow-2xs overflow-hidden">
-                            <div
-                              onClick={() => setPageColorAccordionOpen(!pageColorAccordionOpen)}
-                              className="flex items-center justify-between px-[1vw] py-[0.8vh] cursor-pointer hover:bg-gray-50/50 transition-colors"
-                            >
-                              <span className="text-[0.85vw] font-semibold text-gray-900">Page Color</span>
-                              {pageColorAccordionOpen ? <ChevronUp size="0.9vw" className="text-gray-500" /> : <ChevronDown size="0.9vw" className="text-gray-500" />}
-                            </div>
-
-                            {pageColorAccordionOpen && (
-                              <div className="p-[1vw] pt-[0.4vh] border-t border-gray-100 flex flex-col gap-[1.2vh]">
-                                <div className="flex items-center gap-[0.6vw]">
-                                  {/* Color Swatch */}
-                                  <div
-                                    onClick={() => setActivePageColorPicker(activePageColorPicker === 'pageColor' ? null : 'pageColor')}
-                                    className="w-[2.2vw] h-[2.2vw] rounded-[0.4vw] border border-gray-300 shadow-2xs cursor-pointer flex-shrink-0 relative overflow-hidden"
-                                    style={{ background: currentBgStr }}
-                                  />
-                                  {/* Hex Input & Opacity */}
-                                  <div className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.4vw] px-[0.6vw] h-[2.2vw] bg-white">
-                                    <input
-                                      type="text"
-                                      value={currentBgStr.startsWith('#') ? currentBgStr.toUpperCase() : currentBgStr}
-                                      onChange={(e) => {
-                                        let v = e.target.value;
-                                        if (v && !v.startsWith('#') && !v.includes('gradient')) v = '#' + v;
-                                        updateOverlayAttrs({ 'fill': v, 'fill-type': 'solid' });
-                                      }}
-                                      className="text-[0.78vw] font-mono text-gray-800 outline-none uppercase w-[5.5vw] bg-transparent"
-                                    />
-                                    <span className="text-[0.72vw] text-gray-400 font-medium">
-                                      {Math.round(fillOpacity * 100)}%
-                                    </span>
-                                  </div>
-                                  {/* Format dropdown */}
-                                  <div className="border border-gray-200 rounded-[0.4vw] px-[0.6vw] h-[2.2vw] flex items-center gap-[0.2vw] bg-white cursor-pointer">
-                                    <span className="text-[0.72vw] font-semibold text-gray-700">HEX</span>
-                                    <ChevronDown size="0.7vw" className="text-gray-400" />
-                                  </div>
-                                </div>
-
-                                {/* Preset color palette grid */}
-                                <div className="grid grid-cols-8 gap-[0.35vw] pt-[0.5vh]">
-                                  {presetColors.map((color) => (
-                                    <button
-                                      key={color}
-                                      onClick={() => {
-                                        updateOverlayAttrs({
-                                          'fill-type': 'solid',
-                                          'fill': color
-                                        });
-                                      }}
-                                      className={`w-[1.4vw] h-[1.4vw] rounded-[0.25vw] border border-gray-200 transition-all hover:scale-110 shadow-2xs ${currentBg.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-indigo-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
-                                      style={{ backgroundColor: color }}
-                                      title={color}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* ================= STROKE COLOR ACCORDION ================= */}
-                          <div className="bg-white rounded-[0.8vw] border border-gray-200 shadow-2xs overflow-hidden">
-                            <div
-                              onClick={() => setStrokeColorAccordionOpen(!strokeColorAccordionOpen)}
-                              className="flex items-center justify-between px-[1vw] py-[0.8vh] cursor-pointer hover:bg-gray-50/50 transition-colors"
-                            >
-                              <span className="text-[0.85vw] font-semibold text-gray-900">Stoke Color</span>
-                              {strokeColorAccordionOpen ? <ChevronUp size="0.9vw" className="text-gray-500" /> : <ChevronDown size="0.9vw" className="text-gray-500" />}
-                            </div>
-
-                            {strokeColorAccordionOpen && (
-                              <div className="p-[1vw] pt-[0.4vh] border-t border-gray-100 flex flex-col gap-[1.4vh]">
-                                {/* Stroke Color row */}
-                                <div className="flex items-center gap-[0.6vw]">
-                                  <div
-                                    onClick={() => setActivePageColorPicker(activePageColorPicker === 'strokeColor' ? null : 'strokeColor')}
-                                    className="w-[2.2vw] h-[2.2vw] rounded-[0.4vw] border border-gray-300 shadow-2xs cursor-pointer flex-shrink-0 relative overflow-hidden flex items-center justify-center"
-                                    style={{ background: (strokeColor === 'none' || !strokeColor) ? '#000000' : strokeColor }}
-                                  >
-                                    {(strokeColor === 'none') && (
-                                      <div className="w-[140%] h-[1.5px] bg-red-500 rotate-45 absolute" />
-                                    )}
-                                  </div>
-                                  <div className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.4vw] px-[0.6vw] h-[2.2vw] bg-white">
-                                    <input
-                                      type="text"
-                                      value={strokeColor === 'none' ? '#000000' : (strokeColor.startsWith('#') ? strokeColor.toUpperCase() : strokeColor)}
-                                      onChange={(e) => {
-                                        let v = e.target.value;
-                                        if (v && !v.startsWith('#')) v = '#' + v;
-                                        const updates = { 'stroke': v };
-                                        if (v && v !== 'none') {
-                                          if (!overlay?.getAttribute('stroke-width') || parseFloat(overlay?.getAttribute('stroke-width') || '0') <= 0) {
-                                            updates['stroke-width'] = (strokeWidth > 0 ? strokeWidth : 1).toString();
-                                          }
-                                        }
-                                        updateOverlayAttrs(updates);
-                                      }}
-                                      className="text-[0.78vw] font-mono text-gray-800 outline-none uppercase w-[5.5vw] bg-transparent"
-                                    />
-                                    <span className="text-[0.72vw] text-gray-400 font-medium">
-                                      {Math.round(strokeOpacity * 100)}%
-                                    </span>
-                                  </div>
-                                  <div className="border border-gray-200 rounded-[0.4vw] px-[0.6vw] h-[2.2vw] flex items-center gap-[0.2vw] bg-white cursor-pointer">
-                                    <span className="text-[0.72vw] font-semibold text-gray-700">HEX</span>
-                                    <ChevronDown size="0.7vw" className="text-gray-400" />
-                                  </div>
-                                </div>
-
-                                {/* Alignment & Stoke Width row */}
-                                <div className="grid grid-cols-2 gap-[0.8vw]">
-                                  <div className="flex flex-col gap-[0.4vh]">
-                                    <span className="text-[0.7vw] text-gray-400 font-medium">Alignment</span>
-                                    <div className="relative">
-                                      <select
-                                        value={strokePosition}
-                                        onChange={(e) => updateOverlayAttrs({ 'data-stroke-position': e.target.value })}
-                                        className="w-full appearance-none bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vh] pr-[1.5vw] text-[0.75vw] text-gray-800 outline-none cursor-pointer shadow-2xs"
-                                      >
-                                        <option value="Inside">Inside</option>
-                                        <option value="Center">Center</option>
-                                        <option value="Outside">Outside</option>
-                                      </select>
-                                      <ChevronDown size="0.7vw" className="absolute right-[0.4vw] top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                    </div>
-                                  </div>
-
-                                  <div className="flex flex-col gap-[0.4vh]">
-                                    <span className="text-[0.7vw] text-gray-400 font-medium">Stoke Width</span>
-                                    <div className="flex items-center border border-gray-200 rounded-[0.4vw] overflow-hidden bg-white shadow-2xs h-[1.8vw]">
-                                      <button
-                                        onClick={() => {
-                                          const nextW = Math.max(0, strokeWidth - 1);
-                                          const updates = { 'stroke-width': nextW.toString() };
-                                          if (nextW > 0 && (!strokeColor || strokeColor === 'none')) {
-                                            updates['stroke'] = '#000000';
-                                          }
-                                          updateOverlayAttrs(updates);
-                                        }}
-                                        className="w-[1.2vw] h-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
-                                      >
-                                        <Minus size="0.7vw" />
-                                      </button>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={strokeWidth}
-                                        onChange={(e) => {
-                                          const nextW = Math.max(0, parseInt(e.target.value) || 0);
-                                          const updates = { 'stroke-width': nextW.toString() };
-                                          if (nextW > 0 && (!strokeColor || strokeColor === 'none')) {
-                                            updates['stroke'] = '#000000';
-                                          }
-                                          updateOverlayAttrs(updates);
-                                        }}
-                                        className="flex-1 text-center text-[0.75vw] font-medium text-gray-800 outline-none bg-transparent no-spin"
-                                      />
-                                      <button
-                                        onClick={() => {
-                                          const nextW = strokeWidth + 1;
-                                          const updates = { 'stroke-width': nextW.toString() };
-                                          if (nextW > 0 && (!strokeColor || strokeColor === 'none')) {
-                                            updates['stroke'] = '#000000';
-                                          }
-                                          updateOverlayAttrs(updates);
-                                        }}
-                                        className="w-[1.2vw] h-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
-                                      >
-                                        <Plus size="0.7vw" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Line style & Dash Property row */}
-                                <div className="grid grid-cols-2 gap-[0.8vw]">
-                                  <div className="flex flex-col gap-[0.4vh]">
-                                    <span className="text-[0.7vw] text-gray-400 font-medium">Line style</span>
-                                    <div className="flex items-center gap-[0.25vw]">
-                                      {/* Solid */}
-                                      <button
-                                        onClick={() => {
-                                          const updates = { 'stroke-dasharray': 'none' };
-                                          if (!strokeColor || strokeColor === 'none') updates['stroke'] = '#000000';
-                                          if (!overlay?.getAttribute('stroke-width') || parseFloat(overlay?.getAttribute('stroke-width') || '0') <= 0) {
-                                            updates['stroke-width'] = (strokeWidth > 0 ? strokeWidth : 1).toString();
-                                          }
-                                          updateOverlayAttrs(updates);
-                                        }}
-                                        className={`flex-1 h-[1.6vw] rounded-[0.35vw] border flex items-center justify-center transition-all ${lineStyle === 'solid' ? 'border-indigo-500 bg-indigo-50/40 text-indigo-600' : 'border-gray-200 hover:bg-gray-50'}`}
-                                        title="Solid line"
-                                      >
-                                        <div className="w-[1vw] h-[1.5px] bg-current" />
-                                      </button>
-                                      {/* Dotted */}
-                                      <button
-                                        onClick={() => {
-                                          const updates = { 'stroke-dasharray': '2,2' };
-                                          if (!strokeColor || strokeColor === 'none') updates['stroke'] = '#000000';
-                                          if (!overlay?.getAttribute('stroke-width') || parseFloat(overlay?.getAttribute('stroke-width') || '0') <= 0) {
-                                            updates['stroke-width'] = (strokeWidth > 0 ? strokeWidth : 1).toString();
-                                          }
-                                          updateOverlayAttrs(updates);
-                                        }}
-                                        className={`flex-1 h-[1.6vw] rounded-[0.35vw] border flex items-center justify-center transition-all ${lineStyle === 'dotted' ? 'border-indigo-500 bg-indigo-50/40 text-indigo-600' : 'border-gray-200 hover:bg-gray-50'}`}
-                                        title="Dotted line"
-                                      >
-                                        <div className="w-[1vw] h-[1.5px] border-b border-dotted border-current" />
-                                      </button>
-                                      {/* Dashed */}
-                                      <button
-                                        onClick={() => {
-                                          const effectiveLen = dashLen > 2 ? dashLen : 8;
-                                          const effectiveGap = dashGap > 2 ? dashGap : 4;
-                                          const updates = { 'stroke-dasharray': `${effectiveLen},${effectiveGap}` };
-                                          if (!strokeColor || strokeColor === 'none') updates['stroke'] = '#000000';
-                                          if (!overlay?.getAttribute('stroke-width') || parseFloat(overlay?.getAttribute('stroke-width') || '0') <= 0) {
-                                            updates['stroke-width'] = (strokeWidth > 0 ? strokeWidth : 1).toString();
-                                          }
-                                          updateOverlayAttrs(updates);
-                                        }}
-                                        className={`flex-1 h-[1.6vw] rounded-[0.35vw] border flex items-center justify-center transition-all ${lineStyle === 'dashed' ? 'border-indigo-500 bg-indigo-50/40 text-indigo-600' : 'border-gray-200 hover:bg-gray-50'}`}
-                                        title="Dashed line"
-                                      >
-                                        <div className="w-[1vw] h-[1.5px] border-b border-dashed border-current" />
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex flex-col gap-[0.4vh]">
-                                    <span className="text-[0.7vw] text-gray-400 font-medium">Dash Property</span>
-                                    <div className="flex items-center gap-[0.2vw] border border-gray-200 rounded-[0.4vw] px-[0.4vw] bg-white shadow-2xs h-[1.6vw]">
-                                      <span className="text-[0.65vw] text-gray-400 font-medium">L</span>
-                                      <input
-                                        type="number"
-                                        value={dashLen}
-                                        onChange={(e) => {
-                                          const l = Math.max(1, parseInt(e.target.value) || 1);
-                                          const updates = { 'stroke-dasharray': `${l},${dashGap}` };
-                                          if (!strokeColor || strokeColor === 'none') updates['stroke'] = '#000000';
-                                          if (!overlay?.getAttribute('stroke-width') || parseFloat(overlay?.getAttribute('stroke-width') || '0') <= 0) {
-                                            updates['stroke-width'] = (strokeWidth > 0 ? strokeWidth : 1).toString();
-                                          }
-                                          updateOverlayAttrs(updates);
-                                        }}
-                                        className="w-[1.2vw] text-center text-[0.7vw] font-medium text-gray-800 outline-none bg-transparent no-spin"
-                                      />
-                                      <span className="text-gray-300 text-[0.65vw]">:</span>
-                                      <span className="text-[0.65vw] text-gray-400 font-medium">G</span>
-                                      <input
-                                        type="number"
-                                        value={dashGap}
-                                        onChange={(e) => {
-                                          const g = Math.max(1, parseInt(e.target.value) || 1);
-                                          const updates = { 'stroke-dasharray': `${dashLen},${g}` };
-                                          if (!strokeColor || strokeColor === 'none') updates['stroke'] = '#000000';
-                                          if (!overlay?.getAttribute('stroke-width') || parseFloat(overlay?.getAttribute('stroke-width') || '0') <= 0) {
-                                            updates['stroke-width'] = (strokeWidth > 0 ? strokeWidth : 1).toString();
-                                          }
-                                          updateOverlayAttrs(updates);
-                                        }}
-                                        className="w-[1.2vw] text-center text-[0.7vw] font-medium text-gray-800 outline-none bg-transparent no-spin"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Line Corner row */}
-                                <div className="flex flex-col gap-[0.4vh]">
-                                  <span className="text-[0.7vw] text-gray-400 font-medium">Line Corner</span>
-                                  <div className="relative">
-                                    <select
-                                      value={strokeLineCorner}
-                                      onChange={(e) => updateOverlayAttrs({ 'stroke-linejoin': e.target.value === 'Rounded' ? 'round' : 'miter' })}
-                                      className="w-full appearance-none bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vh] pr-[1.5vw] text-[0.75vw] text-gray-800 outline-none cursor-pointer shadow-2xs"
-                                    >
-                                      <option value="Rounded">Rounded</option>
-                                      <option value="Sharp">Sharp</option>
-                                    </select>
-                                    <ChevronDown size="0.7vw" className="absolute right-[0.4vw] top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* ================= CANVA PROPERTIES SECTION ================= */}
-                          <div className="flex flex-col gap-[1.2vh]">
-                            <div className="flex items-center gap-[0.75vw]">
-                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">
-                                Canva Properties
-                              </span>
-                              <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
-                            </div>
-
-                            {/* Canva Color Accordion */}
-                            <div className="bg-white rounded-[0.8vw] border border-gray-200 shadow-2xs overflow-hidden">
-                              <div
-                                onClick={() => setCanvaColorAccordionOpen(!canvaColorAccordionOpen)}
-                                className="flex items-center justify-between px-[1vw] py-[0.8vh] cursor-pointer hover:bg-gray-50/50 transition-colors"
-                              >
-                                <span className="text-[0.85vw] font-semibold text-gray-900">Canva Color</span>
-                                {canvaColorAccordionOpen ? <ChevronUp size="0.9vw" className="text-gray-500" /> : <ChevronDown size="0.9vw" className="text-gray-500" />}
-                              </div>
-
-                              {canvaColorAccordionOpen && (
-                                <div className="p-[1vw] pt-[0.4vh] border-t border-gray-100 flex flex-col gap-[1.2vh]">
-                                  <div className="flex items-center gap-[0.6vw]">
-                                    <div
-                                      onClick={() => setActivePageColorPicker(activePageColorPicker === 'canvaColor' ? null : 'canvaColor')}
-                                      className="w-[2.2vw] h-[2.2vw] rounded-[0.4vw] border border-gray-300 shadow-2xs cursor-pointer flex-shrink-0 relative overflow-hidden"
-                                      style={{ background: canvaWorkspaceColor }}
-                                    />
-                                    <div className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.4vw] px-[0.6vw] h-[2.2vw] bg-white">
-                                      <input
-                                        type="text"
-                                        value={canvaWorkspaceColor.toUpperCase()}
-                                        onChange={(e) => {
-                                          let val = e.target.value;
-                                          if (val && !val.startsWith('#')) val = '#' + val;
-                                          setCanvaWorkspaceColor(val);
-                                          window.dispatchEvent(new CustomEvent('canvas-workspace-color-change', { detail: { color: val } }));
-                                        }}
-                                        className="text-[0.78vw] font-mono text-gray-800 outline-none uppercase w-[5.5vw] bg-transparent"
-                                      />
-                                      <span className="text-[0.72vw] text-gray-400 font-medium">100%</span>
-                                    </div>
-                                    <div className="border border-gray-200 rounded-[0.4vw] px-[0.6vw] h-[2.2vw] flex items-center gap-[0.2vw] bg-white cursor-pointer">
-                                      <span className="text-[0.72vw] font-semibold text-gray-700">HEX</span>
-                                      <ChevronDown size="0.7vw" className="text-gray-400" />
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* ================= GLOBAL COLOR PICKER PORTAL ================= */}
-                          {activePageColorPicker && createPortal(
-                            <div
-                              className="fixed z-[5000]"
-                              style={{
-                                top: '50%',
-                                right: '19.5vw',
-                                transform: 'translateY(-50%)'
-                              }}
-                            >
-                              <div className="animate-in fade-in zoom-in-95 duration-200 relative">
-                                <ColorPicker
-                                  color={
-                                    activePageColorPicker === 'pageColor'
-                                      ? currentBgStr
-                                      : activePageColorPicker === 'strokeColor'
-                                        ? (strokeColor === 'none' ? '#000000' : strokeColor)
-                                        : canvaWorkspaceColor
-                                  }
-                                  onChange={(newVal) => {
-                                    if (activePageColorPicker === 'pageColor') {
-                                      if (newVal.includes('gradient')) {
-                                        const parsed = parseGradient(newVal);
-                                        if (parsed) {
-                                          updateOverlayAttrs({
-                                            'fill-type': 'gradient',
-                                            'fill-gradient-type': parsed.type.toLowerCase(),
-                                            'fill-stops': JSON.stringify(parsed.stops.map(s => ({
-                                              color: s.color,
-                                              offset: s.offset,
-                                              opacity: s.opacity / 100
-                                            }))),
-                                            'fill-angle': (parsed.angle || 0).toString(),
-                                            'fill-radius': (parsed.radius || 100).toString(),
-                                            'fill': newVal
-                                          });
-                                        }
-                                      } else {
-                                        updateOverlayAttrs({
-                                          'fill-type': 'solid',
-                                          'fill': newVal
-                                        });
-                                      }
-                                    } else if (activePageColorPicker === 'strokeColor') {
-                                      const updates = { 'stroke': newVal };
-                                      if (newVal && newVal !== 'none') {
-                                        if (!overlay?.getAttribute('stroke-width') || parseFloat(overlay?.getAttribute('stroke-width') || '0') <= 0) {
-                                          updates['stroke-width'] = (strokeWidth > 0 ? strokeWidth : 1).toString();
-                                        }
-                                      }
-                                      updateOverlayAttrs(updates);
-                                    } else if (activePageColorPicker === 'canvaColor') {
-                                      setCanvaWorkspaceColor(newVal);
-                                      window.dispatchEvent(new CustomEvent('canvas-workspace-color-change', { detail: { color: newVal } }));
-                                    }
-                                  }}
-                                  opacity={100}
-                                  onClose={() => setActivePageColorPicker(null)}
-                                />
-                              </div>
-                            </div>,
-                            document.body
-                          )}
-                        </div>
-                      );
-                    })()
+                    <PagePropertiesPanel
+                      activePageIndex={activePageIndex}
+                      pages={pages}
+                      updateElementAttribute={updateElementAttribute}
+                      setIsPageBgModalOpen={setIsPageBgModalOpen}
+                      canvaWorkspaceColor={canvaWorkspaceColor}
+                      setCanvaWorkspaceColor={setCanvaWorkspaceColor}
+                    />
                   )}
                 </div>
               )}
@@ -2281,12 +1638,53 @@ const RightSidebar = ({
           const hasImg = page?.html?.includes('data-name="Page Background Image"') || page?.html?.includes('data-type="page-background-image"');
           return hasImg ? "Replace Image" : "Add Image";
         })()}
-        onReplace={(file) => {
+        onReplace={async (file) => {
           if (!file) return;
-          const url = file.url || (file instanceof File || file instanceof Blob ? URL.createObjectURL(file) : (typeof file === 'string' ? file : ''));
-          if (!url || url.startsWith('data:video/') || url.endsWith('.mp4') || url.endsWith('.webm')) return;
+
+          let url = file.url || (typeof file === 'string' ? file : '');
           const name = file.name || 'Background Image.jpg';
           const sizeMb = file.size ? `${(file.size / (1024 * 1024)).toFixed(1)}MB` : '';
+
+          // If it's a raw File / Blob (e.g. from Upload tab) or blob: URL, upload it to the server to get a permanent URL
+          if (!url || url.startsWith('blob:')) {
+            const rawFile = file instanceof File || file instanceof Blob ? file : file.file;
+            const storedUser = localStorage.getItem('user');
+            const user = storedUser ? JSON.parse(storedUser) : null;
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+            if (rawFile && user) {
+              try {
+                const formData = new FormData();
+                formData.append('emailId', user.emailId);
+                formData.append('isGallery', 'true');
+                formData.append('type', 'image');
+                formData.append('file', rawFile);
+                formData.append('page_v_id', 'global');
+
+                const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+                if (res.data?.url) {
+                  url = resolveUploadsPath(res.data.url);
+                }
+              } catch (err) {
+                console.error('Failed to upload background image:', err);
+              }
+            }
+
+            // Fallback to data URL or object URL only if server upload failed
+            if (!url && rawFile) {
+              url = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => resolve(URL.createObjectURL(rawFile));
+                reader.readAsDataURL(rawFile);
+              });
+            } else if (!url) {
+              url = file.url || '';
+            }
+          }
+
+          if (!url || url.startsWith('data:video/') || url.endsWith('.mp4') || url.endsWith('.webm')) return;
+          url = resolveUploadsPath(url);
 
           const img = new Image();
           img.onload = () => {
@@ -2300,6 +1698,19 @@ const RightSidebar = ({
             let imgNode = curDoc.querySelector('image[data-name="Page Background Image"]');
             let borderNode = curDoc.querySelector('[data-name="Page Border"]');
 
+            let baseW = parseFloat(svg.getAttribute('width') || ov?.getAttribute('width') || '794');
+            let baseH = parseFloat(svg.getAttribute('height') || ov?.getAttribute('height') || '1123');
+            if (svg.getAttribute('viewBox')) {
+              const vbParts = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
+              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
+                baseW = vbParts[2];
+                baseH = vbParts[3];
+              }
+            }
+
+            const existingFit = ov?.getAttribute('data-bg-fit') || ov?.getAttribute('data-fix-type') || imgNode?.getAttribute('data-fix-type') || 'Fit';
+            const aspect = existingFit === 'Fit' ? 'xMidYMid meet' : (existingFit === 'Fill' ? 'xMidYMid slice' : 'none');
+
             if (!imgNode) {
               imgNode = curDoc.createElementNS('http://www.w3.org/2000/svg', 'image');
               imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
@@ -2307,11 +1718,11 @@ const RightSidebar = ({
               imgNode.setAttribute('data-type', 'page-background-image');
               imgNode.setAttribute('x', '0');
               imgNode.setAttribute('y', '0');
-              imgNode.setAttribute('width', '100%');
-              imgNode.setAttribute('height', '100%');
+              imgNode.setAttribute('width', baseW.toString());
+              imgNode.setAttribute('height', baseH.toString());
               imgNode.setAttribute('style', 'pointer-events: none;');
-              imgNode.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-              imgNode.setAttribute('data-fix-type', 'Fit');
+              imgNode.setAttribute('preserveAspectRatio', aspect);
+              imgNode.setAttribute('data-fix-type', existingFit);
               if (borderNode) {
                 borderNode.parentNode.insertBefore(imgNode, borderNode);
               } else if (ov && ov.nextSibling) {
@@ -2321,6 +1732,11 @@ const RightSidebar = ({
               } else {
                 svg.insertBefore(imgNode, svg.firstChild);
               }
+            } else {
+              imgNode.setAttribute('width', baseW.toString());
+              imgNode.setAttribute('height', baseH.toString());
+              imgNode.setAttribute('preserveAspectRatio', aspect);
+              imgNode.setAttribute('data-fix-type', existingFit);
             }
 
             imgNode.setAttribute('href', url);
@@ -2332,6 +1748,52 @@ const RightSidebar = ({
               ov.setAttribute('data-bg-image', url);
               ov.setAttribute('data-bg-image-name', name);
               ov.setAttribute('data-bg-image-dim', dimStr);
+              ov.setAttribute('data-bg-fit', existingFit);
+              ov.setAttribute('data-fix-type', existingFit);
+            }
+
+            // Also update live SVG DOM on canvas immediately
+            const liveContainer = document.getElementById(`canvas-content-${activePageIndex}`);
+            const liveSvg = liveContainer?.querySelector('svg');
+            if (liveSvg) {
+              let liveImg = liveSvg.querySelector('image[data-name="Page Background Image"]');
+              let liveBorder = liveSvg.querySelector('[data-name="Page Border"]');
+              let liveOv = liveSvg.querySelector('[data-name="Overlay"]');
+              if (!liveImg) {
+                liveImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+                liveImg.setAttribute('id', imgNode.getAttribute('id'));
+                liveImg.setAttribute('data-name', 'Page Background Image');
+                liveImg.setAttribute('data-type', 'page-background-image');
+                liveImg.setAttribute('x', '0');
+                liveImg.setAttribute('y', '0');
+                liveImg.setAttribute('width', baseW.toString());
+                liveImg.setAttribute('height', baseH.toString());
+                liveImg.setAttribute('style', 'pointer-events: none;');
+                liveImg.setAttribute('preserveAspectRatio', aspect);
+                liveImg.setAttribute('data-fix-type', existingFit);
+                if (liveBorder) {
+                  liveBorder.parentNode.insertBefore(liveImg, liveBorder);
+                } else if (liveOv && liveOv.nextSibling) {
+                  liveOv.parentNode.insertBefore(liveImg, liveOv.nextSibling);
+                } else if (liveOv) {
+                  liveOv.parentNode.appendChild(liveImg);
+                } else {
+                  liveSvg.insertBefore(liveImg, liveSvg.firstChild);
+                }
+              }
+              liveImg.setAttribute('href', url);
+              liveImg.setAttribute('xlink:href', url);
+              liveImg.setAttribute('data-filename', name);
+              liveImg.setAttribute('data-dimensions', dimStr);
+              liveImg.setAttribute('preserveAspectRatio', aspect);
+              liveImg.setAttribute('data-fix-type', existingFit);
+              if (liveOv) {
+                liveOv.setAttribute('data-bg-image', url);
+                liveOv.setAttribute('data-bg-image-name', name);
+                liveOv.setAttribute('data-bg-image-dim', dimStr);
+                liveOv.setAttribute('data-bg-fit', existingFit);
+                liveOv.setAttribute('data-fix-type', existingFit);
+              }
             }
 
             const serializer = new XMLSerializer();
@@ -2339,7 +1801,7 @@ const RightSidebar = ({
             updateElementAttribute(activePageIndex, 'Overlay', '__dom_sync__', newHtml);
           };
           img.onerror = () => {
-            const dimStr = `1920 X 1080${sizeMb ? ' • ' + sizeMb : ''}`;
+            const dimStr = sizeMb ? `${sizeMb}` : '';
             const page = pages[activePageIndex];
             const parser = new DOMParser();
             const curDoc = parser.parseFromString(page?.html || '', 'image/svg+xml');
@@ -2349,6 +1811,19 @@ const RightSidebar = ({
             let imgNode = curDoc.querySelector('image[data-name="Page Background Image"]');
             let borderNode = curDoc.querySelector('[data-name="Page Border"]');
 
+            let baseW = parseFloat(svg.getAttribute('width') || ov?.getAttribute('width') || '794');
+            let baseH = parseFloat(svg.getAttribute('height') || ov?.getAttribute('height') || '1123');
+            if (svg.getAttribute('viewBox')) {
+              const vbParts = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
+              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
+                baseW = vbParts[2];
+                baseH = vbParts[3];
+              }
+            }
+
+            const existingFit = ov?.getAttribute('data-bg-fit') || ov?.getAttribute('data-fix-type') || imgNode?.getAttribute('data-fix-type') || 'Fit';
+            const aspect = existingFit === 'Fit' ? 'xMidYMid meet' : (existingFit === 'Fill' ? 'xMidYMid slice' : 'none');
+
             if (!imgNode) {
               imgNode = curDoc.createElementNS('http://www.w3.org/2000/svg', 'image');
               imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
@@ -2356,11 +1831,11 @@ const RightSidebar = ({
               imgNode.setAttribute('data-type', 'page-background-image');
               imgNode.setAttribute('x', '0');
               imgNode.setAttribute('y', '0');
-              imgNode.setAttribute('width', '100%');
-              imgNode.setAttribute('height', '100%');
+              imgNode.setAttribute('width', baseW.toString());
+              imgNode.setAttribute('height', baseH.toString());
               imgNode.setAttribute('style', 'pointer-events: none;');
-              imgNode.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-              imgNode.setAttribute('data-fix-type', 'Fit');
+              imgNode.setAttribute('preserveAspectRatio', aspect);
+              imgNode.setAttribute('data-fix-type', existingFit);
               if (borderNode) {
                 borderNode.parentNode.insertBefore(imgNode, borderNode);
               } else if (ov && ov.nextSibling) {
@@ -2370,6 +1845,11 @@ const RightSidebar = ({
               } else {
                 svg.insertBefore(imgNode, svg.firstChild);
               }
+            } else {
+              imgNode.setAttribute('width', baseW.toString());
+              imgNode.setAttribute('height', baseH.toString());
+              imgNode.setAttribute('preserveAspectRatio', aspect);
+              imgNode.setAttribute('data-fix-type', existingFit);
             }
 
             imgNode.setAttribute('href', url);
@@ -2381,6 +1861,52 @@ const RightSidebar = ({
               ov.setAttribute('data-bg-image', url);
               ov.setAttribute('data-bg-image-name', name);
               ov.setAttribute('data-bg-image-dim', dimStr);
+              ov.setAttribute('data-bg-fit', existingFit);
+              ov.setAttribute('data-fix-type', existingFit);
+            }
+
+            // Also update live SVG DOM on canvas immediately
+            const liveContainer = document.getElementById(`canvas-content-${activePageIndex}`);
+            const liveSvg = liveContainer?.querySelector('svg');
+            if (liveSvg) {
+              let liveImg = liveSvg.querySelector('image[data-name="Page Background Image"]');
+              let liveBorder = liveSvg.querySelector('[data-name="Page Border"]');
+              let liveOv = liveSvg.querySelector('[data-name="Overlay"]');
+              if (!liveImg) {
+                liveImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+                liveImg.setAttribute('id', imgNode.getAttribute('id'));
+                liveImg.setAttribute('data-name', 'Page Background Image');
+                liveImg.setAttribute('data-type', 'page-background-image');
+                liveImg.setAttribute('x', '0');
+                liveImg.setAttribute('y', '0');
+                liveImg.setAttribute('width', baseW.toString());
+                liveImg.setAttribute('height', baseH.toString());
+                liveImg.setAttribute('style', 'pointer-events: none;');
+                liveImg.setAttribute('preserveAspectRatio', aspect);
+                liveImg.setAttribute('data-fix-type', existingFit);
+                if (liveBorder) {
+                  liveBorder.parentNode.insertBefore(liveImg, liveBorder);
+                } else if (liveOv && liveOv.nextSibling) {
+                  liveOv.parentNode.insertBefore(liveImg, liveOv.nextSibling);
+                } else if (liveOv) {
+                  liveOv.parentNode.appendChild(liveImg);
+                } else {
+                  liveSvg.insertBefore(liveImg, liveSvg.firstChild);
+                }
+              }
+              liveImg.setAttribute('href', url);
+              liveImg.setAttribute('xlink:href', url);
+              liveImg.setAttribute('data-filename', name);
+              liveImg.setAttribute('data-dimensions', dimStr);
+              liveImg.setAttribute('preserveAspectRatio', aspect);
+              liveImg.setAttribute('data-fix-type', existingFit);
+              if (liveOv) {
+                liveOv.setAttribute('data-bg-image', url);
+                liveOv.setAttribute('data-bg-image-name', name);
+                liveOv.setAttribute('data-bg-image-dim', dimStr);
+                liveOv.setAttribute('data-bg-fit', existingFit);
+                liveOv.setAttribute('data-fix-type', existingFit);
+              }
             }
 
             const serializer = new XMLSerializer();

@@ -7,7 +7,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'heart',
     name: 'Heart Mask',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Mask Frames',
     isMaskReady: true,
     d: 'M33.0256 8.52306L29.5195 5.03659C22.732 -1.71332 11.7669 -1.67362 5.02823 5.12515C-1.71046 11.9239 -1.67086 22.9072 5.11664 29.6569L26.7378 51.1581C27.1957 51.6955 27.6771 52.2196 28.1822 52.7292L32.4153 57L59.9899 29.5786C66.6361 22.9693 66.6749 12.2147 60.0765 5.55748C53.4781 -1.09978 42.7412 -1.13851 36.095 5.47072L33.0256 8.52306Z',
@@ -21,7 +21,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'ring',
     name: 'Ring Mask',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Mask Frames',
     isMaskReady: true,
     d: 'M46 92C71.4051 92 92 71.4051 92 46C92 20.5949 71.4051 0 46 0C20.5949 0 0 20.5949 0 46C0 71.4051 20.5949 92 46 92ZM70.2545 46C70.2545 59.3954 59.3954 70.2545 46 70.2545C32.6046 70.2545 21.7455 59.3954 21.7455 46C21.7455 32.6046 32.6046 21.7455 46 21.7455C59.3954 21.7455 70.2545 32.6046 70.2545 46Z',
@@ -35,7 +35,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'semi-circle',
     name: 'Semi Circle',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Mask Frames',
     isMaskReady: true,
     d: 'M72 36C72 26.4522 68.2072 17.2955 61.4558 10.5442C54.7045 3.79285 45.5478 7.20838e-07 36 0C26.4522 -7.20838e-07 17.2955 3.79284 10.5442 10.5442C3.79285 17.2955 1.44168e-06 26.4522 0 36L36 36H72Z',
@@ -47,7 +47,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'trapezoid',
     name: 'Trapezoid',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Mask Frames',
     isMaskReady: true,
     d: 'M24 0H96L114.5 72H0L24 0Z',
@@ -59,7 +59,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'arch',
     name: 'Arch Frame',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Mask Frames',
     isMaskReady: true,
     d: 'M0 50 C0 22.3858 22.3858 0 50 0 C77.6142 0 100 22.3858 100 50 L100 100 L0 100 Z',
@@ -71,7 +71,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'shield',
     name: 'Shield',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Mask Frames',
     isMaskReady: true,
     d: 'M50 0 L100 15 L100 55 C100 80 50 100 50 100 C50 100 0 80 0 55 L0 15 Z',
@@ -83,7 +83,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'star-badge',
     name: 'Star Frame',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Mask Frames',
     isMaskReady: true,
     d: 'M50 0 L61.8 36.3 H100 L69.1 58.8 L80.9 95.1 L50 72.6 L19.1 95.1 L30.9 58.8 L0 36.3 H38.2 Z',
@@ -95,7 +95,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'diamond',
     name: 'Diamond Frame',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Geometric',
     isMaskReady: true,
     d: 'M50 0 L100 50 L50 100 L0 50 Z',
@@ -107,7 +107,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'hexagon',
     name: 'Hexagon Frame',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Geometric',
     isMaskReady: true,
     d: 'M50 0 L93.3 25 L93.3 75 L50 100 L6.7 75 L6.7 25 Z',
@@ -119,7 +119,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'cloud',
     name: 'Cloud Mask',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Badges & Special',
     isMaskReady: true,
     d: 'M25 60 C12 60 0 48 0 35 C0 22 10 12 22 10 C28 3 40 0 50 5 C60 0 74 3 80 12 C90 14 98 22 98 33 C98 48 85 60 70 60 Z',
@@ -131,7 +131,7 @@ export const SVG_ELEMENTS_LIST = [
   {
     id: 'organic-blob',
     name: 'Blob Frame',
-    category: 'Shapes',
+    category: 'Masking',
     subCategory: 'Badges & Special',
     isMaskReady: true,
     d: 'M44.5 12.3 C56.2 16.1 66.8 24.6 70.3 35.8 C73.8 47 70.2 61 61.1 69.4 C52 77.8 37.3 80.7 26.5 75.3 C15.7 69.9 8.7 56.3 7.8 43.6 C6.8 30.9 11.9 19.1 21.6 13.7 C31.3 8.3 32.8 8.5 44.5 12.3 Z',
@@ -408,6 +408,27 @@ export const SVG_ELEMENTS_LIST = [
     height: 120
   },
   {
+    id: 'dots-triangle',
+    name: 'Halftone Dots',
+    category: 'Shapes',
+    subCategory: 'Vector Graphic',
+    customSvg: (
+      <svg viewBox="0 0 100 100" className="w-full h-full">
+        {Array.from({ length: 8 }).map((_, r) => (
+          Array.from({ length: 8 - r }).map((_, c) => {
+            const cx = 16 + c * 10.5;
+            const cy = 84 - r * 10.5;
+            const radius = (1.2 + (r + c) * 0.45);
+            return <circle key={`${r}-${c}`} cx={cx} cy={cy} r={radius} fill="#1E88E5" />;
+          })
+        ))}
+      </svg>
+    ),
+    rawSvgString: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="120" height="120"><g fill="#1E88E5"><circle cx="16" cy="84" r="1.5"/><circle cx="26.5" cy="84" r="2.0"/><circle cx="37" cy="84" r="2.5"/><circle cx="47.5" cy="84" r="3.0"/><circle cx="58" cy="84" r="3.5"/><circle cx="68.5" cy="84" r="4.0"/><circle cx="79" cy="84" r="4.5"/><circle cx="89.5" cy="84" r="5.0"/><circle cx="16" cy="73.5" r="2.0"/><circle cx="26.5" cy="73.5" r="2.5"/><circle cx="37" cy="73.5" r="3.0"/><circle cx="47.5" cy="73.5" r="3.5"/><circle cx="58" cy="73.5" r="4.0"/><circle cx="68.5" cy="73.5" r="4.5"/><circle cx="79" cy="73.5" r="5.0"/><circle cx="16" cy="63" r="2.5"/><circle cx="26.5" cy="63" r="3.0"/><circle cx="37" cy="63" r="3.5"/><circle cx="47.5" cy="63" r="4.0"/><circle cx="58" cy="63" r="4.5"/><circle cx="68.5" cy="63" r="5.0"/><circle cx="16" cy="52.5" r="3.0"/><circle cx="26.5" cy="52.5" r="3.5"/><circle cx="37" cy="52.5" r="4.0"/><circle cx="47.5" cy="52.5" r="4.5"/><circle cx="58" cy="52.5" r="5.0"/><circle cx="16" cy="42" r="3.5"/><circle cx="26.5" cy="42" r="4.0"/><circle cx="37" cy="42" r="4.5"/><circle cx="47.5" cy="42" r="5.0"/><circle cx="16" cy="31.5" r="4.0"/><circle cx="26.5" cy="31.5" r="4.5"/><circle cx="37" cy="31.5" r="5.0"/><circle cx="16" cy="21" r="4.5"/><circle cx="26.5" cy="21" r="5.0"/><circle cx="16" cy="10.5" r="5.0"/></g></svg>`,
+    width: 120,
+    height: 120
+  },
+  {
     id: 'badge-award',
     name: 'Gold Award',
     category: 'Shapes',
@@ -456,28 +477,29 @@ export const SVG_ELEMENTS_LIST = [
 ];
 
 const CATEGORIES = [
-  { id: 'All', label: 'All', icon: 'mynaui:grid' },
-  { id: 'Text', label: 'Text', icon: 'tabler:letter-t' },
-  { id: 'Shapes', label: 'Shapes', icon: 'tabler:shapes' },
-  { id: 'Buttons', label: 'Buttons', icon: 'tabler:square-rounded' },
-  { id: 'Tables', label: 'Tables', icon: 'tabler:table' },
-  { id: 'Image', label: 'Image', icon: 'tabler:photo' },
-  { id: 'Masking', label: 'Masking', icon: 'tabler:sparkles' },
-  { id: 'Slideshow', label: 'Slideshow', icon: 'tabler:presentation' },
-  { id: 'QR Code', label: 'QR Code', icon: 'tabler:qrcode' },
-  { id: 'Google Maps', label: 'Google Maps', icon: 'tabler:map-pin' },
-  { id: 'Decorators', label: 'Decorators', icon: 'tabler:wand' },
-  { id: '3rd-Party Embeds', label: '3rd-Party Embeds', icon: 'tabler:code' },
+  { id: 'All', label: 'All', icon: 'bitcoin-icons:grid-outline' },
+  { id: 'Text', label: 'Text', icon: 'eva:text-outline' },
+  { id: 'Shapes', label: 'Shapes', icon: 'garden:shapes-stroke-16' },
+  { id: 'Buttons', label: 'Buttons', icon: 'boxicons:cursor-click' },
+  { id: 'Tables', label: 'Tables', icon: 'icomoon-free:table2' },
+  { id: 'Image', label: 'Image', icon: 'bi:image' },
+  { id: 'Masking', label: 'Masking', icon: 'hugeicons:pathfinder-crop' },
+  { id: 'Slideshow', label: 'Slideshow', icon: 'hugeicons:gallery-thumbnails' },
+  { id: 'QR Code', label: 'QR Code', icon: 'bi:qr-code' },
+  { id: 'Google Maps', label: 'Google Maps', icon: 'bxs:map' },
+  { id: 'Decorators', label: 'Decorators', icon: 'hugeicons:wand-sparkles' },
+  { id: '3rd-Party Embeds', label: '3rd-Party Embeds', icon: 'bi:code-slash' },
 ];
 
 const ElementsGallery = ({
   isOpen,
   onClose,
   onSelect,
-  className = "absolute z-[9999] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100/80 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150",
+  className = "absolute z-[9999] bg-white rounded-[1.2vw] shadow-2xl border border-gray-150/90 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150",
   style = {
-    width: '26vw',
-    height: '38vw',
+    width: '23vw',
+    height: '37vw',
+    maxHeight: 'calc(100vh - 3vw)',
     left: 'calc(100% + 0.6vw)',
     top: '0'
   }
@@ -522,34 +544,34 @@ const ElementsGallery = ({
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header matching design */}
-      <div className="px-[1.2vw] pt-[1.2vw] pb-[0.8vw] bg-white border-b border-gray-100 flex flex-col gap-[0.7vw]">
+      <div className="px-[1.2vw] pt-[1.2vw] pb-[0.8vw] bg-white flex flex-col gap-[0.7vw]">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-[1.1vw] font-bold text-gray-900 leading-tight">Add Elements</h2>
-            <p className="text-[0.68vw] text-gray-400 mt-[0.2vh]">Drag and Drop elements to your page</p>
+            <h2 className="text-[1.15vw] font-bold text-gray-900 leading-tight">Add Elements</h2>
+            <p className="text-[0.68vw] text-gray-400 mt-[0.25vh]">Drag and Drop elements to your page</p>
           </div>
           <button
             onClick={onClose}
-            className="w-[1.6vw] h-[1.6vw] rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors"
+            className="w-[1.6vw] h-[1.6vw] rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
           >
-            <X size="1vw" />
+            <X size="1.05vw" />
           </button>
         </div>
 
         {/* Search Elements input */}
         <div className="relative">
-          <Search size="0.9vw" className="absolute left-[0.7vw] top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size="0.95vw" className="absolute left-[0.75vw] top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search Elements..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-[2.2vw] pl-[2.2vw] pr-[1.8vw] text-[0.75vw] bg-gray-50/50 hover:bg-gray-50 focus:bg-white border border-gray-200 rounded-[0.5vw] outline-none focus:border-red-400 transition-colors"
+            className="w-full h-[2.2vw] pl-[2.2vw] pr-[1.8vw] text-[0.74vw] bg-gray-50/60 hover:bg-gray-50 focus:bg-white border border-gray-200/90 rounded-[0.55vw] outline-none focus:border-red-400 transition-colors"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
             >
               <X size="0.8vw" />
             </button>
@@ -560,22 +582,25 @@ const ElementsGallery = ({
       {/* Main Two-Column Layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Category Sidebar */}
-        <div className="w-[7.5vw] border-r border-gray-100 bg-[#FAFAFA] flex flex-col py-[0.5vw] overflow-y-auto custom-scrollbar select-none">
+        <div className="w-[7.2vw] border-r border-gray-150/80 bg-white flex flex-col py-[0.4vw] px-[0.3vw] overflow-y-auto custom-scrollbar select-none">
           {CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.id;
             return (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`flex items-center gap-[0.45vw] px-[0.8vw] py-[0.55vw] text-left text-[0.72vw] transition-all relative ${
+                className={`flex items-center gap-[0.5vw] px-[0.55vw] py-[0.48vw] text-left text-[0.72vw] rounded-[0.45vw] transition-all relative cursor-pointer my-[0.1vh] ${
                   isSelected
-                    ? 'font-semibold text-[#FF4D4F] bg-[#FFF1F0] border-l-[0.25vw] border-[#FF4D4F]'
-                    : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900 border-l-[0.25vw] border-transparent font-normal'
+                    ? 'font-medium text-[#FF4D4F] bg-[#FFF2F0]'
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
                 }`}
               >
+                {isSelected && (
+                  <span className="absolute left-0 top-[18%] bottom-[18%] w-[0.2vw] bg-[#FF4D4F] rounded-r-full" />
+                )}
                 <Icon
                   icon={cat.icon}
-                  className={`w-[0.95vw] h-[0.95vw] shrink-0 ${isSelected ? 'text-[#FF4D4F]' : 'text-gray-500'}`}
+                  className={`w-[1.05vw] h-[1.05vw] shrink-0 ${isSelected ? 'text-[#FF4D4F]' : 'text-gray-600'}`}
                 />
                 <span className="truncate">{cat.label}</span>
               </button>
@@ -584,10 +609,9 @@ const ElementsGallery = ({
         </div>
 
         {/* Right Content Area: Elements Grid */}
-        <div className="flex-1 flex flex-col bg-white overflow-y-auto p-[1vw] custom-scrollbar">
-          <div className="text-[0.78vw] font-semibold text-gray-700 mb-[0.6vw] flex items-center justify-between">
+        <div className="flex-1 flex flex-col bg-white overflow-y-auto px-[0.9vw] pt-[0.4vw] pb-[1vw] custom-scrollbar">
+          <div className="text-[0.78vw] font-semibold text-gray-800 mb-[0.6vw]">
             <span>{selectedCategory === 'Shapes' ? 'Vector Graphic' : `${selectedCategory} Elements`}</span>
-            <span className="text-[0.65vw] text-gray-400 font-normal">{filteredElements.length} items</span>
           </div>
 
           <div className="grid grid-cols-3 gap-[0.6vw]">
@@ -609,14 +633,14 @@ const ElementsGallery = ({
                 }}
                 onClick={() => handleItemSelect(shape)}
                 onDoubleClick={() => handleItemSelect(shape)}
-                className="group relative aspect-square rounded-[0.6vw] border border-gray-100 bg-white hover:border-red-300 hover:shadow-md p-[0.5vw] flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-[1.03]"
+                className="group relative aspect-square rounded-[0.75vw] border border-gray-200/80 bg-white hover:border-gray-400 hover:shadow-xs p-[0.6vw] flex items-center justify-center cursor-pointer transition-all hover:scale-[1.02]"
               >
                 {/* SVG Shape Preview */}
-                <div className="w-[3.4vw] h-[3.4vw] flex items-center justify-center my-auto pointer-events-none">
+                <div className="w-full h-full flex items-center justify-center pointer-events-none">
                   {shape.customSvg ? (
                     shape.customSvg
                   ) : (
-                    <svg viewBox={shape.viewBox} className="w-full h-full drop-shadow-2xs">
+                    <svg viewBox={shape.viewBox} className="w-full h-full">
                       <path
                         d={shape.d}
                         fillRule={shape.fillRule || 'nonzero'}
@@ -625,11 +649,6 @@ const ElementsGallery = ({
                       />
                     </svg>
                   )}
-                </div>
-
-                {/* Name Label */}
-                <div className="text-[0.62vw] font-medium text-gray-600 group-hover:text-red-600 truncate max-w-full text-center mt-[0.2vw]">
-                  {shape.name}
                 </div>
               </div>
             ))}

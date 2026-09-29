@@ -2241,6 +2241,27 @@ const TemplateEditor = () => {
     }
   }, [selectedLayerId, multiSelectedIds, activePageIndex]);
 
+  const clonePagesForHistory = (pagesList) => {
+    if (!Array.isArray(pagesList)) return [];
+    return pagesList.map(p => ({
+      ...p,
+      layers: Array.isArray(p.layers) ? JSON.parse(JSON.stringify(p.layers)) : []
+    }));
+  };
+
+  const arePagesEqualForHistory = (pagesA, pagesB) => {
+    if (pagesA === pagesB) return true;
+    if (!Array.isArray(pagesA) || !Array.isArray(pagesB) || pagesA.length !== pagesB.length) return false;
+    for (let i = 0; i < pagesA.length; i++) {
+      const a = pagesA[i];
+      const b = pagesB[i];
+      if (a === b) continue;
+      if (!a || !b) return false;
+      if (a.id !== b.id || a.html !== b.html || a.name !== b.name || a.isHidden !== b.isHidden) return false;
+    }
+    return true;
+  };
+
   const saveToHistory = (
     customPages = pages,
     customLayerId = selectedLayerId,
@@ -2248,7 +2269,7 @@ const TemplateEditor = () => {
     customMultiIds = multiSelectedIds
   ) => {
     const snap = {
-      pages: JSON.parse(JSON.stringify(customPages)),
+      pages: clonePagesForHistory(customPages),
       selectedLayerId: customLayerId,
       activePageIndex: customPageIndex,
       multiSelectedIds: Array.from(customMultiIds || [])
@@ -2262,10 +2283,11 @@ const TemplateEditor = () => {
         const lastPageIndex = Array.isArray(last) ? null : last.activePageIndex;
         const lastMultiIds = Array.isArray(last) ? [] : (last.multiSelectedIds || []);
 
-        const isSamePages = JSON.stringify(lastPages) === JSON.stringify(snap.pages);
+        const isSamePages = arePagesEqualForHistory(lastPages, snap.pages);
         const isSameLayerId = lastLayerId === snap.selectedLayerId;
         const isSamePageIndex = lastPageIndex === snap.activePageIndex;
-        const isSameMultiIds = JSON.stringify(lastMultiIds.sort()) === JSON.stringify(snap.multiSelectedIds.sort());
+        const isSameMultiIds = lastMultiIds.length === snap.multiSelectedIds.length &&
+          lastMultiIds.every((id, idx) => id === snap.multiSelectedIds[idx]);
 
         if (isSamePages && isSameLayerId && isSamePageIndex && isSameMultiIds) {
           return prev;
@@ -2277,12 +2299,15 @@ const TemplateEditor = () => {
   };
 
   const undo = () => {
+    if (typeof window.__flushPageOverlayCommit === 'function') {
+      window.__flushPageOverlayCommit();
+    }
     if (history.length === 0) return;
 
     isUndoRedoActiveRef.current = true;
 
     const currentSnap = {
-      pages: JSON.parse(JSON.stringify(pages)),
+      pages: clonePagesForHistory(pages),
       selectedLayerId,
       activePageIndex,
       multiSelectedIds: Array.from(multiSelectedIds || [])
@@ -2346,12 +2371,15 @@ const TemplateEditor = () => {
   };
 
   const redo = () => {
+    if (typeof window.__flushPageOverlayCommit === 'function') {
+      window.__flushPageOverlayCommit();
+    }
     if (redoStack.length === 0) return;
 
     isUndoRedoActiveRef.current = true;
 
     const currentSnap = {
-      pages: JSON.parse(JSON.stringify(pages)),
+      pages: clonePagesForHistory(pages),
       selectedLayerId,
       activePageIndex,
       multiSelectedIds: Array.from(multiSelectedIds || [])
@@ -3844,6 +3872,7 @@ const TemplateEditor = () => {
         updated[pageIndex] = { ...page, html: value, layers: newLayers };
         return updated;
       });
+      if (typeof setHasUnsavedChanges === 'function') setHasUnsavedChanges(true);
       return;
     }
     setPages(prev => {
@@ -4070,7 +4099,11 @@ const TemplateEditor = () => {
         // --- PAGE BORDER SYNC (Ensures stroke is visible on top of background image & accurately aligned) ---
         if (element.getAttribute('data-name') === 'Overlay' || elementId === 'Overlay') {
           const sColor = element.getAttribute('stroke');
-          const sWidth = parseFloat(element.getAttribute('stroke-width') || '0');
+          let sWidth = parseFloat(element.getAttribute('stroke-width') || '0');
+          if (sColor && sColor !== 'none' && sWidth <= 0) {
+            sWidth = 1;
+            element.setAttribute('stroke-width', '1');
+          }
           const sDash = element.getAttribute('stroke-dasharray');
           const sOpacity = element.getAttribute('stroke-opacity');
           const sJoin = element.getAttribute('stroke-linejoin') || 'round';
@@ -4144,14 +4177,76 @@ const TemplateEditor = () => {
             } else {
               pageBorder.removeAttribute('stroke-dasharray');
             }
+
+            // Ensure Overlay element itself has no visual stroke attributes in serialized SVG
+            element.setAttribute('data-stroke-color', sColor);
+            element.setAttribute('data-stroke-width', sWidth.toString());
+            element.removeAttribute('stroke');
+            element.removeAttribute('stroke-width');
+          }
+
+          // Ensure Page Background Image is intact if Overlay has data-bg-image
+          const ovBgImage = element.getAttribute('data-bg-image');
+          let existingBgImg = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
+          if (ovBgImage && !existingBgImg) {
+            const svgEl = doc.querySelector('svg');
+            let baseW = parseFloat(svgEl?.getAttribute('width') || element.getAttribute('width') || '794');
+            let baseH = parseFloat(svgEl?.getAttribute('height') || element.getAttribute('height') || '1123');
+            if (svgEl?.getAttribute('viewBox')) {
+              const vbParts = svgEl.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
+              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
+                baseW = vbParts[2];
+                baseH = vbParts[3];
+              }
+            }
+            const imgNode = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
+            imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
+            imgNode.setAttribute('data-name', 'Page Background Image');
+            imgNode.setAttribute('data-type', 'page-background-image');
+            imgNode.setAttribute('x', '0');
+            imgNode.setAttribute('y', '0');
+            imgNode.setAttribute('width', baseW.toString());
+            imgNode.setAttribute('height', baseH.toString());
+            imgNode.setAttribute('style', 'pointer-events: none;');
+            imgNode.setAttribute('href', ovBgImage);
+            imgNode.setAttribute('xlink:href', ovBgImage);
+            const rawFilename = element.getAttribute('data-bg-image-name');
+            const cleanFilename = rawFilename && rawFilename !== 'Background Image.jpg' ? rawFilename : (() => {
+              try {
+                const p = ovBgImage.split('?')[0].split('#')[0];
+                const lp = p.substring(p.lastIndexOf('/') + 1);
+                return decodeURIComponent(lp).replace(/^[0-9a-fA-F-]+_/, '').replace(/^\d{10,}_/, '') || 'Background Image.jpg';
+              } catch (e) { return 'Background Image.jpg'; }
+            })();
+            imgNode.setAttribute('data-filename', cleanFilename);
+            imgNode.setAttribute('data-dimensions', element.getAttribute('data-bg-image-dim') || '');
+            const fit = element.getAttribute('data-bg-fit') || 'Fit';
+            imgNode.setAttribute('data-fix-type', fit);
+            imgNode.setAttribute('preserveAspectRatio', fit === 'Fit' ? 'xMidYMid meet' : (fit === 'Fill' ? 'xMidYMid slice' : 'none'));
+            const op = element.getAttribute('data-bg-opacity');
+            imgNode.setAttribute('opacity', op ? (parseFloat(op) / 100).toString() : '1');
+
+            if (pageBorder) {
+              pageBorder.parentNode.insertBefore(imgNode, pageBorder);
+            } else if (element.nextSibling) {
+              element.parentNode.insertBefore(imgNode, element.nextSibling);
+            } else {
+              element.parentNode.appendChild(imgNode);
+            }
           }
         }
 
         const serializer = new XMLSerializer();
-        updated[pageIndex] = { ...page, html: serializer.serializeToString(doc.documentElement) };
+        const serialized = serializer.serializeToString(doc.documentElement);
+        if (elementId === 'Overlay' || element.getAttribute('data-name') === 'Overlay') {
+          window.__skipCanvasUpdateForPage = pageIndex;
+          window.__lastCommittedOverlayHtml = serialized;
+        }
+        updated[pageIndex] = { ...page, html: serialized };
       }
       return updated;
     });
+    if (typeof setHasUnsavedChanges === 'function') setHasUnsavedChanges(true);
   };
 
   const updatePageBackground = (pageIndex, color) => {
@@ -4165,8 +4260,60 @@ const TemplateEditor = () => {
         const overlay = doc.querySelector('[data-name="Overlay"]');
         if (overlay) {
           overlay.setAttribute('fill', color);
+
+          const ovBgImage = overlay.getAttribute('data-bg-image');
+          let existingBgImg = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
+          if (ovBgImage && !existingBgImg) {
+            const svgEl = doc.querySelector('svg');
+            let baseW = parseFloat(svgEl?.getAttribute('width') || overlay.getAttribute('width') || '794');
+            let baseH = parseFloat(svgEl?.getAttribute('height') || overlay.getAttribute('height') || '1123');
+            if (svgEl?.getAttribute('viewBox')) {
+              const vbParts = svgEl.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
+              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
+                baseW = vbParts[2];
+                baseH = vbParts[3];
+              }
+            }
+            const imgNode = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
+            imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
+            imgNode.setAttribute('data-name', 'Page Background Image');
+            imgNode.setAttribute('data-type', 'page-background-image');
+            imgNode.setAttribute('x', '0');
+            imgNode.setAttribute('y', '0');
+            imgNode.setAttribute('width', baseW.toString());
+            imgNode.setAttribute('height', baseH.toString());
+            imgNode.setAttribute('style', 'pointer-events: none;');
+            imgNode.setAttribute('href', ovBgImage);
+            imgNode.setAttribute('xlink:href', ovBgImage);
+            const rawFilename = overlay.getAttribute('data-bg-image-name');
+            const cleanFilename = rawFilename && rawFilename !== 'Background Image.jpg' ? rawFilename : (() => {
+              try {
+                const p = ovBgImage.split('?')[0].split('#')[0];
+                const lp = p.substring(p.lastIndexOf('/') + 1);
+                return decodeURIComponent(lp).replace(/^[0-9a-fA-F-]+_/, '').replace(/^\d{10,}_/, '') || 'Background Image.jpg';
+              } catch (e) { return 'Background Image.jpg'; }
+            })();
+            imgNode.setAttribute('data-filename', cleanFilename);
+            imgNode.setAttribute('data-dimensions', overlay.getAttribute('data-bg-image-dim') || '');
+            const fit = overlay.getAttribute('data-bg-fit') || 'Fit';
+            imgNode.setAttribute('data-fix-type', fit);
+            imgNode.setAttribute('preserveAspectRatio', fit === 'Fit' ? 'xMidYMid meet' : (fit === 'Fill' ? 'xMidYMid slice' : 'none'));
+            const op = overlay.getAttribute('data-bg-opacity');
+            imgNode.setAttribute('opacity', op ? (parseFloat(op) / 100).toString() : '1');
+
+            const pageBorder = doc.querySelector('[data-name="Page Border"]');
+            if (pageBorder) {
+              pageBorder.parentNode.insertBefore(imgNode, pageBorder);
+            } else if (overlay.nextSibling) {
+              overlay.parentNode.insertBefore(imgNode, overlay.nextSibling);
+            } else {
+              overlay.parentNode.appendChild(imgNode);
+            }
+          }
+
           page.html = new XMLSerializer().serializeToString(doc);
         }
+        window.__skipCanvasUpdateForPage = pageIndex;
         updated[pageIndex] = { ...page };
       }
       return updated;
