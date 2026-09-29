@@ -50,11 +50,11 @@ const ModelThumbnail = React.memo(({
                   <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={45} />
                   {(() => {
                     const rawX = materialSettings.lightPosition?.x ?? 10;
-                    const rawY = materialSettings.lightPosition?.y ?? 12;
+                    const rawY = materialSettings.lightPosition?.y ?? 10;
                     const rawZ = materialSettings.lightPosition?.z ?? 10;
-                    const sunX = rawX;
-                    const sunY = Math.max(1.5, Math.abs(rawY));
-                    const sunZ = rawZ;
+                    const sunX = Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001 ? 0.01 : rawX;
+                    const sunY = Math.max(1.5, rawZ);
+                    const sunZ = -(Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001 ? 0.01 : rawY);
 
                     return (
                       <>
@@ -490,11 +490,11 @@ export default function Export3DModal({
                                          <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={45} zoom={zoomLevel / 45} />
                                          {(() => {
                                             const rawX = materialSettings.lightPosition?.x ?? 10;
-                                            const rawY = materialSettings.lightPosition?.y ?? 12;
+                                            const rawY = materialSettings.lightPosition?.y ?? 10;
                                             const rawZ = materialSettings.lightPosition?.z ?? 10;
-                                            const sunX = rawX;
-                                            const sunY = Math.max(1.5, Math.abs(rawY));
-                                            const sunZ = rawZ;
+                                            const sunX = Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001 ? 0.01 : rawX;
+                                            const sunY = Math.max(1.5, rawZ);
+                                            const sunZ = -(Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001 ? 0.01 : rawY);
 
                                             return (
                                               <>

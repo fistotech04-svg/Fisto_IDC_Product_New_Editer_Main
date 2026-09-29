@@ -655,6 +655,8 @@ router.post("/rename-model", async (req, res) => {
         const oldSupabasePath = `${sanitizedEmail}/3D_Modals/${oldName}`;
         const newSupabasePath = `${sanitizedEmail}/3D_Modals/${cleanNewName}`;
         await renamePathInSupabase(oldSupabasePath, newSupabasePath);
+        // Fallback for models stored under 3D_Models
+        await renamePathInSupabase(`${sanitizedEmail}/3D_Models/${oldName}`, newSupabasePath);
 
         const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`;
         if (!finalUrl) finalUrl = relativeUrl;
@@ -667,6 +669,7 @@ router.post("/rename-model", async (req, res) => {
           const oldThumbPath = `${sanitizedEmail}/3D_Modals/${oldBase}${thumbExt}`;
           const newThumbPath = `${sanitizedEmail}/3D_Modals/${newBase}${thumbExt}`;
           await renamePathInSupabase(oldThumbPath, newThumbPath);
+          await renamePathInSupabase(`${sanitizedEmail}/3D_Models/${oldBase}${thumbExt}`, newThumbPath);
           newThumbUrl = `/uploads/${sanitizedEmail}/3D_Modals/${newBase}${thumbExt}`;
         }
 
@@ -727,7 +730,11 @@ router.get("/get-session", async (req, res) => {
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
     const sessionPath = `${sanitizedEmail}/3D_Modals/session.json`;
-    const buffer = await downloadFileFromSupabase(sessionPath);
+    let buffer = await downloadFileFromSupabase(sessionPath);
+    if (!buffer) {
+      // Fallback
+      buffer = await downloadFileFromSupabase(`${sanitizedEmail}/3D_Models/session.json`);
+    }
 
     if (buffer) {
       const state = JSON.parse(buffer.toString("utf-8"));
@@ -759,6 +766,7 @@ router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
     // Delete model file from Supabase Storage
     const destinationPath = `${sanitizedEmail}/3D_Modals/${fileName}`;
     await deleteFileFromSupabase(destinationPath);
+    await deleteFileFromSupabase(`${sanitizedEmail}/3D_Models/${fileName}`);
     if (model.url) {
       await deleteFileFromSupabase(model.url);
     }
