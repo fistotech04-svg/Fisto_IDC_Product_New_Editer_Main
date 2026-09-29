@@ -255,6 +255,7 @@ const AnimationPreview = React.memo(({ name, isLive }) => {
       case 'Disco': animationStaticCache[name] = <Icon icon="lucide:sun" className="w-4 h-4 text-pink-400" />; break;
       case 'Meteors': animationStaticCache[name] = <Icon icon="lucide:sparkles" className="w-4 h-4 text-amber-300" />; break;
       case 'Sparkles': animationStaticCache[name] = <Icon icon="lucide:sparkles" className="w-4 h-4 text-yellow-300" />; break;
+      case 'SlidingCard': animationStaticCache[name] = <Icon icon="lucide:panels-top-left" className="w-4 h-4 text-rose-500" />; break;
       default: animationStaticCache[name] = <Icon icon="lucide:sparkles" className="w-4 h-4 text-gray-400" />; break;
     }
   }

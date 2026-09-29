@@ -430,7 +430,7 @@ function MeshSelectionHighlight({ target }) {
 
 const SelectionBoundingBox = MeshSelectionHighlight;
 
-const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, deletedMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, meshTransforms, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange }, ref) => {
+const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, deletedMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, meshTransforms, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange, activeHotspotMeshUuid, activeHotspotMeshName }, ref) => {
   const [position, setPosition] = useState(() => [0, 0, 0]);
   const [scale, setScale] = useState(() => 1);
   const groupRef = React.useRef(null);
@@ -748,8 +748,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   // Helper to ensure a mesh has its own unique, cloned material instance if its material is shared with other meshes.
   // This guarantees that changing color, textures, or material properties on a selected mesh will NEVER bleed into other meshes!
   const ensureMeshUniqueMaterial = useCallback((mesh, allowedSharedSet = null) => {
-      if (!mesh || !mesh.material || !scene) return;
-      const currentMat = mesh.material;
+      if (!mesh || !scene) return;
+      const currentMat = mesh.userData?.__preXrayMaterial || mesh.material;
+      if (!currentMat) return;
       const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
       let didClone = false;
       const newMats = mats.map(m => {
@@ -757,11 +758,12 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           let isShared = false;
           scene.traverse(c => {
               if (isShared) return;
-              if (c.isMesh && c !== mesh && c.material) {
+              if (c.isMesh && c !== mesh && (c.material || c.userData?.__preXrayMaterial)) {
                   // If allowedSharedSet is provided (e.g. all selected meshes), meshes within the set can share,
                   // but if shared with an unselected mesh outside, it must clone!
                   if (allowedSharedSet && allowedSharedSet.has(c)) return;
-                  const cm = Array.isArray(c.material) ? c.material : [c.material];
+                  const cMat = c.userData?.__preXrayMaterial || c.material;
+                  const cm = Array.isArray(cMat) ? cMat : [cMat];
                   if (cm.some(mat => mat === m || (mat.uuid && mat.uuid === m.uuid))) {
                       isShared = true;
                   }
@@ -783,8 +785,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           return m;
       });
       if (didClone) {
-          mesh.material = Array.isArray(currentMat) ? newMats : newMats[0];
-          mesh.material.needsUpdate = true;
+          const finalMat = Array.isArray(currentMat) ? newMats : newMats[0];
+          if (mesh.userData?.__preXrayMaterial) {
+              mesh.userData.__preXrayMaterial = finalMat;
+          } else {
+              mesh.material = finalMat;
+              mesh.material.needsUpdate = true;
+          }
       }
   }, [scene]);
 
@@ -999,18 +1006,40 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     side: THREE.DoubleSide
   }), []);
 
-  // X-Ray View: efficiently sets xrayMaterial on meshes without redundant recompilations or scene churn
+  // X-Ray View: When xrayMode is active, ONLY the currently selected mesh(es) are displayed with xrayMaterial.
+  // When selection changes or xrayMode is toggled off, meshes are cleanly restored to their original materials.
   useEffect(() => {
     if (!scene) return;
 
     if (xrayMode) {
+      const isSceneBackground = selectedMaterial?.name === 'Scene';
+
+      // Resolve meshes targeted by the current selection (single mesh, multiple meshes, folder, or full model)
+      const targetMeshes = !isSceneBackground && selectedMaterial ? resolveTargetMeshes(selectedMaterial) : [];
+      const targetSet = new Set(targetMeshes);
+
       scene.traverse((child) => {
-        if ((child.isMesh || child.isSkinnedMesh) && (child.material || child.userData?.__preXrayMaterial)) {
-          if (child.material !== xrayMaterial) {
-            if (!child.userData.__preXrayMaterial) {
-              child.userData.__preXrayMaterial = child.material;
+        if (child.isMesh || child.isSkinnedMesh) {
+          if (targetSet.has(child)) {
+            // Selected mesh: switch to xrayMaterial, preserving original material and shadow state
+            if (child.material !== xrayMaterial) {
+              if (!child.userData.__preXrayMaterial) {
+                child.userData.__preXrayMaterial = child.material;
+                child.userData.__preXrayCastShadow = child.castShadow;
+              }
+              child.material = xrayMaterial;
+              child.castShadow = false;
             }
-            child.material = xrayMaterial;
+          } else {
+            // Unselected mesh: if it was previously in xray, restore its original material and shadow
+            if (child.userData?.__preXrayMaterial) {
+              child.material = child.userData.__preXrayMaterial;
+              if (child.userData.__preXrayCastShadow !== undefined) {
+                child.castShadow = child.userData.__preXrayCastShadow;
+                delete child.userData.__preXrayCastShadow;
+              }
+              delete child.userData.__preXrayMaterial;
+            }
           }
         }
       });
@@ -1019,11 +1048,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       scene.traverse((child) => {
         if ((child.isMesh || child.isSkinnedMesh) && child.userData?.__preXrayMaterial) {
           child.material = child.userData.__preXrayMaterial;
+          if (child.userData.__preXrayCastShadow !== undefined) {
+            child.castShadow = child.userData.__preXrayCastShadow;
+            delete child.userData.__preXrayCastShadow;
+          }
           delete child.userData.__preXrayMaterial;
         }
       });
     }
-  }, [scene, xrayMode, xrayMaterial]);
+  }, [scene, xrayMode, selectedMaterial, modelName, resolveTargetMeshes, xrayMaterial]);
 
   // Clean restoration on unmount
   useEffect(() => {
@@ -1032,12 +1065,18 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         scene.traverse((child) => {
           if ((child.isMesh || child.isSkinnedMesh) && child.userData?.__preXrayMaterial) {
             child.material = child.userData.__preXrayMaterial;
+            if (child.userData.__preXrayCastShadow !== undefined) {
+              child.castShadow = child.userData.__preXrayCastShadow;
+              delete child.userData.__preXrayCastShadow;
+            }
             delete child.userData.__preXrayMaterial;
           }
         });
       }
     };
   }, [scene]);
+
+
 
 
   // Expose Three.js Scene Root augmented with helper methods
@@ -1143,46 +1182,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
      const targetMatName = selMat ? selMat.name : null;
 
      const isFullModelSelect = !targetMatName || (modelName && targetMatName === modelName) || targetMatName === "Scene";
+     const targetedMeshes = isFullModelSelect ? [] : resolveTargetMeshes(selMat);
+     const targetMeshSet = new Set(targetedMeshes);
 
      // Optimized application using mesh index
      const processedMaterials = new Set();
-     const ensureMeshUniqueMaterial = (mesh) => {
-          if (!mesh || !mesh.material || isFullModelSelect || (selMat && selMat.isGroup)) return;
-          const currentMat = mesh.material;
-          const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
-          let didClone = false;
-          const newMats = mats.map(m => {
-              if (!m) return m;
-              let isShared = false;
-              scene.traverse(c => {
-                  if (isShared) return;
-                  if (c.isMesh && c !== mesh && c.material) {
-                      const cm = Array.isArray(c.material) ? c.material : [c.material];
-                      if (cm.some(mat => mat === m || mat.uuid === m.uuid)) {
-                          isShared = true;
-                      }
-                  }
-              });
-              if (isShared) {
-                  const cloned = m.clone();
-                  cloned.name = `${m.name}_${mesh.name || mesh.uuid.slice(0, 4)}`;
-                  cloned.userData = { ...m.userData };
-                  didClone = true;
-                  if (meshIndexRef.current) {
-                      meshIndexRef.current.set(cloned.name, [mesh]);
-                  }
-                  return cloned;
-              }
-              return m;
-          });
-          if (didClone) {
-              mesh.material = Array.isArray(currentMat) ? newMats : newMats[0];
-          }
-     };
 
      const applyToMesh = (child) => {
-          if (child.isMesh && child.material) {
-              ensureMeshUniqueMaterial(child);
+          if (child.isMesh && (child.material || child.userData?.__preXrayMaterial)) {
+              if (!isFullModelSelect) {
+                  ensureMeshUniqueMaterial(child, targetMeshSet);
+              }
               const apply = (mat) => {
                    if (!mat.isMeshStandardMaterial && !mat.isMeshPhysicalMaterial && !mat.isMeshPhongMaterial) return;
                    if (processedMaterials.has(mat.uuid)) return;
@@ -1352,39 +1362,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     if (alphaImg) { loadedMaps.alphaMap = loadMapManual(alphaImg, false); applyScaleToTex(loadedMaps.alphaMap); }
     if (emissiveImg) { loadedMaps.emissiveMap = loadMapManual(emissiveImg, true); applyScaleToTex(loadedMaps.emissiveMap); }
 
+    const targetedMeshes = isFullModel ? [] : resolveTargetMeshes(selMat);
+    const targetMeshSet = new Set(targetedMeshes);
+
     const applyToMeshLocal = (child) => {
-         if (child.isMesh && child.material) {
-             if (!isFullModel && !(selMat && selMat.isGroup)) {
-                 const currentMat = child.material;
-                 const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
-                 let didClone = false;
-                 const newMats = mats.map(m => {
-                     if (!m) return m;
-                     let isShared = false;
-                     scene.traverse(c => {
-                         if (isShared) return;
-                         if (c.isMesh && c !== child && c.material) {
-                             const cm = Array.isArray(c.material) ? c.material : [c.material];
-                             if (cm.some(mat => mat === m || mat.uuid === m.uuid)) {
-                                 isShared = true;
-                             }
-                         }
-                     });
-                     if (isShared) {
-                         const cloned = m.clone();
-                         cloned.name = `${m.name}_${child.name || child.uuid.slice(0, 4)}`;
-                         cloned.userData = { ...m.userData };
-                         didClone = true;
-                         if (meshIndexRef.current) {
-                             meshIndexRef.current.set(cloned.name, [child]);
-                         }
-                         return cloned;
-                     }
-                     return m;
-                 });
-                 if (didClone) {
-                     child.material = Array.isArray(currentMat) ? newMats : newMats[0];
-                 }
+         if (child.isMesh && (child.material || child.userData?.__preXrayMaterial)) {
+             if (!isFullModel) {
+                 ensureMeshUniqueMaterial(child, targetMeshSet);
              }
              const apply = (mat) => {
                   const hasMapUpdate = newMapsList.hasOwnProperty('map') && newMapsList.map !== "existing";
@@ -2097,10 +2081,20 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     }
 
     if (typeof onModelReady === 'function') {
+        const boundsPayload = {
+            box: box.clone(),
+            size: size.clone(),
+            center: center.clone(),
+            targetScale,
+            maxDim: maxDim * targetScale,
+            height: size.y * targetScale,
+            width: size.x * targetScale,
+            depth: size.z * targetScale
+        };
         // Double RAF ensures Three.js has committed geometry transforms and rendered the frame
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                onModelReady();
+                onModelReady(boundsPayload);
             });
         });
     }
@@ -3367,6 +3361,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                 // Identify the specific mesh hit: find the first intersection that is a mesh inside this scene
                 let mesh = e.object;
                 if (intersections && intersections.length > 0) {
+                    const currentSelectedUuid = selectedMaterial?.uuid || selectedMaterial?.meshUuid;
+                    const candidateHits = [];
                     for (const hit of intersections) {
                         let curr = hit.object;
                         let isPartOfScene = false;
@@ -3378,8 +3374,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             curr = curr.parent;
                         }
                         if (isPartOfScene && (hit.object.isMesh || hit.object.isSkinnedMesh)) {
-                            mesh = hit.object;
-                            break;
+                            candidateHits.push(hit.object);
+                        }
+                    }
+
+                    if (candidateHits.length > 0) {
+                        // In X-ray mode, if clicking on an already selected translucent mesh,
+                        // allow clicking through to inspect/select inner meshes behind it
+                        if (xrayMode && candidateHits[0]?.uuid === currentSelectedUuid && candidateHits.length > 1) {
+                            mesh = candidateHits[1];
+                        } else {
+                            mesh = candidateHits[0];
                         }
                     }
                 }
@@ -3411,6 +3416,21 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                         }
                     }
 
+                    let worldNormal = null;
+                    if (e.intersections?.[0]?.face?.normal && mesh) {
+                        try {
+                            const nMat = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+                            const nVec = e.intersections[0].face.normal.clone().applyMatrix3(nMat).normalize();
+                            worldNormal = { x: nVec.x, y: nVec.y, z: nVec.z };
+                        } catch (_) {
+                            worldNormal = {
+                                x: e.intersections[0].face.normal.x,
+                                y: e.intersections[0].face.normal.y,
+                                z: e.intersections[0].face.normal.z
+                            };
+                        }
+                    }
+
                     if (typeof onSelectMaterial === 'function') {
                         onSelectMaterial({ 
                             name: meshName, 
@@ -3422,7 +3442,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             isMesh: true,
                             isShift: e.shiftKey,
                             isTransformSelect: !!transformMode,
-                            freshMaps
+                            freshMaps,
+                            clickPoint: e.point ? { x: e.point.x, y: e.point.y, z: e.point.z } : null,
+                            clickNormal: worldNormal
                         });
                     }
                 }
