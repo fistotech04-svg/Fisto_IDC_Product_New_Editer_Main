@@ -17,6 +17,7 @@ import useModalHistory from "./hooks/useModalHistory";
 import Export3DModal from "./Components/Export3DModal";
 import AddModelModal from "./Components/AddModelModal";
 import ModelGalleryModal from "./Components/ModelGalleryModal";
+import BlenderInfiniteGrid from "./Components/BlenderInfiniteGrid";
 import AlertModal from "../AlertModal";
 import { GLTFExporter, STLExporter, OBJLoader, FBXLoader, STLLoader } from "three-stdlib";
 import { LWOLoader } from "three/examples/jsm/loaders/LWOLoader.js";
@@ -175,36 +176,51 @@ function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, worldBl
 // DirectionalSunLight ensures shadow updates dynamically with smooth, responsive softness
 function DirectionalSunLight({ position, specular = 50, softness = 50 }) {
   const lightRef = useRef();
+  const targetRef = useRef();
 
   // Dynamic shadow radius: scales from 1 (sharp, clean edge) to 28 (wide, soft blur)
   const shadowSoftRadius = 1 + ((softness ?? 50) / 100) * 27;
 
+  useEffect(() => {
+    if (lightRef.current && targetRef.current) {
+      lightRef.current.target = targetRef.current;
+    }
+  }, []);
+
   useFrame(() => {
-    if (lightRef.current && lightRef.current.shadow) {
-      if (lightRef.current.shadow.radius !== shadowSoftRadius) {
-        lightRef.current.shadow.radius = shadowSoftRadius;
-        lightRef.current.shadow.needsUpdate = true;
+    if (lightRef.current) {
+      if (targetRef.current && lightRef.current.target !== targetRef.current) {
+        lightRef.current.target = targetRef.current;
+      }
+      if (lightRef.current.shadow) {
+        if (lightRef.current.shadow.radius !== shadowSoftRadius) {
+          lightRef.current.shadow.radius = shadowSoftRadius;
+          lightRef.current.shadow.needsUpdate = true;
+        }
       }
     }
   });
 
   return (
-    <directionalLight
-      ref={lightRef}
-      position={position}
-      intensity={1.8 + ((specular ?? 50) / 100) * 0.8}
-      castShadow
-      shadow-bias={-0.0001}
-      shadow-normalBias={0.02}
-      shadow-radius={shadowSoftRadius}
-      shadow-mapSize={[1024, 1024]}
-      shadow-camera-left={-8}
-      shadow-camera-right={8}
-      shadow-camera-top={8}
-      shadow-camera-bottom={-8}
-      shadow-camera-near={0.5}
-      shadow-camera-far={60}
-    />
+    <>
+      <object3D ref={targetRef} position={[0, 0, 0]} />
+      <directionalLight
+        ref={lightRef}
+        position={position}
+        intensity={1.8 + ((specular ?? 50) / 100) * 0.8}
+        castShadow
+        shadow-bias={-0.0002}
+        shadow-normalBias={0.03}
+        shadow-radius={shadowSoftRadius}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-25}
+        shadow-camera-right={25}
+        shadow-camera-top={25}
+        shadow-camera-bottom={-25}
+        shadow-camera-near={0.1}
+        shadow-camera-far={80}
+      />
+    </>
   );
 }
 
@@ -1005,7 +1021,7 @@ export default function ThreedEditor() {
             modelUrl: null,
             modelName: "",
             materialSettings: {
-                alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 4, rotation: 0,
+                alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 50, rotation: 0,
                 specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
                 worldOpacity: 0, worldBlur: 0,
                 color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
@@ -1059,52 +1075,9 @@ export default function ThreedEditor() {
 
       const nextModels = [...models];
 
-      // 0. Upload Manual Texture Maps if they are Blobs
-      const nextMaterialSettings = { ...(materialSettings || {}) };
-      if (nextMaterialSettings && nextMaterialSettings.maps) {
-          const nextMaps = { ...nextMaterialSettings.maps };
-          let mapsChanged = false;
+      // Note: All textures are directly embedded in the exported binary GLB via GLTFExporter (embedImages: true),
+      // so separate texture uploads to 3D_Models/Textures are not needed.
 
-          for (const [mapType, url] of Object.entries(nextMaps)) {
-              if (url && typeof url === 'string' && url.startsWith('blob:')) {
-                  try {
-                      // Extract true blob URL (remove fragments)
-                      const blobUrl = url.split('#')[0];
-                      const blobResponse = await fetch(blobUrl);
-                      const blob = await blobResponse.blob();
-                      
-                      const formData = new FormData();
-                      formData.append('emailId', user.emailId);
-                      formData.append('texture', blob, `texture_${mapType}_${Date.now()}.png`);
-                      
-                      const uploadRes = await axios.post(`${backendUrl}/api/3d-models/upload-texture`, formData, {
-                          headers: { 'Content-Type': 'multipart/form-data' }
-                      });
-                      
-                      if (uploadRes.data && uploadRes.data.url) {
-                          const rawUrl = uploadRes.data.url;
-                          const resolvedTexUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
-                              ? rawUrl
-                              : `${backendUrl}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
-                          nextMaps[mapType] = resolvedTexUrl;
-                          mapsChanged = true;
-                      }
-                  } catch (e) {
-                      console.error(`Failed to upload texture map ${mapType}:`, e);
-                  }
-              }
-          }
-          if (mapsChanged) {
-              nextMaterialSettings.maps = nextMaps;
-              if (nextMaterialSettings.appliedTexture) {
-                  nextMaterialSettings.appliedTexture = {
-                      ...nextMaterialSettings.appliedTexture,
-                      maps: { ...(nextMaterialSettings.appliedTexture.maps || {}), ...nextMaps }
-                  };
-              }
-              setMaterialSettings(nextMaterialSettings);
-          }
-      }
 
 
 
@@ -1191,6 +1164,17 @@ export default function ThreedEditor() {
                   // Strip empty/corrupt meshes with no position attribute
                   if (obj.isMesh || obj.isLine || obj.isPoints) {
                       if (!obj.geometry || !obj.geometry.attributes || !obj.geometry.attributes.position || !obj.geometry.attributes.position.array || obj.geometry.attributes.position.count === 0) {
+                          toRemove.push(obj);
+                          return;
+                      }
+                  }
+
+                  // Strip deleted meshes physically before exporting to GLB!
+                  if (deletedMaterials && deletedMaterials.size > 0 && (obj.isMesh || obj.isLine || obj.isPoints)) {
+                      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                      const isDeleted = deletedMaterials.has(obj.uuid) ||
+                                        mats.some(m => m?.name && deletedMaterials.has(m.name));
+                      if (isDeleted) {
                           toRemove.push(obj);
                           return;
                       }
@@ -2679,29 +2663,71 @@ export default function ThreedEditor() {
   }, [modelStatsMap, modelStats?.fileSize, models]);
 
   const activeMaterialList = useMemo(() => {
+      const isNodeDeleted = (n) => {
+          if (!n || !deletedMaterials || deletedMaterials.size === 0) return false;
+          if (typeof n === 'string') return deletedMaterials.has(n);
+          if (n.uuid && deletedMaterials.has(n.uuid)) return true;
+          if (n.meshUuid && deletedMaterials.has(n.meshUuid)) return true;
+          if (n.id && deletedMaterials.has(n.id)) return true;
+          if (n.isMesh) {
+              // A mesh is deleted if and only if its unique uuid/meshUuid/id was deleted
+              return false;
+          }
+          if (n.name && deletedMaterials.has(n.name)) return true;
+          if (n.material && deletedMaterials.has(n.material)) return true;
+          if (Array.isArray(n.materials) && n.materials.length > 0 && n.materials.every(m => deletedMaterials.has(typeof m === 'string' ? m : (m?.name || m)))) {
+              return true;
+          }
+          return false;
+      };
+
+      const filterTreeNodes = (nodes) => {
+          if (!Array.isArray(nodes)) return [];
+          const filtered = [];
+          for (const node of nodes) {
+              if (isNodeDeleted(node)) continue;
+              if (Array.isArray(node.children) && node.children.length > 0) {
+                  const cleanedChildren = filterTreeNodes(node.children);
+                  if (node.isGroup && cleanedChildren.length === 0) {
+                      continue;
+                  }
+                  filtered.push({ ...node, children: cleanedChildren });
+              } else {
+                  filtered.push(node);
+              }
+          }
+          return filtered;
+      };
+
       const result = [];
       models.forEach(model => {
           const rawList = modelMaterialLists[model.id] || [];
           if (Array.isArray(rawList) && rawList.length > 0) {
+              const cleanedTree = filterTreeNodes(rawList);
               const matNames = new Set();
               const findMats = (node) => {
                   if (!node) return;
-                  if (typeof node === 'string') { matNames.add(node); return; }
-                  if (typeof node.material === 'string') matNames.add(node.material);
+                  if (typeof node === 'string') {
+                      if (!deletedMaterials.has(node)) matNames.add(node);
+                      return;
+                  }
+                  if (typeof node.material === 'string' && !deletedMaterials.has(node.material)) {
+                      matNames.add(node.material);
+                  }
                   if (Array.isArray(node.materials)) {
                       node.materials.forEach(m => {
-                          if (typeof m === 'string') matNames.add(m);
-                          else if (m && typeof m.name === 'string') matNames.add(m.name);
+                          const mName = typeof m === 'string' ? m : (m?.name || m);
+                          if (mName && !deletedMaterials.has(mName)) matNames.add(mName);
                       });
                   }
                   if (Array.isArray(node.children)) node.children.forEach(findMats);
               };
-              rawList.forEach(findMats);
+              cleanedTree.forEach(findMats);
 
               result.push({
                   id: model.id,
                   group: model.name,
-                  tree: rawList,
+                  tree: cleanedTree,
                   materials: Array.from(matNames)
               });
           }
@@ -2748,79 +2774,236 @@ export default function ThreedEditor() {
     }
   }, [selectedMaterial, modelName, setIsSidebarCollapsed]);
 
-  const handleDeleteMaterial = useCallback((matName) => {
-      // Soft-delete by adding to state only. This allows undo/redo to work reliably
-      // without physically removing objects from the 3D scene graph.
+  const handleDeleteModel = useCallback((modelId) => {
+      const modelToDelete = models.find(m => m.id === modelId || m.name === modelId);
+      const targetId = modelToDelete ? modelToDelete.id : (modelId || models[0]?.id);
+      if (!targetId && models.length === 0) return;
+      
+      const nextModels = targetId ? models.filter(m => m.id !== targetId) : [];
+      setModels(nextModels);
+      
+      const nextMaterialLists = { ...modelMaterialLists };
+      if (targetId) delete nextMaterialLists[targetId];
+      else Object.keys(nextMaterialLists).forEach(k => delete nextMaterialLists[k]);
+      setModelMaterialLists(nextMaterialLists);
+
+      const nextStatsMap = { ...modelStatsMap };
+      if (targetId) delete nextStatsMap[targetId];
+      else Object.keys(nextStatsMap).forEach(k => delete nextStatsMap[k]);
+      setModelStatsMap(nextStatsMap);
+
+      setModelHasAnimationsMap(prev => {
+          if (!targetId) return {};
+          if (!prev[targetId]) return prev;
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+      });
+
+      setSelectedMaterial(null);
+
+      commitHistoryNow(buildSnapshot({
+          models: nextModels,
+          modelMaterialLists: nextMaterialLists,
+          selectedMaterial: null
+      }));
+  }, [models, modelMaterialLists, modelStatsMap, commitHistoryNow, buildSnapshot]);
+
+  const handleDeleteMaterial = useCallback((matTarget) => {
       const next = new Set(deletedMaterials);
-      next.add(matName);
+      
+      const addKeys = (item) => {
+          if (!item) return;
+          if (typeof item === 'string') { next.add(item); return; }
+
+          const isSingleMesh = item.isMesh || (!item.isGroup && !item.isAll && !item.isModel && (item.uuid || item.meshUuid));
+
+          if (isSingleMesh) {
+              // Strictly delete ONLY this single mesh by unique UUID/ID
+              if (item.uuid) next.add(item.uuid);
+              if (item.meshUuid) next.add(item.meshUuid);
+              if (item.id) next.add(item.id);
+              return;
+          }
+
+          if (item.uuid) next.add(item.uuid);
+          if (item.meshUuid) next.add(item.meshUuid);
+          if (item.id) next.add(item.id);
+          if (Array.isArray(item.items)) item.items.forEach(addKeys);
+          if (Array.isArray(item.uuids)) item.uuids.forEach(u => next.add(u));
+          if (Array.isArray(item.materials)) item.materials.forEach(addKeys);
+          if (Array.isArray(item.children)) item.children.forEach(addKeys);
+          if (Array.isArray(item.meshNames)) item.meshNames.forEach(addKeys);
+
+          // Only add material name if this item is explicitly a material object/group and NOT a mesh
+          if (!item.isMesh && item.material && typeof item.material === 'string') {
+              next.add(item.material);
+          }
+      };
+
+      if (Array.isArray(matTarget)) {
+          matTarget.forEach(addKeys);
+      } else {
+          addKeys(matTarget);
+      }
+
       setDeletedMaterials(next);
 
-      // Automatically select full model after deletion without blink
-      const nextSel = modelName ? { name: modelName, parentGroup: modelName, noBlink: true } : null;
-      if (modelName) {
-          setSelectedMaterial(nextSel);
-      }
+      // Automatically clear selection after deletion
+      setSelectedMaterial(null);
 
       commitHistoryNow(buildSnapshot({
           deletedMaterials: Array.from(next),
           materialSettings: materialSettings,
-          selectedMaterial: nextSel
+          selectedMaterial: null
       }));
-  }, [deletedMaterials, materialSettings, commitHistoryNow, buildSnapshot, modelName]);
+  }, [deletedMaterials, materialSettings, commitHistoryNow, buildSnapshot]);
+
+  const handleSelectAllMeshes = useCallback(() => {
+      if (models.length === 0) return;
+
+      const allMaterials = [];
+      const allUuids = [];
+      const allMeshNames = [];
+
+      // Collect from live sceneWrapper if available
+      if (sceneWrapperRef.current) {
+          sceneWrapperRef.current.traverse((child) => {
+              if ((child.isMesh || child.isSkinnedMesh) && child.material && !deletedMaterials.has(child.uuid)) {
+                  if (child.uuid) allUuids.push(child.uuid);
+                  if (child.name) allMeshNames.push(child.name);
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((m) => {
+                      if (m?.name) allMaterials.push(m.name);
+                  });
+              }
+          });
+      }
+
+      // Collect from modelMaterialLists
+      models.forEach((model) => {
+          const rawList = modelMaterialLists[model.id] || [];
+          const findMats = (node) => {
+              if (!node) return;
+              if (node.uuid && !deletedMaterials.has(node.uuid)) allUuids.push(node.uuid);
+              if (node.meshUuid && !deletedMaterials.has(node.meshUuid)) allUuids.push(node.meshUuid);
+              if (node.name) allMeshNames.push(node.name);
+              if (node.material) allMaterials.push(node.material);
+              if (Array.isArray(node.materials)) {
+                  node.materials.forEach((m) => allMaterials.push(typeof m === 'string' ? m : (m?.name || m)));
+              }
+              if (Array.isArray(node.children)) node.children.forEach(findMats);
+          };
+          rawList.forEach(findMats);
+      });
+
+      const uniqueMats = Array.from(new Set(allMaterials)).filter((m) => !deletedMaterials.has(m));
+      const uniqueUuids = Array.from(new Set(allUuids));
+      const uniqueNames = Array.from(new Set(allMeshNames));
+
+      setSelectedMaterial({
+          name: modelName || "All Meshes",
+          parentGroup: modelName,
+          isAll: true,
+          isGroup: true,
+          isMultiSelect: true,
+          uuids: uniqueUuids,
+          meshNames: uniqueNames,
+          materials: uniqueMats,
+          ts: Date.now()
+      });
+  }, [models, modelMaterialLists, deletedMaterials, modelName]);
+
+  const handleDeleteCurrentSelection = useCallback(() => {
+      if (!selectedMaterial) {
+          // If nothing is explicitly selected, delete active model
+          if (models.length > 0) {
+              handleDeleteModel(models[0]?.id);
+          }
+          return;
+      }
+
+      if (selectedMaterial.isAll) {
+          // All meshes selected -> delete model
+          if (models.length > 0) {
+              handleDeleteModel(models[0]?.id);
+          } else {
+              handleDeleteMaterial(selectedMaterial);
+          }
+          return;
+      }
+
+      if (selectedMaterial.isGroup || selectedMaterial.isMultiSelect || Array.isArray(selectedMaterial.items) || Array.isArray(selectedMaterial.uuids)) {
+          handleDeleteMaterial(selectedMaterial);
+          return;
+      }
+
+      const matName = selectedMaterial.name;
+      if (matName === modelName || matName === "Scene") {
+          // Delete entire model
+          handleDeleteModel(models[0]?.id || matName);
+      } else {
+          // Delete single material / mesh
+          handleDeleteMaterial(selectedMaterial);
+      }
+  }, [selectedMaterial, models, modelName, handleDeleteModel, handleDeleteMaterial]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't trigger if user is typing in an input or textarea
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      // Don't trigger if user is typing in an input, textarea, or contentEditable element
+      if (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'TEXTAREA' ||
+        e.target.isContentEditable ||
+        e.target.closest?.('input, textarea, [contenteditable="true"]')
+      ) {
+        return;
+      }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      const keyLower = e.key.toLowerCase();
+
+      if ((e.ctrlKey || e.metaKey) && keyLower === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
           handleRedo();
         } else {
           handleUndo();
         }
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      } else if ((e.ctrlKey || e.metaKey) && keyLower === 'y') {
         e.preventDefault();
         handleRedo();
-      } else if (e.key.toLowerCase() === 'h') {
+      } else if (keyLower === 'a' && !e.altKey) {
+        // Pressing 'A' or 'Ctrl+A' selects all meshes in the scene
+        e.preventDefault();
+        handleSelectAllMeshes();
+      } else if (e.key === 'Escape') {
+        // Pressing 'Escape' deselects all
+        setSelectedMaterial(null);
+      } else if (keyLower === 'h') {
         if (selectedMaterial && selectedMaterial.name) {
           e.preventDefault();
           const matName = selectedMaterial.name;
           const isCurrentlyHidden = hiddenMaterials.has(matName);
           handleToggleVisibility(matName, isCurrentlyHidden);
         }
-      } else if (e.key.toLowerCase() === 'd') {
-        if (selectedMaterial && selectedMaterial.name) {
-          if (selectedMaterial.isGroup) {
-              // Delete multiple materials
-              e.preventDefault();
-              if (selectedMaterial.materials) {
-                  selectedMaterial.materials.forEach(m => handleDeleteMaterial(m));
-              }
-              // Selection is handled by the last handleDeleteMaterial call or we can do it explicitly here
-              if (modelName) setSelectedMaterial({ name: modelName, parentGroup: modelName });
-          } else {
-              const matName = selectedMaterial.name;
-              if (matName === modelName) {
-                  // Delete entire model
-                  e.preventDefault();
-                  handleDeleteModel(matName);
-                  setSelectedMaterial(null);
-              } else if (matName !== "Scene") {
-                  // Delete single material
-                  e.preventDefault();
-                  handleDeleteMaterial(matName);
-                  // Selection update is handled inside handleDeleteMaterial
-              }
-          }
-        }
+      } else if (e.key === 'Delete' || e.key === 'Del' || keyLower === 'delete' || e.key === 'Backspace' || keyLower === 'd') {
+        // Pressing Delete key (or Backspace / 'd') deletes the selected model or mesh
+        e.preventDefault();
+        handleDeleteCurrentSelection();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, selectedMaterial, hiddenMaterials, handleToggleVisibility, handleDeleteMaterial, modelName]);
+  }, [
+    handleUndo,
+    handleRedo,
+    handleSelectAllMeshes,
+    handleDeleteCurrentSelection,
+    selectedMaterial,
+    hiddenMaterials,
+    handleToggleVisibility,
+  ]);
 
   const handleRename = useCallback(async (newName) => {
     if (!newName || !newName.trim()) return;
@@ -2970,38 +3153,7 @@ export default function ThreedEditor() {
       }
   }, [models, selectedMaterial, modelMaterialLists, commitHistoryNow, buildSnapshot]);
 
-  const handleDeleteModel = useCallback((modelId) => {
-      const modelToDelete = models.find(m => m.id === modelId);
-      // We don't revoke URL immediately here to allow UNDOing the deletion
-      // if (modelToDelete && modelToDelete.url) URL.revokeObjectURL(modelToDelete.url);
-      
-      const nextModels = models.filter(m => m.id !== modelId);
-      setModels(nextModels);
-      
-      const nextMaterialLists = { ...modelMaterialLists };
-      delete nextMaterialLists[modelId];
-      setModelMaterialLists(nextMaterialLists);
 
-      const nextStatsMap = { ...modelStatsMap };
-      delete nextStatsMap[modelId];
-      setModelStatsMap(nextStatsMap);
-
-      setModelHasAnimationsMap(prev => {
-          if (!prev[modelId]) return prev;
-          const next = { ...prev };
-          delete next[modelId];
-          return next;
-      });
-
-      if (selectedMaterial && modelToDelete && selectedMaterial.parentGroup === modelToDelete.name) {
-          setSelectedMaterial(null);
-      }
-
-      commitHistoryNow(buildSnapshot({
-          models: nextModels,
-          modelMaterialLists: nextMaterialLists
-      }));
-  }, [models, selectedMaterial, modelMaterialLists, modelStatsMap, commitHistoryNow, buildSnapshot]);
 
   const updateMaterialSetting = useCallback((key, val, fromSync = false) => {
     setMaterialSettings((prev) => {
@@ -3197,6 +3349,9 @@ export default function ThreedEditor() {
     setMaterialSettings(prev => {
         const nextMaps = { ...(prev.maps || {}), [mapType]: url };
         let next = { ...prev, maps: nextMaps, useFactorColor: true, lastChangedProp: 'maps' };
+        
+        // Set default texture scale to 50% when applying a map manually
+        if (mapType === 'map' || !prev.maps?.map) next.scale = 50;
         
         // Auto-set factors to 100% for maps that are multipliers (Standard Material behavior)
         if (mapType === 'map') next.color = '#ffffff';
@@ -3490,8 +3645,10 @@ export default function ThreedEditor() {
     setSelectedTexture(null);
     setIsSidebarCollapsed(true);
     
-    // Clear URL ID
-    navigate("/editor/threed_editor");
+    // Clear 3D model scene refs & URL ID
+    if (modelRefs.current) modelRefs.current.clear();
+    if (modelRef.current) modelRef.current = null;
+    navigate("/editor/threed_editor", { replace: true });
 
     setModelStats({
         vertexCount: "0",
@@ -3795,7 +3952,7 @@ export default function ThreedEditor() {
                next.bump = 0;
                next.ao = 100;
                next.color = '#ffffff';
-               next.scale = 4;
+               next.scale = 50;
                next.useFactorColor = true;
                next.lastChangedProp = 'appliedTexture';
            }
@@ -3839,31 +3996,81 @@ export default function ThreedEditor() {
 
       // Multi-selection with toggle behavior
       setSelectedMaterial(prev => {
-          const prevNames = getNames(prev);
-          const nextNames = getNames(target);
-          
           if (isShift && prev) {
-              // If shift is held, toggle the clicked material in/out of the selection
-              const allPresent = nextNames.every(name => prevNames.includes(name));
-              
-              let combined;
-              if (allPresent) {
-                  // REMOVE: If clicking a material that is already part of the selection, remove it
-                  combined = prevNames.filter(name => !nextNames.includes(name));
-              } else {
-                  // ADD: Otherwise add it
-                  combined = Array.from(new Set([...prevNames, ...nextNames]));
+              // Extract existing items from prev selection
+              let prevItems = [];
+              if (Array.isArray(prev.items) && prev.items.length > 0) {
+                  prevItems = [...prev.items];
+              } else if (prev.uuid || prev.meshUuid) {
+                  prevItems = [{
+                      uuid: prev.uuid || prev.meshUuid,
+                      meshUuid: prev.meshUuid || prev.uuid,
+                      name: prev.name,
+                      meshName: prev.meshName || prev.name,
+                      material: prev.material,
+                      isMesh: true
+                  }];
+              } else if (Array.isArray(prev.materials)) {
+                  prevItems = prev.materials.map(m => ({
+                      name: typeof m === 'string' ? m : (m?.name || ''),
+                      material: typeof m === 'string' ? m : (m?.material || m?.name || ''),
+                      isMesh: false
+                  }));
+              } else if (prev.name) {
+                  prevItems = [{ name: prev.name, isMesh: false }];
               }
 
-              if (combined.length === 0) return null;
-              if (combined.length === 1) {
-                  return { name: combined[0], ts: Date.now() };
+              const targetUuid = target.uuid || target.meshUuid || null;
+              const targetName = target.meshName || target.name || null;
+
+              // Check if target is already in the selection (by UUID or name)
+              const existingIdx = prevItems.findIndex(it => {
+                  const itUuid = it.uuid || it.meshUuid;
+                  if (targetUuid && itUuid) return itUuid === targetUuid;
+                  const itName = it.meshName || it.name;
+                  if (targetName && itName) return itName === targetName;
+                  return false;
+              });
+
+              let nextItems = [];
+              if (existingIdx >= 0) {
+                  // REMOVE (toggle off)
+                  nextItems = prevItems.filter((_, idx) => idx !== existingIdx);
+              } else {
+                  // ADD (toggle on)
+                  nextItems = [
+                      ...prevItems,
+                      {
+                          uuid: targetUuid,
+                          meshUuid: targetUuid,
+                          name: target.name,
+                          meshName: target.meshName || target.name,
+                          material: target.material,
+                          isMesh: true
+                      }
+                  ];
               }
-              
+
+              if (nextItems.length === 0) return null;
+              if (nextItems.length === 1) {
+                  return {
+                      ...nextItems[0],
+                      ts: Date.now()
+                  };
+              }
+
+              const allUuids = Array.from(new Set(nextItems.map(it => it.uuid || it.meshUuid).filter(Boolean)));
+              const allMeshNames = Array.from(new Set(nextItems.map(it => it.meshName || it.name).filter(Boolean)));
+              const allMaterials = Array.from(new Set(nextItems.map(it => typeof it.material === 'string' ? it.material : it.material?.name).filter(Boolean)));
+
               return {
                   name: "Multiple Selection",
                   isGroup: true,
-                  materials: combined,
+                  isMultiSelect: true,
+                  items: nextItems,
+                  uuids: allUuids,
+                  meshNames: allMeshNames,
+                  materials: allMaterials,
                   ts: Date.now()
               };
           }
@@ -4187,14 +4394,24 @@ export default function ThreedEditor() {
             </div>
           )}
 
-          {/* Dynamic sun position: only adjusts when adjusting sunlight */}
+          {/* Dynamic sun position: accurately maps compass azimuth to 360° horizontal orbit around model */}
           {(() => {
             const rawX = materialSettings.lightPosition?.x ?? 10;
-            const rawY = materialSettings.lightPosition?.y ?? 12;
+            const rawY = materialSettings.lightPosition?.y ?? 10;
             const rawZ = materialSettings.lightPosition?.z ?? 10;
-            const sunX = rawX;
-            const sunY = Math.max(1.5, Math.abs(rawY));
-            const sunZ = rawZ;
+
+            // Full 360° Sun Rotation Mapping:
+            // Compass Pad / Steppers (Ground Plane & Height):
+            // - rawX: East (+) / West (-)
+            // - rawY: North (+) / South (-)
+            // - rawZ: Height above ground
+            // Three.js 3D Coordinate Space:
+            // - X = rawX (East: +X, West: -X)
+            // - Y = Math.max(1.5, rawZ) (Elevation/height above floor)
+            // - Z = -rawY (North: -Z behind model, South: +Z in front of model)
+            const sunX = Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001 ? 0.01 : rawX;
+            const sunY = Math.max(1.5, rawZ);
+            const sunZ = -(Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001 ? 0.01 : rawY);
 
             return (
               <div className="flex-1 h-full w-full">
@@ -4263,7 +4480,8 @@ export default function ThreedEditor() {
                         transformValues={transformValues}
                         meshTransforms={meshTransformsState}
                         materialSettings={materialSettings}
-                        hiddenMaterials={new Set([...hiddenMaterials, ...deletedMaterials])}
+                        hiddenMaterials={hiddenMaterials}
+                        deletedMaterials={deletedMaterials}
                         onUpdateMaterialSetting={handleMaterialSync}
                         selectedTexture={selectedTexture}
                         resetKey={resetKey}
@@ -4303,60 +4521,19 @@ export default function ThreedEditor() {
 
               </Suspense>
 
-              {/* Clean sparse grid with reduced opacity */}
+              {/* Blender-style Infinite Procedural Grid with Horizon Fade & Integrated Axes */}
               {settings.grid && !isCapturing && (
-                <gridHelper
-                  args={[30, 15, 0x555566, 0x3a3a4a]}
-                  position={[0, 0.001, 0]}
-                  renderOrder={-1}
-                  raycast={() => null}
-                >
-                  <lineBasicMaterial
-                    attach="material"
-                    transparent
-                    opacity={0.28}
-                    depthWrite={false}
-                  />
-                </gridHelper>
-              )}
-
-              {/* Subtle axis indicators: X = red, Z = teal */}
-              {settings.grid && !isCapturing && (
-                <group position={[0, 0.002, 0]}>
-                  {/* X Axis */}
-                  <line raycast={() => null}>
-                    <bufferGeometry attach="geometry">
-                      <bufferAttribute
-                        attach="attributes-position"
-                        count={2}
-                        array={new Float32Array([-15, 0, 0, 15, 0, 0])}
-                        itemSize={3}
-                      />
-                    </bufferGeometry>
-                    <lineBasicMaterial attach="material" color={0xee4444} transparent opacity={0.55} depthWrite={false} />
-                  </line>
-                  {/* Z Axis */}
-                  <line raycast={() => null}>
-                    <bufferGeometry attach="geometry">
-                      <bufferAttribute
-                        attach="attributes-position"
-                        count={2}
-                        array={new Float32Array([0, 0, -15, 0, 0, 15])}
-                        itemSize={3}
-                      />
-                    </bufferGeometry>
-                    <lineBasicMaterial attach="material" color={0x44bbaa} transparent opacity={0.55} depthWrite={false} />
-                  </line>
-                </group>
+                <BlenderInfiniteGrid />
               )}
 
               {/* DYNAMIC SUN SHADOW CATCHER PLANE: 
                   When base is disabled (default / grid view), this transparent plane receives the dynamic sun shadow directly on the grid/floor.
+                  Placed at Y = -0.003 with polygonOffset so it never z-fights or overlays false shadows on model floors at Y = 0.
               */}
               {!settings.base && !isCapturing && (
                 <mesh 
                   rotation={[-Math.PI / 2, 0, 0]} 
-                  position={[0, 0, 0]} 
+                  position={[0, -0.003, 0]} 
                   receiveShadow
                   onClick={(e) => {
                     // If a model mesh was clicked in front of the ground plane, do not clear selection
@@ -4378,6 +4555,9 @@ export default function ThreedEditor() {
                     transparent 
                     opacity={Math.min(1, Math.max(0, (materialSettings.shadow ?? 50) / 100))} 
                     depthWrite={false} 
+                    polygonOffset
+                    polygonOffsetFactor={1}
+                    polygonOffsetUnits={1}
                   />
                 </mesh>
               )}
@@ -4385,7 +4565,7 @@ export default function ThreedEditor() {
               {settings.base && !isCapturing && (
                  <mesh 
                     rotation={[-Math.PI / 2, 0, 0]} 
-                    position={[0, -0.01, 0]} 
+                    position={[0, -0.005, 0]} 
                     receiveShadow
                     onClick={(e) => {
                       // If a model mesh was clicked in front of the base plane, do not clear selection
@@ -4403,7 +4583,7 @@ export default function ThreedEditor() {
                     }}
                  >
                     <planeGeometry args={[120, 120]} />
-                    <meshStandardMaterial color={settings.baseColor} roughness={0.8} />
+                    <meshStandardMaterial color={settings.baseColor} roughness={0.8} side={THREE.DoubleSide} />
                  </mesh>
               )}
 
@@ -4537,6 +4717,7 @@ export default function ThreedEditor() {
                   onClose={() => setShowModelGalleryModal(false)}
                   onSelectModel={handleSelectGalleryModel}
                   loadedModels={models}
+                  onClearModel={handleClearModel}
               />
           )}
 

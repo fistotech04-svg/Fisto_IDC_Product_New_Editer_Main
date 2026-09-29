@@ -986,6 +986,10 @@ export default function Customized({
   const [pickerPos, setPickerPos] = useState({ top: 0, right: 0 });
   const lightPadRef = useRef(null);
   const [isDraggingLight, setIsDraggingLight] = useState(false);
+  const controlsRef = useRef(controls);
+  useEffect(() => {
+    controlsRef.current = controls;
+  }, [controls]);
 
   const currentGalleryTexture = useMemo(() => {
     if (!selectedTextureId) return null;
@@ -1041,8 +1045,8 @@ export default function Customized({
       const dy = clientY - centerY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
-      // Limit sun inside the rounded structure (max radius 78% leaves safe margin so sun icon never moves out)
-      const maxVisualRadius = radius * 0.78;
+      // Visual orbit radius matches maxVisualPercent (38% of dome width = radius * 0.76)
+      const maxVisualRadius = radius * 0.76;
       let clampedDx = dx;
       let clampedDy = dy;
       
@@ -1057,21 +1061,25 @@ export default function Customized({
       const normY = clampedDy / maxVisualRadius;
       
       const newX = normX * MAX_COORD;
-      const newY = -normY * MAX_COORD; // Screen up is positive Y
+      const newY = -normY * MAX_COORD; // Screen up is positive Y (North)
       
+      const currentPos = controlsRef.current?.lightPosition || controls.lightPosition || { x: 10, y: 10, z: 10 };
       updateControl('lightPosition', { 
-          ...(controls.lightPosition || { x: 10, y: 10, z: 10 }), 
-          x: Math.round(newX), 
-          y: Math.round(newY) 
+          ...currentPos, 
+          x: Math.round(newX * 10) / 10, 
+          y: Math.round(newY * 10) / 10 
       });
   };
 
   const handleLightWheel = (e) => {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -1 : 1;
+      const currentPos = controlsRef.current?.lightPosition || controls.lightPosition || { x: 10, y: 10, z: 10 };
+      const currentZ = currentPos.z ?? 10;
+      const newZ = Math.max(1, Math.min(50, Math.round(currentZ + delta)));
       updateControl('lightPosition', {
-          ...(controls.lightPosition || { x: 10, y: 10, z: 10 }),
-          z: Math.round((controls.lightPosition?.z || 10) + delta)
+          ...currentPos,
+          z: newZ
       });
   };
 
@@ -1343,7 +1351,7 @@ export default function Customized({
                 <div className="space-y-[0.5vw] mt-[0.5vw]">
                     <CustomSlider
                         label="Scale"
-                        value={controls.scale ?? 100}
+                        value={controls.scale ?? 50}
                         onChange={(v) => updateControl("scale", v)}
                         min={1}
                         max={200}
@@ -1601,9 +1609,9 @@ export default function Customized({
                       value={Math.round(controls.lightPosition?.z || 10)} 
                       axisLabel="Z" 
                       compact 
-                      min={-50}
+                      min={1}
                       max={50}
-                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, z: val })}
+                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, z: Math.max(1, val) })}
                       step={1}
                   />
               </div>
