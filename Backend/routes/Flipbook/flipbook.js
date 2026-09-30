@@ -411,6 +411,19 @@ router.post("/upload-3d-model", (req, res) => {
         } catch (e) {}
       }
 
+      // ── Resolve hotspots & displayName ─────────────────────────────────────
+      let hotspots = [];
+      if (req.body.hotspots) {
+        try {
+          hotspots = typeof req.body.hotspots === 'string' ? JSON.parse(req.body.hotspots) : req.body.hotspots;
+        } catch (e) {}
+      } else if (req.body.sourceModelId) {
+        try {
+          const src = await ThreedModel.findOne({ modelId: req.body.sourceModelId }) || await InteractionThreedModel.findOne({ v_id: req.body.sourceModelId });
+          if (src && src.hotspots) hotspots = src.hotspots;
+        } catch (e) {}
+      }
+
       // ── Save to InteractionThreedModel for flipbook-specific record ────────
       const newInteractionModel = await InteractionThreedModel.create({
         v_id: nanoid(20),
@@ -419,9 +432,11 @@ router.post("/upload-3d-model", (req, res) => {
         flipbookName,
         folderName,
         fileName: req.file.filename,
+        displayName: req.body.displayName || null,
         url: relativeUrl,
         size: sizeStr,
         type: type,
+        hotspots: Array.isArray(hotspots) ? hotspots : []
       });
 
       // ── Also copy to user's global 3D_Modals in Supabase ──────────────────────
@@ -443,9 +458,11 @@ router.post("/upload-3d-model", (req, res) => {
           await ThreedModel.create({
             userEmail: emailId,
             name: req.file.filename,
+            displayName: req.body.displayName || null,
             url: globalUrl,
             type,
             size: sizeStr,
+            hotspots: Array.isArray(hotspots) ? hotspots : []
           });
         }
       }
@@ -461,6 +478,8 @@ router.post("/upload-3d-model", (req, res) => {
         globalUrl,              // absolute path in 3D_Modals gallery
         filename: req.file.filename,
         v_id: newInteractionModel.v_id,
+        displayName: newInteractionModel.displayName,
+        hotspots: newInteractionModel.hotspots || []
       });
     } catch (error) {
       if (req.file && fs.existsSync(req.file.path)) {

@@ -12,7 +12,12 @@ export default function EditorToolbar({
     onAddClick,
     onGalleryClick,
     onScreenshotClick,
-    isScreenshotOpen
+    isScreenshotOpen,
+    onAddHotspotClick,
+    hotspotCount = 0,
+    activeHotspotId = null,
+    rightPanelMode = 'edit',
+    onRightPanelModeChange
 }) {
     const isTransformEnabled = hasModel && Boolean(selectedMaterial);
     const [showSettings, setShowSettings] = useState(false);
@@ -20,14 +25,13 @@ export default function EditorToolbar({
     const handleModeToggle = (mode) => {
         if (!isTransformEnabled) return;
         if (transformMode === mode) {
-            setTransformMode(null); // Toggle off
+            setTransformMode(null);
         } else {
             setTransformMode(mode);
         }
     };
     const settingsRef = useRef(null);
 
-    // Close settings when clicking outside
     useEffect(() => {
         function handleClickOutside(event) {
             if (settingsRef.current && !settingsRef.current.contains(event.target)) {
@@ -51,7 +55,6 @@ export default function EditorToolbar({
                     ref={settingsRef}
                     className="absolute right-[3.5vw] top-[5vw] w-[16vw] bg-white rounded-[0.75vw] shadow-xl border border-gray-100 p-[1vw] animate-in fade-in slide-in-from-right-4 duration-200"
                 >
-                    {/* Header */}
                     <div className="flex items-center justify-between mb-[1.25vw]">
                         <div className="flex items-center gap-[0.5vw]">
                              <Icon icon="heroicons:cog-6-tooth" width="1vw" height="1vw" className="text-gray-800" />
@@ -65,7 +68,6 @@ export default function EditorToolbar({
                         </button>
                     </div>
 
-                    {/* Toggles */}
                     <div className="space-y-[1vw] pt-[0.5vw]">
                         <ToggleRow 
                             label="Grid lines" 
@@ -79,7 +81,6 @@ export default function EditorToolbar({
                         />
                     </div>
 
-                    {/* Clear Model Action */}
                     <div className="pt-[1vw] mt-[1vw] border-t border-gray-100">
                         <button
                             onClick={() => {
@@ -92,26 +93,27 @@ export default function EditorToolbar({
                             Clear 3D Model
                         </button>
                     </div>
-
-
                 </div>
             )}
 
             {/* MAIN TOOLBAR */}
             <div className="w-[3vw] bg-white rounded-[0.75vw] border-2 border-gray-300 py-[0.25vw] flex flex-col items-center gap-[0.5vw] shadow-sm">
-                <ToolbarButton icon="material-symbols:add-rounded" enabled onClick={onAddClick} />
-                <ToolbarButton icon="solar:gallery-wide-outline" enabled onClick={onGalleryClick} />
+                <ToolbarButton icon="material-symbols:add-rounded" enabled onClick={onAddClick} title="Add Model" />
+                <ToolbarButton icon="solar:gallery-wide-outline" enabled onClick={onGalleryClick} title="Model Gallery" />
+
                 <ToolbarButton 
                     icon="solar:camera-outline" 
                     enabled={hasModel} 
                     active={isScreenshotOpen}
                     onClick={onScreenshotClick}
+                    title="Capture Screenshot"
                 />
                 <ToolbarButton 
                     icon="heroicons:cog-6-tooth" 
                     enabled
                     active={showSettings}
                     onClick={() => setShowSettings(!showSettings)}
+                    title="Settings"
                 />
             </div>
 
@@ -123,19 +125,55 @@ export default function EditorToolbar({
                         active={transformMode === 'translate'}
                         onClick={() => handleModeToggle('translate')}
                         enabled={isTransformEnabled}
+                        title="Translate / Move Mesh"
                     />
                     <ToolbarButton 
                         icon="mdi:rotate-orbit" 
                         active={transformMode === 'rotate'}
                         onClick={() => handleModeToggle('rotate')}
                         enabled={isTransformEnabled}
+                        title="Rotate Mesh"
                     />
                     <ToolbarButton 
                         icon="solar:scale-outline" 
                         active={transformMode === 'scale'}
                         onClick={() => handleModeToggle('scale')}
                         enabled={isTransformEnabled}
+                        title="Scale Mesh"
                     />
+                </div>
+            )}
+
+            {/* THIRD TOOLBAR: MODE SWITCHER (EDIT MODE vs HOTSPOT MODE) */}
+            {hasModel && (
+                <div className="w-[3vw] bg-white rounded-[0.75vw] border-2 border-gray-300 py-[0.25vw] flex flex-col items-center gap-[0.5vw] animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm">
+                    {/* Edit Mode Button */}
+                    <ToolbarButton 
+                        icon="solar:pen-new-square-linear" 
+                        active={rightPanelMode === 'edit'}
+                        onClick={() => onRightPanelModeChange && onRightPanelModeChange('edit')}
+                        enabled={true}
+                        title="Edit Mode: Materials & Lighting"
+                    />
+                    {/* Hotspot Mode Button */}
+                    <div className="relative">
+                        <ToolbarButton 
+                            icon="solar:map-point-wave-bold-duotone" 
+                            active={rightPanelMode === 'hotspot'}
+                            onClick={() => onRightPanelModeChange && onRightPanelModeChange('hotspot')}
+                            enabled={true}
+                            title="Hotspot Mode: 3D Hotspot List"
+                        />
+                        {hotspotCount > 0 && (
+                            <span
+                                className={`absolute -top-[0.25vw] -right-[0.25vw] min-w-[0.85vw] h-[0.85vw] rounded-full text-white text-[0.45vw] font-bold flex items-center justify-center px-[0.15vw] pointer-events-none leading-none ${
+                                    rightPanelMode === 'hotspot' ? "bg-red-500" : "bg-indigo-500"
+                                }`}
+                            >
+                                {hotspotCount}
+                            </span>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
