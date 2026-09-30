@@ -4,6 +4,7 @@ import { ChevronDown, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import QRCodeStyling from 'qr-code-styling';
 import ColorPicker from './ColorPicker';
+import axios from 'axios';
 
 export const CustomQRCode = React.forwardRef(({ 
     value,  
@@ -195,8 +196,42 @@ const Model3DEditor = ({
   enableAR, setEnableAR,
   qrText, setQrText, qrColor, setQrColor, qrBgType, setQrBgType, qrBgColor, setQrBgColor, qrLevel, setQrLevel, qrDotType, setQrDotType, qrCornerSquareType, setQrCornerSquareType, qrCornerDotType, setQrCornerDotType, qrLogo, setQrLogo,
   topText, setTopText, bottomText, setBottomText,
-  dataUrl, vId
+  dataUrl, vId,
+  hotspots = [],
+  activeHotspotId = null,
+  onHotspotClick
 }) => {
+  const [localHotspots, setLocalHotspots] = useState(hotspots || []);
+
+  useEffect(() => {
+    if (Array.isArray(hotspots) && hotspots.length > 0) {
+      setLocalHotspots(hotspots);
+    }
+  }, [hotspots]);
+
+  useEffect(() => {
+    if (typeof dataUrl === 'string' && dataUrl.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(dataUrl);
+        if (Array.isArray(parsed.hotspots) && parsed.hotspots.length > 0) {
+          setLocalHotspots(parsed.hotspots);
+        }
+      } catch (e) {}
+    }
+  }, [dataUrl]);
+
+  useEffect(() => {
+    if (vId) {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      axios.get(`${backendUrl}/api/3d-models/get-model/${vId}`)
+        .then(res => {
+          if (res.data && Array.isArray(res.data.hotspots) && res.data.hotspots.length > 0) {
+            setLocalHotspots(res.data.hotspots);
+          }
+        })
+        .catch(err => console.error("Failed to load hotspots in Model3DEditor:", err));
+    }
+  }, [vId]);
 
   useEffect(() => {
     if (bgColor === '#000000') {
@@ -338,6 +373,62 @@ const Model3DEditor = ({
               </div>
             </div>
         </div>
+      </div>
+
+      {/* 3D Hotspots Section */}
+      <div className="space-y-[0.75vw]">
+        <div className="flex items-center gap-[0.75vw]">
+          <h2 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">3D Hotspots</h2>
+          {localHotspots && localHotspots.length > 0 && (
+            <span className="bg-indigo-50 text-[#5145F6] border border-indigo-200 text-[0.7vw] font-bold px-[0.5vw] py-[0.1vw] rounded-full">
+              {localHotspots.length}
+            </span>
+          )}
+          <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+        </div>
+
+        {(!localHotspots || localHotspots.length === 0) ? (
+          <div className="p-[0.9vw] bg-gray-50/80 rounded-[0.5vw] border border-gray-100 text-center">
+            <span className="text-[0.75vw] text-gray-400 font-medium">No hotspots configured for this model</span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-[0.5vw] max-h-[16vw] overflow-y-auto no-scrollbar">
+            {localHotspots.map((hs, i) => {
+              const isSelected = activeHotspotId != null && (
+                String(activeHotspotId) === String(hs.id) ||
+                String(activeHotspotId) === String(hs.id || `hs_${i}`) ||
+                activeHotspotId === i
+              );
+              return (
+                <div
+                  key={hs.id || i}
+                  onClick={() => typeof onHotspotClick === 'function' && onHotspotClick(hs, i)}
+                  className={`flex items-center justify-between p-[0.7vw] rounded-[0.5vw] border bg-white transition-all cursor-pointer shadow-sm ${
+                    isSelected ? 'border-[#5145F6] ring-1 ring-[#5145F6]/40 bg-indigo-50/20' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  title="Click to view hotspot on 3D model"
+                >
+                  <div className="flex items-center gap-[0.6vw] min-w-0">
+                    <div
+                      className="w-[1.4vw] h-[1.4vw] rounded-full flex items-center justify-center text-white text-[0.7vw] font-bold shrink-0 shadow-sm"
+                      style={{ backgroundColor: hs.color || '#5145F6' }}
+                    >
+                      {i + 1}
+                    </div>
+                    <span className="text-[0.8vw] font-semibold text-gray-800 truncate">
+                      {hs.label || `Hotspot ${i + 1}`}
+                    </span>
+                  </div>
+                  {hs.description && (
+                    <span className="text-[0.7vw] text-gray-400 truncate max-w-[8vw] shrink-0 ml-[0.5vw]">
+                      {hs.description}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Shadow Settings */}

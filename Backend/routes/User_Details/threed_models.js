@@ -603,6 +603,7 @@ router.get("/get-models", async (req, res) => {
     const models = dbModels.map(m => ({
         modelId: m.modelId,
         name: m.name,
+        displayName: m.displayName || null,
         url: m.url,
         thumbnailUrl: m.thumbnailUrl,
         size: m.size,

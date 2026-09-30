@@ -381,18 +381,19 @@ const TemplateEditor = () => {
   const [topText, setTopText] = useState('You can Rotate 3D Model');
   const [bottomText, setBottomText] = useState('3D Model');
 
+  const [current3DHotspots, setCurrent3DHotspots] = useState([]);
+  const [active3DHotspotId, setActive3DHotspotId] = useState(null);
+
   const current3DVId = React.useMemo(() => {
     if (!current3DItem) return null;
     const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
     const el = doc.getElementById(current3DItem?.id);
-    if (el) {
-      const dataVal = el.getAttribute('data-interaction-value');
-      if (dataVal && dataVal.startsWith('{')) {
-        try {
-          const parsed = JSON.parse(dataVal);
-          return parsed.v_id || null;
-        } catch (e) { }
-      }
+    const dataVal = el ? el.getAttribute('data-interaction-value') : current3DItem?.value;
+    if (dataVal && dataVal.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(dataVal);
+        return parsed.v_id || parsed.modelId || parsed.sourceModelId || null;
+      } catch (e) { }
     }
     return null;
   }, [current3DItem, pages, activePageIndex]);
@@ -430,22 +431,29 @@ const TemplateEditor = () => {
           } catch (e) { }
         }
 
-        // Fetch latest displayName from DB for Modal Name
-        const dataVal = el.getAttribute('data-interaction-value');
+        // Fetch latest displayName and hotspots from DB for Modal
+        const dataVal = el.getAttribute('data-interaction-value') || current3DItem?.value;
         if (dataVal && dataVal.startsWith('{')) {
           try {
             const parsed = JSON.parse(dataVal);
-            if (parsed.v_id) {
+            if (Array.isArray(parsed.hotspots)) {
+              setCurrent3DHotspots(parsed.hotspots);
+            }
+            const targetModelId = parsed.v_id || parsed.modelId || parsed.sourceModelId;
+            if (targetModelId) {
               const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-              axios.get(`${backendUrl}/api/3d-models/get-model/${parsed.v_id}`)
+              axios.get(`${backendUrl}/api/3d-models/get-model/${targetModelId}`)
                 .then(res => {
                   if (res.data && res.data.displayName) {
                     setBottomText(res.data.displayName);
                   } else if (res.data && res.data.name) {
                     setBottomText(res.data.name);
                   }
+                  if (res.data && Array.isArray(res.data.hotspots)) {
+                    setCurrent3DHotspots(res.data.hotspots);
+                  }
                 })
-                .catch(err => console.error("Failed to fetch 3D model name:", err));
+                .catch(err => console.error("Failed to fetch 3D model metadata:", err));
             }
           } catch (e) { }
         }
@@ -1079,16 +1087,33 @@ const TemplateEditor = () => {
 
               let isFromGallery = false;
               let fileName = `model_${Date.now()}.glb`;
+              let modelHotspotsToSave = [];
+              let sourceModelIdToSave = null;
+              let modelDisplayNameToSave = null;
               try {
                 if (dataVal.startsWith('{')) {
                   const originalJson = JSON.parse(dataVal);
                   if (originalJson.fromGallery) isFromGallery = true;
                   if (originalJson.name) fileName = originalJson.name;
+                  if (Array.isArray(originalJson.hotspots)) modelHotspotsToSave = originalJson.hotspots;
+                  if (originalJson.v_id || originalJson.modelId || originalJson.sourceModelId) {
+                    sourceModelIdToSave = originalJson.v_id || originalJson.modelId || originalJson.sourceModelId;
+                  }
+                  if (originalJson.displayName) modelDisplayNameToSave = originalJson.displayName;
                 }
               } catch (e) { }
 
               if (isFromGallery) {
                 formData.append('skipGlobalGallery', 'true');
+              }
+              if (modelHotspotsToSave && modelHotspotsToSave.length > 0) {
+                formData.append('hotspots', JSON.stringify(modelHotspotsToSave));
+              }
+              if (sourceModelIdToSave) {
+                formData.append('sourceModelId', sourceModelIdToSave);
+              }
+              if (modelDisplayNameToSave) {
+                formData.append('displayName', modelDisplayNameToSave);
               }
 
               formData.append('model', blob, fileName);
@@ -1108,6 +1133,16 @@ const TemplateEditor = () => {
                   try {
                     const obj = JSON.parse(newHtmlVal);
                     obj.v_id = uploadRes.data.v_id;
+                    if (uploadRes.data.hotspots) {
+                      obj.hotspots = uploadRes.data.hotspots;
+                    } else if (modelHotspotsToSave && modelHotspotsToSave.length > 0) {
+                      obj.hotspots = modelHotspotsToSave;
+                    }
+                    if (uploadRes.data.displayName) {
+                      obj.displayName = uploadRes.data.displayName;
+                    } else if (modelDisplayNameToSave) {
+                      obj.displayName = modelDisplayNameToSave;
+                    }
                     newHtmlVal = JSON.stringify(obj);
                   } catch (e) { }
                 }
@@ -5974,6 +6009,9 @@ const TemplateEditor = () => {
             setBgColor={setBgColor}
             qrText={qrText} qrColor={qrColor} qrBgType={qrBgType} qrBgColor={qrBgColor} qrLevel={qrLevel} qrDotType={qrDotType} qrCornerSquareType={qrCornerSquareType} qrCornerDotType={qrCornerDotType} qrLogo={qrLogo}
             topText={topText} bottomText={bottomText} vId={current3DVId}
+            hotspots={current3DHotspots}
+            activeHotspotId={active3DHotspotId}
+            onHotspotClick={(hs) => setActive3DHotspotId(hs?.id || null)}
           />
         </div>
       )}
@@ -6029,6 +6067,9 @@ const TemplateEditor = () => {
         qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
         topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
         current3DVId={current3DVId}
+        hotspots={current3DHotspots}
+        activeHotspotId={active3DHotspotId}
+        onHotspotClick={(hs) => setActive3DHotspotId(hs?.id || null)}
         v_id={v_id || currentBook?.v_id}
         flipbookVId={v_id || currentBook?.v_id}
         folderName={Array.isArray(currentBook?.folderName) ? currentBook.folderName.find(f => f !== 'Recent Book' && f !== 'All Books') || currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'My_Flipbooks')}

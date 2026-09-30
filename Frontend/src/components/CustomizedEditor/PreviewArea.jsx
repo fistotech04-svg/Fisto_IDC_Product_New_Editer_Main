@@ -836,11 +836,17 @@ const getInteractionScript = (pageNumber) => `
                         let configObj = null;
                         let vId = null;
                         let modelName = '3D Model';
+                        let parsedHotspots = [];
                         if (value && value.startsWith('{')) {
                             try {
                                 var parsed = JSON.parse(value);
                                 modelUrl = parsed.data || parsed.url || value;
-                                if (parsed.v_id) vId = parsed.v_id;
+                                if (parsed.v_id || parsed.modelId || parsed.sourceModelId) {
+                                    vId = parsed.v_id || parsed.modelId || parsed.sourceModelId;
+                                }
+                                if (Array.isArray(parsed.hotspots)) {
+                                    parsedHotspots = parsed.hotspots;
+                                }
                                 if (parsed.displayName || parsed.name) {
                                     modelName = parsed.displayName || parsed.name;
                                 }
@@ -880,6 +886,7 @@ const getInteractionScript = (pageNumber) => `
                             url: modelUrl,
                             v_id: vId,
                             vId: vId,
+                            hotspots: parsedHotspots,
                             config: configObj
                         }, '*');
                     } else if (type === 'audio' && value) {
@@ -3148,6 +3155,7 @@ const PreviewArea = React.memo(({
     const [fitScale, setFitScale] = useState(1);
     const [active3DModelUrl, setActive3DModelUrl] = useState(null);
     const [active3DModelVId, setActive3DModelVId] = useState(null);
+    const [active3DModelHotspots, setActive3DModelHotspots] = useState([]);
     const [active3DModelConfig, setActive3DModelConfig] = useState(null);
     // Declare isFullscreen here (before the computeFitScale effect that depends on it)
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -3935,6 +3943,7 @@ const PreviewArea = React.memo(({
                 setActive3DModelUrl(finalUrl);
 
                 setActive3DModelVId(e.data.v_id || e.data.vId || null);
+                setActive3DModelHotspots(Array.isArray(e.data.hotspots) ? e.data.hotspots : []);
                 if (e.data.config) {
                     setActive3DModelConfig(e.data.config);
                 } else {
@@ -6513,6 +6522,7 @@ const PreviewArea = React.memo(({
                                             isOpen={true}
                                             dataUrl={active3DModelUrl}
                                             vId={active3DModelVId}
+                                            hotspots={active3DModelHotspots}
                                             {...(active3DModelConfig || {})}
                                         />
                                     </div>

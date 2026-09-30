@@ -4094,9 +4094,11 @@ const InteractionPanel = ({
                                           const objectUrl = URL.createObjectURL(file);
                                           const storedVal = JSON.stringify({
                                             name: file.name,
+                                            displayName: file.name,
                                             type: 'model/gltf-binary',
                                             size: file.size,
-                                            data: objectUrl
+                                            data: objectUrl,
+                                            hotspots: []
                                           });
                                           setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
                                           const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
@@ -5088,8 +5090,6 @@ const InteractionPanel = ({
 
           const fullUrl = model.url ? resolveUploadsPath(model.url) : '';
 
-
-
           try {
             // Fetch as a blob so it behaves exactly like a direct upload,
             // allowing TemplateEditor's save process to store it in assets/3D_Model/
@@ -5097,17 +5097,43 @@ const InteractionPanel = ({
             const blob = await response.blob();
             const objectUrl = URL.createObjectURL(blob);
 
+            // Fetch latest model details including hotspots if modelId is present
+            let modelHotspots = Array.isArray(model.hotspots) ? model.hotspots : [];
+            let modelDisplayName = model.displayName || model.name || '3D Model';
+            const modelId = model.modelId || model.v_id;
+            if (modelId) {
+              try {
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                const detailRes = await axios.get(`${backendUrl}/api/3d-models/get-model/${modelId}`);
+                if (detailRes.data) {
+                  if (Array.isArray(detailRes.data.hotspots)) {
+                    modelHotspots = detailRes.data.hotspots;
+                  }
+                  if (detailRes.data.displayName) {
+                    modelDisplayName = detailRes.data.displayName;
+                  }
+                }
+              } catch (e) {
+                console.warn("Could not fetch detailed model metadata:", e);
+              }
+            }
+
             const storedVal = JSON.stringify({
               name: model.name || 'model.glb',
+              displayName: modelDisplayName,
+              v_id: modelId || null,
+              modelId: modelId || null,
+              sourceModelId: modelId || null,
               type: model.type || 'model/gltf-binary',
               size: model.size || blob.size,
               data: objectUrl,
-              fromGallery: true
+              fromGallery: true,
+              hotspots: modelHotspots
             });
 
             setItemValueOverrides(prev => ({ ...prev, [currentItem.id]: storedVal }));
             const targetIdx = currentItem.pageIndex !== undefined ? currentItem.pageIndex : activePageIndex;
-            const galleryModelName = model.displayName || model.name || '3D Model';
+            const galleryModelName = modelDisplayName;
             const defaultConfig = JSON.stringify({
               shadowStrength: 35, shadowSoftness: 35, autoRotate: true, autoRotateSpeed: 1.5, lockMaxZoom: true, maxZoom: 4.5, bgType: 'Solid', bgColor: '#000000', customBg: true, enableAR: true, qrText: 'Scan Me', qrColor: '#000000', qrBgType: 'Solid', qrBgColor: '#ffffff', qrLevel: 'L', qrDotType: 'square', qrCornerSquareType: 'square', qrCornerDotType: 'square', qrLogo: null, topText: 'You can Rotate 3D Model', bottomText: galleryModelName
             });
