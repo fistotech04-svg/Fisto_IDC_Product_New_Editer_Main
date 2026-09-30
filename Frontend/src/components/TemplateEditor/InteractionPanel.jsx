@@ -767,6 +767,7 @@ const CommonDropBox = ({
   boxStyle, // custom styles
   hideInput = false,
   isUploading = false,
+  disableClick = false,
 }) => {
   const inputRef = useRef(null);
 
@@ -787,7 +788,7 @@ const CommonDropBox = ({
         />
       )}
       <div
-        onClick={() => { if (!isUploading) { if (inputRef.current) inputRef.current.click(); else document.getElementById(id)?.click(); } }}
+        onClick={() => { if (!disableClick && !isUploading) { if (inputRef.current) inputRef.current.click(); else document.getElementById(id)?.click(); } }}
         onDragOver={(e) => { e.preventDefault(); if (!isUploading) e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
         onDragLeave={(e) => { e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
         onDrop={(e) => {
@@ -4132,6 +4133,7 @@ const InteractionPanel = ({
                                                   accept=".glb,.gltf"
                                                   onFileSelect={handle3DFileSelect}
                                                   fileMeta={fileMeta}
+                                                  hideInput={true}
                                                   boxClassName="w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all p-[0.3vw]"
                                                   emptyIcon="prime:upload"
                                                   subText="File Format : GLB"
@@ -4155,20 +4157,16 @@ const InteractionPanel = ({
                                             </div>
                                           ) : (
                                             <div className="flex flex-col w-full gap-[1.2vh]">
-                                              <CommonDropBox
-                                                id={`3d-upload-${item.id}`}
-                                                accept=".glb,.gltf"
-                                                onFileSelect={handle3DFileSelect}
-                                                fileMeta={fileMeta}
-                                                boxClassName="w-full h-[18vh] border border-gray-200 rounded-[0.5vw] shadow-sm relative group bg-white flex items-center justify-center cursor-pointer"
-                                                renderPreview={(meta) => (
-                                                  <div className="w-full h-full relative group rounded-[0.5vw]">
-                                                    <div className="absolute inset-0 overflow-hidden rounded-[0.5vw] flex items-center justify-center pointer-events-none">
-                                                      <div className="absolute inset-0 bg-white z-0" />
-                                                      {meta.data ? (
-                                                        <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
-                                                          <GlbThumbnail dataUrl={meta.data} />
-                                                        </div>
+                                              <div
+                                                className="w-full h-[18vh] border border-gray-200 rounded-[0.5vw] shadow-sm relative group bg-white flex items-center justify-center overflow-hidden cursor-default"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                <div className="absolute inset-0 overflow-hidden rounded-[0.5vw] flex items-center justify-center">
+                                                  <div className="absolute inset-0 bg-white z-0" />
+                                                  {fileMeta?.data ? (
+                                                    <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
+                                                      <GlbThumbnail dataUrl={fileMeta.data} />
+                                                    </div>
                                                       ) : (
                                                         <Icon icon="gis:cube-3d" className="text-[#5145F6] text-[2vw] relative z-10" />
                                                       )}
@@ -4294,9 +4292,7 @@ const InteractionPanel = ({
                                                         )}
                                                       </div>
                                                     </div>
-                                                  </div>
-                                                )}
-                                              />
+                                              </div>
                                               
                                               <button
                                                 className="w-full h-[4.5vh] border border-gray-200 rounded-[0.5vw] shadow-sm bg-white flex items-center justify-center gap-[0.6vw] hover:bg-gray-50 transition-colors cursor-pointer"

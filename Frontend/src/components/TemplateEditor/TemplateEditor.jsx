@@ -3019,9 +3019,7 @@ const TemplateEditor = () => {
         const isPdfProjectCurrent = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
         const isDefaultBlankCurrent = !isPdfProjectCurrent && (pages.length === 0 ||
           (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
-        const shouldBePdfBg = isDefaultBlankCurrent || isPdfProjectCurrent;
-
-        const pageName = shouldBePdfBg ? `PDF Page ${startNum + i}` : `Page ${startNum + i}`;
+        const pageName = `Page ${startNum + i}`;
         const absoluteHtml = image.content || generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight, true);
 
         const parser = new DOMParser();
@@ -5712,7 +5710,7 @@ const TemplateEditor = () => {
             topText={topText} bottomText={bottomText} vId={current3DVId}
             hotspots={current3DHotspots}
             activeHotspotId={active3DHotspotId}
-            onHotspotClick={(hs) => setActive3DHotspotId(hs?.id || null)}
+            onHotspotClick={(hs) => setActive3DHotspotId(prev => prev === hs?.id ? null : (hs?.id || null))}
           />
         </div>
       )}

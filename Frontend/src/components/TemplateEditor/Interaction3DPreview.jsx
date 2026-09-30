@@ -7,6 +7,7 @@ import { CustomQRCode } from './Model3DEditor';
 import ColorPicker from './ColorPicker';
 import Hotspot3DOverlay from '../ThreedEditor/Components/Hotspot3DOverlay';
 import axios from 'axios';
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
 
 const ModelScene = ({ 
   url, 
@@ -38,6 +39,13 @@ const ModelScene = ({
         modelCenter: new THREE.Vector3(0, 1, 0)
       };
     }
+
+    // Ensure clean rest transforms on raw scene object before measuring
+    scene.position.set(0, 0, 0);
+    scene.scale.set(1, 1, 1);
+    scene.rotation.set(0, 0, 0);
+    scene.updateMatrixWorld(true);
+
     const box = new THREE.Box3().setFromObject(scene);
     if (box.isEmpty() || !isFinite(box.min.x)) {
       return {
@@ -91,16 +99,24 @@ const ModelScene = ({
     const activeControls = controlsRef.current || controls;
     if (!activeControls) return;
 
-    const hsPos = (hs.position && Array.isArray(hs.position))
-      ? new THREE.Vector3(hs.position[0], hs.position[1], hs.position[2])
-      : new THREE.Vector3(0, normTransform.height / 2, 0);
+    const posArr = Array.isArray(hs.position)
+      ? hs.position
+      : (hs.position && typeof hs.position === 'object')
+      ? [hs.position.x || 0, hs.position.y || 0, hs.position.z || 0]
+      : [0, 0, 0];
+
+    const hsPos = new THREE.Vector3(
+      Number(posArr[0]) || 0,
+      Number(posArr[1]) || 0,
+      Number(posArr[2]) || 0
+    );
 
     const targetCenter = normTransform.modelCenter.clone();
 
     // Compute front view direction
     let frontDir = new THREE.Vector3();
     if (hs.normal && Array.isArray(hs.normal) && (Math.abs(hs.normal[0]) > 0.001 || Math.abs(hs.normal[1]) > 0.001 || Math.abs(hs.normal[2]) > 0.001)) {
-      frontDir.set(hs.normal[0], hs.normal[1], hs.normal[2]).normalize();
+      frontDir.set(Number(hs.normal[0]) || 0, Number(hs.normal[1]) || 0, Number(hs.normal[2]) || 0).normalize();
     } else {
       frontDir.subVectors(hsPos, targetCenter);
       if (frontDir.lengthSq() > 0.0001) {
@@ -154,8 +170,9 @@ const ModelScene = ({
   const handleHotspotClick = (hs, index) => {
     if (typeof onHotspotClick === 'function') {
       onHotspotClick(hs, index);
+    } else {
+      focusHotspot(hs);
     }
-    focusHotspot(hs);
   };
 
   useEffect(() => {
@@ -426,7 +443,8 @@ const Model3DPreviewModal = ({
     : internalActiveHotspotId;
 
   const handleHotspotClick = (hs, idx) => {
-    setInternalActiveHotspotId(hs?.id || idx);
+    const clickedId = hs?.id || idx;
+    setInternalActiveHotspotId(prev => prev === clickedId ? null : clickedId);
     if (typeof externalOnHotspotClick === 'function') {
       externalOnHotspotClick(hs, idx);
     }
@@ -456,23 +474,33 @@ const Model3DPreviewModal = ({
     }
   }, [dataUrl]);
 
+  const targetVId = vId || (() => {
+    if (typeof dataUrl === 'string' && dataUrl.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(dataUrl);
+        return parsed.v_id || parsed.modelId || parsed.sourceModelId || null;
+      } catch (_) {}
+    }
+    return null;
+  })();
+
   React.useEffect(() => {
-    if (isOpen && vId) {
+    if (isOpen && targetVId) {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      axios.get(`${backendUrl}/api/3d-models/get-model/${vId}`)
+      axios.get(`${backendUrl}/api/3d-models/get-model/${targetVId}`)
         .then(res => {
            if (res.data && res.data.displayName) {
                setBottomText(res.data.displayName);
            } else if (res.data && res.data.name) {
                setBottomText(res.data.name);
            }
-           if (res.data && Array.isArray(res.data.hotspots)) {
+           if (res.data && Array.isArray(res.data.hotspots) && res.data.hotspots.length > 0) {
                setLocalHotspots(res.data.hotspots);
            }
         })
         .catch(err => console.error("Failed to fetch latest 3D model metadata:", err));
     }
-  }, [isOpen, vId]);
+  }, [isOpen, targetVId]);
 
   React.useEffect(() => {
     if (initialBgColor) {
@@ -523,6 +551,21 @@ const Model3DPreviewModal = ({
     return `${window.location.origin}/ar-view?url=${encodeURIComponent(resolvedUrl)}`;
   }, [dataUrl, qrText, vId]);
 
+  const resolvedModelUrl = React.useMemo(() => {
+    if (!dataUrl) return '';
+    let u = dataUrl;
+    if (typeof u === 'string' && u.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(u);
+        u = parsed.data || parsed.url || u;
+      } catch (e) {}
+    }
+    if (typeof u === 'string' && u.startsWith('/uploads/')) {
+      u = resolveUploadsPath(u);
+    }
+    return u;
+  }, [dataUrl]);
+
   if (!isOpen) return null;
 
   return (
@@ -536,9 +579,9 @@ const Model3DPreviewModal = ({
 
         {/* Canvas Area */}
         <div className="flex-1 w-full h-full relative" style={{ backgroundColor: bgType === 'Solid' ? bgColor : 'transparent' }}>
-          {dataUrl ? (
+          {resolvedModelUrl ? (
             <GlbModelViewer 
-              url={dataUrl} 
+              url={resolvedModelUrl} 
               autoRotate={autoRotate} 
               autoRotateSpeed={autoRotateSpeed} 
               shadowStrength={shadowStrength} 
