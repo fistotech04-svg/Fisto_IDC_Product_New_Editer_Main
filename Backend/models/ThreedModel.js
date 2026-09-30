@@ -33,10 +33,6 @@ const threedModelSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  hotspots: {
-    type: Array,
-    default: []
-  },
   createdAt: {
     type: Date,
     default: Date.now
