@@ -44,6 +44,10 @@ const InteractionThreedModelSchema = new mongoose.Schema({
   type: {
     type: String
   },
+  hotspots: {
+    type: Array,
+    default: []
+  },
   createdAt: {
     type: Date,
     default: Date.now
