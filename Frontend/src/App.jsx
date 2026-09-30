@@ -30,6 +30,7 @@ import { MainEditor } from './components/TemplateEditor'; // Import MainEditor
 import PreviewPage from './pages/PreviewPage';
 import ARView from './pages/ARView';
 import ThreedEditor from './components/ThreedEditor/ThreedEditor';
+import ThreeDEditorDashboard from './pages/ThreeDEditorDashboard';
 import CustomizedEditor from './components/CustomizedEditor/CustomizedEditor';
 import ShareViewBook from './pages/shareviewbook';
 import Viewprofile from './pages/Viewprofile';
@@ -99,6 +100,8 @@ function App() {
               <Route path="/home" element={<Home />} />
               <Route path="/my-flipbooks" element={<MyFlipbooks />} />
               <Route path="/templates" element={<Template />} />
+              <Route path="/3d-editor" element={<ThreeDEditorDashboard />} />
+              <Route path="/threed-dashboard" element={<ThreeDEditorDashboard />} />
               <Route path="/explore" element={<Explore />} />
               <Route path="/profile/:useremail" element={<Viewprofile />} />
               <Route path="/profile" element={<Viewprofile />} />

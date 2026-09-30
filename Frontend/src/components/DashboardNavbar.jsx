@@ -59,6 +59,7 @@ export default function DashboardNavbar() {
     { name: 'Home', path: '/home' },
     { name: 'My Flipbooks', path: '/my-flipbooks' },
     { name: 'Templates', path: '/templates' },
+    { name: '3D Editor', path: '/3d-editor' },
     { name: 'Explore', path: '/explore' },
     { name: 'Features', path: '#' },
     { name: 'About Us', path: '/about' },

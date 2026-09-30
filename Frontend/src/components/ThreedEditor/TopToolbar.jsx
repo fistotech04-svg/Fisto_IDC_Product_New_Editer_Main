@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import MaterialList from "./MaterialList";
 
@@ -24,6 +25,7 @@ const TopToolbar = ({
     canRedo,
     disableRename = false
 }) => {
+    const navigate = useNavigate();
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState("");
 
@@ -48,8 +50,9 @@ const TopToolbar = ({
 
     return (
         <div className="absolute inset-x-0 left-[1.04vw] z-30 pointer-events-none">
-            {/* Left Section: Materials + Undo/Redo + Animation Toggle */}
+            {/* Left Section: Back to 3D Dashboard + Materials + Undo/Redo + Animation Toggle */}
             <div className="absolute top-[1.04vw] left-0 flex items-center gap-[0.62vw] pointer-events-auto transition-none">
+                {/* Back to 3D Dashboard Button */}
                 <MaterialList 
                     isCollapsed={isSidebarCollapsed} 
                     setIsCollapsed={setIsSidebarCollapsed} 

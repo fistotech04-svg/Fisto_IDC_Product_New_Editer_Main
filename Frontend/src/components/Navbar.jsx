@@ -107,6 +107,24 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             />
           </Link>
 
+          {isThreedEditor && (
+            <button
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  if (!window.confirm("Leave 3D Editor?\n\nUnsaved changes might be lost.")) {
+                    return;
+                  }
+                }
+                navigate('/3d-editor');
+              }}
+              className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] bg-gray-100 hover:bg-[#fff5f3] hover:text-[#ea543a] text-gray-700 font-semibold text-[0.78vw] rounded-[0.5vw] border border-gray-200/80 transition-all cursor-pointer"
+              title="Back to 3D Dashboard"
+            >
+              <Icon icon="ph:arrow-left-bold" className="w-[0.85vw] h-[0.85vw] text-[#ea543a]" />
+              <span>3D Dashboard</span>
+            </button>
+          )}
+
           {/* Navigation Links */}
           <div className="flex items-center gap-[2.5vw]">
             <Link 
