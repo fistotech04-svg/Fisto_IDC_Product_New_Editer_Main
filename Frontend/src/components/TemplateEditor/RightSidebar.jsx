@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getVisualBBox, getCanvasBounds } from './MainEditor';
-import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Upload, Link, Check, FileText, Video, Trash2 } from 'lucide-react';
+import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight, Upload, Link, Check, FileText, Video } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { checkIsAnimatedWebp } from './editorUtils';
 import ShapeProperties from './ShapeProperties';
@@ -8,7 +8,6 @@ import PenToolProperties from './PenToolProperties';
 import ImageEditor from './ImageEditor';
 import TextEditor from './TextEditor';
 import IconGallery from './icons';
-import ElementsGallery from './ElementsGallery';
 import VideoEditor from './VideoEditor';
 import GifEditor from './Gif';
 import AnimationPanel from './AnimationPanel';
@@ -17,12 +16,9 @@ import PopupTemplateSelection from './PopupTemplateSelection';
 import Model3DEditor from './Model3DEditor';
 import GroupProperties from './GroupProperties';
 import ImportViaUrlModal from './ImportViaUrlModal';
-import ReplaceMediaModal from './ReplaceMediaModal';
 import ColorPicker, { parseGradient } from './ColorPicker';
 import MediaGalleryPopup from './MediaGalleryPopup';
-import PagePropertiesPanel from './PagePropertiesPanel';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { createPortal } from 'react-dom';
 import { useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -32,75 +28,66 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
   const [isEditing, setIsEditing] = useState(false);
   const [liveVal, setLiveVal] = useState(null);
 
-  const calculateDimension = React.useCallback(() => {
+  useEffect(() => {
     if (!targetId || readOnly) {
       setLiveVal(null);
       return;
     }
-    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-    const el = editorDoc.getElementById(targetId);
-    if (el && typeof el.getBBox === 'function') {
-      try {
-        let bbox;
-        if (el.getAttribute('data-is-hotspot') === 'true') {
-          bbox = { x: 0, y: 0, width: 52, height: 52 };
-        } else {
-          bbox = getVisualBBox(el);
-        }
-        let rawVal = 0;
-        let m = [1, 0, 0, 1, 0, 0];
-        const transform = el.getAttribute('transform');
-        if (transform) {
-          try {
-            const domM = new DOMMatrix(transform);
-            m = [domM.a, domM.b, domM.c, domM.d, domM.e, domM.f];
-          } catch (_) {
-            if (transform.includes('matrix')) {
-              const match = transform.match(/matrix\(([^)]+)\)/);
-              if (match) {
-                const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-                if (parsedM.length === 6) m = parsedM;
+
+    let frameId;
+    const poll = () => {
+      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+      const el = editorDoc.getElementById(targetId);
+      if (el && typeof el.getBBox === 'function') {
+        try {
+          let bbox;
+          if (el.getAttribute('data-is-hotspot') === 'true') {
+            bbox = { x: 0, y: 0, width: 52, height: 52 };
+          } else {
+            bbox = getVisualBBox(el);
+          }
+          let rawVal = 0;
+          let m = [1, 0, 0, 1, 0, 0];
+          const transform = el.getAttribute('transform');
+          if (transform) {
+            try {
+              const domM = new DOMMatrix(transform);
+              m = [domM.a, domM.b, domM.c, domM.d, domM.e, domM.f];
+            } catch (_) {
+              if (transform.includes('matrix')) {
+                const match = transform.match(/matrix\(([^)]+)\)/);
+                if (match) {
+                  const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+                  if (parsedM.length === 6) m = parsedM;
+                }
               }
             }
           }
-        }
 
-        if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
-        else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
-        else if (targetAttr === 'x') rawVal = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
-        else if (targetAttr === 'y') rawVal = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
+          if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
+          else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
+          else if (targetAttr === 'x') rawVal = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
+          else if (targetAttr === 'y') rawVal = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
 
-        if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
-          const r = parseFloat(el.getAttribute('r')) || 0;
-          if (targetAttr === 'width' || targetAttr === 'height') rawVal = r * 2;
-          else if (targetAttr === 'x') rawVal = (parseFloat(el.getAttribute('cx')) || 0) - r;
-          else if (targetAttr === 'y') rawVal = (parseFloat(el.getAttribute('cy')) || 0) - r;
-        }
+          if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
+            const r = parseFloat(el.getAttribute('r')) || 0;
+            if (targetAttr === 'width' || targetAttr === 'height') rawVal = r * 2;
+            else if (targetAttr === 'x') rawVal = (parseFloat(el.getAttribute('cx')) || 0) - r;
+            else if (targetAttr === 'y') rawVal = (parseFloat(el.getAttribute('cy')) || 0) - r;
+          }
 
-        const finalLiveVal = Number(rawVal.toFixed(1)).toString();
-        setLiveVal((prev) => (prev !== finalLiveVal ? finalLiveVal : prev));
-      } catch (e) { }
-    } else {
-      setLiveVal(null);
-    }
-  }, [targetId, targetAttr, readOnly]);
+          const finalLiveVal = Number(rawVal.toFixed(1)).toString();
 
-  useEffect(() => {
-    calculateDimension();
-
-    // Event-driven dimension updates on drag/resize completion and property changes
-    // (Prevents continuous React re-renders of the sidebar while actively dragging on canvas)
-    const handleUpdate = () => calculateDimension();
-    window.addEventListener('rebind-selection-overlay', handleUpdate);
-    window.addEventListener('update-element-props', handleUpdate);
-    window.addEventListener('resize', handleUpdate);
-
-    return () => {
-      window.removeEventListener('rebind-selection-overlay', handleUpdate);
-      window.removeEventListener('update-element-props', handleUpdate);
-      window.removeEventListener('resize', handleUpdate);
+          setLiveVal((prev) => (prev !== finalLiveVal ? finalLiveVal : prev));
+        } catch (e) { }
+      } else {
+        setLiveVal(null);
+      }
+      frameId = requestAnimationFrame(poll);
     };
-  }, [calculateDimension, value]);
+    poll();
+    return () => cancelAnimationFrame(frameId);
+  }, [targetId, targetAttr, readOnly]);
 
   const displayValue = isEditing ? localVal : (liveVal !== null ? liveVal : value);
 
@@ -292,8 +279,6 @@ const RightSidebar = ({
   const browseGalleryBtnRef = useRef(null);
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [isPageBgPickerOpen, setIsPageBgPickerOpen] = useState(false);
-  const [isPageBgModalOpen, setIsPageBgModalOpen] = useState(false);
-  const [canvaWorkspaceColor, setCanvaWorkspaceColor] = useState('#ffffff');
   const unitRef = useRef(null);
   const [expandedInteraction, setExpandedInteraction] = useState('call-click');
   const [interactionTab, setInteractionTab] = useState('Call');
@@ -658,79 +643,44 @@ const RightSidebar = ({
 
   const selectedElementProps = (() => {
     if (!selectedLayerId) return null;
+    const page = pages[activePageIndex];
+    if (page && page.html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const el = doc.getElementById(selectedLayerId);
 
-    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-    let actualEl = editorDoc.getElementById(selectedLayerId);
+      const rootId = doc.querySelector('svg > g')?.id;
+      const overlayId = doc.querySelector('[data-name="Overlay"]')?.id;
+      const isPageSelected = !selectedLayerId || selectedLayerId === rootId || selectedLayerId === overlayId;
 
-    // If element is not yet in live DOM, fall back to parsing SVG XML
-    let doc = editorDoc;
-    let el = actualEl;
+      if (el && !isPageSelected) {
+        let w = '0', h = '0', x = '0', y = '0', r = '0';
 
-    if (!el) {
-      const page = pages[activePageIndex];
-      if (page && page.html) {
-        try {
-          const parser = new DOMParser();
-          doc = parser.parseFromString(page.html, 'image/svg+xml');
-          el = doc.getElementById(selectedLayerId);
-        } catch (e) {}
-      }
-    }
-
-    if (!el) return null;
-
-    if (el && (el.getAttribute('data-is-mask-image') === 'true' || el.id?.startsWith('masked-img-'))) {
-      const targetShapeId = el.getAttribute('data-target-shape') || el.id.replace('masked-img-', '');
-      const shapeEl = doc.getElementById(targetShapeId);
-      if (shapeEl) el = shapeEl;
-    }
-
-    const overlayId = doc.querySelector('[data-name="Overlay"]')?.id;
-    const topFrames = Array.from(doc.querySelectorAll('svg > g, svg > [data-type="frame"], svg > [data-name="Overlay"]'));
-    const isTopFrame = topFrames.some(f => f.id === selectedLayerId);
-    const isPageBgImage = el.getAttribute('data-name') === 'Page Background Image' ||
-      el.getAttribute('data-type') === 'page-background-image' ||
-      el.id?.startsWith('page-bg-img-');
-    const isPageBorder = el.getAttribute('data-name') === 'Page Border' ||
-      el.getAttribute('data-type') === 'page-border' ||
-      el.id?.startsWith('page-border-');
-    const isOverlayOrFrame = el.getAttribute('data-name') === 'Overlay' ||
-      el.getAttribute('data-type') === 'frame' ||
-      el.getAttribute('data-type') === 'background' ||
-      el.tagName?.toLowerCase() === 'svg' ||
-      el.parentElement?.tagName?.toLowerCase() === 'svg' ||
-      isPageBgImage ||
-      isPageBorder;
-
-    const isPageSelected = !selectedLayerId || selectedLayerId === overlayId || isTopFrame || isOverlayOrFrame;
-
-    if (el && !isPageSelected) {
-      let w = '0', h = '0', x = '0', y = '0', r = '0';
-
-      // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
-      let measuredFromDom = false;
-      const liveTarget = actualEl || el;
-      if (liveTarget && typeof liveTarget.getBBox === 'function') {
-        try {
-          const bbox = getVisualBBox(liveTarget);
-          let m = [1, 0, 0, 1, 0, 0];
-          const transform = liveTarget.getAttribute('transform');
-          if (transform && transform.includes('matrix')) {
-            const match = transform.match(/matrix\(([^)]+)\)/);
-            if (match) {
-              const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-              if (parsedM.length === 6) m = parsedM;
+        // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
+        const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+        const actualEl = editorDoc.getElementById(selectedLayerId);
+        let measuredFromDom = false;
+        if (actualEl && typeof actualEl.getBBox === 'function') {
+          try {
+            const bbox = getVisualBBox(actualEl);
+            let m = [1, 0, 0, 1, 0, 0];
+            const transform = actualEl.getAttribute('transform');
+            if (transform && transform.includes('matrix')) {
+              const match = transform.match(/matrix\(([^)]+)\)/);
+              if (match) {
+                const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+                if (parsedM.length === 6) m = parsedM;
+              }
             }
+            w = (bbox.width * Math.abs(m[0])).toString();
+            h = (bbox.height * Math.abs(m[3])).toString();
+            x = (bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4]).toString();
+            y = (bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5]).toString();
+            measuredFromDom = true;
+          } catch (e) {
+            console.warn("Failed to get BBox for element", e);
           }
-          w = (bbox.width * Math.abs(m[0])).toString();
-          h = (bbox.height * Math.abs(m[3])).toString();
-          x = (bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4]).toString();
-          y = (bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5]).toString();
-          measuredFromDom = true;
-        } catch (e) {
-          console.warn("Failed to get BBox for element", e);
         }
-      }
 
         // --- FALLBACK / OVERRIDE: Tags that have preferred source of truth ---
         if (!measuredFromDom || (parseFloat(w) === 0 && parseFloat(h) === 0)) {
@@ -852,7 +802,7 @@ const RightSidebar = ({
 
         const isGif = isGifFile || lowerDataName.includes('gif') || lowerId.includes('gif') || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif';
 
-        const isUserGroup = !isPageSelected && lowerTagName === 'g' && (
+        const isUserGroup = lowerTagName === 'g' && (
           dataType === 'group' ||
           lowerDataName === 'group' ||
           lowerId.startsWith('group-') ||
@@ -883,6 +833,7 @@ const RightSidebar = ({
 
         return props;
       }
+    }
     return null;
   })();
 
@@ -893,25 +844,22 @@ const RightSidebar = ({
       className="bg-white border-l border-[#EEEEEE] flex flex-col overflow-hidden select-none flex-shrink-0 h-[92vh]"
       style={{ width: '24vw' }}
       onMouseDown={() => {
-        if ((activeMainTool === 'grid' || activeMainTool === 'elements') && typeof setActiveMainTool === 'function') {
+        if (activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
           setActiveMainTool('select');
         }
       }}
     >
-      {activeMainTool === 'elements' && (
-        <ElementsGallery
+      {activeMainTool === 'grid' && (
+        <IconGallery
           isOpen={true}
           onClose={() => setActiveMainTool('select')}
-          onSelect={(shape) => {
-            window.dispatchEvent(new CustomEvent('add-shape-to-editor', {
+          onSelect={(icon) => {
+            window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
               detail: {
                 pageIndex: activePageIndex,
-                shape: shape
+                icon: icon
               }
             }));
-            if (typeof setActiveMainTool === 'function') {
-              setActiveMainTool('select');
-            }
           }}
         />
       )}
@@ -940,8 +888,8 @@ const RightSidebar = ({
         </div>
       )}
 
-      {/* Persistent Dimension Section (Only shown when an element is selected) */}
-      {!is3DModalOpen && selectedElementProps && (
+      {/* Persistent Dimension Section (Common for all) */}
+      {!is3DModalOpen && (
         <div className="bg-white px-[1.5vw] pt-[1.4vw] pb-[0.85vw] border-b border-gray-100 flex-shrink-0">
           <div className="space-y-[0.8vw]">
             <div className="flex flex-col gap-[1vw]">
@@ -1301,7 +1249,7 @@ const RightSidebar = ({
                 />
               ) : (
                 <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">
-                  {(selectedElementProps || activeMainTool === 'grid' || activeMainTool === 'elements') ? (
+                  {(selectedElementProps || activeMainTool === 'grid') ? (
                     <div className="flex flex-col gap-[1.5vw]">
                       {(selectedElementProps?.isUserGroup || (multiSelectedIds && multiSelectedIds.size > 1)) ? (
                         <GroupProperties
@@ -1558,15 +1506,147 @@ const RightSidebar = ({
                       )}
                     </div>
                   ) : (
-                    /* Page Properties (Default View when canvas root/page is selected) */
-                    <PagePropertiesPanel
-                      activePageIndex={activePageIndex}
-                      pages={pages}
-                      updateElementAttribute={updateElementAttribute}
-                      setIsPageBgModalOpen={setIsPageBgModalOpen}
-                      canvaWorkspaceColor={canvaWorkspaceColor}
-                      setCanvaWorkspaceColor={setCanvaWorkspaceColor}
-                    />
+                    /* Page Properties (Default View) */
+                    (() => {
+                      const page = pages[activePageIndex];
+                      const parser = new DOMParser();
+                      const doc = parser.parseFromString(page?.html || '', 'image/svg+xml');
+                      const overlay = doc.querySelector('[data-name="Overlay"]');
+                      const currentBg = overlay?.getAttribute('fill') || '#ffffff';
+                      const fillType = overlay?.getAttribute('fill-type') || 'solid';
+
+                      let currentBgStr = currentBg;
+                      if (fillType === 'gradient' || currentBg.toLowerCase().includes('url(#')) {
+                        const stopsJson = overlay?.getAttribute('fill-stops');
+                        const stops = stopsJson ? JSON.parse(stopsJson) : [];
+                        const gType = overlay?.getAttribute('fill-gradient-type') || 'linear';
+                        if (stops.length > 0) {
+                          currentBgStr = generateGradientString(
+                            gType.charAt(0).toUpperCase() + gType.slice(1),
+                            stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
+                            parseInt(overlay?.getAttribute('fill-angle') || '0'),
+                            parseInt(overlay?.getAttribute('fill-radius') || '100')
+                          );
+                        }
+                      }
+
+                      return (
+                        <div className="flex flex-col gap-[3vh]">
+                          <div className="flex flex-col gap-[1.5vh]">
+                            <div className="flex items-center gap-[0.75vw]">
+                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">
+                                Page Background
+                              </span>
+                              <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+                            </div>
+
+                            <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
+                              <div className="flex items-center justify-between mb-[1.5vh]">
+                                <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
+                                <div
+                                  className="flex items-center gap-[0.5vw] cursor-pointer hover:bg-gray-50 p-[0.3vw] rounded-[0.4vw] transition-colors"
+                                  onClick={() => setIsPageBgPickerOpen(!isPageBgPickerOpen)}
+                                >
+                                  <div className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner flex-shrink-0" style={{ background: currentBgStr }} />
+                                  <span className="text-[0.7vw] font-mono text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap max-w-[8vw]">
+                                    {currentBgStr.toUpperCase()}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-8 gap-[0.4vw]">
+                                {presetColors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={() => {
+                                      updateElementAttribute(activePageIndex, 'Overlay', {
+                                        'fill-type': 'solid',
+                                        'fill': color
+                                      });
+                                    }}
+                                    className={`w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-100 transition-all hover:scale-110 shadow-sm ${currentBg.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-blue-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
+                                    style={{ backgroundColor: color }}
+                                    title={color}
+                                  />
+                                ))}
+                              </div>
+
+                              {isPageBgPickerOpen && createPortal(
+                                <div
+                                  className="fixed z-[5000]"
+                                  style={{
+                                    top: '50%',
+                                    right: '19.5vw', // Left of the right sidebar
+                                    transform: 'translateY(-50%)'
+                                  }}
+                                >
+                                  <div className="animate-in fade-in zoom-in-95 duration-200 relative">
+                                    <ColorPicker
+                                      color={currentBgStr}
+                                      onChange={(newVal) => {
+                                        if (newVal.includes('gradient')) {
+                                          const parsed = parseGradient(newVal);
+                                          if (parsed) {
+                                            updateElementAttribute(activePageIndex, 'Overlay', {
+                                              'fill-type': 'gradient',
+                                              'fill-gradient-type': parsed.type.toLowerCase(),
+                                              'fill-stops': JSON.stringify(parsed.stops.map(s => ({
+                                                color: s.color,
+                                                offset: s.offset,
+                                                opacity: s.opacity / 100
+                                              }))),
+                                              'fill-angle': (parsed.angle || 0).toString(),
+                                              'fill-radius': (parsed.radius || 100).toString(),
+                                              'fill': newVal
+                                            });
+                                          }
+                                        } else {
+                                          updateElementAttribute(activePageIndex, 'Overlay', {
+                                            'fill-type': 'solid',
+                                            'fill': newVal
+                                          });
+                                        }
+                                      }}
+                                      opacity={100}
+                                      onClose={() => setIsPageBgPickerOpen(false)}
+                                    />
+                                  </div>
+                                </div>,
+                                document.body
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-[1.5vh]">
+                            <div className="flex items-center gap-[0.75vw]">
+                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Document info</span>
+                              <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+                            </div>
+                            <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
+                              {(() => {
+                                const info = getDocumentInfo(baseWidth, baseHeight);
+                                return (
+                                  <>
+                                    <div className="flex justify-between items-center text-[0.75vw]">
+                                      <span className="text-gray-500 font-medium">Format</span>
+                                      <span className="text-gray-900 font-semibold">{info.format}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[0.75vw]">
+                                      <span className="text-gray-500 font-medium">Orientation</span>
+                                      <span className="text-gray-900 font-semibold">{info.orientation}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[0.75vw]">
+                                      <span className="text-gray-500 font-medium">Dimensions</span>
+                                      <span className="text-gray-900 font-semibold">{info.dimensions}</span>
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
               )}
@@ -1626,300 +1706,6 @@ const RightSidebar = ({
         onFileSelect={(file) => {
           handleFileChange({ target: { files: [file] } });
           setIsMediaGalleryOpen(false);
-        }}
-      />
-
-      {/* Replace / Add Page Background Image Modal */}
-      <ReplaceMediaModal
-        show={isPageBgModalOpen}
-        onClose={() => setIsPageBgModalOpen(false)}
-        mediaType="image"
-        titleText={(() => {
-          const page = pages[activePageIndex];
-          const hasImg = page?.html?.includes('data-name="Page Background Image"') || page?.html?.includes('data-type="page-background-image"');
-          return hasImg ? "Replace Image" : "Add Image";
-        })()}
-        buttonText={(() => {
-          const page = pages[activePageIndex];
-          const hasImg = page?.html?.includes('data-name="Page Background Image"') || page?.html?.includes('data-type="page-background-image"');
-          return hasImg ? "Replace Image" : "Add Image";
-        })()}
-        onReplace={async (file) => {
-          if (!file) return;
-
-          let url = file.url || (typeof file === 'string' ? file : '');
-          const name = file.name || 'Background Image.jpg';
-          const sizeMb = file.size ? `${(file.size / (1024 * 1024)).toFixed(1)}MB` : '';
-
-          // If it's a raw File / Blob (e.g. from Upload tab) or blob: URL, upload it to the server to get a permanent URL
-          if (!url || url.startsWith('blob:')) {
-            const rawFile = file instanceof File || file instanceof Blob ? file : file.file;
-            const storedUser = localStorage.getItem('user');
-            const user = storedUser ? JSON.parse(storedUser) : null;
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-
-            if (rawFile && user) {
-              try {
-                const formData = new FormData();
-                formData.append('emailId', user.emailId);
-                formData.append('isGallery', 'true');
-                formData.append('type', 'image');
-                formData.append('file', rawFile);
-                formData.append('page_v_id', 'global');
-
-                const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-                if (res.data?.url) {
-                  url = resolveUploadsPath(res.data.url);
-                }
-              } catch (err) {
-                console.error('Failed to upload background image:', err);
-              }
-            }
-
-            // Fallback to data URL or object URL only if server upload failed
-            if (!url && rawFile) {
-              url = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = () => resolve(URL.createObjectURL(rawFile));
-                reader.readAsDataURL(rawFile);
-              });
-            } else if (!url) {
-              url = file.url || '';
-            }
-          }
-
-          if (!url || url.startsWith('data:video/') || url.endsWith('.mp4') || url.endsWith('.webm')) return;
-          url = resolveUploadsPath(url);
-
-          const img = new Image();
-          img.onload = () => {
-            const dimStr = `${img.width} X ${img.height}${sizeMb ? ' • ' + sizeMb : ''}`;
-            const page = pages[activePageIndex];
-            const parser = new DOMParser();
-            const curDoc = parser.parseFromString(page?.html || '', 'image/svg+xml');
-            const svg = curDoc.querySelector('svg');
-            if (!svg) return;
-            let ov = curDoc.querySelector('[data-name="Overlay"]');
-            let imgNode = curDoc.querySelector('image[data-name="Page Background Image"]');
-            let borderNode = curDoc.querySelector('[data-name="Page Border"]');
-
-            let baseW = parseFloat(svg.getAttribute('width') || ov?.getAttribute('width') || '794');
-            let baseH = parseFloat(svg.getAttribute('height') || ov?.getAttribute('height') || '1123');
-            if (svg.getAttribute('viewBox')) {
-              const vbParts = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
-              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
-                baseW = vbParts[2];
-                baseH = vbParts[3];
-              }
-            }
-
-            const existingFit = ov?.getAttribute('data-bg-fit') || ov?.getAttribute('data-fix-type') || imgNode?.getAttribute('data-fix-type') || 'Fit';
-            const aspect = existingFit === 'Fit' ? 'xMidYMid meet' : (existingFit === 'Fill' ? 'xMidYMid slice' : 'none');
-
-            if (!imgNode) {
-              imgNode = curDoc.createElementNS('http://www.w3.org/2000/svg', 'image');
-              imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
-              imgNode.setAttribute('data-name', 'Page Background Image');
-              imgNode.setAttribute('data-type', 'page-background-image');
-              imgNode.setAttribute('x', '0');
-              imgNode.setAttribute('y', '0');
-              imgNode.setAttribute('width', baseW.toString());
-              imgNode.setAttribute('height', baseH.toString());
-              imgNode.setAttribute('style', 'pointer-events: none;');
-              imgNode.setAttribute('preserveAspectRatio', aspect);
-              imgNode.setAttribute('data-fix-type', existingFit);
-              if (borderNode) {
-                borderNode.parentNode.insertBefore(imgNode, borderNode);
-              } else if (ov && ov.nextSibling) {
-                ov.parentNode.insertBefore(imgNode, ov.nextSibling);
-              } else if (ov) {
-                ov.parentNode.appendChild(imgNode);
-              } else {
-                svg.insertBefore(imgNode, svg.firstChild);
-              }
-            } else {
-              imgNode.setAttribute('width', baseW.toString());
-              imgNode.setAttribute('height', baseH.toString());
-              imgNode.setAttribute('preserveAspectRatio', aspect);
-              imgNode.setAttribute('data-fix-type', existingFit);
-            }
-
-            imgNode.setAttribute('href', url);
-            imgNode.setAttribute('xlink:href', url);
-            imgNode.setAttribute('data-filename', name);
-            imgNode.setAttribute('data-dimensions', dimStr);
-
-            if (ov) {
-              ov.setAttribute('data-bg-image', url);
-              ov.setAttribute('data-bg-image-name', name);
-              ov.setAttribute('data-bg-image-dim', dimStr);
-              ov.setAttribute('data-bg-fit', existingFit);
-              ov.setAttribute('data-fix-type', existingFit);
-            }
-
-            // Also update live SVG DOM on canvas immediately
-            const liveContainer = document.getElementById(`canvas-content-${activePageIndex}`);
-            const liveSvg = liveContainer?.querySelector('svg');
-            if (liveSvg) {
-              let liveImg = liveSvg.querySelector('image[data-name="Page Background Image"]');
-              let liveBorder = liveSvg.querySelector('[data-name="Page Border"]');
-              let liveOv = liveSvg.querySelector('[data-name="Overlay"]');
-              if (!liveImg) {
-                liveImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-                liveImg.setAttribute('id', imgNode.getAttribute('id'));
-                liveImg.setAttribute('data-name', 'Page Background Image');
-                liveImg.setAttribute('data-type', 'page-background-image');
-                liveImg.setAttribute('x', '0');
-                liveImg.setAttribute('y', '0');
-                liveImg.setAttribute('width', baseW.toString());
-                liveImg.setAttribute('height', baseH.toString());
-                liveImg.setAttribute('style', 'pointer-events: none;');
-                liveImg.setAttribute('preserveAspectRatio', aspect);
-                liveImg.setAttribute('data-fix-type', existingFit);
-                if (liveBorder) {
-                  liveBorder.parentNode.insertBefore(liveImg, liveBorder);
-                } else if (liveOv && liveOv.nextSibling) {
-                  liveOv.parentNode.insertBefore(liveImg, liveOv.nextSibling);
-                } else if (liveOv) {
-                  liveOv.parentNode.appendChild(liveImg);
-                } else {
-                  liveSvg.insertBefore(liveImg, liveSvg.firstChild);
-                }
-              }
-              liveImg.setAttribute('href', url);
-              liveImg.setAttribute('xlink:href', url);
-              liveImg.setAttribute('data-filename', name);
-              liveImg.setAttribute('data-dimensions', dimStr);
-              liveImg.setAttribute('preserveAspectRatio', aspect);
-              liveImg.setAttribute('data-fix-type', existingFit);
-              if (liveOv) {
-                liveOv.setAttribute('data-bg-image', url);
-                liveOv.setAttribute('data-bg-image-name', name);
-                liveOv.setAttribute('data-bg-image-dim', dimStr);
-                liveOv.setAttribute('data-bg-fit', existingFit);
-                liveOv.setAttribute('data-fix-type', existingFit);
-              }
-            }
-
-            const serializer = new XMLSerializer();
-            const newHtml = serializer.serializeToString(curDoc);
-            updateElementAttribute(activePageIndex, 'Overlay', '__dom_sync__', newHtml);
-          };
-          img.onerror = () => {
-            const dimStr = sizeMb ? `${sizeMb}` : '';
-            const page = pages[activePageIndex];
-            const parser = new DOMParser();
-            const curDoc = parser.parseFromString(page?.html || '', 'image/svg+xml');
-            const svg = curDoc.querySelector('svg');
-            if (!svg) return;
-            let ov = curDoc.querySelector('[data-name="Overlay"]');
-            let imgNode = curDoc.querySelector('image[data-name="Page Background Image"]');
-            let borderNode = curDoc.querySelector('[data-name="Page Border"]');
-
-            let baseW = parseFloat(svg.getAttribute('width') || ov?.getAttribute('width') || '794');
-            let baseH = parseFloat(svg.getAttribute('height') || ov?.getAttribute('height') || '1123');
-            if (svg.getAttribute('viewBox')) {
-              const vbParts = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
-              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
-                baseW = vbParts[2];
-                baseH = vbParts[3];
-              }
-            }
-
-            const existingFit = ov?.getAttribute('data-bg-fit') || ov?.getAttribute('data-fix-type') || imgNode?.getAttribute('data-fix-type') || 'Fit';
-            const aspect = existingFit === 'Fit' ? 'xMidYMid meet' : (existingFit === 'Fill' ? 'xMidYMid slice' : 'none');
-
-            if (!imgNode) {
-              imgNode = curDoc.createElementNS('http://www.w3.org/2000/svg', 'image');
-              imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
-              imgNode.setAttribute('data-name', 'Page Background Image');
-              imgNode.setAttribute('data-type', 'page-background-image');
-              imgNode.setAttribute('x', '0');
-              imgNode.setAttribute('y', '0');
-              imgNode.setAttribute('width', baseW.toString());
-              imgNode.setAttribute('height', baseH.toString());
-              imgNode.setAttribute('style', 'pointer-events: none;');
-              imgNode.setAttribute('preserveAspectRatio', aspect);
-              imgNode.setAttribute('data-fix-type', existingFit);
-              if (borderNode) {
-                borderNode.parentNode.insertBefore(imgNode, borderNode);
-              } else if (ov && ov.nextSibling) {
-                ov.parentNode.insertBefore(imgNode, ov.nextSibling);
-              } else if (ov) {
-                ov.parentNode.appendChild(imgNode);
-              } else {
-                svg.insertBefore(imgNode, svg.firstChild);
-              }
-            } else {
-              imgNode.setAttribute('width', baseW.toString());
-              imgNode.setAttribute('height', baseH.toString());
-              imgNode.setAttribute('preserveAspectRatio', aspect);
-              imgNode.setAttribute('data-fix-type', existingFit);
-            }
-
-            imgNode.setAttribute('href', url);
-            imgNode.setAttribute('xlink:href', url);
-            imgNode.setAttribute('data-filename', name);
-            imgNode.setAttribute('data-dimensions', dimStr);
-
-            if (ov) {
-              ov.setAttribute('data-bg-image', url);
-              ov.setAttribute('data-bg-image-name', name);
-              ov.setAttribute('data-bg-image-dim', dimStr);
-              ov.setAttribute('data-bg-fit', existingFit);
-              ov.setAttribute('data-fix-type', existingFit);
-            }
-
-            // Also update live SVG DOM on canvas immediately
-            const liveContainer = document.getElementById(`canvas-content-${activePageIndex}`);
-            const liveSvg = liveContainer?.querySelector('svg');
-            if (liveSvg) {
-              let liveImg = liveSvg.querySelector('image[data-name="Page Background Image"]');
-              let liveBorder = liveSvg.querySelector('[data-name="Page Border"]');
-              let liveOv = liveSvg.querySelector('[data-name="Overlay"]');
-              if (!liveImg) {
-                liveImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-                liveImg.setAttribute('id', imgNode.getAttribute('id'));
-                liveImg.setAttribute('data-name', 'Page Background Image');
-                liveImg.setAttribute('data-type', 'page-background-image');
-                liveImg.setAttribute('x', '0');
-                liveImg.setAttribute('y', '0');
-                liveImg.setAttribute('width', baseW.toString());
-                liveImg.setAttribute('height', baseH.toString());
-                liveImg.setAttribute('style', 'pointer-events: none;');
-                liveImg.setAttribute('preserveAspectRatio', aspect);
-                liveImg.setAttribute('data-fix-type', existingFit);
-                if (liveBorder) {
-                  liveBorder.parentNode.insertBefore(liveImg, liveBorder);
-                } else if (liveOv && liveOv.nextSibling) {
-                  liveOv.parentNode.insertBefore(liveImg, liveOv.nextSibling);
-                } else if (liveOv) {
-                  liveOv.parentNode.appendChild(liveImg);
-                } else {
-                  liveSvg.insertBefore(liveImg, liveSvg.firstChild);
-                }
-              }
-              liveImg.setAttribute('href', url);
-              liveImg.setAttribute('xlink:href', url);
-              liveImg.setAttribute('data-filename', name);
-              liveImg.setAttribute('data-dimensions', dimStr);
-              liveImg.setAttribute('preserveAspectRatio', aspect);
-              liveImg.setAttribute('data-fix-type', existingFit);
-              if (liveOv) {
-                liveOv.setAttribute('data-bg-image', url);
-                liveOv.setAttribute('data-bg-image-name', name);
-                liveOv.setAttribute('data-bg-image-dim', dimStr);
-                liveOv.setAttribute('data-bg-fit', existingFit);
-                liveOv.setAttribute('data-fix-type', existingFit);
-              }
-            }
-
-            const serializer = new XMLSerializer();
-            const newHtml = serializer.serializeToString(curDoc);
-            updateElementAttribute(activePageIndex, 'Overlay', '__dom_sync__', newHtml);
-          };
-          img.src = url;
         }}
       />
     </div>
