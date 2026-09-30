@@ -530,29 +530,20 @@ const VideoEditor = ({
 
   useEffect(() => {
     if (!selectedElement) return;
-    let rafId = null;
     const observer = new MutationObserver((mutations) => {
       if (isUpdatingDOM.current) return;
-      const relevantMutation = mutations.some(m => 
-        m.type === 'attributes' && 
-        ['data-object-fit', 'data-crop-data', 'src', 'href', 'data-autoplay', 'data-loop', 'data-muted', 'data-playback-speed', 'opacity', 'data-stroke-color', 'data-stroke-width'].includes(m.attributeName)
-      );
-      if (!relevantMutation) return;
+      const relevantMutation = mutations.some(m => m.type === 'attributes');
+      if (relevantMutation) syncStateFromDOM();
 
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        syncStateFromDOM();
-        const needsVisuals = mutations.some(m => m.attributeName === 'data-crop-data' || m.attributeName === 'data-object-fit');
-        if (needsVisuals) {
-          setUpdateTrigger(prev => prev + 1);
-        }
-      });
+      const needsVisuals = mutations.some(m => m.attributeName === 'data-crop-data' || m.attributeName === 'data-object-fit' || m.attributeName === 'data-width' || m.attributeName === 'data-height');
+      if (needsVisuals) {
+        setUpdateTrigger(prev => prev + 1);
+      }
     });
-    observer.observe(selectedElement, { attributes: true, subtree: true, attributeFilter: ['data-object-fit', 'data-crop-data', 'src', 'href', 'data-autoplay', 'data-loop', 'data-muted', 'data-playback-speed', 'opacity', 'data-stroke-color', 'data-stroke-width'] });
+    observer.observe(selectedElement, { attributes: true, subtree: true });
     isHydrating.current = true;
     syncStateFromDOM(true);
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
       observer.disconnect();
       isUpdatingDOM.current = false;
     };

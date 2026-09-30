@@ -20,7 +20,6 @@ import { checkIsAnimatedWebp } from './editorUtils';
 import pageCacheManager from './PageCacheManager';
 import { formatTemplateSvgToPageSvg } from '../../utils/editorUtils';
 import { useToast } from '../CustomToast';
-import EditorSkeletonLoader from './EditorSkeletonLoader';
 
 
 /**
@@ -31,12 +30,11 @@ const parseLayersFromSVG = (element) => {
   return Array.from(element.children)
     .filter(child => {
       if (['defs', 'metadata', 'style', 'title', 'desc', 'parsererror'].includes(child.tagName.toLowerCase())) return false;
-      if (child.getAttribute('data-name') === 'Overlay' || child.getAttribute('data-name') === 'Document Shield' || child.getAttribute('data-type') === 'shield' || child.getAttribute('data-name') === 'Page Background Image' || child.getAttribute('data-type') === 'page-background-image' || child.getAttribute('id')?.startsWith('page-bg-img-') || child.getAttribute('data-name') === 'Page Border' || child.getAttribute('data-type') === 'page-border' || child.getAttribute('id')?.startsWith('page-border-')) return false;
+      if (child.getAttribute('data-name') === 'Overlay' || child.getAttribute('data-name') === 'Document Shield' || child.getAttribute('data-type') === 'shield') return false;
       if (child.getAttribute('style')?.includes('display:none') || child.getAttribute('style')?.includes('display: none')) return false;
       if (child.classList.contains('svg-drop-shadow-caster')) return false;
       if (child.classList.contains('internal-crop-rect')) return false;
       if (child.classList.contains('internal-crop-pattern')) return false;
-      if (child.getAttribute('data-is-mask-image') === 'true' || child.getAttribute('id')?.startsWith('masked-img-')) return false;
 
       const isEffectNode = Array.from(child.classList).some(cls =>
         cls.includes('-stroke-overlay') ||
@@ -72,20 +70,6 @@ const parseLayersFromSVG = (element) => {
         visible: child.getAttribute('data-hidden') !== 'true',
         locked: child.getAttribute('data-locked') === 'true'
       };
-
-      // If shape has masked image, group it as a nested masked image layer
-      if (child.getAttribute('data-masked-image-url')) {
-        layer.isMaskedShape = true;
-        layer.children = [{
-          id: `masked-img-${id.replace(/[^a-zA-Z0-9-_]/g, '_')}`,
-          name: 'Masked Image',
-          type: 'image',
-          parentId: id,
-          isVirtualImageChild: true,
-          visible: layer.visible,
-          locked: layer.locked
-        }];
-      }
 
       // VIRTUAL EFFECT LAYERS FOR IMAGE/VIDEO/GIF GROUP
       const isGroup = child.getAttribute('data-is-image-group') === 'true' ||
@@ -1739,31 +1723,24 @@ const TemplateEditor = () => {
           return;
         }
         saveFlipbook(false, popupEditContext ? popupEditContext.backup.pages : pages); // false = auto save
-      }, 6000);
+      }, 2500);
     }
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
   }, [pages, isAutoSaveEnabled, hasUnsavedChanges, isLoading, isSaving, popupEditContext]);
 
-  // Sync state to IndexedDB for Customized Editor (Debounced to prevent periodic main-thread freezes)
-  const dbSyncTimerRef = useRef(null);
+  // Sync state to IndexedDB for Customized Editor
   useEffect(() => {
     if (pages.length > 0 && !isLoading) {
-      if (dbSyncTimerRef.current) clearTimeout(dbSyncTimerRef.current);
-      dbSyncTimerRef.current = setTimeout(() => {
-        saveToDB('editor_autosave', {
-          v_id: v_id,
-          pages: popupEditContext ? popupEditContext.backup.pages : pages,
-          activePageIndex: popupEditContext ? popupEditContext.backup.activePageIndex : activePageIndex,
-          pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
-          timestamp: Date.now()
-        });
-      }, 3000);
+      saveToDB('editor_autosave', {
+        v_id: v_id,
+        pages: popupEditContext ? popupEditContext.backup.pages : pages,
+        activePageIndex: popupEditContext ? popupEditContext.backup.activePageIndex : activePageIndex,
+        pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+        timestamp: Date.now()
+      });
     }
-    return () => {
-      if (dbSyncTimerRef.current) clearTimeout(dbSyncTimerRef.current);
-    };
   }, [pages, activePageIndex, isLoading, currentBook, location.state, v_id, popupEditContext]);
 
   useEffect(() => {
@@ -2148,8 +2125,7 @@ const TemplateEditor = () => {
 
   // ── FIGMA-STYLE: Unified Page Selection & Frame Sync ──────────────────────────
   useEffect(() => {
-    const currentPages = pagesRef.current;
-    if (!currentPages || currentPages.length === 0 || activePageIndex < 0 || activePageIndex >= currentPages.length) return;
+    if (pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return;
 
     // Track spread transitions to avoid unnecessary selection resets
     const lastSpreadStart = (lastPageIndexRef.current > 0) ? (lastPageIndexRef.current % 2 === 1 ? lastPageIndexRef.current : lastPageIndexRef.current - 1) : 0;
@@ -2159,42 +2135,48 @@ const TemplateEditor = () => {
     const hasSwitchedSpread = lastSpreadStart !== currentSpreadStart;
     lastPageIndexRef.current = activePageIndex;
 
-    // Only reset selection if we genuinely switched to a different page or spread
-    if (!hasSwitchedPage && !hasSwitchedSpread) return;
-
-    // A: Double Page Spread Logic
+    // A: Double Page Spread Logic (Can be on odd OR even index if it's a middle spread)
     const isSpread = isDoublePage && activePageIndex > 0 && (
-      (activePageIndex % 2 === 1 && activePageIndex + 1 < currentPages.length) ||
+      (activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length) ||
       (activePageIndex % 2 === 0 && activePageIndex - 1 > 0)
     );
+
 
     if (isSpread) {
       const leftIdx = activePageIndex % 2 === 1 ? activePageIndex : activePageIndex - 1;
       const rightIdx = activePageIndex % 2 === 1 ? activePageIndex + 1 : activePageIndex;
 
-      const page1 = currentPages[leftIdx];
-      const page2 = currentPages[rightIdx];
+      const page1 = pages[leftIdx];
+      const page2 = pages[rightIdx];
 
       if (page1?.layers?.[0] && page2?.layers?.[0]) {
         const root1 = page1.layers[0].id;
         const root2 = page2.layers[0].id;
+        // The active page root — determines which frame context is "entered"
         const activeRoot = activePageIndex === leftIdx ? root1 : root2;
 
-        setMultiSelectedIds(new Set([activeRoot]));
-        setSelectedLayerId(activeRoot);
-        setCurrentFrameId(activeRoot);
+        // On any page switch: always clear old selection and reset to roots.
+        // Set currentFrameId to the active page root so the first single click
+        // can immediately select child elements without needing to enter the frame first.
+        if (hasSwitchedPage || hasSwitchedSpread || !selectedLayerId) {
+          setMultiSelectedIds(new Set([activeRoot]));
+          setSelectedLayerId(activeRoot);
+          setCurrentFrameId(activeRoot);
+        }
       }
     } else {
-      // B: Single Page Logic
-      const page = currentPages[activePageIndex];
+      // B: Single Page Logic (Cover, Last Page, or Standard Single View)
+      const page = pages[activePageIndex];
       if (page?.layers?.[0]) {
         const rootId = page.layers[0].id;
-        setMultiSelectedIds(new Set([rootId]));
-        setSelectedLayerId(rootId);
-        setCurrentFrameId(rootId);
+        if (hasSwitchedPage || !selectedLayerId) {
+          setMultiSelectedIds(new Set([rootId]));
+          setSelectedLayerId(rootId);
+          setCurrentFrameId(rootId);
+        }
       }
     }
-  }, [activePageIndex, isDoublePage]);
+  }, [activePageIndex, isDoublePage, pages, selectedLayerId]);
 
   // ── Always fallback to selecting active page root folder if selection becomes null ──
   useEffect(() => {
@@ -2207,19 +2189,19 @@ const TemplateEditor = () => {
   }, [selectedLayerId, activePageIndex, pages]);
 
   // ── NEW: Spread Alignment Snapping ───────────────────────────────────────────
+  // UPDATED: Only snap if we are in double-page mode AND current logic requires it for initial navigation.
+  // We allow clicking the right-side page to set the active index to even (right page).
   useEffect(() => {
     if (!isDoublePage) return;
+    // If we were on single page view and switched to double, we might need a jump.
   }, [isDoublePage]);
+
 
   const isUndoRedoActiveRef = useRef(false);
   const prevSelectedLayerIdRef = useRef(selectedLayerId);
   const prevMultiSelectedIdsRef = useRef(multiSelectedIds);
 
-  useEffect(() => {
-    historyRef.current = history;
-  }, [history]);
-
-  // Sync selection state into top history snapshot in-place (0ms latency, zero re-render cascade)
+  // Push element selection and deselection actions into Undo/Redo history
   useEffect(() => {
     if (isUndoRedoActiveRef.current) {
       isUndoRedoActiveRef.current = false;
@@ -2228,39 +2210,15 @@ const TemplateEditor = () => {
       return;
     }
 
-    prevSelectedLayerIdRef.current = selectedLayerId;
-    prevMultiSelectedIdsRef.current = multiSelectedIds;
+    const prevMultiStr = Array.from(prevMultiSelectedIdsRef.current || []).sort().join(',');
+    const currMultiStr = Array.from(multiSelectedIds || []).sort().join(',');
 
-    if (historyRef.current && historyRef.current.length > 0) {
-      const last = historyRef.current[historyRef.current.length - 1];
-      if (last && !Array.isArray(last)) {
-        last.selectedLayerId = selectedLayerId;
-        last.activePageIndex = activePageIndex;
-        last.multiSelectedIds = Array.from(multiSelectedIds || []);
-      }
+    if (prevSelectedLayerIdRef.current !== selectedLayerId || prevMultiStr !== currMultiStr) {
+      saveToHistory(pages, selectedLayerId, activePageIndex, multiSelectedIds);
+      prevSelectedLayerIdRef.current = selectedLayerId;
+      prevMultiSelectedIdsRef.current = multiSelectedIds;
     }
-  }, [selectedLayerId, multiSelectedIds, activePageIndex]);
-
-  const clonePagesForHistory = (pagesList) => {
-    if (!Array.isArray(pagesList)) return [];
-    return pagesList.map(p => ({
-      ...p,
-      layers: Array.isArray(p.layers) ? JSON.parse(JSON.stringify(p.layers)) : []
-    }));
-  };
-
-  const arePagesEqualForHistory = (pagesA, pagesB) => {
-    if (pagesA === pagesB) return true;
-    if (!Array.isArray(pagesA) || !Array.isArray(pagesB) || pagesA.length !== pagesB.length) return false;
-    for (let i = 0; i < pagesA.length; i++) {
-      const a = pagesA[i];
-      const b = pagesB[i];
-      if (a === b) continue;
-      if (!a || !b) return false;
-      if (a.id !== b.id || a.html !== b.html || a.name !== b.name || a.isHidden !== b.isHidden) return false;
-    }
-    return true;
-  };
+  }, [selectedLayerId, multiSelectedIds]);
 
   const saveToHistory = (
     customPages = pages,
@@ -2269,7 +2227,7 @@ const TemplateEditor = () => {
     customMultiIds = multiSelectedIds
   ) => {
     const snap = {
-      pages: clonePagesForHistory(customPages),
+      pages: JSON.parse(JSON.stringify(customPages)),
       selectedLayerId: customLayerId,
       activePageIndex: customPageIndex,
       multiSelectedIds: Array.from(customMultiIds || [])
@@ -2283,11 +2241,10 @@ const TemplateEditor = () => {
         const lastPageIndex = Array.isArray(last) ? null : last.activePageIndex;
         const lastMultiIds = Array.isArray(last) ? [] : (last.multiSelectedIds || []);
 
-        const isSamePages = arePagesEqualForHistory(lastPages, snap.pages);
+        const isSamePages = JSON.stringify(lastPages) === JSON.stringify(snap.pages);
         const isSameLayerId = lastLayerId === snap.selectedLayerId;
         const isSamePageIndex = lastPageIndex === snap.activePageIndex;
-        const isSameMultiIds = lastMultiIds.length === snap.multiSelectedIds.length &&
-          lastMultiIds.every((id, idx) => id === snap.multiSelectedIds[idx]);
+        const isSameMultiIds = JSON.stringify(lastMultiIds.sort()) === JSON.stringify(snap.multiSelectedIds.sort());
 
         if (isSamePages && isSameLayerId && isSamePageIndex && isSameMultiIds) {
           return prev;
@@ -2299,15 +2256,12 @@ const TemplateEditor = () => {
   };
 
   const undo = () => {
-    if (typeof window.__flushPageOverlayCommit === 'function') {
-      window.__flushPageOverlayCommit();
-    }
     if (history.length === 0) return;
 
     isUndoRedoActiveRef.current = true;
 
     const currentSnap = {
-      pages: clonePagesForHistory(pages),
+      pages: JSON.parse(JSON.stringify(pages)),
       selectedLayerId,
       activePageIndex,
       multiSelectedIds: Array.from(multiSelectedIds || [])
@@ -2325,21 +2279,6 @@ const TemplateEditor = () => {
     prevSelectedLayerIdRef.current = targetLayerId;
     prevMultiSelectedIdsRef.current = targetMultiIds;
 
-    // Fast-sync pageCacheManager for all pages in targetPages to prevent stale cache lookups
-    if (Array.isArray(targetPages)) {
-      targetPages.forEach((p) => {
-        if (p && p.id && p.html) {
-          try {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(p.html, 'image/svg+xml');
-            const svgEl = doc.querySelector('svg');
-            const layers = svgEl ? parseLayersFromSVG(svgEl) : (p.layers || []);
-            pageCacheManager.setCachedLayers(p.id, p.html, layers);
-          } catch (_) {}
-        }
-      });
-    }
-
     setPages(targetPages);
     if (targetPageIndex !== undefined && targetPageIndex !== null && targetPageIndex >= 0) {
       setActivePageIndex(targetPageIndex);
@@ -2364,22 +2303,16 @@ const TemplateEditor = () => {
       rebind();
       setTimeout(rebind, 30);
       setTimeout(rebind, 100);
-      setTimeout(() => {
-        isUndoRedoActiveRef.current = false;
-      }, 150);
     });
   };
 
   const redo = () => {
-    if (typeof window.__flushPageOverlayCommit === 'function') {
-      window.__flushPageOverlayCommit();
-    }
     if (redoStack.length === 0) return;
 
     isUndoRedoActiveRef.current = true;
 
     const currentSnap = {
-      pages: clonePagesForHistory(pages),
+      pages: JSON.parse(JSON.stringify(pages)),
       selectedLayerId,
       activePageIndex,
       multiSelectedIds: Array.from(multiSelectedIds || [])
@@ -2397,21 +2330,6 @@ const TemplateEditor = () => {
     prevSelectedLayerIdRef.current = targetLayerId;
     prevMultiSelectedIdsRef.current = targetMultiIds;
 
-    // Fast-sync pageCacheManager for all pages in targetPages to prevent stale cache lookups
-    if (Array.isArray(targetPages)) {
-      targetPages.forEach((p) => {
-        if (p && p.id && p.html) {
-          try {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(p.html, 'image/svg+xml');
-            const svgEl = doc.querySelector('svg');
-            const layers = svgEl ? parseLayersFromSVG(svgEl) : (p.layers || []);
-            pageCacheManager.setCachedLayers(p.id, p.html, layers);
-          } catch (_) {}
-        }
-      });
-    }
-
     setPages(targetPages);
     if (targetPageIndex !== undefined && targetPageIndex !== null && targetPageIndex >= 0) {
       setActivePageIndex(targetPageIndex);
@@ -2436,9 +2354,6 @@ const TemplateEditor = () => {
       rebind();
       setTimeout(rebind, 30);
       setTimeout(rebind, 100);
-      setTimeout(() => {
-        isUndoRedoActiveRef.current = false;
-      }, 150);
     });
   };
 
@@ -3872,7 +3787,6 @@ const TemplateEditor = () => {
         updated[pageIndex] = { ...page, html: value, layers: newLayers };
         return updated;
       });
-      if (typeof setHasUnsavedChanges === 'function') setHasUnsavedChanges(true);
       return;
     }
     setPages(prev => {
@@ -4096,157 +4010,11 @@ const TemplateEditor = () => {
           syncFilters(doc, element);
         }
 
-        // --- PAGE BORDER SYNC (Ensures stroke is visible on top of background image & accurately aligned) ---
-        if (element.getAttribute('data-name') === 'Overlay' || elementId === 'Overlay') {
-          const sColor = element.getAttribute('stroke');
-          let sWidth = parseFloat(element.getAttribute('stroke-width') || '0');
-          if (sColor && sColor !== 'none' && sWidth <= 0) {
-            sWidth = 1;
-            element.setAttribute('stroke-width', '1');
-          }
-          const sDash = element.getAttribute('stroke-dasharray');
-          const sOpacity = element.getAttribute('stroke-opacity');
-          const sJoin = element.getAttribute('stroke-linejoin') || 'round';
-          const sPos = element.getAttribute('data-stroke-position') || 'Inside';
-
-          let pageBorder = doc.querySelector('[data-name="Page Border"]') || doc.getElementById(`page-border-${pageIndex}`);
-
-          if (!sColor || sColor === 'none' || sWidth <= 0) {
-            if (pageBorder) pageBorder.remove();
-          } else {
-            const svgEl = doc.querySelector('svg');
-            let baseW = parseFloat(svgEl?.getAttribute('width') || element.getAttribute('width') || '794');
-            let baseH = parseFloat(svgEl?.getAttribute('height') || element.getAttribute('height') || '1123');
-            if (svgEl?.getAttribute('viewBox')) {
-              const vbParts = svgEl.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
-              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
-                baseW = vbParts[2];
-                baseH = vbParts[3];
-              }
-            }
-
-            if (!pageBorder) {
-              pageBorder = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
-              pageBorder.setAttribute('id', `page-border-${pageIndex}`);
-              pageBorder.setAttribute('data-name', 'Page Border');
-              pageBorder.setAttribute('data-type', 'page-border');
-              pageBorder.setAttribute('style', 'pointer-events: none;');
-              pageBorder.setAttribute('pointer-events', 'none');
-            }
-
-            // Always ensure pageBorder is placed after the background image and overlay
-            const bgImg = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
-            const insertAfterNode = bgImg || element;
-            if (insertAfterNode && insertAfterNode.parentNode) {
-              if (insertAfterNode.nextSibling !== pageBorder) {
-                insertAfterNode.parentNode.insertBefore(pageBorder, insertAfterNode.nextSibling);
-              }
-            }
-
-            // Calculate geometry for Inside / Center / Outside
-            if (sPos === 'Inside') {
-              pageBorder.setAttribute('x', (sWidth / 2).toString());
-              pageBorder.setAttribute('y', (sWidth / 2).toString());
-              pageBorder.setAttribute('width', Math.max(0, baseW - sWidth).toString());
-              pageBorder.setAttribute('height', Math.max(0, baseH - sWidth).toString());
-            } else if (sPos === 'Outside') {
-              pageBorder.setAttribute('x', (-sWidth / 2).toString());
-              pageBorder.setAttribute('y', (-sWidth / 2).toString());
-              pageBorder.setAttribute('width', (baseW + sWidth).toString());
-              pageBorder.setAttribute('height', (baseH + sWidth).toString());
-            } else {
-              // Center
-              pageBorder.setAttribute('x', '0');
-              pageBorder.setAttribute('y', '0');
-              pageBorder.setAttribute('width', baseW.toString());
-              pageBorder.setAttribute('height', baseH.toString());
-            }
-
-            pageBorder.setAttribute('fill', 'none');
-            pageBorder.setAttribute('stroke', sColor);
-            pageBorder.setAttribute('stroke-width', sWidth.toString());
-            pageBorder.setAttribute('stroke-linejoin', sJoin);
-            pageBorder.setAttribute('shape-rendering', 'geometricPrecision');
-            if (sOpacity !== null && sOpacity !== undefined) {
-              pageBorder.setAttribute('stroke-opacity', sOpacity);
-            } else {
-              pageBorder.removeAttribute('stroke-opacity');
-            }
-            if (sDash && sDash !== 'none') {
-              pageBorder.setAttribute('stroke-dasharray', sDash);
-            } else {
-              pageBorder.removeAttribute('stroke-dasharray');
-            }
-
-            // Ensure Overlay element itself has no visual stroke attributes in serialized SVG
-            element.setAttribute('data-stroke-color', sColor);
-            element.setAttribute('data-stroke-width', sWidth.toString());
-            element.removeAttribute('stroke');
-            element.removeAttribute('stroke-width');
-          }
-
-          // Ensure Page Background Image is intact if Overlay has data-bg-image
-          const ovBgImage = element.getAttribute('data-bg-image');
-          let existingBgImg = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
-          if (ovBgImage && !existingBgImg) {
-            const svgEl = doc.querySelector('svg');
-            let baseW = parseFloat(svgEl?.getAttribute('width') || element.getAttribute('width') || '794');
-            let baseH = parseFloat(svgEl?.getAttribute('height') || element.getAttribute('height') || '1123');
-            if (svgEl?.getAttribute('viewBox')) {
-              const vbParts = svgEl.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
-              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
-                baseW = vbParts[2];
-                baseH = vbParts[3];
-              }
-            }
-            const imgNode = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
-            imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
-            imgNode.setAttribute('data-name', 'Page Background Image');
-            imgNode.setAttribute('data-type', 'page-background-image');
-            imgNode.setAttribute('x', '0');
-            imgNode.setAttribute('y', '0');
-            imgNode.setAttribute('width', baseW.toString());
-            imgNode.setAttribute('height', baseH.toString());
-            imgNode.setAttribute('style', 'pointer-events: none;');
-            imgNode.setAttribute('href', ovBgImage);
-            imgNode.setAttribute('xlink:href', ovBgImage);
-            const rawFilename = element.getAttribute('data-bg-image-name');
-            const cleanFilename = rawFilename && rawFilename !== 'Background Image.jpg' ? rawFilename : (() => {
-              try {
-                const p = ovBgImage.split('?')[0].split('#')[0];
-                const lp = p.substring(p.lastIndexOf('/') + 1);
-                return decodeURIComponent(lp).replace(/^[0-9a-fA-F-]+_/, '').replace(/^\d{10,}_/, '') || 'Background Image.jpg';
-              } catch (e) { return 'Background Image.jpg'; }
-            })();
-            imgNode.setAttribute('data-filename', cleanFilename);
-            imgNode.setAttribute('data-dimensions', element.getAttribute('data-bg-image-dim') || '');
-            const fit = element.getAttribute('data-bg-fit') || 'Fit';
-            imgNode.setAttribute('data-fix-type', fit);
-            imgNode.setAttribute('preserveAspectRatio', fit === 'Fit' ? 'xMidYMid meet' : (fit === 'Fill' ? 'xMidYMid slice' : 'none'));
-            const op = element.getAttribute('data-bg-opacity');
-            imgNode.setAttribute('opacity', op ? (parseFloat(op) / 100).toString() : '1');
-
-            if (pageBorder) {
-              pageBorder.parentNode.insertBefore(imgNode, pageBorder);
-            } else if (element.nextSibling) {
-              element.parentNode.insertBefore(imgNode, element.nextSibling);
-            } else {
-              element.parentNode.appendChild(imgNode);
-            }
-          }
-        }
-
         const serializer = new XMLSerializer();
-        const serialized = serializer.serializeToString(doc.documentElement);
-        if (elementId === 'Overlay' || element.getAttribute('data-name') === 'Overlay') {
-          window.__skipCanvasUpdateForPage = pageIndex;
-          window.__lastCommittedOverlayHtml = serialized;
-        }
-        updated[pageIndex] = { ...page, html: serialized };
+        updated[pageIndex] = { ...page, html: serializer.serializeToString(doc.documentElement) };
       }
       return updated;
     });
-    if (typeof setHasUnsavedChanges === 'function') setHasUnsavedChanges(true);
   };
 
   const updatePageBackground = (pageIndex, color) => {
@@ -4260,60 +4028,8 @@ const TemplateEditor = () => {
         const overlay = doc.querySelector('[data-name="Overlay"]');
         if (overlay) {
           overlay.setAttribute('fill', color);
-
-          const ovBgImage = overlay.getAttribute('data-bg-image');
-          let existingBgImg = doc.querySelector('image[data-name="Page Background Image"]') || doc.querySelector('[data-type="page-background-image"]');
-          if (ovBgImage && !existingBgImg) {
-            const svgEl = doc.querySelector('svg');
-            let baseW = parseFloat(svgEl?.getAttribute('width') || overlay.getAttribute('width') || '794');
-            let baseH = parseFloat(svgEl?.getAttribute('height') || overlay.getAttribute('height') || '1123');
-            if (svgEl?.getAttribute('viewBox')) {
-              const vbParts = svgEl.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat);
-              if (vbParts.length >= 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
-                baseW = vbParts[2];
-                baseH = vbParts[3];
-              }
-            }
-            const imgNode = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
-            imgNode.setAttribute('id', `page-bg-img-${Date.now()}`);
-            imgNode.setAttribute('data-name', 'Page Background Image');
-            imgNode.setAttribute('data-type', 'page-background-image');
-            imgNode.setAttribute('x', '0');
-            imgNode.setAttribute('y', '0');
-            imgNode.setAttribute('width', baseW.toString());
-            imgNode.setAttribute('height', baseH.toString());
-            imgNode.setAttribute('style', 'pointer-events: none;');
-            imgNode.setAttribute('href', ovBgImage);
-            imgNode.setAttribute('xlink:href', ovBgImage);
-            const rawFilename = overlay.getAttribute('data-bg-image-name');
-            const cleanFilename = rawFilename && rawFilename !== 'Background Image.jpg' ? rawFilename : (() => {
-              try {
-                const p = ovBgImage.split('?')[0].split('#')[0];
-                const lp = p.substring(p.lastIndexOf('/') + 1);
-                return decodeURIComponent(lp).replace(/^[0-9a-fA-F-]+_/, '').replace(/^\d{10,}_/, '') || 'Background Image.jpg';
-              } catch (e) { return 'Background Image.jpg'; }
-            })();
-            imgNode.setAttribute('data-filename', cleanFilename);
-            imgNode.setAttribute('data-dimensions', overlay.getAttribute('data-bg-image-dim') || '');
-            const fit = overlay.getAttribute('data-bg-fit') || 'Fit';
-            imgNode.setAttribute('data-fix-type', fit);
-            imgNode.setAttribute('preserveAspectRatio', fit === 'Fit' ? 'xMidYMid meet' : (fit === 'Fill' ? 'xMidYMid slice' : 'none'));
-            const op = overlay.getAttribute('data-bg-opacity');
-            imgNode.setAttribute('opacity', op ? (parseFloat(op) / 100).toString() : '1');
-
-            const pageBorder = doc.querySelector('[data-name="Page Border"]');
-            if (pageBorder) {
-              pageBorder.parentNode.insertBefore(imgNode, pageBorder);
-            } else if (overlay.nextSibling) {
-              overlay.parentNode.insertBefore(imgNode, overlay.nextSibling);
-            } else {
-              overlay.parentNode.appendChild(imgNode);
-            }
-          }
-
           page.html = new XMLSerializer().serializeToString(doc);
         }
-        window.__skipCanvasUpdateForPage = pageIndex;
         updated[pageIndex] = { ...page };
       }
       return updated;
@@ -5790,42 +5506,26 @@ const TemplateEditor = () => {
     }
   }, [isPasswordProtected, v_id, currentBook?.share?.shareId]);
 
-  const isPdfProject = React.useMemo(() => {
-    return pages.some(p => p.html && (p.html.includes('data-name="PDF Background"') || p.html.includes('data-type="pdf-vector-layer"') || p.html.includes('Document Shield')));
-  }, [pages]);
+  const isPdfProject = pages.some(p => p.html && (p.html.includes('data-name="PDF Background"') || p.html.includes('data-type="pdf-vector-layer"') || p.html.includes('Document Shield')));
 
-  const selectedElementInteraction = React.useMemo(() => {
+  const selectedElementInteraction = (() => {
     if (!selectedLayerId || pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return null;
-    
-    // Fast path: Query live DOM first (0ms overhead)
-    const liveEl = document.getElementById(selectedLayerId);
-    if (liveEl) {
-      return {
-        id: selectedLayerId,
-        tagName: liveEl.tagName,
-        'data-interaction': liveEl.getAttribute('data-interaction'),
-        'data-tooltip-settings': liveEl.getAttribute('data-tooltip-settings')
-      };
-    }
-
     const page = pages[activePageIndex];
     if (page && page.html) {
-      try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(page.html, 'image/svg+xml');
-        const el = doc.getElementById(selectedLayerId);
-        if (el) {
-          return {
-            id: selectedLayerId,
-            tagName: el.tagName,
-            'data-interaction': el.getAttribute('data-interaction'),
-            'data-tooltip-settings': el.getAttribute('data-tooltip-settings')
-          };
-        }
-      } catch (e) {}
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const el = doc.getElementById(selectedLayerId);
+      if (el) {
+        return {
+          id: selectedLayerId,
+          tagName: el.tagName,
+          'data-interaction': el.getAttribute('data-interaction'),
+          'data-tooltip-settings': el.getAttribute('data-tooltip-settings')
+        };
+      }
     }
     return null;
-  }, [selectedLayerId, activePageIndex, pages]);
+  })();
 
   return (
     <div onContextMenu={(e) => e.preventDefault()} className="flex h-[92vh] w-full bg-white overflow-hidden relative">
@@ -5842,10 +5542,11 @@ const TemplateEditor = () => {
             key="editor-loader"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4, ease: "easeInOut" }}
-            className="absolute inset-0 z-[9999]"
+            transition={{ duration: 0.5, ease: "easeInOut" }}
+            className="absolute inset-0 z-[9999] flex flex-col items-center justify-center bg-white h-full w-full gap-3"
           >
-            <EditorSkeletonLoader />
+            <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+            <span className="text-[0.85vw] font-semibold text-gray-600 tracking-wide">Loading Editor...</span>
           </motion.div>
         )}
       </AnimatePresence>

@@ -69,45 +69,45 @@ const IconGallery = ({
       style={style}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex px-[1.15vw] pt-[1.15vw] pb-[0.45vw] bg-white items-center justify-between">
-        <div className="flex items-center gap-[0.7vw] flex-1 mr-[0.7vw]">
-          <span className="text-[0.9vw] font-semibold text-[#003366]">Icon Gallery</span>
+      <div className="flex px-[1.5vw] pt-[1.5vw] pb-[0.5vw] bg-white items-center justify-between">
+        <div className="flex items-center gap-[1vw] flex-1 mr-[1vw]">
+          <span className="text-[1vw] font-medium text-[#003366]">Icon Gallery</span>
           <div className="h-px bg-gray-200 flex-1"></div>
         </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+          className="text-gray-400 hover:text-gray-700 transition-colors"
         >
-          <X size="1.05vw" />
+          <X size="1.2vw" />
         </button>
       </div>
 
-      <div className="px-[1.15vw] py-[0.7vw] border-b bg-white">
+      <div className="px-[1.5vw] py-[1vw] border-b bg-white">
         <div className="relative">
-          <Search size="0.9vw" className="absolute left-[0.7vw] top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size="1vw" className="absolute left-[0.75vw] top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search icons..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-[2vw] pl-[2vw] pr-[1.8vw] text-[0.72vw] bg-gray-50 border border-gray-200 rounded-full outline-none focus:border-black transition-colors"
+            className="w-full h-[2.25vw] pl-[2.25vw] pr-[2vw] text-[0.75vw] bg-gray-50 border border-gray-200 rounded-full outline-none focus:border-black transition-colors"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-[0.7vw] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-[0.75vw] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              <X size="0.8vw" />
+              <X size="0.9vw" />
             </button>
           )}
         </div>
       </div>
 
       <div
-        className="flex-1 overflow-y-auto px-[0.9vw] py-[0.9vw] custom-scrollbar"
+        className="flex-1 overflow-y-auto px-[1.5vw] py-[1.5vw] custom-scrollbar"
         onScroll={handleScroll}
       >
-        <div className="grid grid-cols-5 gap-[0.6vw]">
+        <div className="grid grid-cols-5 gap-[0.75vw]">
           {filteredIcons.slice(0, visibleCount).map((icon, index) => (
             <div
               key={index}
@@ -134,9 +134,9 @@ const IconGallery = ({
               className={`aspect-square rounded-[0.4vw] flex items-center justify-center cursor-pointer transition-all hover:bg-gray-100 ${tempSelectedIcon === icon ? 'bg-gray-200 ring-2 ring-gray-300' : 'bg-transparent'}`}
             >
               {icon.Component ? (
-                <icon.Component className="w-[1.85vw] h-[1.85vw] text-black pointer-events-none" strokeWidth={1.5} />
+                <icon.Component className="w-[2.25vw] h-[2.25vw] text-black pointer-events-none" strokeWidth={1.5} />
               ) : (
-                <svg viewBox={icon.viewBox} className="w-[1.85vw] h-[1.85vw] fill-black pointer-events-none">
+                <svg viewBox={icon.viewBox} className="w-[2.25vw] h-[2.25vw] fill-black pointer-events-none">
                   {icon.html ? (
                     <g dangerouslySetInnerHTML={{ __html: icon.html }} />
                   ) : (
@@ -149,11 +149,11 @@ const IconGallery = ({
         </div>
       </div>
 
-      <div className="p-[0.7vw] border-t flex justify-end gap-[0.4vw] bg-white">
+      <div className="p-[0.75vw] border-t flex justify-end gap-[0.5vw] bg-white">
         <button
           disabled={!tempSelectedIcon}
           onClick={handleSelectIcon}
-          className="flex-1 h-[2vw] bg-black text-white rounded-[0.45vw] text-[0.72vw] font-semibold flex items-center justify-center hover:bg-zinc-800 disabled:opacity-50 cursor-pointer"
+          className="flex-1 h-[2vw] bg-black text-white rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center hover:bg-zinc-800 disabled:opacity-50"
         >
           Place on Page
         </button>

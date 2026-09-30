@@ -6,7 +6,6 @@ import { LAYOUT_DEFAULT_COLORS } from '../components/CustomizedEditor/Layout';
 import { Icon } from '@iconify/react';
 import { Ghost, ArrowLeft, Home, BookOpen, Clock, X, Star, Info, BookMarked, LogOut, Search, MapPin } from 'lucide-react';
 import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
-import { ensurePageBackgroundImage } from '../components/TemplateEditor/editorUtils';
 import { useToast } from '../components/CustomToast';
 
 const AVATAR_COLORS = [
@@ -477,6 +476,7 @@ const ShareViewBook = () => {
             texture: 'Plain White',
             hardCover: false,
             flipStyle: 'Classic Flip',
+            flipSpeed: validSpeed,
             corner: 'Sharp',
             dropShadow: { active: true, color: '#4f4f4fff', opacity: 50, xAxis: 0, yAxis: 0, blur: 0, spread: 0 },
             ...rawApp,
@@ -660,7 +660,6 @@ const ShareViewBook = () => {
 
                         // Rewrite all /uploads/ to Supabase CDN URLs if configured
                         html = rewriteHtmlUploadsToSupabase(html);
-                        html = ensurePageBackgroundImage(html);
 
                         return { ...p, html };
                     });
@@ -839,14 +838,7 @@ const ShareViewBook = () => {
     const isMobileDevice = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     if (loading) return (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#2D2F33] text-white select-none">
-            <div className="flex flex-col items-center gap-4">
-                <div className="w-12 h-12 border-4 border-[#4A3AFF] border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-base font-medium tracking-wide text-slate-200">
-                    Please wait...
-                </p>
-            </div>
-        </div>
+        <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0, backgroundColor: '#ffffff' }} />
     );
 
     if (accessMode === 'password') return (

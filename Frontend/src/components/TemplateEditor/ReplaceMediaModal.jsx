@@ -118,35 +118,21 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image', titl
 
   useEffect(() => {
     if (replaceModalFile) {
-      const isVideo = mediaType === 'video' || replaceModalFile.type?.startsWith('video/') || (typeof replaceModalFile.name === 'string' && replaceModalFile.name.toLowerCase().endsWith('.mp4'));
       const src = replaceModalFile.url || URL.createObjectURL(replaceModalFile);
-      if (isVideo) {
-        const vid = document.createElement('video');
-        vid.onloadedmetadata = () => {
-          setReplaceModalFileDim(`${vid.videoWidth} x ${vid.videoHeight}`);
-          if (!replaceModalFile.url) URL.revokeObjectURL(src);
-        };
-        vid.onerror = () => {
-          setReplaceModalFileDim('Unknown');
-          if (!replaceModalFile.url) URL.revokeObjectURL(src);
-        };
-        vid.src = src;
-      } else {
-        const img = new Image();
-        img.onload = () => {
-          setReplaceModalFileDim(`${img.width} x ${img.height}`);
-          if (!replaceModalFile.url) URL.revokeObjectURL(src);
-        };
-        img.onerror = () => {
-          setReplaceModalFileDim('Unknown');
-          if (!replaceModalFile.url) URL.revokeObjectURL(src);
-        };
-        img.src = src;
-      }
+      const img = new Image();
+      img.onload = () => {
+        setReplaceModalFileDim(`${img.width} x ${img.height}`);
+        if (!replaceModalFile.url) URL.revokeObjectURL(src);
+      };
+      img.onerror = () => {
+        setReplaceModalFileDim('Unknown');
+        if (!replaceModalFile.url) URL.revokeObjectURL(src);
+      };
+      img.src = src;
     } else {
       setReplaceModalFileDim('');
     }
-  }, [replaceModalFile, mediaType]);
+  }, [replaceModalFile]);
 
   useEffect(() => {
     const galleryTabName = mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery';
