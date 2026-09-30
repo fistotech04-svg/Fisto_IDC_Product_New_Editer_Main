@@ -98,11 +98,6 @@ const CornerRadius = ({
                     const clamped = Math.max(0, newVal);
                     if (pseudoProps['data-corner-linked'] !== 'false') {
                       updateAttr('rx', clamped);
-                      updateAttr('ry', clamped);
-                      updateAttr('data-tl', clamped);
-                      updateAttr('data-tr', clamped);
-                      updateAttr('data-bl', clamped);
-                      updateAttr('data-br', clamped);
                     } else {
                       updateAttr(corner.key, clamped);
                     }
