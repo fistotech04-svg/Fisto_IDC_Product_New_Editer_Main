@@ -27,8 +27,6 @@ import { MeshoptEncoder } from "meshoptimizer";
 import initOCCT from "occt-import-js";
 import CameraModal from "./Components/CameraModal";
 import AddMaterial from "./Components/AddMaterial";
-import Hotspot3DOverlay from "./Components/Hotspot3DOverlay";
-import HotspotModal from "./Components/HotspotModal";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
 import { getFromDB, saveToDB } from "../../utils/dbUtils";
 import { process3DDropEvent } from "./utils/modelDropHandler";
@@ -317,28 +315,8 @@ export default function ThreedEditor() {
     }
   }, []);
 
-  const frameModelFullViewRef = useRef(null);
-  const latestModelBoundsRef = useRef(null);
-  const cameraAnimFrameRef = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      if (cameraAnimFrameRef.current) {
-        cancelAnimationFrame(cameraAnimFrameRef.current);
-      }
-    };
-  }, []);
-
   // Completion hook: triggered by GenericModel after double-RAF base positioning
-  const handleModelReady = useCallback((modelId, bounds) => {
-    if (bounds) {
-      latestModelBoundsRef.current = bounds;
-    }
-    // Automatically position camera to show full view framing whenever any model is opened or uploaded
-    if (typeof frameModelFullViewRef.current === 'function') {
-      frameModelFullViewRef.current(bounds, false);
-    }
-
+  const handleModelReady = useCallback((modelId) => {
     if (isCompletingRef.current) return;
     // Guard against non-pending model ONLY if there are multiple models loaded and IDs explicitly conflict
     if (pendingModelIdRef.current && modelId && String(pendingModelIdRef.current) !== String(modelId) && (modelsRef.current?.length > 1)) {
@@ -525,7 +503,6 @@ export default function ThreedEditor() {
   const cameraInstanceRef = useRef(null);
   const originalTransformRef = useRef(null);
   const meshTransformsRef = useRef({});
-  const handleSelectMaterialRef = useRef(null);
   const [meshTransformsState, setMeshTransformsState] = useState({});
   const lastUpdateRef = useRef(0);
 
@@ -554,159 +531,6 @@ export default function ThreedEditor() {
   const modelMaterialListsRef = useRef({});
   const [modelMaterialDataMap, setModelMaterialDataMap] = useState({});
   const sceneWrapperRef = useRef(null);
-
-  // Full-view camera angle: automatically frames any uploaded or opened model in a stunning 3/4 perspective without clipping
-  const frameModelFullView = useCallback((bounds, animate = false) => {
-    if (bounds) {
-      latestModelBoundsRef.current = bounds;
-    }
-
-    const tryFrame = (attemptsLeft = 6) => {
-      const camera = cameraInstanceRef.current;
-      const controls = controlsRef.current;
-      const gl = glInstanceRef.current;
-
-      if (!camera || !controls) {
-        if (attemptsLeft > 0) {
-          requestAnimationFrame(() => tryFrame(attemptsLeft - 1));
-        }
-        return;
-      }
-
-      // 1. Calculate model center and bounding radius
-      let target = new THREE.Vector3(0, 1.0, 0);
-      let radius = 2.5;
-
-      // Primary: accurate world bounding box computed from all renderable geometry in sceneWrapperRef
-      let box = new THREE.Box3();
-      if (sceneWrapperRef.current) {
-        sceneWrapperRef.current.traverse((child) => {
-          if ((child.isMesh || child.isSkinnedMesh) && child.geometry) {
-            if (!child.geometry.boundingBox) {
-              try { child.geometry.computeBoundingBox(); } catch (_) {}
-            }
-            if (child.geometry.boundingBox) {
-              try {
-                const geomBox = child.geometry.boundingBox.clone().applyMatrix4(child.matrixWorld);
-                if (!geomBox.isEmpty() && isFinite(geomBox.min.x)) {
-                  box.union(geomBox);
-                }
-              } catch (_) {}
-            }
-          }
-        });
-      }
-
-      if (!box.isEmpty() && isFinite(box.min.x)) {
-        const center = new THREE.Vector3();
-        const size = new THREE.Vector3();
-        box.getCenter(center);
-        box.getSize(size);
-        target.copy(center);
-        radius = Math.max(0.8, size.length() / 2);
-      } else if (bounds) {
-        // Fallback: bounds payload passed from GenericModel
-        const h = bounds.height || (bounds.size?.y ? bounds.size.y * (bounds.targetScale || 1) : 2.0);
-        const w = bounds.width || (bounds.size?.x ? bounds.size.x * (bounds.targetScale || 1) : 2.0);
-        const d = bounds.depth || (bounds.size?.z ? bounds.size.z * (bounds.targetScale || 1) : 2.0);
-        target.set(0, Math.max(0.2, h / 2), 0);
-        radius = Math.max(0.8, Math.sqrt(w * w + h * h + d * d) / 2);
-      }
-
-      // 2. Compute optimal camera framing distance to fit the full model in view
-      const fov = camera.fov || 45;
-      const canvasEl = gl?.domElement;
-      const aspect = (canvasEl && canvasEl.clientHeight > 0)
-        ? (canvasEl.clientWidth / canvasEl.clientHeight)
-        : (camera.aspect || 1.6);
-
-      const vFOVRad = THREE.MathUtils.degToRad(fov) / 2;
-      const hFOVRad = Math.atan(Math.tan(vFOVRad) * aspect);
-
-      const distV = radius / Math.sin(vFOVRad);
-      const distH = radius / Math.sin(hFOVRad);
-      const fitDistance = Math.max(distV, distH);
-
-      // 28% padding gives a comfortable, breathable margin around top, bottom, and sidebars
-      const PADDING = 1.28;
-      const distance = Math.max(2.8, Math.min(fitDistance * PADDING, 60));
-
-      // 3. 3/4 elevated isometric/hero perspective (polar ~66° = ~24° elevation, azimuth ~38°)
-      const phi = THREE.MathUtils.degToRad(66);
-      const theta = THREE.MathUtils.degToRad(38);
-
-      const sinPhi = Math.sin(phi);
-      const cosPhi = Math.cos(phi);
-      const sinTheta = Math.sin(theta);
-      const cosTheta = Math.cos(theta);
-
-      const camX = target.x + distance * sinPhi * sinTheta;
-      const camY = target.y + distance * cosPhi;
-      const camZ = target.z + distance * sinPhi * cosTheta;
-
-      camera.near = Math.min(0.05, distance / 50);
-      camera.far = Math.max(1000, distance * 25);
-      camera.updateProjectionMatrix();
-
-      if (cameraAnimFrameRef.current) {
-        cancelAnimationFrame(cameraAnimFrameRef.current);
-        cameraAnimFrameRef.current = null;
-      }
-
-      if (!animate) {
-        controls.target.copy(target);
-        camera.position.set(camX, camY, camZ);
-        camera.lookAt(target);
-        controls.update();
-        if (typeof controls.saveState === 'function') {
-          controls.saveState();
-        }
-        setTargetPosition({
-          x: parseFloat(target.x.toFixed(2)),
-          y: parseFloat(target.y.toFixed(2)),
-          z: parseFloat(target.z.toFixed(2))
-        });
-      } else {
-        const startPos = camera.position.clone();
-        const startTarget = controls.target.clone();
-        const endPos = new THREE.Vector3(camX, camY, camZ);
-        const endTarget = target.clone();
-        const startTime = performance.now();
-        const duration = 380; // ms
-
-        const animateStep = (now) => {
-          const elapsed = now - startTime;
-          const progress = Math.min(1, elapsed / duration);
-          // Smooth cubic ease-out
-          const ease = 1 - Math.pow(1 - progress, 3);
-
-          camera.position.lerpVectors(startPos, endPos, ease);
-          controls.target.lerpVectors(startTarget, endTarget, ease);
-          camera.lookAt(controls.target);
-          controls.update();
-
-          if (progress < 1) {
-            cameraAnimFrameRef.current = requestAnimationFrame(animateStep);
-          } else {
-            cameraAnimFrameRef.current = null;
-            if (typeof controls.saveState === 'function') {
-              controls.saveState();
-            }
-            setTargetPosition({
-              x: parseFloat(endTarget.x.toFixed(2)),
-              y: parseFloat(endTarget.y.toFixed(2)),
-              z: parseFloat(endTarget.z.toFixed(2))
-            });
-          }
-        };
-        cameraAnimFrameRef.current = requestAnimationFrame(animateStep);
-      }
-    };
-
-    tryFrame();
-  }, []);
-
-  frameModelFullViewRef.current = frameModelFullView;
   const [materialList, setMaterialList] = useState(threedState.materialList || []);
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [selectedTexture, setSelectedTexture] = useState(null);
@@ -721,30 +545,6 @@ export default function ThreedEditor() {
   const [showModelGalleryModal, setShowModelGalleryModal] = useState(false);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
   const [materialRefreshKey, setMaterialRefreshKey] = useState(0);
-
-  // 3D Mesh Hotspots State
-  const [hotspots, setHotspots] = useState(threedState.hotspots || []);
-  const [activeHotspotId, setActiveHotspotId] = useState(null);
-  const [showHotspotModal, setShowHotspotModal] = useState(false);
-  const [editingHotspot, setEditingHotspot] = useState(null);
-  const [isPlacingHotspot, setIsPlacingHotspot] = useState(false);
-  const isPlacingHotspotRef = useRef(false);
-  // Right panel mode: 'edit' shows material/position/lighting, 'hotspot' shows only the hotspot list
-  const [rightPanelMode, setRightPanelMode] = useState('edit');
-  // Ref: true while the camera is animating to a hotspot — prevents pointerMissed from clearing activeHotspotId
-  const isHotspotFocusingRef = useRef(false);
-
-  useEffect(() => {
-    isPlacingHotspotRef.current = isPlacingHotspot;
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape" && isPlacingHotspot) {
-        setIsPlacingHotspot(false);
-        isPlacingHotspotRef.current = false;
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPlacingHotspot]);
 
   // Right Panel & Sidebar State
   const [activeAccordion, setActiveAccordion] = useState("factor"); // "factor" | "position" | "lighting"
@@ -891,8 +691,7 @@ export default function ThreedEditor() {
       selectedMaterial: selectedMaterial,
       selectedTexture: selectedTexture,
       selectedTextureId: selectedTextureId,
-      meshTransforms: meshTransformsRef.current || {},
-      hotspots: hotspots
+      meshTransforms: meshTransformsRef.current || {}
   });
 
   const stateRef = useRef({ 
@@ -906,8 +705,7 @@ export default function ThreedEditor() {
       selectedMaterial,
       selectedTexture,
       selectedTextureId,
-      meshTransforms: meshTransformsRef.current,
-      hotspots: hotspots
+      meshTransforms: meshTransformsRef.current
   });
 
   // Keep stateRef immediately updated in body
@@ -922,8 +720,7 @@ export default function ThreedEditor() {
       selectedMaterial,
       selectedTexture,
       selectedTextureId,
-      meshTransforms: meshTransformsRef.current,
-      hotspots: hotspots
+      meshTransforms: meshTransformsRef.current
   };
 
   const buildSnapshot = useCallback((override = {}) => {
@@ -943,7 +740,6 @@ export default function ThreedEditor() {
               ? cur.modelMaterialLists
               : (modelMaterialListsRef.current && Object.keys(modelMaterialListsRef.current).length > 0 ? modelMaterialListsRef.current : {}));
       const curMeshTransforms = override.meshTransforms !== undefined ? override.meshTransforms : (cur.meshTransforms || meshTransformsRef.current || {});
-      const curHotspots = override.hotspots !== undefined ? override.hotspots : (cur.hotspots || hotspots || []);
 
       return {
           models: Array.isArray(curModels) ? curModels.map(m => ({ ...m })) : [],
@@ -965,8 +761,7 @@ export default function ThreedEditor() {
           selectedMaterial: curSelMat ? { ...curSelMat } : null,
           selectedTexture: curSelTex ? { ...curSelTex } : null,
           selectedTextureId: curSelTexId,
-          meshTransforms: JSON.parse(JSON.stringify(curMeshTransforms || {})),
-          hotspots: Array.isArray(curHotspots) ? curHotspots.map(h => ({ ...h })) : []
+          meshTransforms: JSON.parse(JSON.stringify(curMeshTransforms || {}))
       };
   }, []);
 
@@ -1049,10 +844,6 @@ export default function ThreedEditor() {
           setMeshTransformsState(nextTransforms);
       }
 
-      if (targetState.hotspots !== undefined) {
-          setHotspots(Array.isArray(targetState.hotspots) ? targetState.hotspots : []);
-      }
-
       const tex = targetState.materialSettings?.appliedTexture || targetState.selectedTexture;
       const texId = targetState.selectedTextureId !== undefined ? targetState.selectedTextureId : (tex?.id || null);
       setSelectedTextureId(texId);
@@ -1068,7 +859,6 @@ export default function ThreedEditor() {
           meshTransforms: targetState.meshTransforms !== undefined ? targetState.meshTransforms : stateRef.current.meshTransforms,
           hiddenMaterials: targetState.hiddenMaterials !== undefined ? targetState.hiddenMaterials : stateRef.current.hiddenMaterials,
           deletedMaterials: targetState.deletedMaterials !== undefined ? targetState.deletedMaterials : stateRef.current.deletedMaterials,
-          hotspots: targetState.hotspots !== undefined ? targetState.hotspots : stateRef.current.hotspots
       };
 
       // Re-trigger visual synchronizations in 3D canvas
@@ -1102,330 +892,6 @@ export default function ThreedEditor() {
       }
   }, [redo, applyHistoryState]);
 
-  // --- 3D Hotspots: Focus, Camera Move & Auto Rotate Handlers ---
-  const getMeshSurfacePosition = useCallback((meshUuid, clickPoint) => {
-    if (clickPoint && typeof clickPoint.x === "number") {
-      return [
-        parseFloat(clickPoint.x.toFixed(3)),
-        parseFloat(clickPoint.y.toFixed(3)),
-        parseFloat(clickPoint.z.toFixed(3))
-      ];
-    }
-    if (!meshUuid || !sceneWrapperRef.current) return [0, 1.2, 0];
-    let foundMesh = null;
-    sceneWrapperRef.current.traverse((child) => {
-      if (child.uuid === meshUuid) {
-        foundMesh = child;
-      }
-    });
-    if (foundMesh) {
-      try {
-        const box = new THREE.Box3().setFromObject(foundMesh);
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        return [
-          parseFloat(center.x.toFixed(3)),
-          parseFloat(box.max.y.toFixed(3)),
-          parseFloat(center.z.toFixed(3))
-        ];
-      } catch (_) {}
-    }
-    return [0, 1.2, 0];
-  }, []);
-
-  // Smooth spherical camera navigation to show that specific mesh in FRONT VIEW (facing clicked hotspot surface)
-  const focusHotspot = useCallback((hotspot) => {
-    if (!hotspot) return;
-    const camera = cameraInstanceRef.current;
-    const controls = controlsRef.current;
-    if (!camera || !controls) return;
-
-    // 1. Locate the specific mesh object in the 3D scene
-    let targetMeshObj = null;
-    if (sceneWrapperRef.current) {
-      sceneWrapperRef.current.traverse((child) => {
-        if (
-          (hotspot.meshUuid && child.uuid === hotspot.meshUuid) ||
-          (hotspot.meshName && child.name === hotspot.meshName)
-        ) {
-          targetMeshObj = child;
-        }
-      });
-    }
-
-    const hsPos = Array.isArray(hotspot.position)
-      ? new THREE.Vector3(...hotspot.position)
-      : new THREE.Vector3(0, 1, 0);
-
-    let targetCenter = hsPos.clone();
-    let meshRadius = 0.8;
-
-    if (targetMeshObj) {
-      // Calculate exact bounding box and center of that mesh
-      const box = new THREE.Box3().setFromObject(targetMeshObj);
-      if (!box.isEmpty() && isFinite(box.min.x)) {
-        const size = new THREE.Vector3();
-        box.getCenter(targetCenter);
-        box.getSize(size);
-        meshRadius = Math.max(0.25, size.length() / 2);
-      }
-    }
-
-    // 2. Compute camera distance to fit the full mesh in view based on FOV and aspect ratio
-    const fov = camera.fov || 45;
-    const canvasEl = glInstanceRef.current?.domElement;
-    const aspect = (canvasEl && canvasEl.clientHeight > 0)
-      ? (canvasEl.clientWidth / canvasEl.clientHeight)
-      : (camera.aspect || 1.6);
-
-    const vFOVRad = THREE.MathUtils.degToRad(fov) / 2;
-    const hFOVRad = Math.atan(Math.tan(vFOVRad) * aspect);
-
-    // Fit both vertical and horizontal extents of the mesh
-    const distV = meshRadius / Math.sin(vFOVRad);
-    const distH = meshRadius / Math.sin(hFOVRad);
-    const fitDistance = Math.max(distV, distH);
-
-    // Front view framing distance: 28% margin padding around the mesh for a complete, unclipped view
-    const framingDistance = Math.max(1.15, fitDistance * 1.28);
-
-    // 3. Compute FRONT VIEW vector directly facing the clicked hotspot surface:
-    let frontDir = new THREE.Vector3();
-
-    if (hotspot.normal && Array.isArray(hotspot.normal) && (Math.abs(hotspot.normal[0]) > 0.001 || Math.abs(hotspot.normal[1]) > 0.001 || Math.abs(hotspot.normal[2]) > 0.001)) {
-      // 1st priority: Exact surface normal recorded when mesh point was clicked
-      frontDir.set(hotspot.normal[0], hotspot.normal[1], hotspot.normal[2]).normalize();
-    } else {
-      // 2nd priority: Outward vector from mesh center to the hotspot surface position
-      frontDir.subVectors(hsPos, targetCenter);
-      if (frontDir.lengthSq() > 0.0001) {
-        frontDir.normalize();
-      } else {
-        // Fallback: front perspective facing +Z
-        frontDir.set(0, 0.2, 1).normalize();
-      }
-    }
-
-    // Stable elevation adjustment for top/bottom surfaces
-    if (frontDir.y > 0.82) {
-      // Top face: direct front-top elevated view facing the top surface
-      const fallbackZ = Math.abs(frontDir.z) > 0.1 ? frontDir.z : 0.45;
-      frontDir.set(frontDir.x * 0.4, 0.85, fallbackZ).normalize();
-    } else if (frontDir.y < -0.82) {
-      // Bottom face: direct front-bottom view
-      const fallbackZ = Math.abs(frontDir.z) > 0.1 ? frontDir.z : 0.45;
-      frontDir.set(frontDir.x * 0.4, -0.85, fallbackZ).normalize();
-    } else {
-      // Side faces: direct front view looking at the surface with subtle natural elevation (+0.1)
-      frontDir.y = Math.max(-0.4, Math.min(0.5, frontDir.y + 0.1));
-      frontDir.normalize();
-    }
-
-    // Look target blends mesh center and hotspot position for balanced framing
-    const lookTarget = targetCenter.clone().lerp(hsPos, 0.4);
-    const endCamPos = lookTarget.clone().add(frontDir.multiplyScalar(framingDistance));
-
-    const startCamPos = camera.position.clone();
-    const startTarget = controls.target.clone();
-    const startTime = performance.now();
-    const duration = 540; // ms: buttery smooth orbital sweep to direct front view
-
-    if (cameraAnimFrameRef.current) {
-      cancelAnimationFrame(cameraAnimFrameRef.current);
-      cameraAnimFrameRef.current = null;
-    }
-
-    // Compute relative vectors from target to camera:
-    const vStart = new THREE.Vector3().subVectors(startCamPos, startTarget);
-    const vEnd = new THREE.Vector3().subVectors(endCamPos, lookTarget);
-
-    const distStart = Math.max(0.1, vStart.length());
-    const distEnd = Math.max(0.1, vEnd.length());
-
-    const dirStart = vStart.clone().normalize();
-    const dirEnd = vEnd.clone().normalize();
-
-    // Spherical geodesic arc (great circle) between start and end directions:
-    const dot = Math.max(-1, Math.min(1, dirStart.dot(dirEnd)));
-    const angle = Math.acos(dot);
-    let rotationAxis = new THREE.Vector3();
-
-    if (dot < -0.9999) {
-      // Opposite directions: arc over the top (+Y)
-      rotationAxis.set(0, 1, 0).cross(dirStart);
-      if (rotationAxis.lengthSq() < 0.001) rotationAxis.set(1, 0, 0).cross(dirStart);
-      rotationAxis.normalize();
-    } else if (dot > 0.9999) {
-      rotationAxis.set(0, 1, 0);
-    } else {
-      rotationAxis.crossVectors(dirStart, dirEnd).normalize();
-    }
-
-    // Temporarily pause OrbitControls interaction so there is zero jitter/fighting
-    const wasControlsEnabled = controls.enabled;
-    controls.enabled = false;
-
-    // Mark that we are animating to a hotspot — prevents pointerMissed from clearing the active state
-    isHotspotFocusingRef.current = true;
-
-    const animateFocus = (now) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(1, elapsed / duration);
-      // Smooth cubic ease-out
-      const ease = 1 - Math.pow(1 - progress, 3);
-
-      // Current direction rotated around spherical axis:
-      const curDir = dirStart.clone().applyAxisAngle(rotationAxis, angle * ease).normalize();
-
-      // Smooth distance interpolation:
-      const curDist = THREE.MathUtils.lerp(distStart, distEnd, ease);
-
-      // Smooth target interpolation:
-      const curTarget = new THREE.Vector3().lerpVectors(startTarget, lookTarget, ease);
-
-      // Position camera along orbital sphere — never cuts through interior of model!
-      camera.position.copy(curTarget).addScaledVector(curDir, curDist);
-      controls.target.copy(curTarget);
-      camera.lookAt(curTarget);
-
-      if (progress < 1) {
-        cameraAnimFrameRef.current = requestAnimationFrame(animateFocus);
-      } else {
-        cameraAnimFrameRef.current = null;
-        camera.position.copy(endCamPos);
-        controls.target.copy(lookTarget);
-        camera.lookAt(lookTarget);
-        controls.enabled = wasControlsEnabled;
-        controls.update();
-        if (typeof controls.saveState === 'function') {
-          controls.saveState();
-        }
-        setTargetPosition({
-          x: parseFloat(lookTarget.x.toFixed(2)),
-          y: parseFloat(lookTarget.y.toFixed(2)),
-          z: parseFloat(lookTarget.z.toFixed(2))
-        });
-        // Animation complete — re-enable the pointerMissed guard after a brief settle period
-        setTimeout(() => {
-          isHotspotFocusingRef.current = false;
-        }, 120);
-      }
-    };
-
-    cameraAnimFrameRef.current = requestAnimationFrame(animateFocus);
-  }, []);
-
-  const handleHotspotClick = useCallback((hotspot) => {
-    if (!hotspot) return;
-
-    // Stamp time so pointerMissed won't clear the state immediately after this click
-    lastHotspotClickTimeRef.current = Date.now();
-
-    const hsId = hotspot.id;
-
-    // Toggle off if clicking the already active hotspot
-    if (String(activeHotspotId || '') === String(hsId || '')) {
-      setActiveHotspotId(null);
-      return;
-    }
-
-    // Immediately set active hotspot
-    setActiveHotspotId(hsId);
-    // Switch right panel to hotspot mode to show this active hotspot in list
-    setRightPanelMode('hotspot');
-
-    // Smoothly focus camera onto the hotspot's surface position in front view
-    focusHotspot(hotspot);
-  }, [activeHotspotId, focusHotspot]);
-
-  const handleOpenAddHotspot = useCallback((mesh = null, directOpen = false) => {
-    setRightPanelMode('hotspot');
-    const targetMesh = mesh || selectedMaterial;
-    if (directOpen && targetMesh && targetMesh.isMesh && targetMesh.clickPoint) {
-      setEditingHotspot(null);
-      setShowHotspotModal(true);
-      return;
-    }
-    // Enter interactive placement mode: ready for user to click anywhere on the 3D model
-    setIsPlacingHotspot(true);
-    isPlacingHotspotRef.current = true;
-    toast.info("Click anywhere on the 3D model to place a hotspot pin");
-  }, [selectedMaterial, toast]);
-
-  const handleSaveHotspot = useCallback(({ label, description, color }) => {
-    const targetMesh = selectedMaterial;
-
-    const clickNormalArr = targetMesh?.clickNormal
-      ? [parseFloat(targetMesh.clickNormal.x.toFixed(4)), parseFloat(targetMesh.clickNormal.y.toFixed(4)), parseFloat(targetMesh.clickNormal.z.toFixed(4))]
-      : null;
-
-    if (editingHotspot) {
-      // Editing an existing hotspot
-      const existingIndex = hotspots.findIndex(h => h.id === editingHotspot.id);
-      if (existingIndex !== -1) {
-        const existing = hotspots[existingIndex];
-        const newPos = targetMesh?.clickPoint 
-          ? getMeshSurfacePosition(targetMesh.meshUuid || targetMesh.uuid, targetMesh.clickPoint)
-          : existing.position;
-
-        const updatedHs = {
-          ...existing,
-          label,
-          description,
-          color: color || "#5d5efc",
-          position: newPos,
-          normal: clickNormalArr || existing.normal || null,
-          meshUuid: targetMesh?.meshUuid || targetMesh?.uuid || existing.meshUuid,
-          meshName: targetMesh?.name || targetMesh?.meshName || existing.meshName
-        };
-
-        const nextHotspots = [...hotspots];
-        nextHotspots[existingIndex] = updatedHs;
-        setHotspots(nextHotspots);
-        commitHistoryNow(buildSnapshot({ hotspots: nextHotspots }));
-        toast.success(`Hotspot "${updatedHs.label}" updated`);
-
-        setTimeout(() => {
-          handleHotspotClick(updatedHs);
-        }, 50);
-      }
-    } else {
-      // Add new hotspot at pointed surface location (multiple hotspots allowed on any mesh!)
-      const pos = getMeshSurfacePosition(targetMesh?.meshUuid || targetMesh?.uuid, targetMesh?.clickPoint);
-      const newHs = {
-        id: `hs_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        label,
-        description,
-        color: color || "#5d5efc",
-        position: pos,
-        normal: clickNormalArr,
-        meshUuid: targetMesh?.meshUuid || targetMesh?.uuid || "",
-        meshName: targetMesh?.name || targetMesh?.meshName || "Mesh",
-        createdAt: Date.now()
-      };
-      const nextHotspots = [...hotspots, newHs];
-      setHotspots(nextHotspots);
-      commitHistoryNow(buildSnapshot({ hotspots: nextHotspots }));
-      toast.success(`Hotspot "${newHs.label}" added to "${newHs.meshName}"`);
-
-      setTimeout(() => {
-        handleHotspotClick(newHs);
-      }, 50);
-    }
-    setShowHotspotModal(false);
-    setEditingHotspot(null);
-  }, [editingHotspot, hotspots, selectedMaterial, getMeshSurfacePosition, commitHistoryNow, buildSnapshot, toast, handleHotspotClick]);
-
-  const handleDeleteHotspot = useCallback((hotspotId) => {
-    const nextHotspots = hotspots.filter(h => h.id !== hotspotId);
-    setHotspots(nextHotspots);
-    if (activeHotspotId === hotspotId) {
-      setActiveHotspotId(null);
-    }
-    commitHistoryNow(buildSnapshot({ hotspots: nextHotspots }));
-    toast.success("Hotspot deleted");
-  }, [hotspots, activeHotspotId, commitHistoryNow, buildSnapshot, toast]);
-
   // --- History Management ---
   // --- Initialization & Server Sync ---
   useEffect(() => {
@@ -1451,7 +917,6 @@ export default function ThreedEditor() {
             if (res.data) {
               const modelData = res.data.model || res.data;
               const fullUrl = resolveUploadsPath(modelData.url);
-              const loadedHotspots = Array.isArray(modelData.hotspots) ? modelData.hotspots : [];
 
               const newModel = {
                 id: urlModelId,
@@ -1461,8 +926,7 @@ export default function ThreedEditor() {
                 type: modelData.type || (['step', 'stp', 'iges', 'igs', 'obj', 'fbx', 'stl', 'low', 'lwo', '3ds'].includes((fullUrl || '').split('?')[0].split('.').pop().toLowerCase()) ? (fullUrl || '').split('?')[0].split('.').pop().toLowerCase() : 'glb'),
                 name: (modelData.name || "Model").replace(/\.[^/.]+$/, ""),
                 fileName: modelData.fileName,
-                displayName: modelData.displayName,
-                hotspots: loadedHotspots
+                displayName: modelData.displayName
               };
               setModels([newModel]);
               setModelUrl(fullUrl);
@@ -1471,22 +935,11 @@ export default function ThreedEditor() {
               setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
               setIsSidebarCollapsed(false);
               setModelStats({ fileSize: modelData.size || "0 MB" });
-              setHotspots(loadedHotspots);
-              
-              setThreedState(prev => ({
-                ...prev,
-                models: [newModel],
-                modelUrl: fullUrl,
-                modelName: newModel.name,
-                hotspots: loadedHotspots
-              }));
-
               resetHistory({
                 ...stateRef.current,
                 models: [newModel],
                 modelName: newModel.name,
-                selectedMaterial: { name: newModel.name, parentGroup: newModel.name },
-                hotspots: loadedHotspots
+                selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
               });
               startMountingBridgeTicker(loadingProgressRef.current);
               return; // End here for ID-based load
@@ -1530,21 +983,12 @@ export default function ThreedEditor() {
             setModelName(newModel.name);
             setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
             setIsSidebarCollapsed(false);
-            const loadedHotspots = Array.isArray(parsed.hotspots) ? parsed.hotspots : [];
-            setHotspots(loadedHotspots);
-            setThreedState(prev => ({
-              ...prev,
-              models: [newModel],
-              modelUrl: fullUrl,
-              modelName: newModel.name,
-              hotspots: loadedHotspots
-            }));
+            setModelStats({ fileSize: "0 MB" });
             resetHistory({
               ...stateRef.current,
               models: [newModel],
               modelName: newModel.name,
-              selectedMaterial: { name: newModel.name, parentGroup: newModel.name },
-              hotspots: loadedHotspots
+              selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
             });
             localStorage.removeItem('tempThreedEditModel');
             startMountingBridgeTicker(loadingProgressRef.current);
@@ -1569,13 +1013,6 @@ export default function ThreedEditor() {
         setSelectedMaterial(null);
         setHiddenMaterials(new Set());
         setDeletedMaterials(new Set());
-        setHotspots([]);
-        setActiveHotspotId(null);
-        setEditingHotspot(null);
-        setShowHotspotModal(false);
-        setIsPlacingHotspot(false);
-        isPlacingHotspotRef.current = false;
-        setRightPanelMode('edit');
         
         // Also update the global context state to ensure it doesn't "re-appear"
         setThreedState(prev => ({
@@ -1583,7 +1020,6 @@ export default function ThreedEditor() {
             models: [],
             modelUrl: null,
             modelName: "",
-            hotspots: [],
             materialSettings: {
                 alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 50, rotation: 0,
                 specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
@@ -1942,7 +1378,6 @@ export default function ThreedEditor() {
                       formData.append('modelId', nextModels[0].modelId);
                   }
                   formData.append('chunk', chunk);
-                  formData.append('hotspots', JSON.stringify(hotspots || []));
 
                   const res = await axios.post(`${backendUrl}/api/3d-models/upload-chunk`, formData, {
                       headers: { 'Content-Type': 'multipart/form-data' }
@@ -1971,7 +1406,6 @@ export default function ThreedEditor() {
 
                   // Keep UI name clean, but update underlying record info
                   const mergedModelId = `model_${timestamp}`;
-                  const savedModelId = glbRes.data.modelId || nextModels[0]?.modelId;
                   const mergedModel = {
                       ...nextModels[0],
                       id: mergedModelId,
@@ -1981,8 +1415,7 @@ export default function ThreedEditor() {
                       fileName: originalFileName,
                       type: 'glb',
                       file: null,
-                      modelId: savedModelId,
-                      hotspots: hotspots || []
+                      modelId: glbRes.data.modelId // Update with newly returned ID
                   };
                   hasExported = true;
                   if (!originalFileName) {
@@ -2004,44 +1437,12 @@ export default function ThreedEditor() {
                       scale: { x: 1, y: 1, z: 1 }
                   });
 
-                  // Explicitly persist hotspots to database for this model
-                  try {
-                    await axios.post(`${backendUrl}/api/3d-models/save-hotspots`, {
-                      modelId: savedModelId,
-                      emailId: user.emailId,
-                      hotspots: hotspots || []
-                    });
-                  } catch (hsErr) {
-                    console.warn("Direct hotspots save notice:", hsErr);
-                  }
-
-                  // Also persist session state with hotspots to make it reliable across reloads
-                  try {
-                    await axios.post(`${backendUrl}/api/3d-models/save-session`, {
-                      emailId: user.emailId,
-                      state: {
-                        models: nextModels,
-                        hotspots: hotspots || [],
-                        transformValues: {
-                          position: { x: 0, y: 0, z: 0 },
-                          rotation: { x: 0, y: 0, z: 0 },
-                          scale: { x: 1, y: 1, z: 1 }
-                        },
-                        materialSettings,
-                        modelName: defaultBaseName,
-                        lastSaved: new Date().toISOString()
-                      }
-                    });
-                  } catch (sessErr) {
-                    console.warn("Session save notice:", sessErr);
-                  }
-
                   // Broadcast save to InteractionPanel to bust browser cache
                   try {
                     const bc = new BroadcastChannel('threed_model_updates');
                     bc.postMessage({
                       type: 'model-saved',
-                      modelId: savedModelId,
+                      modelId: glbRes.data.modelId,
                       timestamp: Date.now()
                     });
                     bc.close();
@@ -2090,7 +1491,7 @@ export default function ThreedEditor() {
       setManualLoading(false);
       setLoadingText("");
     }
-  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, setTransformValues, past, urlModelId, navigate, hotspots]);
+  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, setTransformValues, past, urlModelId, navigate]);
 
   useEffect(() => {
     if (setSaveHandler) {
@@ -3339,31 +2740,12 @@ export default function ThreedEditor() {
       
       const keysToProcess = [];
       if (Array.isArray(matTarget)) {
-          matTarget.forEach(t => {
-              if (typeof t === 'string') keysToProcess.push(t);
-              else if (t?.uuid) keysToProcess.push(t.uuid);
-              else if (t?.meshUuid) keysToProcess.push(t.meshUuid);
-          });
+          keysToProcess.push(...matTarget);
       } else if (matTarget && typeof matTarget === 'object') {
-          if (matTarget.isMesh || (!matTarget.isGroup && (matTarget.meshUuid || matTarget.uuid))) {
-              if (matTarget.meshUuid) keysToProcess.push(matTarget.meshUuid);
-              if (matTarget.uuid) keysToProcess.push(matTarget.uuid);
-          } else if (matTarget.isMultiSelect || Array.isArray(matTarget.items) || Array.isArray(matTarget.uuids)) {
-              if (Array.isArray(matTarget.uuids)) keysToProcess.push(...matTarget.uuids);
-              if (Array.isArray(matTarget.items)) {
-                  matTarget.items.forEach(it => {
-                      if (it?.uuid) keysToProcess.push(it.uuid);
-                      if (it?.meshUuid) keysToProcess.push(it.meshUuid);
-                  });
-              }
-          } else {
-              if (matTarget.meshUuid) keysToProcess.push(matTarget.meshUuid);
-              if (matTarget.uuid) keysToProcess.push(matTarget.uuid);
-              if (matTarget.name) keysToProcess.push(matTarget.name);
-              if (!matTarget.uuid && !matTarget.meshUuid && matTarget.material && typeof matTarget.material === 'string') {
-                  keysToProcess.push(matTarget.material);
-              }
-          }
+          if (matTarget.meshUuid) keysToProcess.push(matTarget.meshUuid);
+          if (matTarget.uuid) keysToProcess.push(matTarget.uuid);
+          if (matTarget.name) keysToProcess.push(matTarget.name);
+          if (matTarget.material) keysToProcess.push(matTarget.material);
       } else if (matTarget) {
           keysToProcess.push(matTarget);
       }
@@ -3420,36 +2802,12 @@ export default function ThreedEditor() {
 
       setSelectedMaterial(null);
 
-      // If no models remain or deleting this model, clear or update associated hotspots
-      const nextHotspots = nextModels.length === 0 
-        ? [] 
-        : hotspots.filter(h => h.modelId !== targetId && h.meshName !== modelToDelete?.name);
-
-      setHotspots(nextHotspots);
-      if (nextModels.length === 0 || nextHotspots.length === 0) {
-        setActiveHotspotId(null);
-        setEditingHotspot(null);
-        setShowHotspotModal(false);
-        setIsPlacingHotspot(false);
-        isPlacingHotspotRef.current = false;
-        if (nextModels.length === 0) {
-          setRightPanelMode('edit');
-        }
-      }
-
-      setThreedState(prev => ({
-        ...prev,
-        models: nextModels,
-        hotspots: nextHotspots
-      }));
-
       commitHistoryNow(buildSnapshot({
           models: nextModels,
           modelMaterialLists: nextMaterialLists,
-          selectedMaterial: null,
-          hotspots: nextHotspots
+          selectedMaterial: null
       }));
-  }, [models, modelMaterialLists, modelStatsMap, hotspots, commitHistoryNow, buildSnapshot, setThreedState]);
+  }, [models, modelMaterialLists, modelStatsMap, commitHistoryNow, buildSnapshot]);
 
   const handleDeleteMaterial = useCallback((matTarget) => {
       const next = new Set(deletedMaterials);
@@ -3458,31 +2816,27 @@ export default function ThreedEditor() {
           if (!item) return;
           if (typeof item === 'string') { next.add(item); return; }
 
-          // If this is a mesh, multiple mesh selection, or group of meshes:
-          // Strictly delete ONLY by mesh UUIDs so other meshes sharing the same material are NEVER deleted!
-          if (item.isMesh || item.isMultiSelect || Array.isArray(item.items) || Array.isArray(item.uuids)) {
+          const isSingleMesh = item.isMesh || (!item.isGroup && !item.isAll && !item.isModel && (item.uuid || item.meshUuid));
+
+          if (isSingleMesh) {
+              // Strictly delete ONLY this single mesh by unique UUID/ID
               if (item.uuid) next.add(item.uuid);
               if (item.meshUuid) next.add(item.meshUuid);
               if (item.id) next.add(item.id);
-              if (Array.isArray(item.uuids)) item.uuids.forEach(u => next.add(u));
-              if (Array.isArray(item.items)) {
-                  item.items.forEach(it => {
-                      if (it?.uuid) next.add(it.uuid);
-                      if (it?.meshUuid) next.add(it.meshUuid);
-                      if (it?.id) next.add(it.id);
-                  });
-              }
               return;
           }
 
           if (item.uuid) next.add(item.uuid);
           if (item.meshUuid) next.add(item.meshUuid);
           if (item.id) next.add(item.id);
+          if (Array.isArray(item.items)) item.items.forEach(addKeys);
+          if (Array.isArray(item.uuids)) item.uuids.forEach(u => next.add(u));
+          if (Array.isArray(item.materials)) item.materials.forEach(addKeys);
           if (Array.isArray(item.children)) item.children.forEach(addKeys);
           if (Array.isArray(item.meshNames)) item.meshNames.forEach(addKeys);
 
-          // Only add material name if this item is explicitly a material object/folder without mesh UUIDs
-          if (!item.uuid && !item.meshUuid && item.material && typeof item.material === 'string') {
+          // Only add material name if this item is explicitly a material object/group and NOT a mesh
+          if (!item.isMesh && item.material && typeof item.material === 'string') {
               next.add(item.material);
           }
       };
@@ -3498,26 +2852,12 @@ export default function ThreedEditor() {
       // Automatically clear selection after deletion
       setSelectedMaterial(null);
 
-      // Remove any hotspots that were placed on deleted meshes
-      const remainingHotspots = hotspots.filter(h => {
-        if (h.meshUuid && next.has(h.meshUuid)) return false;
-        if (h.meshName && next.has(h.meshName)) return false;
-        return true;
-      });
-      if (remainingHotspots.length !== hotspots.length) {
-        setHotspots(remainingHotspots);
-        if (activeHotspotId && !remainingHotspots.some(h => String(h.id) === String(activeHotspotId))) {
-          setActiveHotspotId(null);
-        }
-      }
-
       commitHistoryNow(buildSnapshot({
           deletedMaterials: Array.from(next),
           materialSettings: materialSettings,
-          selectedMaterial: null,
-          hotspots: remainingHotspots
+          selectedMaterial: null
       }));
-  }, [deletedMaterials, materialSettings, hotspots, activeHotspotId, commitHistoryNow, buildSnapshot]);
+  }, [deletedMaterials, materialSettings, commitHistoryNow, buildSnapshot]);
 
   const handleSelectAllMeshes = useCallback(() => {
       if (models.length === 0) return;
@@ -4128,24 +3468,7 @@ export default function ThreedEditor() {
         };
         // Reset material settings for the new model
         setMaterialSettings(nextMaterialSettings);
-
-        // Clear previous model hotspots & labels
-        setHotspots([]);
-        setActiveHotspotId(null);
-        setEditingHotspot(null);
-        setShowHotspotModal(false);
-        setIsPlacingHotspot(false);
-        isPlacingHotspotRef.current = false;
-        setRightPanelMode('edit');
         
-        setThreedState(prev => ({
-            ...prev,
-            models: nextModels,
-            modelUrl: converted.url,
-            modelName: nextModelName,
-            hotspots: []
-        }));
-
         commitHistoryNow(buildSnapshot({
             models: nextModels,
             modelName: nextModelName,
@@ -4153,8 +3476,7 @@ export default function ThreedEditor() {
             hiddenMaterials: [],
             deletedMaterials: [],
             selectedMaterial: { name: nextModelName, parentGroup: nextModelName },
-            modelMaterialLists: {},
-            hotspots: []
+            modelMaterialLists: {}
         }));
 
         setIsSidebarCollapsed(false); 
@@ -4187,7 +3509,7 @@ export default function ThreedEditor() {
   const handleSelectGalleryModel = async (model) => {
     if (!model) return;
 
-    const modelId = model.modelId || Date.now().toString();
+    const modelId = Date.now().toString();
     startModelLoading({
         id: modelId,
         name: model.name,
@@ -4201,19 +3523,6 @@ export default function ThreedEditor() {
       : `${activeBackendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`;
     const fullUrl = resolveUploadsPath(rawUrl);
 
-    // Fetch freshest model details including hotspots from database if modelId exists
-    let modelHotspots = Array.isArray(model.hotspots) ? model.hotspots : [];
-    if (model.modelId) {
-        try {
-            const detailRes = await axios.get(`${activeBackendUrl}/api/3d-models/get-model/${model.modelId}`);
-            if (detailRes.data && Array.isArray(detailRes.data.hotspots)) {
-                modelHotspots = detailRes.data.hotspots;
-            }
-        } catch (detailErr) {
-            console.warn("Could not fetch detailed model metadata:", detailErr);
-        }
-    }
-
     // Clear existing models if we are 'replacing'
     if (models.length > 0) {
         models.forEach(m => {
@@ -4223,12 +3532,10 @@ export default function ThreedEditor() {
 
     const newModel = {
         id: modelId,
-        modelId: model.modelId || modelId,
         url: fullUrl,
         file: null, // No local file object
         type: model.type,
-        name: model.name.replace(/\.[^/.]+$/, ""),
-        hotspots: modelHotspots
+        name: model.name.replace(/\.[^/.]+$/, "")
     };
 
     const nextModels = [newModel];
@@ -4256,23 +3563,7 @@ export default function ThreedEditor() {
         lightPosition: { x: 10, y: 10, z: 10 }
     };
     setMaterialSettings(nextMaterialSettings);
-
-    // Restore hotspots from the selected gallery model!
-    setHotspots(modelHotspots);
-    setActiveHotspotId(null);
-    setEditingHotspot(null);
-    setShowHotspotModal(false);
-    setIsPlacingHotspot(false);
-    isPlacingHotspotRef.current = false;
     
-    setThreedState(prev => ({
-        ...prev,
-        models: nextModels,
-        modelUrl: fullUrl,
-        modelName: nextModelName,
-        hotspots: modelHotspots
-    }));
-
     commitHistoryNow(buildSnapshot({
         models: nextModels,
         modelName: nextModelName,
@@ -4280,8 +3571,7 @@ export default function ThreedEditor() {
         hiddenMaterials: [],
         deletedMaterials: [],
         selectedMaterial: { name: nextModelName, parentGroup: nextModelName },
-        modelMaterialLists: {},
-        hotspots: modelHotspots
+        modelMaterialLists: {}
     }));
 
     setIsSidebarCollapsed(false);
@@ -4371,23 +3661,12 @@ export default function ThreedEditor() {
     setHiddenMaterials(new Set());
     setDeletedMaterials(new Set());
     
-    // Clear 3D Hotspots & Labels
-    setHotspots([]);
-    setActiveHotspotId(null);
-    setEditingHotspot(null);
-    setShowHotspotModal(false);
-    setIsPlacingHotspot(false);
-    isPlacingHotspotRef.current = false;
-    setRightPanelMode('edit');
-    localStorage.removeItem('tempThreedEditModel');
-    
     // Reset Context State
     setThreedState(prev => ({
         ...prev,
         models: [],
         modelUrl: null,
         modelName: "",
-        hotspots: [],
         materialSettings: {
             alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
             specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'studio',
@@ -4413,8 +3692,7 @@ export default function ThreedEditor() {
         deletedMaterials: [],
         selectedMaterial: null,
         selectedTexture: null,
-        modelMaterialLists: {},
-        hotspots: []
+        modelMaterialLists: {}
     });
 
     lastSavedRef.current = {
@@ -4436,7 +3714,6 @@ export default function ThreedEditor() {
                     materialSettings: {},
                     transformValues: defaultTransform,
                     modelName: "",
-                    hotspots: [],
                     lastSaved: new Date().toISOString()
                 }
             });
@@ -4447,11 +3724,9 @@ export default function ThreedEditor() {
   };
 
   const handleResetView = () => {
-    if (typeof frameModelFullViewRef.current === 'function') {
-      frameModelFullViewRef.current(latestModelBoundsRef.current, true);
-    } else if (controlsRef.current) {
-      controlsRef.current.reset();
-      setTargetPosition({ x: 0, y: 0, z: 0 });
+    if (controlsRef.current) {
+        controlsRef.current.reset();
+        setTargetPosition({ x: 0, y: 0, z: 0 });
     }
     const defaultTransform = {
         position: { x: 0, y: 0, z: 0 },
@@ -4714,22 +3989,6 @@ export default function ThreedEditor() {
       }
       const isShift = !!target.isShift;
 
-      // Interactive Hotspot Placement Mode: user clicked a point on the model to place a hotspot
-      if (isPlacingHotspotRef.current) {
-          setIsPlacingHotspot(false);
-          isPlacingHotspotRef.current = false;
-          setEditingHotspot(null);
-          setSelectedMaterial({
-              ...target,
-              uuid: target.uuid || target.meshUuid || null,
-              meshUuid: target.meshUuid || target.uuid || null,
-              clickPoint: target.clickPoint || null,
-              clickNormal: target.clickNormal || null
-          });
-          setShowHotspotModal(true);
-          return;
-      }
-
       // Optimization: If clicking the same mesh/material and not holding shift, ignore to prevent re-renders/stutter
       if (!isShift && selectedMaterial && !selectedMaterial.isGroup && selectedMaterial.name === target.name && (!target.uuid || selectedMaterial.uuid === target.uuid)) {
           return;
@@ -4905,7 +4164,6 @@ export default function ThreedEditor() {
       });
 
    }, [modelName, models, modelMaterialDataMap, selectedMaterial]);
-   handleSelectMaterialRef.current = handleSelectMaterial;
 
   // Reset the override flag when selection changes.
   // This prevents the settings from one material (or a freshly synced baseline)
@@ -4956,10 +4214,6 @@ export default function ThreedEditor() {
   }, []);
 
   const canvasPointerDownPosRef = useRef(null);
-  // Timestamp of the last hotspot-label click (Html overlay).
-  // Used to prevent the Three.js pointerMissed handler from immediately clearing activeHotspotId
-  // when the Html portal click leaks through to the canvas as a "missed" pointer event.
-  const lastHotspotClickTimeRef = useRef(0);
 
   const handleCanvasPointerDown = useCallback((e) => {
     canvasPointerDownPosRef.current = { x: e.clientX, y: e.clientY };
@@ -4977,11 +4231,6 @@ export default function ThreedEditor() {
     if (e.target && e.target.closest && e.target.closest('.pointer-events-auto')) {
       return;
     }
-
-    // Guard 1: hotspot label just clicked (Html overlay leaks to Three.js canvas as pointerMissed)
-    if (Date.now() - lastHotspotClickTimeRef.current < 200) return;
-    // Guard 2: camera is currently animating to the hotspot front view
-    if (isHotspotFocusingRef.current) return;
 
     if (selectedMaterial) {
       setSelectedMaterial(null);
@@ -5070,13 +4319,6 @@ export default function ThreedEditor() {
                 if (mode) {
                     setActiveAccordion("position");
                 }
-            }}
-            hotspotCount={hotspots.length}
-            activeHotspotId={activeHotspotId}
-            rightPanelMode={rightPanelMode}
-            onRightPanelModeChange={setRightPanelMode}
-            onAddHotspotClick={() => {
-              setRightPanelMode('hotspot');
             }}
           />
 
@@ -5172,10 +4414,10 @@ export default function ThreedEditor() {
             const sunZ = -(Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001 ? 0.01 : rawY);
 
             return (
-              <div className={`flex-1 h-full w-full relative ${isPlacingHotspot ? "cursor-crosshair" : ""}`}>
+              <div className="flex-1 h-full w-full">
                 {!isSyncing && (
                   <Canvas
-                    camera={{ position: [3.5, 3.2, 5.0], fov: 45, near: 0.05, far: 1000 }}
+                    camera={{ position: [0, 1, 5], fov: 45, near: 0.05, far: 1000 }}
                     onPointerDown={handleCanvasPointerDown}
                     onPointerMissed={handlePointerMissed}
                     dpr={[1, 1.5]}
@@ -5233,8 +4475,6 @@ export default function ThreedEditor() {
                         setMaterialList={(list, dataMap) => handleSetMaterialList(model.id, list, dataMap)}
                         selectedMaterial={selectedMaterial}
                         onSelectMaterial={handleSelectMaterial}
-                        activeHotspotMeshUuid={hotspots.find(h => h.id === activeHotspotId)?.meshUuid || null}
-                        activeHotspotMeshName={hotspots.find(h => h.id === activeHotspotId)?.meshName || null}
                         modelName={model.name}
                         transformMode={transformMode}
                         transformValues={transformValues}
@@ -5252,7 +4492,7 @@ export default function ThreedEditor() {
                         onTransformStart={handleTransformStart}
                         onTransformEnd={handleTransformEnd}
                         onTransformChange={handleTransformChange}
-                        onModelReady={(bounds) => handleModelReady(model.id, bounds)}
+                        onModelReady={() => handleModelReady(model.id)}
                         onProgress={(pct, stage) => handleModelProgress(model.id, pct, stage)}
                         isAnimationPlaying={isAnimationPlaying}
                         onHasAnimationsChange={(hasAnim) => handleHasAnimationsChange(model.id, hasAnim)}
@@ -5305,10 +4545,6 @@ export default function ThreedEditor() {
                       const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
                       if (dx > 6 || dy > 6) return;
                     }
-                    // Guard 1: hotspot label just clicked — don't clear
-                    if (Date.now() - lastHotspotClickTimeRef.current < 200) return;
-                    // Guard 2: camera is animating to hotspot front view
-                    if (isHotspotFocusingRef.current) return;
                     if (selectedMaterial) {
                       setSelectedMaterial(null);
                     }
@@ -5341,10 +4577,6 @@ export default function ThreedEditor() {
                         const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
                         if (dx > 6 || dy > 6) return;
                       }
-                      // Guard 1: hotspot label click leaks through to canvas — don't clear for 200ms
-                      if (Date.now() - lastHotspotClickTimeRef.current < 200) return;
-                      // Guard 2: camera is animating to hotspot front view
-                      if (isHotspotFocusingRef.current) return;
                       if (selectedMaterial) {
                         setSelectedMaterial(null);
                       }
@@ -5354,8 +4586,6 @@ export default function ThreedEditor() {
                     <meshStandardMaterial color={settings.baseColor} roughness={0.8} side={THREE.DoubleSide} />
                  </mesh>
               )}
-
-
 
               <SmoothOrbitControls
                 ref={controlsRef}
@@ -5377,20 +4607,7 @@ export default function ThreedEditor() {
                   />
               )}
 
-              {/* 3D MESH HOTSPOTS & LABELS OVERLAY */}
-              {models.length > 0 && !isCapturing && !showHotspotModal && (
-                  <Hotspot3DOverlay
-                    hotspots={hotspots}
-                    activeHotspotId={activeHotspotId}
-                    onHotspotClick={handleHotspotClick}
-                    onDeleteHotspot={handleDeleteHotspot}
-                    onEditHotspot={(hs) => {
-                      setEditingHotspot(hs);
-                      setShowHotspotModal(true);
-                    }}
-                    sceneWrapperRef={sceneWrapperRef}
-                  />
-              )}
+
 
               <Suspense fallback={null}>
                   <Environment
@@ -5422,29 +4639,6 @@ export default function ThreedEditor() {
           </div>
         );
       })()}
-
-          {/* Interactive Placement Mode Banner: Ready to add, user click on model anywhere then added point to add label */}
-          {isPlacingHotspot && (
-            <div className="absolute top-[1.2vw] left-1/2 -translate-x-1/2 z-40 pointer-events-auto animate-in fade-in slide-in-from-top-3 duration-200">
-              <div className="flex items-center gap-[0.7vw] bg-neutral-900/90 backdrop-blur-md px-[1.2vw] py-[0.55vw] rounded-full shadow-2xl border border-indigo-500/50 text-white text-[0.8vw]">
-                <span className="relative flex h-[0.7vw] w-[0.7vw]">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-[0.7vw] w-[0.7vw] bg-indigo-500"></span>
-                </span>
-                <span className="font-semibold text-white/95">Click anywhere on model to place hotspot pin</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsPlacingHotspot(false);
-                    isPlacingHotspotRef.current = false;
-                  }}
-                  className="ml-[0.3vw] px-[0.6vw] py-[0.2vw] rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white text-[0.72vw] font-medium transition-colors cursor-pointer"
-                >
-                  Cancel (Esc)
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* RIGHT SETTINGS PANEL */}
@@ -5465,18 +4659,6 @@ export default function ThreedEditor() {
               transformValues={transformValues}
               onManualTransformChange={handleManualTransformChange}
               onResetTransform={handleResetTransform}
-              hotspots={hotspots}
-              activeHotspotId={activeHotspotId}
-              onHotspotClick={handleHotspotClick}
-              onAddHotspot={() => handleOpenAddHotspot()}
-              onEditHotspot={(hs) => {
-                setEditingHotspot(hs);
-                setShowHotspotModal(true);
-              }}
-              onDeleteHotspot={handleDeleteHotspot}
-              selectedMaterial={selectedMaterial}
-              rightPanelMode={rightPanelMode}
-              onRightPanelModeChange={setRightPanelMode}
               onResetFactorSettings={() => {
                   setMaterialSettings(prev => {
                       const preservedEnvMap = prev.customEnvMap || prev.maps?.envMap || null;
@@ -5555,20 +4737,6 @@ export default function ThreedEditor() {
               message={formatErrorModal.message}
               confirmText="Got it"
           />
-
-          {showHotspotModal && (
-            <HotspotModal
-              isOpen={showHotspotModal}
-              onClose={() => {
-                setShowHotspotModal(false);
-                setEditingHotspot(null);
-              }}
-              onSave={handleSaveHotspot}
-              initialData={editingHotspot}
-              selectedMesh={selectedMaterial}
-              nextNumber={hotspots.length + 1}
-            />
-          )}
     </div>
   );
 }
