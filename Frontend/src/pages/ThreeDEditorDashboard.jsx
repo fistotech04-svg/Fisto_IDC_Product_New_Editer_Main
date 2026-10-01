@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense, useCallback, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import * as THREE from 'three';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Environment, Html } from '@react-three/drei';
+import RenderModel from '../components/ThreedEditor/Components/ModelLoaders';
 import {
   Box,
   Plus,
@@ -28,6 +32,196 @@ import { Icon } from '@iconify/react';
 import dashboardBannerImg from '../assets/Dashboard/Main.png';
 import { resolveUploadsPath } from '../utils/supabaseUtils';
 import AlertModal from '../components/AlertModal';
+
+// Safe error boundary for model canvas preview to prevent crash on corrupted files
+class ThumbnailErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(err) {
+    console.warn('[ModelPreview] preview error:', err?.message || err);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <mesh>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.4} />
+        </mesh>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Auto-fit wrapper: dynamically calculates the precise bounding box of all model meshes,
+// normalizes scale so any large/small model fits cleanly in view, and centers it at (0, 0, 0).
+const AutoFitModel = ({ children, targetSize = 1.9 }) => {
+  const groupRef = useRef();
+  const [isFitted, setIsFitted] = useState(false);
+  const fittedRef = useRef(false);
+
+  const computeFit = useCallback(() => {
+    const group = groupRef.current;
+    if (!group) return false;
+
+    // Temporarily reset group transforms so we measure true geometry dimensions
+    group.position.set(0, 0, 0);
+    group.scale.set(1, 1, 1);
+    group.rotation.set(0, 0, 0);
+    group.updateMatrixWorld(true);
+
+    const box = new THREE.Box3();
+    let hasMesh = false;
+
+    group.traverse((child) => {
+      if (child.isMesh || child.isSkinnedMesh) {
+        if (child.geometry) {
+          if (!child.geometry.boundingBox) {
+            child.geometry.computeBoundingBox();
+          }
+          child.updateWorldMatrix(true, false);
+          const meshBox = new THREE.Box3().setFromObject(child);
+          if (!meshBox.isEmpty()) {
+            box.union(meshBox);
+            hasMesh = true;
+          }
+        }
+      }
+    });
+
+    if (!hasMesh || box.isEmpty()) return false;
+
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    if (!isFinite(maxDim) || maxDim <= 0.0001) return false;
+
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    // Calculate scale factor so the model's largest dimension matches targetSize
+    const scale = targetSize / maxDim;
+    group.scale.setScalar(scale);
+
+    // Center the model exactly at world origin (0, 0, 0)
+    group.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    group.updateMatrixWorld(true);
+
+    return true;
+  }, [targetSize]);
+
+  useEffect(() => {
+    fittedRef.current = false;
+    setIsFitted(false);
+  }, [children]);
+
+  useFrame(() => {
+    if (!fittedRef.current) {
+      if (computeFit()) {
+        fittedRef.current = true;
+        setIsFitted(true);
+      }
+    }
+  });
+
+  return (
+    <group ref={groupRef} visible={isFitted}>
+      {children}
+    </group>
+  );
+};
+
+// 3D Model Card Preview with auto-fit centering and static 3/4 perspective
+const ModelCardPreview = ({ model }) => {
+  const containerRef = useRef(null);
+  const [isInView, setIsInView] = useState(false);
+  const fullThumbnailUrl = model.thumbnailUrl ? resolveUploadsPath(model.thumbnailUrl) : null;
+  const fullUrl = model.url ? resolveUploadsPath(model.url) : null;
+
+  useEffect(() => {
+    if (fullThumbnailUrl || !containerRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [fullThumbnailUrl, fullUrl]);
+
+  if (fullThumbnailUrl) {
+    return (
+      <img
+        src={fullThumbnailUrl}
+        alt={model.displayName || model.name}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+      />
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="w-full h-full relative flex items-center justify-center bg-[#f8fafc]">
+      {isInView && fullUrl ? (
+        <Canvas
+          gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
+          style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
+          camera={{ fov: 32, position: [2.8, 2.0, 3.2] }}
+        >
+          <Suspense
+            fallback={
+              <Html center className="pointer-events-none">
+                <div className="flex flex-col items-center justify-center gap-[0.4vw]">
+                  <div className="w-[1.2vw] h-[1.2vw] border-2 border-gray-200 border-t-[#ea543a] rounded-full animate-spin" />
+                  <span className="text-[0.6vw] font-semibold text-gray-400">Loading 3D...</span>
+                </div>
+              </Html>
+            }
+          >
+            <ambientLight intensity={1.6} />
+            <pointLight position={[10, 10, 10]} intensity={1.5} />
+            <directionalLight position={[-5, 8, 5]} intensity={1.2} />
+
+            {/* Dynamic Auto-Fit ensures tall, wide, or huge CAD models are perfectly centered and scaled */}
+            <AutoFitModel targetSize={1.9}>
+              <ThumbnailErrorBoundary>
+                <RenderModel
+                  type={model.type}
+                  url={fullUrl}
+                  isSelectionDisabled={true}
+                  shouldClone={true}
+                />
+              </ThumbnailErrorBoundary>
+            </AutoFitModel>
+
+            <Environment preset="city" />
+
+            <OrbitControls
+              enableZoom={false}
+              enablePan={false}
+              enableRotate={false}
+              target={[0, 0, 0]}
+              autoRotate={false}
+            />
+          </Suspense>
+        </Canvas>
+      ) : (
+        <div className="flex flex-col items-center justify-center text-gray-400">
+          <Icon icon="ph:cube-duotone" className="w-[2.2vw] h-[2.2vw] text-slate-300 group-hover:text-[#ea543a] transition-colors" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function ThreeDEditorDashboard() {
   const navigate = useNavigate();
@@ -198,13 +392,85 @@ export default function ThreeDEditorDashboard() {
   }, [models]);
   const favCount = useMemo(() => models.filter((m) => favorites.has(m.modelId)).length, [models, favorites]);
 
+  // Safely format model size string or number (handles "3.20 MB", raw bytes number, etc.)
+  const formatModelSize = (size) => {
+    if (!size && size !== 0) return '';
+    if (typeof size === 'string') {
+      const trimmed = size.trim();
+      if (!trimmed || trimmed === '0' || trimmed === '0 B' || trimmed === '0 MB' || trimmed === '0.0 MB') return '';
+      // If it already includes a unit like MB, KB, GB
+      if (/[a-zA-Z]/.test(trimmed)) {
+        return trimmed;
+      }
+      const num = parseFloat(trimmed);
+      if (isNaN(num) || num <= 0) return '';
+      if (num > 10000) {
+        return (num / (1024 * 1024)).toFixed(1) + ' MB';
+      }
+      return num.toFixed(1) + ' MB';
+    }
+    if (typeof size === 'number' && !isNaN(size) && size > 0) {
+      if (size > 10000) {
+        return (size / (1024 * 1024)).toFixed(1) + ' MB';
+      }
+      return size.toFixed(1) + ' MB';
+    }
+    return '';
+  };
+
+  // Parse bytes for storage calculation
+  const parseModelBytes = (size) => {
+    if (!size) return 0;
+    if (typeof size === 'number') {
+      if (isNaN(size) || size <= 0) return 0;
+      return size > 10000 ? size : size * 1024 * 1024;
+    }
+    if (typeof size === 'string') {
+      const s = size.trim().toLowerCase();
+      const val = parseFloat(s);
+      if (isNaN(val) || val <= 0) return 0;
+      if (s.includes('gb')) return val * 1024 * 1024 * 1024;
+      if (s.includes('mb')) return val * 1024 * 1024;
+      if (s.includes('kb')) return val * 1024;
+      if (val > 10000) return val;
+      return val * 1024 * 1024;
+    }
+    return 0;
+  };
+
+  // If some models have missing/zero size in DB, fetch content-length in background
+  useEffect(() => {
+    if (!models || models.length === 0) return;
+    models.forEach((m) => {
+      const formatted = formatModelSize(m.size);
+      if (!formatted && m.url) {
+        const fullUrl = resolveUploadsPath(m.url);
+        fetch(fullUrl, { method: 'HEAD' })
+          .then((res) => {
+            const cl = res.headers.get('content-length');
+            if (cl) {
+              const bytes = parseInt(cl, 10);
+              if (bytes > 0) {
+                const mbStr = (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                setModels((prev) =>
+                  prev.map((item) => (item.modelId === m.modelId ? { ...item, size: mbStr } : item))
+                );
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    });
+  }, [models.length]);
+
   // Storage calculation
-  const totalSizeBytes = useMemo(() => models.reduce((acc, m) => acc + (m.size || 0), 0), [models]);
+  const totalSizeBytes = useMemo(() => models.reduce((acc, m) => acc + parseModelBytes(m.size), 0), [models]);
   const storageTotal = 300 * 1024 * 1024; // 300 MB limit
   const storagePercent = Math.min(100, Math.round((totalSizeBytes / storageTotal) * 100));
   const formatMB = (bytes) => {
-    if (!bytes || bytes <= 0) return '0 MB';
-    const mb = bytes / (1024 * 1024);
+    const safeBytes = typeof bytes === 'number' ? bytes : parseModelBytes(bytes);
+    if (safeBytes <= 0) return '0 MB';
+    const mb = safeBytes / (1024 * 1024);
     if (mb < 0.1) return '0.1 MB';
     if (mb < 100) return `${parseFloat(mb.toFixed(1))} MB`;
     return `${Math.round(mb)} MB`;
@@ -486,7 +752,7 @@ export default function ThreeDEditorDashboard() {
               </p>
             </div>
 
-            {/* 3 HERO ACTION CARDS - 3D SPECIFIC */}
+            {/* HERO ACTION CARDS - 3D SPECIFIC */}
             <div className="flex items-center gap-[0.85vw]">
               {/* Card 1: Import 3D Model */}
               <div
@@ -521,29 +787,6 @@ export default function ThreeDEditorDashboard() {
                     </h3>
                     <p className="text-[0.62vw] text-gray-400 mt-[0.08vw]">
                       Launch WebGL canvas
-                    </p>
-                  </div>
-                  <div className="w-[1.2vw] h-[1.2vw] rounded-full bg-gray-200/60 flex items-center justify-center text-gray-500 group-hover:bg-[#ea543a] group-hover:text-white transition-colors">
-                    <ArrowRight className="w-[0.7vw] h-[0.7vw]" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 3: 3D Presets & Showcase */}
-              <div
-                onClick={() => handleLaunchEditor()}
-                className="flex items-center gap-[0.7vw] bg-gray-50/80 hover:bg-gray-100/90 border border-gray-200 rounded-[0.75vw] p-[0.8vw] cursor-pointer transition-all duration-200 group"
-              >
-                <div className="w-[2vw] h-[2vw] rounded-[0.5vw] bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Layers className="w-[1.1vw] h-[1.1vw]" />
-                </div>
-                <div className="flex items-center gap-[0.5vw]">
-                  <div>
-                    <h3 className="text-[0.8vw] font-bold text-gray-800">
-                      3D Presets
-                    </h3>
-                    <p className="text-[0.62vw] text-gray-400 mt-[0.08vw]">
-                      Choose from 3D templates
                     </p>
                   </div>
                   <div className="w-[1.2vw] h-[1.2vw] rounded-full bg-gray-200/60 flex items-center justify-center text-gray-500 group-hover:bg-[#ea543a] group-hover:text-white transition-colors">
@@ -720,9 +963,9 @@ export default function ThreeDEditorDashboard() {
 
         {/* 3D MODELS LIST / EMPTY STATE */}
         {loading ? (
-          <div className="space-y-[0.7vw]">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="w-full h-[5.5vw] bg-white rounded-[0.9vw] border border-gray-200 animate-pulse p-[0.9vw]" />
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(14vw,16.5vw))] gap-[1.2vw]">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="w-full h-[15vw] min-h-[220px] bg-white rounded-[0.9vw] border border-gray-200 animate-pulse p-[0.9vw]" />
             ))}
           </div>
         ) : filteredModels.length === 0 ? (
@@ -755,176 +998,113 @@ export default function ThreeDEditorDashboard() {
             </div>
           </div>
         ) : (
-          /* CARD ITEM ROWS (3D Specific Toolbar Buttons & 100% vw) */
-          <div className="space-y-[0.75vw]">
+          /* CARD GRID (Reduced Width, Real-time 3D Model Preview, Minimalist Layout) */
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(14vw,16.5vw))] gap-[1.2vw]">
             {filteredModels.map((model) => {
               const title = model.displayName || model.name || 'Untitled 3D Model';
               const isFav = favorites.has(model.modelId);
               const isSelected = selectedModelIds.includes(model.modelId);
               const fileType = (model.type || model.name.split('.').pop() || 'glb').toUpperCase();
-              const sizeMB = model.size ? (model.size / (1024 * 1024)).toFixed(2) + ' MB' : '0 B';
+              const sizeMB = formatModelSize(model.size);
               const createdDate = model.uploadedAt
-                ? new Date(model.uploadedAt).toLocaleString('en-GB', {
+                ? new Date(model.uploadedAt).toLocaleDateString('en-GB', {
                     day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
+                    month: 'short',
+                    year: 'numeric'
                   })
-                : '30-09-2026 04:55 PM';
+                : '';
 
               return (
                 <div
                   key={model.modelId}
-                  className={`w-full bg-white rounded-[0.9vw] border transition-all duration-200 p-[0.85vw] flex items-center justify-between gap-[1vw] relative ${
-                    isSelected ? 'border-[#ea543a] bg-[#fff5f3]/30 shadow-sm' : 'border-gray-200/80 hover:border-gray-300 hover:shadow-sm'
+                  className={`group bg-white rounded-[0.9vw] border transition-all duration-200 flex flex-col relative ${
+                    activeMenuId === model.modelId ? 'z-30 ring-1 ring-gray-300' : 'z-10'
+                  } ${
+                    isSelected ? 'border-[#ea543a] ring-2 ring-[#ea543a]/20 shadow-md' : 'border-gray-200/80 hover:border-gray-300 hover:shadow-md'
                   }`}
                 >
-                  {/* Left: 3D Thumbnail Preview Box */}
-                  <div className="flex items-center gap-[0.9vw]">
-                    {isMultipleSelection && (
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => {
-                          setSelectedModelIds((prev) =>
-                            prev.includes(model.modelId)
-                              ? prev.filter((id) => id !== model.modelId)
-                              : [...prev, model.modelId]
-                          );
-                        }}
-                        className="w-[0.9vw] h-[0.9vw] rounded text-[#ea543a] focus:ring-[#ea543a] cursor-pointer"
-                      />
-                    )}
+                  {/* Top Thumbnail / 3D Canvas Preview Container */}
+                  <div className="w-full h-[9.5vw] min-h-[140px] rounded-t-[0.9vw] bg-slate-50 border-b border-gray-100 relative flex items-center justify-center overflow-hidden">
+                    <ModelCardPreview model={model} />
 
-                    <div className="w-[5.2vw] h-[5.2vw] rounded-[0.6vw] bg-gray-100/80 border border-gray-200 flex flex-col items-center justify-center overflow-hidden shrink-0 relative group">
-                      {model.thumbnailUrl ? (
-                        <img
-                          src={resolveUploadsPath(model.thumbnailUrl)}
-                          alt={title}
-                          className="w-full h-full object-cover"
+                    {/* Format Badge Top Left */}
+                    <span className="absolute top-[0.45vw] left-[0.45vw] bg-black/65 backdrop-blur-xs text-white text-[0.58vw] font-bold px-[0.38vw] py-[0.12vw] rounded-[0.25vw] pointer-events-none z-10">
+                      {fileType}
+                    </span>
+
+                    {/* Checkbox (if multiple selection enabled) or Favorite Top Right */}
+                    <div className="absolute top-[0.45vw] right-[0.45vw] flex items-center gap-[0.3vw] z-10">
+                      {isMultipleSelection ? (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {
+                            setSelectedModelIds((prev) =>
+                              prev.includes(model.modelId)
+                                ? prev.filter((id) => id !== model.modelId)
+                                : [...prev, model.modelId]
+                            );
+                          }}
+                          className="w-[0.9vw] h-[0.9vw] rounded text-[#ea543a] focus:ring-[#ea543a] cursor-pointer"
                         />
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-gray-400">
-                          <Icon icon="ph:cube-duotone" className="w-[1.8vw] h-[1.8vw] text-gray-400" />
-                          <span className="text-[0.52vw] font-bold text-gray-400 uppercase mt-[0.15vw]">
-                            {fileType}
-                          </span>
-                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(model.modelId);
+                          }}
+                          className="w-[1.6vw] h-[1.6vw] rounded-full bg-white/80 backdrop-blur-xs hover:bg-white text-gray-400 hover:text-rose-500 flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                          title="Favorite"
+                        >
+                          <Heart
+                            className={`w-[0.85vw] h-[0.85vw] ${isFav ? 'text-rose-500 fill-rose-500' : ''}`}
+                          />
+                        </button>
                       )}
                     </div>
+                  </div>
 
-                    {/* Middle Details */}
-                    <div className="space-y-[0.35vw]">
-                      {/* Title + Favorite + Status Tag */}
-                      <div className="flex items-center gap-[0.6vw]">
+                  {/* Card Main Body */}
+                  <div className="p-[0.75vw] flex flex-col justify-between flex-1 space-y-[0.55vw]">
+                    <div>
+                      <div className="flex items-start justify-between gap-[0.4vw]">
                         <h3
-                          className="text-[0.95vw] font-bold text-gray-900 cursor-pointer hover:text-[#ea543a] transition-colors"
+                          className="text-[0.82vw] font-bold text-gray-800 line-clamp-1 hover:text-[#ea543a] cursor-pointer transition-colors"
                           onClick={() => handleLaunchEditor(model.modelId)}
+                          title={title}
                         >
                           {title}
                         </h3>
 
-                        <button
-                          onClick={() => toggleFavorite(model.modelId)}
-                          className="text-gray-300 hover:text-rose-500 transition-colors cursor-pointer"
-                          title="Favorite 3D Scene"
-                        >
-                          <Heart
-                            className={`w-[0.9vw] h-[0.9vw] ${isFav ? 'text-rose-500 fill-rose-500' : ''}`}
-                          />
-                        </button>
-
-                        <span className="flex items-center gap-[0.25vw] px-[0.45vw] py-[0.08vw] rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 text-[0.68vw] font-semibold">
-                          <span className="w-[0.3vw] h-[0.3vw] rounded-full bg-emerald-500" />
-                          Public
-                        </span>
-                      </div>
-
-                      <p className="text-[0.72vw] text-gray-400 font-medium">
-                        3D Mesh Asset • Format: {fileType} • Real-time WebGL
-                      </p>
-
-                      {/* 3D TAILORED ACTION LINKS ROW */}
-                      <div className="flex items-center gap-[1.1vw] pt-[0.15vw] text-[0.75vw] font-semibold text-gray-600">
-                        {/* 👁️ 3D Preview */}
-                        <button
-                          onClick={() => setPreviewModel(model)}
-                          className="flex items-center gap-[0.28vw] hover:text-[#ea543a] transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-[0.85vw] h-[0.85vw]" />
-                          <span>3D Preview</span>
-                        </button>
-
-                        {/* 🎨 3D Materials */}
-                        <button
-                          onClick={() => handleLaunchEditor(model.modelId)}
-                          className="flex items-center gap-[0.28vw] hover:text-[#ea543a] transition-colors cursor-pointer"
-                        >
-                          <Wrench className="w-[0.85vw] h-[0.85vw]" />
-                          <span>3D Materials</span>
-                        </button>
-
-                        {/* 📦 Launch 3D Editor */}
-                        <button
-                          onClick={() => handleLaunchEditor(model.modelId)}
-                          className="flex items-center gap-[0.28vw] hover:text-[#ea543a] transition-colors cursor-pointer"
-                        >
-                          <Icon icon="ph:cube-bold" className="w-[0.85vw] h-[0.85vw]" />
-                          <span>Launch 3D Editor</span>
-                        </button>
-
-                        {/* 📊 Mesh Stats */}
-                        <button
-                          onClick={() => setPreviewModel(model)}
-                          className="flex items-center gap-[0.28vw] hover:text-[#ea543a] transition-colors cursor-pointer"
-                        >
-                          <Info className="w-[0.85vw] h-[0.85vw]" />
-                          <span>Mesh Stats</span>
-                        </button>
-
-                        {/* 🔗 Share 3D */}
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(window.location.origin + `/editor/threed_editor/${model.modelId}`);
-                            alert('3D Model WebGL link copied to clipboard!');
-                          }}
-                          className="flex items-center gap-[0.28vw] hover:text-[#ea543a] transition-colors cursor-pointer"
-                        >
-                          <Share2 className="w-[0.85vw] h-[0.85vw]" />
-                          <span>Share 3D</span>
-                        </button>
-
-                        {/* 📥 Download 3D */}
-                        {model.url && (
-                          <a
-                            href={resolveUploadsPath(model.url)}
-                            download
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-[0.28vw] hover:text-[#ea543a] transition-colors cursor-pointer"
-                          >
-                            <Download className="w-[0.85vw] h-[0.85vw]" />
-                            <span>Download 3D</span>
-                          </a>
-                        )}
-
-                        {/* ⋮ More Menu */}
-                        <div className="relative card-more-menu">
+                        {/* Three Dots More Menu Dropdown */}
+                        <div className="relative card-more-menu shrink-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveMenuId(activeMenuId === model.modelId ? null : model.modelId);
                             }}
-                            className="flex items-center gap-[0.18vw] hover:text-gray-900 transition-colors p-[0.15vw] cursor-pointer"
+                            className="p-[0.2vw] text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 cursor-pointer transition-colors"
+                            title="More options"
                           >
                             <MoreVertical className="w-[0.85vw] h-[0.85vw]" />
-                            <span>More</span>
                           </button>
 
                           {activeMenuId === model.modelId && (
-                            <div className="absolute right-0 top-full mt-[0.25vw] w-[10vw] bg-white border border-gray-200 rounded-[0.55vw] shadow-lg py-[0.25vw] z-30">
+                            <div className="absolute right-0 top-full mt-[0.25vw] w-[8.8vw] min-w-[120px] bg-white border border-gray-200/90 rounded-[0.55vw] shadow-xl py-[0.25vw] z-50">
+                              {/* 1. File info */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewModel(model);
+                                  setActiveMenuId(null);
+                                }}
+                                className="w-full text-left px-[0.7vw] py-[0.38vw] text-[0.74vw] font-medium text-gray-700 hover:bg-[#fff5f3] hover:text-[#ea543a] flex items-center gap-[0.4vw] cursor-pointer transition-colors"
+                              >
+                                <Info className="w-[0.8vw] h-[0.8vw]" />
+                                <span>File info</span>
+                              </button>
+
+                              {/* 2. Rename */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -932,39 +1112,43 @@ export default function ThreeDEditorDashboard() {
                                   setNewNameInput(model.displayName || model.name);
                                   setActiveMenuId(null);
                                 }}
-                                className="w-full text-left px-[0.75vw] py-[0.35vw] text-[0.72vw] font-medium text-gray-700 hover:bg-[#fff5f3] hover:text-[#ea543a] flex items-center gap-[0.35vw] cursor-pointer"
+                                className="w-full text-left px-[0.7vw] py-[0.38vw] text-[0.74vw] font-medium text-gray-700 hover:bg-[#fff5f3] hover:text-[#ea543a] flex items-center gap-[0.4vw] cursor-pointer transition-colors"
                               >
-                                <Edit2 className="w-[0.75vw] h-[0.75vw]" />
-                                <span>Rename 3D Model</span>
+                                <Edit2 className="w-[0.8vw] h-[0.8vw]" />
+                                <span>Rename</span>
                               </button>
+
+                              {/* 3. Delete */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setDeletingModel(model);
                                   setActiveMenuId(null);
                                 }}
-                                className="w-full text-left px-[0.75vw] py-[0.35vw] text-[0.72vw] font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-[0.35vw] cursor-pointer"
+                                className="w-full text-left px-[0.7vw] py-[0.38vw] text-[0.74vw] font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-[0.4vw] cursor-pointer transition-colors border-t border-gray-100"
                               >
-                                <Trash2 className="w-[0.75vw] h-[0.75vw]" />
-                                <span>Delete 3D Asset</span>
+                                <Trash2 className="w-[0.8vw] h-[0.8vw]" />
+                                <span>Delete</span>
                               </button>
                             </div>
                           )}
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Right Meta Info */}
-                  <div className="text-right text-[0.72vw] text-gray-400 font-medium shrink-0 space-y-[0.25vw]">
-                    <div>
-                      <span>Created on : {createdDate}</span>
+                      {/* File Metadata (Simplified) */}
+                      <p className="text-[0.68vw] text-gray-400 font-medium mt-[0.15vw]">
+                        {[sizeMB, createdDate].filter(Boolean).join(' • ') || 'WebGL Model'}
+                      </p>
                     </div>
-                    <div className="flex items-center justify-end gap-[0.7vw]">
-                      <span>Views : 0</span>
-                      <span>•</span>
-                      <span>Size : {sizeMB}</span>
-                    </div>
+
+                    {/* Bottom Action Button */}
+                    <button
+                      onClick={() => handleLaunchEditor(model.modelId)}
+                      className="w-full py-[0.38vw] bg-[#fff5f3] hover:bg-[#ea543a] text-[#ea543a] hover:text-white rounded-[0.45vw] text-[0.74vw] font-semibold transition-all flex items-center justify-center gap-[0.3vw] cursor-pointer"
+                    >
+                      <Icon icon="ph:cube-bold" className="w-[0.8vw] h-[0.8vw]" />
+                      <span>Open 3D Editor</span>
+                    </button>
                   </div>
                 </div>
               );
@@ -1121,49 +1305,104 @@ export default function ThreeDEditorDashboard() {
         </div>
       )}
 
-      {/* 3D MESH STATS & PREVIEW MODAL (100% vw styling) */}
+      {/* FILE INFO MODAL (Interactive 3D Viewer & Metadata) */}
       {previewModel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-[1vw] bg-gray-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-[1.1vw] p-[1.4vw] w-[34vw] max-w-[90vw] shadow-2xl border border-gray-200">
             <div className="flex items-center justify-between pb-[0.7vw] border-b border-gray-100">
-              <h3 className="text-[0.95vw] font-bold text-gray-900 truncate max-w-[24vw]">
-                {previewModel.displayName || previewModel.name}
-              </h3>
+              <div className="flex items-center gap-[0.5vw]">
+                <div className="w-[1.8vw] h-[1.8vw] rounded-[0.45vw] bg-[#fff5f3] text-[#ea543a] flex items-center justify-center">
+                  <Info className="w-[1vw] h-[1vw]" />
+                </div>
+                <div>
+                  <h3 className="text-[0.95vw] font-bold text-gray-900">File Information</h3>
+                  <p className="text-[0.68vw] text-gray-400 truncate max-w-[22vw]">
+                    {previewModel.displayName || previewModel.name}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setPreviewModel(null)}
-                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                className="text-gray-400 hover:text-gray-600 cursor-pointer p-[0.2vw] rounded-full hover:bg-gray-100"
               >
                 <X className="w-[1.1vw] h-[1.1vw]" />
               </button>
             </div>
 
-            <div className="py-[1vw] text-center space-y-[0.7vw]">
-              <div className="w-full h-[12vw] rounded-[0.75vw] bg-slate-900 text-indigo-400 flex flex-col items-center justify-center relative overflow-hidden">
-                {previewModel.thumbnailUrl ? (
+            <div className="py-[1vw] text-center space-y-[0.8vw]">
+              {/* Interactive 3D Model Inspector Box */}
+              <div className="w-full h-[13vw] min-h-[200px] rounded-[0.75vw] bg-gradient-to-b from-slate-900 to-slate-950 flex flex-col items-center justify-center relative overflow-hidden shadow-inner">
+                {previewModel.url ? (
+                  <Canvas
+                    style={{ width: '100%', height: '100%' }}
+                    camera={{ fov: 32, position: [2.5, 2.0, 3.8] }}
+                  >
+                    <Suspense
+                      fallback={
+                        <Html center className="pointer-events-none">
+                          <div className="flex flex-col items-center justify-center gap-[0.4vw]">
+                            <div className="w-[1.4vw] h-[1.4vw] border-2 border-white/20 border-t-[#ea543a] rounded-full animate-spin" />
+                            <span className="text-[0.65vw] font-semibold text-white/80">Loading 3D View...</span>
+                          </div>
+                        </Html>
+                      }
+                    >
+                      <ambientLight intensity={1.8} />
+                      <pointLight position={[10, 10, 10]} intensity={1.5} />
+                      <directionalLight position={[-5, 8, 5]} intensity={1.2} />
+
+                      <Center>
+                        <group scale={0.7}>
+                          <ThumbnailErrorBoundary>
+                            <RenderModel
+                              type={previewModel.type}
+                              url={resolveUploadsPath(previewModel.url)}
+                              isSelectionDisabled={true}
+                              shouldClone={true}
+                            />
+                          </ThumbnailErrorBoundary>
+                        </group>
+                      </Center>
+
+                      <Environment preset="city" />
+
+                      <OrbitControls
+                        enableZoom={true}
+                        enablePan={false}
+                        autoRotate={false}
+                      />
+                    </Suspense>
+                  </Canvas>
+                ) : previewModel.thumbnailUrl ? (
                   <img
                     src={resolveUploadsPath(previewModel.thumbnailUrl)}
                     alt={previewModel.name}
                     className="w-full h-full object-cover opacity-90"
                   />
                 ) : (
-                  <>
+                  <div className="flex flex-col items-center justify-center text-gray-400">
                     <Icon icon="ph:cube-duotone" className="w-[2.8vw] h-[2.8vw] text-[#ea543a]" />
                     <span className="text-[0.75vw] font-semibold text-gray-300 mt-[0.4vw]">
                       {(previewModel.type || 'GLB').toUpperCase()} WebGL Mesh Asset
                     </span>
-                  </>
+                  </div>
                 )}
+
+                <span className="absolute bottom-[0.5vw] right-[0.6vw] text-[0.6vw] text-white/40 pointer-events-none">
+                  Drag to rotate • Scroll to zoom
+                </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-[0.7vw] text-[0.72vw] text-left bg-gray-50 p-[0.75vw] rounded-[0.55vw]">
+              {/* Detailed File Metadata Grid */}
+              <div className="grid grid-cols-2 gap-[0.7vw] text-[0.72vw] text-left bg-gray-50 p-[0.75vw] rounded-[0.55vw] border border-gray-100">
                 <div>
                   <span className="text-gray-400">File Name:</span>
-                  <p className="font-semibold text-gray-800 truncate">{previewModel.name}</p>
+                  <p className="font-semibold text-gray-800 truncate" title={previewModel.name}>{previewModel.name}</p>
                 </div>
                 <div>
                   <span className="text-gray-400">File Size:</span>
                   <p className="font-semibold text-gray-800">
-                    {previewModel.size ? (previewModel.size / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A'}
+                    {formatModelSize(previewModel.size) || 'N/A'}
                   </p>
                 </div>
                 <div>
@@ -1191,10 +1430,10 @@ export default function ThreeDEditorDashboard() {
                   setPreviewModel(null);
                   handleLaunchEditor(previewModel.modelId);
                 }}
-                className="px-[1.1vw] py-[0.45vw] bg-[#ea543a] hover:bg-[#d4432c] text-white text-[0.78vw] font-semibold rounded-[0.45vw] flex items-center gap-[0.35vw] cursor-pointer"
+                className="px-[1.1vw] py-[0.45vw] bg-[#ea543a] hover:bg-[#d4432c] text-white text-[0.78vw] font-semibold rounded-[0.45vw] flex items-center gap-[0.35vw] cursor-pointer shadow-sm"
               >
                 <Icon icon="ph:cube-bold" className="w-[0.85vw] h-[0.85vw]" />
-                <span>Launch 3D Editor</span>
+                <span>Open in 3D Editor</span>
               </button>
             </div>
           </div>

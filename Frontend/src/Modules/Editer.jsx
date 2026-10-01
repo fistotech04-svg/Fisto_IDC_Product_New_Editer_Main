@@ -126,11 +126,21 @@ const Editor = () => {
     }
   };
 
+  const [saveAsHandler, setSaveAsHandler] = useState(null);
+
   const handleSave = () => {
     if (saveHandler) {
       saveHandler();
     } else {
       console.warn("Save handler is not attached.");
+    }
+  };
+
+  const handleSaveAs = () => {
+    if (saveAsHandler) {
+      saveAsHandler();
+    } else {
+      window.dispatchEvent(new CustomEvent('editor-save-as'));
     }
   };
 
@@ -365,6 +375,7 @@ const Editor = () => {
   const contextValue = React.useMemo(() => ({ 
     setExportHandler, 
     setSaveHandler,
+    setSaveAsHandler,
     setPreviewHandler,
     setClearHandler,
     hasUnsavedChanges,
@@ -407,6 +418,7 @@ const Editor = () => {
       <Navbar 
         onExport={handleExport} 
         onSave={handleSave}
+        onSaveAs={handleSaveAs}
         onPreview={handlePreview}
         onPublish={handlePublish}
         onClearFlipbook={handleClearFlipbook}

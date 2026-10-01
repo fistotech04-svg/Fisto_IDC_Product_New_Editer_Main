@@ -117,6 +117,7 @@ app.use("/uploads", (req, res) => {
 });
 
 app.use("/textures", express.static(path.join(__dirname, "Texture")));
+app.use("/hdri", express.static(path.join(__dirname, "hdri")));
 app.use("/assets/bgimg", express.static(path.join(__dirname, "assets/bgimg"), { maxAge: '1d', immutable: true }));
 app.use("/assets/Videos", express.static(path.join(__dirname, "assets/Videos"), { maxAge: '1d', immutable: true }));
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useImperativeHandle } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { TransformControls } from "@react-three/drei";
@@ -440,6 +440,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   const [syncedSelectionSignature, setSyncedSelectionSignature] = useState(null);
   const activeTextureRef = React.useRef(selectedTexture);
   activeTextureRef.current = selectedTexture;
+
+  // Expose live Three.js scene and model group to parent ref for clean GLB exports and live sync
+  useImperativeHandle(ref, () => scene || modelGroup, [scene, modelGroup]);
 
   const onUpdateMaterialSettingRef = React.useRef(onUpdateMaterialSetting);
   onUpdateMaterialSettingRef.current = onUpdateMaterialSetting;
@@ -2313,18 +2316,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             }
                             const isNonBlack = origCol && (origCol.r > 0.05 || origCol.g > 0.05 || origCol.b > 0.05);
 
-                            if (hasTexture) {
-                                if (isNonBlack) {
-                                    m.color.copy(origCol);
-                                } else {
-                                    m.color.setRGB(1, 1, 1);
-                                    m.userData.originalColor = new THREE.Color(1, 1, 1);
-                                }
-                            } else if (isNonBlack) {
+                            if (origCol) {
                                 m.color.copy(origCol);
-                            } else {
-                                m.color.setRGB(1, 1, 1);
-                                m.userData.originalColor = new THREE.Color(1, 1, 1);
                             }
 
                             if (m.userData.originalRoughness !== undefined) {
@@ -2460,15 +2453,18 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                         const finalColor = new THREE.Color(color);
                         finalColor.multiplyScalar(intensity);
                         m.color.copy(finalColor);
+                        m.userData.originalColor = finalColor.clone();
                     }
 
                     // 2. Metallic, Roughness, Reflection, AO, Specular
                     if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
                         if (applyAll || changedProp === 'metallic') {
                             m.metalness = metallic;
+                            m.userData.originalMetalness = metallic;
                         }
                         if (applyAll || changedProp === 'roughness') {
                             m.roughness = roughness;
+                            m.userData.originalRoughness = roughness;
                         }
                         
                         // Reflection, Specular & AO
@@ -2536,6 +2532,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                         const isTransparent = alpha < 0.999 || !!m.alphaMap;
                         m.transparent = isTransparent;
                         m.opacity = alpha;
+                        m.userData.originalOpacity = alpha;
                         m.depthWrite = true; // Always write depth so objects do not glitch through each other
                         m.alphaTest = (m.userData.originalAlphaTest !== undefined && m.userData.originalAlphaTest > 0)
                             ? m.userData.originalAlphaTest 

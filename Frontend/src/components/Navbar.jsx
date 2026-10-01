@@ -9,7 +9,7 @@ import ShareModal from './ShareModal';
 import EditorSettingsModal from './EditorSettingsModal';
 
 
-const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDeleteFlipbook, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving, activeDevice, setActiveDevice, currentBook }) => {
+const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipbook, onDeleteFlipbook, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving, activeDevice, setActiveDevice, currentBook }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isEditorSettingsOpen, setIsEditorSettingsOpen] = useState(false);
@@ -94,11 +94,11 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
   return (
     <>
       <nav 
-        className="bg-white border-b border-gray-200 flex items-center justify-between px-[1.5vw] shadow-lg z-[9999] relative select-none" 
+        className="bg-white border-b border-gray-200 flex items-center justify-between px-[1.2vw] shadow-sm z-[9999] relative select-none gap-[1vw]" 
         style={{ height: '8vh' }}
       >
         {/* Left Section - Logo and Navigation */}
-        <div className="flex items-center gap-[3.5vw]">
+        <div className="flex items-center gap-[1.5vw] shrink-0">
           <Link to="/" className="flex-shrink-0" onClick={handleLinkClick}>
             <img 
               className="h-[2.5vw] w-auto object-contain" 
@@ -117,7 +117,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
                 }
                 navigate('/3d-editor');
               }}
-              className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] bg-gray-100 hover:bg-[#fff5f3] hover:text-[#ea543a] text-gray-700 font-semibold text-[0.78vw] rounded-[0.5vw] border border-gray-200/80 transition-all cursor-pointer"
+              className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] bg-gray-100 hover:bg-[#fff5f3] hover:text-[#ea543a] text-gray-700 font-semibold text-[0.78vw] rounded-[0.5vw] border border-gray-200/80 transition-all cursor-pointer whitespace-nowrap"
               title="Back to 3D Dashboard"
             >
               <Icon icon="ph:arrow-left-bold" className="w-[0.85vw] h-[0.85vw] text-[#ea543a]" />
@@ -125,47 +125,49 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             </button>
           )}
 
-          {/* Navigation Links */}
-          <div className="flex items-center gap-[2.5vw]">
-            <Link 
-              to="/my-flipbooks" 
-              onClick={handleLinkClick}
-              className={isActive('/my-flipbooks') ? activeLinkStyle : baseLinkStyle}
-            >
-              My Flipbook
-            </Link>
-            <Link 
-              to="/features" 
-              onClick={handleLinkClick}
-              className={isActive('/features') ? activeLinkStyle : baseLinkStyle}
-            >
-              Features
-            </Link>
-            <Link 
-              to="/support" 
-              onClick={handleLinkClick}
-              className={isActive('/support') ? activeLinkStyle : baseLinkStyle}
-            >
-              Support
-            </Link>
-            <Link 
-              to="/help" 
-              onClick={handleLinkClick}
-              className={isActive('/help') ? activeLinkStyle : baseLinkStyle}
-            >
-              Help
-            </Link>
-          </div>
+          {/* Navigation Links - Hidden on 3D editor or small screens to prevent overlap */}
+          {!isThreedEditor && (
+            <div className="hidden lg:flex items-center gap-[1.8vw]">
+              <Link 
+                to="/my-flipbooks" 
+                onClick={handleLinkClick}
+                className={isActive('/my-flipbooks') ? activeLinkStyle : baseLinkStyle}
+              >
+                My Flipbook
+              </Link>
+              <Link 
+                to="/features" 
+                onClick={handleLinkClick}
+                className={`hidden 2xl:block ${isActive('/features') ? activeLinkStyle : baseLinkStyle}`}
+              >
+                Features
+              </Link>
+              <Link 
+                to="/support" 
+                onClick={handleLinkClick}
+                className={`hidden 2xl:block ${isActive('/support') ? activeLinkStyle : baseLinkStyle}`}
+              >
+                Support
+              </Link>
+              <Link 
+                to="/help" 
+                onClick={handleLinkClick}
+                className={`hidden 2xl:block ${isActive('/help') ? activeLinkStyle : baseLinkStyle}`}
+              >
+                Help
+              </Link>
+            </div>
+          )}
         </div>
 
-        {/* Center Section - Saved Status & Device Switcher */}
-        <div className="absolute left-[45%] top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-[0.75vw]">
+        {/* Center Section - Saved Status & Device Switcher (Natural flex centering, no absolute collision) */}
+        <div className="flex items-center justify-center flex-1 min-w-0 px-[0.5vw] gap-[0.75vw]">
           {isAutoSaveEnabled && !isCustomizedEditor && (
-            <div className="flex items-center gap-[0.4vw] whitespace-nowrap bg-gray-50/50 px-[0.8vw] py-[0.4vw] rounded-full border border-gray-100">
-                <span className="text-gray-900 font-medium text-[0.85vw]">
+            <div className="flex items-center gap-[0.4vw] whitespace-nowrap bg-gray-50/80 px-[0.8vw] py-[0.35vw] rounded-full border border-gray-200/60 shadow-xs">
+                <span className="text-gray-900 font-medium text-[0.8vw]">
                 Saved :
                 </span>
-                <span className="text-[#373d8a] font-bold text-[0.85vw]">
+                <span className="text-[#373d8a] font-bold text-[0.8vw]">
                 {formatTime(secondsSinceSave)} ago
                 </span>
             </div>
@@ -276,11 +278,11 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             <div className="relative group/tooltip flex items-center ml-[0.2vw]">
                 <button 
                   onClick={onSave}
-                  disabled={!hasUnsavedChanges}
-                  className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm
+                  disabled={isSaving}
+                  className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm cursor-pointer active:scale-95
                     ${hasUnsavedChanges 
-                        ? 'bg-[#FFFBEB] text-yellow-600 cursor-pointer hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
-                        : 'bg-[#F2FDF8] text-green-600 cursor-default opacity-80 ring-[0.06vw] ring-green-300'
+                        ? 'bg-[#FFFBEB] text-yellow-600 hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
+                        : 'bg-[#F2FDF8] text-green-600 hover:bg-green-100 ring-[0.06vw] ring-green-300'
                     }`}
                 >
                   {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
@@ -288,7 +290,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
                   <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
                   <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                    {hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "All changes saved"}
+                    {hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "Click to Save"}
                   </div>
                 </div>
                 
@@ -309,6 +311,26 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
                     </div>
                   </div>
                 )}
+            </div>
+          )}
+
+          {/* Save As Button (Hidden in Customized Editor) */}
+          {!location.pathname.includes('customized_editor') && onSaveAs && (
+            <div className="relative group/tooltip flex items-center ml-[0.2vw]">
+              <button 
+                onClick={onSaveAs}
+                disabled={isSaving}
+                className="p-[0.6vw] bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-700 cursor-pointer rounded-[0.5vw] transition-all border border-gray-200/80 active:scale-95 shadow-xs flex items-center justify-center"
+                title="Save As"
+              >
+                <Icon icon="material-symbols:save-as-outline-rounded" className="w-[1.2vw] h-[1.2vw]" />
+              </button>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
+                <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
+                <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
+                  Save As
+                </div>
+              </div>
             </div>
           )}
 

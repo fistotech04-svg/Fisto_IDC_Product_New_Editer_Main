@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import ColorPicker from "./ColorPicker";
 import { createPortal } from "react-dom";
 import { textureData } from "../../data/textureData";
+import { builtInHdris } from "../../data/hdriData";
 import { useRef } from "react";
 import { useEffect } from "react";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
@@ -1629,8 +1630,12 @@ export default function Customized({
                             onChange={(val) => updateControl('environment', val)}
                             options={[
                                 ...(savedHdrs || []).map(hdr => ({
-                                    label: `HDR: ${hdr.name.replace(/\.[^/.]+$/, "")}`,
+                                    label: `Custom: ${hdr.name.replace(/\.[^/.]+$/, "")}`,
                                     value: hdr.id.startsWith('custom_') ? hdr.id : `custom_${hdr.id}`
+                                })),
+                                ...(builtInHdris || []).map(hdr => ({
+                                    label: `HDR: ${hdr.name}`,
+                                    value: `builtin_${hdr.id}`
                                 })),
                                 { label: 'City', value: 'city' },
                                 { label: 'Apartment', value: 'apartment' },
@@ -1690,6 +1695,44 @@ export default function Customized({
                                                 <Icon icon="solar:trash-bin-trash-linear" className="w-[0.65vw] h-[0.65vw]" />
                                             </button>
                                         )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Built-in HDRI Presets */}
+                {builtInHdris && builtInHdris.length > 0 && (
+                    <div className="mb-[0.75vw]">
+                        <div className="text-[0.62vw] text-gray-500 font-medium mb-[0.3vw] flex items-center justify-between">
+                            <span>HDRI Studio Environments</span>
+                            <span className="text-[0.55vw] text-gray-400">{builtInHdris.length} environments</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-[0.35vw] max-h-[8vw] overflow-y-auto custom-scrollbar p-[0.1vw]">
+                            {builtInHdris.map(hdr => {
+                                const hdrVal = `builtin_${hdr.id}`;
+                                const isActive = controls.environment === hdrVal;
+                                return (
+                                    <div 
+                                        key={hdr.id}
+                                        onClick={() => updateControl('environment', hdrVal)}
+                                        className={`group flex items-center gap-[0.4vw] p-[0.25vw] pr-[0.4vw] rounded-[0.4vw] border text-[0.62vw] cursor-pointer transition-all min-w-0 w-full ${
+                                            isActive 
+                                                ? 'bg-[#5d5efc]/10 border-[#5d5efc] text-[#5d5efc] font-semibold shadow-xs' 
+                                                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                                        }`}
+                                        title={hdr.name}
+                                    >
+                                        <img 
+                                            src={hdr.preview} 
+                                            alt={hdr.name}
+                                            className="w-[1.4vw] h-[1.4vw] rounded-[0.25vw] object-cover shrink-0 border border-black/10" 
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                            }}
+                                        />
+                                        <span className="truncate flex-1 min-w-0 leading-tight">{hdr.name}</span>
                                     </div>
                                 );
                             })}

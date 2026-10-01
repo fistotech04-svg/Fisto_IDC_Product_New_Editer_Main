@@ -35,6 +35,7 @@ import { process3DDropEvent } from "./utils/modelDropHandler";
 import { useOutletContext } from "react-router-dom";
 import axios from "axios";
 import { useToast } from "../../components/CustomToast";
+import { builtInHdris } from "../../data/hdriData";
 
 // Safe GLTFExporter patch to guarantee options.animations is always a valid Array and never undefined
 if (GLTFExporter && GLTFExporter.prototype && !GLTFExporter.prototype._isSafeExporterPatched) {
@@ -234,11 +235,15 @@ export default function ThreedEditor() {
     threedState, 
     setThreedState, 
     setSaveHandler, 
+    setSaveAsHandler,
     setCanSave,
     setHasUnsavedChanges, 
     setIsSaving, 
     triggerSaveSuccess 
-  } = useOutletContext();
+  } = useOutletContext() || {};
+
+  const [showSaveAsModal, setShowSaveAsModal] = useState(false);
+  const [saveAsNameInput, setSaveAsNameInput] = useState("");
 
   const toast = useToast();
   const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
@@ -1619,7 +1624,9 @@ export default function ThreedEditor() {
     };
   }, [models.length, setCanSave]);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (options = {}) => {
+    const isSaveAs = Boolean(options?.isSaveAs);
+    const customName = options?.newName?.trim();
     const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
 
     try {
@@ -1914,11 +1921,13 @@ export default function ThreedEditor() {
                   );
               });
               
-              // If a physical fileName exists (e.g. Interaction Mode), preserve it exactly.
-              const originalFileName = nextModels[0]?.fileName;
-              const defaultBaseName = (modelName || nextModels[0]?.name || "Scene").replace(/\.[^/.]+$/, "").replace(/\s+/g, '_');
+              // If a physical fileName exists (e.g. Interaction Mode), preserve it exactly (unless Save As)
+              const originalFileName = isSaveAs ? null : nextModels[0]?.fileName;
+              const defaultBaseName = customName || (modelName || nextModels[0]?.displayName || nextModels[0]?.name || "Scene").replace(/\.[^/.]+$/, "").replace(/\s+/g, '_');
               
-              const exportFileName = originalFileName || `${defaultBaseName}.glb`;
+              const exportFileName = isSaveAs 
+                ? `${defaultBaseName.replace(/\.[^/.]+$/, '')}_${Date.now().toString().slice(-4)}.glb`
+                : (originalFileName || `${defaultBaseName}.glb`);
               
               // C. Upload GLB using chunked upload to prevent 413 Content Too Large errors over proxies
               const glbBlob = new Blob([glbBuffer]);
@@ -1937,8 +1946,9 @@ export default function ThreedEditor() {
                   formData.append('chunkIndex', chunkIndex);
                   formData.append('totalChunks', totalGlbChunks);
                   formData.append('fileName', exportFileName);
+                  formData.append('displayName', customName || defaultBaseName);
                   formData.append('emailId', user.emailId);
-                  if (nextModels[0]?.modelId) {
+                  if (!isSaveAs && nextModels[0]?.modelId) {
                       formData.append('modelId', nextModels[0].modelId);
                   }
                   formData.append('chunk', chunk);
@@ -1970,24 +1980,23 @@ export default function ThreedEditor() {
                   } catch (e) {}
 
                   // Keep UI name clean, but update underlying record info
-                  const mergedModelId = `model_${timestamp}`;
-                  const savedModelId = glbRes.data.modelId || nextModels[0]?.modelId;
+                  const modelIdToUse = (!isSaveAs && nextModels[0]?.id) ? nextModels[0].id : `model_${timestamp}`;
+                  const savedModelId = glbRes.data.modelId || (!isSaveAs ? nextModels[0]?.modelId : null) || modelIdToUse;
+                  const finalDisplayName = customName || glbRes.data.displayName || defaultBaseName;
                   const mergedModel = {
                       ...nextModels[0],
-                      id: mergedModelId,
+                      id: modelIdToUse,
                       url: targetGlbUrl,
-                      name: nextModels[0]?.displayName || (originalFileName ? originalFileName : `${defaultBaseName}.glb`),
-                      displayName: nextModels[0]?.displayName || (originalFileName ? originalFileName : defaultBaseName),
-                      fileName: originalFileName,
+                      name: exportFileName,
+                      displayName: finalDisplayName,
+                      fileName: exportFileName,
                       type: 'glb',
                       file: null,
                       modelId: savedModelId,
                       hotspots: hotspots || []
                   };
                   hasExported = true;
-                  if (!originalFileName) {
-                      setModelName(defaultBaseName); // Keep extension-less for toolbar if it's a new standalone model
-                  }
+                  setModelName(finalDisplayName);
                   setModelUrl(targetGlbUrl);
 
                   // Merge all models into the single unified model
@@ -2056,6 +2065,15 @@ export default function ThreedEditor() {
 
       if (hasExported) {
         setModels(nextModels);
+        if (typeof setThreedState === 'function') {
+          setThreedState(prev => ({
+            ...prev,
+            models: nextModels,
+            modelUrl: nextModels[0]?.url,
+            modelName: nextModels[0]?.displayName || nextModels[0]?.name,
+            hotspots: hotspots || []
+          }));
+        }
       }
       
       // Update last saved reference to current state
@@ -2068,16 +2086,19 @@ export default function ThreedEditor() {
       if (triggerSaveSuccess) {
         triggerSaveSuccess({
           isManual: true,
-          name: modelName || "3D Model",
+          name: customName || modelName || "3D Model",
           folder: "3D_Modals"
         });
       }
 
-      // If we just got a modelId from the first save, update URL
+      // If we just got a modelId from the first save, or Save As was executed, update URL
       const finalModelId = nextModels[0]?.modelId;
-      console.log("HandleSave Navigation Check:", { finalModelId, urlModelId });
+      console.log("HandleSave Navigation Check:", { finalModelId, urlModelId, isSaveAs });
       
-      if (finalModelId && (!urlModelId || urlModelId === "")) {
+      if (isSaveAs && finalModelId) {
+          toast.success(`Saved copy as "${customName || defaultBaseName}" successfully!`);
+          navigate(`/editor/threed_editor/${finalModelId}`, { replace: true });
+      } else if (finalModelId && (!urlModelId || urlModelId === "")) {
           console.log("Navigating to new model URL:", finalModelId);
           navigate(`/editor/threed_editor/${finalModelId}`, { replace: true });
       }
@@ -2092,14 +2113,46 @@ export default function ThreedEditor() {
     }
   }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, setTransformValues, past, urlModelId, navigate, hotspots]);
 
+  const handleOpenSaveAs = useCallback(() => {
+    const currentName = modelName || models[0]?.displayName || models[0]?.name?.replace(/\.[^/.]+$/, "") || "3D_Model";
+    setSaveAsNameInput(`${currentName} Copy`);
+    setShowSaveAsModal(true);
+  }, [modelName, models]);
+
+  const handleConfirmSaveAs = async (e) => {
+    if (e) e.preventDefault();
+    const trimmed = saveAsNameInput.trim();
+    if (!trimmed) {
+      toast.error("Please enter a name for the model copy");
+      return;
+    }
+    setShowSaveAsModal(false);
+    await handleSave({ isSaveAs: true, newName: trimmed });
+  };
+
   useEffect(() => {
     if (setSaveHandler) {
       setSaveHandler(() => handleSave);
     }
+    const onManualSave = () => handleSave();
+    window.addEventListener('trigger-manual-save', onManualSave);
     return () => {
       if (setSaveHandler) setSaveHandler(null);
+      window.removeEventListener('trigger-manual-save', onManualSave);
     };
   }, [handleSave, setSaveHandler]);
+
+  useEffect(() => {
+    if (setSaveAsHandler) {
+      setSaveAsHandler(() => handleOpenSaveAs);
+    }
+    const onCustomSaveAs = () => handleOpenSaveAs();
+    window.addEventListener('editor-save-as', onCustomSaveAs);
+    return () => {
+      if (setSaveAsHandler) setSaveAsHandler(null);
+      window.removeEventListener('editor-save-as', onCustomSaveAs);
+    };
+  }, [handleOpenSaveAs, setSaveAsHandler]);
 
   // Track Unsaved Changes
   useEffect(() => {
@@ -5395,12 +5448,14 @@ export default function ThreedEditor() {
               <Suspense fallback={null}>
                   <Environment
                       files={
-                          (materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
-                              ? (materialSettings?.customEnvMap || materialSettings?.maps?.envMap || null)
-                              : null
+                          materialSettings?.environment?.startsWith('builtin_')
+                              ? (builtInHdris.find(h => `builtin_${h.id}` === materialSettings?.environment)?.file || null)
+                              : (materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
+                                  ? (materialSettings?.customEnvMap || materialSettings?.maps?.envMap || null)
+                                  : null
                       }
                       preset={
-                          (materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
+                          (materialSettings?.environment?.startsWith('builtin_') || materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
                               ? null
                               : (materialSettings?.environment || 'studio')
                       }
@@ -5568,6 +5623,75 @@ export default function ThreedEditor() {
               selectedMesh={selectedMaterial}
               nextNumber={hotspots.length + 1}
             />
+          )}
+
+          {/* Save As Modal */}
+          {showSaveAsModal && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+              <div className="bg-white rounded-[1vw] shadow-2xl border border-gray-100 w-full max-w-[28vw] min-w-[320px] overflow-hidden transform animate-in zoom-in-95 duration-200">
+                {/* Header */}
+                <div className="px-[1.2vw] py-[1vw] border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
+                  <div className="flex items-center gap-[0.6vw]">
+                    <div className="w-[2vw] h-[2vw] rounded-[0.5vw] bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                      <Icon icon="material-symbols:save-as-outline-rounded" className="w-[1.2vw] h-[1.2vw]" />
+                    </div>
+                    <div>
+                      <h3 className="text-[0.95vw] font-bold text-gray-900 leading-tight">Save As New Model</h3>
+                      <p className="text-[0.7vw] text-gray-500">Create an independent duplicate with all your edits</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowSaveAsModal(false)}
+                    className="w-[1.6vw] h-[1.6vw] rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    <Icon icon="lucide:x" className="w-[1vw] h-[1vw]" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <form onSubmit={handleConfirmSaveAs} className="p-[1.2vw] flex flex-col gap-[1vw]">
+                  <div>
+                    <label className="block text-[0.78vw] font-semibold text-gray-700 mb-[0.4vw]">
+                      Model Name
+                    </label>
+                    <input
+                      type="text"
+                      value={saveAsNameInput}
+                      onChange={(e) => setSaveAsNameInput(e.target.value)}
+                      placeholder="Enter model name..."
+                      autoFocus
+                      className="w-full px-[0.8vw] py-[0.5vw] text-[0.85vw] text-gray-900 bg-gray-50 border border-gray-200 rounded-[0.5vw] focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+
+                  <div className="p-[0.8vw] rounded-[0.6vw] bg-indigo-50/50 border border-indigo-100/60 flex items-start gap-[0.5vw]">
+                    <Icon icon="lucide:info" className="w-[0.9vw] h-[0.9vw] text-indigo-500 mt-[0.1vw] flex-shrink-0" />
+                    <p className="text-[0.7vw] text-indigo-900 leading-relaxed">
+                      This will generate a brand new copy in your 3D Dashboard with its own unique model ID. All current textures, transforms, and hotspots will be preserved.
+                    </p>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-end gap-[0.6vw] pt-[0.5vw]">
+                    <button
+                      type="button"
+                      onClick={() => setShowSaveAsModal(false)}
+                      className="px-[0.9vw] py-[0.45vw] text-[0.78vw] font-medium text-gray-600 hover:bg-gray-100 rounded-[0.5vw] transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!saveAsNameInput.trim()}
+                      className="flex items-center gap-[0.4vw] px-[1.1vw] py-[0.45vw] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-[0.78vw] rounded-[0.5vw] shadow-md shadow-indigo-600/20 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Icon icon="lucide:copy" className="w-[0.85vw] h-[0.85vw]" />
+                      <span>Save As Copy</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
     </div>
   );

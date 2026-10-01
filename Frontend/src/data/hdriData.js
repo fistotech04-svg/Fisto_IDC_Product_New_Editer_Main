@@ -1,0 +1,103 @@
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+const HDRI_BASE_URL = `${BACKEND_URL}/hdri`;
+
+export const builtInHdris = [
+  {
+    id: "day_064",
+    name: "Day Environment 064",
+    category: "Day",
+    preview: `${HDRI_BASE_URL}/DayEnvironmentHDRI064_2K/DayEnvironmentHDRI064.png`,
+    file: `${HDRI_BASE_URL}/DayEnvironmentHDRI064_2K/DayEnvironmentHDRI064_2K_HDR.exr`,
+  },
+  {
+    id: "day_078",
+    name: "Day Environment 078",
+    category: "Day",
+    preview: `${HDRI_BASE_URL}/DayEnvironmentHDRI078_2K/DayEnvironmentHDRI078.png`,
+    file: `${HDRI_BASE_URL}/DayEnvironmentHDRI078_2K/DayEnvironmentHDRI078_2K_HDR.exr`,
+  },
+  {
+    id: "day_089",
+    name: "Day Environment 089",
+    category: "Day",
+    preview: `${HDRI_BASE_URL}/DayEnvironmentHDRI089_2K/DayEnvironmentHDRI089.png`,
+    file: `${HDRI_BASE_URL}/DayEnvironmentHDRI089_2K/DayEnvironmentHDRI089_2K_HDR.exr`,
+  },
+  {
+    id: "evening_003",
+    name: "Evening Environment 003",
+    category: "Evening",
+    preview: `${HDRI_BASE_URL}/EveningEnvironmentHDRI003_2K/EveningEnvironmentHDRI003.png`,
+    file: `${HDRI_BASE_URL}/EveningEnvironmentHDRI003_2K/EveningEnvironmentHDRI003_2K_HDR.exr`,
+  },
+  {
+    id: "evening_sky_046b",
+    name: "Evening Sky 046B",
+    category: "Evening",
+    preview: `${HDRI_BASE_URL}/EveningSkyHDRI046B_2K/EveningSkyHDRI046B.png`,
+    file: `${HDRI_BASE_URL}/EveningSkyHDRI046B_2K/EveningSkyHDRI046B_2K_HDR.exr`,
+  },
+  {
+    id: "evening_sky_047b",
+    name: "Evening Sky 047B",
+    category: "Evening",
+    preview: `${HDRI_BASE_URL}/EveningSkyHDRI047B_2K/EveningSkyHDRI047B.png`,
+    file: `${HDRI_BASE_URL}/EveningSkyHDRI047B_2K/EveningSkyHDRI047B_2K_HDR.exr`,
+  },
+  {
+    id: "indoor_006",
+    name: "Indoor Environment 006",
+    category: "Indoor",
+    preview: `${HDRI_BASE_URL}/IndoorEnvironmentHDRI006_2K/IndoorEnvironmentHDRI006.png`,
+    file: `${HDRI_BASE_URL}/IndoorEnvironmentHDRI006_2K/IndoorEnvironmentHDRI006_2K_HDR.exr`,
+  },
+  {
+    id: "indoor_019",
+    name: "Indoor Environment 019",
+    category: "Indoor",
+    preview: `${HDRI_BASE_URL}/IndoorEnvironmentHDRI019_2K/IndoorEnvironmentHDRI019.png`,
+    file: `${HDRI_BASE_URL}/IndoorEnvironmentHDRI019_2K/IndoorEnvironmentHDRI019_2K_HDR.exr`,
+  },
+  {
+    id: "indoor_021",
+    name: "Indoor Environment 021",
+    category: "Indoor",
+    preview: `${HDRI_BASE_URL}/IndoorEnvironmentHDRI021_2K/IndoorEnvironmentHDRI021.png`,
+    file: `${HDRI_BASE_URL}/IndoorEnvironmentHDRI021_2K/IndoorEnvironmentHDRI021_2K_HDR.exr`,
+  },
+  {
+    id: "indoor_023",
+    name: "Indoor Environment 023",
+    category: "Indoor",
+    preview: `${HDRI_BASE_URL}/IndoorEnvironmentHDRI023_2K/IndoorEnvironmentHDRI023.png`,
+    file: `${HDRI_BASE_URL}/IndoorEnvironmentHDRI023_2K/IndoorEnvironmentHDRI023_2K_HDR.exr`,
+  },
+  {
+    id: "night_007",
+    name: "Night Environment 007",
+    category: "Night",
+    preview: `${HDRI_BASE_URL}/NightEnvironmentHDRI007_2K/NightEnvironmentHDRI007.png`,
+    file: `${HDRI_BASE_URL}/NightEnvironmentHDRI007_2K/NightEnvironmentHDRI007_2K_HDR.exr`,
+  },
+  {
+    id: "night_010",
+    name: "Night Environment 010",
+    category: "Night",
+    preview: `${HDRI_BASE_URL}/NightEnvironmentHDRI010_2K/NightEnvironmentHDRI010.png`,
+    file: `${HDRI_BASE_URL}/NightEnvironmentHDRI010_2K/NightEnvironmentHDRI010_2K_HDR.exr`,
+  },
+  {
+    id: "night_sky_003",
+    name: "Night Sky 003",
+    category: "Night",
+    preview: `${HDRI_BASE_URL}/NightSkyHDRI003_2K/NightSkyHDRI003.png`,
+    file: `${HDRI_BASE_URL}/NightSkyHDRI003_2K/NightSkyHDRI003_2K_HDR.exr`,
+  },
+  {
+    id: "night_sky_012",
+    name: "Night Sky 012",
+    category: "Night",
+    preview: `${HDRI_BASE_URL}/NightSkyHDRI012_2K/NightSkyHDRI012.png`,
+    file: `${HDRI_BASE_URL}/NightSkyHDRI012_2K/NightSkyHDRI012_2K_HDR.exr`,
+  },
+];

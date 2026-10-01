@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, Suspense, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Icon } from "@iconify/react";
-import { Canvas } from "@react-three/fiber";
+import * as THREE from "three";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { View, OrbitControls, Environment, PerspectiveCamera, Html } from "@react-three/drei";
 import axios from "axios";
 import RenderModel from "./ModelLoaders";
@@ -32,6 +33,80 @@ class ThumbnailErrorBoundary extends React.Component {
         return this.props.children;
     }
 }
+
+// Auto-fit wrapper: dynamically calculates bounding box, centers at (0, 0, 0), and normalizes scale
+const AutoFitModel = ({ children, targetSize = 1.9 }) => {
+  const groupRef = useRef();
+  const [isFitted, setIsFitted] = useState(false);
+  const fittedRef = useRef(false);
+
+  const computeFit = useCallback(() => {
+    const group = groupRef.current;
+    if (!group) return false;
+
+    group.position.set(0, 0, 0);
+    group.scale.set(1, 1, 1);
+    group.rotation.set(0, 0, 0);
+    group.updateMatrixWorld(true);
+
+    const box = new THREE.Box3();
+    let hasMesh = false;
+
+    group.traverse((child) => {
+      if (child.isMesh || child.isSkinnedMesh) {
+        if (child.geometry) {
+          if (!child.geometry.boundingBox) {
+            child.geometry.computeBoundingBox();
+          }
+          child.updateWorldMatrix(true, false);
+          const meshBox = new THREE.Box3().setFromObject(child);
+          if (!meshBox.isEmpty()) {
+            box.union(meshBox);
+            hasMesh = true;
+          }
+        }
+      }
+    });
+
+    if (!hasMesh || box.isEmpty()) return false;
+
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    if (!isFinite(maxDim) || maxDim <= 0.0001) return false;
+
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    const scale = targetSize / maxDim;
+    group.scale.setScalar(scale);
+    group.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    group.updateMatrixWorld(true);
+
+    return true;
+  }, [targetSize]);
+
+  useEffect(() => {
+    fittedRef.current = false;
+    setIsFitted(false);
+  }, [children]);
+
+  useFrame(() => {
+    if (!fittedRef.current) {
+      if (computeFit()) {
+        fittedRef.current = true;
+        setIsFitted(true);
+      }
+    }
+  });
+
+  return (
+    <group ref={groupRef} visible={isFitted}>
+      {children}
+    </group>
+  );
+};
 
 // Internal component for 3D thumbnail with support for static images
 const ModelThumbnail = React.memo(({ model }) => {
@@ -85,7 +160,7 @@ const ModelThumbnail = React.memo(({ model }) => {
     return (
         <div ref={viewRef} className="w-full h-full relative group bg-gray-500">
             {isInView ? (
-                <Canvas style={{ width: '100%', height: '100%', background: 'transparent' }} camera={{ fov: 35, position: [0, 1, 5] }}>
+                <Canvas style={{ width: '100%', height: '100%', background: 'transparent' }} camera={{ fov: 32, position: [2.8, 2.0, 3.2] }}>
                     <Suspense fallback={
                         <Html center className="pointer-events-none">
                             <div className="flex flex-col items-center justify-center gap-[0.5vw]">
@@ -94,11 +169,11 @@ const ModelThumbnail = React.memo(({ model }) => {
                             </div>
                         </Html>
                     }>
-                        <ambientLight intensity={1.5} />
+                        <ambientLight intensity={1.6} />
                         <pointLight position={[10, 10, 10]} intensity={1.5} />
                         <directionalLight position={[-5, 5, 5]} intensity={1} />
                         
-                        <group position={[0, -0.6, 0]}>
+                        <AutoFitModel targetSize={1.9}>
                             <ThumbnailErrorBoundary>
                                 <RenderModel
                                     type={model.type}
@@ -107,13 +182,13 @@ const ModelThumbnail = React.memo(({ model }) => {
                                     shouldClone={true}
                                 />
                             </ThumbnailErrorBoundary>
-                        </group>
+                        </AutoFitModel>
                         
                         <Environment preset="studio" />
                         
                         <OrbitControls 
                             enableZoom={false} 
-                            enablePan={false}
+                            enablePan={false} 
                             enableRotate={false}
                             target={[0, 0, 0]}
                             autoRotate={false}
