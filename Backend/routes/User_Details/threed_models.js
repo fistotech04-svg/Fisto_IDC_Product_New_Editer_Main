@@ -479,29 +479,34 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
           const supabaseUrl = await uploadFileToSupabase(uploadFilePath, destinationPath);
           let modelUrl = supabaseUrl;
 
+          // Always ensure local storage has the newest version of the model file on disk too!
+          const localUploadsDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals`);
+          if (!fs.existsSync(localUploadsDir)) {
+            fs.mkdirSync(localUploadsDir, { recursive: true });
+          }
+          const localTargetFile = path.join(localUploadsDir, finalFileName);
+          try {
+            fs.copyFileSync(uploadFilePath, localTargetFile);
+          } catch (copyErr) {
+            console.warn("[Chunk Upload] Notice copying local copy:", copyErr);
+          }
+
           if (!modelUrl) {
-            console.warn(`[Chunk Upload] Supabase upload failed (e.g. file size exceeded limit). Saving locally to disk.`);
-            const localUploadsDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals`);
-            if (!fs.existsSync(localUploadsDir)) {
-              fs.mkdirSync(localUploadsDir, { recursive: true });
-            }
-            const localTargetFile = path.join(localUploadsDir, finalFileName);
-            try {
-              fs.copyFileSync(uploadFilePath, localTargetFile);
-              modelUrl = `/uploads/${sanitizedEmail}/3D_Modals/${finalFileName}`;
-            } catch (copyErr) {
-              console.error("[Chunk Upload] Failed to save local fallback copy:", copyErr);
-            }
+            modelUrl = `/uploads/${sanitizedEmail}/3D_Modals/${finalFileName}`;
           }
 
           // Immediately clean up local temporary directory
           try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
 
           let existing = null;
+          let interactionExisting = null;
           if (modelId) {
             existing = await ThreedModel.findOne({ modelId, userEmail: emailId });
+            if (!existing) {
+              interactionExisting = await InteractionThreedModel.findOne({ v_id: modelId, userEmail: emailId });
+            }
           }
-          if (!existing) {
+          if (!existing && !interactionExisting) {
             existing = await ThreedModel.findOne({ userEmail: emailId, name: finalFileName });
           }
 
@@ -511,10 +516,70 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
               parsedHotspots = typeof req.body.hotspots === 'string' ? JSON.parse(req.body.hotspots) : req.body.hotspots;
             } catch (_) {}
           }
+
+          let parsedMaterialSettings = null;
+          if (req.body.materialSettings) {
+            try {
+              parsedMaterialSettings = typeof req.body.materialSettings === 'string' ? JSON.parse(req.body.materialSettings) : req.body.materialSettings;
+            } catch (_) {}
+          }
+
+          let parsedTransformValues = null;
+          if (req.body.transformValues) {
+            try {
+              parsedTransformValues = typeof req.body.transformValues === 'string' ? JSON.parse(req.body.transformValues) : req.body.transformValues;
+            } catch (_) {}
+          }
+
           const incomingDisplayName = req.body.displayName || null;
+          const now = new Date();
 
           let savedModel;
-          if (!existing) {
+          if (interactionExisting) {
+              interactionExisting.fileName = finalFileName;
+              if (incomingDisplayName) interactionExisting.displayName = incomingDisplayName;
+              interactionExisting.size = sizeStr;
+              interactionExisting.type = type;
+              if (Array.isArray(parsedHotspots)) {
+                interactionExisting.hotspots = parsedHotspots;
+              }
+              if (parsedMaterialSettings !== null) {
+                interactionExisting.materialSettings = parsedMaterialSettings;
+              }
+              if (parsedTransformValues !== null) {
+                interactionExisting.transformValues = parsedTransformValues;
+              }
+              interactionExisting.updatedAt = now;
+              await interactionExisting.save();
+              savedModel = {
+                modelId: interactionExisting.v_id,
+                url: interactionExisting.url,
+                name: interactionExisting.fileName,
+                displayName: interactionExisting.displayName || null,
+                hotspots: interactionExisting.hotspots || [],
+                materialSettings: interactionExisting.materialSettings || null,
+                transformValues: interactionExisting.transformValues || null,
+                updatedAt: interactionExisting.updatedAt
+              };
+          } else if (existing) {
+              existing.name = finalFileName;
+              if (incomingDisplayName) existing.displayName = incomingDisplayName;
+              existing.url = modelUrl;
+              existing.type = type;
+              existing.size = sizeStr;
+              if (Array.isArray(parsedHotspots)) {
+                existing.hotspots = parsedHotspots;
+              }
+              if (parsedMaterialSettings !== null) {
+                existing.materialSettings = parsedMaterialSettings;
+              }
+              if (parsedTransformValues !== null) {
+                existing.transformValues = parsedTransformValues;
+              }
+              existing.updatedAt = now;
+              await existing.save();
+              savedModel = existing;
+          } else {
               const newModel = new ThreedModel({
                   userEmail: emailId,
                   name: finalFileName,
@@ -522,21 +587,13 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
                   url: modelUrl,
                   type: type,
                   size: sizeStr,
-                  hotspots: Array.isArray(parsedHotspots) ? parsedHotspots : []
+                  hotspots: Array.isArray(parsedHotspots) ? parsedHotspots : [],
+                  materialSettings: parsedMaterialSettings,
+                  transformValues: parsedTransformValues,
+                  updatedAt: now
               });
               await newModel.save();
               savedModel = newModel;
-          } else {
-              existing.name = finalFileName;
-              if (incomingDisplayName) existing.displayName = incomingDisplayName;
-              existing.url = modelUrl;
-              existing.type = type;
-              existing.size = sizeStr;
-              if (Array.isArray(parsedHotspots) && parsedHotspots.length > 0) {
-                existing.hotspots = parsedHotspots;
-              }
-              await existing.save();
-              savedModel = existing;
           }
 
           res.status(200).json({
@@ -546,7 +603,10 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
               name: finalFileName,
               displayName: savedModel.displayName || null,
               hotspots: savedModel.hotspots || [],
-              modelId: savedModel.modelId
+              materialSettings: savedModel.materialSettings || null,
+              transformValues: savedModel.transformValues || null,
+              modelId: savedModel.modelId,
+              updatedAt: savedModel.updatedAt || now
           });
         } catch (mergeErr) {
           try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
@@ -599,7 +659,10 @@ router.get("/get-models", async (req, res) => {
         size: m.size,
         type: m.type,
         hotspots: Array.isArray(m.hotspots) ? m.hotspots : [],
-        uploadedAt: m.createdAt
+        materialSettings: m.materialSettings || null,
+        transformValues: m.transformValues || null,
+        uploadedAt: m.createdAt,
+        updatedAt: m.updatedAt || m.createdAt
     }));
 
     res.json({ models });
@@ -802,6 +865,39 @@ router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
   }
 });
 
+// @route   POST /api/3d-models/save-settings
+// @desc    Explicitly save materialSettings, transformValues, and hotspots for a 3D model
+// @access  Public
+router.post("/save-settings", async (req, res) => {
+  try {
+    const { modelId, materialSettings, transformValues, hotspots } = req.body;
+    if (!modelId) {
+      return res.status(400).json({ message: "modelId is required" });
+    }
+    const update = { updatedAt: new Date() };
+    if (materialSettings !== undefined) update.materialSettings = materialSettings;
+    if (transformValues !== undefined) update.transformValues = transformValues;
+    if (hotspots !== undefined) update.hotspots = Array.isArray(hotspots) ? hotspots : [];
+
+    let updated = await ThreedModel.findOneAndUpdate(
+      { modelId },
+      { $set: update },
+      { new: true }
+    );
+    if (!updated) {
+      updated = await InteractionThreedModel.findOneAndUpdate(
+        { v_id: modelId },
+        { $set: update },
+        { new: true }
+      );
+    }
+    res.json({ success: true, model: updated });
+  } catch (error) {
+    console.error("Error saving settings:", error);
+    res.status(500).json({ message: "Server error saving settings" });
+  }
+});
+
 // @route   POST /api/3d-models/save-hotspots
 // @desc    Explicitly update hotspots for a 3D model
 // @access  Public
@@ -814,13 +910,13 @@ router.post("/save-hotspots", async (req, res) => {
     const cleanHotspots = Array.isArray(hotspots) ? hotspots : [];
     let updated = await ThreedModel.findOneAndUpdate(
       { modelId },
-      { $set: { hotspots: cleanHotspots } },
+      { $set: { hotspots: cleanHotspots, updatedAt: new Date() } },
       { new: true }
     );
     if (!updated) {
       updated = await InteractionThreedModel.findOneAndUpdate(
         { v_id: modelId },
-        { $set: { hotspots: cleanHotspots } },
+        { $set: { hotspots: cleanHotspots, updatedAt: new Date() } },
         { new: true }
       );
     }
@@ -839,29 +935,37 @@ router.get("/get-model/:modelId", async (req, res) => {
     const { modelId } = req.params;
     let model = await ThreedModel.findOne({ modelId });
     
-    if (!model) {
-      const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId });
-      if (interactionModel) {
-        const sanitizedEmail = interactionModel.userEmail.replace(/[@.]/g, "_");
-        const absoluteUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
-
-        model = {
-          modelId: interactionModel.v_id,
-          name: interactionModel.displayName || interactionModel.fileName,
-          displayName: interactionModel.displayName || null,
-          fileName: interactionModel.fileName,
-          url: absoluteUrl,
-          size: interactionModel.size,
-          type: interactionModel.type,
-          hotspots: Array.isArray(interactionModel.hotspots) ? interactionModel.hotspots : []
-        };
-      }
+    if (model) {
+      const modelObj = model.toObject ? model.toObject() : model;
+      return res.json({
+        ...modelObj,
+        materialSettings: model.materialSettings || null,
+        transformValues: model.transformValues || null,
+        updatedAt: model.updatedAt || model.createdAt
+      });
     }
 
-    if (!model) {
-      return res.status(404).json({ message: "Model not found" });
+    const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId });
+    if (interactionModel) {
+      const sanitizedEmail = interactionModel.userEmail.replace(/[@.]/g, "_");
+      const absoluteUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
+
+      return res.json({
+        modelId: interactionModel.v_id,
+        name: interactionModel.displayName || interactionModel.fileName,
+        displayName: interactionModel.displayName || null,
+        fileName: interactionModel.fileName,
+        url: absoluteUrl,
+        size: interactionModel.size,
+        type: interactionModel.type,
+        hotspots: Array.isArray(interactionModel.hotspots) ? interactionModel.hotspots : [],
+        materialSettings: interactionModel.materialSettings || null,
+        transformValues: interactionModel.transformValues || null,
+        updatedAt: interactionModel.updatedAt || interactionModel.createdAt
+      });
     }
-    res.json(model);
+
+    return res.status(404).json({ message: "Model not found" });
   } catch (error) {
     console.error("Error fetching model by ID:", error);
     res.status(500).json({ message: "Server error" });

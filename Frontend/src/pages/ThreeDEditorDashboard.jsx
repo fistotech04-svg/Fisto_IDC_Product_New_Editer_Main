@@ -3,8 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import * as THREE from 'three';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Html } from '@react-three/drei';
+import { OrbitControls, Environment, Html, useGLTF } from '@react-three/drei';
 import RenderModel from '../components/ThreedEditor/Components/ModelLoaders';
+
+// Helper to construct cache-busting URLs for 3D models and thumbnails
+const buildVersionedUrl = (rawPath, updatedAt, uploadedAt) => {
+  if (!rawPath) return null;
+  const resolved = resolveUploadsPath(rawPath);
+  if (!resolved) return null;
+  const timestamp = updatedAt ? new Date(updatedAt).getTime() : (uploadedAt ? new Date(uploadedAt).getTime() : '');
+  if (!timestamp) return resolved;
+  return resolved.includes('?') ? `${resolved}&v=${timestamp}` : `${resolved}?v=${timestamp}`;
+};
 import {
   Box,
   Plus,
@@ -141,8 +151,8 @@ const AutoFitModel = ({ children, targetSize = 1.9 }) => {
 const ModelCardPreview = ({ model }) => {
   const containerRef = useRef(null);
   const [isInView, setIsInView] = useState(false);
-  const fullThumbnailUrl = model.thumbnailUrl ? resolveUploadsPath(model.thumbnailUrl) : null;
-  const fullUrl = model.url ? resolveUploadsPath(model.url) : null;
+  const fullThumbnailUrl = buildVersionedUrl(model.thumbnailUrl, model.updatedAt, model.uploadedAt);
+  const fullUrl = buildVersionedUrl(model.url, model.updatedAt, model.uploadedAt);
 
   useEffect(() => {
     if (fullThumbnailUrl || !containerRef.current) return;
@@ -329,6 +339,36 @@ export default function ThreeDEditorDashboard() {
 
   useEffect(() => {
     fetchModels();
+
+    // Listen for model saves broadcast from ThreedEditor across tabs or views
+    let bc;
+    try {
+      bc = new BroadcastChannel('threed_model_updates');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'model-saved') {
+          // Clear useGLTF cache for models to free stale buffers
+          try {
+            if (typeof useGLTF?.clear === 'function') {
+              useGLTF.clear();
+            }
+          } catch (_) {}
+          fetchModels();
+        }
+      };
+    } catch (e) {
+      console.warn('BroadcastChannel not supported:', e);
+    }
+
+    // Also re-fetch when returning to the dashboard tab/window to ensure fresh data
+    const handleFocus = () => {
+      fetchModels();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // Favorite toggle
@@ -1356,7 +1396,7 @@ export default function ThreeDEditorDashboard() {
                           <ThumbnailErrorBoundary>
                             <RenderModel
                               type={previewModel.type}
-                              url={resolveUploadsPath(previewModel.url)}
+                              url={buildVersionedUrl(previewModel.url, previewModel.updatedAt, previewModel.uploadedAt)}
                               isSelectionDisabled={true}
                               shouldClone={true}
                             />
@@ -1375,7 +1415,7 @@ export default function ThreeDEditorDashboard() {
                   </Canvas>
                 ) : previewModel.thumbnailUrl ? (
                   <img
-                    src={resolveUploadsPath(previewModel.thumbnailUrl)}
+                    src={buildVersionedUrl(previewModel.thumbnailUrl, previewModel.updatedAt, previewModel.uploadedAt)}
                     alt={previewModel.name}
                     className="w-full h-full object-cover opacity-90"
                   />

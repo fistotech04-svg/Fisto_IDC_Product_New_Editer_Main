@@ -1712,7 +1712,7 @@ export default function Customized({
                         <div className="grid grid-cols-2 gap-[0.35vw] max-h-[8vw] overflow-y-auto custom-scrollbar p-[0.1vw]">
                             {builtInHdris.map(hdr => {
                                 const hdrVal = `builtin_${hdr.id}`;
-                                const isActive = controls.environment === hdrVal;
+                                const isActive = controls.environment === hdrVal || (hdr.aliases && hdr.aliases.some(a => controls.environment === `builtin_${a}`));
                                 return (
                                     <div 
                                         key={hdr.id}

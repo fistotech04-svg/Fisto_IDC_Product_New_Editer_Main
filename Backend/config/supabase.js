@@ -136,7 +136,8 @@ export const uploadFileToSupabase = async (localFilePath, destinationPath) => {
       .from(SUPABASE_BUCKET)
       .upload(cleanDestination, fileData, {
         contentType,
-        upsert: true
+        upsert: true,
+        cacheControl: '0'
       });
 
     if (error) {
@@ -170,7 +171,8 @@ export const uploadBufferToSupabase = async (buffer, destinationPath, contentTyp
       .from(SUPABASE_BUCKET)
       .upload(cleanDestination, buffer, {
         contentType,
-        upsert: true
+        upsert: true,
+        cacheControl: '0'
       });
 
     if (error) {

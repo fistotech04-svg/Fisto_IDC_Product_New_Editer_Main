@@ -306,7 +306,9 @@ const TreeItem = ({
     selectedMaterial,
     onSelect,
     hiddenMaterials,
+    xrayMaterials,
     onToggleVisibility,
+    onToggleXray,
     onDelete,
     onRename,
     searchTerm = "",
@@ -442,6 +444,39 @@ const TreeItem = ({
         return true;
     }, [node, hiddenMaterials]);
 
+    // X-Ray Check
+    const isXray = useMemo(() => {
+        if (!xrayMaterials || !(xrayMaterials instanceof Set)) return false;
+
+        if (node.isMesh) {
+            if (node.meshUuid && xrayMaterials.has(node.meshUuid)) return true;
+            if (node.name && xrayMaterials.has(node.name)) return true;
+            if (!node.meshUuid && !node.name && node.material && xrayMaterials.has(node.material)) return true;
+            return false;
+        }
+
+        if (node.isGroup) {
+            // Active if all child meshes are in X-Ray (or at least one when inspecting)
+            let total = 0;
+            let xrayCount = 0;
+            const check = (n) => {
+                if (!n) return;
+                if (n.isMesh) {
+                    total++;
+                    const hasXray = (n.meshUuid && xrayMaterials.has(n.meshUuid)) ||
+                                    (n.name && xrayMaterials.has(n.name)) ||
+                                    (!n.meshUuid && !n.name && n.material && xrayMaterials.has(n.material));
+                    if (hasXray) xrayCount++;
+                }
+                if (Array.isArray(n.children)) n.children.forEach(check);
+            };
+            check(node);
+            return total > 0 && xrayCount === total;
+        }
+
+        return false;
+    }, [node, xrayMaterials]);
+
     // Count leaf meshes under this folder
     const childMeshCount = useMemo(() => {
         if (!node.isGroup) return 0;
@@ -544,13 +579,29 @@ const TreeItem = ({
                         </span>
                     </div>
 
-                    {/* Right: Visibility Eye & 3-Dots Menu */}
+                    {/* Right: X-Ray, Visibility Eye & 3-Dots Menu */}
                     <div
                         className={`flex items-center gap-[0.12vw] shrink-0 ml-[0.15vw] ${
-                            isMenuOpen || isSelected || !isVisible ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                            isMenuOpen || isSelected || !isVisible || isXray ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                         } transition-opacity duration-150`}
                         onClick={(e) => e.stopPropagation()}
                     >
+                        {/* X-Ray Toggle Button */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleXray && onToggleXray(node, isXray);
+                            }}
+                            className={`p-[0.2vw] rounded-[0.25vw] transition-all cursor-pointer ${
+                                isXray
+                                    ? "text-[#00BFFF] bg-[#00BFFF]/15 hover:bg-[#00BFFF]/25 shadow-xs"
+                                    : "text-gray-400 hover:text-[#00BFFF] hover:bg-[#00BFFF]/10"
+                            }`}
+                            title={isXray ? "Disable X-Ray for object" : "Enable X-Ray for object"}
+                        >
+                            <Icon icon="solar:scanner-bold-duotone" width="0.75vw" height="0.75vw" />
+                        </button>
+
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -600,7 +651,9 @@ const TreeItem = ({
                                 selectedMaterial={selectedMaterial}
                                 onSelect={onSelect}
                                 hiddenMaterials={hiddenMaterials}
+                                xrayMaterials={xrayMaterials}
                                 onToggleVisibility={onToggleVisibility}
+                                onToggleXray={onToggleXray}
                                 onDelete={onDelete}
                                 onRename={onRename}
                                 searchTerm={searchTerm}
@@ -681,13 +734,29 @@ const TreeItem = ({
                 )}
             </div>
 
-            {/* Right: Visibility Toggle & Options Menu */}
+            {/* Right: X-Ray, Visibility Toggle & Options Menu */}
             <div
                 className={`flex items-center gap-[0.12vw] shrink-0 ml-[0.15vw] ${
-                    isMenuOpen || isSelected || !isVisible ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    isMenuOpen || isSelected || !isVisible || isXray ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                 } transition-opacity duration-150`}
                 onClick={(e) => e.stopPropagation()}
             >
+                {/* X-Ray Toggle Button */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleXray && onToggleXray(node, isXray);
+                    }}
+                    className={`p-[0.18vw] rounded-[0.22vw] transition-all cursor-pointer ${
+                        isXray
+                            ? "text-[#00BFFF] bg-[#00BFFF]/15 hover:bg-[#00BFFF]/25 shadow-xs"
+                            : "text-gray-400 hover:text-[#00BFFF] hover:bg-[#00BFFF]/10"
+                    }`}
+                    title={isXray ? "Disable X-Ray for mesh" : "Enable X-Ray for mesh"}
+                >
+                    <Icon icon="solar:scanner-bold-duotone" width="0.72vw" height="0.72vw" />
+                </button>
+
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -738,10 +807,12 @@ export default function MaterialList({
     onSelect,
     modelName,
     onToggleVisibility,
+    onToggleXray,
     onDeleteMaterial,
     onRenameMaterial,
     onDeleteModel,
-    hiddenMaterials = new Set()
+    hiddenMaterials = new Set(),
+    xrayMaterials = new Set()
 }) {
     const [searchTerm, setSearchTerm] = useState("");
     const [forceExpand, setForceExpand] = useState(null);
@@ -761,6 +832,11 @@ export default function MaterialList({
     const { objectCount, meshCount } = useMemo(() => {
         return countStats(objectTree);
     }, [objectTree]);
+
+    // Check if any mesh is in X-Ray
+    const hasAnyXrayMesh = useMemo(() => {
+        return xrayMaterials && xrayMaterials.size > 0;
+    }, [xrayMaterials]);
 
     // Check if all meshes are hidden
     const allMeshesHidden = useMemo(() => {
@@ -804,6 +880,53 @@ export default function MaterialList({
             if (meshKeys.size > 0) {
                 onToggleVisibility(Array.from(meshKeys), targetState);
             }
+        }
+    };
+
+    // Toggle node X-Ray (handles single mesh or entire folder/object atomically)
+    const handleToggleXray = (node, isCurrentlyXray) => {
+        if (!onToggleXray) return;
+        const targetState = isCurrentlyXray;
+
+        if (node.isMesh) {
+            const keys = [node.meshUuid, node.name].filter(Boolean);
+            if (keys.length === 0 && node.material) keys.push(node.material);
+            onToggleXray(keys, targetState);
+        } else if (node.isGroup) {
+            const meshKeys = new Set();
+            const collectRecursive = (item) => {
+                if (!item) return;
+                if (item.isMesh) {
+                    if (item.meshUuid) meshKeys.add(item.meshUuid);
+                    if (item.name) meshKeys.add(item.name);
+                    if (!item.meshUuid && !item.name && item.material) meshKeys.add(item.material);
+                }
+                if (Array.isArray(item.children)) item.children.forEach(collectRecursive);
+            };
+            collectRecursive(node);
+            if (meshKeys.size > 0) {
+                onToggleXray(Array.from(meshKeys), targetState);
+            }
+        }
+    };
+
+    // Toggle / Clear all X-Ray in scene
+    const handleToggleAllXray = () => {
+        if (!onToggleXray) return;
+        const allKeys = new Set();
+        const collectAll = (n) => {
+            if (!n) return;
+            if (n.isMesh) {
+                if (n.meshUuid) allKeys.add(n.meshUuid);
+                if (n.name) allKeys.add(n.name);
+                if (!n.meshUuid && !n.name && n.material) allKeys.add(n.material);
+            }
+            if (Array.isArray(n.children)) n.children.forEach(collectAll);
+        };
+        objectTree.forEach(collectAll);
+        if (allKeys.size > 0) {
+            // If any mesh has X-Ray, turn off (pass isCurrentlyXray = true to delete all)
+            onToggleXray(Array.from(allKeys), hasAnyXrayMesh);
         }
     };
 
@@ -962,6 +1085,17 @@ export default function MaterialList({
                                     {meshCount} {meshCount === 1 ? "mesh" : "meshes"}
                                 </span>
 
+                                {hasAnyXrayMesh && (
+                                    <button
+                                        onClick={handleToggleAllXray}
+                                        className="px-[0.32vw] py-[0.12vw] rounded-[0.22vw] border border-[#00BFFF]/40 bg-[#00BFFF]/10 text-[#0099dd] hover:bg-[#00BFFF]/20 text-[0.52vw] font-medium flex items-center gap-[0.18vw] transition-colors cursor-pointer shrink-0"
+                                        title="Clear all X-Ray highlights"
+                                    >
+                                        <Icon icon="solar:scanner-bold-duotone" width="0.64vw" height="0.64vw" />
+                                        <span>Clear X-Ray</span>
+                                    </button>
+                                )}
+
                                 <button
                                     onClick={handleToggleAllVisibility}
                                     className={`px-[0.32vw] py-[0.12vw] rounded-[0.22vw] border text-[0.52vw] font-medium flex items-center gap-[0.18vw] transition-colors cursor-pointer shrink-0 ${
@@ -1012,7 +1146,9 @@ export default function MaterialList({
                                         selectedMaterial={selectedMaterial}
                                         onSelect={onSelect}
                                         hiddenMaterials={hiddenMaterials}
+                                        xrayMaterials={xrayMaterials}
                                         onToggleVisibility={handleToggleVisibility}
+                                        onToggleXray={handleToggleXray}
                                         onDelete={handleDeleteNode}
                                         onRename={onRenameMaterial}
                                         searchTerm={searchTerm}

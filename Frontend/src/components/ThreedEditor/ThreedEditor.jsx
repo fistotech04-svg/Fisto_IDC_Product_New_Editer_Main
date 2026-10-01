@@ -262,6 +262,7 @@ export default function ThreedEditor() {
   const [modelType, setModelType] = useState(models.length > 0 ? models[0].type : "glb");
   const [autoRotate, setAutoRotate] = useState(false);
   const [xrayMode, setXrayMode] = useState(false);
+  const [xrayMaterials, setXrayMaterials] = useState(() => new Set());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(models.length === 0); // If model exists, don't collapse
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
@@ -922,6 +923,7 @@ export default function ThreedEditor() {
       materialSettings, 
       modelName, 
       hiddenMaterials, 
+      xrayMaterials,
       deletedMaterials, 
       modelMaterialLists: (modelMaterialLists && Object.keys(modelMaterialLists).length > 0) ? modelMaterialLists : modelMaterialListsRef.current,
       selectedMaterial,
@@ -936,6 +938,7 @@ export default function ThreedEditor() {
       const curMS = override.materialSettings || cur.materialSettings || {};
       const curTV = override.transformValues || cur.transformValues || {};
       const curHM = override.hiddenMaterials !== undefined ? override.hiddenMaterials : (cur.hiddenMaterials || []);
+      const curXM = override.xrayMaterials !== undefined ? override.xrayMaterials : (cur.xrayMaterials || []);
       const curDM = override.deletedMaterials !== undefined ? override.deletedMaterials : (cur.deletedMaterials || []);
       const curModels = override.models || cur.models || [];
       const curModelName = override.modelName !== undefined ? override.modelName : (cur.modelName ?? "");
@@ -965,6 +968,7 @@ export default function ThreedEditor() {
               maps: { ...(curMS?.maps || {}) }
           },
           hiddenMaterials: Array.from(curHM instanceof Set ? curHM : (curHM || [])),
+          xrayMaterials: Array.from(curXM instanceof Set ? curXM : (curXM || [])),
           deletedMaterials: Array.from(curDM instanceof Set ? curDM : (curDM || [])),
           modelMaterialLists: { ...curMatLists },
           selectedMaterial: curSelMat ? { ...curSelMat } : null,
@@ -1038,6 +1042,9 @@ export default function ThreedEditor() {
       }
       if (targetState.hiddenMaterials !== undefined) {
           setHiddenMaterials(new Set(targetState.hiddenMaterials));
+      }
+      if (targetState.xrayMaterials !== undefined) {
+          setXrayMaterials(new Set(targetState.xrayMaterials));
       }
       if (targetState.deletedMaterials !== undefined) {
           setDeletedMaterials(new Set(targetState.deletedMaterials));
@@ -1455,8 +1462,14 @@ export default function ThreedEditor() {
             const res = await axios.get(`${backendUrl}/api/3d-models/get-model/${urlModelId}`);
             if (res.data) {
               const modelData = res.data.model || res.data;
-              const fullUrl = resolveUploadsPath(modelData.url);
+              const rawUrl = resolveUploadsPath(modelData.url);
+              const updatedAtTime = modelData.updatedAt ? new Date(modelData.updatedAt).getTime() : Date.now();
+              const fullUrl = rawUrl.includes('?') 
+                  ? `${rawUrl}&v=${updatedAtTime}` 
+                  : `${rawUrl}?v=${updatedAtTime}`;
               const loadedHotspots = Array.isArray(modelData.hotspots) ? modelData.hotspots : [];
+              const loadedMaterialSettings = modelData.materialSettings || null;
+              const loadedTransformValues = modelData.transformValues || null;
 
               const newModel = {
                 id: urlModelId,
@@ -1477,13 +1490,21 @@ export default function ThreedEditor() {
               setIsSidebarCollapsed(false);
               setModelStats({ fileSize: modelData.size || "0 MB" });
               setHotspots(loadedHotspots);
+              if (loadedMaterialSettings) {
+                setMaterialSettings(loadedMaterialSettings);
+              }
+              if (loadedTransformValues) {
+                setTransformValues(loadedTransformValues);
+              }
               
               setThreedState(prev => ({
                 ...prev,
                 models: [newModel],
                 modelUrl: fullUrl,
                 modelName: newModel.name,
-                hotspots: loadedHotspots
+                hotspots: loadedHotspots,
+                ...(loadedMaterialSettings ? { materialSettings: loadedMaterialSettings } : {}),
+                ...(loadedTransformValues ? { transformValues: loadedTransformValues } : {})
               }));
 
               resetHistory({
@@ -1491,7 +1512,9 @@ export default function ThreedEditor() {
                 models: [newModel],
                 modelName: newModel.name,
                 selectedMaterial: { name: newModel.name, parentGroup: newModel.name },
-                hotspots: loadedHotspots
+                hotspots: loadedHotspots,
+                ...(loadedMaterialSettings ? { materialSettings: loadedMaterialSettings } : {}),
+                ...(loadedTransformValues ? { transformValues: loadedTransformValues } : {})
               });
               startMountingBridgeTicker(loadingProgressRef.current);
               return; // End here for ID-based load
@@ -1714,6 +1737,17 @@ export default function ThreedEditor() {
                       }
                   });
               }
+
+              // Deep clone materials on exportScene so export modifications (e.g. detaching envMap) never mutate live materials
+              exportScene.traverse((obj) => {
+                  if (obj.isMesh && obj.material) {
+                      if (Array.isArray(obj.material)) {
+                          obj.material = obj.material.map(m => (m && typeof m.clone === 'function') ? m.clone() : m);
+                      } else if (typeof obj.material.clone === 'function') {
+                          obj.material = obj.material.clone();
+                      }
+                  }
+              });
 
               // 1. Strip helper tools, gizmos, cameras, lights, and corrupted meshes
               const toRemove = [];
@@ -1953,6 +1987,8 @@ export default function ThreedEditor() {
                   }
                   formData.append('chunk', chunk);
                   formData.append('hotspots', JSON.stringify(hotspots || []));
+                  formData.append('materialSettings', JSON.stringify(materialSettings || {}));
+                  formData.append('transformValues', JSON.stringify(transformValues || {}));
 
                   const res = await axios.post(`${backendUrl}/api/3d-models/upload-chunk`, formData, {
                       headers: { 'Content-Type': 'multipart/form-data' }
@@ -1972,21 +2008,20 @@ export default function ThreedEditor() {
                       ? `${resolvedBaseUrl}&t=${timestamp}` 
                       : `${resolvedBaseUrl}?t=${timestamp}`;
 
-                  // Clear loader cache so the fresh merged model is loaded
-                  try {
-                      useGLTF.clear(baseUrl);
-                      useGLTF.clear(resolvedBaseUrl);
-                      useGLTF.clear(targetGlbUrl);
-                  } catch (e) {}
-
                   // Keep UI name clean, but update underlying record info
                   const modelIdToUse = (!isSaveAs && nextModels[0]?.id) ? nextModels[0].id : `model_${timestamp}`;
                   const savedModelId = glbRes.data.modelId || (!isSaveAs ? nextModels[0]?.modelId : null) || modelIdToUse;
                   const finalDisplayName = customName || glbRes.data.displayName || defaultBaseName;
+
+                  // Keep the existing live model's url and id during the active session
+                  // so React Three Fiber does not unmount/suspend the canvas (which causes the model to vanish for 1 second!)
+                  const activeModelUrl = (!isSaveAs && nextModels[0]?.url) ? nextModels[0].url : targetGlbUrl;
+                  const activeModelId = (!isSaveAs && nextModels[0]?.id) ? nextModels[0].id : modelIdToUse;
+
                   const mergedModel = {
                       ...nextModels[0],
-                      id: modelIdToUse,
-                      url: targetGlbUrl,
+                      id: activeModelId,
+                      url: activeModelUrl,
                       name: exportFileName,
                       displayName: finalDisplayName,
                       fileName: exportFileName,
@@ -1997,31 +2032,43 @@ export default function ThreedEditor() {
                   };
                   hasExported = true;
                   setModelName(finalDisplayName);
-                  setModelUrl(targetGlbUrl);
+                  setModelUrl(activeModelUrl);
 
                   // Merge all models into the single unified model
                   nextModels.splice(0, nextModels.length, mergedModel);
 
-                  // Clear multi-model lists so the unified model takes over
-                  setModelMaterialLists({});
-                  setModelMaterialDataMap({});
-                  setModelStatsMap({});
-                  setSelectedMaterial({ name: defaultBaseName, parentGroup: defaultBaseName });
-                  setTransformValues({
-                      position: { x: 0, y: 0, z: 0 },
-                      rotation: { x: 0, y: 0, z: 0 },
-                      scale: { x: 1, y: 1, z: 1 }
-                  });
+                  // Keep the material and mesh lists mapped to activeModelId so the left meshes popup remains populated!
+                  if (activeModelId) {
+                    const currentMatList = modelMaterialLists[nextModels[0]?.id] || modelMaterialLists[activeModelId] || Object.values(modelMaterialLists)[0];
+                    const currentDataMap = modelMaterialDataMap[nextModels[0]?.id] || modelMaterialDataMap[activeModelId] || Object.values(modelMaterialDataMap)[0];
+                    const currentStats = modelStatsMap[nextModels[0]?.id] || modelStatsMap[activeModelId] || Object.values(modelStatsMap)[0];
 
-                  // Explicitly persist hotspots to database for this model
+                    if (currentMatList) {
+                      setModelMaterialLists({ [activeModelId]: currentMatList });
+                      modelMaterialListsRef.current = { [activeModelId]: currentMatList };
+                    }
+                    if (currentDataMap) {
+                      setModelMaterialDataMap({ [activeModelId]: currentDataMap });
+                    }
+                    if (currentStats) {
+                      setModelStatsMap({ [activeModelId]: currentStats });
+                    }
+                  }
+
+                  // Explicitly persist settings and hotspots to database for this model
                   try {
-                    await axios.post(`${backendUrl}/api/3d-models/save-hotspots`, {
+                    await axios.post(`${backendUrl}/api/3d-models/save-settings`, {
                       modelId: savedModelId,
-                      emailId: user.emailId,
+                      materialSettings,
+                      transformValues: {
+                        position: { x: 0, y: 0, z: 0 },
+                        rotation: { x: 0, y: 0, z: 0 },
+                        scale: { x: 1, y: 1, z: 1 }
+                      },
                       hotspots: hotspots || []
                     });
-                  } catch (hsErr) {
-                    console.warn("Direct hotspots save notice:", hsErr);
+                  } catch (setErr) {
+                    console.warn("Direct save-settings notice:", setErr);
                   }
 
                   // Also persist session state with hotspots to make it reliable across reloads
@@ -2111,7 +2158,7 @@ export default function ThreedEditor() {
       setManualLoading(false);
       setLoadingText("");
     }
-  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, setTransformValues, past, urlModelId, navigate, hotspots]);
+  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, setTransformValues, past, urlModelId, navigate, hotspots, modelMaterialLists, modelMaterialDataMap, modelStatsMap]);
 
   const handleOpenSaveAs = useCallback(() => {
     const currentName = modelName || models[0]?.displayName || models[0]?.name?.replace(/\.[^/.]+$/, "") || "3D_Model";
@@ -3437,6 +3484,75 @@ export default function ThreedEditor() {
           materialSettings: materialSettings 
       }));
   }, [hiddenMaterials, materialSettings, commitHistoryNow, buildSnapshot]);
+
+  const handleToggleXray = useCallback((matTarget, isCurrentlyXray) => {
+      const next = new Set(xrayMaterials);
+      
+      const keysToProcess = [];
+      if (Array.isArray(matTarget)) {
+          matTarget.forEach(t => {
+              if (typeof t === 'string') keysToProcess.push(t);
+              else if (t?.uuid) keysToProcess.push(t.uuid);
+              else if (t?.meshUuid) keysToProcess.push(t.meshUuid);
+          });
+      } else if (matTarget && typeof matTarget === 'object') {
+          if (matTarget.isMesh || (!matTarget.isGroup && (matTarget.meshUuid || matTarget.uuid))) {
+              if (matTarget.meshUuid) keysToProcess.push(matTarget.meshUuid);
+              if (matTarget.uuid) keysToProcess.push(matTarget.uuid);
+          } else if (matTarget.isMultiSelect || Array.isArray(matTarget.items) || Array.isArray(matTarget.uuids)) {
+              if (Array.isArray(matTarget.uuids)) keysToProcess.push(...matTarget.uuids);
+              if (Array.isArray(matTarget.items)) {
+                  matTarget.items.forEach(it => {
+                      if (it?.uuid) keysToProcess.push(it.uuid);
+                      if (it?.meshUuid) keysToProcess.push(it.meshUuid);
+                  });
+              }
+          } else {
+              if (matTarget.meshUuid) keysToProcess.push(matTarget.meshUuid);
+              if (matTarget.uuid) keysToProcess.push(matTarget.uuid);
+              if (matTarget.name) keysToProcess.push(matTarget.name);
+              if (!matTarget.uuid && !matTarget.meshUuid && matTarget.material && typeof matTarget.material === 'string') {
+                  keysToProcess.push(matTarget.material);
+              }
+          }
+      } else if (matTarget) {
+          keysToProcess.push(matTarget);
+      }
+
+      keysToProcess.forEach(k => {
+          if (!k || typeof k !== 'string') return;
+          if (isCurrentlyXray) {
+              next.delete(k);
+          } else {
+              next.add(k);
+          }
+      });
+
+      // Clear full-scene xrayMode if individual toggling is used
+      if (xrayMode) {
+          setXrayMode(false);
+      }
+      setXrayMaterials(next);
+
+      let nextMaterialSettings = materialSettings;
+      if (!isCurrentlyXray) {
+          nextMaterialSettings = {
+              ...materialSettings,
+              color: '#00BFFF',
+              emissiveColor: '#00E5FF',
+              emissiveIntensity: 40,
+              roughness: 15,
+              metallic: 0,
+              alpha: 35
+          };
+          setMaterialSettings(nextMaterialSettings);
+      }
+
+      commitHistoryNow(buildSnapshot({
+          xrayMaterials: Array.from(next),
+          materialSettings: nextMaterialSettings 
+      }));
+  }, [xrayMaterials, xrayMode, materialSettings, commitHistoryNow, buildSnapshot]);
 
   // Auto-expand sidebar when a specific material is selected
   useEffect(() => {
@@ -5092,9 +5208,11 @@ export default function ThreedEditor() {
               materialList={activeMaterialList}
               selectedMaterial={selectedMaterial}
               hiddenMaterials={hiddenMaterials}
+              xrayMaterials={xrayMaterials}
               onSelectMaterial={(name) => handleSelectMaterial(name)}
               modelName={modelName || "Scene"} 
               onToggleVisibility={handleToggleVisibility}
+              onToggleXray={handleToggleXray}
               onDeleteMaterial={handleDeleteMaterial}
               onDeleteModel={handleDeleteModel}
               onRename={handleRename}
@@ -5282,6 +5400,7 @@ export default function ThreedEditor() {
                         url={model.url}
                         wireframe={settings.wireframe}
                         xrayMode={xrayMode}
+                        xrayMaterials={xrayMaterials}
                         setModelStats={(stats) => handleSetModelStats(model.id, stats)}
                         setMaterialList={(list, dataMap) => handleSetMaterialList(model.id, list, dataMap)}
                         selectedMaterial={selectedMaterial}
@@ -5449,7 +5568,7 @@ export default function ThreedEditor() {
                   <Environment
                       files={
                           materialSettings?.environment?.startsWith('builtin_')
-                              ? (builtInHdris.find(h => `builtin_${h.id}` === materialSettings?.environment)?.file || null)
+                              ? (builtInHdris.find(h => `builtin_${h.id}` === materialSettings?.environment || h.aliases?.some(a => `builtin_${a}` === materialSettings?.environment))?.file || null)
                               : (materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
                                   ? (materialSettings?.customEnvMap || materialSettings?.maps?.envMap || null)
                                   : null
@@ -5512,6 +5631,8 @@ export default function ThreedEditor() {
               setAutoRotate={setAutoRotate}
               xrayMode={xrayMode}
               setXrayMode={setXrayMode}
+              xrayMaterials={xrayMaterials}
+              onToggleXray={handleToggleXray}
               isLoading={manualLoading}
               materialSettings={materialSettings}
               onUpdateMaterialSetting={handleMaterialUIUpdate}

@@ -430,7 +430,7 @@ function MeshSelectionHighlight({ target }) {
 
 const SelectionBoundingBox = MeshSelectionHighlight;
 
-const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, deletedMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, meshTransforms, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange, activeHotspotMeshUuid, activeHotspotMeshName }, ref) => {
+const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, xrayMaterials, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, deletedMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, meshTransforms, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange, activeHotspotMeshUuid, activeHotspotMeshName }, ref) => {
   const [position, setPosition] = useState(() => [0, 0, 0]);
   const [scale, setScale] = useState(() => 1);
   const groupRef = React.useRef(null);
@@ -996,88 +996,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       return found;
   }, [scene, modelName]);
 
-  // Memoized user-specified X-Ray Material (Optimized for instant 60 FPS performance)
-  // envMapIntensity: 0 and roughness: 1.0 prevent HDRI reflections from glaring on X-ray surfaces
-  const xrayMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: 0x00aaff,       // X-ray color
-    transparent: true,
-    opacity: 0.25,
-    roughness: 1.0,
-    metalness: 0.0,
-    envMapIntensity: 0.0,
-    depthWrite: false,
-    side: THREE.DoubleSide
-  }), []);
-
-  // X-Ray View: When xrayMode is active, ONLY the currently selected mesh(es) are displayed with xrayMaterial.
-  // When selection changes or xrayMode is toggled off, meshes are cleanly restored to their original materials.
-  useEffect(() => {
-    if (!scene) return;
-
-    if (xrayMode) {
-      const isSceneBackground = selectedMaterial?.name === 'Scene';
-
-      // Resolve meshes targeted by the current selection (single mesh, multiple meshes, folder, or full model)
-      const targetMeshes = !isSceneBackground && selectedMaterial ? resolveTargetMeshes(selectedMaterial) : [];
-      const targetSet = new Set(targetMeshes);
-
-      scene.traverse((child) => {
-        if (child.isMesh || child.isSkinnedMesh) {
-          if (targetSet.has(child)) {
-            // Selected mesh: switch to xrayMaterial, preserving original material and shadow state
-            if (child.material !== xrayMaterial) {
-              if (!child.userData.__preXrayMaterial) {
-                child.userData.__preXrayMaterial = child.material;
-                child.userData.__preXrayCastShadow = child.castShadow;
-              }
-              child.material = xrayMaterial;
-              child.castShadow = false;
-            }
-          } else {
-            // Unselected mesh: if it was previously in xray, restore its original material and shadow
-            if (child.userData?.__preXrayMaterial) {
-              child.material = child.userData.__preXrayMaterial;
-              if (child.userData.__preXrayCastShadow !== undefined) {
-                child.castShadow = child.userData.__preXrayCastShadow;
-                delete child.userData.__preXrayCastShadow;
-              }
-              delete child.userData.__preXrayMaterial;
-            }
-          }
-        }
-      });
-    } else {
-      // X-Ray turned off: restore ALL meshes that have saved pre-xray material
-      scene.traverse((child) => {
-        if ((child.isMesh || child.isSkinnedMesh) && child.userData?.__preXrayMaterial) {
-          child.material = child.userData.__preXrayMaterial;
-          if (child.userData.__preXrayCastShadow !== undefined) {
-            child.castShadow = child.userData.__preXrayCastShadow;
-            delete child.userData.__preXrayCastShadow;
-          }
-          delete child.userData.__preXrayMaterial;
-        }
-      });
-    }
-  }, [scene, xrayMode, selectedMaterial, modelName, resolveTargetMeshes, xrayMaterial]);
-
-  // Clean restoration on unmount
-  useEffect(() => {
-    return () => {
-      if (scene) {
-        scene.traverse((child) => {
-          if ((child.isMesh || child.isSkinnedMesh) && child.userData?.__preXrayMaterial) {
-            child.material = child.userData.__preXrayMaterial;
-            if (child.userData.__preXrayCastShadow !== undefined) {
-              child.castShadow = child.userData.__preXrayCastShadow;
-              delete child.userData.__preXrayCastShadow;
-            }
-            delete child.userData.__preXrayMaterial;
-          }
-        });
-      }
-    };
-  }, [scene]);
+  // (Selective per-mesh X-Ray handled in dedicated effect below with full property backup/restore)
 
 
 
@@ -2163,12 +2082,23 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     let foundMat = resolveTargetMaterial(selMat);
 
     if (foundMat) {
-        const m = foundMat;
+        // If this material is currently displayed in X-Ray mode, read from its original backup so the UI reflects real settings
+        const backup = foundMat.userData?.__xrayBackup;
+        const m = {
+            ...foundMat,
+            color: backup?.color || foundMat.color,
+            emissive: backup?.emissive || foundMat.emissive,
+            emissiveIntensity: backup?.emissiveIntensity !== undefined ? backup.emissiveIntensity : foundMat.emissiveIntensity,
+            roughness: backup?.roughness !== undefined ? backup.roughness : foundMat.roughness,
+            metalness: backup?.metalness !== undefined ? backup.metalness : foundMat.metalness,
+            opacity: backup?.opacity !== undefined ? backup.opacity : foundMat.opacity,
+            userData: foundMat.userData
+        };
 
         const safeUpdate = (key, val) => {
             // Do not sync emissive properties to UI while the material is flashing red/white
             // to avoid overwriting user settings with temporary highlight colors.
-            if (m.userData.isFlashing && (key === 'emissiveColor' || key === 'emissiveIntensity')) return;
+            if (foundMat.userData?.isFlashing && (key === 'emissiveColor' || key === 'emissiveIntensity')) return;
             
             if (onUpdateMaterialSettingRef.current) {
                 onUpdateMaterialSettingRef.current(key, val, true); // true = sync from model
@@ -2825,6 +2755,147 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     });
   }, [scene, hiddenMaterials, deletedMaterials]);
 
+  // C.1. Handle Selective X-Ray View Mode
+  // Base Color: #00BFFF, Emission: #00E5FF, Emission Strength: 4.0 (with Fresnel Rim Falloff), Roughness: 0.15, Metallic: 0, Alpha: 0.35
+  useEffect(() => {
+    if (!scene) return;
+
+    const xrayColor = new THREE.Color('#00BFFF');
+    const xrayEmissive = new THREE.Color('#00E5FF');
+    const xrayRoughness = 0.15;
+    const xrayMetalness = 0;
+    const xrayOpacity = 0.35;
+
+    const xrayOnBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `
+        #include <emissivemap_fragment>
+        #ifdef USE_EMISSIVE
+          vec3 xrayV = normalize( - vViewPosition );
+          // Fresnel rim factor: 0.0 looking head-on, rising to 1.0 along curved edges & silhouettes
+          float xrayRim = pow( clamp( 1.0 - abs( dot( xrayV, normal ) ), 0.0, 1.0 ), 2.8 );
+          // 0.20 base luminous tint (preserves deep saturated #00BFFF body & transparency) + 3.80 rim glow = 4.0 on edges
+          totalEmissiveRadiance = emissive * ( 0.20 + xrayRim * 3.80 );
+        #endif
+        `
+      );
+    };
+
+    scene.traverse((child) => {
+      if ((child.isMesh || child.isSkinnedMesh) && child.material) {
+        const childMatNames = Array.isArray(child.material) 
+            ? child.material.map(m => m?.name).filter(Boolean)
+            : [child.material?.name].filter(Boolean);
+
+        // A mesh is in X-Ray if global xrayMode is active OR if specifically in xrayMaterials Set
+        let isXrayMesh = false;
+        if (xrayMode) {
+          isXrayMesh = true;
+        } else if (xrayMaterials && xrayMaterials.size > 0) {
+          isXrayMesh = (child.uuid && xrayMaterials.has(child.uuid)) ||
+                       (child.name && xrayMaterials.has(child.name)) ||
+                       childMatNames.some(mName => xrayMaterials.has(mName));
+        }
+
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((m) => {
+          if (!m) return;
+
+          if (isXrayMesh) {
+            // Backup active material properties before applying X-Ray
+            if (!m.userData.__xrayBackup) {
+              m.userData.__xrayBackup = {
+                color: m.color ? m.color.clone() : new THREE.Color('#ffffff'),
+                emissive: m.emissive ? m.emissive.clone() : new THREE.Color('#000000'),
+                emissiveIntensity: m.emissiveIntensity !== undefined ? m.emissiveIntensity : 0,
+                roughness: m.roughness !== undefined ? m.roughness : 0.5,
+                metalness: m.metalness !== undefined ? m.metalness : 0,
+                opacity: m.opacity !== undefined ? m.opacity : 1.0,
+                transparent: m.transparent !== undefined ? m.transparent : false,
+                depthWrite: m.depthWrite !== undefined ? m.depthWrite : true,
+                side: m.side !== undefined ? m.side : THREE.FrontSide,
+                map: m.map || null,
+                roughnessMap: m.roughnessMap || null,
+                metalnessMap: m.metalnessMap || null,
+                onBeforeCompile: m.onBeforeCompile || null,
+                customProgramCacheKey: m.customProgramCacheKey || null
+              };
+            }
+
+            if (m.color) m.color.copy(xrayColor);
+            if (m.emissive) m.emissive.copy(xrayEmissive);
+            m.emissiveIntensity = 1.0;
+            m.roughness = xrayRoughness;
+            m.metalness = xrayMetalness;
+            m.opacity = xrayOpacity;
+            m.transparent = true;
+            m.depthWrite = false;
+            m.side = THREE.DoubleSide;
+            // Temporarily detach maps that would wash out the blue/cyan translucent look
+            m.map = null;
+            m.roughnessMap = null;
+            m.metalnessMap = null;
+            m.onBeforeCompile = xrayOnBeforeCompile;
+            m.customProgramCacheKey = () => 'xray_fresnel_v1';
+            m.needsUpdate = true;
+          } else if (m.userData.__xrayBackup) {
+            // Restore backed up properties
+            const backup = m.userData.__xrayBackup;
+            if (m.color && backup.color) m.color.copy(backup.color);
+            if (m.emissive && backup.emissive) m.emissive.copy(backup.emissive);
+            m.emissiveIntensity = backup.emissiveIntensity;
+            m.roughness = backup.roughness;
+            m.metalness = backup.metalness;
+            m.opacity = backup.opacity;
+            m.transparent = backup.transparent;
+            m.depthWrite = backup.depthWrite;
+            m.side = backup.side;
+            m.map = backup.map;
+            m.roughnessMap = backup.roughnessMap;
+            m.metalnessMap = backup.metalnessMap;
+            m.onBeforeCompile = backup.onBeforeCompile;
+            m.customProgramCacheKey = backup.customProgramCacheKey;
+            m.needsUpdate = true;
+            delete m.userData.__xrayBackup;
+          }
+        });
+      }
+    });
+
+    return () => {
+      // Clean restoration on component unmount
+      if (scene) {
+        scene.traverse((child) => {
+          if ((child.isMesh || child.isSkinnedMesh) && child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((m) => {
+              if (m?.userData?.__xrayBackup) {
+                const backup = m.userData.__xrayBackup;
+                if (m.color && backup.color) m.color.copy(backup.color);
+                if (m.emissive && backup.emissive) m.emissive.copy(backup.emissive);
+                m.emissiveIntensity = backup.emissiveIntensity;
+                m.roughness = backup.roughness;
+                m.metalness = backup.metalness;
+                m.opacity = backup.opacity;
+                m.transparent = backup.transparent;
+                m.depthWrite = backup.depthWrite;
+                m.side = backup.side;
+                m.map = backup.map;
+                m.roughnessMap = backup.roughnessMap;
+                m.metalnessMap = backup.metalnessMap;
+                m.onBeforeCompile = backup.onBeforeCompile;
+                m.customProgramCacheKey = backup.customProgramCacheKey;
+                m.needsUpdate = true;
+                delete m.userData.__xrayBackup;
+              }
+            });
+          }
+        });
+      }
+    };
+  }, [scene, xrayMode, xrayMaterials]);
+
   const prevTransformTargetRef = React.useRef(null);
   const lastTransformResetKeyRef = React.useRef(resetKey);
 
@@ -3378,7 +3449,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     if (candidateHits.length > 0) {
                         // In X-ray mode, if clicking on an already selected translucent mesh,
                         // allow clicking through to inspect/select inner meshes behind it
-                        if (xrayMode && candidateHits[0]?.uuid === currentSelectedUuid && candidateHits.length > 1) {
+                        const isAnyXrayActive = Boolean(xrayMode || (xrayMaterials && xrayMaterials.size > 0));
+                        if (isAnyXrayActive && candidateHits[0]?.uuid === currentSelectedUuid && candidateHits.length > 1) {
                             mesh = candidateHits[1];
                         } else {
                             mesh = candidateHits[0];

@@ -12,8 +12,10 @@ const TopToolbar = ({
     materialList, 
     selectedMaterial, 
     hiddenMaterials,
+    xrayMaterials,
     onSelectMaterial, 
     onToggleVisibility,
+    onToggleXray,
     onDeleteMaterial,
     onDeleteModel,
     modelName, 
@@ -60,8 +62,10 @@ const TopToolbar = ({
                     materials={materialList}
                     selectedMaterial={selectedMaterial}
                     hiddenMaterials={hiddenMaterials}
+                    xrayMaterials={xrayMaterials}
                     onSelect={onSelectMaterial}
                     onToggleVisibility={onToggleVisibility}
+                    onToggleXray={onToggleXray}
                     onDeleteMaterial={onDeleteMaterial}
                     onDeleteModel={onDeleteModel}
                     onRenameMaterial={onRenameMaterial}
